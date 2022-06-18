@@ -51,9 +51,11 @@
     "is-inner-link": "^4.0.0",
     "is-subdir": "^1.1.1",
     "path-exists": "^4.0.0",
+    "promise-share": "^1.0.0",
     "ramda": "^0.27.1",
     "rename-overwrite": "^4.0.2",
     "replace-string": "^3.1.0",
+    "safe-promise-defer": "^1.0.1",
     "semver": "^7.3.4",
     "semver-range-intersect": "^0.3.1",
     "version-selector-type": "^3.0.0"

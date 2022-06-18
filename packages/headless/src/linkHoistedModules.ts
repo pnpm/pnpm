@@ -105,6 +105,7 @@ async function linkAllPkgsInOrder (
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force || depNode.depPath !== prevGraph[dir]?.depPath,
+        requiresBuild: depNode.requiresBuild,
         targetEngine,
       })
       if (importMethod) {

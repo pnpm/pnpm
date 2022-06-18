@@ -19,6 +19,7 @@ import {
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
+import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
 import getWantedDependencies, { WantedDependency } from './getWantedDependencies'
 import depPathToRef from './depPathToRef'
@@ -210,7 +211,7 @@ export default async function (
         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
         (opts.allowBuild != null && !opts.allowBuild(pkg.name)) ||
         (opts.wantedLockfile.packages?.[depPath] == null) ||
-        pkg.requiresBuild
+        pkg.requiresBuild === true
       ) continue
       pendingRequiresBuilds.push(depPath)
     }
@@ -222,7 +223,7 @@ export default async function (
   return {
     dependenciesByProjectId,
     dependenciesGraph,
-    finishLockfileUpdates: finishLockfileUpdates.bind(null, dependenciesGraph, pendingRequiresBuilds, newLockfile),
+    finishLockfileUpdates: promiseShare(finishLockfileUpdates(dependenciesGraph, pendingRequiresBuilds, newLockfile)),
     outdatedDependencies,
     linkedDependenciesByProjectId,
     newLockfile,
@@ -239,15 +240,16 @@ async function finishLockfileUpdates (
 ) {
   return Promise.all(pendingRequiresBuilds.map(async (depPath) => {
     const depNode = dependenciesGraph[depPath]
+    let requiresBuild!: boolean
     if (depNode.optional) {
       // We assume that all optional dependencies have to be built.
       // Optional dependencies are not always downloaded, so there is no way to know whether they need to be built or not.
-      depNode.requiresBuild = true
+      requiresBuild = true
     } else if (depNode.fetchingBundledManifest != null) {
       const filesResponse = await depNode.fetchingFiles()
       // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
       const pkgJson = await depNode.fetchingBundledManifest()
-      depNode.requiresBuild = Boolean(
+      requiresBuild = Boolean(
         pkgJson?.scripts != null && (
           Boolean(pkgJson.scripts.preinstall) ||
           Boolean(pkgJson.scripts.install) ||
@@ -260,10 +262,13 @@ async function finishLockfileUpdates (
       // This should never ever happen
       throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${depPath}"`)
     }
+    if (typeof depNode.requiresBuild === 'function') {
+      depNode.requiresBuild['resolve'](requiresBuild)
+    }
 
     // TODO: try to cover with unit test the case when entry is no longer available in lockfile
     // It is an edge that probably happens if the entry is removed during lockfile prune
-    if (depNode.requiresBuild && newLockfile.packages![depPath]) {
+    if (requiresBuild && newLockfile.packages![depPath]) {
       newLockfile.packages![depPath].requiresBuild = true
     }
   }))

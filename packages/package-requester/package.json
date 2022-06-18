@@ -57,6 +57,7 @@
     "promise-share": "^1.0.0",
     "ramda": "^0.27.1",
     "rename-overwrite": "^4.0.2",
+    "safe-promise-defer": "^1.0.1",
     "semver": "^7.3.4",
     "ssri": "^8.0.1"
   },
@@ -65,7 +66,7 @@
     "@pnpm/create-cafs-store": "workspace:1.0.3",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-requester": "workspace:18.0.7",
-    "@pnpm/registry-mock": "2.19.0",
+    "@pnpm/registry-mock": "2.20.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",

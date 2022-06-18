@@ -1,8 +1,8 @@
-import { promises as fs } from 'fs'
+import { promises as fs, readFileSync } from 'fs'
 import path from 'path'
 import { addDependenciesToPackage } from '@pnpm/core'
-import { PackageFilesIndex } from '@pnpm/cafs'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { prepareEmpty } from '@pnpm/prepare'
 import { ENGINE_NAME } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
@@ -158,4 +158,29 @@ test('uploading errors do not interrupt installation', async () => {
   const filesIndexFile = path.join(opts.storeDir, 'files/2e/28a020ed7c488057d208cd705442e275352fcf88a32b32d0d312668308cb87db3a6df9171ce90d501c3de162b2a6dd5cf62ed7ae8c76532f95adfac924b9a8-index.json')
   const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeFalsy()
+})
+
+test('a postinstall script does not modify the original sources added to the store', async () => {
+  prepareEmpty()
+
+  const opts = await testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await addDependenciesToPackage({}, ['@pnpm/postinstall-modifies-source@1.0.0'], opts)
+
+  expect(readFileSync('node_modules/@pnpm/postinstall-modifies-source/empty-file.txt', 'utf8')).toContain('hello')
+
+  const cafsDir = path.join(opts.storeDir, 'files')
+  const filesIndexFile = getFilePathInCafs(cafsDir, getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0'), 'index')
+  const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+  const patchedFileIntegrity = filesIndex.sideEffects?.[`${ENGINE_NAME}-{}`]['empty-file.txt']?.integrity
+  expect(patchedFileIntegrity).toBeTruthy()
+  const originalFileIntegrity = filesIndex.files['empty-file.txt'].integrity
+  expect(originalFileIntegrity).toBeTruthy()
+  // The integrity of the original file differs from the integrity of the patched file
+  expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
+
+  expect(readFileSync(getFilePathInCafs(cafsDir, originalFileIntegrity, 'nonexec'), 'utf8')).toEqual('')
 })
