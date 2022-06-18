@@ -843,8 +843,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
       ctx.pendingBuilds = ctx.pendingBuilds
         .concat(
-          result.newDepPaths
-            .filter((depPath) => dependenciesGraph[depPath].requiresBuild)
+          await pFilter(result.newDepPaths,
+            (depPath) => {
+              const requiresBuild = dependenciesGraph[depPath].requiresBuild
+              if (typeof requiresBuild === 'function') return requiresBuild()
+              return requiresBuild
+            }
+          )
         )
     } else if (result.newDepPaths?.length) {
       // postinstall hooks

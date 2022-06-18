@@ -211,7 +211,7 @@ export default async function (
         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
         (opts.allowBuild != null && !opts.allowBuild(pkg.name)) ||
         (opts.wantedLockfile.packages?.[depPath] == null) ||
-        pkg.requiresBuild
+        pkg.requiresBuild === true
       ) continue
       pendingRequiresBuilds.push(depPath)
     }
@@ -262,7 +262,9 @@ async function finishLockfileUpdates (
       // This should never ever happen
       throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${depPath}"`)
     }
-    depNode.requiresBuild['resolve'](requiresBuild)
+    if (typeof depNode.requiresBuild === 'function') {
+      depNode.requiresBuild['resolve'](requiresBuild)
+    }
 
     // TODO: try to cover with unit test the case when entry is no longer available in lockfile
     // It is an edge that probably happens if the entry is removed during lockfile prune
