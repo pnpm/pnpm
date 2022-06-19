@@ -26,7 +26,7 @@ export async function runPostinstallHooks (
     pkg.scripts = {}
   }
   if (opts.patchPath) {
-    pkg.scripts['pnpm:patch'] = `git apply ${opts.patchPath}`
+    pkg.scripts['pnpm:patch'] = `patch -p1 --no-backup-if-mismatch -i ${opts.patchPath}`
     await runLifecycleHook('pnpm:patch', pkg, opts)
   }
 

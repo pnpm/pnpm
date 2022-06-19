@@ -26,16 +26,17 @@ export function help () {
   })
 }
 
-export async function handler (opts: { lockfileDir: string }, params: string[]) {
+export async function handler (opts: { dir: string, lockfileDir?: string }, params: string[]) {
   const userDir = params[0]
   const srcDir = path.join(userDir, '../source')
   const patchContent = await diffFolders(srcDir, userDir)
-  const patchesDir = path.join(opts.lockfileDir, 'patches')
+  const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
+  const patchesDir = path.join(lockfileDir, 'patches')
   await fs.promises.mkdir(patchesDir, { recursive: true })
   const patchedPkgManifest = await readPackageJsonFromDir(srcDir)
   const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
   await fs.promises.writeFile(path.join(patchesDir, `${pkgNameAndVersion}.patch`), patchContent, 'utf8')
-  let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.lockfileDir)
+  let { manifest, writeProjectManifest } = await tryReadProjectManifest(lockfileDir)
   if (!manifest) {
     manifest = {}
   }
