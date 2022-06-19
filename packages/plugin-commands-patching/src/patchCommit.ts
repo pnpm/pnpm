@@ -1,6 +1,9 @@
+import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import pick from 'ramda/src/pick'
 import execa from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
@@ -23,9 +26,28 @@ export function help () {
   })
 }
 
-export async function handler (opts: {}, params: string[]) {
-  const baseDir = params[0]
-  return diffFolders(path.join(baseDir, 'source'), path.join(baseDir, 'user'))
+export async function handler (opts: { lockfileDir: string }, params: string[]) {
+  const userDir = params[0]
+  const srcDir = path.join(userDir, '../source')
+  const patchContent = await diffFolders(srcDir, userDir)
+  const patchesDir = path.join(opts.lockfileDir, 'patches')
+  await fs.promises.mkdir(patchesDir, { recursive: true })
+  const patchedPkgManifest = await readPackageJsonFromDir(srcDir)
+  const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
+  await fs.promises.writeFile(path.join(patchesDir, `${pkgNameAndVersion}.patch`), patchContent, 'utf8')
+  let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.lockfileDir)
+  if (!manifest) {
+    manifest = {}
+  }
+  if (!manifest.pnpm) {
+    manifest.pnpm = {
+      patchedDependencies: {},
+    }
+  } else if (!manifest.pnpm.patchedDependencies) {
+    manifest.pnpm.patchedDependencies = {}
+  }
+  manifest.pnpm.patchedDependencies![pkgNameAndVersion] = `./patches/${pkgNameAndVersion}.patch`
+  await writeProjectManifest(manifest)
 }
 
 async function diffFolders (folderA: string, folderB: string) {

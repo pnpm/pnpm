@@ -28,6 +28,12 @@
       "path": "../pick-registry-for-package"
     },
     {
+      "path": "../read-package-json"
+    },
+    {
+      "path": "../read-project-manifest"
+    },
+    {
       "path": "../store-connection-manager"
     },
     {
