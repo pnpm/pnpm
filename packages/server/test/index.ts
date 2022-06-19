@@ -167,7 +167,7 @@ test('server upload', async () => {
   const filesIndexFile = path.join(storeDir, 'test.example.com/fake-pkg/1.0.0.json')
 
   await storeCtrl.upload(path.join(__dirname, 'side-effect-fake-dir'), {
-    engine: fakeEngine,
+    sideEffectsCacheKey: fakeEngine,
     filesIndexFile,
   })
 
@@ -199,7 +199,7 @@ test('disable server upload', async () => {
   let thrown = false
   try {
     await storeCtrl.upload(path.join(__dirname, 'side-effect-fake-dir'), {
-      engine: fakeEngine,
+      sideEffectsCacheKey: fakeEngine,
       filesIndexFile,
     })
   } catch (e) {
