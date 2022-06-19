@@ -52,46 +52,44 @@ export async function handler (opts: { dir: string, lockfileDir?: string }, para
 }
 
 async function diffFolders (folderA: string, folderB: string) {
-  const folderAN = folderA.replace(/\\/g, `/`);
-  const folderBN = folderB.replace(/\\/g, `/`);
+  const folderAN = folderA.replace(/\\/g, '/')
+  const folderBN = folderB.replace(/\\/g, '/')
   let stdout!: string
   let stderr!: string
 
   try {
-    const result = await execa(`git`, [`-c`, `core.safecrlf=false`, `diff`, `--src-prefix=a/`, `--dst-prefix=b/`, `--ignore-cr-at-eol`, `--full-index`, `--no-index`, `--text`, folderAN, folderBN], {
+    const result = await execa('git', ['-c', 'core.safecrlf=false', 'diff', '--src-prefix=a/', '--dst-prefix=b/', '--ignore-cr-at-eol', '--full-index', '--no-index', '--text', folderAN, folderBN], {
       cwd: process.cwd(),
       env: {
         ...process.env,
-        //#region Predictable output
+        // #region Predictable output
         // These variables aim to ignore the global git config so we get predictable output
         // https://git-scm.com/docs/git#Documentation/git.txt-codeGITCONFIGNOSYSTEMcode
-        GIT_CONFIG_NOSYSTEM: `1`,
-        HOME: ``,
-        XDG_CONFIG_HOME: ``,
-        USERPROFILE: ``,
-        //#endregion
+        GIT_CONFIG_NOSYSTEM: '1',
+        HOME: '',
+        XDG_CONFIG_HOME: '',
+        USERPROFILE: '',
+        // #endregion
       },
-    });
+    })
     stdout = result.stdout
     stderr = result.stderr
-
-  } catch (err: any) {
+  } catch (err: any) { // eslint-disable-line
     stdout = err.stdout
     stderr = err.stderr
   }
   // we cannot rely on exit code, because --no-index implies --exit-code
   // i.e. git diff will exit with 1 if there were differences
   if (stderr.length > 0)
-    throw new Error(`Unable to diff directories. Make sure you have a recent version of 'git' available in PATH.\nThe following error was reported by 'git':\n${stderr}`);
+    throw new Error(`Unable to diff directories. Make sure you have a recent version of 'git' available in PATH.\nThe following error was reported by 'git':\n${stderr}`)
 
-
-  const normalizePath = folderAN.startsWith(`/`)
+  const normalizePath = folderAN.startsWith('/')
     ? (p: string) => p.slice(1)
-    : (p: string) => p;
+    : (p: string) => p
 
   return stdout
-    .replace(new RegExp(`(a|b)(${escapeStringRegexp(`/${normalizePath(folderAN)}/`)})`, `g`), `$1/`)
-    .replace(new RegExp(`(a|b)${escapeStringRegexp(`/${normalizePath(folderBN)}/`)}`, `g`), `$1/`)
-    .replace(new RegExp(escapeStringRegexp(`${folderAN}/`), `g`), ``)
-    .replace(new RegExp(escapeStringRegexp(`${folderBN}/`), `g`), ``);
+    .replace(new RegExp(`(a|b)(${escapeStringRegexp(`/${normalizePath(folderAN)}/`)})`, 'g'), '$1/')
+    .replace(new RegExp(`(a|b)${escapeStringRegexp(`/${normalizePath(folderBN)}/`)}`, 'g'), '$1/')
+    .replace(new RegExp(escapeStringRegexp(`${folderAN}/`), 'g'), '')
+    .replace(new RegExp(escapeStringRegexp(`${folderBN}/`), 'g'), '')
 }
