@@ -2458,12 +2458,14 @@ importers:
       archy: ^1.0.0
       dependency-path: workspace:9.1.4
       dint: ^5.1.0
+      escape-string-regexp: ^4.0.0
       execa: npm:safe-execa@^0.1.1
       load-json-file: ^6.2.0
       p-filter: ^2.1.0
       path-exists: ^4.0.0
       ramda: ^0.27.1
       render-help: ^1.0.1
+      safe-execa: ^0.1.1
       ssri: ^8.0.1
       tempy: ^1.0.0
     dependencies:
@@ -2483,10 +2485,12 @@ importers:
       archy: 1.0.0
       dependency-path: link:../dependency-path
       dint: 5.1.0
+      escape-string-regexp: 4.0.0
       load-json-file: 6.2.0
       p-filter: 2.1.0
       ramda: 0.27.2
       render-help: 1.0.2
+      safe-execa: 0.1.1
     devDependencies:
       '@pnpm/assert-store': link:../../privatePackages/assert-store
       '@pnpm/lockfile-file': link:../lockfile-file

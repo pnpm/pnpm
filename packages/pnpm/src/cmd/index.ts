@@ -6,7 +6,7 @@ import { add, fetch, install, link, prune, remove, unlink, update, importCommand
 import { list, ll, why } from '@pnpm/plugin-commands-listing'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
-import { patch } from '@pnpm/plugin-commands-patching'
+import { patch, patchCommit } from '@pnpm/plugin-commands-patching'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import {
   create,
@@ -110,6 +110,7 @@ const commands: CommandDefinition[] = [
   outdated,
   pack,
   patch,
+  patchCommit,
   prune,
   publish,
   rebuild,
