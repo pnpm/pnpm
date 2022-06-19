@@ -12,6 +12,7 @@ export interface RunLifecycleHookOptions {
   extraEnv?: Record<string, string>
   initCwd?: string
   optional?: boolean
+  patchPath?: string
   pkgRoot: string
   rawConfig: object
   rootModulesDir: string

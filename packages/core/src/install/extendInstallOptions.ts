@@ -100,6 +100,7 @@ export interface StrictInstallOptions {
 
   global: boolean
   globalBin?: string
+  patchedDependencies?: Record<string, string>
 }
 
 export type InstallOptions =

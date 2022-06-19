@@ -46,7 +46,7 @@ export default async function (
       stop: async () => {
         await limitedFetch(`${remotePrefix}/stop`, {})
       },
-      upload: async (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}) => {
+      upload: async (builtPkgLocation: string, opts: {filesIndexFile: string, sideEffectsCacheKey: string}) => {
         await limitedFetch(`${remotePrefix}/upload`, {
           builtPkgLocation,
           opts,

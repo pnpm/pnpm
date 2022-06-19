@@ -87,6 +87,7 @@ async function linkAllPkgsInOrder (
     warn: (message: string) => void
   }
 ) {
+  const _calcDepState = calcDepState.bind(null, graph, opts.depsStateCache)
   await Promise.all(
     Object.entries(hierarchy).map(async ([dir, deps]) => {
       const depNode = graph[dir]
@@ -98,15 +99,15 @@ async function linkAllPkgsInOrder (
         throw err
       }
 
-      let targetEngine: string | undefined
+      let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = calcDepState(dir, graph, opts.depsStateCache)
+        sideEffectsCacheKey = _calcDepState(dir, depNode.patchFile?.hash)
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force || depNode.depPath !== prevGraph[dir]?.depPath,
         requiresBuild: depNode.requiresBuild,
-        targetEngine,
+        sideEffectsCacheKey,
       })
       if (importMethod) {
         progressLogger.debug({

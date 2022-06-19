@@ -2,7 +2,7 @@ import { calcDepState } from '@pnpm/calc-dep-state'
 import { ENGINE_NAME } from '@pnpm/constants'
 
 test('calcDepState()', () => {
-  expect(calcDepState('/registry/foo/1.0.0', {
+  expect(calcDepState({
     'registry/foo/1.0.0': {
       depPath: '/foo/1.0.0',
       children: {
@@ -15,5 +15,5 @@ test('calcDepState()', () => {
         foo: 'registry/foo/1.0.0',
       },
     },
-  }, {})).toBe(`${ENGINE_NAME}-{}`)
+  }, {}, '/registry/foo/1.0.0')).toBe(`${ENGINE_NAME}-{}`)
 })

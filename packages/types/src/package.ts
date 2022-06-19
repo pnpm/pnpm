@@ -50,6 +50,7 @@ export interface DependenciesMeta {
   [dependencyName: string]: {
     injected?: boolean
     node?: string
+    patch?: string
   }
 }
 
@@ -126,6 +127,7 @@ export type ProjectManifest = BaseManifest & {
     packageExtensions?: Record<string, PackageExtension>
     peerDependencyRules?: PeerDependencyRules
     allowedDeprecatedVersions?: AllowedDeprecatedVersions
+    patchedDependencies?: Record<string, string>
   }
   private?: boolean
   resolutions?: Record<string, string>

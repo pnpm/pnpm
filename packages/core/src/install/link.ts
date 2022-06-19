@@ -404,9 +404,9 @@ async function linkAllPkgs (
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles()
 
-      let targetEngine: string | undefined
+      let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = calcDepState(depNode.depPath, opts.depGraph, opts.depsStateCache)
+        sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, depNode.patchFile?.hash)
       }
       if (typeof depNode.requiresBuild === 'function') {
         depNode.requiresBuild = await depNode.requiresBuild()
@@ -414,7 +414,7 @@ async function linkAllPkgs (
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
-        targetEngine,
+        sideEffectsCacheKey,
         requiresBuild: depNode.requiresBuild,
       })
       if (importMethod) {

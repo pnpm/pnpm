@@ -11,6 +11,7 @@ export default function getOptionsFromRootManifest (manifest: ProjectManifest): 
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   packageExtensions?: Record<string, PackageExtension>
+  patchedDependencies?: Record<string, string>
   peerDependencyRules?: PeerDependencyRules
 } {
   // We read Yarn's resolutions field for compatibility
@@ -22,6 +23,7 @@ export default function getOptionsFromRootManifest (manifest: ProjectManifest): 
   const packageExtensions = manifest.pnpm?.packageExtensions
   const peerDependencyRules = manifest.pnpm?.peerDependencyRules
   const allowedDeprecatedVersions = manifest.pnpm?.allowedDeprecatedVersions
+  const patchedDependencies = manifest.pnpm?.patchedDependencies
   return {
     allowedDeprecatedVersions,
     overrides,
@@ -29,5 +31,6 @@ export default function getOptionsFromRootManifest (manifest: ProjectManifest): 
     onlyBuiltDependencies,
     packageExtensions,
     peerDependencyRules,
+    patchedDependencies,
   }
 }

@@ -53,23 +53,23 @@ export default async function (
     upload,
   }
 
-  async function upload (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}) {
+  async function upload (builtPkgLocation: string, opts: {filesIndexFile: string, sideEffectsCacheKey: string}) {
     const sideEffectsIndex = await cafs.addFilesFromDir(builtPkgLocation)
     // TODO: move this to a function
     // This is duplicated in @pnpm/package-requester
     const integrity: Record<string, PackageFileInfo> = {}
     await Promise.all(
-      Object.keys(sideEffectsIndex)
-        .map(async (filename) => {
+      Object.entries(sideEffectsIndex)
+        .map(async ([filename, { writeResult, mode, size }]) => {
           const {
             checkedAt,
             integrity: fileIntegrity,
-          } = await sideEffectsIndex[filename].writeResult
+          } = await writeResult
           integrity[filename] = {
             checkedAt,
             integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
-            mode: sideEffectsIndex[filename].mode,
-            size: sideEffectsIndex[filename].size,
+            mode,
+            size,
           }
         })
     )
@@ -80,7 +80,7 @@ export default async function (
       filesIndex = { files: integrity }
     }
     filesIndex.sideEffects = filesIndex.sideEffects ?? {}
-    filesIndex.sideEffects[opts.engine] = integrity
+    filesIndex.sideEffects[opts.sideEffectsCacheKey] = integrity
     await writeJsonFile(opts.filesIndexFile, filesIndex, { indent: undefined })
   }
 }

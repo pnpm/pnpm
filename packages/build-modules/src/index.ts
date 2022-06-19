@@ -83,6 +83,7 @@ async function buildDependency (
       extraEnv: opts.extraEnv,
       initCwd: opts.lockfileDir,
       optional: depNode.optional,
+      patchPath: depNode.patchFile?.path,
       pkgRoot: depNode.dir,
       rawConfig: opts.rawConfig,
       rootModulesDir: opts.rootModulesDir,
@@ -93,8 +94,9 @@ async function buildDependency (
     })
     if (hasSideEffects && opts.sideEffectsCacheWrite) {
       try {
+        const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, depNode.patchFile?.hash)
         await opts.storeController.upload(depNode.dir, {
-          engine: calcDepState(depPath, depGraph, opts.depsStateCache),
+          sideEffectsCacheKey,
           filesIndexFile: depNode.filesIndexFile,
         })
       } catch (err: any) { // eslint-disable-line

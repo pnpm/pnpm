@@ -35,13 +35,20 @@ DependencyManifest,
 | 'version'
 >
 
+export interface UploadPkgToStoreOpts {
+  filesIndexFile: string
+  sideEffectsCacheKey: string
+}
+
+export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStoreOpts) => Promise<void>
+
 export interface StoreController {
   requestPackage: RequestPackageFunction
   fetchPackage: FetchPackageToStoreFunction
   importPackage: ImportPackageFunction
   close: () => Promise<void>
   prune: () => Promise<void>
-  upload: (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}) => Promise<void>
+  upload: UploadPkgToStore
 }
 
 export type FetchPackageToStoreFunction = (

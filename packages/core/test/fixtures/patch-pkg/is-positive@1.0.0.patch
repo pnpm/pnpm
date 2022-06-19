@@ -1,0 +1,12 @@
+diff --git a/index.js b/index.js
+index 8e020ca..ff3aee4 100644
+--- a/index.js
++++ b/index.js
+@@ -5,5 +5,6 @@ module.exports = function (n) {
+ 		throw new TypeError('Expected a number');
+ 	}
+ 
++  // patched
+ 	return n >= 0;
+ };
+

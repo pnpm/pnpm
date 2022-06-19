@@ -23,7 +23,7 @@ export type PackageFilesResponse = {
 
 export interface ImportPackageOpts {
   requiresBuild?: boolean
-  targetEngine?: string
+  sideEffectsCacheKey?: string
   filesResponse: PackageFilesResponse
   force: boolean
 }

@@ -240,6 +240,7 @@ export async function mutateModules (
         neverBuiltDependencies: opts.neverBuiltDependencies,
         onlyBuiltDependencies: opts.onlyBuiltDependencies,
         packageExtensionsChecksum,
+        patchedDependencies: opts.patchedDependencies,
       }) ||
       opts.fixLockfile
     if (needsFullResolution) {
@@ -247,6 +248,7 @@ export async function mutateModules (
       ctx.wantedLockfile.neverBuiltDependencies = opts.neverBuiltDependencies
       ctx.wantedLockfile.onlyBuiltDependencies = opts.onlyBuiltDependencies
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
+      ctx.wantedLockfile.patchedDependencies = opts.patchedDependencies
     }
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsWantedLockfile
@@ -490,16 +492,19 @@ function lockfileIsUpToDate (
     onlyBuiltDependencies,
     overrides,
     packageExtensionsChecksum,
+    patchedDependencies,
   }: {
     neverBuiltDependencies?: string[]
     onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
     packageExtensionsChecksum?: string
+    patchedDependencies?: Record<string, string>
   }) {
   return !equals(lockfile.overrides ?? {}, overrides ?? {}) ||
     !equals((lockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
     !equals(onlyBuiltDependencies?.sort(), lockfile.onlyBuiltDependencies) ||
-    lockfile.packageExtensionsChecksum !== packageExtensionsChecksum
+    lockfile.packageExtensionsChecksum !== packageExtensionsChecksum ||
+    !equals(lockfile.patchedDependencies ?? {}, patchedDependencies ?? {})
 }
 
 export function createObjectChecksum (obj: Object) {
@@ -773,6 +778,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages,
+      patchedDependencies: opts.patchedDependencies,
     }
   )
 
