@@ -57,7 +57,14 @@ export default function (
       const rootLog = args[0]
       const deprecationSet = args[1] as Set<string>
       if (rootLog['added']) {
-        pkgsDiff[rootLog['added'].dependencyType || 'nodeModulesOnly'][`+${rootLog['added'].name as string}`] = {
+        const depType = rootLog['added'].dependencyType || 'nodeModulesOnly'
+        const removeKey = `-${rootLog['added'].name as string}`
+        const previous = pkgsDiff[depType][removeKey]
+        if (previous && previous.version === rootLog['added'].version) {
+          delete pkgsDiff[depType][removeKey]
+          return pkgsDiff
+        }
+        pkgsDiff[depType][`+${rootLog['added'].name as string}`] = {
           added: true,
           deprecated: deprecationSet.has(rootLog['added'].id),
           from: rootLog['added'].linkedFrom,
@@ -69,7 +76,14 @@ export default function (
         return pkgsDiff
       }
       if (rootLog['removed']) {
-        pkgsDiff[rootLog['removed'].dependencyType || 'nodeModulesOnly'][`-${rootLog['removed'].name as string}`] = {
+        const depType = rootLog['removed'].dependencyType || 'nodeModulesOnly'
+        const addKey = `+${rootLog['removed'].name as string}`
+        const previous = pkgsDiff[depType][addKey]
+        if (previous && previous.version === rootLog['removed'].version) {
+          delete pkgsDiff[depType][addKey]
+          return pkgsDiff
+        }
+        pkgsDiff[depType][`-${rootLog['removed'].name as string}`] = {
           added: false,
           name: rootLog['removed'].name,
           version: rootLog['removed'].version,
