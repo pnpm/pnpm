@@ -14,7 +14,7 @@ import createImportPackage from './createImportPackage'
 
 function createPackageImporter (
   opts: {
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
     cafsDir: string
   }
 ): ImportPackageFunction {
@@ -63,7 +63,7 @@ export default function createCafsStore (
   storeDir: string,
   opts?: {
     ignoreFile?: (filename: string) => boolean
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   }
 ) {
   const cafsDir = path.join(storeDir, 'files')

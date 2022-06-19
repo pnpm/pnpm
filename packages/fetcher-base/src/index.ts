@@ -11,7 +11,7 @@ export interface PackageFileInfo {
 
 export type PackageFilesResponse = {
   fromStore: boolean
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   sideEffects?: Record<string, Record<string, PackageFileInfo>>
 } & ({
   local: true
