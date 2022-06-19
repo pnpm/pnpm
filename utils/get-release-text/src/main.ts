@@ -70,7 +70,7 @@ function getChangelogEntry (changelog: string, version: string) {
   return {
     content: `${unified().use(remarkStringify).stringify(ast)}
 
-## Our Sponsors
+## Our Gold Sponsors
 
 <table>
   <tbody>
@@ -78,6 +78,18 @@ function getChangelogEntry (changelog: string, version: string) {
       <td align="center" valign="middle">
         <a href="https://bit.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/bit.svg" width="80"></a>
       </td>
+    </tr>
+    <td align="center" valign="middle">
+      <a href="https://nhost.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/nhost.svg" width="180"></a>
+    </td>
+  </tbody>
+</table>
+
+## Our Silver Sponsors
+
+<table>
+  <tbody>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://prisma.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma.svg" width="180"></a>
       </td>
