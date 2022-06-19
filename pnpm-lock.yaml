@@ -2432,6 +2432,79 @@ importers:
       '@types/wrap-ansi': 3.0.0
       '@types/zkochan__table': /@types/table/6.0.0
 
+  packages/plugin-commands-patching:
+    specifiers:
+      '@pnpm/assert-store': workspace:*
+      '@pnpm/cafs': workspace:4.0.5
+      '@pnpm/cli-utils': workspace:0.7.13
+      '@pnpm/config': workspace:15.3.0
+      '@pnpm/error': workspace:3.0.1
+      '@pnpm/get-context': workspace:6.2.0
+      '@pnpm/lockfile-file': workspace:5.1.0
+      '@pnpm/lockfile-utils': workspace:4.0.5
+      '@pnpm/logger': ^4.0.0
+      '@pnpm/normalize-registries': workspace:3.0.3
+      '@pnpm/parse-wanted-dependency': workspace:3.0.0
+      '@pnpm/pick-registry-for-package': workspace:3.0.3
+      '@pnpm/plugin-commands-patching': workspace:0.0.0
+      '@pnpm/prepare': workspace:*
+      '@pnpm/registry-mock': 2.20.0
+      '@pnpm/store-connection-manager': workspace:4.1.11
+      '@pnpm/store-controller-types': workspace:13.0.4
+      '@pnpm/store-path': workspace:6.0.0
+      '@pnpm/types': workspace:8.2.0
+      '@types/archy': 0.0.31
+      '@types/ramda': 0.27.39
+      '@types/ssri': ^7.1.0
+      '@zkochan/rimraf': ^2.1.2
+      archy: ^1.0.0
+      dependency-path: workspace:9.1.4
+      dint: ^5.1.0
+      execa: npm:safe-execa@^0.1.1
+      load-json-file: ^6.2.0
+      p-filter: ^2.1.0
+      path-exists: ^4.0.0
+      ramda: ^0.27.1
+      render-help: ^1.0.1
+      ssri: ^8.0.1
+      tempy: ^1.0.0
+    dependencies:
+      '@pnpm/cafs': link:../cafs
+      '@pnpm/cli-utils': link:../cli-utils
+      '@pnpm/config': link:../config
+      '@pnpm/error': link:../error
+      '@pnpm/get-context': link:../get-context
+      '@pnpm/lockfile-utils': link:../lockfile-utils
+      '@pnpm/normalize-registries': link:../normalize-registries
+      '@pnpm/parse-wanted-dependency': link:../parse-wanted-dependency
+      '@pnpm/pick-registry-for-package': link:../pick-registry-for-package
+      '@pnpm/store-connection-manager': link:../store-connection-manager
+      '@pnpm/store-controller-types': link:../store-controller-types
+      '@pnpm/store-path': link:../store-path
+      '@pnpm/types': link:../types
+      archy: 1.0.0
+      dependency-path: link:../dependency-path
+      dint: 5.1.0
+      load-json-file: 6.2.0
+      p-filter: 2.1.0
+      ramda: 0.27.2
+      render-help: 1.0.2
+    devDependencies:
+      '@pnpm/assert-store': link:../../privatePackages/assert-store
+      '@pnpm/lockfile-file': link:../lockfile-file
+      '@pnpm/logger': 4.0.0
+      '@pnpm/plugin-commands-patching': 'link:'
+      '@pnpm/prepare': link:../../privatePackages/prepare
+      '@pnpm/registry-mock': 2.20.0
+      '@types/archy': 0.0.31
+      '@types/ramda': 0.27.39
+      '@types/ssri': 7.1.1
+      '@zkochan/rimraf': 2.1.2
+      execa: /safe-execa/0.1.1
+      path-exists: 4.0.0
+      ssri: 8.0.1
+      tempy: 1.0.1
+
   packages/plugin-commands-publishing:
     specifiers:
       '@pnpm/cli-utils': workspace:0.7.13
@@ -2853,6 +2926,7 @@ importers:
       '@pnpm/plugin-commands-installation': workspace:10.2.0
       '@pnpm/plugin-commands-listing': workspace:5.0.13
       '@pnpm/plugin-commands-outdated': workspace:6.0.13
+      '@pnpm/plugin-commands-patching': workspace:0.0.0
       '@pnpm/plugin-commands-publishing': workspace:5.1.0
       '@pnpm/plugin-commands-rebuild': workspace:6.1.12
       '@pnpm/plugin-commands-script-runners': workspace:5.0.16
@@ -2941,6 +3015,7 @@ importers:
       '@pnpm/plugin-commands-installation': link:../plugin-commands-installation
       '@pnpm/plugin-commands-listing': link:../plugin-commands-listing
       '@pnpm/plugin-commands-outdated': link:../plugin-commands-outdated
+      '@pnpm/plugin-commands-patching': link:../plugin-commands-patching
       '@pnpm/plugin-commands-publishing': link:../plugin-commands-publishing
       '@pnpm/plugin-commands-rebuild': link:../plugin-commands-rebuild
       '@pnpm/plugin-commands-script-runners': link:../plugin-commands-script-runners

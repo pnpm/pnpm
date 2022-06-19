@@ -112,7 +112,7 @@ export interface Config {
   ignorePnpmfile?: boolean
   pnpmfile: string
   hooks?: Hooks
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   hoistPattern?: string[]
   publicHoistPattern?: string[]
   useStoreServer?: boolean

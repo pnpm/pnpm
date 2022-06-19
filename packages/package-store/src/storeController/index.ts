@@ -24,7 +24,7 @@ export default async function (
     ignoreFile?: (filename: string) => boolean
     storeDir: string
     networkConcurrency?: number
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
     verifyStoreIntegrity: boolean
   }
 ): Promise<StoreController> {
