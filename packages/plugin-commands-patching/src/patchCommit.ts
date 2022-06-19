@@ -9,49 +9,17 @@ import renderHelp from 'render-help'
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {
-  return pick([
-    'registry',
-    'store',
-    'store-dir',
-  ], allTypes)
+  return pick([], allTypes)
 }
 
 export const commandNames = ['patch-commit']
 
 export function help () {
   return renderHelp({
-    description: 'Reads and performs actions on pnpm store that is on the current filesystem.',
-    descriptionLists: [
-      {
-        title: 'Commands',
-
-        list: [
-          {
-            description: '\
-Checks for modified packages in the store. \
-Returns exit code 0 if the content of the package is the same as it was at the time of unpacking',
-            name: 'status',
-          },
-          {
-            description: 'Adds new packages to the store. Example: pnpm store add express@4 typescript@2.1.0',
-            name: 'add <pkg>...',
-          },
-          {
-            description: '\
-Removes unreferenced (extraneous, orphan) packages from the store. \
-Pruning the store is not harmful, but might slow down future installations. \
-Visit the documentation for more information on unreferenced packages and why they occur',
-            name: 'prune',
-          },
-          {
-            description: 'Returns the path to the active store directory.',
-            name: 'path',
-          },
-        ],
-      },
-    ],
-    url: docsUrl('store'),
-    usages: ['pnpm store <command>'],
+    description: 'Generate a patch out of a directory',
+    descriptionLists: [],
+    url: docsUrl('patch-commit'),
+    usages: ['pnpm patch-commit <patchDir>'],
   })
 }
 
