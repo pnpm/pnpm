@@ -4,10 +4,10 @@ import { Config, types as allTypes } from '@pnpm/config'
 import { LogBase } from '@pnpm/logger'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import parseWantedDependency from '@pnpm/parse-wanted-dependency'
-import storePath from '@pnpm/store-path'
 import pick from 'ramda/src/pick'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import renderHelp from 'render-help'
+import tempy from 'tempy'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -44,7 +44,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
     registry: (dep.alias && pickRegistryForPackage(opts.registries, dep.alias)) ?? opts.registries.default,
   })
   const filesResponse = await pkgResponse.files!()
-  const tempDir = path.join(await getStoreTempDir(opts), Math.random().toString())
+  const tempDir = tempy.directory()
   const userChangesDir = path.join(tempDir, 'user')
   await Promise.all([
     store.ctrl.importPackage(path.join(tempDir, 'source'), {
@@ -57,19 +57,4 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
     }),
   ])
   return `You can now edit the following folder: ${userChangesDir}`
-}
-
-async function getStoreTempDir (
-  opts: {
-    dir: string
-    storeDir?: string
-    pnpmHomeDir: string
-  }
-): Promise<string> {
-  const storeDir = await storePath({
-    pkgRoot: opts.dir,
-    storePath: opts.storeDir,
-    pnpmHomeDir: opts.pnpmHomeDir,
-  })
-  return path.join(storeDir, 'tmp')
 }

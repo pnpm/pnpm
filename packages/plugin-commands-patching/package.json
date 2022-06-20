@@ -47,11 +47,11 @@
     "@pnpm/read-package-json": "workspace:6.0.4",
     "@pnpm/read-project-manifest": "workspace:3.0.4",
     "@pnpm/store-connection-manager": "workspace:4.1.11",
-    "@pnpm/store-path": "workspace:6.0.0",
     "escape-string-regexp": "^4.0.0",
     "ramda": "^0.27.1",
     "render-help": "^1.0.1",
-    "safe-execa": "^0.1.1"
+    "safe-execa": "^0.1.1",
+    "tempy": "^1.0.0"
   },
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"

@@ -2445,12 +2445,12 @@ importers:
       '@pnpm/read-project-manifest': workspace:3.0.4
       '@pnpm/registry-mock': 2.20.0
       '@pnpm/store-connection-manager': workspace:4.1.11
-      '@pnpm/store-path': workspace:6.0.0
       '@types/ramda': 0.27.39
       escape-string-regexp: ^4.0.0
       ramda: ^0.27.1
       render-help: ^1.0.1
       safe-execa: ^0.1.1
+      tempy: ^1.0.0
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
       '@pnpm/config': link:../config
@@ -2459,11 +2459,11 @@ importers:
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/store-connection-manager': link:../store-connection-manager
-      '@pnpm/store-path': link:../store-path
       escape-string-regexp: 4.0.0
       ramda: 0.27.2
       render-help: 1.0.2
       safe-execa: 0.1.1
+      tempy: 1.0.1
     devDependencies:
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-patching': 'link:'

@@ -10,7 +10,7 @@ test('patch and commit', async () => {
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
-  await patch.handler({
+  const output = await patch.handler({
     cacheDir,
     dir: process.cwd(),
     pnpmHomeDir: '',
@@ -22,9 +22,7 @@ test('patch and commit', async () => {
     userConfig: {},
   }, ['is-positive@1.0.0'])
 
-  const tempDir = path.join(storeDir, 'v3/tmp')
-  const [patchDir] = fs.readdirSync(tempDir)
-  const userPatchDir = path.join(tempDir, patchDir, 'user')
+  const userPatchDir = output.substring(output.indexOf(':') + 1).trim()
   fs.appendFileSync(path.join(userPatchDir, 'index.js'), '// test patching', 'utf8')
 
   await patchCommit.handler({
