@@ -3,7 +3,6 @@ import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import exists from 'path-exists'
 import runLifecycleHook, { RunLifecycleHookOptions } from './runLifecycleHook'
 import runLifecycleHooksConcurrently, { RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently'
-// @ts-expect-error
 import { applyPatch } from 'patch-package/dist/applyPatches'
 
 export function makeNodeRequireOption (modulePath: string) {
