@@ -91,6 +91,9 @@
       "path": "../plugin-commands-outdated"
     },
     {
+      "path": "../plugin-commands-patching"
+    },
+    {
       "path": "../plugin-commands-publishing"
     },
     {

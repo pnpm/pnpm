@@ -41,6 +41,7 @@
     "@pnpm/read-package-json": "workspace:6.0.4",
     "@pnpm/store-controller-types": "workspace:13.0.4",
     "@pnpm/types": "workspace:8.2.0",
+    "patch-package": "^6.4.7",
     "path-exists": "^4.0.0",
     "run-groups": "^3.0.1"
   },

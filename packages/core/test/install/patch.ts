@@ -37,7 +37,7 @@ test('patch package', async () => {
 
   const filesIndexFile = path.join(opts.storeDir, 'files/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812c5d8da8a735e94c2a1ccb77b4583808ee8405313951e7146ac83ede3671dc292-index.json')
   const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
-  const sideEffectsKey = `${ENGINE_NAME}-{}-meyqmf5tej4bwn3gxydpfig6pe`
+  const sideEffectsKey = `${ENGINE_NAME}-{}-jnbpamcxayl5i4ehrkoext3any`
   const patchedFileIntegrity = filesIndex.sideEffects?.[sideEffectsKey]['index.js']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
   const originalFileIntegrity = filesIndex.files['index.js'].integrity

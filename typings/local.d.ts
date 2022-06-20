@@ -170,3 +170,7 @@ declare module 'mdast-util-to-string' {
   const anything: any;
   export = anything;
 }
+
+declare module 'patch-package/dist/applyPatches' {
+  export function applyPatch(opts: any): void;
+}

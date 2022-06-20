@@ -132,6 +132,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-installation':
   case '@pnpm/plugin-commands-listing':
   case '@pnpm/plugin-commands-outdated':
+  case '@pnpm/plugin-commands-patching':
   case '@pnpm/plugin-commands-publishing':
   case '@pnpm/plugin-commands-rebuild':
   case '@pnpm/plugin-commands-script-runners':
