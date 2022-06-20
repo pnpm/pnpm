@@ -9,4 +9,3 @@ index 8e020ca..ff3aee4 100644
 +  // patched
  	return n >= 0;
  };
-
