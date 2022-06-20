@@ -13,6 +13,7 @@ import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import normalizeArch from './normalizeArch'
 import getNodeMirror from './getNodeMirror'
+import { parseNodeVersionSelector } from './parseNodeVersionSelector'
 
 export type NvmNodeCommandOptions = Pick<Config,
 | 'bin'
@@ -39,14 +40,8 @@ export type NvmNodeCommandOptions = Pick<Config,
 
 export async function getNodeBinDir (opts: NvmNodeCommandOptions) {
   const fetch = createFetchFromRegistry(opts)
-  const nodeDir = await getNodeDir(fetch, opts)
-  return process.platform === 'win32' ? nodeDir : path.join(nodeDir, 'bin')
-}
-
-export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommandOptions & { releaseDir?: string }) {
-  const nodesDir = path.join(opts.pnpmHomeDir, 'nodejs')
+  const nodesDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
   let wantedNodeVersion = opts.useNodeVersion ?? (await readNodeVersionsManifest(nodesDir))?.default
-  await fs.promises.mkdir(nodesDir, { recursive: true })
   if (wantedNodeVersion == null) {
     const response = await fetch('https://registry.npmjs.org/node')
     wantedNodeVersion = (await response.json() as any)['dist-tags'].lts // eslint-disable-line
@@ -57,16 +52,32 @@ export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommand
       default: wantedNodeVersion,
     })
   }
-  const versionDir = path.join(nodesDir, wantedNodeVersion)
+  const { version, releaseDir } = parseNodeVersionSelector(wantedNodeVersion)
+  const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseDir)
+  const nodeDir = await getNodeDir(fetch, {
+    ...opts,
+    useNodeVersion: version,
+    nodeMirrorBaseUrl,
+  })
+  return process.platform === 'win32' ? nodeDir : path.join(nodeDir, 'bin')
+}
+
+function getNodeVersionsBaseDir (pnpmHomeDir: string) {
+  return path.join(pnpmHomeDir, 'nodejs')
+}
+
+export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommandOptions & { useNodeVersion: string, nodeMirrorBaseUrl: string }) {
+  const nodesDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
+  await fs.promises.mkdir(nodesDir, { recursive: true })
+  const versionDir = path.join(nodesDir, opts.useNodeVersion)
   if (!fs.existsSync(versionDir)) {
-    await installNode(fetch, wantedNodeVersion, versionDir, opts)
+    await installNode(fetch, opts.useNodeVersion, versionDir, opts)
   }
   return versionDir
 }
 
-async function installNode (fetch: FetchFromRegistry, wantedNodeVersion: string, versionDir: string, opts: NvmNodeCommandOptions & { releaseDir?: string }) {
-  const nodeMirror = getNodeMirror(opts.rawConfig, opts.releaseDir ?? 'release')
-  const { tarball, pkgName } = getNodeJSTarball(wantedNodeVersion, nodeMirror)
+async function installNode (fetch: FetchFromRegistry, wantedNodeVersion: string, versionDir: string, opts: NvmNodeCommandOptions & { nodeMirrorBaseUrl: string }) {
+  const { tarball, pkgName } = getNodeJSTarball(wantedNodeVersion, opts.nodeMirrorBaseUrl)
   if (tarball.endsWith('.zip')) {
     await downloadAndUnpackZip(fetch, tarball, versionDir, pkgName)
     return
