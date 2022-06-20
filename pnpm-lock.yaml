@@ -2434,7 +2434,6 @@ importers:
 
   packages/plugin-commands-patching:
     specifiers:
-      '@pnpm/assert-store': workspace:*
       '@pnpm/cli-utils': workspace:0.7.13
       '@pnpm/config': workspace:15.3.0
       '@pnpm/logger': ^4.0.0
@@ -2466,7 +2465,6 @@ importers:
       render-help: 1.0.2
       safe-execa: 0.1.1
     devDependencies:
-      '@pnpm/assert-store': link:../../privatePackages/assert-store
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-patching': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
