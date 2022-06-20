@@ -69,7 +69,7 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     const nodeDir = await getNodeDir(fetch, {
       ...opts,
       useNodeVersion: nodeVersion,
-      releaseDir,
+      nodeMirrorBaseUrl,
     })
     const src = path.join(nodeDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
     const dest = path.join(opts.bin, process.platform === 'win32' ? 'node.exe' : 'node')

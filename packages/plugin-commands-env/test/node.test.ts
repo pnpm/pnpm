@@ -5,6 +5,28 @@ import { Readable } from 'stream'
 import { node } from '@pnpm/plugin-commands-env'
 import { tempDir } from '@pnpm/prepare'
 
+const fetchMock = jest.fn(async (url: string) => {
+  if (url.endsWith('.zip')) {
+    // The Windows code path for pnpm's node bootstrapping expects a subdir
+    // within the .zip file.
+    const pkgName = path.basename(url, '.zip')
+    const zip = new AdmZip()
+    zip.addFile(`${pkgName}/dummy-file`, Buffer.from('test'))
+
+    return new Response(Readable.from(zip.toBuffer()))
+  }
+
+  return new Response(Readable.from(Buffer.alloc(0)))
+})
+
+jest.mock('@pnpm/fetch', () => ({
+  createFetchFromRegistry: () => fetchMock,
+}))
+
+beforeEach(() => {
+  fetchMock.mockClear()
+})
+
 test('check API (placeholder test)', async () => {
   expect(typeof node.getNodeDir).toBe('function')
 })
@@ -25,21 +47,7 @@ test('install Node uses node-mirror:release option', async () => {
     useNodeVersion: '16.4.0',
   }
 
-  const fetchMock = jest.fn(async (url: string) => {
-    if (url.endsWith('.zip')) {
-      // The Windows code path for pnpm's node bootstrapping expects a subdir
-      // within the .zip file.
-      const pkgName = path.basename(url, '.zip')
-      const zip = new AdmZip()
-      zip.addFile(`${pkgName}/dummy-file`, Buffer.from('test'))
-
-      return new Response(Readable.from(zip.toBuffer()))
-    }
-
-    return new Response(Readable.from(Buffer.alloc(0)))
-  })
-
-  await node.getNodeDir(fetchMock, opts)
+  await node.getNodeBinDir(opts)
 
   for (const call of fetchMock.mock.calls) {
     expect(call[0]).toMatch(nodeMirrorRelease)
@@ -59,21 +67,7 @@ test('install and rc version of Node.js', async () => {
     useNodeVersion: 'rc/18.0.0-rc.3',
   }
 
-  const fetchMock = jest.fn(async (url: string) => {
-    if (url.endsWith('.zip')) {
-      // The Windows code path for pnpm's node bootstrapping expects a subdir
-      // within the .zip file.
-      const pkgName = path.basename(url, '.zip')
-      const zip = new AdmZip()
-      zip.addFile(`${pkgName}/dummy-file`, Buffer.from('test'))
-
-      return new Response(Readable.from(zip.toBuffer()))
-    }
-
-    return new Response(Readable.from(Buffer.alloc(0)))
-  })
-
-  await node.getNodeDir(fetchMock, opts)
+  await node.getNodeBinDir(opts)
 
   expect(fetchMock.mock.calls[0][0]).toBe('https://nodejs.org/download/rc/v18.0.0-rc.3/node-v18.0.0-rc.3-linux-x64.tar.gz')
 })
