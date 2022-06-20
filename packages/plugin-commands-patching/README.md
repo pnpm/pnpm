@@ -5,7 +5,7 @@
 ## Installation
 
 ```sh
-pnpm add @pnpm/plugin-commands-patches
+pnpm add @pnpm/plugin-commands-patching
 ```
 
 ## License
