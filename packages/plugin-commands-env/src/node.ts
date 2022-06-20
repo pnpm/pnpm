@@ -13,6 +13,7 @@ import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import normalizeArch from './normalizeArch'
 import getNodeMirror from './getNodeMirror'
+import { parseNodeVersionSelector } from './parseNodeVersionSelector'
 
 export type NvmNodeCommandOptions = Pick<Config,
 | 'bin'
@@ -57,9 +58,13 @@ export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommand
       default: wantedNodeVersion,
     })
   }
+  const { version, releaseDir } = parseNodeVersionSelector(wantedNodeVersion)
   const versionDir = path.join(nodesDir, wantedNodeVersion)
   if (!fs.existsSync(versionDir)) {
-    await installNode(fetch, wantedNodeVersion, versionDir, opts)
+    await installNode(fetch, version, versionDir, {
+      ...opts,
+      releaseDir,
+    })
   }
   return versionDir
 }
