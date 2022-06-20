@@ -70,5 +70,6 @@ test('install and rc version of Node.js', async () => {
   await node.getNodeBinDir(opts)
 
   const platform = process.platform === 'win32' ? 'win' : process.platform
-  expect(fetchMock.mock.calls[0][0]).toBe(`https://nodejs.org/download/rc/v18.0.0-rc.3/node-v18.0.0-rc.3-${platform}-x64.tar.gz`)
+  const extension = process.platform === 'win32' ? 'zip' : 'tar.gz'
+  expect(fetchMock.mock.calls[0][0]).toBe(`https://nodejs.org/download/rc/v18.0.0-rc.3/node-v18.0.0-rc.3-${platform}-x64.${extension}`)
 })
