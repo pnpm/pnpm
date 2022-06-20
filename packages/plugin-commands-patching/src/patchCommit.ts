@@ -47,7 +47,7 @@ export async function handler (opts: { dir: string, lockfileDir?: string }, para
   } else if (!manifest.pnpm.patchedDependencies) {
     manifest.pnpm.patchedDependencies = {}
   }
-  manifest.pnpm.patchedDependencies![pkgNameAndVersion] = `./patches/${pkgNameAndVersion}.patch`
+  manifest.pnpm.patchedDependencies![pkgNameAndVersion] = `patches/${pkgNameAndVersion}.patch`
   await writeProjectManifest(manifest)
 }
 
