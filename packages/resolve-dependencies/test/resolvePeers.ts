@@ -524,6 +524,7 @@ test('patch hash is added to the dependency path together with peer deps hash', 
         directNodeIdsByAlias: {
           foo: '>project>foo/1.0.0>',
           bar: '>project>bar/1.0.0>',
+          qar: '>project>qar/1.0.0>',
         },
         topParents: [],
         rootDir: '',
@@ -559,9 +560,38 @@ test('patch hash is added to the dependency path together with peer deps hash', 
         },
         depth: 0,
       },
+      '>project>qar/1.0.0>': {
+        children: {
+          qardep: '>project>qar/1.0.0>qardep/1.0.0>',
+        },
+        installable: true,
+        resolvedPackage: {
+          name: 'qar',
+          depPath: 'qar/1.0.0',
+          version: '1.0.0',
+          peerDependencies: {},
+          patchFile: {
+            hash: 'bbb',
+            path: 'bbb.patch',
+          },
+        },
+        depth: 0,
+      },
+      '>project>qar/1.0.0>qardep/1.0.0>': {
+        children: {},
+        installable: true,
+        resolvedPackage: {
+          name: 'qardep',
+          depPath: 'qardep/1.0.0',
+          version: '1.0.0',
+          peerDependencies: {},
+        },
+        depth: 0,
+      },
     },
     virtualStoreDir: '',
     lockfileDir: '',
   })
   expect(dependenciesGraph['foo/1.0.0_bar@1.0.0_aaa']).toBeTruthy()
+  expect(dependenciesGraph['qar/1.0.0_bbb']).toBeTruthy()
 })
