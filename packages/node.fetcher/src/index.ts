@@ -17,19 +17,9 @@ export type FetchNodeOptions = Pick<Config,
 | 'fetchRetryMaxtimeout'
 | 'fetchRetryMintimeout'
 | 'fetchTimeout'
-| 'userAgent'
-| 'ca'
-| 'cert'
-| 'httpProxy'
-| 'httpsProxy'
-| 'key'
-| 'localAddress'
-| 'noProxy'
-| 'strictSsl'
 | 'storeDir'
-| 'useNodeVersion'
 | 'pnpmHomeDir'
-> & Partial<Pick<Config, 'configDir'>> & {
+> & {
   nodeMirrorBaseUrl: string
 }
 

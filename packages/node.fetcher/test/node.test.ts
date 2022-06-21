@@ -25,11 +25,9 @@ beforeEach(() => {
 
 test('install Node uses node-mirror:release option', async () => {
   tempDir()
-  const configDir = path.resolve('config')
 
   const nodeMirrorBaseUrl = 'https://pnpm-node-mirror-test.localhost/download/release/'
   const opts: FetchNodeOptions = {
-    configDir,
     nodeMirrorBaseUrl,
     pnpmHomeDir: path.resolve('store'),
   }
