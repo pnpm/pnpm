@@ -30,9 +30,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/node.fetcher#readme",
   "dependencies": {
-    "@pnpm/config": "workspace:15.3.0",
     "@pnpm/create-cafs-store": "workspace:1.1.0",
-    "@pnpm/fetch": "workspace:5.0.3",
+    "@pnpm/fetching-types": "workspace:3.0.0",
     "@pnpm/fetcher-base": "workspace:12.1.0",
     "@pnpm/tarball-fetcher": "workspace:10.0.5",
     "adm-zip": "^0.5.5",

@@ -13,16 +13,13 @@
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../config"
-    },
-    {
       "path": "../create-cafs-store"
     },
     {
-      "path": "../fetch"
+      "path": "../fetcher-base"
     },
     {
-      "path": "../fetcher-base"
+      "path": "../fetching-types"
     },
     {
       "path": "../tarball-fetcher"

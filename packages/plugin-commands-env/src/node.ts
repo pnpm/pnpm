@@ -74,6 +74,12 @@ export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommand
     await fetchNode(fetch, opts.useNodeVersion, versionDir, {
       ...opts,
       cafsDir,
+      retry: {
+        maxTimeout: opts.fetchRetryMaxtimeout,
+        minTimeout: opts.fetchRetryMintimeout,
+        retries: opts.fetchRetries,
+        factor: opts.fetchRetryFactor,
+      },
     })
   }
   return versionDir

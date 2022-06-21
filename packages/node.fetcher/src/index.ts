@@ -1,7 +1,9 @@
 import fs from 'fs'
 import path from 'path'
-import { Config } from '@pnpm/config'
-import { FetchFromRegistry } from '@pnpm/fetch'
+import {
+  FetchFromRegistry,
+  RetryTimeoutOptions,
+} from '@pnpm/fetching-types'
 import { FilesIndex } from '@pnpm/fetcher-base'
 import createCafsStore from '@pnpm/create-cafs-store'
 import createFetcher, { waitForFilesIndex } from '@pnpm/tarball-fetcher'
@@ -10,15 +12,11 @@ import renameOverwrite from 'rename-overwrite'
 import tempy from 'tempy'
 import { getNodeTarball } from './getNodeTarball'
 
-export type FetchNodeOptions = Pick<Config,
-| 'fetchRetries'
-| 'fetchRetryFactor'
-| 'fetchRetryMaxtimeout'
-| 'fetchRetryMintimeout'
-| 'fetchTimeout'
-> & {
+export interface FetchNodeOptions {
   cafsDir: string
+  fetchTimeout?: number
   nodeMirrorBaseUrl: string
+  retry?: RetryTimeoutOptions
 }
 
 export async function fetchNode (fetch: FetchFromRegistry, version: string, targetDir: string, opts: FetchNodeOptions) {
@@ -29,12 +27,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
   }
   const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
   const { tarball: fetchTarball } = createFetcher(fetch, getCredentials, {
-    retry: {
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-      factor: opts.fetchRetryFactor,
-    },
+    retry: opts.retry,
     timeout: opts.fetchTimeout,
   })
   const cafs = createCafsStore(opts.cafsDir)
