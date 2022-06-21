@@ -14,10 +14,10 @@ export async function resolveNodeVersion (
 ): Promise<string | null> {
   const response = await fetch(`${nodeMirrorBaseUrl ?? 'https://nodejs.org/download/release/'}index.json`)
   const allVersions = (await response.json()) as NodeVersion[]
-  if (version === 'latest') {
+  if (versionSpec === 'latest') {
     return allVersions[0].version.substring(1)
   }
-  const { versions, versionSelector } = filterVersions(allVersions, version)
+  const { versions, versionSelector } = filterVersions(allVersions, versionSpec)
   const pickedVersion = semver.maxSatisfying(versions.map(({ version }) => version), versionSelector, { includePrerelease: true, loose: true })
   if (!pickedVersion) return null
   return pickedVersion.substring(1)
