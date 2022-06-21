@@ -39,6 +39,7 @@ export type PartialResolvedPackage = Pick<ResolvedPackage,
 | 'peerDependencies'
 | 'peerDependenciesMeta'
 | 'version'
+| 'patchFile'
 >
 
 export interface GenericDependenciesGraph<T extends PartialResolvedPackage> {
@@ -180,6 +181,9 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     isEmpty(resolvedPackage.peerDependencies)
   ) {
     ctx.pathsByNodeId[nodeId] = resolvedPackage.depPath
+    if (resolvedPackage.patchFile) {
+      ctx.pathsByNodeId[nodeId] += `_${resolvedPackage.patchFile.hash}`
+    }
     return { resolvedPeers: {}, missingPeers: [] }
   }
   if (typeof node.children === 'function') {
@@ -216,6 +220,9 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   )
   if (hit != null) {
     ctx.pathsByNodeId[nodeId] = hit.depPath
+    if (resolvedPackage.patchFile) {
+      ctx.pathsByNodeId[nodeId] += `_${resolvedPackage.patchFile.hash}`
+    }
     ctx.depGraph[hit.depPath].depth = Math.min(ctx.depGraph[hit.depPath].depth, node.depth)
     return {
       missingPeers: hit.missingPeers,
@@ -265,6 +272,9 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     )
     // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
+  }
+  if (resolvedPackage.patchFile) {
+    depPath += `_${resolvedPackage.patchFile.hash}`
   }
   const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath))
   const modules = path.join(localLocation, 'node_modules')

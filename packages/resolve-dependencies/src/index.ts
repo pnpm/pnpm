@@ -184,7 +184,6 @@ export default async function (
       }
 
       const depNode = dependenciesGraph[depPath]
-      if (depNode.isPure) continue
 
       const ref = depPathToRef(depPath, {
         alias,
