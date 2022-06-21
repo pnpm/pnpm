@@ -8,7 +8,7 @@ import renderHelp from 'render-help'
 import { getNodeDir, NvmNodeCommandOptions } from './node'
 import getNodeMirror from './getNodeMirror'
 import resolveNodeVersion from './resolveNodeVersion'
-import { parseNodeVersionSelector } from './parseNodeVersionSelector'
+import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
 
 export function rcOptionsTypes () {
   return {}
@@ -60,9 +60,9 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
       throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
     }
     const fetch = createFetchFromRegistry(opts)
-    const { releaseDir, version } = parseNodeVersionSelector(params[1])
+    const { releaseDir, versionSpecifier } = parseNodeEditionSpecifier(params[1])
     const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseDir)
-    const nodeVersion = await resolveNodeVersion(fetch, version, nodeMirrorBaseUrl)
+    const nodeVersion = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
     if (!nodeVersion) {
       throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${params[1]}`)
     }

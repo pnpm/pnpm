@@ -13,7 +13,7 @@ import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import normalizeArch from './normalizeArch'
 import getNodeMirror from './getNodeMirror'
-import { parseNodeVersionSelector } from './parseNodeVersionSelector'
+import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
 
 export type NvmNodeCommandOptions = Pick<Config,
 | 'bin'
@@ -52,11 +52,11 @@ export async function getNodeBinDir (opts: NvmNodeCommandOptions) {
       default: wantedNodeVersion,
     })
   }
-  const { version, releaseDir } = parseNodeVersionSelector(wantedNodeVersion)
+  const { versionSpecifier, releaseDir } = parseNodeEditionSpecifier(wantedNodeVersion)
   const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseDir)
   const nodeDir = await getNodeDir(fetch, {
     ...opts,
-    useNodeVersion: version,
+    useNodeVersion: versionSpecifier,
     nodeMirrorBaseUrl,
   })
   return process.platform === 'win32' ? nodeDir : path.join(nodeDir, 'bin')

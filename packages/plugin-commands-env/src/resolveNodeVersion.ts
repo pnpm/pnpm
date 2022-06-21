@@ -7,14 +7,15 @@ interface NodeVersion {
   lts: false | string
 }
 
-export default async function resolveNodeVersion (fetch: FetchFromRegistry, version: string, nodeMirrorBaseUrl: string): Promise<string | null> {
+export default async function resolveNodeVersion (fetch: FetchFromRegistry, versionSpec: string, nodeMirrorBaseUrl: string): Promise<string | null> {
   const response = await fetch(`${nodeMirrorBaseUrl}index.json`)
   const allVersions = (await response.json()) as NodeVersion[]
-  if (version === 'latest') {
+  if (versionSpec === 'latest') {
     return allVersions[0].version.substring(1)
   }
-  const { versions, versionSelector } = filterVersions(allVersions, version)
-  const pickedVersion = semver.maxSatisfying(versions.map(({ version }) => version), versionSelector, { includePrerelease: true, loose: true })
+  const { versions, versionRange } = filterVersions(allVersions, versionSpec)
+  const pickedVersion = semver.maxSatisfying(
+    versions.map(({ version }) => version), versionRange, { includePrerelease: true, loose: true })
   if (!pickedVersion) return null
   return pickedVersion.substring(1)
 }
@@ -23,7 +24,7 @@ function filterVersions (versions: NodeVersion[], versionSelector: string) {
   if (versionSelector === 'lts') {
     return {
       versions: versions.filter(({ lts }) => lts !== false),
-      versionSelector: '*',
+      versionRange: '*',
     }
   }
   const vst = versionSelectorType(versionSelector)
@@ -31,8 +32,8 @@ function filterVersions (versions: NodeVersion[], versionSelector: string) {
     const wantedLtsVersion = vst.normalized.toLowerCase()
     return {
       versions: versions.filter(({ lts }) => typeof lts === 'string' && lts.toLowerCase() === wantedLtsVersion),
-      versionSelector: '*',
+      versionRange: '*',
     }
   }
-  return { versions, versionSelector }
+  return { versions, versionRange: versionSelector }
 }
