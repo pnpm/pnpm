@@ -23,7 +23,7 @@ beforeEach(() => {
   fetchMock.mockClear()
 })
 
-test('install Node uses node-mirror:release option', async () => {
+test('install Node using a custom node mirror', async () => {
   tempDir()
 
   const nodeMirrorBaseUrl = 'https://pnpm-node-mirror-test.localhost/download/release/'
@@ -36,5 +36,19 @@ test('install Node uses node-mirror:release option', async () => {
 
   for (const call of fetchMock.mock.calls) {
     expect(call[0]).toMatch(nodeMirrorBaseUrl)
+  }
+})
+
+test('install Node using the default node mirror', async () => {
+  tempDir()
+
+  const opts: FetchNodeOptions = {
+    cafsDir: path.resolve('files'),
+  }
+
+  await fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
+
+  for (const call of fetchMock.mock.calls) {
+    expect(call[0]).toMatch('https://nodejs.org/download/release/')
   }
 })

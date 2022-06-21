@@ -15,12 +15,13 @@ import { getNodeTarball } from './getNodeTarball'
 export interface FetchNodeOptions {
   cafsDir: string
   fetchTimeout?: number
-  nodeMirrorBaseUrl: string
+  nodeMirrorBaseUrl?: string
   retry?: RetryTimeoutOptions
 }
 
 export async function fetchNode (fetch: FetchFromRegistry, version: string, targetDir: string, opts: FetchNodeOptions) {
-  const { tarball, pkgName } = getNodeTarball(version, opts.nodeMirrorBaseUrl, process.platform, process.arch)
+  const nodeMirrorBaseUrl = opts.nodeMirrorBaseUrl ?? 'https://nodejs.org/download/release/'
+  const { tarball, pkgName } = getNodeTarball(version, nodeMirrorBaseUrl, process.platform, process.arch)
   if (tarball.endsWith('.zip')) {
     await downloadAndUnpackZip(fetch, tarball, targetDir, pkgName)
     return
