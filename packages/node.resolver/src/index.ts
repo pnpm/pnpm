@@ -1,4 +1,4 @@
-import { FetchFromRegistry } from '@pnpm/fetch'
+import { FetchFromRegistry } from '@pnpm/fetching-types'
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'
 
@@ -7,7 +7,7 @@ interface NodeVersion {
   lts: false | string
 }
 
-export default async function resolveNodeVersion (fetch: FetchFromRegistry, versionSpec: string, nodeMirrorBaseUrl: string): Promise<string | null> {
+export async function resolveNodeVersion (fetch: FetchFromRegistry, versionSpec: string, nodeMirrorBaseUrl: string): Promise<string | null> {
   const response = await fetch(`${nodeMirrorBaseUrl}index.json`)
   const allVersions = (await response.json()) as NodeVersion[]
   if (versionSpec === 'latest') {

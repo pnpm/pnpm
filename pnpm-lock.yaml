@@ -1737,6 +1737,25 @@ importers:
       '@types/adm-zip': 0.4.34
       node-fetch: 3.0.0-beta.9
 
+  packages/node.resolver:
+    specifiers:
+      '@pnpm/fetch': workspace:5.0.3
+      '@pnpm/fetching-types': workspace:3.0.0
+      '@pnpm/node.fetcher': workspace:0.0.0
+      '@pnpm/node.resolver': workspace:0.0.0
+      '@types/semver': ^7.3.4
+      semver: ^7.3.4
+      version-selector-type: ^3.0.0
+    dependencies:
+      '@pnpm/fetching-types': link:../fetching-types
+      '@pnpm/node.fetcher': link:../node.fetcher
+      semver: 7.3.7
+      version-selector-type: 3.0.0
+    devDependencies:
+      '@pnpm/fetch': link:../fetch
+      '@pnpm/node.resolver': 'link:'
+      '@types/semver': 7.3.9
+
   packages/normalize-registries:
     specifiers:
       '@pnpm/normalize-registries': workspace:3.0.3
@@ -2132,13 +2151,12 @@ importers:
       '@pnpm/config': workspace:15.3.0
       '@pnpm/error': workspace:3.0.1
       '@pnpm/fetch': workspace:5.0.3
-      '@pnpm/fetcher-base': workspace:12.1.0
       '@pnpm/node.fetcher': workspace:0.0.0
+      '@pnpm/node.resolver': workspace:0.0.0
       '@pnpm/plugin-commands-env': workspace:2.1.12
       '@pnpm/prepare': workspace:*
       '@pnpm/store-path': workspace:6.0.0
       '@types/adm-zip': ^0.4.34
-      '@types/semver': ^7.3.4
       '@zkochan/cmd-shim': ^5.2.2
       adm-zip: ^0.5.5
       execa: npm:safe-execa@^0.1.1
@@ -2147,28 +2165,23 @@ importers:
       node-fetch: 3.0.0-beta.9
       path-name: ^1.0.0
       render-help: ^1.0.1
-      semver: ^7.3.4
-      version-selector-type: ^3.0.0
       write-json-file: ^4.3.0
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
       '@pnpm/config': link:../config
       '@pnpm/error': link:../error
       '@pnpm/fetch': link:../fetch
-      '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/node.fetcher': link:../node.fetcher
+      '@pnpm/node.resolver': link:../node.resolver
       '@pnpm/store-path': link:../store-path
       '@zkochan/cmd-shim': 5.2.2
       load-json-file: 6.2.0
       render-help: 1.0.2
-      semver: 7.3.7
-      version-selector-type: 3.0.0
       write-json-file: 4.3.0
     devDependencies:
       '@pnpm/plugin-commands-env': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@types/adm-zip': 0.4.34
-      '@types/semver': 7.3.9
       adm-zip: 0.5.9
       execa: /safe-execa/0.1.1
       nock: 12.0.3

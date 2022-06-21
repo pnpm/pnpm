@@ -3,11 +3,11 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import PnpmError from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
+import { resolveNodeVersion } from '@pnpm/node.resolver'
 import cmdShim from '@zkochan/cmd-shim'
 import renderHelp from 'render-help'
 import { getNodeDir, NvmNodeCommandOptions } from './node'
 import getNodeMirror from './getNodeMirror'
-import resolveNodeVersion from './resolveNodeVersion'
 import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
 
 export function rcOptionsTypes () {

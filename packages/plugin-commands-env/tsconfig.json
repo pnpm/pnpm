@@ -25,10 +25,10 @@
       "path": "../fetch"
     },
     {
-      "path": "../fetcher-base"
+      "path": "../node.fetcher"
     },
     {
-      "path": "../node.fetcher"
+      "path": "../node.resolver"
     },
     {
       "path": "../store-path"
