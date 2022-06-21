@@ -10,25 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../privatePackages/prepare"
-    },
-    {
-      "path": "../cli-utils"
-    },
-    {
-      "path": "../config"
-    },
-    {
-      "path": "../error"
-    },
-    {
       "path": "../fetch"
     },
     {
-      "path": "../node.fetcher"
+      "path": "../fetching-types"
     },
     {
-      "path": "../node.resolver"
+      "path": "../node.fetcher"
     }
   ]
 }

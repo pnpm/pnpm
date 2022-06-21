@@ -1,5 +1,5 @@
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import resolveNodeVersion from '../lib/resolveNodeVersion'
+import { resolveNodeVersion } from '@pnpm/node.resolver'
 
 const fetch = createFetchFromRegistry({})
 
