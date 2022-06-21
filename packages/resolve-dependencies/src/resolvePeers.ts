@@ -255,6 +255,9 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   let depPath: string
   if (isEmpty(allResolvedPeers)) {
     depPath = resolvedPackage.depPath
+    if (resolvedPackage.patchFile) {
+      depPath += `_${resolvedPackage.patchFile.hash}`
+    }
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
       Object.entries(allResolvedPeers)
@@ -268,13 +271,11 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
           }
           const { name, version } = ctx.dependenciesTree[nodeId].resolvedPackage
           return { name, version }
-        })
+        }),
+      resolvedPackage.patchFile?.hash
     )
     // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
-  }
-  if (resolvedPackage.patchFile) {
-    depPath += `_${resolvedPackage.patchFile.hash}`
   }
   const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath))
   const modules = path.join(localLocation, 'node_modules')

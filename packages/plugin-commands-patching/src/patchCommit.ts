@@ -35,7 +35,8 @@ export async function handler (opts: { dir: string, lockfileDir?: string }, para
   await fs.promises.mkdir(patchesDir, { recursive: true })
   const patchedPkgManifest = await readPackageJsonFromDir(srcDir)
   const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
-  await fs.promises.writeFile(path.join(patchesDir, `${pkgNameAndVersion}.patch`), patchContent, 'utf8')
+  const patchFileName = pkgNameAndVersion.replace('/', '__')
+  await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(lockfileDir)
   if (!manifest) {
     manifest = {}
@@ -47,7 +48,7 @@ export async function handler (opts: { dir: string, lockfileDir?: string }, para
   } else if (!manifest.pnpm.patchedDependencies) {
     manifest.pnpm.patchedDependencies = {}
   }
-  manifest.pnpm.patchedDependencies![pkgNameAndVersion] = `patches/${pkgNameAndVersion}.patch`
+  manifest.pnpm.patchedDependencies![pkgNameAndVersion] = `patches/${patchFileName}.patch`
   await writeProjectManifest(manifest)
 }
 
