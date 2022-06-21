@@ -26,7 +26,8 @@
   "keywords": [
     "pnpm7",
     "pnpm",
-    "env"
+    "env",
+    "node.js"
   ],
   "license": "MIT",
   "bugs": {
