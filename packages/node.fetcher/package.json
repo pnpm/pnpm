@@ -2,12 +2,16 @@
   "name": "@pnpm/node.fetcher",
   "version": "0.0.0",
   "description": "Node.js artifacts fetcher",
+  "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
     "lib",
     "!*.map"
   ],
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "engines": {
     "node": ">=14.6"
   },
@@ -38,16 +42,10 @@
     "rename-overwrite": "^4.0.2",
     "tempy": "^1.0.0"
   },
-  "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/node.fetcher": "workspace:0.0.0",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "^0.4.34",
-    "@types/semver": "^7.3.4",
-    "nock": "12.0.3",
     "node-fetch": "3.0.0-beta.9"
-  },
-  "exports": {
-    ".": "./lib/index.js"
   }
 }

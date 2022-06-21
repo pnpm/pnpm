@@ -1719,9 +1719,7 @@ importers:
       '@pnpm/prepare': workspace:*
       '@pnpm/tarball-fetcher': workspace:10.0.5
       '@types/adm-zip': ^0.4.34
-      '@types/semver': ^7.3.4
       adm-zip: ^0.5.5
-      nock: 12.0.3
       node-fetch: 3.0.0-beta.9
       rename-overwrite: ^4.0.2
       tempy: ^1.0.0
@@ -1737,8 +1735,6 @@ importers:
       '@pnpm/node.fetcher': 'link:'
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@types/adm-zip': 0.4.34
-      '@types/semver': 7.3.9
-      nock: 12.0.3
       node-fetch: 3.0.0-beta.9
 
   packages/normalize-registries:
