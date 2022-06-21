@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/plugin-commands-env",
-  "version": "2.1.12",
-  "description": "pnpm commands for managing Node.js",
+  "name": "@pnpm/node.fetcher",
+  "version": "0.0.0",
+  "description": "Node.js artifacts fetcher",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
@@ -18,7 +18,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-env",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/node.fetcher",
   "keywords": [
     "pnpm7",
     "pnpm",
@@ -28,32 +28,26 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-env#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/node.fetcher#readme",
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.7.13",
     "@pnpm/config": "workspace:15.3.0",
-    "@pnpm/error": "workspace:3.0.1",
+    "@pnpm/create-cafs-store": "workspace:1.1.0",
     "@pnpm/fetch": "workspace:5.0.3",
     "@pnpm/fetcher-base": "workspace:12.1.0",
-    "@pnpm/node.fetcher": "workspace:0.0.0",
-    "@zkochan/cmd-shim": "^5.2.2",
-    "load-json-file": "^6.2.0",
-    "render-help": "^1.0.1",
-    "semver": "^7.3.4",
-    "version-selector-type": "^3.0.0",
-    "write-json-file": "^4.3.0"
+    "@pnpm/store-path": "workspace:6.0.0",
+    "@pnpm/tarball-fetcher": "workspace:10.0.5",
+    "adm-zip": "^0.5.5",
+    "rename-overwrite": "^4.0.2",
+    "tempy": "^1.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/plugin-commands-env": "workspace:2.1.12",
+    "@pnpm/node.fetcher": "workspace:0.0.0",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "^0.4.34",
     "@types/semver": "^7.3.4",
-    "adm-zip": "^0.5.5",
-    "execa": "npm:safe-execa@^0.1.1",
     "nock": "12.0.3",
-    "node-fetch": "3.0.0-beta.9",
-    "path-name": "^1.0.0"
+    "node-fetch": "3.0.0-beta.9"
   },
   "exports": {
     ".": "./lib/index.js"
