@@ -41,7 +41,7 @@
     "@pnpm/tarball-fetcher": "workspace:9.3.19",
     "adm-zip": "^0.5.5",
     "rename-overwrite": "^4.0.2",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "devDependencies": {
     "@pnpm/node.fetcher": "workspace:0.0.0",

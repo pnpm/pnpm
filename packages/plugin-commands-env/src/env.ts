@@ -8,7 +8,7 @@ import cmdShim from '@zkochan/cmd-shim'
 import renderHelp from 'render-help'
 import { getNodeDir, NvmNodeCommandOptions } from './node'
 import getNodeMirror from './getNodeMirror'
-import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
+import { parseNodeVersionSelector } from './parseNodeVersionSelector'
 
 export function rcOptionsTypes () {
   return {}
