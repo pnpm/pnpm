@@ -1718,7 +1718,6 @@ importers:
       '@pnpm/fetcher-base': workspace:12.1.0
       '@pnpm/node.fetcher': workspace:0.0.0
       '@pnpm/prepare': workspace:*
-      '@pnpm/store-path': workspace:6.0.0
       '@pnpm/tarball-fetcher': workspace:10.0.5
       '@types/adm-zip': ^0.4.34
       '@types/semver': ^7.3.4
@@ -1732,7 +1731,6 @@ importers:
       '@pnpm/create-cafs-store': link:../create-cafs-store
       '@pnpm/fetch': link:../fetch
       '@pnpm/fetcher-base': link:../fetcher-base
-      '@pnpm/store-path': link:../store-path
       '@pnpm/tarball-fetcher': link:../tarball-fetcher
       adm-zip: 0.5.9
       rename-overwrite: 4.0.2
@@ -2144,6 +2142,7 @@ importers:
       '@pnpm/node.fetcher': workspace:0.0.0
       '@pnpm/plugin-commands-env': workspace:2.1.12
       '@pnpm/prepare': workspace:*
+      '@pnpm/store-path': workspace:6.0.0
       '@types/adm-zip': ^0.4.34
       '@types/semver': ^7.3.4
       '@zkochan/cmd-shim': ^5.2.2
@@ -2164,6 +2163,7 @@ importers:
       '@pnpm/fetch': link:../fetch
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/node.fetcher': link:../node.fetcher
+      '@pnpm/store-path': link:../store-path
       '@zkochan/cmd-shim': 5.2.2
       load-json-file: 6.2.0
       render-help: 1.0.2

@@ -25,9 +25,6 @@
       "path": "../fetcher-base"
     },
     {
-      "path": "../store-path"
-    },
-    {
       "path": "../tarball-fetcher"
     }
   ]

@@ -29,7 +29,7 @@ test('install Node uses node-mirror:release option', async () => {
   const nodeMirrorBaseUrl = 'https://pnpm-node-mirror-test.localhost/download/release/'
   const opts: FetchNodeOptions = {
     nodeMirrorBaseUrl,
-    pnpmHomeDir: path.resolve('store'),
+    cafsDir: path.resolve('files'),
   }
 
   await fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)

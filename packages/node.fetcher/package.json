@@ -34,7 +34,6 @@
     "@pnpm/create-cafs-store": "workspace:1.1.0",
     "@pnpm/fetch": "workspace:5.0.3",
     "@pnpm/fetcher-base": "workspace:12.1.0",
-    "@pnpm/store-path": "workspace:6.0.0",
     "@pnpm/tarball-fetcher": "workspace:10.0.5",
     "adm-zip": "^0.5.5",
     "rename-overwrite": "^4.0.2",

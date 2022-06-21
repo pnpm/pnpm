@@ -4,7 +4,6 @@ import { Config } from '@pnpm/config'
 import { FetchFromRegistry } from '@pnpm/fetch'
 import { FilesIndex } from '@pnpm/fetcher-base'
 import createCafsStore from '@pnpm/create-cafs-store'
-import storePath from '@pnpm/store-path'
 import createFetcher, { waitForFilesIndex } from '@pnpm/tarball-fetcher'
 import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
@@ -17,9 +16,8 @@ export type FetchNodeOptions = Pick<Config,
 | 'fetchRetryMaxtimeout'
 | 'fetchRetryMintimeout'
 | 'fetchTimeout'
-| 'storeDir'
-| 'pnpmHomeDir'
 > & {
+  cafsDir: string
   nodeMirrorBaseUrl: string
 }
 
@@ -39,13 +37,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     },
     timeout: opts.fetchTimeout,
   })
-  const storeDir = await storePath({
-    pkgRoot: process.cwd(),
-    storePath: opts.storeDir,
-    pnpmHomeDir: opts.pnpmHomeDir,
-  })
-  const cafsDir = path.join(storeDir, 'files')
-  const cafs = createCafsStore(cafsDir)
+  const cafs = createCafsStore(opts.cafsDir)
   const { filesIndex } = await fetchTarball(cafs, { tarball }, {
     lockfileDir: process.cwd(),
   })

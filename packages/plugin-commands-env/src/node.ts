@@ -3,6 +3,7 @@ import path from 'path'
 import { Config } from '@pnpm/config'
 import { createFetchFromRegistry, FetchFromRegistry } from '@pnpm/fetch'
 import { fetchNode } from '@pnpm/node.fetcher'
+import storePath from '@pnpm/store-path'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import getNodeMirror from './getNodeMirror'
@@ -64,7 +65,16 @@ export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommand
   await fs.promises.mkdir(nodesDir, { recursive: true })
   const versionDir = path.join(nodesDir, opts.useNodeVersion)
   if (!fs.existsSync(versionDir)) {
-    await fetchNode(fetch, opts.useNodeVersion, versionDir, opts)
+    const storeDir = await storePath({
+      pkgRoot: process.cwd(),
+      storePath: opts.storeDir,
+      pnpmHomeDir: opts.pnpmHomeDir,
+    })
+    const cafsDir = path.join(storeDir, 'files')
+    await fetchNode(fetch, opts.useNodeVersion, versionDir, {
+      ...opts,
+      cafsDir,
+    })
   }
   return versionDir
 }

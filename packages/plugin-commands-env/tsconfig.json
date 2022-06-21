@@ -29,6 +29,9 @@
     },
     {
       "path": "../node.fetcher"
+    },
+    {
+      "path": "../store-path"
     }
   ]
 }
