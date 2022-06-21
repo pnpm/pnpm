@@ -13,25 +13,16 @@
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../cli-utils"
-    },
-    {
-      "path": "../config"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../fetch"
+      "path": "../create-cafs-store"
     },
     {
       "path": "../fetcher-base"
     },
     {
-      "path": "../node.fetcher"
+      "path": "../fetching-types"
     },
     {
-      "path": "../store-path"
+      "path": "../tarball-fetcher"
     }
   ]
 }
