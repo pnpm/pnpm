@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-installation
 
+## 8.4.25
+
+### Patch Changes
+
+- 41aed93d9: Don't crash when `pnpm update --interactive` is cancelled with Ctrl+c.
+
 ## 8.4.24
 
 ### Patch Changes

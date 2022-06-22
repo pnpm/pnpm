@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.fetcher",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Node.js artifacts fetcher",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -44,7 +44,7 @@
     "tempy": "^1.0.1"
   },
   "devDependencies": {
-    "@pnpm/node.fetcher": "workspace:0.0.0",
+    "@pnpm/node.fetcher": "workspace:0.1.0",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "^0.4.34",
     "node-fetch": "3.0.0-beta.9"

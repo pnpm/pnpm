@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "8.4.24",
+  "version": "8.4.25",
   "description": "Commands for installation",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -37,7 +37,7 @@
     "@pnpm/lockfile-types": "workspace:3.2.0",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/modules-yaml": "workspace:9.1.1",
-    "@pnpm/plugin-commands-installation": "workspace:8.4.24",
+    "@pnpm/plugin-commands-installation": "workspace:8.4.25",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.20.0",
     "@pnpm/test-fixtures": "workspace:*",

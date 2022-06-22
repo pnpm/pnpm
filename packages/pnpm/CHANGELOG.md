@@ -1,5 +1,16 @@
 # pnpm
 
+## 6.32.24
+
+### Patch Changes
+
+- Don't crash when `pnpm update --interactive` is cancelled with Ctrl+c.
+- The `use-node-version` setting should work with prerelease Node.js versions. For instance:
+
+  ```
+  use-node-version=18.0.0-rc.3
+  ```
+
 ## 6.32.23
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-env
 
+## 1.4.29
+
+### Patch Changes
+
+- 91bcb44ae: The `use-node-version` setting should work with prerelease Node.js versions. For instance:
+
+  ```
+  use-node-version=18.0.0-rc.3
+  ```
+
+- Updated dependencies [ca182a8b6]
+- Updated dependencies [ba8f23a43]
+  - @pnpm/node.resolver@0.1.0
+  - @pnpm/node.fetcher@0.1.0
+
 ## 1.4.28
 
 ### Patch Changes
