@@ -123,6 +123,7 @@ export interface ResolutionContext {
   autoInstallPeers: boolean
   allowBuild?: (pkgName: string) => boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
+  appliedPatches: Set<string>
   updatedSet: Set<string>
   defaultTag: string
   dryRun: boolean
@@ -923,9 +924,11 @@ async function resolveDependency (
       status: 'resolved',
     })
 
-    let patchPath = ctx.patchedDependencies?.[`${pkg.name}@${pkg.version}`]
+    const nameAndVersion = `${pkg.name}@${pkg.version}`
+    let patchPath = ctx.patchedDependencies?.[nameAndVersion]
     if (patchPath) {
       patchPath = path.join(ctx.lockfileDir, patchPath)
+      ctx.appliedPatches.add(nameAndVersion)
     }
 
     ctx.resolvedPackagesByDepPath[depPath] = await getResolvedPackage({
