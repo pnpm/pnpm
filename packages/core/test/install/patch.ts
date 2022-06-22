@@ -90,3 +90,26 @@ test('patch package', async () => {
   // The original file did not break, when a patched version was created
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
 })
+
+test('patch package throws an exception if not all patches are applied', async () => {
+  prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+
+  const patchedDependencies = {
+    'is-positive@1.0.0': path.relative(process.cwd(), patchPath),
+    'is-negative@1.0.0': path.relative(process.cwd(), patchPath),
+  }
+  const opts = await testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await expect(
+    install({
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    }, opts)
+  ).rejects.toThrow('The following patches were not applied: is-negative@1.0.0')
+})

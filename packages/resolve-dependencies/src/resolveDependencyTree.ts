@@ -116,6 +116,7 @@ export default async function<T> (
     updateMatching: opts.updateMatching,
     virtualStoreDir: opts.virtualStoreDir,
     wantedLockfile: opts.wantedLockfile,
+    appliedPatches: new Set<string>(),
   }
 
   await Promise.all(importers.map(async (importer) => {
@@ -218,6 +219,7 @@ export default async function<T> (
     resolvedImporters,
     resolvedPackagesByDepPath: ctx.resolvedPackagesByDepPath,
     wantedToBeSkippedPackageIds,
+    appliedPatches: ctx.appliedPatches,
   }
 }
 
