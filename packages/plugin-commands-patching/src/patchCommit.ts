@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
+import { install } from '@pnpm/plugin-commands-installation'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import pick from 'ramda/src/pick'
@@ -26,7 +27,7 @@ export function help () {
   })
 }
 
-export async function handler (opts: { dir: string, lockfileDir?: string }, params: string[]) {
+export async function handler (opts: install.InstallCommandOptions, params: string[]) {
   const userDir = params[0]
   const srcDir = path.join(userDir, '../source')
   const patchContent = await diffFolders(srcDir, userDir)
@@ -50,6 +51,7 @@ export async function handler (opts: { dir: string, lockfileDir?: string }, para
   }
   manifest.pnpm.patchedDependencies![pkgNameAndVersion] = `patches/${patchFileName}.patch`
   await writeProjectManifest(manifest)
+  return install.handler(opts)
 }
 
 async function diffFolders (folderA: string, folderB: string) {

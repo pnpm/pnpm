@@ -2473,6 +2473,7 @@ importers:
       '@pnpm/logger': ^4.0.0
       '@pnpm/parse-wanted-dependency': workspace:3.0.0
       '@pnpm/pick-registry-for-package': workspace:3.0.3
+      '@pnpm/plugin-commands-installation': workspace:10.2.0
       '@pnpm/plugin-commands-patching': workspace:0.0.0
       '@pnpm/prepare': workspace:*
       '@pnpm/read-package-json': workspace:6.0.4
@@ -2490,6 +2491,7 @@ importers:
       '@pnpm/config': link:../config
       '@pnpm/parse-wanted-dependency': link:../parse-wanted-dependency
       '@pnpm/pick-registry-for-package': link:../pick-registry-for-package
+      '@pnpm/plugin-commands-installation': link:../plugin-commands-installation
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/store-connection-manager': link:../store-connection-manager

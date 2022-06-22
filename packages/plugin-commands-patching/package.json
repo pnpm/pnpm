@@ -44,6 +44,7 @@
     "@pnpm/config": "workspace:15.3.0",
     "@pnpm/parse-wanted-dependency": "workspace:3.0.0",
     "@pnpm/pick-registry-for-package": "workspace:3.0.3",
+    "@pnpm/plugin-commands-installation": "workspace:10.2.0",
     "@pnpm/read-package-json": "workspace:6.0.4",
     "@pnpm/read-project-manifest": "workspace:3.0.4",
     "@pnpm/store-connection-manager": "workspace:4.1.11",

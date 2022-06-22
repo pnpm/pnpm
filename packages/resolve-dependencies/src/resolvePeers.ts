@@ -220,9 +220,6 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   )
   if (hit != null) {
     ctx.pathsByNodeId[nodeId] = hit.depPath
-    if (resolvedPackage.patchFile) {
-      ctx.pathsByNodeId[nodeId] += `_${resolvedPackage.patchFile.hash}`
-    }
     ctx.depGraph[hit.depPath].depth = Math.min(ctx.depGraph[hit.depPath].depth, node.depth)
     return {
       missingPeers: hit.missingPeers,

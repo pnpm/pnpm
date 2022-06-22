@@ -37,14 +37,14 @@ const ROOT_KEYS_ORDER = {
   onlyBuiltDependencies: 2,
   overrides: 3,
   packageExtensionsChecksum: 4,
+  patchedDependencies: 5,
   specifiers: 10,
   dependencies: 11,
   optionalDependencies: 12,
   devDependencies: 13,
   dependenciesMeta: 14,
-  patchedDependencies: 15,
-  importers: 16,
-  packages: 17,
+  importers: 15,
+  packages: 16,
 }
 
 function compareWithPriority (priority: Record<string, number>, left: string, right: string) {
