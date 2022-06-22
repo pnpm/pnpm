@@ -180,6 +180,11 @@ export type PkgAddress = {
   isLinkedDependency: undefined
 })
 
+export interface PatchFile {
+  path: string
+  hash: string
+}
+
 export interface ResolvedPackage {
   id: string
   resolution: Resolution
@@ -197,10 +202,7 @@ export interface ResolvedPackage {
   optionalDependencies: Set<string>
   hasBin: boolean
   hasBundledDependencies: boolean
-  patchFile?: {
-    path: string
-    hash: string
-  }
+  patchFile?: PatchFile
   prepare: boolean
   depPath: string
   requiresBuild: boolean | SafePromiseDefer<boolean>

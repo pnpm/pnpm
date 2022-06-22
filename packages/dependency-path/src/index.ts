@@ -148,8 +148,11 @@ function depPathToFilenameUnescaped (depPath: string) {
   return depPath.replace(':', '+')
 }
 
-export function createPeersFolderSuffix (peers: Array<{name: string, version: string}>): string {
-  const folderName = peers.map(({ name, version }) => `${name.replace('/', '+')}@${version}`).sort().join('+')
+export function createPeersFolderSuffix (peers: Array<{name: string, version: string}>, patchFileHash?: string): string {
+  let folderName = peers.map(({ name, version }) => `${name.replace('/', '+')}@${version}`).sort().join('+')
+  if (patchFileHash) {
+    folderName += `_${patchFileHash}`
+  }
 
   // We don't want the folder name to get too long.
   // Otherwise, an ENAMETOOLONG error might happen.

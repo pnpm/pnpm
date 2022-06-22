@@ -25,6 +25,9 @@
       "path": "../pick-registry-for-package"
     },
     {
+      "path": "../plugin-commands-installation"
+    },
+    {
       "path": "../read-package-json"
     },
     {
