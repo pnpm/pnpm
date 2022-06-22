@@ -243,7 +243,7 @@ function verifyPatches (patchedDependencies: Record<string, string>, appliedPatc
   const nonAppliedPatches: string[] = Object.keys(patchedDependencies).filter((patchKey) => !appliedPatches.has(patchKey))
   if (nonAppliedPatches.length) {
     throw new PnpmError('PATCH_NOT_APPLIED', `The following patches were not applied: ${nonAppliedPatches.join(', ')}`, {
-      hint: 'Either remove them or update them to much packages in your dependencies.',
+      hint: 'Either remove them from "patchedDependencies" or update them to much packages in your dependencies.',
     })
   }
 }
