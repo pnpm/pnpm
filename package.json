@@ -82,7 +82,8 @@
       "trim@<0.0.3": ">=0.0.3",
       "set-value@<4.0.1": "^4.0.1",
       "validator@<13.7.0": ">=13.7.0",
-      "json-schema@<0.4.0": ">=0.4.0"
+      "json-schema@<0.4.0": ">=0.4.0",
+      "jsdom@<=16.4.0": ">=16.5.0"
     },
     "packageExtensions": {
       "@babel/parser": {
