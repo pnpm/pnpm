@@ -102,6 +102,7 @@ export default async function (
     appliedPatches,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
+  // We only check whether patches were applied in cases when the whole lockfile was reanalyzed.
   if (opts.patchedDependencies && (opts.forceFullResolution || !opts.wantedLockfile.packages?.length)) {
     verifyPatches(opts.patchedDependencies, appliedPatches)
   }
