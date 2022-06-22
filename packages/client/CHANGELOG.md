@@ -1,5 +1,16 @@
 # @pnpm/client
 
+## 7.1.6
+
+### Patch Changes
+
+- @pnpm/git-fetcher@5.1.5
+- @pnpm/resolver-base@9.0.4
+- @pnpm/tarball-fetcher@10.0.6
+- @pnpm/directory-fetcher@3.0.5
+- @pnpm/fetch@5.0.4
+- @pnpm/default-resolver@15.0.6
+
 ## 7.1.5
 
 ### Patch Changes

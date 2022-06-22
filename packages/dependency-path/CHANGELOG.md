@@ -1,5 +1,16 @@
 # dependency-path
 
+## 9.2.0
+
+### Minor Changes
+
+- c635f9fc1: Add patchFileHash as an optional argument to createPeersFolderSuffix().
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+
 ## 9.1.4
 
 ### Patch Changes

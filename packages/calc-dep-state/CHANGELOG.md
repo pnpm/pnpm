@@ -1,5 +1,11 @@
 # @pnpm/calc-dep-state
 
+## 3.0.0
+
+### Major Changes
+
+- 2a34b21ce: Changed the order of arguments in calcDepState and added an optional last argument for patchFileHash.
+
 ## 2.0.1
 
 ### Patch Changes

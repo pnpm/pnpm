@@ -1,5 +1,21 @@
 # @pnpm/fetcher-base
 
+## 13.0.0
+
+### Major Changes
+
+- 2a34b21ce: Rename engine and targetEngine fields to sideEffectsCacheKey.
+
+### Minor Changes
+
+- 47b5e45dd: `package-import-method` supports a new option: `clone-or-copy`.
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/resolver-base@9.0.4
+
 ## 12.1.0
 
 ### Minor Changes

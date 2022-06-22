@@ -1,5 +1,24 @@
 # @pnpm/create-cafs-store
 
+## 2.0.0
+
+### Major Changes
+
+- 2a34b21ce: Rename engine and targetEngine fields to sideEffectsCacheKey.
+
+### Minor Changes
+
+- 47b5e45dd: `package-import-method` supports a new option: `clone-or-copy`.
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/fetcher-base@13.0.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/cafs@4.0.6
+  - @pnpm/core-loggers@7.0.4
+
 ## 1.1.0
 
 ### Minor Changes

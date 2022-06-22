@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/client",
-  "version": "7.1.5",
+  "version": "7.1.6",
   "description": "Creates the package resolve and fetch functions",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,18 +31,18 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/client#readme",
   "dependencies": {
-    "@pnpm/default-resolver": "workspace:15.0.5",
-    "@pnpm/directory-fetcher": "workspace:3.0.4",
-    "@pnpm/fetch": "workspace:5.0.3",
+    "@pnpm/default-resolver": "workspace:15.0.6",
+    "@pnpm/directory-fetcher": "workspace:3.0.5",
+    "@pnpm/fetch": "workspace:5.0.4",
     "@pnpm/fetching-types": "workspace:3.0.0",
-    "@pnpm/git-fetcher": "workspace:5.1.4",
-    "@pnpm/resolver-base": "workspace:9.0.3",
-    "@pnpm/tarball-fetcher": "workspace:10.0.5",
+    "@pnpm/git-fetcher": "workspace:5.1.5",
+    "@pnpm/resolver-base": "workspace:9.0.4",
+    "@pnpm/tarball-fetcher": "workspace:10.0.6",
     "credentials-by-uri": "^2.1.0",
     "mem": "^8.0.0"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:7.1.5",
+    "@pnpm/client": "workspace:7.1.6",
     "@pnpm/logger": "^4.0.0"
   },
   "funding": "https://opencollective.com/pnpm",

@@ -1,5 +1,58 @@
 # @pnpm/core
 
+## 5.5.0
+
+### Minor Changes
+
+- 2a34b21ce: Dependencies patching is possible via the `pnpm.patchedDependencies` field of the `package.json`.
+  To patch a package, the package name, exact version, and the relative path to the patch file should be specified. For instance:
+
+  ```json
+  {
+    "pnpm": {
+      "patchedDependencies": {
+        "eslint@1.0.0": "./patches/eslint@1.0.0.patch"
+      }
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [2a34b21ce]
+  - @pnpm/headless@18.3.0
+  - @pnpm/types@8.3.0
+  - @pnpm/resolve-dependencies@28.1.0
+  - @pnpm/lifecycle@13.1.0
+  - dependency-path@9.2.0
+  - @pnpm/calc-dep-state@3.0.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/build-modules@9.2.0
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/filter-lockfile@6.0.7
+  - @pnpm/get-context@6.2.1
+  - @pnpm/hoist@6.1.5
+  - @pnpm/link-bins@7.1.4
+  - @pnpm/lockfile-file@5.1.1
+  - @pnpm/lockfile-to-pnp@0.5.11
+  - @pnpm/lockfile-utils@4.0.6
+  - @pnpm/lockfile-walker@5.0.6
+  - @pnpm/manifest-utils@3.0.5
+  - @pnpm/modules-cleaner@12.0.9
+  - @pnpm/modules-yaml@10.0.4
+  - @pnpm/normalize-registries@3.0.4
+  - @pnpm/package-requester@18.0.9
+  - @pnpm/prune-lockfile@4.0.7
+  - @pnpm/read-package-json@6.0.5
+  - @pnpm/read-project-manifest@3.0.5
+  - @pnpm/remove-bins@3.0.5
+  - @pnpm/resolver-base@9.0.4
+  - @pnpm/symlink-dependency@5.0.4
+
 ## 5.4.0
 
 ### Minor Changes

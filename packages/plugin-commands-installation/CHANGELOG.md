@@ -1,5 +1,44 @@
 # @pnpm/plugin-commands-installation
 
+## 10.3.0
+
+### Minor Changes
+
+- 2a34b21ce: Dependencies patching is possible via the `pnpm.patchedDependencies` field of the `package.json`.
+  To patch a package, the package name, exact version, and the relative path to the patch file should be specified. For instance:
+
+  ```json
+  {
+    "pnpm": {
+      "patchedDependencies": {
+        "eslint@1.0.0": "./patches/eslint@1.0.0.patch"
+      }
+    }
+  }
+  ```
+
+### Patch Changes
+
+- 949e84ba8: Don't crash when `pnpm update --interactive` is cancelled with Ctrl+c.
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/core@5.5.0
+  - @pnpm/types@8.3.0
+  - @pnpm/package-store@14.0.0
+  - @pnpm/config@15.4.0
+  - @pnpm/cli-utils@0.7.14
+  - @pnpm/find-workspace-packages@4.0.14
+  - @pnpm/manifest-utils@3.0.5
+  - @pnpm/outdated@10.0.8
+  - @pnpm/plugin-commands-rebuild@6.1.13
+  - @pnpm/pnpmfile@2.0.5
+  - @pnpm/read-project-manifest@3.0.5
+  - @pnpm/resolver-base@9.0.4
+  - @pnpm/sort-packages@3.0.5
+  - @pnpm/store-connection-manager@4.1.12
+  - @pnpm/filter-workspace-packages@5.0.14
+
 ## 10.2.0
 
 ### Minor Changes

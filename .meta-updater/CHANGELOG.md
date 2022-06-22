@@ -1,5 +1,13 @@
 # @pnpm-private/updater
 
+## 0.3.6
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-file@5.1.1
+
 ## 0.3.5
 
 ### Patch Changes

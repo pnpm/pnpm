@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/symlink-dependency",
   "description": "Symlink a dependency to node_modules",
-  "version": "5.0.3",
+  "version": "5.0.4",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/symlink-dependency": "workspace:5.0.3"
+    "@pnpm/symlink-dependency": "workspace:5.0.4"
   },
   "directories": {
     "test": "test"
@@ -39,8 +39,8 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:7.0.3",
-    "@pnpm/types": "workspace:8.2.0",
+    "@pnpm/core-loggers": "workspace:7.0.4",
+    "@pnpm/types": "workspace:8.3.0",
     "symlink-dir": "^5.0.0"
   },
   "funding": "https://opencollective.com/pnpm",

@@ -1,5 +1,24 @@
 # @pnpm/build-modules
 
+## 9.2.0
+
+### Minor Changes
+
+- 2a34b21ce: Support packages patching.
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/lifecycle@13.1.0
+  - @pnpm/calc-dep-state@3.0.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/link-bins@7.1.4
+  - @pnpm/read-package-json@6.0.5
+
 ## 9.1.5
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/config
 
+## 15.4.0
+
+### Minor Changes
+
+- 47b5e45dd: `package-import-method` supports a new option: `clone-or-copy`.
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/pnpmfile@2.0.5
+  - @pnpm/read-project-manifest@3.0.5
+
 ## 15.3.0
 
 ### Minor Changes

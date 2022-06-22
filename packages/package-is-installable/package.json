@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "6.0.5",
+  "version": "6.0.6",
   "description": "Checks if a package is installable on the current system",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,9 +29,9 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:7.0.3",
+    "@pnpm/core-loggers": "workspace:7.0.4",
     "@pnpm/error": "workspace:3.0.1",
-    "@pnpm/types": "workspace:8.2.0",
+    "@pnpm/types": "workspace:8.3.0",
     "detect-libc": "^2.0.1",
     "execa": "npm:safe-execa@^0.1.1",
     "mem": "^8.0.0",
@@ -39,7 +39,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-is-installable": "workspace:6.0.5",
+    "@pnpm/package-is-installable": "workspace:6.0.6",
     "@types/semver": "^7.3.4"
   },
   "bugs": {

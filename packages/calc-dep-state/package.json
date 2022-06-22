@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/calc-dep-state",
-  "version": "2.0.1",
+  "version": "3.0.0",
   "description": "Calculates the state of a dependency",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -33,7 +33,7 @@
     "sort-keys": "^4.2.0"
   },
   "devDependencies": {
-    "@pnpm/calc-dep-state": "workspace:2.0.1"
+    "@pnpm/calc-dep-state": "workspace:3.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

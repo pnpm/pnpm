@@ -1,5 +1,61 @@
 # pnpm
 
+## 7.4.0-0
+
+### Minor Changes
+
+- Dependencies patching is possible via the `pnpm.patchedDependencies` field of the `package.json`.
+  To patch a package, the package name, exact version, and the relative path to the patch file should be specified. For instance:
+
+  ```json
+  {
+    "pnpm": {
+      "patchedDependencies": {
+        "eslint@1.0.0": "./patches/eslint@1.0.0.patch"
+      }
+    }
+  }
+  ```
+
+- Two new commands added: `pnpm patch` and `pnpm patch-commit`.
+
+  `pnpm patch <pkg>` prepares a package for patching. For instance, if you want to patch express v1, run:
+
+  ```
+  pnpm patch express@1.0.0
+  ```
+
+  pnpm will create a temporary directory with `express@1.0.0` that you can modify with your changes.
+  Once you are read with your changes, run:
+
+  ```
+  pnpm patch-commit <path to temp folder>
+  ```
+
+  This will create a patch file and write it to `<project>/patches/express@1.0.0.patch`.
+  Also, it will reference this new patch file from the `patchedDependencies` field in `package.json`:
+
+  ```json
+  {
+    "pnpm": {
+      "patchedDependencies": {
+        "express@1.0.0": "patches/express@1.0.0.patch"
+      }
+    }
+  }
+  ```
+
+- `package-import-method` supports a new option: `clone-or-copy`.
+
+### Patch Changes
+
+- 949e84ba8: Don't crash when `pnpm update --interactive` is cancelled with Ctrl+c.
+- d1df380ab: The `use-node-version` setting should work with prerelease Node.js versions. For instance:
+
+  ```
+  use-node-version=18.0.0-rc.3
+  ```
+
 ## 7.3.0
 
 ### Minor Changes

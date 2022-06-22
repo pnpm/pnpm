@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/real-hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -31,15 +31,15 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:3.0.1",
-    "@pnpm/lockfile-utils": "workspace:4.0.5",
+    "@pnpm/lockfile-utils": "workspace:4.0.6",
     "@yarnpkg/nm": "3.0.1",
-    "dependency-path": "workspace:9.1.4"
+    "dependency-path": "workspace:9.2.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/lockfile-file": "workspace:5.1.0",
+    "@pnpm/lockfile-file": "workspace:5.1.1",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/real-hoist": "workspace:0.2.5"
+    "@pnpm/real-hoist": "workspace:0.2.6"
   },
   "exports": {
     ".": "./lib/index.js"

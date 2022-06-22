@@ -1,5 +1,19 @@
 # @pnpm/server
 
+## 13.0.0
+
+### Major Changes
+
+- 2a34b21ce: Rename engine and targetEngine fields to sideEffectsCacheKey.
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/fetch@5.0.4
+
 ## 12.0.5
 
 ### Patch Changes

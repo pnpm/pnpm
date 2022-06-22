@@ -1,5 +1,14 @@
 # @pnpm/pnpmfile
 
+## 2.0.5
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-types@4.1.0
+  - @pnpm/core-loggers@7.0.4
+
 ## 2.0.4
 
 ### Patch Changes

@@ -1,0 +1,12 @@
+# @pnpm/node.resolver
+
+## 1.0.0
+
+### Major Changes
+
+- badbab154: Initial release.
+
+### Patch Changes
+
+- Updated dependencies [228dcc3c9]
+  - @pnpm/node.fetcher@1.0.0

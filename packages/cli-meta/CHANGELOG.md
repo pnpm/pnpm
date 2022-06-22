@@ -1,5 +1,12 @@
 # @pnpm/cli-meta
 
+## 3.0.4
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+
 ## 3.0.3
 
 ### Patch Changes

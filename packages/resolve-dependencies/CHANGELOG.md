@@ -1,5 +1,40 @@
 # @pnpm/resolve-dependencies
 
+## 28.1.0
+
+### Minor Changes
+
+- 2a34b21ce: Dependencies patching is possible via the `pnpm.patchedDependencies` field of the `package.json`.
+  To patch a package, the package name, exact version, and the relative path to the patch file should be specified. For instance:
+
+  ```json
+  {
+    "pnpm": {
+      "patchedDependencies": {
+        "eslint@1.0.0": "./patches/eslint@1.0.0.patch"
+      }
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-types@4.1.0
+  - dependency-path@9.2.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/lockfile-utils@4.0.6
+  - @pnpm/manifest-utils@3.0.5
+  - @pnpm/npm-resolver@13.0.5
+  - @pnpm/pick-registry-for-package@3.0.4
+  - @pnpm/prune-lockfile@4.0.7
+  - @pnpm/read-package-json@6.0.5
+  - @pnpm/resolver-base@9.0.4
+
 ## 28.0.0
 
 ### Major Changes
