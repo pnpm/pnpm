@@ -10,6 +10,11 @@ interface URLLike {
   href: string
 }
 
+const NO_RETRY_ERROR_CODES = new Set([
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'ERR_OSSL_PEM_NO_START_LINE',
+])
+
 export type RequestInfo = string | URLLike | Request
 
 export interface RequestInit extends NodeRequestInit {
@@ -42,6 +47,9 @@ export default async function fetchRetry (url: RequestInfo, opts: RequestInit = 
           return
         }
       } catch (error: any) { // eslint-disable-line
+        if (error.code && NO_RETRY_ERROR_CODES.has(error.code)) {
+          throw error
+        }
         const timeout = op.retry(error)
         if (timeout === false) {
           reject(op.mainError())
