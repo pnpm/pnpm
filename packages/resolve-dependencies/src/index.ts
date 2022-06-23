@@ -104,7 +104,7 @@ export default async function (
 
   // We only check whether patches were applied in cases when the whole lockfile was reanalyzed.
   if (opts.patchedDependencies && (opts.forceFullResolution || !opts.wantedLockfile.packages?.length)) {
-    verifyPatches(opts.patchedDependencies, appliedPatches)
+    verifyPatches(Object.keys(opts.patchedDependencies), appliedPatches)
   }
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
@@ -239,8 +239,8 @@ export default async function (
   }
 }
 
-function verifyPatches (patchedDependencies: Record<string, string>, appliedPatches: Set<string>) {
-  const nonAppliedPatches: string[] = Object.keys(patchedDependencies).filter((patchKey) => !appliedPatches.has(patchKey))
+function verifyPatches (patchedDependencies: string[], appliedPatches: Set<string>) {
+  const nonAppliedPatches: string[] = patchedDependencies.filter((patchKey) => !appliedPatches.has(patchKey))
   if (nonAppliedPatches.length) {
     throw new PnpmError('PATCH_NOT_APPLIED', `The following patches were not applied: ${nonAppliedPatches.join(', ')}`, {
       hint: 'Either remove them from "patchedDependencies" or update them to much packages in your dependencies.',

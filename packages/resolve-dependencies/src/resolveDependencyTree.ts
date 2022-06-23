@@ -67,7 +67,7 @@ export interface ResolveDependenciesOptions {
   }
   nodeVersion: string
   registries: Registries
-  patchedDependencies?: Record<string, string>
+  patchedDependencies?: Record<string, { path: string, hash: string }>
   pnpmVersion: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean

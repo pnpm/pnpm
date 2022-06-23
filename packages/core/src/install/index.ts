@@ -10,6 +10,7 @@ import {
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
+import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import PnpmError from '@pnpm/error'
 import getContext, { PnpmContext, ProjectOptions } from '@pnpm/get-context'
 import headless, { Project } from '@pnpm/headless'
@@ -234,13 +235,17 @@ export async function mutateModules (
       )
     }
     const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : createObjectChecksum(opts.packageExtensions!)
+    const patchedDependencies = opts.patchedDependencies ? await resolvePatches(opts.patchedDependencies, opts.lockfileDir) : {}
+    const patchedDependenciesHashes = patchedDependencies
+      ? fromPairs(Object.entries(patchedDependencies).map(([key, { hash }]) => [key, hash]))
+      : undefined
     let needsFullResolution = !maybeOpts.ignorePackageManifest &&
       lockfileIsUpToDate(ctx.wantedLockfile, {
         overrides: opts.overrides,
         neverBuiltDependencies: opts.neverBuiltDependencies,
         onlyBuiltDependencies: opts.onlyBuiltDependencies,
         packageExtensionsChecksum,
-        patchedDependencies: opts.patchedDependencies,
+        patchedDependencies: patchedDependenciesHashes,
       }) ||
       opts.fixLockfile
     if (needsFullResolution) {
@@ -248,7 +253,7 @@ export async function mutateModules (
       ctx.wantedLockfile.neverBuiltDependencies = opts.neverBuiltDependencies
       ctx.wantedLockfile.onlyBuiltDependencies = opts.onlyBuiltDependencies
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
-      ctx.wantedLockfile.patchedDependencies = opts.patchedDependencies
+      ctx.wantedLockfile.patchedDependencies = patchedDependenciesHashes
     }
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsWantedLockfile
@@ -479,10 +484,26 @@ export async function mutateModules (
       pruneVirtualStore,
       scriptsOpts,
       updateLockfileMinorVersion: true,
+      patchedDependenciesWithHashes: patchedDependencies,
     })
 
     return result.projects
   }
+}
+
+async function resolvePatches (patches: Record<string, string>, lockfileDir: string) {
+  return fromPairs(await Promise.all(
+    Object.entries(patches).map(async ([key, patchFileRelativePath]) => {
+      const patchFilePath = path.join(lockfileDir, patchFileRelativePath)
+      return [
+        key,
+        {
+          hash: await createBase32HashFromFile(patchFilePath),
+          path: patchFilePath,
+        },
+      ]
+    })
+  ))
 }
 
 function lockfileIsUpToDate (
@@ -653,6 +674,7 @@ type InstallFunction = (
   projects: ImporterToUpdate[],
   ctx: PnpmContext<DependenciesMutation>,
   opts: StrictInstallOptions & {
+    patchedDependenciesWithHashes: Record<string, { path: string, hash: string }>
     makePartialCurrentLockfile: boolean
     needsFullResolution: boolean
     neverBuiltDependencies?: string[]
@@ -778,7 +800,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages,
-      patchedDependencies: opts.patchedDependencies,
+      patchedDependencies: opts.patchedDependenciesWithHashes,
     }
   )
 

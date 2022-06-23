@@ -113,3 +113,31 @@ test('patch package throws an exception if not all patches are applied', async (
     }, opts)
   ).rejects.toThrow('The following patches were not applied: is-negative@1.0.0')
 })
+
+test.only('the patched package is updated if the patch is modified', async () => {
+  prepareEmpty()
+  f.copy('patch-pkg', 'patches')
+  const patchPath = path.resolve('patches', 'is-positive@1.0.0.patch')
+
+  const patchedDependencies = {
+    'is-positive@1.0.0': path.relative(process.cwd(), patchPath),
+  }
+  const opts = await testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  const manifest = {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  await install(manifest, opts)
+
+  const patchContent = fs.readFileSync(patchPath, 'utf8')
+  fs.writeFileSync(patchPath, patchContent.replace('// patched', '// edited patch'), 'utf8')
+
+  await install(manifest, opts)
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// edited patch')
+})
