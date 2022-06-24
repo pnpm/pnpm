@@ -184,6 +184,7 @@ importers:
       '@pnpm/store-controller-types': workspace:14.0.0
       '@pnpm/types': workspace:8.3.0
       '@types/ramda': 0.27.39
+      patch-package: ^6.4.7
       ramda: ^0.27.1
       run-groups: ^3.0.1
     dependencies:
@@ -195,6 +196,7 @@ importers:
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/types': link:../types
+      patch-package: 6.4.7
       ramda: 0.27.2
       run-groups: 3.0.1
     devDependencies:
@@ -1266,7 +1268,6 @@ importers:
       '@zkochan/rimraf': ^2.1.2
       json-append: 1.1.1
       load-json-file: ^6.2.0
-      patch-package: ^6.4.7
       path-exists: ^4.0.0
       run-groups: ^3.0.1
     dependencies:
@@ -1276,7 +1277,6 @@ importers:
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/types': link:../types
-      patch-package: 6.4.7
       path-exists: 4.0.0
       run-groups: 3.0.1
     devDependencies:

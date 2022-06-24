@@ -3,7 +3,6 @@ import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import exists from 'path-exists'
 import runLifecycleHook, { RunLifecycleHookOptions } from './runLifecycleHook'
 import runLifecycleHooksConcurrently, { RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently'
-import { applyPatch } from 'patch-package/dist/applyPatches'
 
 export function makeNodeRequireOption (modulePath: string) {
   let { NODE_OPTIONS } = process.env
@@ -26,17 +25,6 @@ export async function runPostinstallHooks (
   if (pkg.scripts == null) {
     pkg.scripts = {}
   }
-  if (opts.patchPath) {
-    // Ideally, we would just run "patch" or "git apply".
-    // However, "patch" is not available on Windows and "git apply" is hard to execute on a subdirectory of an existing repository
-    const cwd = process.cwd()
-    process.chdir(opts.pkgRoot)
-    applyPatch({
-      patchFilePath: opts.patchPath,
-      patchDir: opts.pkgRoot,
-    })
-    process.chdir(cwd)
-  }
 
   if (!pkg.scripts.install) {
     await checkBindingGyp(opts.pkgRoot, pkg.scripts)
@@ -54,8 +42,7 @@ export async function runPostinstallHooks (
 
   return pkg.scripts.preinstall != null ||
     pkg.scripts.install != null ||
-    pkg.scripts.postinstall != null ||
-    Boolean(opts.patchPath)
+    pkg.scripts.postinstall != null
 }
 
 /**

@@ -22,12 +22,18 @@ export function calcDepState (
   depsGraph: DepsGraph,
   cache: DepsStateCache,
   depPath: string,
-  patchFileHash?: string
+  opts: {
+    patchFileHash?: string
+    ignoreScripts: boolean
+  }
 ): string {
-  const depStateObj = calcDepStateObj(depPath, depsGraph, cache, new Set())
-  let result = `${ENGINE_NAME}-${JSON.stringify(depStateObj)}`
-  if (patchFileHash) {
-    result += `-${patchFileHash}`
+  let result = ENGINE_NAME
+  if (!opts.ignoreScripts) {
+    const depStateObj = calcDepStateObj(depPath, depsGraph, cache, new Set())
+    result += `-${JSON.stringify(depStateObj)}`
+  }
+  if (opts.patchFileHash) {
+    result += `-${opts.patchFileHash}`
   }
   return result
 }

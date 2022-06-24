@@ -7,6 +7,7 @@ import logger from '@pnpm/logger'
 import { fromDir as readPackageFromDir, safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
+import { applyPatch } from 'patch-package/dist/applyPatches'
 import runGroups from 'run-groups'
 import buildSequence, { DependenciesGraph, DependenciesGraphNode } from './buildSequence'
 
@@ -22,6 +23,7 @@ export default async (
     extraBinPaths?: string[]
     extraNodePaths?: string[]
     extraEnv?: Record<string, string>
+    ignoreScripts?: boolean
     lockfileDir: string
     optional: boolean
     rawConfig: object
@@ -61,6 +63,7 @@ async function buildDependency (
     extraNodePaths?: string[]
     extraEnv?: Record<string, string>
     depsStateCache: DepsStateCache
+    ignoreScripts?: boolean
     lockfileDir: string
     optional: boolean
     rawConfig: object
@@ -77,13 +80,16 @@ async function buildDependency (
   const depNode = depGraph[depPath]
   try {
     await linkBinsOfDependencies(depNode, depGraph, opts)
-    const hasSideEffects = await runPostinstallHooks({
+    const isPatched = depNode.patchFile?.path != null
+    if (isPatched) {
+      applyPatchToDep(depNode.dir, depNode.patchFile!.path)
+    }
+    const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
       depPath,
       extraBinPaths: opts.extraBinPaths,
       extraEnv: opts.extraEnv,
       initCwd: opts.lockfileDir,
       optional: depNode.optional,
-      patchPath: depNode.patchFile?.path,
       pkgRoot: depNode.dir,
       rawConfig: opts.rawConfig,
       rootModulesDir: opts.rootModulesDir,
@@ -92,9 +98,12 @@ async function buildDependency (
       shellEmulator: opts.shellEmulator,
       unsafePerm: opts.unsafePerm || false,
     })
-    if (hasSideEffects && opts.sideEffectsCacheWrite) {
+    if ((isPatched || hasSideEffects) && opts.sideEffectsCacheWrite) {
       try {
-        const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, depNode.patchFile?.hash)
+        const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
+          patchFileHash: depNode.patchFile?.hash,
+          ignoreScripts: Boolean(opts.ignoreScripts),
+        })
         await opts.storeController.upload(depNode.dir, {
           sideEffectsCacheKey,
           filesIndexFile: depNode.filesIndexFile,
@@ -132,6 +141,18 @@ async function buildDependency (
     }
     throw err
   }
+}
+
+function applyPatchToDep (patchDir: string, patchFilePath: string) {
+  // Ideally, we would just run "patch" or "git apply".
+  // However, "patch" is not available on Windows and "git apply" is hard to execute on a subdirectory of an existing repository
+  const cwd = process.cwd()
+  process.chdir(patchDir)
+  applyPatch({
+    patchFilePath,
+    patchDir: patchDir,
+  })
+  process.chdir(cwd)
 }
 
 export async function linkBinsOfDependencies (
