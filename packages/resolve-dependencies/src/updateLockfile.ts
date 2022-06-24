@@ -156,6 +156,9 @@ function toLockfileDependency (
   if (pkg.hasBin) {
     result['hasBin'] = true
   }
+  if (pkg.patchFile) {
+    result['patched'] = true
+  }
   const requiresBuildIsKnown = typeof pkg.requiresBuild === 'boolean'
   let pending = false
   if (requiresBuildIsKnown) {

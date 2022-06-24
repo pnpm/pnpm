@@ -409,21 +409,21 @@ async function linkAllPkgs (
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles()
 
+      if (typeof depNode.requiresBuild === 'function') {
+        depNode.requiresBuild = await depNode.requiresBuild()
+      }
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
         sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
-          ignoreScripts: opts.ignoreScripts,
+          isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
           patchFileHash: depNode.patchFile?.hash,
         })
-      }
-      if (typeof depNode.requiresBuild === 'function') {
-        depNode.requiresBuild = await depNode.requiresBuild()
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
         sideEffectsCacheKey,
-        requiresBuild: depNode.requiresBuild,
+        requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
       })
       if (importMethod) {
         progressLogger.debug({

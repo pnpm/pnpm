@@ -24,11 +24,11 @@ export function calcDepState (
   depPath: string,
   opts: {
     patchFileHash?: string
-    ignoreScripts: boolean
+    isBuilt: boolean
   }
 ): string {
   let result = ENGINE_NAME
-  if (!opts.ignoreScripts) {
+  if (opts.isBuilt) {
     const depStateObj = calcDepStateObj(depPath, depsGraph, cache, new Set())
     result += `-${JSON.stringify(depStateObj)}`
   }

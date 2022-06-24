@@ -43,7 +43,10 @@ export default async (
   const buildDepOpts = { ...opts, warn }
   const chunks = buildSequence(depGraph, rootDepPaths)
   const groups = chunks.map((chunk) => {
-    chunk = chunk.filter((depPath) => depGraph[depPath].requiresBuild && !depGraph[depPath].isBuilt)
+    chunk = chunk.filter((depPath) => {
+      const node = depGraph[depPath]
+      return (node.requiresBuild || node.patchFile != null) && !node.isBuilt
+    })
     if (opts.depsToBuild != null) {
       chunk = chunk.filter((depPath) => opts.depsToBuild!.has(depPath))
     }
@@ -102,7 +105,7 @@ async function buildDependency (
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
           patchFileHash: depNode.patchFile?.hash,
-          ignoreScripts: Boolean(opts.ignoreScripts),
+          isBuilt: hasSideEffects,
         })
         await opts.storeController.upload(depNode.dir, {
           sideEffectsCacheKey,
