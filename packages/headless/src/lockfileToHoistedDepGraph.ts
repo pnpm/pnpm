@@ -35,7 +35,7 @@ export interface LockfileToHoistedDepGraphOptions {
   nodeVersion: string
   pnpmVersion: string
   registries: Registries
-  patchedDependenciesWithResolvedPath?: Record<string, { path: string, hash: string }>
+  patchedDependencies?: Record<string, { path: string, hash: string }>
   sideEffectsCacheRead: boolean
   skipped: Set<string>
   storeController: StoreController
@@ -209,7 +209,7 @@ async function fetchDeps (
       optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
       prepare: pkgSnapshot.prepare === true,
       requiresBuild: pkgSnapshot.requiresBuild === true,
-      patchFile: opts.patchedDependenciesWithResolvedPath?.[`${pkgName}@${pkgVersion}`],
+      patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
     }
     opts.pkgLocationByDepPath[depPath] = dir
     depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies)

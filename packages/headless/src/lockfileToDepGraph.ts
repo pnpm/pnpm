@@ -62,7 +62,7 @@ export interface LockfileToDepGraphOptions {
   lockfileDir: string
   nodeVersion: string
   pnpmVersion: string
-  patchedDependenciesWithResolvedPath?: Record<string, { path: string, hash: string }>
+  patchedDependencies?: Record<string, { path: string, hash: string }>
   registries: Registries
   sideEffectsCacheRead: boolean
   skipped: Set<string>
@@ -180,7 +180,7 @@ export default async function lockfileToDepGraph (
           optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
           prepare: pkgSnapshot.prepare === true,
           requiresBuild: pkgSnapshot.requiresBuild === true,
-          patchFile: opts.patchedDependenciesWithResolvedPath?.[`${pkgName}@${pkgVersion}`],
+          patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
         }
         pkgSnapshotByLocation[dir] = pkgSnapshot
       })
