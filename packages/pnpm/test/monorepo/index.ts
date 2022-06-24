@@ -1499,6 +1499,34 @@ test('pnpm run should include the workspace root when --workspace-root option is
   expect(await exists('project/test')).toBeTruthy()
 })
 
+test('pnpm run should include the workspace root when include-workspace-root is set to true', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        scripts: {
+          test: "node -e \"require('fs').writeFileSync('test','','utf8')\"",
+        },
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+      scripts: {
+        test: "node -e \"require('fs').writeFileSync('test','','utf8')\"",
+      },
+    },
+  ])
+
+  await fs.writeFile('.npmrc', 'include-workspace-root', 'utf8')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm(['-r', 'test'])
+
+  expect(await exists('test')).toBeTruthy()
+  expect(await exists('project/test')).toBeTruthy()
+})
+
 test('legacy directory filtering', async () => {
   preparePackages([
     {
