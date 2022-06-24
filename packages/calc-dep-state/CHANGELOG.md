@@ -1,5 +1,11 @@
 # @pnpm/calc-dep-state
 
+## 3.0.1
+
+### Patch Changes
+
+- 285ff09ba: Calculate the cache key differently when scripts are ignored.
+
 ## 3.0.0
 
 ### Major Changes

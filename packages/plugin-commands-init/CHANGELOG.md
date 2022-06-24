@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-init
 
+## 1.0.15
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.15
+- @pnpm/config@15.4.1
+- @pnpm/write-project-manifest@3.0.5
+
 ## 1.0.14
 
 ### Patch Changes

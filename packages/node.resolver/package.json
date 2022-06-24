@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.resolver",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Resolves a Node.js version specifier to an exact Node.js version",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -36,13 +36,13 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/node.resolver#readme",
   "dependencies": {
     "@pnpm/fetching-types": "workspace:3.0.0",
-    "@pnpm/node.fetcher": "workspace:1.0.0",
+    "@pnpm/node.fetcher": "workspace:1.0.1",
     "semver": "^7.3.4",
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
-    "@pnpm/fetch": "workspace:5.0.4",
-    "@pnpm/node.resolver": "workspace:1.0.0",
+    "@pnpm/fetch": "workspace:5.0.5",
+    "@pnpm/node.resolver": "workspace:1.0.1",
     "@types/semver": "^7.3.4"
   }
 }

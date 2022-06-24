@@ -1,5 +1,12 @@
 # @pnpm/sort-packages
 
+## 3.0.6
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+
 ## 3.0.5
 
 ### Patch Changes

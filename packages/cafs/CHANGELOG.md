@@ -1,5 +1,12 @@
 # @pnpm/cafs
 
+## 4.0.7
+
+### Patch Changes
+
+- @pnpm/fetcher-base@13.0.1
+- @pnpm/store-controller-types@14.0.1
+
 ## 4.0.6
 
 ### Patch Changes

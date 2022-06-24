@@ -1,5 +1,14 @@
 # @pnpm/create-cafs-store
 
+## 2.0.1
+
+### Patch Changes
+
+- @pnpm/cafs@4.0.7
+- @pnpm/core-loggers@7.0.5
+- @pnpm/fetcher-base@13.0.1
+- @pnpm/store-controller-types@14.0.1
+
 ## 2.0.0
 
 ### Major Changes

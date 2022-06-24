@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.4.0-0
+## 7.4.0-1
 
 ### Minor Changes
 

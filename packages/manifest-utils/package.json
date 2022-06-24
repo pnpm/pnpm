@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/manifest-utils",
   "description": "Utils for dealing with package manifest",
-  "version": "3.0.5",
+  "version": "3.0.6",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -28,14 +28,14 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:7.0.4",
+    "@pnpm/core-loggers": "workspace:7.0.5",
     "@pnpm/error": "workspace:3.0.1",
-    "@pnpm/types": "workspace:8.3.0"
+    "@pnpm/types": "workspace:8.4.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/manifest-utils#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/manifest-utils": "workspace:3.0.5"
+    "@pnpm/manifest-utils": "workspace:3.0.6"
   },
   "exports": {
     ".": "./lib/index.js"

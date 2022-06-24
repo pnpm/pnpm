@@ -1,5 +1,17 @@
 # @pnpm/lockfile-types
 
+## 4.2.0
+
+### Minor Changes
+
+- d01c32355: Add optional "patched" field to package object in the lockfile.
+
+### Patch Changes
+
+- 8e5b77ef6: Update the dependencies when a patch file is modified.
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+
 ## 4.1.0
 
 ### Minor Changes

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/normalize-registries",
   "description": "Accepts a mapping of registry URLs and returns a mapping with the same URLs but normalized",
-  "version": "3.0.4",
+  "version": "3.0.5",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -26,13 +26,13 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/types": "workspace:8.3.0",
+    "@pnpm/types": "workspace:8.4.0",
     "normalize-registry-url": "2.0.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/normalize-registries#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/normalize-registries": "workspace:3.0.4"
+    "@pnpm/normalize-registries": "workspace:3.0.5"
   },
   "exports": {
     ".": "./lib/index.js"

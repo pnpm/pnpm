@@ -1,5 +1,26 @@
 # @pnpm/resolve-dependencies
 
+## 28.1.1
+
+### Patch Changes
+
+- 8e5b77ef6: Update the dependencies when a patch file is modified.
+- Updated dependencies [d01c32355]
+- Updated dependencies [8e5b77ef6]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/lockfile-types@4.2.0
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-utils@4.0.7
+  - @pnpm/prune-lockfile@4.0.8
+  - @pnpm/core-loggers@7.0.5
+  - dependency-path@9.2.1
+  - @pnpm/manifest-utils@3.0.6
+  - @pnpm/npm-resolver@13.0.6
+  - @pnpm/pick-registry-for-package@3.0.5
+  - @pnpm/read-package-json@6.0.6
+  - @pnpm/resolver-base@9.0.5
+  - @pnpm/store-controller-types@14.0.1
+
 ## 28.1.0
 
 ### Minor Changes

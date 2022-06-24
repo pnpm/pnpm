@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-script-runners
 
+## 5.0.18
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/plugin-commands-installation@10.3.1
+  - @pnpm/cli-utils@0.7.15
+  - @pnpm/config@15.4.1
+  - @pnpm/lifecycle@13.1.1
+  - @pnpm/package-bins@6.0.5
+  - @pnpm/read-package-json@6.0.6
+  - @pnpm/read-project-manifest@3.0.6
+  - @pnpm/sort-packages@3.0.6
+
 ## 5.0.17
 
 ### Patch Changes

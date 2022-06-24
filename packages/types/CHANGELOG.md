@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 8.4.0
+
+### Minor Changes
+
+- 8e5b77ef6: Add PatchFile type.
+
 ## 8.3.0
 
 ### Minor Changes

@@ -1,5 +1,21 @@
 # @pnpm/build-modules
 
+## 9.2.1
+
+### Patch Changes
+
+- 8e5b77ef6: Update the dependencies when a patch file is modified.
+- 285ff09ba: Patch packages even when scripts are ignored.
+- Updated dependencies [285ff09ba]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/calc-dep-state@3.0.1
+  - @pnpm/types@8.4.0
+  - @pnpm/core-loggers@7.0.5
+  - @pnpm/lifecycle@13.1.1
+  - @pnpm/link-bins@7.1.5
+  - @pnpm/read-package-json@6.0.6
+  - @pnpm/store-controller-types@14.0.1
+
 ## 9.2.0
 
 ### Minor Changes

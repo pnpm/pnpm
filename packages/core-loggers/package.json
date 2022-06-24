@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core-loggers",
   "description": "Core loggers of pnpm",
-  "version": "7.0.4",
+  "version": "7.0.5",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -15,7 +15,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/core-loggers": "workspace:7.0.4",
+    "@pnpm/core-loggers": "workspace:7.0.5",
     "@pnpm/logger": "^4.0.0"
   },
   "directories": {
@@ -37,7 +37,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/types": "workspace:8.3.0"
+    "@pnpm/types": "workspace:8.4.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/core-loggers#readme",
   "funding": "https://opencollective.com/pnpm",

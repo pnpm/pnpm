@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-projects-context",
-  "version": "6.0.6",
+  "version": "6.0.7",
   "description": "Reads the current state of projects from modules manifest",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -28,15 +28,15 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:5.1.1",
-    "@pnpm/modules-yaml": "workspace:10.0.4",
-    "@pnpm/normalize-registries": "workspace:3.0.4",
-    "@pnpm/types": "workspace:8.3.0",
+    "@pnpm/lockfile-file": "workspace:5.1.2",
+    "@pnpm/modules-yaml": "workspace:10.0.5",
+    "@pnpm/normalize-registries": "workspace:3.0.5",
+    "@pnpm/types": "workspace:8.4.0",
     "realpath-missing": "^1.1.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/read-projects-context": "workspace:6.0.6"
+    "@pnpm/read-projects-context": "workspace:6.0.7"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
