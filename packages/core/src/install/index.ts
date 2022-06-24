@@ -306,7 +306,7 @@ export async function mutateModules (
               nodeVersion: opts.nodeVersion,
               pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
             },
-            patchedDependenciesWithResolvedPath,
+            patchedDependencies: patchedDependenciesWithResolvedPath,
             projects: ctx.projects as Project[],
             prunedAt: ctx.modulesFile?.prunedAt,
             pruneVirtualStore,
@@ -490,7 +490,7 @@ export async function mutateModules (
       pruneVirtualStore,
       scriptsOpts,
       updateLockfileMinorVersion: true,
-      patchedDependenciesWithResolvedPath,
+      patchedDependencies: patchedDependenciesWithResolvedPath,
     })
 
     return result.projects
@@ -679,8 +679,8 @@ interface InstallFunctionResult {
 type InstallFunction = (
   projects: ImporterToUpdate[],
   ctx: PnpmContext<DependenciesMutation>,
-  opts: StrictInstallOptions & {
-    patchedDependenciesWithResolvedPath?: Record<string, { path: string, hash: string }>
+  opts: Omit<StrictInstallOptions, 'patchedDependencies'> & {
+    patchedDependencies?: Record<string, { path: string, hash: string }>
     makePartialCurrentLockfile: boolean
     needsFullResolution: boolean
     neverBuiltDependencies?: string[]
@@ -806,7 +806,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages,
-      patchedDependencies: opts.patchedDependenciesWithResolvedPath,
+      patchedDependencies: opts.patchedDependencies,
     }
   )
 
