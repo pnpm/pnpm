@@ -27,6 +27,7 @@ export default async function linkHoistedModules (
   opts: {
     depsStateCache: DepsStateCache
     force: boolean
+    ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
   }
@@ -82,6 +83,7 @@ async function linkAllPkgsInOrder (
   opts: {
     depsStateCache: DepsStateCache
     force: boolean
+    ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
     warn: (message: string) => void
@@ -101,7 +103,10 @@ async function linkAllPkgsInOrder (
 
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        sideEffectsCacheKey = _calcDepState(dir, depNode.patchFile?.hash)
+        sideEffectsCacheKey = _calcDepState(dir, {
+          patchFileHash: depNode.patchFile?.hash,
+          ignoreScripts: opts.ignoreScripts,
+        })
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,

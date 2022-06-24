@@ -302,6 +302,7 @@ export default async (opts: HeadlessOptions) => {
     await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
       depsStateCache,
       force: opts.force,
+      ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
     })
@@ -331,6 +332,7 @@ export default async (opts: HeadlessOptions) => {
         force: opts.force,
         depGraph: graph,
         depsStateCache,
+        ignoreScripts: opts.ignoreScripts,
         lockfileDir: opts.lockfileDir,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
       }),
@@ -404,7 +406,8 @@ export default async (opts: HeadlessOptions) => {
           .filter(({ requiresBuild }) => requiresBuild)
           .map(({ depPath }) => depPath)
       )
-  } else {
+  }
+  if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
       Object
@@ -427,6 +430,7 @@ export default async (opts: HeadlessOptions) => {
       extraBinPaths,
       extraEnv,
       depsStateCache,
+      ignoreScripts: opts.ignoreScripts,
       lockfileDir,
       optional: opts.include.optionalDependencies,
       rawConfig: opts.rawConfig,
@@ -667,6 +671,7 @@ async function linkAllPkgs (
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     force: boolean
+    ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
   }
@@ -683,7 +688,10 @@ async function linkAllPkgs (
 
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, depNode.patchFile?.hash)
+        sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
+          ignoreScripts: opts.ignoreScripts,
+          patchFileHash: depNode.patchFile?.hash,
+        })
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,

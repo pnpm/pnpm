@@ -839,6 +839,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         hoistedDependencies: ctx.hoistedDependencies,
         hoistedModulesDir: ctx.hoistedModulesDir,
         hoistPattern: ctx.hoistPattern,
+        ignoreScripts: opts.ignoreScripts,
         include: opts.include,
         linkedDependenciesByProjectId,
         lockfileDir: opts.lockfileDir,
@@ -874,46 +875,50 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     ctx.pendingBuilds = ctx.pendingBuilds
       .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
 
-    if (opts.ignoreScripts) {
-      // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
-      ctx.pendingBuilds = ctx.pendingBuilds
-        .concat(
-          await pFilter(result.newDepPaths,
-            (depPath) => {
-              const requiresBuild = dependenciesGraph[depPath].requiresBuild
-              if (typeof requiresBuild === 'function') return requiresBuild()
-              return requiresBuild
-            }
+    if (result.newDepPaths?.length) {
+      if (opts.ignoreScripts) {
+        // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
+        ctx.pendingBuilds = ctx.pendingBuilds
+          .concat(
+            await pFilter(result.newDepPaths,
+              (depPath) => {
+                const requiresBuild = dependenciesGraph[depPath].requiresBuild
+                if (typeof requiresBuild === 'function') return requiresBuild()
+                return requiresBuild
+              }
+            )
           )
-        )
-    } else if (result.newDepPaths?.length) {
-      // postinstall hooks
-      const depPaths = Object.keys(dependenciesGraph)
-      const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
-
-      let extraEnv: Record<string, string> | undefined
-      if (opts.enablePnp) {
-        extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
       }
-      await buildModules(dependenciesGraph, rootNodes, {
-        childConcurrency: opts.childConcurrency,
-        depsStateCache,
-        depsToBuild: new Set(result.newDepPaths),
-        extraBinPaths: ctx.extraBinPaths,
-        extraNodePaths: ctx.extraNodePaths,
-        extraEnv,
-        lockfileDir: ctx.lockfileDir,
-        optional: opts.include.optionalDependencies,
-        rawConfig: opts.rawConfig,
-        rootModulesDir: ctx.virtualStoreDir,
-        scriptsPrependNodePath: opts.scriptsPrependNodePath,
-        scriptShell: opts.scriptShell,
-        shellEmulator: opts.shellEmulator,
-        sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
-        storeController: opts.storeController,
-        unsafePerm: opts.unsafePerm,
-        userAgent: opts.userAgent,
-      })
+      if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
+        // postinstall hooks
+        const depPaths = Object.keys(dependenciesGraph)
+        const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
+
+        let extraEnv: Record<string, string> | undefined
+        if (opts.enablePnp) {
+          extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
+        }
+        await buildModules(dependenciesGraph, rootNodes, {
+          childConcurrency: opts.childConcurrency,
+          depsStateCache,
+          depsToBuild: new Set(result.newDepPaths),
+          extraBinPaths: ctx.extraBinPaths,
+          extraNodePaths: ctx.extraNodePaths,
+          extraEnv,
+          ignoreScripts: opts.ignoreScripts,
+          lockfileDir: ctx.lockfileDir,
+          optional: opts.include.optionalDependencies,
+          rawConfig: opts.rawConfig,
+          rootModulesDir: ctx.virtualStoreDir,
+          scriptsPrependNodePath: opts.scriptsPrependNodePath,
+          scriptShell: opts.scriptShell,
+          shellEmulator: opts.shellEmulator,
+          sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+          storeController: opts.storeController,
+          unsafePerm: opts.unsafePerm,
+          userAgent: opts.userAgent,
+        })
+      }
     }
 
     const binWarn = (prefix: string, message: string) => logger.info({ message, prefix })

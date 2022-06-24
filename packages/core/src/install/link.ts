@@ -52,6 +52,7 @@ export default async function linkPackages (
     hoistedDependencies: HoistedDependencies
     hoistedModulesDir: string
     hoistPattern?: string[]
+    ignoreScripts: boolean
     publicHoistPattern?: string[]
     include: IncludedDependencies
     linkedDependenciesByProjectId: Record<string, LinkedDependency[]>
@@ -140,6 +141,7 @@ export default async function linkPackages (
     {
       force: opts.force,
       depsStateCache: opts.depsStateCache,
+      ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
       optional: opts.include.optionalDependencies,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
@@ -286,6 +288,7 @@ async function linkNewPackages (
     depsStateCache: DepsStateCache
     force: boolean
     optional: boolean
+    ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
     symlink: boolean
@@ -348,6 +351,7 @@ async function linkNewPackages (
       depGraph,
       depsStateCache: opts.depsStateCache,
       force: opts.force,
+      ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
     }),
@@ -396,6 +400,7 @@ async function linkAllPkgs (
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     force: boolean
+    ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
   }
@@ -406,7 +411,10 @@ async function linkAllPkgs (
 
       let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, depNode.patchFile?.hash)
+        sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
+          ignoreScripts: opts.ignoreScripts,
+          patchFileHash: depNode.patchFile?.hash,
+        })
       }
       if (typeof depNode.requiresBuild === 'function') {
         depNode.requiresBuild = await depNode.requiresBuild()
