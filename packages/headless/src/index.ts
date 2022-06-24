@@ -30,6 +30,7 @@ import {
   readCurrentLockfile,
   readWantedLockfile,
   writeCurrentLockfile,
+  PatchFile,
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
@@ -111,6 +112,7 @@ export interface HeadlessOptions {
   lockfileDir: string
   modulesDir?: string
   virtualStoreDir?: string
+  patchedDependencies?: Record<string, PatchFile>
   scriptsPrependNodePath?: boolean | 'warn-only'
   scriptShell?: string
   shellEmulator?: boolean

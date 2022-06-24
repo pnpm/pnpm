@@ -1,4 +1,4 @@
-import { Lockfile } from '@pnpm/lockfile-types'
+import { Lockfile, PatchFile } from '@pnpm/lockfile-types'
 import { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
@@ -67,7 +67,7 @@ export interface ResolveDependenciesOptions {
   }
   nodeVersion: string
   registries: Registries
-  patchedDependencies?: Record<string, string>
+  patchedDependencies?: Record<string, PatchFile>
   pnpmVersion: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean

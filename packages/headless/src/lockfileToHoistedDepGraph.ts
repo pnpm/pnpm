@@ -11,7 +11,7 @@ import {
 } from '@pnpm/lockfile-utils'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import packageIsInstallable from '@pnpm/package-is-installable'
-import { Registries } from '@pnpm/types'
+import { PatchFile, Registries } from '@pnpm/types'
 import {
   FetchPackageToStoreFunction,
   StoreController,
@@ -23,7 +23,6 @@ import {
   DepHierarchy,
   DirectDependenciesByImporterId,
   LockfileToDepGraphResult,
-  tryReadPatchFile,
 } from './lockfileToDepGraph'
 
 export interface LockfileToHoistedDepGraphOptions {
@@ -36,6 +35,7 @@ export interface LockfileToHoistedDepGraphOptions {
   nodeVersion: string
   pnpmVersion: string
   registries: Registries
+  patchedDependencies?: Record<string, PatchFile>
   sideEffectsCacheRead: boolean
   skipped: Set<string>
   storeController: StoreController
@@ -209,7 +209,7 @@ async function fetchDeps (
       optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
       prepare: pkgSnapshot.prepare === true,
       requiresBuild: pkgSnapshot.requiresBuild === true,
-      patchFile: await tryReadPatchFile(opts.lockfileDir, opts.lockfile, pkgName, pkgVersion),
+      patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
     }
     opts.pkgLocationByDepPath[depPath] = dir
     depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies)

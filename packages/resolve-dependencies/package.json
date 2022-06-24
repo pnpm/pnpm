@@ -31,7 +31,6 @@
   "dependencies": {
     "@pnpm/constants": "workspace:6.1.0",
     "@pnpm/core-loggers": "workspace:7.0.4",
-    "@pnpm/crypto.base32-hash": "workspace:1.0.0",
     "@pnpm/error": "workspace:3.0.1",
     "@pnpm/lockfile-types": "workspace:4.1.0",
     "@pnpm/lockfile-utils": "workspace:4.0.6",

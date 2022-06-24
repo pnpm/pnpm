@@ -3,7 +3,6 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   progressLogger,
 } from '@pnpm/core-loggers'
-import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import {
   Lockfile,
   PackageSnapshot,
@@ -16,7 +15,7 @@ import {
 import logger from '@pnpm/logger'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import packageIsInstallable from '@pnpm/package-is-installable'
-import { Registries } from '@pnpm/types'
+import { PatchFile, Registries } from '@pnpm/types'
 import {
   FetchPackageToStoreFunction,
   PackageFilesResponse,
@@ -45,10 +44,7 @@ export interface DependenciesGraphNode {
   prepare: boolean
   hasBin: boolean
   filesIndexFile: string
-  patchFile?: {
-    path: string
-    hash: string
-  }
+  patchFile?: PatchFile
 }
 
 export interface DependenciesGraph {
@@ -63,6 +59,7 @@ export interface LockfileToDepGraphOptions {
   lockfileDir: string
   nodeVersion: string
   pnpmVersion: string
+  patchedDependencies?: Record<string, PatchFile>
   registries: Registries
   sideEffectsCacheRead: boolean
   skipped: Set<string>
@@ -180,7 +177,7 @@ export default async function lockfileToDepGraph (
           optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
           prepare: pkgSnapshot.prepare === true,
           requiresBuild: pkgSnapshot.requiresBuild === true,
-          patchFile: await tryReadPatchFile(opts.lockfileDir, lockfile, pkgName, pkgVersion),
+          patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
         }
         pkgSnapshotByLocation[dir] = pkgSnapshot
       })
@@ -218,18 +215,6 @@ export default async function lockfileToDepGraph (
     }
   }
   return { graph, directDependenciesByImporterId }
-}
-
-export async function tryReadPatchFile (lockfileDir: string, lockfile: Lockfile, pkgName: string, pkgVersion: string) {
-  const patchFileRelativePath = lockfile.patchedDependencies?.[`${pkgName}@${pkgVersion}`]
-  if (!patchFileRelativePath) {
-    return undefined
-  }
-  const patchFilePath = path.join(lockfileDir, patchFileRelativePath)
-  return {
-    path: patchFilePath,
-    hash: await createBase32HashFromFile(patchFilePath),
-  }
 }
 
 async function getChildrenPaths (

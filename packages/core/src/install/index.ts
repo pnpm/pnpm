@@ -10,6 +10,7 @@ import {
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
+import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import PnpmError from '@pnpm/error'
 import getContext, { PnpmContext, ProjectOptions } from '@pnpm/get-context'
 import headless, { Project } from '@pnpm/headless'
@@ -26,6 +27,7 @@ import {
   writeLockfiles,
   writeWantedLockfile,
   cleanGitBranchLockfiles,
+  PatchFile,
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
@@ -234,13 +236,22 @@ export async function mutateModules (
       )
     }
     const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : createObjectChecksum(opts.packageExtensions!)
+    const patchedDependencies = opts.ignorePackageManifest
+      ? ctx.wantedLockfile.patchedDependencies
+      : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies, opts.lockfileDir) : {})
+    const patchedDependenciesWithResolvedPath = patchedDependencies
+      ? fromPairs(Object.entries(patchedDependencies).map(([key, patchFile]) => [key, {
+        hash: patchFile.hash,
+        path: path.join(opts.lockfileDir, patchFile.path),
+      }]))
+      : undefined
     let needsFullResolution = !maybeOpts.ignorePackageManifest &&
       lockfileIsUpToDate(ctx.wantedLockfile, {
         overrides: opts.overrides,
         neverBuiltDependencies: opts.neverBuiltDependencies,
         onlyBuiltDependencies: opts.onlyBuiltDependencies,
         packageExtensionsChecksum,
-        patchedDependencies: opts.patchedDependencies,
+        patchedDependencies,
       }) ||
       opts.fixLockfile
     if (needsFullResolution) {
@@ -248,7 +259,7 @@ export async function mutateModules (
       ctx.wantedLockfile.neverBuiltDependencies = opts.neverBuiltDependencies
       ctx.wantedLockfile.onlyBuiltDependencies = opts.onlyBuiltDependencies
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
-      ctx.wantedLockfile.patchedDependencies = opts.patchedDependencies
+      ctx.wantedLockfile.patchedDependencies = patchedDependencies
     }
     const frozenLockfile = opts.frozenLockfile ||
       opts.frozenLockfileIfExists && ctx.existsWantedLockfile
@@ -296,6 +307,7 @@ export async function mutateModules (
               nodeVersion: opts.nodeVersion,
               pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
             },
+            patchedDependencies: patchedDependenciesWithResolvedPath,
             projects: ctx.projects as Project[],
             prunedAt: ctx.modulesFile?.prunedAt,
             pruneVirtualStore,
@@ -479,10 +491,26 @@ export async function mutateModules (
       pruneVirtualStore,
       scriptsOpts,
       updateLockfileMinorVersion: true,
+      patchedDependencies: patchedDependenciesWithResolvedPath,
     })
 
     return result.projects
   }
+}
+
+async function calcPatchHashes (patches: Record<string, string>, lockfileDir: string) {
+  return fromPairs(await Promise.all(
+    Object.entries(patches).map(async ([key, patchFileRelativePath]) => {
+      const patchFilePath = path.join(lockfileDir, patchFileRelativePath)
+      return [
+        key,
+        {
+          hash: await createBase32HashFromFile(patchFilePath),
+          path: patchFileRelativePath,
+        },
+      ]
+    })
+  ))
 }
 
 function lockfileIsUpToDate (
@@ -498,7 +526,7 @@ function lockfileIsUpToDate (
     onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
     packageExtensionsChecksum?: string
-    patchedDependencies?: Record<string, string>
+    patchedDependencies?: Record<string, PatchFile>
   }) {
   return !equals(lockfile.overrides ?? {}, overrides ?? {}) ||
     !equals((lockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
@@ -652,7 +680,8 @@ interface InstallFunctionResult {
 type InstallFunction = (
   projects: ImporterToUpdate[],
   ctx: PnpmContext<DependenciesMutation>,
-  opts: StrictInstallOptions & {
+  opts: Omit<StrictInstallOptions, 'patchedDependencies'> & {
+    patchedDependencies?: Record<string, PatchFile>
     makePartialCurrentLockfile: boolean
     needsFullResolution: boolean
     neverBuiltDependencies?: string[]

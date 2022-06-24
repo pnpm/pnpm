@@ -34,7 +34,12 @@ test('patch package', async () => {
 
   const patchFileHash = 'jnbpamcxayl5i4ehrkoext3any'
   const lockfile = await project.readLockfile()
-  expect(lockfile.patchedDependencies).toStrictEqual(patchedDependencies)
+  expect(lockfile.patchedDependencies).toStrictEqual({
+    'is-positive@1.0.0': {
+      path: patchedDependencies['is-positive@1.0.0'],
+      hash: patchFileHash,
+    },
+  })
   expect(lockfile.packages[`/is-positive/1.0.0_${patchFileHash}`]).toBeTruthy()
 
   const filesIndexFile = path.join(opts.storeDir, 'files/c7/1ccf199e0fdae37aad13946b937d67bcd35fa111b84d21b3a19439cfdc2812c5d8da8a735e94c2a1ccb77b4583808ee8405313951e7146ac83ede3671dc292-index.json')
@@ -112,4 +117,32 @@ test('patch package throws an exception if not all patches are applied', async (
       },
     }, opts)
   ).rejects.toThrow('The following patches were not applied: is-negative@1.0.0')
+})
+
+test('the patched package is updated if the patch is modified', async () => {
+  prepareEmpty()
+  f.copy('patch-pkg', 'patches')
+  const patchPath = path.resolve('patches', 'is-positive@1.0.0.patch')
+
+  const patchedDependencies = {
+    'is-positive@1.0.0': path.relative(process.cwd(), patchPath),
+  }
+  const opts = await testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  const manifest = {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+  await install(manifest, opts)
+
+  const patchContent = fs.readFileSync(patchPath, 'utf8')
+  fs.writeFileSync(patchPath, patchContent.replace('// patched', '// edited patch'), 'utf8')
+
+  await install(manifest, opts)
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// edited patch')
 })

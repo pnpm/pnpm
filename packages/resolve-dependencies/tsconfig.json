@@ -16,9 +16,6 @@
       "path": "../core-loggers"
     },
     {
-      "path": "../crypto.base32-hash"
-    },
-    {
       "path": "../dependency-path"
     },
     {

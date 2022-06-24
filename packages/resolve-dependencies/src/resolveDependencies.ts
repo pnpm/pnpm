@@ -4,7 +4,6 @@ import {
   progressLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
-import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import PnpmError from '@pnpm/error'
 import {
   Lockfile,
@@ -34,6 +33,7 @@ import {
   Dependencies,
   DependencyManifest,
   PackageManifest,
+  PatchFile,
   PeerDependenciesMeta,
   ReadPackageHook,
   Registries,
@@ -131,7 +131,7 @@ export interface ResolutionContext {
   resolvedPackagesByDepPath: ResolvedPackagesByDepPath
   outdatedDependencies: {[pkgId: string]: string}
   childrenByParentDepPath: ChildrenByParentDepPath
-  patchedDependencies?: Record<string, string>
+  patchedDependencies?: Record<string, PatchFile>
   pendingNodes: PendingNode[]
   wantedLockfile: Lockfile
   currentLockfile: Lockfile
@@ -180,11 +180,6 @@ export type PkgAddress = {
 } | {
   isLinkedDependency: undefined
 })
-
-export interface PatchFile {
-  path: string
-  hash: string
-}
 
 export interface ResolvedPackage {
   id: string
@@ -925,9 +920,8 @@ async function resolveDependency (
     })
 
     const nameAndVersion = `${pkg.name}@${pkg.version}`
-    let patchPath = ctx.patchedDependencies?.[nameAndVersion]
-    if (patchPath) {
-      patchPath = path.join(ctx.lockfileDir, patchPath)
+    const patchFile = ctx.patchedDependencies?.[nameAndVersion]
+    if (patchFile) {
       ctx.appliedPatches.add(nameAndVersion)
     }
 
@@ -937,7 +931,7 @@ async function resolveDependency (
       depPath,
       force: ctx.force,
       hasBin,
-      patchPath,
+      patchFile,
       pkg,
       pkgResponse,
       prepare,
@@ -1029,7 +1023,7 @@ async function getResolvedPackage (
     depPath: string
     force: boolean
     hasBin: boolean
-    patchPath?: string
+    patchFile?: PatchFile
     pkg: PackageManifest
     pkgResponse: PackageResponse
     prepare: boolean
@@ -1064,9 +1058,7 @@ async function getResolvedPackage (
     name: options.pkg.name,
     optional: options.wantedDependency.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
-    patchFile: options.patchPath
-      ? { path: options.patchPath, hash: await createBase32HashFromFile(options.patchPath) }
-      : undefined,
+    patchFile: options.patchFile,
     peerDependencies: peerDependencies ?? {},
     peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     prepare: options.prepare,
