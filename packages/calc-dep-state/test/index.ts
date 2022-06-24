@@ -18,12 +18,12 @@ const depsGraph = {
 
 test('calcDepState()', () => {
   expect(calcDepState(depsGraph, {}, '/registry/foo/1.0.0', {
-    ignoreScripts: false,
+    isBuilt: true,
   })).toBe(`${ENGINE_NAME}-{}`)
 })
 
 test('calcDepState() when scripts are ignored', () => {
   expect(calcDepState(depsGraph, {}, '/registry/foo/1.0.0', {
-    ignoreScripts: true,
+    isBuilt: false,
   })).toBe(ENGINE_NAME)
 })
