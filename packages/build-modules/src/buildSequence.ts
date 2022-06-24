@@ -1,5 +1,5 @@
 import graphSequencer from '@pnpm/graph-sequencer'
-import { PackageManifest } from '@pnpm/types'
+import { PackageManifest, PatchFile } from '@pnpm/types'
 import filter from 'ramda/src/filter'
 
 export interface DependenciesGraphNode {
@@ -16,10 +16,7 @@ export interface DependenciesGraphNode {
   optionalDependencies: Set<string>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   requiresBuild?: boolean | any // this is a durty workaround added in https://github.com/pnpm/pnpm/pull/4898
-  patchFile?: {
-    hash: string
-    path: string
-  }
+  patchFile?: PatchFile
 }
 
 export interface DependenciesGraph {

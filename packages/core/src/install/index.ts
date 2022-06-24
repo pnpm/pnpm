@@ -27,6 +27,7 @@ import {
   writeLockfiles,
   writeWantedLockfile,
   cleanGitBranchLockfiles,
+  PatchFile,
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
@@ -525,7 +526,7 @@ function lockfileIsUpToDate (
     onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
     packageExtensionsChecksum?: string
-    patchedDependencies?: Record<string, { path: string, hash: string }>
+    patchedDependencies?: Record<string, PatchFile>
   }) {
   return !equals(lockfile.overrides ?? {}, overrides ?? {}) ||
     !equals((lockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
@@ -680,7 +681,7 @@ type InstallFunction = (
   projects: ImporterToUpdate[],
   ctx: PnpmContext<DependenciesMutation>,
   opts: Omit<StrictInstallOptions, 'patchedDependencies'> & {
-    patchedDependencies?: Record<string, { path: string, hash: string }>
+    patchedDependencies?: Record<string, PatchFile>
     makePartialCurrentLockfile: boolean
     needsFullResolution: boolean
     neverBuiltDependencies?: string[]

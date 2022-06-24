@@ -15,7 +15,7 @@ import {
 import logger from '@pnpm/logger'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import packageIsInstallable from '@pnpm/package-is-installable'
-import { Registries } from '@pnpm/types'
+import { PatchFile, Registries } from '@pnpm/types'
 import {
   FetchPackageToStoreFunction,
   PackageFilesResponse,
@@ -44,10 +44,7 @@ export interface DependenciesGraphNode {
   prepare: boolean
   hasBin: boolean
   filesIndexFile: string
-  patchFile?: {
-    path: string
-    hash: string
-  }
+  patchFile?: PatchFile
 }
 
 export interface DependenciesGraph {
@@ -62,7 +59,7 @@ export interface LockfileToDepGraphOptions {
   lockfileDir: string
   nodeVersion: string
   pnpmVersion: string
-  patchedDependencies?: Record<string, { path: string, hash: string }>
+  patchedDependencies?: Record<string, PatchFile>
   registries: Registries
   sideEffectsCacheRead: boolean
   skipped: Set<string>

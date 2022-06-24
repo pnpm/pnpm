@@ -11,7 +11,7 @@ import {
 } from '@pnpm/lockfile-utils'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import packageIsInstallable from '@pnpm/package-is-installable'
-import { Registries } from '@pnpm/types'
+import { PatchFile, Registries } from '@pnpm/types'
 import {
   FetchPackageToStoreFunction,
   StoreController,
@@ -35,7 +35,7 @@ export interface LockfileToHoistedDepGraphOptions {
   nodeVersion: string
   pnpmVersion: string
   registries: Registries
-  patchedDependencies?: Record<string, { path: string, hash: string }>
+  patchedDependencies?: Record<string, PatchFile>
   sideEffectsCacheRead: boolean
   skipped: Set<string>
   storeController: StoreController

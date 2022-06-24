@@ -13,3 +13,8 @@ export interface Registries {
 }
 
 export type HoistedDependencies = Record<string, Record<string, 'public' | 'private'>>
+
+export interface PatchFile {
+  path: string
+  hash: string
+}

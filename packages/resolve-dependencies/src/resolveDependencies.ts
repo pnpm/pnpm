@@ -33,6 +33,7 @@ import {
   Dependencies,
   DependencyManifest,
   PackageManifest,
+  PatchFile,
   PeerDependenciesMeta,
   ReadPackageHook,
   Registries,
@@ -130,7 +131,7 @@ export interface ResolutionContext {
   resolvedPackagesByDepPath: ResolvedPackagesByDepPath
   outdatedDependencies: {[pkgId: string]: string}
   childrenByParentDepPath: ChildrenByParentDepPath
-  patchedDependencies?: Record<string, { path: string, hash: string }>
+  patchedDependencies?: Record<string, PatchFile>
   pendingNodes: PendingNode[]
   wantedLockfile: Lockfile
   currentLockfile: Lockfile
@@ -179,11 +180,6 @@ export type PkgAddress = {
 } | {
   isLinkedDependency: undefined
 })
-
-export interface PatchFile {
-  path: string
-  hash: string
-}
 
 export interface ResolvedPackage {
   id: string
@@ -1027,7 +1023,7 @@ async function getResolvedPackage (
     depPath: string
     force: boolean
     hasBin: boolean
-    patchFile?: { path: string, hash: string }
+    patchFile?: PatchFile
     pkg: PackageManifest
     pkgResponse: PackageResponse
     prepare: boolean
