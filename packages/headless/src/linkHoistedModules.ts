@@ -105,13 +105,13 @@ async function linkAllPkgsInOrder (
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
         sideEffectsCacheKey = _calcDepState(dir, {
           patchFileHash: depNode.patchFile?.hash,
-          ignoreScripts: opts.ignoreScripts,
+          ignoreScripts: opts.ignoreScripts || !depNode.requiresBuild,
         })
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force || depNode.depPath !== prevGraph[dir]?.depPath,
-        requiresBuild: depNode.requiresBuild,
+        requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
         sideEffectsCacheKey,
       })
       if (importMethod) {

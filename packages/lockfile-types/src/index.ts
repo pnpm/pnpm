@@ -69,6 +69,7 @@ export interface PackageSnapshot {
   dev?: true | false
   optional?: true
   requiresBuild?: true
+  patched?: true
   prepare?: true
   hasBin?: true
   // name and version are only needed
