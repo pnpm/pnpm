@@ -23,7 +23,6 @@ import {
   DepHierarchy,
   DirectDependenciesByImporterId,
   LockfileToDepGraphResult,
-  tryReadPatchFile,
 } from './lockfileToDepGraph'
 
 export interface LockfileToHoistedDepGraphOptions {
@@ -36,6 +35,7 @@ export interface LockfileToHoistedDepGraphOptions {
   nodeVersion: string
   pnpmVersion: string
   registries: Registries
+  patchedDependenciesWithResolvedPath?: Record<string, { path: string, hash: string }>
   sideEffectsCacheRead: boolean
   skipped: Set<string>
   storeController: StoreController
@@ -209,7 +209,7 @@ async function fetchDeps (
       optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
       prepare: pkgSnapshot.prepare === true,
       requiresBuild: pkgSnapshot.requiresBuild === true,
-      patchFile: await tryReadPatchFile(opts.lockfileDir, opts.lockfile, pkgName, pkgVersion),
+      patchFile: opts.patchedDependenciesWithResolvedPath?.[`${pkgName}@${pkgVersion}`],
     }
     opts.pkgLocationByDepPath[depPath] = dir
     depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies)

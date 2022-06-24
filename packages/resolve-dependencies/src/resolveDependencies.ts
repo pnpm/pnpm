@@ -924,7 +924,7 @@ async function resolveDependency (
     })
 
     const nameAndVersion = `${pkg.name}@${pkg.version}`
-    let patchFile = ctx.patchedDependencies?.[nameAndVersion]
+    const patchFile = ctx.patchedDependencies?.[nameAndVersion]
     if (patchFile) {
       ctx.appliedPatches.add(nameAndVersion)
     }

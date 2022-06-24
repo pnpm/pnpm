@@ -1,5 +1,10 @@
 import { DependenciesMeta } from '@pnpm/types'
 
+export interface PatchFile {
+  path: string
+  hash: string
+}
+
 export interface Lockfile {
   importers: Record<string, ProjectSnapshot>
   lockfileVersion: number
@@ -8,7 +13,7 @@ export interface Lockfile {
   onlyBuiltDependencies?: string[]
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
-  patchedDependencies?: Record<string, string>
+  patchedDependencies?: Record<string, PatchFile>
 }
 
 export interface ProjectSnapshot {

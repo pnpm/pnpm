@@ -111,6 +111,7 @@ export interface HeadlessOptions {
   lockfileDir: string
   modulesDir?: string
   virtualStoreDir?: string
+  patchedDependenciesWithResolvedPath?: Record<string, { path: string, hash: string }>
   scriptsPrependNodePath?: boolean | 'warn-only'
   scriptShell?: string
   shellEmulator?: boolean
