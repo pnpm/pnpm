@@ -197,7 +197,7 @@ export default async function run (inputArgv: string[]) {
     const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
     if (config.workspaceRoot) {
       filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: false })
-    } else if (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test') {
+    } else if (!config.includeWorkspaceRoot && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: false })
     }
 

@@ -28,6 +28,7 @@ export interface Config {
   dir: string
   bin: string
   ignoreScripts?: boolean
+  includeWorkspaceRoot?: boolean
   save?: boolean
   saveProd?: boolean
   saveDev?: boolean
