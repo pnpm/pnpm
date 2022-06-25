@@ -11,6 +11,12 @@ test('finds actual workspace dir', async () => {
   expect(workspaceDir).toBe(path.resolve(__dirname, '..', '..', '..'))
 })
 
+test('finds workspace dir with wrong case from cwd', async () => {
+  const workspaceDir = await findWorkspaceDir(process.cwd().toUpperCase())
+
+  expect(workspaceDir).toBe(path.resolve(__dirname, '..', '..', '..'))
+})
+
 test('finds overriden workspace dir', async () => {
   const oldValue = process.env[NPM_CONFIG_WORKSPACE_DIR_ENV_VAR]
   process.env[NPM_CONFIG_WORKSPACE_DIR_ENV_VAR] = FAKE_PATH
