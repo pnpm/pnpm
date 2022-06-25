@@ -2,6 +2,7 @@ import { CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { env } from '@pnpm/plugin-commands-env'
+import { deploy } from '@pnpm/plugin-commands-deploy'
 import { add, fetch, install, link, prune, remove, unlink, update, importCommand } from '@pnpm/plugin-commands-installation'
 import { list, ll, why } from '@pnpm/plugin-commands-listing'
 import { outdated } from '@pnpm/plugin-commands-outdated'
@@ -97,6 +98,7 @@ const commands: CommandDefinition[] = [
   audit,
   bin,
   create,
+  deploy,
   dlx,
   env,
   exec,

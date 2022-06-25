@@ -10,19 +10,22 @@
   ],
   "references": [
     {
-      "path": "../../privatePackages/prepare"
+      "path": "../cli-utils"
     },
     {
-      "path": "../cafs"
+      "path": "../directory-fetcher"
     },
     {
-      "path": "../fetcher-base"
+      "path": "../error"
     },
     {
       "path": "../fs.indexed-pkg-importer"
     },
     {
-      "path": "../store-controller-types"
+      "path": "../lockfile-types"
+    },
+    {
+      "path": "../plugin-commands-installation"
     }
   ]
 }

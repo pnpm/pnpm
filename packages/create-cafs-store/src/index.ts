@@ -4,13 +4,13 @@ import createCafs, {
   getFilePathByModeInCafs,
 } from '@pnpm/cafs'
 import { PackageFilesResponse } from '@pnpm/fetcher-base'
+import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {
   ImportPackageFunction,
   PackageFileInfo,
 } from '@pnpm/store-controller-types'
 import memoize from 'mem'
 import pathTemp from 'path-temp'
-import createImportPackage from './createImportPackage'
 
 function createPackageImporter (
   opts: {
@@ -18,7 +18,7 @@ function createPackageImporter (
     cafsDir: string
   }
 ): ImportPackageFunction {
-  const cachedImporterCreator = memoize(createImportPackage)
+  const cachedImporterCreator = memoize(createIndexedPkgImporter)
   const packageImportMethod = opts.packageImportMethod
   const gfm = getFlatMap.bind(null, opts.cafsDir)
   return async (to, opts) => {
