@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 5.5.2
+
+### Patch Changes
+
+- 12aa1e2e1: Return early when the lockfile is up-to-date.
+  - @pnpm/lockfile-to-pnp@0.5.13
+  - @pnpm/headless@18.3.2
+
 ## 5.5.1
 
 ### Patch Changes

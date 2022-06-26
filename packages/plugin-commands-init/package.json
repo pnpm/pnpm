@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-init",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "Create a package.json file",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -31,14 +31,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-init#readme",
   "devDependencies": {
-    "@pnpm/plugin-commands-init": "workspace:1.0.15",
+    "@pnpm/plugin-commands-init": "workspace:1.0.16",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "load-json-file": "^6.2.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.7.15",
-    "@pnpm/config": "workspace:15.4.1",
+    "@pnpm/cli-utils": "workspace:0.7.16",
+    "@pnpm/config": "workspace:15.5.0",
     "@pnpm/error": "workspace:3.0.1",
     "@pnpm/write-project-manifest": "workspace:3.0.5",
     "camelcase-keys": "^6.2.2",

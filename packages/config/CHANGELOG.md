@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 15.5.0
+
+### Minor Changes
+
+- f48d46ef6: New setting added: `include-workspace-root`. When it is set to `true`, the `run`, `exec`, `add`, and `test` commands will include the root package, when executed recursively [#4906](https://github.com/pnpm/pnpm/issues/4906)
+
 ## 15.4.1
 
 ### Patch Changes

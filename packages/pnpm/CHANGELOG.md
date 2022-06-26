@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.4.0-1
+## 7.4.0-2
 
 ### Minor Changes
 
@@ -47,14 +47,18 @@
 
 - `package-import-method` supports a new option: `clone-or-copy`.
 
+- New setting added: `include-workspace-root`. When it is set to `true`, the `run`, `exec`, `add`, and `test` commands will include the root package, when executed recursively [#4906](https://github.com/pnpm/pnpm/issues/4906)
+
 ### Patch Changes
 
-- 949e84ba8: Don't crash when `pnpm update --interactive` is cancelled with Ctrl+c.
-- d1df380ab: The `use-node-version` setting should work with prerelease Node.js versions. For instance:
+- Don't crash when `pnpm update --interactive` is cancelled with Ctrl+c.
+- The `use-node-version` setting should work with prerelease Node.js versions. For instance:
 
   ```
   use-node-version=18.0.0-rc.3
   ```
+- Return early when the lockfile is up-to-date.
+- Resolve native workspace path for case-insensitive file systems [#4904](https://github.com/pnpm/pnpm/issues/4904).
 
 ## 7.3.0
 

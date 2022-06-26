@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 9.1.6
+
+### Patch Changes
+
+- Updated dependencies [f48d46ef6]
+  - @pnpm/config@15.5.0
+
 ## 9.1.5
 
 ### Patch Changes

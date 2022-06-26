@@ -1,5 +1,12 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.3.10
+
+### Patch Changes
+
+- Updated dependencies [6434a8291]
+  - @pnpm/find-workspace-dir@4.0.2
+
 ## 0.3.9
 
 ### Patch Changes
