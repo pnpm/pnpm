@@ -2165,6 +2165,7 @@ importers:
 
   packages/plugin-commands-deploy:
     specifiers:
+      '@pnpm/assert-project': workspace:*
       '@pnpm/cli-utils': workspace:0.7.16
       '@pnpm/directory-fetcher': workspace:3.0.6
       '@pnpm/error': workspace:3.0.1
@@ -2187,6 +2188,7 @@ importers:
       '@zkochan/rimraf': 2.1.2
       render-help: 1.0.2
     devDependencies:
+      '@pnpm/assert-project': link:../../privatePackages/assert-project
       '@pnpm/filter-workspace-packages': link:../filter-workspace-packages
       '@pnpm/lockfile-types': link:../lockfile-types
       '@pnpm/logger': 4.0.0

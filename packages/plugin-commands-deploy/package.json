@@ -37,6 +37,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-deploy#readme",
   "devDependencies": {
+    "@pnpm/assert-project": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:5.0.16",
     "@pnpm/lockfile-types": "workspace:4.2.0",
     "@pnpm/logger": "^4.0.0",

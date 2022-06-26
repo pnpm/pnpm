@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/assert-project"
+    },
+    {
       "path": "../../privatePackages/prepare"
     },
     {
