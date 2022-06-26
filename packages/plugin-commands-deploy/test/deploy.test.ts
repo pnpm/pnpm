@@ -51,7 +51,7 @@ test('deploy', async () => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, [])
+  }, ['deploy'])
 
   const project = assertProject(path.resolve('deploy'))
   await project.has('project-2')

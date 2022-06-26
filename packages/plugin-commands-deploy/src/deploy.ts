@@ -20,10 +20,10 @@ export const commandNames = ['deploy']
 
 export function help () {
   return renderHelp({
-    description: 'Deploy a package from a workspace',
+    description: 'Experimental! Deploy a package from a workspace',
     descriptionLists: [],
     url: docsUrl('deploy'),
-    usages: [],
+    usages: ['pnpm --filter=<deployed project name> deploy <target directory>'],
   })
 }
 
@@ -34,8 +34,18 @@ export async function handler (
   if (!opts.workspaceDir) {
     throw new PnpmError('CANNOT_DEPLOY', 'A deploy is only possible from inside a workspace')
   }
-  const deployedDir = Object.keys(opts.selectedProjectsGraph ?? {})[0]
-  const deployDir = path.join(opts.workspaceDir, 'deploy')
+  const selectedDirs = Object.keys(opts.selectedProjectsGraph ?? {})
+  if (selectedDirs.length === 0) {
+    throw new PnpmError('NOTHING_TO_DEPLOY', 'No project was selected for deployment')
+  }
+  if (selectedDirs.length > 1) {
+    throw new PnpmError('CANNOT_DEPLOY_MANY', 'Cannot deploy more than 1 project')
+  }
+  if (params.length !== 1) {
+    throw new PnpmError('INVALID_DEPLOY_TARGET', 'This command requires one parameter')
+  }
+  const deployedDir = selectedDirs[0]
+  const deployDir = path.join(opts.workspaceDir, params[0])
   await rimraf(deployDir)
   await fs.promises.mkdir(deployDir)
   await copyProject(deployedDir, deployDir)
