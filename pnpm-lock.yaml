@@ -2168,11 +2168,14 @@ importers:
       '@pnpm/cli-utils': workspace:0.7.16
       '@pnpm/directory-fetcher': workspace:3.0.6
       '@pnpm/error': workspace:3.0.1
+      '@pnpm/filter-workspace-packages': workspace:5.0.16
       '@pnpm/fs.indexed-pkg-importer': workspace:0.0.0
       '@pnpm/lockfile-types': workspace:4.2.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/plugin-commands-deploy': workspace:0.0.0
       '@pnpm/plugin-commands-installation': workspace:10.3.2
+      '@pnpm/prepare': workspace:*
+      '@pnpm/registry-mock': 2.20.0
       '@zkochan/rimraf': ^2.1.2
       render-help: ^1.0.1
     dependencies:
@@ -2184,9 +2187,12 @@ importers:
       '@zkochan/rimraf': 2.1.2
       render-help: 1.0.2
     devDependencies:
+      '@pnpm/filter-workspace-packages': link:../filter-workspace-packages
       '@pnpm/lockfile-types': link:../lockfile-types
       '@pnpm/logger': 4.0.0
       '@pnpm/plugin-commands-deploy': 'link:'
+      '@pnpm/prepare': link:../../privatePackages/prepare
+      '@pnpm/registry-mock': 2.20.0
 
   packages/plugin-commands-env:
     specifiers:

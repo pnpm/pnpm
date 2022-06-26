@@ -37,9 +37,12 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-deploy#readme",
   "devDependencies": {
+    "@pnpm/filter-workspace-packages": "workspace:5.0.16",
     "@pnpm/lockfile-types": "workspace:4.2.0",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-deploy": "workspace:0.0.0"
+    "@pnpm/plugin-commands-deploy": "workspace:0.0.0",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "2.20.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.7.16",

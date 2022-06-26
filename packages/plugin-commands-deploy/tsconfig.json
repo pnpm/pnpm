@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/prepare"
+    },
+    {
       "path": "../cli-utils"
     },
     {
@@ -17,6 +20,9 @@
     },
     {
       "path": "../error"
+    },
+    {
+      "path": "../filter-workspace-packages"
     },
     {
       "path": "../fs.indexed-pkg-importer"
