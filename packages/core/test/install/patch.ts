@@ -352,3 +352,25 @@ test('patch package when the patched package has no dependencies and appears mul
     '/is-positive/1.0.0_jnbpamcxayl5i4ehrkoext3any',
   ])
 })
+
+test('patch package should fail when the patch could not be applied', async () => {
+  prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+
+  const patchedDependencies = {
+    'is-positive@3.1.0': path.relative(process.cwd(), patchPath),
+  }
+  const opts = await testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies,
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await expect(install({
+    dependencies: {
+      'is-positive': '3.1.0',
+    },
+  }, opts)).rejects.toThrow(/Could not apply patch/)
+
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
+})

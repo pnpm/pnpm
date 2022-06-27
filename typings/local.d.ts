@@ -172,5 +172,5 @@ declare module 'mdast-util-to-string' {
 }
 
 declare module 'patch-package/dist/applyPatches' {
-  export function applyPatch(opts: any): void;
+  export function applyPatch(opts: any): boolean;
 }

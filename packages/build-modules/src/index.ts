@@ -1,6 +1,7 @@
 import path from 'path'
 import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
+import PnpmError from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger from '@pnpm/logger'
@@ -151,11 +152,14 @@ function applyPatchToDep (patchDir: string, patchFilePath: string) {
   // However, "patch" is not available on Windows and "git apply" is hard to execute on a subdirectory of an existing repository
   const cwd = process.cwd()
   process.chdir(patchDir)
-  applyPatch({
+  const success = applyPatch({
     patchFilePath,
     patchDir: patchDir,
   })
   process.chdir(cwd)
+  if (!success) {
+    throw new PnpmError('PATCH_FAILED', `Could not apply patch ${patchFilePath} to ${patchDir}`)
+  }
 }
 
 export async function linkBinsOfDependencies (
