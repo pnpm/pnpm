@@ -39,7 +39,6 @@ export type PartialResolvedPackage = Pick<ResolvedPackage,
 | 'peerDependencies'
 | 'peerDependenciesMeta'
 | 'version'
-| 'patchFile'
 >
 
 export interface GenericDependenciesGraph<T extends PartialResolvedPackage> {
