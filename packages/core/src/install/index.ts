@@ -812,6 +812,33 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       patchedDependencies: opts.patchedDependencies,
     }
   )
+  if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
+    for (const projectId of Object.keys(linkedDependenciesByProjectId ?? {})) {
+      linkedDependenciesByProjectId[projectId] = linkedDependenciesByProjectId[projectId].filter((linkedDep) =>
+        !(
+          linkedDep.dev && !opts.include.devDependencies ||
+          linkedDep.optional && !opts.include.optionalDependencies ||
+          !linkedDep.dev && !linkedDep.optional && !opts.include.dependencies
+        )
+      )
+    }
+    for (const { id, manifest } of projects) {
+      dependenciesByProjectId[id] = fromPairs(
+        Object.entries(dependenciesByProjectId[id])
+          .filter(([, depPath]) => {
+            const dep = dependenciesGraph[depPath]
+            if (!dep) return false
+            const isDev = Boolean(manifest.devDependencies?.[dep.name])
+            const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
+            return !(
+              isDev && !opts.include.devDependencies ||
+              isOptional && !opts.include.optionalDependencies ||
+              !isDev && !isOptional && !opts.include.dependencies
+            )
+          })
+      )
+    }
+  }
 
   stageLogger.debug({
     prefix: ctx.lockfileDir,

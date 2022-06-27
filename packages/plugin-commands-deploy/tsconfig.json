@@ -10,19 +10,31 @@
   ],
   "references": [
     {
+      "path": "../../privatePackages/assert-project"
+    },
+    {
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../cafs"
+      "path": "../cli-utils"
     },
     {
-      "path": "../fetcher-base"
+      "path": "../directory-fetcher"
+    },
+    {
+      "path": "../error"
+    },
+    {
+      "path": "../filter-workspace-packages"
     },
     {
       "path": "../fs.indexed-pkg-importer"
     },
     {
-      "path": "../store-controller-types"
+      "path": "../lockfile-types"
+    },
+    {
+      "path": "../plugin-commands-installation"
     }
   ]
 }

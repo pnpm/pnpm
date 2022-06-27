@@ -19,10 +19,10 @@ baseLogger['globalWarn'] = globalWarn
 jest.mock('@pnpm/logger', () => baseLogger)
 
 // eslint-disable-next-line
-import createImportPackage from '../lib/createImportPackage'
+import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 
 test('packageImportMethod=auto: clone files by default', async () => {
-  const importPackage = createImportPackage('auto')
+  const importPackage = createIndexedPkgImporter('auto')
   fsMock.promises.copyFile = jest.fn()
   fsMock.promises.rename = jest.fn()
   expect(await importPackage('project/package', {
@@ -46,7 +46,7 @@ test('packageImportMethod=auto: clone files by default', async () => {
 })
 
 test('packageImportMethod=auto: link files if cloning fails', async () => {
-  const importPackage = createImportPackage('auto')
+  const importPackage = createIndexedPkgImporter('auto')
   fsMock.promises.copyFile = jest.fn(() => {
     throw new Error('This file system does not support cloning')
   })
@@ -80,7 +80,7 @@ test('packageImportMethod=auto: link files if cloning fails', async () => {
 })
 
 test('packageImportMethod=auto: link files if cloning fails and even hard linking fails but not with EXDEV error', async () => {
-  const importPackage = createImportPackage('auto')
+  const importPackage = createIndexedPkgImporter('auto')
   fsMock.promises.copyFile = jest.fn(() => {
     throw new Error('This file system does not support cloning')
   })
@@ -105,7 +105,7 @@ test('packageImportMethod=auto: link files if cloning fails and even hard linkin
 })
 
 test('packageImportMethod=auto: chooses copying if cloning and hard linking is not possible', async () => {
-  const importPackage = createImportPackage('auto')
+  const importPackage = createIndexedPkgImporter('auto')
   fsMock.promises.copyFile = jest.fn((src: string, dest: string, flags?: number) => {
     if (flags === fsMock.constants.COPYFILE_FICLONE_FORCE) {
       throw new Error('This file system does not support cloning')
@@ -127,7 +127,7 @@ test('packageImportMethod=auto: chooses copying if cloning and hard linking is n
 })
 
 test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', async () => {
-  const importPackage = createImportPackage('hardlink')
+  const importPackage = createIndexedPkgImporter('hardlink')
   fsMock.promises.link = jest.fn((src: string, dest: string) => {
     if (dest.endsWith('license')) {
       const err = new Error('')
@@ -153,7 +153,7 @@ test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', 
 })
 
 test('packageImportMethod=hardlink does not relink package from store if package.json is linked from the store', async () => {
-  const importPackage = createImportPackage('hardlink')
+  const importPackage = createIndexedPkgImporter('hardlink')
   fsMock.promises.copyFile = jest.fn()
   fsMock.promises.rename = jest.fn()
   fsMock.promises.stat = jest.fn(() => ({ ino: 1 }))
@@ -169,7 +169,7 @@ test('packageImportMethod=hardlink does not relink package from store if package
 
 test('packageImportMethod=hardlink relinks package from store if package.json is not linked from the store', async () => {
   globalInfo.mockReset()
-  const importPackage = createImportPackage('hardlink')
+  const importPackage = createIndexedPkgImporter('hardlink')
   fsMock.promises.copyFile = jest.fn()
   fsMock.promises.rename = jest.fn()
   let ino = 0
@@ -186,7 +186,7 @@ test('packageImportMethod=hardlink relinks package from store if package.json is
 })
 
 test('packageImportMethod=hardlink does not relink package from store if package.json is not present in the store', async () => {
-  const importPackage = createImportPackage('hardlink')
+  const importPackage = createIndexedPkgImporter('hardlink')
   fsMock.promises.copyFile = jest.fn()
   fsMock.promises.rename = jest.fn()
   fsMock.promises.stat = jest.fn((file) => {
@@ -204,7 +204,7 @@ test('packageImportMethod=hardlink does not relink package from store if package
 
 test('packageImportMethod=hardlink links packages when they are not found', async () => {
   globalInfo.mockReset()
-  const importPackage = createImportPackage('hardlink')
+  const importPackage = createIndexedPkgImporter('hardlink')
   fsMock.promises.copyFile = jest.fn()
   fsMock.promises.rename = jest.fn()
   fsMock.promises.stat = jest.fn((file) => {

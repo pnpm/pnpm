@@ -27,6 +27,8 @@ overrides:
 
 packageExtensionsChecksum: 1373aa954ee01713eb42037cfa3725eb
 
+patchedDependencies: {}
+
 importers:
 
   .:
@@ -583,33 +585,21 @@ importers:
   packages/create-cafs-store:
     specifiers:
       '@pnpm/cafs': workspace:4.0.7
-      '@pnpm/core-loggers': workspace:7.0.5
       '@pnpm/create-cafs-store': workspace:2.0.1
       '@pnpm/fetcher-base': workspace:13.0.1
+      '@pnpm/fs.indexed-pkg-importer': workspace:0.0.0
       '@pnpm/logger': ^4.0.0
       '@pnpm/prepare': workspace:*
       '@pnpm/store-controller-types': workspace:14.0.1
-      '@zkochan/rimraf': ^2.1.2
-      make-empty-dir: ^2.0.0
       mem: ^8.0.0
-      p-limit: ^3.1.0
-      path-exists: ^4.0.0
       path-temp: ^2.0.0
-      rename-overwrite: ^4.0.2
-      sanitize-filename: ^1.6.3
     dependencies:
       '@pnpm/cafs': link:../cafs
-      '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/fetcher-base': link:../fetcher-base
+      '@pnpm/fs.indexed-pkg-importer': link:../fs.indexed-pkg-importer
       '@pnpm/store-controller-types': link:../store-controller-types
-      '@zkochan/rimraf': 2.1.2
-      make-empty-dir: 2.0.0
       mem: 8.1.1
-      p-limit: 3.1.0
-      path-exists: 4.0.0
       path-temp: 2.0.0
-      rename-overwrite: 4.0.2
-      sanitize-filename: 1.6.3
     devDependencies:
       '@pnpm/create-cafs-store': 'link:'
       '@pnpm/logger': 4.0.0
@@ -1012,6 +1002,33 @@ importers:
       read-yaml-file: 2.1.0
     devDependencies:
       '@pnpm/find-workspace-packages': 'link:'
+
+  packages/fs.indexed-pkg-importer:
+    specifiers:
+      '@pnpm/core-loggers': workspace:7.0.5
+      '@pnpm/fs.indexed-pkg-importer': workspace:0.0.0
+      '@pnpm/logger': ^4.0.0
+      '@pnpm/prepare': workspace:*
+      '@zkochan/rimraf': ^2.1.2
+      make-empty-dir: ^2.0.0
+      p-limit: ^3.1.0
+      path-exists: ^4.0.0
+      path-temp: ^2.0.0
+      rename-overwrite: ^4.0.2
+      sanitize-filename: ^1.6.3
+    dependencies:
+      '@pnpm/core-loggers': link:../core-loggers
+      '@zkochan/rimraf': 2.1.2
+      make-empty-dir: 2.0.0
+      p-limit: 3.1.0
+      path-exists: 4.0.0
+      path-temp: 2.0.0
+      rename-overwrite: 4.0.2
+      sanitize-filename: 1.6.3
+    devDependencies:
+      '@pnpm/fs.indexed-pkg-importer': 'link:'
+      '@pnpm/logger': 4.0.0
+      '@pnpm/prepare': link:../../privatePackages/prepare
 
   packages/get-context:
     specifiers:
@@ -2146,6 +2163,39 @@ importers:
       strip-ansi: 6.0.1
       tempy: 1.0.1
 
+  packages/plugin-commands-deploy:
+    specifiers:
+      '@pnpm/assert-project': workspace:*
+      '@pnpm/cli-utils': workspace:0.7.16
+      '@pnpm/directory-fetcher': workspace:3.0.6
+      '@pnpm/error': workspace:3.0.1
+      '@pnpm/filter-workspace-packages': workspace:5.0.16
+      '@pnpm/fs.indexed-pkg-importer': workspace:0.0.0
+      '@pnpm/lockfile-types': workspace:4.2.0
+      '@pnpm/logger': ^4.0.0
+      '@pnpm/plugin-commands-deploy': workspace:0.0.0
+      '@pnpm/plugin-commands-installation': workspace:10.3.2
+      '@pnpm/prepare': workspace:*
+      '@pnpm/registry-mock': 2.20.0
+      '@zkochan/rimraf': ^2.1.2
+      render-help: ^1.0.1
+    dependencies:
+      '@pnpm/cli-utils': link:../cli-utils
+      '@pnpm/directory-fetcher': link:../directory-fetcher
+      '@pnpm/error': link:../error
+      '@pnpm/fs.indexed-pkg-importer': link:../fs.indexed-pkg-importer
+      '@pnpm/plugin-commands-installation': link:../plugin-commands-installation
+      '@zkochan/rimraf': 2.1.2
+      render-help: 1.0.2
+    devDependencies:
+      '@pnpm/assert-project': link:../../privatePackages/assert-project
+      '@pnpm/filter-workspace-packages': link:../filter-workspace-packages
+      '@pnpm/lockfile-types': link:../lockfile-types
+      '@pnpm/logger': 4.0.0
+      '@pnpm/plugin-commands-deploy': 'link:'
+      '@pnpm/prepare': link:../../privatePackages/prepare
+      '@pnpm/registry-mock': 2.20.0
+
   packages/plugin-commands-env:
     specifiers:
       '@pnpm/cli-utils': workspace:0.7.16
@@ -2924,6 +2974,7 @@ importers:
       '@pnpm/parse-cli-args': workspace:5.0.2
       '@pnpm/pick-registry-for-package': workspace:3.0.5
       '@pnpm/plugin-commands-audit': workspace:6.0.16
+      '@pnpm/plugin-commands-deploy': workspace:0.0.0
       '@pnpm/plugin-commands-env': workspace:2.1.15
       '@pnpm/plugin-commands-init': workspace:1.0.16
       '@pnpm/plugin-commands-installation': workspace:10.3.2
@@ -3013,6 +3064,7 @@ importers:
       '@pnpm/parse-cli-args': link:../parse-cli-args
       '@pnpm/pick-registry-for-package': link:../pick-registry-for-package
       '@pnpm/plugin-commands-audit': link:../plugin-commands-audit
+      '@pnpm/plugin-commands-deploy': link:../plugin-commands-deploy
       '@pnpm/plugin-commands-env': link:../plugin-commands-env
       '@pnpm/plugin-commands-init': link:../plugin-commands-init
       '@pnpm/plugin-commands-installation': link:../plugin-commands-installation

@@ -13,16 +13,7 @@
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../cafs"
-    },
-    {
-      "path": "../fetcher-base"
-    },
-    {
-      "path": "../fs.indexed-pkg-importer"
-    },
-    {
-      "path": "../store-controller-types"
+      "path": "../core-loggers"
     }
   ]
 }

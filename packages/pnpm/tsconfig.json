@@ -76,6 +76,9 @@
       "path": "../plugin-commands-audit"
     },
     {
+      "path": "../plugin-commands-deploy"
+    },
+    {
       "path": "../plugin-commands-env"
     },
     {

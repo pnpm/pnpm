@@ -137,6 +137,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-rebuild':
   case '@pnpm/plugin-commands-script-runners':
   case '@pnpm/plugin-commands-store':
+  case '@pnpm/plugin-commands-deploy':
   case CLI_PKG_NAME:
   case '@pnpm/core': {
     // @pnpm/core tests currently works only with port 4873 due to the usage of

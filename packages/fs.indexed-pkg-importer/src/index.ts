@@ -18,9 +18,9 @@ interface ImportOptions {
 
 type ImportFunction = (to: string, opts: ImportOptions) => Promise<string | undefined>
 
-export default (
+export function createIndexedPkgImporter (
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-): ImportFunction => {
+): ImportFunction {
   const importPackage = createImportPackage(packageImportMethod)
   return async (to, opts) => limitLinking(async () => importPackage(to, opts))
 }
