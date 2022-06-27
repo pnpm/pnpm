@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.4.0-2
+## 7.4.0-3
 
 ### Minor Changes
 
@@ -45,6 +45,14 @@
   }
   ```
 
+- A new experimental command added: `pnpm deploy`. The deploy command takes copies a project from a workspace and installs all of its production dependencies (even if some of those dependencies are other projects from the workspace).
+
+  For example, the new command will deploy the project named `foo` to the `dist` directory in the root of the workspace:
+
+  ```
+  pnpm --filter=foo deploy dist
+  ```
+
 - `package-import-method` supports a new option: `clone-or-copy`.
 
 - New setting added: `include-workspace-root`. When it is set to `true`, the `run`, `exec`, `add`, and `test` commands will include the root package, when executed recursively [#4906](https://github.com/pnpm/pnpm/issues/4906)
@@ -57,8 +65,10 @@
   ```
   use-node-version=18.0.0-rc.3
   ```
+
 - Return early when the lockfile is up-to-date.
 - Resolve native workspace path for case-insensitive file systems [#4904](https://github.com/pnpm/pnpm/issues/4904).
+- Don't link local dev dependencies, when prod dependencies should only be installed.
 
 ## 7.3.0
 

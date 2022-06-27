@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@pnpm/cafs": "workspace:4.0.7",
-    "@pnpm/create-cafs-store": "workspace:2.0.1",
+    "@pnpm/create-cafs-store": "workspace:2.0.2",
     "@pnpm/git-fetcher": "workspace:5.1.6",
     "@pnpm/types": "workspace:8.4.0",
     "p-defer": "^3.0.0",

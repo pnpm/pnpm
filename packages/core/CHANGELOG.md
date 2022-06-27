@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 5.5.3
+
+### Patch Changes
+
+- 7922d6314: Don't link local dev dependencies, when prod dependencies should only be installed.
+  - @pnpm/package-requester@18.0.10
+  - @pnpm/headless@18.3.2
+
 ## 5.5.2
 
 ### Patch Changes

@@ -19,7 +19,7 @@
     "@pnpm/client": "workspace:7.1.7",
     "@pnpm/headless": "workspace:18.3.2",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-store": "workspace:14.0.1",
+    "@pnpm/package-store": "workspace:14.0.2",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-projects-context": "workspace:6.0.7",
     "@pnpm/registry-mock": "2.20.0",

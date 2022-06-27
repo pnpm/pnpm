@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-patching",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Commands for creating patches",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,7 +34,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-patching#readme",
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-patching": "workspace:1.0.2",
+    "@pnpm/plugin-commands-patching": "workspace:1.0.3",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.20.0",
     "@types/ramda": "0.27.39"
@@ -44,10 +44,10 @@
     "@pnpm/config": "workspace:15.5.0",
     "@pnpm/parse-wanted-dependency": "workspace:3.0.0",
     "@pnpm/pick-registry-for-package": "workspace:3.0.5",
-    "@pnpm/plugin-commands-installation": "workspace:10.3.2",
+    "@pnpm/plugin-commands-installation": "workspace:10.3.3",
     "@pnpm/read-package-json": "workspace:6.0.6",
     "@pnpm/read-project-manifest": "workspace:3.0.6",
-    "@pnpm/store-connection-manager": "workspace:4.1.14",
+    "@pnpm/store-connection-manager": "workspace:4.1.15",
     "escape-string-regexp": "^4.0.0",
     "ramda": "^0.27.1",
     "render-help": "^1.0.1",

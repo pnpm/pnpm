@@ -63,7 +63,7 @@
   },
   "devDependencies": {
     "@pnpm/client": "workspace:7.1.7",
-    "@pnpm/create-cafs-store": "workspace:2.0.1",
+    "@pnpm/create-cafs-store": "workspace:2.0.2",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-requester": "workspace:18.0.10",
     "@pnpm/registry-mock": "2.20.0",
