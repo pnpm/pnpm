@@ -47,7 +47,7 @@ export async function handler (
   const deployedDir = selectedDirs[0]
   const deployDir = path.join(opts.workspaceDir, params[0])
   await rimraf(deployDir)
-  await fs.promises.mkdir(deployDir)
+  await fs.promises.mkdir(deployDir, { recursive: true })
   await copyProject(deployedDir, deployDir)
   const readPackageHook = opts.hooks?.readPackage
   // eslint-disable-next-line
