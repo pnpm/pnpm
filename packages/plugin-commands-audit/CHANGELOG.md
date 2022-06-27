@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-audit
 
+## 6.0.17
+
+### Patch Changes
+
+- d3ad3368f: `pnpm audit --fix` should not add an override for a vulnerable package that has no fixes released.
+  - @pnpm/audit@3.0.8
+
 ## 6.0.16
 
 ### Patch Changes

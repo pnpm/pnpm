@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-outdated
 
+## 6.0.17
+
+### Patch Changes
+
+- @pnpm/outdated@10.0.10
+
 ## 6.0.16
 
 ### Patch Changes

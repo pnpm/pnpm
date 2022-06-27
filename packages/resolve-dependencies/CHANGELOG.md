@@ -1,5 +1,15 @@
 # @pnpm/resolve-dependencies
 
+## 28.1.2
+
+### Patch Changes
+
+- fc581d371: Don't fail when the patched package appears multiple times in the dependency graph [#4938](https://github.com/pnpm/pnpm/issues/4938).
+- Updated dependencies [fc581d371]
+  - dependency-path@9.2.2
+  - @pnpm/lockfile-utils@4.0.8
+  - @pnpm/prune-lockfile@4.0.9
+
 ## 28.1.1
 
 ### Patch Changes

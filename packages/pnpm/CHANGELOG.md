@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.4.0-3
+## 7.4.0-4
 
 ### Minor Changes
 
@@ -69,6 +69,7 @@
 - Return early when the lockfile is up-to-date.
 - Resolve native workspace path for case-insensitive file systems [#4904](https://github.com/pnpm/pnpm/issues/4904).
 - Don't link local dev dependencies, when prod dependencies should only be installed.
+- `pnpm audit --fix` should not add an override for a vulnerable package that has no fixes released.
 
 ## 7.3.0
 

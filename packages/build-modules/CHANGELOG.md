@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 9.2.2
+
+### Patch Changes
+
+- 00c12fa53: Throw an error if a patch couldn't be applied.
+
 ## 9.2.1
 
 ### Patch Changes

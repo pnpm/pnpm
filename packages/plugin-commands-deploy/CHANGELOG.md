@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-deploy
 
+## 1.0.1
+
+### Patch Changes
+
+- f4248b514: Changes deployment directories to be created recursively
+  - @pnpm/plugin-commands-installation@10.3.4
+
 ## 1.0.0
 
 ### Major Changes

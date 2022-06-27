@@ -1,5 +1,11 @@
 # dependency-path
 
+## 9.2.2
+
+### Patch Changes
+
+- fc581d371: Remove patchFileHash from createPeersFolderSuffix().
+
 ## 9.2.1
 
 ### Patch Changes

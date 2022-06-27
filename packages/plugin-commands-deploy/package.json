@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-deploy",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Commands for deploy",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -41,7 +41,7 @@
     "@pnpm/filter-workspace-packages": "workspace:5.0.16",
     "@pnpm/lockfile-types": "workspace:4.2.0",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-deploy": "workspace:1.0.0",
+    "@pnpm/plugin-commands-deploy": "workspace:1.0.1",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.20.0"
   },
@@ -50,7 +50,7 @@
     "@pnpm/directory-fetcher": "workspace:3.0.6",
     "@pnpm/error": "workspace:3.0.1",
     "@pnpm/fs.indexed-pkg-importer": "workspace:1.0.0",
-    "@pnpm/plugin-commands-installation": "workspace:10.3.3",
+    "@pnpm/plugin-commands-installation": "workspace:10.3.4",
     "@zkochan/rimraf": "^2.1.2",
     "render-help": "^1.0.1"
   },
