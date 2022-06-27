@@ -320,3 +320,35 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   // The original file did not break, when a patched version was created
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
 })
+
+test('patch package when the patched package has no dependencies and appears multipe times', async () => {
+  const project = prepareEmpty()
+  const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
+
+  const patchedDependencies = {
+    'is-positive@1.0.0': path.relative(process.cwd(), patchPath),
+  }
+  const opts = await testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies,
+    overrides: {
+      'is-positive': '1.0.0',
+    },
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+      'is-not-positive': '1.0.0',
+    },
+  }, opts)
+
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
+
+  const lockfile = await project.readLockfile()
+  expect(Object.keys(lockfile.packages)).toStrictEqual([
+    '/is-not-positive/1.0.0',
+    '/is-positive/1.0.0_jnbpamcxayl5i4ehrkoext3any',
+  ])
+})

@@ -181,9 +181,6 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     isEmpty(resolvedPackage.peerDependencies)
   ) {
     ctx.pathsByNodeId[nodeId] = resolvedPackage.depPath
-    if (resolvedPackage.patchFile) {
-      ctx.pathsByNodeId[nodeId] += `_${resolvedPackage.patchFile.hash}`
-    }
     return { resolvedPeers: {}, missingPeers: [] }
   }
   if (typeof node.children === 'function') {
@@ -252,9 +249,6 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   let depPath: string
   if (isEmpty(allResolvedPeers)) {
     depPath = resolvedPackage.depPath
-    if (resolvedPackage.patchFile) {
-      depPath += `_${resolvedPackage.patchFile.hash}`
-    }
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
       Object.entries(allResolvedPeers)
@@ -268,8 +262,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
           }
           const { name, version } = ctx.dependenciesTree[nodeId].resolvedPackage
           return { name, version }
-        }),
-      resolvedPackage.patchFile?.hash
+        })
     )
     // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
