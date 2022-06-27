@@ -823,7 +823,13 @@ async function resolveDependency (
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
-  const depPath = dp.relative(ctx.registries, pkg.name, pkgResponse.body.id)
+  let depPath = dp.relative(ctx.registries, pkg.name, pkgResponse.body.id)
+  const nameAndVersion = `${pkg.name}@${pkg.version}`
+  const patchFile = ctx.patchedDependencies?.[nameAndVersion]
+  if (patchFile) {
+    ctx.appliedPatches.add(nameAndVersion)
+    depPath += `_${patchFile.hash}`
+  }
 
   // We are building the dependency tree only until there are new packages
   // or the packages repeat in a unique order.
@@ -918,12 +924,6 @@ async function resolveDependency (
       requester: ctx.lockfileDir,
       status: 'resolved',
     })
-
-    const nameAndVersion = `${pkg.name}@${pkg.version}`
-    const patchFile = ctx.patchedDependencies?.[nameAndVersion]
-    if (patchFile) {
-      ctx.appliedPatches.add(nameAndVersion)
-    }
 
     ctx.resolvedPackagesByDepPath[depPath] = await getResolvedPackage({
       allowBuild: ctx.allowBuild,
