@@ -1,8 +1,9 @@
 import { parseRange } from 'semver-utils'
 
 export default function whichVersionIsPinned (spec: string) {
-  if (spec.startsWith('workspace:')) spec = spec.slice('workspace:'.length)
-  if (spec === '*') return 'none'
+  const isWorkspaceProtocol = spec.startsWith('workspace:')
+  if (isWorkspaceProtocol) spec = spec.slice('workspace:'.length)
+  if (spec === '*') return isWorkspaceProtocol ? 'patch' : 'none'
   const parsedRange = parseRange(spec)
   if (parsedRange.length !== 1) return undefined
   const versionObject = parsedRange[0]

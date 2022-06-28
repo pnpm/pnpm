@@ -33,7 +33,7 @@ export interface Config {
   saveDev?: boolean
   saveOptional?: boolean
   savePeer?: boolean
-  saveWorkspaceProtocol?: boolean
+  saveWorkspaceProtocol?: boolean | 'rolling'
   scriptShell?: string
   stream?: boolean
   pnpmExecPath: string

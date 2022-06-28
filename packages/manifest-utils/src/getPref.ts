@@ -13,21 +13,23 @@ export function getPref (
   }
 ) {
   const prefix = getPrefix(alias, name)
-  return `${prefix}${createVersionSpec(version, opts.pinnedVersion)}`
+  return `${prefix}${createVersionSpec(version, { pinnedVersion: opts.pinnedVersion })}`
 }
 
-export function createVersionSpec (version: string | undefined, pinnedVersion?: PinnedVersion) {
-  if (!version) return '*'
-  switch (pinnedVersion ?? 'major') {
+export function createVersionSpec (version: string | undefined, opts: { pinnedVersion?: PinnedVersion, rolling?: boolean }) {
+  switch (opts.pinnedVersion ?? 'major') {
   case 'none':
     return '*'
   case 'major':
-    return `^${version}`
+    if (opts.rolling) return '^'
+    return !version ? '*' : `^${version}`
   case 'minor':
-    return `~${version}`
+    if (opts.rolling) return '~'
+    return !version ? '*' : `~${version}`
   case 'patch':
-    return `${version}`
+    if (opts.rolling) return '*'
+    return !version ? '*' : `${version}`
   default:
-    throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${pinnedVersion ?? 'undefined'}'`)
+    throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${opts.pinnedVersion ?? 'undefined'}'`)
   }
 }
