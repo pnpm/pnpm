@@ -38,7 +38,7 @@ declare module '@pnpm/npm-lifecycle' {
   export = anything;
 }
 
-declare module '@zkochan/npm-package-arg' {
+declare module '@pnpm/npm-package-arg' {
   const anything: any;
   export = anything;
 }

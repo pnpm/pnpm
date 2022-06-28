@@ -1,6 +1,6 @@
 import matcher from '@pnpm/matcher'
+import npa from '@pnpm/npm-package-arg'
 import { SearchFunction } from 'dependencies-hierarchy'
-import npa from '@zkochan/npm-package-arg'
 import semver from 'semver'
 
 export default function createPatternSearcher (queries: string[]) {

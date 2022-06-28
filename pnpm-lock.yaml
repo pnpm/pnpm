@@ -431,6 +431,7 @@ importers:
       '@pnpm/modules-cleaner': workspace:12.0.11
       '@pnpm/modules-yaml': workspace:10.0.5
       '@pnpm/normalize-registries': workspace:3.0.5
+      '@pnpm/npm-package-arg': ^1.0.0
       '@pnpm/package-requester': workspace:18.0.11
       '@pnpm/package-store': workspace:14.0.3
       '@pnpm/parse-overrides': workspace:2.0.1
@@ -459,7 +460,6 @@ importers:
       '@types/sinon': ^10.0.6
       '@yarnpkg/core': 3.2.0
       '@yarnpkg/extensions': 1.1.0-rc.6
-      '@zkochan/npm-package-arg': ^2.0.1
       '@zkochan/rimraf': ^2.1.2
       deep-require-cwd: 1.0.0
       dependency-path: workspace:9.2.2
@@ -509,6 +509,7 @@ importers:
       '@pnpm/modules-cleaner': link:../modules-cleaner
       '@pnpm/modules-yaml': link:../modules-yaml
       '@pnpm/normalize-registries': link:../normalize-registries
+      '@pnpm/npm-package-arg': 1.0.0
       '@pnpm/package-requester': link:../package-requester
       '@pnpm/parse-overrides': link:../parse-overrides
       '@pnpm/parse-wanted-dependency': link:../parse-wanted-dependency
@@ -524,7 +525,6 @@ importers:
       '@pnpm/types': link:../types
       '@pnpm/which-version-is-pinned': link:../which-version-is-pinned
       '@yarnpkg/extensions': 1.1.0-rc.6_@yarnpkg+core@3.2.0
-      '@zkochan/npm-package-arg': 2.0.1
       '@zkochan/rimraf': 2.1.2
       dependency-path: link:../dependency-path
       is-inner-link: 4.0.0
@@ -1364,13 +1364,13 @@ importers:
       '@pnpm/list': workspace:7.0.9
       '@pnpm/logger': ^4.0.0
       '@pnpm/matcher': workspace:3.0.0
+      '@pnpm/npm-package-arg': ^1.0.0
       '@pnpm/read-package-json': workspace:6.0.6
       '@pnpm/read-project-manifest': workspace:3.0.6
       '@pnpm/types': workspace:8.4.0
       '@types/archy': 0.0.31
       '@types/ramda': 0.28.14
       '@types/semver': ^7.3.4
-      '@zkochan/npm-package-arg': ^2.0.1
       archy: ^1.0.0
       chalk: ^4.1.0
       cli-columns: ^4.0.0
@@ -1380,10 +1380,10 @@ importers:
       semver: ^7.3.4
     dependencies:
       '@pnpm/matcher': link:../matcher
+      '@pnpm/npm-package-arg': 1.0.0
       '@pnpm/read-package-json': link:../read-package-json
       '@pnpm/read-project-manifest': link:../read-project-manifest
       '@pnpm/types': link:../types
-      '@zkochan/npm-package-arg': 2.0.1
       archy: 1.0.0
       chalk: 4.1.2
       cli-columns: 4.0.0
@@ -2087,9 +2087,9 @@ importers:
     specifiers:
       '@pnpm/parse-wanted-dependency': workspace:3.0.0
       '@types/validate-npm-package-name': ^3.0.2
-      validate-npm-package-name: 3.0.0
+      validate-npm-package-name: 4.0.0
     dependencies:
-      validate-npm-package-name: 3.0.0
+      validate-npm-package-name: 4.0.0
     devDependencies:
       '@pnpm/parse-wanted-dependency': 'link:'
       '@types/validate-npm-package-name': 3.0.3
@@ -2105,15 +2105,15 @@ importers:
 
   packages/pkgs-graph:
     specifiers:
+      '@pnpm/npm-package-arg': ^1.0.0
       '@pnpm/resolve-workspace-range': workspace:3.0.0
       '@types/ramda': 0.28.14
-      '@zkochan/npm-package-arg': ^2.0.1
       better-path-resolve: 1.0.0
       pkgs-graph: workspace:7.0.0
       ramda: ^0.28.0
     dependencies:
+      '@pnpm/npm-package-arg': 1.0.0
       '@pnpm/resolve-workspace-range': link:../resolve-workspace-range
-      '@zkochan/npm-package-arg': 2.0.1
       ramda: 0.28.0
     devDependencies:
       '@types/ramda': 0.28.14
@@ -2675,6 +2675,7 @@ importers:
       '@pnpm/logger': ^4.0.0
       '@pnpm/modules-yaml': workspace:10.0.5
       '@pnpm/normalize-registries': workspace:3.0.5
+      '@pnpm/npm-package-arg': ^1.0.0
       '@pnpm/plugin-commands-rebuild': workspace:6.1.17
       '@pnpm/prepare': workspace:*
       '@pnpm/registry-mock': 2.20.0
@@ -2686,7 +2687,6 @@ importers:
       '@types/ramda': 0.28.14
       '@types/semver': ^7.3.4
       '@types/sinon': ^10.0.6
-      '@zkochan/npm-package-arg': ^2.0.1
       camelcase-keys: ^6.2.2
       dependency-path: workspace:9.2.2
       execa: npm:safe-execa@^0.1.1
@@ -2716,11 +2716,11 @@ importers:
       '@pnpm/lockfile-walker': link:../lockfile-walker
       '@pnpm/modules-yaml': link:../modules-yaml
       '@pnpm/normalize-registries': link:../normalize-registries
+      '@pnpm/npm-package-arg': 1.0.0
       '@pnpm/sort-packages': link:../sort-packages
       '@pnpm/store-connection-manager': link:../store-connection-manager
       '@pnpm/store-controller-types': link:../store-controller-types
       '@pnpm/types': link:../types
-      '@zkochan/npm-package-arg': 2.0.1
       camelcase-keys: 6.2.2
       dependency-path: link:../dependency-path
       load-json-file: 6.2.0
@@ -5298,6 +5298,15 @@ packages:
       - supports-color
     dev: false
 
+  /@pnpm/npm-package-arg/1.0.0:
+    resolution: {integrity: sha512-oQYP08exi6mOPdAZZWcNIGS+KKPsnNwUBzSuAEGWuCcqwMAt3k/WVCqVIXzBxhO5sP2b43og69VHmPj6IroKqw==}
+    engines: {node: '>=14.6'}
+    dependencies:
+      hosted-git-info: /@zkochan/hosted-git-info/4.0.2
+      semver: 7.3.7
+      validate-npm-package-name: 4.0.0
+    dev: false
+
   /@pnpm/os.env.path-extender-posix/0.2.3:
     resolution: {integrity: sha512-gL/G8vGS3i8hnQcG24U2HVHgQMps/I2EEtDWcM03oodvMjPicMOKip4LP5UjwbNQUESyuwxOrPS60/XlYV9DZw==}
     engines: {node: '>=12.22.0'}
@@ -6308,15 +6317,6 @@ packages:
     dependencies:
       argparse: 2.0.1
 
-  /@zkochan/npm-package-arg/2.0.1:
-    resolution: {integrity: sha512-VvK3/jS9m/quSU970L5sZSvX9wmmhXnEu/GfffCz0/ZcMAUs471FFz2UJu56T/8N8hcKPODYuKHz8wL5xZZY3w==}
-    engines: {node: '>=10.13'}
-    dependencies:
-      hosted-git-info: /@zkochan/hosted-git-info/4.0.2
-      semver: 7.3.7
-      validate-npm-package-name: 3.0.0
-    dev: false
-
   /@zkochan/pkg/0.0.0-2:
     resolution: {integrity: sha512-ryvBDQsbH2/H0hwy9owJ/+E9p8W3ip0X1yJrkTt2ncMaScEjZb/y8YO7AYqnwOmGO6i31B/42Nx0znAca+febg==}
     hasBin: true
@@ -6928,6 +6928,12 @@ packages:
 
   /builtins/1.0.3:
     resolution: {integrity: sha512-uYBjakWipfaO/bXI7E8rq6kpwHRZK5cNYrUv2OzZSI/FvmdMyXJ2tG9dKcjEC5YHmHpUAwsargWIZNWdxb/bnQ==}
+
+  /builtins/5.0.1:
+    resolution: {integrity: sha512-qwVpFEHNfhYJIzNRBvd2C1kyo6jz3ZSMPyyuR47OPdiKWlbYnZNyDWuyR175qDnAJLiCo5fBBqPb3RiXgWlkOQ==}
+    dependencies:
+      semver: 7.3.7
+    dev: false
 
   /bytes/3.0.0:
     resolution: {integrity: sha512-pMhOfFDPiv9t5jjIXkHosWmkSyQbvsgEVNkz0ERHbuLh2T/7j4Mqqpz523Fe8MVY89KC6Sh/QfS2sM+SjgFDcw==}
@@ -14138,6 +14144,13 @@ packages:
     resolution: {integrity: sha512-M6w37eVCMMouJ9V/sdPGnC5H4uDr73/+xdq0FBLO3TFFX1+7wiUY6Es328NN+y43tmY+doUdN9g9J21vqB7iLw==}
     dependencies:
       builtins: 1.0.3
+
+  /validate-npm-package-name/4.0.0:
+    resolution: {integrity: sha512-mzR0L8ZDktZjpX4OB46KT+56MAhl4EIazWP/+G/HPGuvfdaqg4YsCdtOm6U9+LOFyYDoh4dpnpxZRB9MQQns5Q==}
+    engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
+    dependencies:
+      builtins: 5.0.1
+    dev: false
 
   /validator/13.7.0:
     resolution: {integrity: sha512-nYXQLCBkpJ8X6ltALua9dRrZDHVYxjJ1wgskNt1lH9fzGjs3tgojGSCBjmEPwkWS1y29+DrizMTW19Pr9uB2nw==}

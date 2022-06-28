@@ -1,6 +1,6 @@
 import path from 'path'
+import npa from '@pnpm/npm-package-arg'
 import resolveWorkspaceRange from '@pnpm/resolve-workspace-range'
-import npa from '@zkochan/npm-package-arg'
 
 export interface Manifest {
   name?: string
