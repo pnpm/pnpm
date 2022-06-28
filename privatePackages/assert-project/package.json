@@ -18,7 +18,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@types/is-windows": "^1.0.0",
-    "@types/isexe": "2.0.0",
+    "@types/isexe": "2.0.1",
     "@types/node": "^14.17.32"
   },
   "directories": {
