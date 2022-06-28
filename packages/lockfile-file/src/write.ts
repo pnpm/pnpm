@@ -123,6 +123,9 @@ export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolea
   if ((lockfileToSave.overrides != null) && isEmpty(lockfileToSave.overrides)) {
     delete lockfileToSave.overrides
   }
+  if ((lockfileToSave.patchedDependencies != null) && isEmpty(lockfileToSave.patchedDependencies)) {
+    delete lockfileToSave.patchedDependencies
+  }
   if (lockfileToSave.neverBuiltDependencies != null) {
     if (isEmpty(lockfileToSave.neverBuiltDependencies)) {
       delete lockfileToSave.neverBuiltDependencies

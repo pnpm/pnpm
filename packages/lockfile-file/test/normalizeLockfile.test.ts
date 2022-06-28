@@ -8,6 +8,7 @@ test('empty overrides and neverBuiltDependencies are removed during lockfile nor
     onlyBuiltDependencies: [],
     overrides: {},
     neverBuiltDependencies: [],
+    patchedDependencies: {},
     packages: {},
     importers: {
       foo: {
