@@ -51,7 +51,7 @@
     "@pnpm/symlink-dependency": "workspace:5.0.5",
     "@pnpm/types": "workspace:8.4.0",
     "@pnpm/which-version-is-pinned": "workspace:2.0.0",
-    "@yarnpkg/extensions": "1.1.0-rc.2",
+    "@yarnpkg/extensions": "1.1.0-rc.6",
     "@zkochan/npm-package-arg": "^2.0.1",
     "@zkochan/rimraf": "^2.1.2",
     "dependency-path": "workspace:9.2.2",

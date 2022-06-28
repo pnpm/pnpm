@@ -458,7 +458,7 @@ importers:
       '@types/semver': ^7.3.4
       '@types/sinon': ^10.0.6
       '@yarnpkg/core': 3.2.0
-      '@yarnpkg/extensions': 1.1.0-rc.2
+      '@yarnpkg/extensions': 1.1.0-rc.6
       '@zkochan/npm-package-arg': ^2.0.1
       '@zkochan/rimraf': ^2.1.2
       deep-require-cwd: 1.0.0
@@ -523,7 +523,7 @@ importers:
       '@pnpm/symlink-dependency': link:../symlink-dependency
       '@pnpm/types': link:../types
       '@pnpm/which-version-is-pinned': link:../which-version-is-pinned
-      '@yarnpkg/extensions': 1.1.0-rc.2_@yarnpkg+core@3.2.0
+      '@yarnpkg/extensions': 1.1.0-rc.6_@yarnpkg+core@3.2.0
       '@zkochan/npm-package-arg': 2.0.1
       '@zkochan/rimraf': 2.1.2
       dependency-path: link:../dependency-path
@@ -6169,8 +6169,8 @@ packages:
       tunnel: 0.0.6
     dev: false
 
-  /@yarnpkg/extensions/1.1.0-rc.2_@yarnpkg+core@3.2.0:
-    resolution: {integrity: sha512-TX60+kKIonc6E5RLo6KVYpiHHgeAcOCBmGDhYiDIFy7RHBgioABEoUeQQlwm2I83vawPmAMn7LpYwwdj2BmUsg==}
+  /@yarnpkg/extensions/1.1.0-rc.6_@yarnpkg+core@3.2.0:
+    resolution: {integrity: sha512-RJ+DNCSZea5je2c7GMLyET+fJ/ndAQJ0lxoHtA8k2IMpobCwukoUocMEWYh61LuSjXEbI59VhEz1o7LDC3W7oA==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
       '@yarnpkg/core': '*'
