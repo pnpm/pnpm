@@ -372,7 +372,7 @@ export default async (opts: HeadlessOptions) => {
     })
 
     if ((currentLockfile != null) && !equals(importerIds.sort(), Object.keys(filteredLockfile.importers).sort())) {
-      Object.assign(filteredLockfile.packages, currentLockfile.packages)
+      Object.assign(filteredLockfile.packages!, currentLockfile.packages)
     }
 
     /** Skip linking and due to no project manifest */
