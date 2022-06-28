@@ -1,0 +1,124 @@
+diff --git a/prelude/bootstrap.js b/prelude/bootstrap.js
+index 8627ea5..4be2de0 100644
+--- a/prelude/bootstrap.js
++++ b/prelude/bootstrap.js
+@@ -58,7 +58,6 @@ const NODE_VERSION_MINOR = process.version.match(/^v\d+.(\d+)/)[1] | 0;
+ 
+ // set ENTRYPOINT and ARGV0 here because
+ // they can be altered during process run
+-const ARGV0 = process.argv[0];
+ const EXECPATH = process.execPath;
+ let ENTRYPOINT = process.argv[1];
+ 
+@@ -2006,111 +2005,41 @@ function payloadFileSync(pointer) {
+     }
+     const opts = args[pos];
+     if (!opts.env) opts.env = _extend({}, process.env);
+-    if (opts.env.PKG_EXECPATH === 'PKG_INVOKE_NODEJS') return;
+-    opts.env.PKG_EXECPATH = EXECPATH;
+-  }
+-
+-  function startsWith2(args, index, name, impostor) {
+-    const qsName = `"${name} `;
+-    if (args[index].slice(0, qsName.length) === qsName) {
+-      args[index] = `"${impostor} ${args[index].slice(qsName.length)}`;
+-      return true;
+-    }
+-    const sName = `${name} `;
+-    if (args[index].slice(0, sName.length) === sName) {
+-      args[index] = `${impostor} ${args[index].slice(sName.length)}`;
+-      return true;
+-    }
+-    if (args[index] === name) {
+-      args[index] = impostor;
+-      return true;
+-    }
+-    return false;
+-  }
+-
+-  function startsWith(args, index, name) {
+-    const qName = `"${name}"`;
+-    const qEXECPATH = `"${EXECPATH}"`;
+-    const jsName = JSON.stringify(name);
+-    const jsEXECPATH = JSON.stringify(EXECPATH);
+-    return (
+-      startsWith2(args, index, name, EXECPATH) ||
+-      startsWith2(args, index, qName, qEXECPATH) ||
+-      startsWith2(args, index, jsName, jsEXECPATH)
+-    );
+-  }
+-
+-  function modifyLong(args, index) {
+-    if (!args[index]) return;
+-    return (
+-      startsWith(args, index, 'node') ||
+-      startsWith(args, index, ARGV0) ||
+-      startsWith(args, index, ENTRYPOINT) ||
+-      startsWith(args, index, EXECPATH)
+-    );
+-  }
+-
+-  function modifyShort(args) {
+-    if (!args[0]) return;
+-    if (!Array.isArray(args[1])) {
+-      args.splice(1, 0, []);
+-    }
+-    if (
+-      args[0] === 'node' ||
+-      args[0] === ARGV0 ||
+-      args[0] === ENTRYPOINT ||
+-      args[0] === EXECPATH
+-    ) {
+-      args[0] = EXECPATH;
+-    } else {
+-      for (let i = 1; i < args[1].length; i += 1) {
+-        const mbc = args[1][i - 1];
+-        if (mbc === '-c' || mbc === '/c') {
+-          modifyLong(args[1], i);
+-        }
+-      }
+-    }
+   }
+ 
+   childProcess.spawn = function spawn() {
+     const args = cloneArgs(arguments);
+     setOptsEnv(args);
+-    modifyShort(args);
+     return ancestor.spawn.apply(childProcess, args);
+   };
+ 
+   childProcess.spawnSync = function spawnSync() {
+     const args = cloneArgs(arguments);
+     setOptsEnv(args);
+-    modifyShort(args);
+     return ancestor.spawnSync.apply(childProcess, args);
+   };
+ 
+   childProcess.execFile = function execFile() {
+     const args = cloneArgs(arguments);
+     setOptsEnv(args);
+-    modifyShort(args);
+     return ancestor.execFile.apply(childProcess, args);
+   };
+ 
+   childProcess.execFileSync = function execFileSync() {
+     const args = cloneArgs(arguments);
+     setOptsEnv(args);
+-    modifyShort(args);
+     return ancestor.execFileSync.apply(childProcess, args);
+   };
+ 
+   childProcess.exec = function exec() {
+     const args = cloneArgs(arguments);
+     setOptsEnv(args);
+-    modifyLong(args, 0);
+     return ancestor.exec.apply(childProcess, args);
+   };
+ 
+   childProcess.execSync = function execSync() {
+     const args = cloneArgs(arguments);
+     setOptsEnv(args);
+-    modifyLong(args, 0);
+     return ancestor.execSync.apply(childProcess, args);
+   };
+ })();

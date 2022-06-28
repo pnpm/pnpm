@@ -27,7 +27,10 @@ overrides:
 
 packageExtensionsChecksum: 1373aa954ee01713eb42037cfa3725eb
 
-patchedDependencies: {}
+patchedDependencies:
+  pkg@5.7.0:
+    hash: pp6fkuhwkrqq7cjcj7uqpf37e4
+    path: patches/pkg@5.7.0.patch
 
 importers:
 
@@ -790,8 +793,8 @@ importers:
       '@pnpm/macos-arm64': workspace:7.4.0
       '@pnpm/macos-x64': workspace:7.4.0
       '@pnpm/win-x64': workspace:7.4.0
-      '@zkochan/pkg': 0.0.0-2
       execa: npm:safe-execa@^0.1.1
+      pkg: github:vercel/pkg#5.7.0
     optionalDependencies:
       '@pnpm/linux-arm64': link:../artifacts/linux-arm64
       '@pnpm/linux-x64': link:../artifacts/linux-x64
@@ -800,8 +803,8 @@ importers:
       '@pnpm/win-x64': link:../artifacts/win-x64
     devDependencies:
       '@pnpm/exe': 'link:'
-      '@zkochan/pkg': 0.0.0-2
       execa: /safe-execa/0.1.1
+      pkg: github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2_pp6fkuhwkrqq7cjcj7uqpf37e4
 
   packages/exportable-manifest:
     specifiers:
@@ -4044,12 +4047,12 @@ packages:
       chalk: 2.4.2
       js-tokens: 4.0.0
 
-  /@babel/parser/7.13.13:
-    resolution: {integrity: sha512-OhsyMrqygfk5v8HmWwOzlYjJrtLaFhF34MrfG/Z73DgYCI6ojNUTUp2TYbtnjo8PegeJp12eamsNettCQjKjVw==}
+  /@babel/parser/7.17.10:
+    resolution: {integrity: sha512-n2Q6i+fnJqzOaq2VkdXxy2TCPCWQZHiCo0XqmrCvDWcZQKRyZzYi4Z0yxlBuN0w+r2ZHmre+Q087DSrw3pbJDQ==}
     engines: {node: '>=6.0.0'}
     hasBin: true
     dependencies:
-      '@babel/types': 7.13.12
+      '@babel/types': 7.18.6
     dev: true
 
   /@babel/parser/7.18.6:
@@ -4275,11 +4278,11 @@ packages:
       - supports-color
     dev: true
 
-  /@babel/types/7.13.12:
-    resolution: {integrity: sha512-K4nY2xFN4QMvQwkQ+zmBDp6ANMbVNw6BbxWmYA4qNjhR9W+Lj/8ky5MEY2Me5r+B2c6/v6F53oMndG+f9s3IiA==}
+  /@babel/types/7.17.10:
+    resolution: {integrity: sha512-9O26jG0mBYfGkUYCYZRnBwbVLd1UZOICEr2Em6InB6jVfsAv1GKgwXHmrSg+WFWDmeKTA6vyTZiN8tCSM5Oo3A==}
+    engines: {node: '>=6.9.0'}
     dependencies:
       '@babel/helper-validator-identifier': 7.18.6
-      lodash: 4.17.21
       to-fast-properties: 2.0.0
     dev: true
 
@@ -6316,35 +6319,6 @@ packages:
     hasBin: true
     dependencies:
       argparse: 2.0.1
-
-  /@zkochan/pkg/0.0.0-2:
-    resolution: {integrity: sha512-ryvBDQsbH2/H0hwy9owJ/+E9p8W3ip0X1yJrkTt2ncMaScEjZb/y8YO7AYqnwOmGO6i31B/42Nx0znAca+febg==}
-    hasBin: true
-    peerDependencies:
-      node-notifier: '>=9.0.1'
-    peerDependenciesMeta:
-      node-notifier:
-        optional: true
-    dependencies:
-      '@babel/parser': 7.13.13
-      '@babel/types': 7.13.12
-      chalk: 4.1.2
-      escodegen: 2.0.0
-      fs-extra: 9.1.0
-      globby: 11.1.0
-      into-stream: 6.0.0
-      minimist: 1.2.6
-      multistream: 4.1.0
-      pkg-fetch: 3.4.1
-      prebuild-install: 6.0.1
-      progress: 2.0.3
-      resolve: 1.22.1
-      stream-meter: 1.0.4
-      tslib: 2.1.0
-    transitivePeerDependencies:
-      - encoding
-      - supports-color
-    dev: true
 
   /@zkochan/retry/0.2.0:
     resolution: {integrity: sha512-WhB+2B/ZPlW2Xy/kMJBrMbqecWXcbDDgn0K0wKBAgO2OlBTz1iLJrRWduo+DGGn0Akvz1Lu4Xvls7dJojximWw==}
@@ -11426,10 +11400,6 @@ packages:
       has: 1.0.3
       is: 3.3.0
 
-  /noop-logger/0.1.1:
-    resolution: {integrity: sha512-6kM8CLXvuW5crTxsAtva2YLrRrDaiTIkIePWs9moLHqbFWT94WpNFjwS/5dfLfECg5i/lkmw3aoqVidxt23TEQ==}
-    dev: true
-
   /nopt/1.0.10:
     resolution: {integrity: sha512-NWmpvLSqUrgrAC9HCuxEvb+PSloHpqVu+FqcO4eeF2h5qYRhA7ev6KvelyQAKtegUbC6RypJnlEOhd8vloNKYg==}
     hasBin: true
@@ -12088,8 +12058,8 @@ packages:
     resolution: {integrity: sha512-ARhBOdzS3e41FbkW/XWrTEtukqqLoK5+Z/4UeDaLuSW+39JPeFgs4gCGqsrJHVZX0fUrx//4OF0K1CUGwlIFow==}
     engines: {node: '>=4'}
 
-  /prebuild-install/6.0.1:
-    resolution: {integrity: sha512-7GOJrLuow8yeiyv75rmvZyeMGzl8mdEX5gY69d6a6bHWmiPevwqFw+tQavhK0EYMaSg3/KD24cWqeQv1EWsqDQ==}
+  /prebuild-install/6.1.4:
+    resolution: {integrity: sha512-Z4vpywnK1lBg+zdPCVCsKq0xO66eEV9rWo2zrROGGiRS4JtueBOdlB1FnY8lcy7JsUud/Q3ijUxyWN26Ika0vQ==}
     engines: {node: '>=6'}
     hasBin: true
     dependencies:
@@ -12100,14 +12070,12 @@ packages:
       mkdirp-classic: 0.5.3
       napi-build-utils: 1.0.2
       node-abi: 2.30.1
-      noop-logger: 0.1.1
       npmlog: 4.1.2
       pump: 3.0.0
       rc: 1.2.8
       simple-get: 3.1.1
       tar-fs: 2.1.1
       tunnel-agent: 0.6.0
-      which-pm-runs: 1.1.0
     dev: true
 
   /preferred-pm/3.0.3:
@@ -13822,10 +13790,6 @@ packages:
   /tslib/1.14.1:
     resolution: {integrity: sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg==}
 
-  /tslib/2.1.0:
-    resolution: {integrity: sha512-hcVC3wYEziELGGmEEXue7D75zbwIIVUMWAVbHItGPx0ziyXxrOMQx4rQEVEV45Ut/1IotuEvwqPopzIOkDMf0A==}
-    dev: true
-
   /tslib/2.4.0:
     resolution: {integrity: sha512-d6xOpEDfsi2CZVlPQzGeux8XMwLT9hssAsaPYExaQMuYskwb+x1x7J371tWlbBdWHroy99KnVB6qIkUbs5X3UQ==}
 
@@ -14404,11 +14368,6 @@ packages:
     resolution: {integrity: sha512-B+enWhmw6cjfVC7kS8Pj9pCrKSc5txArRyaYGe088shv/FGWH+0Rjx/xPgtsWfsUtS27FkP697E4DDhgrgoc0Q==}
     dev: true
 
-  /which-pm-runs/1.1.0:
-    resolution: {integrity: sha512-n1brCuqClxfFfq/Rb0ICg9giSZqCS+pLtccdag6C2HyufBrh3fBOiy9nb6ggRMvWOVH5GrdJskj5iGTZNxd7SA==}
-    engines: {node: '>=4'}
-    dev: true
-
   /which-pm/2.0.0:
     resolution: {integrity: sha512-Lhs9Pmyph0p5n5Z3mVnN0yWcbQYUAD7rbQUiMsQxOJ3T57k7RFe35SUwWMf7dsbDZks1uOmw4AecB/JMDj3v/w==}
     engines: {node: '>=8.15'}
@@ -14655,3 +14614,37 @@ packages:
   /yocto-queue/0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
+
+  github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2_pp6fkuhwkrqq7cjcj7uqpf37e4:
+    resolution: {tarball: https://codeload.github.com/vercel/pkg/tar.gz/7e4fef9f0828b11c7a9655b95425f32094f2daa2}
+    id: github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2
+    name: pkg
+    version: 5.7.0
+    hasBin: true
+    prepare: true
+    requiresBuild: true
+    peerDependencies:
+      node-notifier: '>=9.0.1'
+    peerDependenciesMeta:
+      node-notifier:
+        optional: true
+    dependencies:
+      '@babel/parser': 7.17.10
+      '@babel/types': 7.17.10
+      chalk: 4.1.2
+      escodegen: 2.0.0
+      fs-extra: 9.1.0
+      globby: 11.1.0
+      into-stream: 6.0.0
+      is-core-module: 2.9.0
+      minimist: 1.2.6
+      multistream: 4.1.0
+      pkg-fetch: 3.4.1
+      prebuild-install: 6.1.4
+      resolve: 1.22.1
+      stream-meter: 1.0.4
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+    dev: true
+    patched: true

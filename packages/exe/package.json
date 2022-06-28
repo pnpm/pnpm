@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@pnpm/exe": "workspace:7.4.0",
-    "@zkochan/pkg": "0.0.0-2",
+    "pkg": "github:vercel/pkg#5.7.0",
     "execa": "npm:safe-execa@^0.1.1"
   },
   "funding": "https://opencollective.com/pnpm",
