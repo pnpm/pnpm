@@ -1,5 +1,5 @@
 import { ProjectManifest } from '@pnpm/types'
-import isEmpty from 'ramda/src/isEmpty'
+import isEmpty from 'ramda/src/isEmpty.js'
 
 // property keys that are copied from publishConfig into the manifest
 const PUBLISH_CONFIG_WHITELIST = new Set([

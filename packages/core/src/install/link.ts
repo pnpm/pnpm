@@ -28,12 +28,12 @@ import {
 } from '@pnpm/types'
 import pLimit from 'p-limit'
 import pathExists from 'path-exists'
-import fromPairs from 'ramda/src/fromPairs'
-import equals from 'ramda/src/equals'
-import isEmpty from 'ramda/src/isEmpty'
-import difference from 'ramda/src/difference'
-import omit from 'ramda/src/omit'
-import props from 'ramda/src/props'
+import fromPairs from 'ramda/src/fromPairs.js'
+import equals from 'ramda/src/equals.js'
+import isEmpty from 'ramda/src/isEmpty.js'
+import difference from 'ramda/src/difference.js'
+import omit from 'ramda/src/omit.js'
+import props from 'ramda/src/props.js'
 import { ImporterToUpdate } from './index'
 
 const brokenModulesLogger = logger('_broken_node_modules')

@@ -40,7 +40,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.20.0",
     "@types/is-windows": "^1.0.0",
-    "@types/ramda": "0.27.39",
+    "@types/ramda": "0.28.14",
     "is-windows": "^1.0.2",
     "write-yaml-file": "^4.2.0"
   },
@@ -63,7 +63,7 @@
     "p-limit": "^3.1.0",
     "path-exists": "^4.0.0",
     "path-name": "^1.0.0",
-    "ramda": "^0.27.1",
+    "ramda": "^0.28.0",
     "realpath-missing": "^1.1.0",
     "render-help": "^1.0.1"
   },

@@ -40,7 +40,7 @@
     "@pnpm/logger": "^4.0.0",
     "@pnpm/remove-bins": "workspace:3.0.6",
     "@types/is-windows": "^1.0.0",
-    "@types/ramda": "0.27.39"
+    "@types/ramda": "0.28.14"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

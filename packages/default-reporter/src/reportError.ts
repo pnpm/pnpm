@@ -4,7 +4,7 @@ import PnpmError from '@pnpm/error'
 import renderPeerIssues from '@pnpm/render-peer-issues'
 import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'
-import equals from 'ramda/src/equals'
+import equals from 'ramda/src/equals.js'
 import StackTracey from 'stacktracey'
 import { EOL } from './constants'
 

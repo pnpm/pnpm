@@ -1,12 +1,12 @@
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { PackageNode } from 'dependencies-hierarchy'
-import sortBy from 'ramda/src/sortBy'
-import path from 'ramda/src/path'
+import sortBy from 'ramda/src/sortBy.js'
+import path from 'ramda/src/path.js'
 import { Ord } from 'ramda'
 import getPkgInfo from './getPkgInfo'
 import { PackageDependencyHierarchy } from './types'
 
-const sortPackages = sortBy(path(['pkg', 'alias']) as (pkg: object) => Ord)
+const sortPackages = sortBy(path(['pkg', 'alias']) as (pkg: PackageNode) => Ord)
 
 export default async function (
   pkgs: PackageDependencyHierarchy[],

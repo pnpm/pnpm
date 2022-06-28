@@ -26,7 +26,7 @@
     "@pnpm/store-path": "workspace:6.0.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.5",
-    "@types/ramda": "0.27.39",
+    "@types/ramda": "0.28.14",
     "@types/rimraf": "^3.0.0",
     "@types/sinon": "^10.0.6",
     "isexe": "2.0.0",
@@ -94,7 +94,7 @@
     "p-limit": "^3.1.0",
     "path-absolute": "^1.0.1",
     "path-exists": "^4.0.0",
-    "ramda": "^0.27.1",
+    "ramda": "^0.28.0",
     "realpath-missing": "^1.1.0"
   },
   "funding": "https://opencollective.com/pnpm",

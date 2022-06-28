@@ -37,14 +37,14 @@
     "is-subdir": "^1.1.1",
     "micromatch": "^4.0.2",
     "pkgs-graph": "workspace:7.0.0",
-    "ramda": "^0.27.1"
+    "ramda": "^0.28.0"
   },
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:5.0.16",
     "@types/is-ci": "^3.0.0",
     "@types/is-windows": "^1.0.0",
     "@types/micromatch": "^4.0.1",
-    "@types/ramda": "0.27.39",
+    "@types/ramda": "0.28.14",
     "@types/touch": "^3.1.1",
     "is-ci": "^3.0.0",
     "is-windows": "^1.0.2",

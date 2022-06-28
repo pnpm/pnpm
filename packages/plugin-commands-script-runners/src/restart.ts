@@ -1,5 +1,5 @@
 import { types as allTypes } from '@pnpm/config'
-import pick from 'ramda/src/pick'
+import pick from 'ramda/src/pick.js'
 import renderHelp from 'render-help'
 import {
   handler as run,

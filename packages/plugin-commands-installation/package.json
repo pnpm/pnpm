@@ -43,7 +43,7 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-ci": "^3.0.0",
     "@types/proxyquire": "^1.3.28",
-    "@types/ramda": "0.27.39",
+    "@types/ramda": "0.28.14",
     "@types/sinon": "^10.0.6",
     "@types/yarnpkg__lockfile": "^1.1.5",
     "@types/zkochan__table": "npm:@types/table@6.0.0",
@@ -100,7 +100,7 @@
     "p-limit": "^3.1.0",
     "path-absolute": "^1.0.1",
     "path-exists": "^4.0.0",
-    "ramda": "^0.27.1",
+    "ramda": "^0.28.0",
     "read-ini-file": "^3.1.0",
     "render-help": "^1.0.1",
     "version-selector-type": "^3.0.0"

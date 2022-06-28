@@ -37,7 +37,7 @@
     "@pnpm/lockfile-to-pnp": "workspace:0.5.14",
     "@pnpm/logger": "^4.0.0",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "0.27.39",
+    "@types/ramda": "0.28.14",
     "rimraf": "^3.0.2"
   },
   "dependencies": {
@@ -49,7 +49,7 @@
     "@yarnpkg/pnp": "^2.3.2",
     "dependency-path": "workspace:9.2.2",
     "normalize-path": "^3.0.0",
-    "ramda": "^0.27.1"
+    "ramda": "^0.28.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

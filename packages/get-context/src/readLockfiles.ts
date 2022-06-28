@@ -12,8 +12,8 @@ import {
 } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
 import isCI from 'is-ci'
-import clone from 'ramda/src/clone'
-import equals from 'ramda/src/equals'
+import clone from 'ramda/src/clone.js'
+import equals from 'ramda/src/equals.js'
 
 export interface PnpmContext {
   currentLockfile: Lockfile

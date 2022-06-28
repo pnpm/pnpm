@@ -25,14 +25,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/pkgs-graph#readme",
   "devDependencies": {
-    "@types/ramda": "0.27.39",
+    "@types/ramda": "0.28.14",
     "better-path-resolve": "1.0.0",
     "pkgs-graph": "workspace:7.0.0"
   },
   "dependencies": {
     "@pnpm/resolve-workspace-range": "workspace:3.0.0",
     "@zkochan/npm-package-arg": "^2.0.1",
-    "ramda": "^0.27.1"
+    "ramda": "^0.28.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "keywords": [

@@ -33,7 +33,7 @@
   "devDependencies": {
     "@pnpm/plugin-commands-audit": "workspace:6.0.17",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/ramda": "0.27.39",
+    "@types/ramda": "0.28.14",
     "@types/zkochan__table": "npm:@types/table@6.0.0",
     "load-json-file": "^6.2.0",
     "nock": "12.0.3",
@@ -51,7 +51,7 @@
     "@pnpm/types": "workspace:8.4.0",
     "@zkochan/table": "^1.0.0",
     "chalk": "^4.1.0",
-    "ramda": "^0.27.1",
+    "ramda": "^0.28.0",
     "render-help": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",

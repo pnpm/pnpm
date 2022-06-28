@@ -45,14 +45,14 @@
     "is-subdir": "^1.1.1",
     "normalize-registry-url": "2.0.0",
     "path-name": "^1.0.0",
-    "ramda": "^0.27.1",
+    "ramda": "^0.28.0",
     "realpath-missing": "^1.1.0",
     "which": "^2.0.2"
   },
   "devDependencies": {
     "@pnpm/config": "workspace:15.5.0",
     "@pnpm/prepare": "workspace:*",
-    "@types/ramda": "0.27.39",
+    "@types/ramda": "0.28.14",
     "@types/which": "^2.0.0",
     "symlink-dir": "^5.0.0"
   },

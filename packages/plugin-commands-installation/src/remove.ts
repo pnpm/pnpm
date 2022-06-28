@@ -14,8 +14,8 @@ import { DependenciesField } from '@pnpm/types'
 import {
   mutateModules,
 } from '@pnpm/core'
-import pick from 'ramda/src/pick'
-import without from 'ramda/src/without'
+import pick from 'ramda/src/pick.js'
+import without from 'ramda/src/without.js'
 import renderHelp from 'render-help'
 import getOptionsFromRootManifest from './getOptionsFromRootManifest'
 import getSaveType from './getSaveType'

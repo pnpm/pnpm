@@ -1,6 +1,6 @@
 import graphSequencer from '@pnpm/graph-sequencer'
 import { PackageManifest, PatchFile } from '@pnpm/types'
-import filter from 'ramda/src/filter'
+import filter from 'ramda/src/filter.js'
 
 export interface DependenciesGraphNode {
   children: {[alias: string]: string}

@@ -21,7 +21,7 @@ import parseCliArgs from './parseCliArgs'
 import initReporter, { ReporterType } from './reporter'
 import isCI from 'is-ci'
 import path from 'path'
-import isEmpty from 'ramda/src/isEmpty'
+import isEmpty from 'ramda/src/isEmpty.js'
 import stripAnsi from 'strip-ansi'
 import which from 'which'
 

@@ -9,7 +9,7 @@ import pnpmLogger from '@pnpm/logger'
 import packageIsInstallable from '@pnpm/package-is-installable'
 import { DependenciesField } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import unnest from 'ramda/src/unnest'
+import unnest from 'ramda/src/unnest.js'
 import filterImporter from './filterImporter'
 
 const logger = pnpmLogger('lockfile')

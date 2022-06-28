@@ -52,7 +52,7 @@
     "is-subdir": "^1.1.1",
     "path-exists": "^4.0.0",
     "promise-share": "^1.0.0",
-    "ramda": "^0.27.1",
+    "ramda": "^0.28.0",
     "rename-overwrite": "^4.0.2",
     "replace-string": "^3.1.0",
     "safe-promise-defer": "^1.0.1",
@@ -63,7 +63,7 @@
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
     "@pnpm/resolve-dependencies": "workspace:28.1.2",
-    "@types/ramda": "0.27.39",
+    "@types/ramda": "0.28.14",
     "@types/semver": "^7.3.4"
   },
   "bugs": {

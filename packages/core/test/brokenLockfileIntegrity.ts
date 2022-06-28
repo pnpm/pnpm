@@ -2,7 +2,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import rimraf from '@zkochan/rimraf'
-import clone from 'ramda/src/clone'
+import clone from 'ramda/src/clone.js'
 import {
   addDependenciesToPackage,
   mutateModules,

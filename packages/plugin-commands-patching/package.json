@@ -37,7 +37,7 @@
     "@pnpm/plugin-commands-patching": "workspace:1.0.4",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.20.0",
-    "@types/ramda": "0.27.39"
+    "@types/ramda": "0.28.14"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.7.16",
@@ -49,7 +49,7 @@
     "@pnpm/read-project-manifest": "workspace:3.0.6",
     "@pnpm/store-connection-manager": "workspace:4.1.16",
     "escape-string-regexp": "^4.0.0",
-    "ramda": "^0.27.1",
+    "ramda": "^0.28.0",
     "render-help": "^1.0.1",
     "safe-execa": "^0.1.1",
     "tempy": "^1.0.0"

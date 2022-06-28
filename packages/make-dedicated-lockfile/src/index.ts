@@ -10,7 +10,7 @@ import {
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import readProjectManifest from '@pnpm/read-project-manifest'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import fromPairs from 'ramda/src/fromPairs'
+import fromPairs from 'ramda/src/fromPairs.js'
 import renameOverwrite from 'rename-overwrite'
 
 export default async function (lockfileDir: string, projectDir: string) {

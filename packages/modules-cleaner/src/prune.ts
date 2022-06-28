@@ -22,11 +22,11 @@ import {
 } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
 import rimraf from '@zkochan/rimraf'
-import difference from 'ramda/src/difference'
-import equals from 'ramda/src/equals'
-import mergeAll from 'ramda/src/mergeAll'
-import pickAll from 'ramda/src/pickAll'
-import props from 'ramda/src/props'
+import difference from 'ramda/src/difference.js'
+import equals from 'ramda/src/equals.js'
+import mergeAll from 'ramda/src/mergeAll.js'
+import pickAll from 'ramda/src/pickAll.js'
+import props from 'ramda/src/props.js'
 import removeDirectDependency from './removeDirectDependency'
 
 export default async function prune (

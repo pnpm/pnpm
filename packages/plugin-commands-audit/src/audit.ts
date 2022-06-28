@@ -7,7 +7,7 @@ import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
-import pick from 'ramda/src/pick'
+import pick from 'ramda/src/pick.js'
 import renderHelp from 'render-help'
 import fix from './fix'
 

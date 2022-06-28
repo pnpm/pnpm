@@ -44,7 +44,7 @@
     "is-windows": "^1.0.2",
     "normalize-path": "^3.0.0",
     "p-settle": "^4.1.1",
-    "ramda": "^0.27.1"
+    "ramda": "^0.28.0"
   },
   "devDependencies": {
     "@pnpm/link-bins": "workspace:7.1.5",
@@ -53,7 +53,7 @@
     "@types/is-windows": "^1.0.0",
     "@types/node": "^14.17.32",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "0.27.39",
+    "@types/ramda": "0.28.14",
     "cmd-extension": "^1.0.2",
     "path-exists": "^4.0.0",
     "tempy": "^1.0.0"

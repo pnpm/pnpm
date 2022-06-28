@@ -1,6 +1,6 @@
 import nopt from '@pnpm/nopt'
-import fromPairs from 'ramda/src/fromPairs'
-import omit from 'ramda/src/omit'
+import fromPairs from 'ramda/src/fromPairs.js'
+import omit from 'ramda/src/omit.js'
 
 export interface CompletionCtx {
   last: string

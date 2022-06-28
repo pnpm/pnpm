@@ -62,7 +62,7 @@
     "p-filter": "^2.1.0",
     "p-limit": "^3.1.0",
     "path-exists": "^4.0.0",
-    "ramda": "^0.27.1",
+    "ramda": "^0.28.0",
     "run-groups": "^3.0.1",
     "semver": "^7.3.4",
     "version-selector-type": "^3.0.0"
@@ -84,7 +84,7 @@
     "@types/is-ci": "^3.0.0",
     "@types/is-windows": "^1.0.0",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "0.27.39",
+    "@types/ramda": "0.28.14",
     "@types/semver": "^7.3.4",
     "@types/sinon": "^10.0.6",
     "@yarnpkg/core": "3.2.0",

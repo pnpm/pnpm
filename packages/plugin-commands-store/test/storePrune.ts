@@ -7,7 +7,7 @@ import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
-import isEmpty from 'ramda/src/isEmpty'
+import isEmpty from 'ramda/src/isEmpty.js'
 import ssri from 'ssri'
 
 const STORE_VERSION = 'v3'

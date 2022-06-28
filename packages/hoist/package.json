@@ -17,7 +17,7 @@
   "devDependencies": {
     "@pnpm/hoist": "workspace:6.1.7",
     "@pnpm/logger": "^4.0.0",
-    "@types/ramda": "0.27.39"
+    "@types/ramda": "0.28.14"
   },
   "directories": {
     "test": "test"
@@ -49,7 +49,7 @@
     "@pnpm/symlink-dependency": "workspace:5.0.5",
     "@pnpm/types": "workspace:8.4.0",
     "dependency-path": "workspace:9.2.2",
-    "ramda": "^0.27.1"
+    "ramda": "^0.28.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

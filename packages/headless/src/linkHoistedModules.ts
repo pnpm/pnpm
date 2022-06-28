@@ -11,8 +11,8 @@ import {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store-controller-types'
-import difference from 'ramda/src/difference'
-import isEmpty from 'ramda/src/isEmpty'
+import difference from 'ramda/src/difference.js'
+import isEmpty from 'ramda/src/isEmpty.js'
 import rimraf from '@zkochan/rimraf'
 import {
   DepHierarchy,

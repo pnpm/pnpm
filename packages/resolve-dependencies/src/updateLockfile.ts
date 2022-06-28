@@ -11,10 +11,10 @@ import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { KeyValuePair } from 'ramda'
-import isEmpty from 'ramda/src/isEmpty'
-import fromPairs from 'ramda/src/fromPairs'
-import merge from 'ramda/src/merge'
-import partition from 'ramda/src/partition'
+import isEmpty from 'ramda/src/isEmpty.js'
+import fromPairs from 'ramda/src/fromPairs.js'
+import mergeRight from 'ramda/src/mergeRight.js'
+import partition from 'ramda/src/partition.js'
 import depPathToRef from './depPathToRef'
 import { ResolvedPackage } from './resolveDependencies'
 import { DependenciesGraph } from '.'
@@ -213,7 +213,7 @@ function updateResolvedDeps (
         ]
       })
   )
-  return merge(
+  return mergeRight(
     prevResolvedDeps,
     newResolvedDeps
   )

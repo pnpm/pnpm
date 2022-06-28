@@ -12,7 +12,7 @@ import {
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import exists from 'path-exists'
-import pick from 'ramda/src/pick'
+import pick from 'ramda/src/pick.js'
 import sinon from 'sinon'
 import writeYamlFile from 'write-yaml-file'
 import { testDefaults } from '../utils'

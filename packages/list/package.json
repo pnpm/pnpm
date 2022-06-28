@@ -44,14 +44,14 @@
     "cli-columns": "^4.0.0",
     "dependencies-hierarchy": "workspace:11.0.9",
     "p-limit": "^3.1.0",
-    "ramda": "^0.27.1",
+    "ramda": "^0.28.0",
     "semver": "^7.3.4"
   },
   "devDependencies": {
     "@pnpm/list": "workspace:7.0.9",
     "@pnpm/logger": "^4.0.0",
     "@types/archy": "0.0.31",
-    "@types/ramda": "0.27.39",
+    "@types/ramda": "0.28.14",
     "@types/semver": "^7.3.4"
   },
   "funding": "https://opencollective.com/pnpm",

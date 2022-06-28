@@ -9,7 +9,7 @@ import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import packageBins from '@pnpm/package-bins'
 import storePath from '@pnpm/store-path'
 import execa from 'execa'
-import omit from 'ramda/src/omit'
+import omit from 'ramda/src/omit.js'
 import renderHelp from 'render-help'
 import { makeEnv } from './makeEnv'
 

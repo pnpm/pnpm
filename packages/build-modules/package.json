@@ -44,13 +44,13 @@
     "@pnpm/store-controller-types": "workspace:14.0.1",
     "@pnpm/types": "workspace:8.4.0",
     "patch-package": "^6.4.7",
-    "ramda": "^0.27.1",
+    "ramda": "^0.28.0",
     "run-groups": "^3.0.1"
   },
   "devDependencies": {
     "@pnpm/build-modules": "workspace:9.2.2",
     "@pnpm/logger": "^4.0.0",
-    "@types/ramda": "0.27.39"
+    "@types/ramda": "0.28.14"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

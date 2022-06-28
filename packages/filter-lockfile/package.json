@@ -36,7 +36,7 @@
   "devDependencies": {
     "@pnpm/filter-lockfile": "workspace:6.0.9",
     "@pnpm/logger": "^4.0.0",
-    "@types/ramda": "0.27.39",
+    "@types/ramda": "0.28.14",
     "detect-libc": "^2.0.1",
     "tempy": "^1.0.0",
     "write-yaml-file": "^4.2.0",
@@ -51,7 +51,7 @@
     "@pnpm/package-is-installable": "workspace:6.0.7",
     "@pnpm/types": "workspace:8.4.0",
     "dependency-path": "workspace:9.2.2",
-    "ramda": "^0.27.1"
+    "ramda": "^0.28.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
