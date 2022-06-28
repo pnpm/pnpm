@@ -1,5 +1,12 @@
 # @pnpm/node.fetcher
 
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [5f643f23b]
+  - @pnpm/tarball-fetcher@10.0.8
+
 ## 1.0.2
 
 ### Patch Changes

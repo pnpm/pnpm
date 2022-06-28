@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-installation
 
+## 10.3.5
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+- Updated dependencies [42c1ea1c0]
+- Updated dependencies [c5fdc5f35]
+  - @pnpm/cli-utils@0.7.17
+  - @pnpm/config@15.5.1
+  - @pnpm/core@5.5.5
+  - @pnpm/filter-workspace-packages@5.0.17
+  - @pnpm/outdated@10.0.11
+  - @pnpm/package-store@14.0.4
+  - @pnpm/plugin-commands-rebuild@6.1.18
+  - @pnpm/parse-wanted-dependency@3.0.1
+  - @pnpm/find-workspace-packages@4.0.17
+  - @pnpm/store-connection-manager@4.1.17
+
 ## 10.3.4
 
 ### Patch Changes

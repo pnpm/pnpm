@@ -1,5 +1,11 @@
 # @pnpm/merge-lockfile-changes
 
+## 3.0.6
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
 ## 3.0.5
 
 ### Patch Changes

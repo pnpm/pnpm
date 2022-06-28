@@ -1,5 +1,13 @@
 # @pnpm/package-store
 
+## 14.0.4
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/package-requester@18.0.12
+
 ## 14.0.3
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-outdated
 
+## 6.0.18
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/cli-utils@0.7.17
+  - @pnpm/config@15.5.1
+  - @pnpm/lockfile-file@5.1.3
+  - @pnpm/outdated@10.0.11
+
 ## 6.0.17
 
 ### Patch Changes

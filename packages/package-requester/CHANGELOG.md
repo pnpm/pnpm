@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 18.0.12
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
 ## 18.0.11
 
 ### Patch Changes

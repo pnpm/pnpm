@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-store
 
+## 5.1.18
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+- Updated dependencies [42c1ea1c0]
+  - @pnpm/cli-utils@0.7.17
+  - @pnpm/config@15.5.1
+  - @pnpm/get-context@6.2.3
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/parse-wanted-dependency@3.0.1
+  - @pnpm/store-connection-manager@4.1.17
+
 ## 5.1.17
 
 ### Patch Changes

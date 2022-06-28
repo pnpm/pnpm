@@ -1,5 +1,15 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.3.12
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/exportable-manifest@3.0.7
+  - @pnpm/lockfile-file@5.1.3
+  - @pnpm/prune-lockfile@4.0.10
+
 ## 0.3.11
 
 ### Patch Changes

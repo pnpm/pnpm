@@ -1,5 +1,11 @@
 # @pnpm/lockfile-walker
 
+## 5.0.9
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
 ## 5.0.8
 
 ### Patch Changes

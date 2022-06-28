@@ -1,5 +1,14 @@
 # @pnpm/get-context
 
+## 6.2.3
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/lockfile-file@5.1.3
+  - @pnpm/read-projects-context@6.0.8
+
 ## 6.2.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 10.0.8
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
 ## 10.0.7
 
 ### Patch Changes

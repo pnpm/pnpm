@@ -1,5 +1,14 @@
 # @pnpm/build-modules
 
+## 9.2.3
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/link-bins@7.1.6
+  - @pnpm/lifecycle@13.1.2
+
 ## 9.2.2
 
 ### Patch Changes

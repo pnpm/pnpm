@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/merge-lockfile-changes",
-  "version": "3.0.5",
+  "version": "3.0.6",
   "description": "Merges lockfiles. Can automatically fix merge conflicts",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -38,7 +38,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/merge-lockfile-changes": "workspace:3.0.5",
+    "@pnpm/merge-lockfile-changes": "workspace:3.0.6",
     "@types/ramda": "0.28.14",
     "@types/semver": "^7.3.4"
   },

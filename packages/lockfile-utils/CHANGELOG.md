@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 4.0.9
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
 ## 4.0.8
 
 ### Patch Changes

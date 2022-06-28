@@ -1,5 +1,14 @@
 # @pnpm/cli-utils
 
+## 0.7.17
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/config@15.5.1
+  - @pnpm/default-reporter@9.1.7
+
 ## 0.7.16
 
 ### Patch Changes

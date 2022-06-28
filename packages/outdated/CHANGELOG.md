@@ -1,5 +1,15 @@
 # @pnpm/outdated
 
+## 10.0.11
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/lockfile-file@5.1.3
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/client@7.1.8
+
 ## 10.0.10
 
 ### Patch Changes

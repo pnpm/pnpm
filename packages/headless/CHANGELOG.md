@@ -1,5 +1,23 @@
 # @pnpm/headless
 
+## 18.3.4
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/build-modules@9.2.3
+  - @pnpm/filter-lockfile@6.0.10
+  - @pnpm/hoist@6.1.8
+  - @pnpm/link-bins@7.1.6
+  - @pnpm/lockfile-file@5.1.3
+  - @pnpm/lockfile-to-pnp@0.5.15
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/modules-cleaner@12.0.12
+  - @pnpm/package-requester@18.0.12
+  - @pnpm/lifecycle@13.1.2
+  - @pnpm/real-hoist@0.2.9
+
 ## 18.3.3
 
 ### Patch Changes

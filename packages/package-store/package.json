@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "14.0.3",
+  "version": "14.0.4",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -18,7 +18,7 @@
     "@pnpm/cafs": "workspace:4.0.7",
     "@pnpm/create-cafs-store": "workspace:2.0.2",
     "@pnpm/fetcher-base": "workspace:13.0.1",
-    "@pnpm/package-requester": "workspace:18.0.11",
+    "@pnpm/package-requester": "workspace:18.0.12",
     "@pnpm/resolver-base": "workspace:9.0.5",
     "@pnpm/store-controller-types": "workspace:14.0.1",
     "@pnpm/types": "workspace:8.4.0",
@@ -29,9 +29,9 @@
     "write-json-file": "^4.3.0"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:7.1.7",
+    "@pnpm/client": "workspace:7.1.8",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-store": "workspace:14.0.3",
+    "@pnpm/package-store": "workspace:14.0.4",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "0.28.14",
     "@types/ssri": "^7.1.0",

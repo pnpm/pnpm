@@ -1,5 +1,33 @@
 # @pnpm/core
 
+## 5.5.5
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- 42c1ea1c0: Update validate-npm-package-name to v4.
+- c5fdc5f35: Update the compatibility database.
+- Updated dependencies [5f643f23b]
+- Updated dependencies [42c1ea1c0]
+  - @pnpm/build-modules@9.2.3
+  - @pnpm/filter-lockfile@6.0.10
+  - @pnpm/get-context@6.2.3
+  - @pnpm/headless@18.3.4
+  - @pnpm/hoist@6.1.8
+  - @pnpm/link-bins@7.1.6
+  - @pnpm/lockfile-file@5.1.3
+  - @pnpm/lockfile-to-pnp@0.5.15
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/lockfile-walker@5.0.9
+  - @pnpm/modules-cleaner@12.0.12
+  - @pnpm/package-requester@18.0.12
+  - @pnpm/prune-lockfile@4.0.10
+  - @pnpm/remove-bins@3.0.7
+  - @pnpm/resolve-dependencies@28.1.3
+  - @pnpm/parse-wanted-dependency@3.0.1
+  - @pnpm/lifecycle@13.1.2
+  - @pnpm/parse-overrides@2.0.2
+
 ## 5.5.4
 
 ### Patch Changes

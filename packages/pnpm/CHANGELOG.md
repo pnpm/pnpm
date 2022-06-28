@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.4.0-4
+## 7.4.0
 
 ### Minor Changes
 
@@ -70,6 +70,7 @@
 - Resolve native workspace path for case-insensitive file systems [#4904](https://github.com/pnpm/pnpm/issues/4904).
 - Don't link local dev dependencies, when prod dependencies should only be installed.
 - `pnpm audit --fix` should not add an override for a vulnerable package that has no fixes released.
+- Update the compatibility database.
 
 ## 7.3.0
 

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "9.1.6",
+  "version": "9.1.7",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -34,7 +34,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:15.5.0",
+    "@pnpm/config": "workspace:15.5.1",
     "@pnpm/core-loggers": "workspace:7.0.5",
     "@pnpm/error": "workspace:3.0.1",
     "@pnpm/render-peer-issues": "workspace:2.0.5",
@@ -54,7 +54,7 @@
     "strip-ansi": "^6.0.0"
   },
   "devDependencies": {
-    "@pnpm/default-reporter": "workspace:9.1.6",
+    "@pnpm/default-reporter": "workspace:9.1.7",
     "@pnpm/logger": "^4.0.0",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.14",

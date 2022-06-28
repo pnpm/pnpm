@@ -1,5 +1,15 @@
 # @pnpm/modules-cleaner
 
+## 12.0.12
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/filter-lockfile@6.0.10
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/remove-bins@3.0.7
+
 ## 12.0.11
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/resolve-dependencies
 
+## 28.1.3
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/prune-lockfile@4.0.10
+
 ## 28.1.2
 
 ### Patch Changes

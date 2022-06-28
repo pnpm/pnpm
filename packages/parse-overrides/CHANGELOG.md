@@ -1,5 +1,12 @@
 # @pnpm/parse-overrides
 
+## 2.0.2
+
+### Patch Changes
+
+- Updated dependencies [42c1ea1c0]
+  - @pnpm/parse-wanted-dependency@3.0.1
+
 ## 2.0.1
 
 ### Patch Changes

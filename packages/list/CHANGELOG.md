@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 7.0.10
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- 42c1ea1c0: Update validate-npm-package-name to v4.
+  - dependencies-hierarchy@11.0.10
+
 ## 7.0.9
 
 ### Patch Changes

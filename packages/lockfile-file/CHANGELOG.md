@@ -1,5 +1,13 @@
 # @pnpm/lockfile-file
 
+## 5.1.3
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/merge-lockfile-changes@3.0.6
+
 ## 5.1.2
 
 ### Patch Changes

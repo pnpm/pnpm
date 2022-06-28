@@ -1,5 +1,15 @@
 # @pnpm/hoist
 
+## 6.1.8
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/link-bins@7.1.6
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/lockfile-walker@5.0.9
+
 ## 6.1.7
 
 ### Patch Changes

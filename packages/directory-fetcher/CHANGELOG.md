@@ -1,5 +1,11 @@
 # @pnpm/directory-fetcher
 
+## 3.0.7
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
 ## 3.0.6
 
 ### Patch Changes

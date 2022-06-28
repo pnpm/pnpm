@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-rebuild
 
+## 6.1.18
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- 42c1ea1c0: Update validate-npm-package-name to v4.
+- Updated dependencies [5f643f23b]
+  - @pnpm/cli-utils@0.7.17
+  - @pnpm/config@15.5.1
+  - @pnpm/get-context@6.2.3
+  - @pnpm/link-bins@7.1.6
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/lockfile-walker@5.0.9
+  - @pnpm/find-workspace-packages@4.0.17
+  - @pnpm/store-connection-manager@4.1.17
+  - @pnpm/lifecycle@13.1.2
+
 ## 6.1.17
 
 ### Patch Changes

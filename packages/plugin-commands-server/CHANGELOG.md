@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-server
 
+## 4.0.19
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/cli-utils@0.7.17
+  - @pnpm/config@15.5.1
+  - @pnpm/store-connection-manager@4.1.17
+  - @pnpm/server@13.0.1
+
 ## 4.0.18
 
 ### Patch Changes

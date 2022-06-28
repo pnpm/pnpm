@@ -1,5 +1,15 @@
 # @pnpm/filter-workspace-packages
 
+## 5.0.17
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+- Updated dependencies [42c1ea1c0]
+  - pkgs-graph@7.0.1
+  - @pnpm/find-workspace-packages@4.0.17
+
 ## 5.0.16
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 15.5.1
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
 ## 15.5.0
 
 ### Minor Changes

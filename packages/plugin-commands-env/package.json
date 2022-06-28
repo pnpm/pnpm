@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-env",
-  "version": "2.1.16",
+  "version": "2.1.17",
   "description": "pnpm commands for managing Node.js",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -30,12 +30,12 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-env#readme",
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.7.16",
-    "@pnpm/config": "workspace:15.5.0",
+    "@pnpm/cli-utils": "workspace:0.7.17",
+    "@pnpm/config": "workspace:15.5.1",
     "@pnpm/error": "workspace:3.0.1",
     "@pnpm/fetch": "workspace:5.0.5",
-    "@pnpm/node.fetcher": "workspace:1.0.2",
-    "@pnpm/node.resolver": "workspace:1.0.2",
+    "@pnpm/node.fetcher": "workspace:1.0.3",
+    "@pnpm/node.resolver": "workspace:1.0.3",
     "@pnpm/store-path": "workspace:6.0.0",
     "@zkochan/cmd-shim": "^5.3.0",
     "load-json-file": "^6.2.0",
@@ -44,7 +44,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/plugin-commands-env": "workspace:2.1.16",
+    "@pnpm/plugin-commands-env": "workspace:2.1.17",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "^0.4.34",
     "adm-zip": "^0.5.5",

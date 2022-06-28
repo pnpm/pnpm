@@ -1,6 +1,6 @@
 {
   "name": "pkgs-graph",
-  "version": "7.0.0",
+  "version": "7.0.1",
   "description": "Create a graph from an array of packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -27,7 +27,7 @@
   "devDependencies": {
     "@types/ramda": "0.28.14",
     "better-path-resolve": "1.0.0",
-    "pkgs-graph": "workspace:7.0.0"
+    "pkgs-graph": "workspace:7.0.1"
   },
   "dependencies": {
     "@pnpm/npm-package-arg": "^1.0.0",

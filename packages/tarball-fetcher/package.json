@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-fetcher",
-  "version": "10.0.7",
+  "version": "10.0.8",
   "description": "Fetcher for packages hosted as tarballs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -48,7 +48,7 @@
     "@pnpm/create-cafs-store": "workspace:2.0.2",
     "@pnpm/fetch": "workspace:5.0.5",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/tarball-fetcher": "workspace:10.0.7",
+    "@pnpm/tarball-fetcher": "workspace:10.0.8",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.14",
     "@types/retry": "^0.12.0",

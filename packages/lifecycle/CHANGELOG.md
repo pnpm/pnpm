@@ -1,5 +1,12 @@
 # @pnpm/lifecycle
 
+## 13.1.2
+
+### Patch Changes
+
+- Updated dependencies [5f643f23b]
+  - @pnpm/directory-fetcher@3.0.7
+
 ## 13.1.1
 
 ### Patch Changes

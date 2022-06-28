@@ -1,5 +1,13 @@
 # @pnpm/client
 
+## 7.1.8
+
+### Patch Changes
+
+- Updated dependencies [5f643f23b]
+  - @pnpm/directory-fetcher@3.0.7
+  - @pnpm/tarball-fetcher@10.0.8
+
 ## 7.1.7
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 7.1.6
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
 ## 7.1.5
 
 ### Patch Changes

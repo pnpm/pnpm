@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/remove-bins",
-  "version": "3.0.6",
+  "version": "3.0.7",
   "description": "Remove bins from .bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/remove-bins": "workspace:3.0.6",
+    "@pnpm/remove-bins": "workspace:3.0.7",
     "@types/is-windows": "^1.0.0",
     "@types/ramda": "0.28.14"
   },

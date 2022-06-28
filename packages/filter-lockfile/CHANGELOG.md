@@ -1,5 +1,14 @@
 # @pnpm/filter-lockfile
 
+## 6.0.10
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/lockfile-walker@5.0.9
+
 ## 6.0.9
 
 ### Patch Changes

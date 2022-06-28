@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-script-runners
 
+## 5.0.22
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/cli-utils@0.7.17
+  - @pnpm/config@15.5.1
+  - @pnpm/plugin-commands-installation@10.3.5
+  - @pnpm/lifecycle@13.1.2
+
 ## 5.0.21
 
 ### Patch Changes

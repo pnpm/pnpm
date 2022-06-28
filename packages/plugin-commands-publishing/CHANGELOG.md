@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-publishing
 
+## 5.1.4
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/cli-utils@0.7.17
+  - @pnpm/config@15.5.1
+  - @pnpm/exportable-manifest@3.0.7
+  - @pnpm/client@7.1.8
+  - @pnpm/lifecycle@13.1.2
+
 ## 5.1.3
 
 ### Patch Changes
