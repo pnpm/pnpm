@@ -72,6 +72,18 @@ test('resolveFromGit() with branch', async () => {
   })
 })
 
+test('resolveFromGit() with branch relative to refs', async () => {
+  const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative#heads/canary' })
+  expect(resolveResult).toStrictEqual({
+    id: 'github.com/zkochan/is-negative/4c39fbc124cd4944ee51cb082ad49320fab58121',
+    normalizedPref: 'github:zkochan/is-negative#heads/canary',
+    resolution: {
+      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/4c39fbc124cd4944ee51cb082ad49320fab58121',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
 test('resolveFromGit() with tag', async () => {
   const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative#2.0.1' })
   expect(resolveResult).toStrictEqual({

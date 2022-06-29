@@ -87,6 +87,7 @@ function resolveRefFromRefs (refs: {[ref: string]: string}, repo: string, ref: s
   if (!range) {
     const commitId =
       refs[ref] ||
+      refs[`refs/${ref}`] ||
       refs[`refs/tags/${ref}^{}`] || // prefer annotated tags
       refs[`refs/tags/${ref}`] ||
       refs[`refs/heads/${ref}`]
