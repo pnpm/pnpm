@@ -40,6 +40,9 @@ To quote the [Rush](https://rushjs.io/) team:
       <td align="center" valign="middle">
         <a href="https://nhost.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/nhost.svg" width="180"></a>
       </td>
+      <td align="center" valign="middle">
+        <a href="https://novu.co/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/novu.svg" width="180"></a>
+      </td>
     </tr>
 </table>
 
