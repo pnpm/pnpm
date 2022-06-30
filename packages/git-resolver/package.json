@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/git-resolver",
-  "version": "5.1.20",
+  "version": "5.2.0",
   "description": "Resolver for git-hosted packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -39,7 +39,7 @@
     "semver": "^7.3.7"
   },
   "devDependencies": {
-    "@pnpm/git-resolver": "workspace:5.1.20",
+    "@pnpm/git-resolver": "workspace:5.2.0",
     "@types/hosted-git-info": "^3.0.2",
     "@types/is-windows": "^1.0.0",
     "@types/semver": "^7.3.9",

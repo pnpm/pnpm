@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-audit
 
+## 5.1.55
+
+### Patch Changes
+
+- 3cc151af5: `pnpm audit --fix` should not add an override for a vulnerable package that has no fixes released.
+
 ## 5.1.54
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # pnpm
 
+## 6.32.25
+
+### Patch Changes
+
+- `pnpm audit --fix` should not add an override for a vulnerable package that has no fixes released.
+- Resolve native workspace path for case-insensitive file systems [#4904](https://github.com/pnpm/pnpm/issues/4904).
+- `pnpm env use` should throw an error on a system that use the MUSL libc.
+
 ## 6.32.24
 
 ### Patch Changes

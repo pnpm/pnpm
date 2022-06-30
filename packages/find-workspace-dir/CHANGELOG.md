@@ -1,5 +1,11 @@
 # @pnpm/find-workspace-dir
 
+## 3.0.3
+
+### Patch Changes
+
+- 1d3729dd0: Resolve native workspace path for case-insensitive file systems [#4904](https://github.com/pnpm/pnpm/issues/4904).
+
 ## 3.0.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/node.resolver
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [eccac3182]
+  - @pnpm/node.fetcher@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes

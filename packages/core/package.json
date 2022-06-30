@@ -70,7 +70,7 @@
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/cafs": "workspace:3.0.18",
-    "@pnpm/client": "workspace:6.1.7",
+    "@pnpm/client": "workspace:6.1.8",
     "@pnpm/core": "workspace:2.9.9",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:12.2.0",

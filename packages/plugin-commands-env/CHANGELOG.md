@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-env
 
+## 1.4.30
+
+### Patch Changes
+
+- Updated dependencies [eccac3182]
+  - @pnpm/node.fetcher@0.1.1
+  - @pnpm/node.resolver@0.1.1
+
 ## 1.4.29
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-rebuild",
-  "version": "5.4.29",
+  "version": "5.4.30",
   "description": "Commands for rebuilding dependencies",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:4.4.33",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-rebuild": "workspace:5.4.29",
+    "@pnpm/plugin-commands-rebuild": "workspace:5.4.30",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.20.0",
     "@pnpm/test-fixtures": "workspace:*",
@@ -62,7 +62,7 @@
     "@pnpm/modules-yaml": "workspace:9.1.1",
     "@pnpm/normalize-registries": "workspace:2.0.13",
     "@pnpm/sort-packages": "workspace:2.1.8",
-    "@pnpm/store-connection-manager": "workspace:3.2.21",
+    "@pnpm/store-connection-manager": "workspace:3.2.22",
     "@pnpm/store-controller-types": "workspace:12.0.2",
     "@pnpm/types": "workspace:7.10.0",
     "@zkochan/npm-package-arg": "^2.0.1",
