@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import PnpmError from '@pnpm/error'
 import {
   FetchFromRegistry,
   RetryTimeoutOptions,
@@ -10,6 +11,7 @@ import createFetcher, { waitForFilesIndex } from '@pnpm/tarball-fetcher'
 import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
 import tempy from 'tempy'
+import { isNonGlibcLinux } from 'detect-libc'
 import { getNodeTarball } from './getNodeTarball'
 
 export interface FetchNodeOptions {
@@ -20,6 +22,9 @@ export interface FetchNodeOptions {
 }
 
 export async function fetchNode (fetch: FetchFromRegistry, version: string, targetDir: string, opts: FetchNodeOptions) {
+  if (await isNonGlibcLinux()) {
+    throw new PnpmError('MUSL', 'The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
+  }
   const nodeMirrorBaseUrl = opts.nodeMirrorBaseUrl ?? 'https://nodejs.org/download/release/'
   const { tarball, pkgName } = getNodeTarball(version, nodeMirrorBaseUrl, process.platform, process.arch)
   if (tarball.endsWith('.zip')) {

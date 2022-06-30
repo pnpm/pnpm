@@ -4,6 +4,11 @@ import path from 'path'
 import { Readable } from 'stream'
 import { fetchNode, FetchNodeOptions } from '@pnpm/node.fetcher'
 import { tempDir } from '@pnpm/prepare'
+import { isNonGlibcLinux } from 'detect-libc'
+
+jest.mock('detect-libc', () => ({
+  isNonGlibcLinux: jest.fn(),
+}))
 
 const fetchMock = jest.fn(async (url: string) => {
   if (url.endsWith('.zip')) {
@@ -20,6 +25,7 @@ const fetchMock = jest.fn(async (url: string) => {
 })
 
 beforeEach(() => {
+  isNonGlibcLinux['mockReturnValue'](Promise.resolve(false))
   fetchMock.mockClear()
 })
 
@@ -51,4 +57,17 @@ test('install Node using the default node mirror', async () => {
   for (const call of fetchMock.mock.calls) {
     expect(call[0]).toMatch('https://nodejs.org/download/release/')
   }
+})
+
+test('install Node using a custom node mirror', async () => {
+  isNonGlibcLinux['mockReturnValue'](Promise.resolve(true))
+  tempDir()
+
+  const opts: FetchNodeOptions = {
+    cafsDir: path.resolve('files'),
+  }
+
+  await expect(
+    fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
+  ).rejects.toThrow('The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
 })

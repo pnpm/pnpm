@@ -1661,6 +1661,7 @@ importers:
 
   packages/node.fetcher:
     specifiers:
+      '@pnpm/error': workspace:2.1.0
       '@pnpm/fetcher-base': workspace:11.2.0
       '@pnpm/fetching-types': workspace:2.2.1
       '@pnpm/node.fetcher': workspace:0.1.0
@@ -1669,15 +1670,18 @@ importers:
       '@pnpm/tarball-fetcher': workspace:9.3.19
       '@types/adm-zip': ^0.4.34
       adm-zip: ^0.5.5
+      detect-libc: ^2.0.1
       node-fetch: 3.0.0-beta.9
       rename-overwrite: ^4.0.2
       tempy: ^1.0.1
     dependencies:
+      '@pnpm/error': link:../error
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/fetching-types': link:../fetching-types
       '@pnpm/package-store': link:../package-store
       '@pnpm/tarball-fetcher': link:../tarball-fetcher
       adm-zip: 0.5.9
+      detect-libc: 2.0.1
       rename-overwrite: 4.0.2
       tempy: 1.0.1
     devDependencies:
@@ -7822,6 +7826,11 @@ packages:
     engines: {node: '>=0.10'}
     hasBin: true
     dev: true
+
+  /detect-libc/2.0.1:
+    resolution: {integrity: sha512-463v3ZeIrcWtdgIg6vI6XUncguvr2TnGl4SzDXinkt9mSLpBJKXT3mW6xT3VQdDN11+WVs29pgvivTc4Lp8v+w==}
+    engines: {node: '>=8'}
+    dev: false
 
   /detect-newline/3.1.0:
     resolution: {integrity: sha512-TLz+x/vEXm/Y7P7wn1EJFNLxYpUD4TgMosxY6fAVJUnJMbupHBOncxyWUG9OpTaH9EBD7uFI5LfEgmMOc54DsA==}

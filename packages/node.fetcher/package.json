@@ -35,11 +35,13 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/node.fetcher#readme",
   "dependencies": {
+    "@pnpm/error": "workspace:2.1.0",
     "@pnpm/fetcher-base": "workspace:11.2.0",
     "@pnpm/fetching-types": "workspace:2.2.1",
     "@pnpm/package-store": "workspace:12.2.0",
     "@pnpm/tarball-fetcher": "workspace:9.3.19",
     "adm-zip": "^0.5.5",
+    "detect-libc": "^2.0.1",
     "rename-overwrite": "^4.0.2",
     "tempy": "^1.0.1"
   },

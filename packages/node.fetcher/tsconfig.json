@@ -13,6 +13,9 @@
       "path": "../../privatePackages/prepare"
     },
     {
+      "path": "../error"
+    },
+    {
       "path": "../fetcher-base"
     },
     {
