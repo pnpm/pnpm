@@ -36,10 +36,12 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/node.fetcher#readme",
   "dependencies": {
     "@pnpm/create-cafs-store": "workspace:2.0.2",
-    "@pnpm/fetching-types": "workspace:3.0.0",
+    "@pnpm/error": "workspace:3.0.1",
     "@pnpm/fetcher-base": "workspace:13.0.1",
+    "@pnpm/fetching-types": "workspace:3.0.0",
     "@pnpm/tarball-fetcher": "workspace:10.0.8",
     "adm-zip": "^0.5.5",
+    "detect-libc": "^2.0.1",
     "rename-overwrite": "^4.0.2",
     "tempy": "^1.0.0"
   },

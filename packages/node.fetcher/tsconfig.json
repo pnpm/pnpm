@@ -16,6 +16,9 @@
       "path": "../create-cafs-store"
     },
     {
+      "path": "../error"
+    },
+    {
       "path": "../fetcher-base"
     },
     {
