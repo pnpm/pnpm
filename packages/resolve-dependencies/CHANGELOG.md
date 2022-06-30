@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 28.1.4
+
+### Patch Changes
+
+- 5e0e7f5db: `pnpm install` in a workspace with patches should not fail when doing partial installation [#4954](https://github.com/pnpm/pnpm/issues/4954).
+
 ## 28.1.3
 
 ### Patch Changes

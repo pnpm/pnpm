@@ -1,5 +1,19 @@
 # @pnpm/core
 
+## 5.5.6
+
+### Patch Changes
+
+- b55b3782d: Never skip lockfile resolution when the lockfile is not up-to-date and `--lockfile-only` is used. Even if `frozen-lockfile` is `true` [#4951](https://github.com/pnpm/pnpm/issues/4951).
+- Updated dependencies [5e0e7f5db]
+- Updated dependencies [ab684d77e]
+  - @pnpm/resolve-dependencies@28.1.4
+  - @pnpm/lockfile-file@5.1.4
+  - @pnpm/get-context@6.2.4
+  - @pnpm/headless@18.3.5
+  - @pnpm/lockfile-to-pnp@0.5.16
+  - @pnpm/package-requester@18.0.12
+
 ## 5.5.5
 
 ### Patch Changes

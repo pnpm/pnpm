@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "7.0.10",
+  "version": "7.0.11",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -42,13 +42,13 @@
     "archy": "^1.0.0",
     "chalk": "^4.1.0",
     "cli-columns": "^4.0.0",
-    "dependencies-hierarchy": "workspace:11.0.10",
+    "dependencies-hierarchy": "workspace:11.0.11",
     "p-limit": "^3.1.0",
     "ramda": "^0.28.0",
     "semver": "^7.3.4"
   },
   "devDependencies": {
-    "@pnpm/list": "workspace:7.0.10",
+    "@pnpm/list": "workspace:7.0.11",
     "@pnpm/logger": "^4.0.0",
     "@types/archy": "0.0.31",
     "@types/ramda": "0.28.14",

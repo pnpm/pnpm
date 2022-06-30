@@ -33,7 +33,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:7.1.8",
+    "@pnpm/client": "workspace:7.1.9",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-requester": "workspace:18.0.12",
     "@pnpm/package-store": "workspace:14.0.4",

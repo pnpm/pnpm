@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-rebuild
 
+## 6.1.19
+
+### Patch Changes
+
+- @pnpm/get-context@6.2.4
+- @pnpm/store-connection-manager@4.1.18
+
 ## 6.1.18
 
 ### Patch Changes

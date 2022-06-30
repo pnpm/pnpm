@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 5.1.4
+
+### Patch Changes
+
+- ab684d77e: Never add an empty patchedDependencies field to `pnpm-lock.yaml`.
+
 ## 5.1.3
 
 ### Patch Changes

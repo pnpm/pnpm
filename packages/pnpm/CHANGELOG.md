@@ -1,5 +1,13 @@
 # pnpm
 
+## 7.4.1
+
+### Patch Changes
+
+- `pnpm install` in a workspace with patches should not fail when doing partial installation [#4954](https://github.com/pnpm/pnpm/issues/4954).
+- Never skip lockfile resolution when the lockfile is not up-to-date and `--lockfile-only` is used. Even if `frozen-lockfile` is `true` [#4951](https://github.com/pnpm/pnpm/issues/4951).
+- Never add an empty `patchedDependencies` field to `pnpm-lock.yaml`.
+
 ## 7.4.0
 
 ### Minor Changes

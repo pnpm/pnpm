@@ -62,7 +62,7 @@
     "ssri": "^8.0.1"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:7.1.8",
+    "@pnpm/client": "workspace:7.1.9",
     "@pnpm/create-cafs-store": "workspace:2.0.2",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-requester": "workspace:18.0.12",

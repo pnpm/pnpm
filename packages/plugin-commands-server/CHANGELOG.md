@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-server
 
+## 4.0.20
+
+### Patch Changes
+
+- @pnpm/server@13.0.1
+- @pnpm/store-connection-manager@4.1.18
+
 ## 4.0.19
 
 ### Patch Changes

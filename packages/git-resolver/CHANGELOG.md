@@ -1,5 +1,11 @@
 # @pnpm/git-resolver
 
+## 6.1.0
+
+### Minor Changes
+
+- 449ccef09: Add `refs/` to git resolution prefixes
+
 ## 6.0.6
 
 ### Patch Changes

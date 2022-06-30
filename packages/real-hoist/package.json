@@ -37,7 +37,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/lockfile-file": "workspace:5.1.3",
+    "@pnpm/lockfile-file": "workspace:5.1.4",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/real-hoist": "workspace:0.2.9"
   },

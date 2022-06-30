@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-installation
 
+## 10.3.6
+
+### Patch Changes
+
+- b55b3782d: Never skip lockfile resolution when the lockfile is not up-to-date and `--lockfile-only` is used. Even if `frozen-lockfile` is `true` [#4951](https://github.com/pnpm/pnpm/issues/4951).
+- Updated dependencies [b55b3782d]
+  - @pnpm/core@5.5.6
+  - @pnpm/outdated@10.0.12
+  - @pnpm/plugin-commands-rebuild@6.1.19
+  - @pnpm/package-store@14.0.4
+  - @pnpm/store-connection-manager@4.1.18
+
 ## 10.3.5
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/exe",
   "description": "Fast, disk space efficient package manager",
-  "version": "7.4.0",
+  "version": "7.4.1",
   "publishConfig": {
     "bin": {
       "pnpm": "pnpm"
@@ -11,16 +11,16 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "optionalDependencies": {
-    "@pnpm/linux-arm64": "workspace:7.4.0",
-    "@pnpm/linux-x64": "workspace:7.4.0",
-    "@pnpm/macos-arm64": "workspace:7.4.0",
-    "@pnpm/macos-x64": "workspace:7.4.0",
-    "@pnpm/win-x64": "workspace:7.4.0"
+    "@pnpm/linux-arm64": "workspace:7.4.1",
+    "@pnpm/linux-x64": "workspace:7.4.1",
+    "@pnpm/macos-arm64": "workspace:7.4.1",
+    "@pnpm/macos-x64": "workspace:7.4.1",
+    "@pnpm/win-x64": "workspace:7.4.1"
   },
   "devDependencies": {
-    "@pnpm/exe": "workspace:7.4.0",
-    "pkg": "github:vercel/pkg#5.7.0",
-    "execa": "npm:safe-execa@^0.1.1"
+    "@pnpm/exe": "workspace:7.4.1",
+    "execa": "npm:safe-execa@^0.1.1",
+    "pkg": "github:vercel/pkg#5.7.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/exe#readme",
