@@ -76,3 +76,23 @@ test('warn when installing with lockfileOnly = true and node_modules exists', as
   const currentLockfile = await project.readCurrentLockfile()
   expect(currentLockfile.packages['/rimraf/2.5.1']).toBeFalsy()
 })
+
+// For @pnpm/core it might make sense to throw an exception in this case but for now it is better than having
+// the https://github.com/pnpm/pnpm/issues/4951 issue.
+test('always update the lockfile when lockfileOnly is used, even if frozenLockfile is used', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({
+    lockfileOnly: true,
+  }))
+  await install({
+    dependencies: {
+      'is-positive': '2.0.0',
+    },
+  }, await testDefaults({
+    lockfileOnly: true,
+    frozenLockfile: true,
+  }))
+
+  const lockfile = await project.readLockfile()
+  expect(lockfile.specifiers['is-positive']).toBe('2.0.0')
+})
