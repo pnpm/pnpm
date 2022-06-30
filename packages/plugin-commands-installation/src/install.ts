@@ -300,7 +300,7 @@ export async function handler (
   }
   return installDeps({
     ...opts,
-    frozenLockfileIfExists: isCI &&
+    frozenLockfileIfExists: isCI && !opts.lockfileOnly &&
       typeof opts.rawLocalConfig['frozen-lockfile'] === 'undefined' &&
       typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined',
     include,
