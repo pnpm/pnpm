@@ -1736,6 +1736,7 @@ importers:
   packages/node.fetcher:
     specifiers:
       '@pnpm/create-cafs-store': workspace:2.0.2
+      '@pnpm/error': workspace:3.0.1
       '@pnpm/fetcher-base': workspace:13.0.1
       '@pnpm/fetching-types': workspace:3.0.0
       '@pnpm/node.fetcher': workspace:1.0.3
@@ -1743,15 +1744,18 @@ importers:
       '@pnpm/tarball-fetcher': workspace:10.0.8
       '@types/adm-zip': ^0.4.34
       adm-zip: ^0.5.5
+      detect-libc: ^2.0.1
       node-fetch: 3.0.0-beta.9
       rename-overwrite: ^4.0.2
       tempy: ^1.0.0
     dependencies:
       '@pnpm/create-cafs-store': link:../create-cafs-store
+      '@pnpm/error': link:../error
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/fetching-types': link:../fetching-types
       '@pnpm/tarball-fetcher': link:../tarball-fetcher
       adm-zip: 0.5.9
+      detect-libc: 2.0.1
       rename-overwrite: 4.0.2
       tempy: 1.0.1
     devDependencies:
