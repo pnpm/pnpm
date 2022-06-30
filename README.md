@@ -35,13 +35,25 @@ To quote the [Rush](https://rushjs.io/) team:
   <tbody>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://bit.dev/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/bit.svg" width="80"></a>
+        <a href="https://bit.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/bit.svg" width="80">
+        </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://nhost.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/nhost.svg" width="180"></a>
+        <a href="https://nhost.io/?utm_source=pnpm&utm_medium=readme#gh-light-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/nhost.svg" width="180">
+        </a>
+        <a href="https://nhost.io/?utm_source=pnpm&utm_medium=readme#gh-dark-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/nhost_light.svg" width="180">
+        </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://novu.co/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/novu.svg" width="180"></a>
+        <a href="https://novu.co/?utm_source=pnpm&utm_medium=readme#gh-light-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/novu.svg" width="180">
+        </a>
+        <a href="https://novu.co/?utm_source=pnpm&utm_medium=readme#gh-dark-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/novu_light.svg" width="180">
+        </a>
       </td>
     </tr>
 </table>
@@ -52,16 +64,30 @@ To quote the [Rush](https://rushjs.io/) team:
   <tbody>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma.svg" width="180"></a>
+        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme#gh-light-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma.svg" width="180">
+        </a>
+        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme#gh-dark-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma_light.svg" width="180">
+        </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://leniolabs.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/leniolabs.jpg" width="80"></a>
+        <a href="https://leniolabs.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/leniolabs.jpg" width="80">
+        </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://vercel.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/vercel.svg" width="180"></a>
+        <a href="https://vercel.com/?utm_source=pnpm&utm_medium=readme#gh-light-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/vercel.svg" width="180">
+        </a>
+        <a href="https://vercel.com/?utm_source=pnpm&utm_medium=readme#gh-dark-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/vercel_light.svg" width="180">
+        </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://www.takeshape.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/takeshape.svg" width="280"></a>
+        <a href="https://www.takeshape.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/takeshape.svg" width="280">
+        </a>
       </td>
     </tr>
   </tbody>
