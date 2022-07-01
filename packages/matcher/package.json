@@ -36,7 +36,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/matcher": "workspace:3.0.0"
+    "@pnpm/matcher": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"

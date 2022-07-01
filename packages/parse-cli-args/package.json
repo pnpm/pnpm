@@ -30,12 +30,12 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/parse-cli-args#readme",
   "devDependencies": {
-    "@pnpm/parse-cli-args": "workspace:5.0.2",
+    "@pnpm/parse-cli-args": "workspace:*",
     "tempy": "^1.0.0"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:3.0.1",
-    "@pnpm/find-workspace-dir": "workspace:4.0.2",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/nopt": "^0.2.1",
     "didyoumean2": "^5.0.0"
   },

@@ -30,16 +30,16 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:3.0.1",
-    "@pnpm/lockfile-utils": "workspace:4.0.9",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
     "@yarnpkg/nm": "3.0.1",
-    "dependency-path": "workspace:9.2.2"
+    "dependency-path": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/lockfile-file": "workspace:5.1.4",
+    "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/real-hoist": "workspace:0.2.9"
+    "@pnpm/real-hoist": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"

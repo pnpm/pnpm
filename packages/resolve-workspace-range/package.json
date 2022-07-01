@@ -28,7 +28,7 @@
     "semver": "^7.3.4"
   },
   "devDependencies": {
-    "@pnpm/resolve-workspace-range": "workspace:3.0.0",
+    "@pnpm/resolve-workspace-range": "workspace:*",
     "@types/semver": "^7.3.4"
   },
   "bugs": {

@@ -30,7 +30,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/constants#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/constants": "workspace:6.1.0"
+    "@pnpm/constants": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"

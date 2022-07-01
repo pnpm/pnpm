@@ -32,23 +32,23 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/dependencies-hierarchy#readme",
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:5.1.4",
-    "@pnpm/lockfile-utils": "workspace:4.0.9",
-    "@pnpm/modules-yaml": "workspace:10.0.5",
-    "@pnpm/normalize-registries": "workspace:3.0.5",
-    "@pnpm/read-modules-dir": "workspace:4.0.0",
-    "@pnpm/read-package-json": "workspace:6.0.6",
-    "@pnpm/types": "workspace:8.4.0",
-    "dependency-path": "workspace:9.2.2",
+    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/modules-yaml": "workspace:*",
+    "@pnpm/normalize-registries": "workspace:*",
+    "@pnpm/read-modules-dir": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "dependency-path": "workspace:*",
     "normalize-path": "^3.0.0",
     "realpath-missing": "^1.1.0",
     "resolve-link-target": "^2.0.0"
   },
   "devDependencies": {
-    "@pnpm/constants": "workspace:6.1.0",
+    "@pnpm/constants": "workspace:*",
     "@pnpm/logger": "^4.0.0",
     "@types/normalize-path": "^3.0.0",
-    "dependencies-hierarchy": "workspace:11.0.11"
+    "dependencies-hierarchy": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

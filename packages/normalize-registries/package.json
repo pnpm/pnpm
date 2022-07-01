@@ -26,13 +26,13 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/types": "workspace:8.4.0",
+    "@pnpm/types": "workspace:*",
     "normalize-registry-url": "2.0.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/normalize-registries#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/normalize-registries": "workspace:3.0.5"
+    "@pnpm/normalize-registries": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"

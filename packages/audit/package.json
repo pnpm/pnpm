@@ -30,18 +30,18 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/audit#readme",
   "devDependencies": {
-    "@pnpm/audit": "workspace:3.0.9",
-    "@pnpm/constants": "workspace:6.1.0",
-    "@pnpm/lockfile-file": "workspace:5.1.4",
+    "@pnpm/audit": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/lockfile-file": "workspace:*",
     "nock": "12.0.3"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:3.0.1",
-    "@pnpm/fetch": "workspace:5.0.5",
-    "@pnpm/lockfile-types": "workspace:4.2.0",
-    "@pnpm/lockfile-utils": "workspace:4.0.9",
-    "@pnpm/lockfile-walker": "workspace:5.0.9",
-    "@pnpm/types": "workspace:8.4.0"
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile-walker": "workspace:*",
+    "@pnpm/types": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

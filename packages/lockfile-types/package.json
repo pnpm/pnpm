@@ -29,10 +29,10 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "@pnpm/types": "workspace:8.4.0"
+    "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/lockfile-types": "workspace:4.2.0"
+    "@pnpm/lockfile-types": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"

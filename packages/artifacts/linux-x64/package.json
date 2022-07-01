@@ -23,6 +23,6 @@
     "pnpm7"
   ],
   "devDependencies": {
-    "@pnpm/linux-x64": "workspace:7.4.1"
+    "@pnpm/linux-x64": "workspace:*"
   }
 }

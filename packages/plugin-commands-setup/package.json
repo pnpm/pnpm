@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-setup#readme",
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.7.17",
+    "@pnpm/cli-utils": "workspace:*",
     "@pnpm/os.env.path-extender": "^0.2.3",
     "render-help": "^1.0.1"
   },
@@ -39,9 +39,9 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/error": "workspace:3.0.1",
+    "@pnpm/error": "workspace:*",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-setup": "workspace:2.0.18",
+    "@pnpm/plugin-commands-setup": "workspace:*",
     "@pnpm/prepare": "workspace:*"
   },
   "exports": {

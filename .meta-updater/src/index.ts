@@ -38,7 +38,7 @@ export default async (workspaceDir: string) => {
       if (manifest.name && manifest.name !== CLI_PKG_NAME) {
         manifest.devDependencies = {
           ...manifest.devDependencies,
-          [manifest.name]: `workspace:${manifest.version}`,
+          [manifest.name]: `workspace:*`,
         }
       }
       manifest.keywords = [
@@ -49,7 +49,7 @@ export default async (workspaceDir: string) => {
         manifest.version = pnpmVersion
         if (manifest.name === '@pnpm/exe') {
           for (const depName of ['@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/win-x64', '@pnpm/macos-x64', '@pnpm/macos-arm64']) {
-            manifest.optionalDependencies![depName] = `workspace:${pnpmVersion}`
+            manifest.optionalDependencies![depName] = `workspace:*`
           }
         }
         return manifest

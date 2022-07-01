@@ -34,20 +34,20 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/lockfile-to-pnp": "workspace:0.5.16",
+    "@pnpm/lockfile-to-pnp": "workspace:*",
     "@pnpm/logger": "^4.0.0",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.14",
     "rimraf": "^3.0.2"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:15.5.1",
-    "@pnpm/lockfile-file": "workspace:5.1.4",
-    "@pnpm/lockfile-utils": "workspace:4.0.9",
-    "@pnpm/read-project-manifest": "workspace:3.0.6",
-    "@pnpm/types": "workspace:8.4.0",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@yarnpkg/pnp": "^2.3.2",
-    "dependency-path": "workspace:9.2.2",
+    "dependency-path": "workspace:*",
     "normalize-path": "^3.0.0",
     "ramda": "^0.28.0"
   },

@@ -31,16 +31,16 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-init#readme",
   "devDependencies": {
-    "@pnpm/plugin-commands-init": "workspace:1.0.17",
+    "@pnpm/plugin-commands-init": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "load-json-file": "^6.2.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.7.17",
-    "@pnpm/config": "workspace:15.5.1",
-    "@pnpm/error": "workspace:3.0.1",
-    "@pnpm/write-project-manifest": "workspace:3.0.5",
+    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/write-project-manifest": "workspace:*",
     "camelcase-keys": "^6.2.2",
     "render-help": "^1.0.1"
   },

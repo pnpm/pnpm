@@ -38,18 +38,18 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/mount-modules": "workspace:0.2.18",
+    "@pnpm/mount-modules": "workspace:*",
     "@types/normalize-path": "^3.0.0",
     "rimraf": "^3.0.2"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:4.0.7",
-    "@pnpm/config": "workspace:15.5.1",
-    "@pnpm/lockfile-file": "workspace:5.1.4",
-    "@pnpm/lockfile-utils": "workspace:4.0.9",
-    "@pnpm/store-path": "workspace:6.0.0",
-    "@pnpm/types": "workspace:8.4.0",
-    "dependency-path": "workspace:9.2.2",
+    "@pnpm/cafs": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/store-path": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "dependency-path": "workspace:*",
     "hyperdrive-schemas": "^2.0.0",
     "load-json-file": "^6.2.0",
     "normalize-path": "^3.0.0"

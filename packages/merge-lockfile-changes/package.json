@@ -31,14 +31,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/merge-lockfile-changes#readme",
   "dependencies": {
-    "@pnpm/lockfile-types": "workspace:4.2.0",
+    "@pnpm/lockfile-types": "workspace:*",
     "comver-to-semver": "^1.0.0",
     "ramda": "^0.28.0",
     "semver": "^7.3.4"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/merge-lockfile-changes": "workspace:3.0.6",
+    "@pnpm/merge-lockfile-changes": "workspace:*",
     "@types/ramda": "0.28.14",
     "@types/semver": "^7.3.4"
   },

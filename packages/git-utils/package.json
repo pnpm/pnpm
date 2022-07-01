@@ -36,7 +36,7 @@
     "execa": "npm:safe-execa@^0.1.1"
   },
   "devDependencies": {
-    "@pnpm/git-utils": "workspace:0.1.0",
+    "@pnpm/git-utils": "workspace:*",
     "tempy": "^1.0.0"
   },
   "funding": "https://opencollective.com/pnpm",

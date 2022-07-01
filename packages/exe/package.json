@@ -11,14 +11,14 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "optionalDependencies": {
-    "@pnpm/linux-arm64": "workspace:7.4.1",
-    "@pnpm/linux-x64": "workspace:7.4.1",
-    "@pnpm/macos-arm64": "workspace:7.4.1",
-    "@pnpm/macos-x64": "workspace:7.4.1",
-    "@pnpm/win-x64": "workspace:7.4.1"
+    "@pnpm/linux-arm64": "workspace:*",
+    "@pnpm/linux-x64": "workspace:*",
+    "@pnpm/macos-arm64": "workspace:*",
+    "@pnpm/macos-x64": "workspace:*",
+    "@pnpm/win-x64": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/exe": "workspace:7.4.1",
+    "@pnpm/exe": "workspace:*",
     "execa": "npm:safe-execa@^0.1.1",
     "pkg": "github:vercel/pkg#5.7.0"
   },

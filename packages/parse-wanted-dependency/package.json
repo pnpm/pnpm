@@ -12,7 +12,7 @@
     "!*.map"
   ],
   "devDependencies": {
-    "@pnpm/parse-wanted-dependency": "workspace:3.0.1",
+    "@pnpm/parse-wanted-dependency": "workspace:*",
     "@types/validate-npm-package-name": "^3.0.2"
   },
   "keywords": [

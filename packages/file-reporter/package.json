@@ -33,7 +33,7 @@
     "path-exists": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/file-reporter": "workspace:3.0.0",
+    "@pnpm/file-reporter": "workspace:*",
     "@types/graceful-fs": "^4.1.5",
     "exists-file": "^3.0.2",
     "ndjson": "^2.0.0"

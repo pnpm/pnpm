@@ -34,21 +34,21 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/calc-dep-state": "workspace:3.0.1",
-    "@pnpm/core-loggers": "workspace:7.0.5",
-    "@pnpm/error": "workspace:3.0.1",
+    "@pnpm/calc-dep-state": "workspace:*",
+    "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/graph-sequencer": "1.0.0",
-    "@pnpm/lifecycle": "workspace:13.1.2",
-    "@pnpm/link-bins": "workspace:7.1.6",
-    "@pnpm/read-package-json": "workspace:6.0.6",
-    "@pnpm/store-controller-types": "workspace:14.0.1",
-    "@pnpm/types": "workspace:8.4.0",
+    "@pnpm/lifecycle": "workspace:*",
+    "@pnpm/link-bins": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "patch-package": "^6.4.7",
     "ramda": "^0.28.0",
     "run-groups": "^3.0.1"
   },
   "devDependencies": {
-    "@pnpm/build-modules": "workspace:9.2.3",
+    "@pnpm/build-modules": "workspace:*",
     "@pnpm/logger": "^4.0.0",
     "@types/ramda": "0.28.14"
   },

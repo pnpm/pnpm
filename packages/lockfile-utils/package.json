@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/lockfile-utils#readme",
   "devDependencies": {
-    "@pnpm/lockfile-utils": "workspace:4.0.9",
+    "@pnpm/lockfile-utils": "workspace:*",
     "@types/js-yaml": "^4.0.0",
     "@types/ramda": "0.28.14",
     "tempy": "^1.0.0",
@@ -39,10 +39,10 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
-    "@pnpm/lockfile-types": "workspace:4.2.0",
-    "@pnpm/resolver-base": "workspace:9.0.5",
-    "@pnpm/types": "workspace:8.4.0",
-    "dependency-path": "workspace:9.2.2",
+    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "dependency-path": "workspace:*",
     "get-npm-tarball-url": "^2.0.3",
     "ramda": "^0.28.0"
   },

@@ -31,13 +31,13 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/modules-yaml#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:8.4.0",
+    "@pnpm/types": "workspace:*",
     "is-windows": "^1.0.2",
     "read-yaml-file": "^2.1.0",
     "write-yaml-file": "^4.2.0"
   },
   "devDependencies": {
-    "@pnpm/modules-yaml": "workspace:10.0.5",
+    "@pnpm/modules-yaml": "workspace:*",
     "@types/is-windows": "^1.0.0",
     "tempy": "^1.0.0"
   },

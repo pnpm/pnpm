@@ -26,14 +26,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/tarball-resolver#readme",
   "dependencies": {
-    "@pnpm/resolver-base": "workspace:9.0.5"
+    "@pnpm/resolver-base": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "keywords": [
     "pnpm7"
   ],
   "devDependencies": {
-    "@pnpm/tarball-resolver": "workspace:6.0.5"
+    "@pnpm/tarball-resolver": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"

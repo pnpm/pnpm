@@ -38,7 +38,7 @@
     "touch": "3.1.0"
   },
   "devDependencies": {
-    "@pnpm/store-path": "workspace:6.0.0",
+    "@pnpm/store-path": "workspace:*",
     "@types/is-windows": "^1.0.0",
     "@types/node": "^14.17.32",
     "@types/rimraf": "^3.0.0",

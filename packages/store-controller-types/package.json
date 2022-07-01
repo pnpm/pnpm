@@ -29,13 +29,13 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/store-controller-types#readme",
   "dependencies": {
-    "@pnpm/fetcher-base": "workspace:13.0.1",
-    "@pnpm/resolver-base": "workspace:9.0.5",
-    "@pnpm/types": "workspace:8.4.0"
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/types": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/store-controller-types": "workspace:14.0.1"
+    "@pnpm/store-controller-types": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"

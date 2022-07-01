@@ -29,7 +29,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/common-cli-options-help#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/common-cli-options-help": "workspace:0.9.0"
+    "@pnpm/common-cli-options-help": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"

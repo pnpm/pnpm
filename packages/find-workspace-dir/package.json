@@ -29,12 +29,12 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/find-workspace-dir#readme",
   "dependencies": {
-    "@pnpm/error": "workspace:3.0.1",
+    "@pnpm/error": "workspace:*",
     "find-up": "^5.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/find-workspace-dir": "workspace:4.0.2"
+    "@pnpm/find-workspace-dir": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"

@@ -31,17 +31,17 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/default-resolver#readme",
   "dependencies": {
-    "@pnpm/error": "workspace:3.0.1",
-    "@pnpm/fetching-types": "workspace:3.0.0",
-    "@pnpm/git-resolver": "workspace:6.1.0",
-    "@pnpm/local-resolver": "workspace:8.0.6",
-    "@pnpm/npm-resolver": "workspace:13.0.6",
-    "@pnpm/resolver-base": "workspace:9.0.5",
-    "@pnpm/tarball-resolver": "workspace:6.0.5"
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/git-resolver": "workspace:*",
+    "@pnpm/local-resolver": "workspace:*",
+    "@pnpm/npm-resolver": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/tarball-resolver": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/default-resolver": "workspace:15.0.8",
-    "@pnpm/fetch": "workspace:5.0.5",
+    "@pnpm/default-resolver": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
     "@pnpm/logger": "^4.0.0"
   },
   "funding": "https://opencollective.com/pnpm",

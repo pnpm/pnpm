@@ -31,14 +31,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/directory-fetcher#readme",
   "dependencies": {
-    "@pnpm/fetcher-base": "workspace:13.0.1",
-    "@pnpm/read-project-manifest": "workspace:3.0.6",
-    "@pnpm/resolver-base": "workspace:9.0.5",
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
     "npm-packlist": "^3.0.0",
     "ramda": "^0.28.0"
   },
   "devDependencies": {
-    "@pnpm/directory-fetcher": "workspace:3.0.7",
+    "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/npm-packlist": "^1.1.2",
     "@types/ramda": "0.28.14"

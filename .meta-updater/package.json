@@ -7,8 +7,8 @@
     "compile": "tsc --build"
   },
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:5.1.4",
-    "@pnpm/types": "workspace:8.4.0",
+    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@types/normalize-path": "^3.0.0",
     "is-subdir": "^1.1.1",
     "load-json-file": "^6.2.0",

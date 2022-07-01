@@ -27,11 +27,11 @@
   "devDependencies": {
     "@types/ramda": "0.28.14",
     "better-path-resolve": "1.0.0",
-    "pkgs-graph": "workspace:7.0.1"
+    "pkgs-graph": "workspace:*"
   },
   "dependencies": {
     "@pnpm/npm-package-arg": "^1.0.0",
-    "@pnpm/resolve-workspace-range": "workspace:3.0.0",
+    "@pnpm/resolve-workspace-range": "workspace:*",
     "ramda": "^0.28.0"
   },
   "funding": "https://opencollective.com/pnpm",

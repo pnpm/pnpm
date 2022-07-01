@@ -31,15 +31,15 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/prune-lockfile#readme",
   "devDependencies": {
-    "@pnpm/prune-lockfile": "workspace:4.0.10",
+    "@pnpm/prune-lockfile": "workspace:*",
     "@types/ramda": "0.28.14",
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:6.1.0",
-    "@pnpm/lockfile-types": "workspace:4.2.0",
-    "@pnpm/types": "workspace:8.4.0",
-    "dependency-path": "workspace:9.2.2",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "dependency-path": "workspace:*",
     "ramda": "^0.28.0"
   },
   "funding": "https://opencollective.com/pnpm",

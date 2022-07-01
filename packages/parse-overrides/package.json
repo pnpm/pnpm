@@ -29,11 +29,11 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/parse-overrides#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "@pnpm/error": "workspace:3.0.1",
-    "@pnpm/parse-wanted-dependency": "workspace:3.0.1"
+    "@pnpm/error": "workspace:*",
+    "@pnpm/parse-wanted-dependency": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/parse-overrides": "workspace:2.0.2"
+    "@pnpm/parse-overrides": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"

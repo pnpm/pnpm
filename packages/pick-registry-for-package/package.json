@@ -27,12 +27,12 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/types": "workspace:8.4.0"
+    "@pnpm/types": "workspace:*"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/pick-registry-for-package#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/pick-registry-for-package": "workspace:3.0.5"
+    "@pnpm/pick-registry-for-package": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"

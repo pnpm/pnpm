@@ -38,19 +38,19 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-deploy#readme",
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@pnpm/filter-workspace-packages": "workspace:5.0.17",
-    "@pnpm/lockfile-types": "workspace:4.2.0",
+    "@pnpm/filter-workspace-packages": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-deploy": "workspace:1.0.3",
+    "@pnpm/plugin-commands-deploy": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "2.20.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.7.17",
-    "@pnpm/directory-fetcher": "workspace:3.0.7",
-    "@pnpm/error": "workspace:3.0.1",
-    "@pnpm/fs.indexed-pkg-importer": "workspace:1.0.0",
-    "@pnpm/plugin-commands-installation": "workspace:10.3.6",
+    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/directory-fetcher": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fs.indexed-pkg-importer": "workspace:*",
+    "@pnpm/plugin-commands-installation": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "render-help": "^1.0.1"
   },

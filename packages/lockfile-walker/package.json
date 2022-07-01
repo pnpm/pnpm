@@ -30,14 +30,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/lockfile-walker#readme",
   "devDependencies": {
-    "@pnpm/lockfile-walker": "workspace:5.0.9",
+    "@pnpm/lockfile-walker": "workspace:*",
     "@types/ramda": "0.28.14",
     "tempy": "^1.0.0"
   },
   "dependencies": {
-    "@pnpm/lockfile-types": "workspace:4.2.0",
-    "@pnpm/types": "workspace:8.4.0",
-    "dependency-path": "workspace:9.2.2",
+    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "dependency-path": "workspace:*",
     "ramda": "^0.28.0"
   },
   "funding": "https://opencollective.com/pnpm",

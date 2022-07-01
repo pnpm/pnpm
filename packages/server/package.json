@@ -33,11 +33,11 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:7.1.9",
+    "@pnpm/client": "workspace:*",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-requester": "workspace:18.0.12",
-    "@pnpm/package-store": "workspace:14.0.4",
-    "@pnpm/server": "workspace:13.0.1",
+    "@pnpm/package-requester": "workspace:*",
+    "@pnpm/package-store": "workspace:*",
+    "@pnpm/server": "workspace:*",
     "@types/mz": "^2.7.3",
     "@types/uuid": "^8.3.0",
     "@zkochan/rimraf": "^2.1.2",
@@ -48,9 +48,9 @@
     "tempy": "^1.0.0"
   },
   "dependencies": {
-    "@pnpm/fetch": "workspace:5.0.5",
-    "@pnpm/store-controller-types": "workspace:14.0.1",
-    "@pnpm/types": "workspace:8.4.0",
+    "@pnpm/fetch": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "p-limit": "^3.1.0",
     "promise-share": "^1.0.0",
     "uuid": "^8.3.2"
