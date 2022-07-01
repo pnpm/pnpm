@@ -34,6 +34,6 @@
     "node-fetch": "3.0.0-beta.9"
   },
   "devDependencies": {
-    "@pnpm/fetching-types": "workspace:2.2.1"
+    "@pnpm/fetching-types": "workspace:*"
   }
 }

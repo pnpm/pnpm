@@ -30,14 +30,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/read-package-json#readme",
   "dependencies": {
-    "@pnpm/error": "workspace:2.1.0",
-    "@pnpm/types": "workspace:7.10.0",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "load-json-file": "^6.2.0",
     "normalize-package-data": "^3.0.3"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/read-package-json": "workspace:5.0.12",
+    "@pnpm/read-package-json": "workspace:*",
     "@types/normalize-package-data": "^2.4.1"
   }
 }

@@ -35,14 +35,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/node.resolver#readme",
   "dependencies": {
-    "@pnpm/fetching-types": "workspace:2.2.1",
-    "@pnpm/node.fetcher": "workspace:0.1.1",
+    "@pnpm/fetching-types": "workspace:*",
+    "@pnpm/node.fetcher": "workspace:*",
     "semver": "^7.3.7",
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
-    "@pnpm/fetch": "workspace:4.2.7",
-    "@pnpm/node.resolver": "workspace:0.1.1",
+    "@pnpm/fetch": "workspace:*",
+    "@pnpm/node.resolver": "workspace:*",
     "@types/semver": "^7.3.9"
   }
 }

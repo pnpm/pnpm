@@ -15,7 +15,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/hoist": "workspace:5.2.18",
+    "@pnpm/hoist": "workspace:*",
     "@pnpm/logger": "^4.0.0",
     "@types/ramda": "0.27.39"
   },
@@ -40,15 +40,15 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/link-bins": "workspace:6.2.14",
-    "@pnpm/lockfile-types": "workspace:3.2.0",
-    "@pnpm/lockfile-utils": "workspace:3.2.3",
-    "@pnpm/lockfile-walker": "workspace:4.0.16",
-    "@pnpm/matcher": "workspace:2.0.0",
-    "@pnpm/symlink-dependency": "workspace:4.0.13",
-    "@pnpm/types": "workspace:7.10.0",
-    "dependency-path": "workspace:8.0.12",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/link-bins": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile-walker": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
+    "@pnpm/symlink-dependency": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "dependency-path": "workspace:*",
     "ramda": "^0.27.2"
   },
   "funding": "https://opencollective.com/pnpm"

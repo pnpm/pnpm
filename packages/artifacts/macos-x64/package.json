@@ -23,6 +23,6 @@
     "pnpm6"
   ],
   "devDependencies": {
-    "@pnpm/macos-x64": "workspace:6.32.25"
+    "@pnpm/macos-x64": "workspace:*"
   }
 }

@@ -32,21 +32,21 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/make-dedicated-lockfile#readme",
   "dependencies": {
-    "@pnpm/error": "workspace:2.1.0",
+    "@pnpm/error": "workspace:*",
     "@pnpm/exec": "^2.0.0",
-    "@pnpm/exportable-manifest": "workspace:2.3.2",
-    "@pnpm/find-workspace-dir": "workspace:3.0.3",
-    "@pnpm/lockfile-file": "workspace:4.3.1",
+    "@pnpm/exportable-manifest": "workspace:*",
+    "@pnpm/find-workspace-dir": "workspace:*",
+    "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/prune-lockfile": "workspace:3.0.17",
-    "@pnpm/read-project-manifest": "workspace:2.0.13",
-    "@pnpm/types": "workspace:7.10.0",
+    "@pnpm/prune-lockfile": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "ramda": "^0.27.2",
     "rename-overwrite": "^4.0.2"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/make-dedicated-lockfile": "workspace:0.2.28",
+    "@pnpm/make-dedicated-lockfile": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.27.39"
   }

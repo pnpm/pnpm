@@ -34,11 +34,11 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:13.14.1",
-    "@pnpm/core-loggers": "workspace:6.1.4",
-    "@pnpm/error": "workspace:2.1.0",
-    "@pnpm/render-peer-issues": "workspace:1.1.2",
-    "@pnpm/types": "workspace:7.10.0",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/render-peer-issues": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "ansi-diff": "^1.1.1",
     "boxen": "^5.1.2",
     "chalk": "^4.1.2",
@@ -54,7 +54,7 @@
     "strip-ansi": "^6.0.1"
   },
   "devDependencies": {
-    "@pnpm/default-reporter": "workspace:8.6.2",
+    "@pnpm/default-reporter": "workspace:*",
     "@pnpm/logger": "^4.0.0",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.27.39",

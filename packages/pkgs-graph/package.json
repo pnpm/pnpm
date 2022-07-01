@@ -27,10 +27,10 @@
   "devDependencies": {
     "@types/ramda": "0.27.39",
     "better-path-resolve": "1.0.0",
-    "pkgs-graph": "workspace:6.1.3"
+    "pkgs-graph": "workspace:*"
   },
   "dependencies": {
-    "@pnpm/resolve-workspace-range": "workspace:2.1.0",
+    "@pnpm/resolve-workspace-range": "workspace:*",
     "@zkochan/npm-package-arg": "^2.0.1",
     "ramda": "^0.27.2"
   },

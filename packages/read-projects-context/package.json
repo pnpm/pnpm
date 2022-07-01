@@ -28,15 +28,15 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:4.3.1",
-    "@pnpm/modules-yaml": "workspace:9.1.1",
-    "@pnpm/normalize-registries": "workspace:2.0.13",
-    "@pnpm/types": "workspace:7.10.0",
+    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/modules-yaml": "workspace:*",
+    "@pnpm/normalize-registries": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "realpath-missing": "^1.1.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/read-projects-context": "workspace:5.0.19"
+    "@pnpm/read-projects-context": "workspace:*"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

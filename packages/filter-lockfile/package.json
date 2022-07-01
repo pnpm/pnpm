@@ -34,7 +34,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/filter-lockfile": "workspace:5.0.21",
+    "@pnpm/filter-lockfile": "workspace:*",
     "@pnpm/logger": "^4.0.0",
     "@types/ramda": "0.27.39",
     "tempy": "^1.0.1",
@@ -42,14 +42,14 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/error": "workspace:2.1.0",
-    "@pnpm/lockfile-types": "workspace:3.2.0",
-    "@pnpm/lockfile-utils": "workspace:3.2.3",
-    "@pnpm/lockfile-walker": "workspace:4.0.16",
-    "@pnpm/package-is-installable": "workspace:5.0.13",
-    "@pnpm/types": "workspace:7.10.0",
-    "dependency-path": "workspace:8.0.12",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile-walker": "workspace:*",
+    "@pnpm/package-is-installable": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "dependency-path": "workspace:*",
     "ramda": "^0.27.2"
   },
   "funding": "https://opencollective.com/pnpm"

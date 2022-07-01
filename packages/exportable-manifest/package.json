@@ -29,13 +29,13 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/exportable-manifest#readme",
   "devDependencies": {
-    "@pnpm/exportable-manifest": "workspace:2.3.2",
+    "@pnpm/exportable-manifest": "workspace:*",
     "@types/ramda": "0.27.39"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:2.1.0",
-    "@pnpm/read-project-manifest": "workspace:2.0.13",
-    "@pnpm/types": "workspace:7.10.0",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "ramda": "^0.27.2"
   },
   "funding": "https://opencollective.com/pnpm"

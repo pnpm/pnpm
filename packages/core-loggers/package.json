@@ -15,7 +15,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/core-loggers": "workspace:6.1.4",
+    "@pnpm/core-loggers": "workspace:*",
     "@pnpm/logger": "^4.0.0"
   },
   "directories": {
@@ -37,7 +37,7 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "@pnpm/types": "workspace:7.10.0"
+    "@pnpm/types": "workspace:*"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/core-loggers#readme",
   "funding": "https://opencollective.com/pnpm"

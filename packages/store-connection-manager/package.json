@@ -30,15 +30,15 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/store-connection-manager#readme",
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/store-connection-manager": "workspace:3.2.22"
+    "@pnpm/store-connection-manager": "workspace:*"
   },
   "dependencies": {
-    "@pnpm/cli-meta": "workspace:2.0.2",
-    "@pnpm/client": "workspace:6.1.8",
-    "@pnpm/config": "workspace:13.14.1",
-    "@pnpm/error": "workspace:2.1.0",
-    "@pnpm/package-store": "workspace:12.2.0",
-    "@pnpm/server": "workspace:11.0.22",
+    "@pnpm/cli-meta": "workspace:*",
+    "@pnpm/client": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/package-store": "workspace:*",
+    "@pnpm/server": "workspace:*",
     "@pnpm/store-path": "^5.0.0",
     "@zkochan/diable": "^1.0.2",
     "delay": "^5.0.0",

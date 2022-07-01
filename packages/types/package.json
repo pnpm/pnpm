@@ -30,6 +30,6 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/types#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/types": "workspace:7.10.0"
+    "@pnpm/types": "workspace:*"
   }
 }

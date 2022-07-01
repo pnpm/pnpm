@@ -30,16 +30,16 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/git-fetcher#readme",
   "dependencies": {
-    "@pnpm/fetcher-base": "workspace:11.2.0",
-    "@pnpm/prepare-package": "workspace:1.0.13",
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/prepare-package": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "execa": "npm:safe-execa@^0.1.1"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:3.0.18",
-    "@pnpm/git-fetcher": "workspace:4.1.18",
-    "@pnpm/package-store": "workspace:12.2.0",
-    "@pnpm/types": "workspace:7.10.0",
+    "@pnpm/cafs": "workspace:*",
+    "@pnpm/git-fetcher": "workspace:*",
+    "@pnpm/package-store": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "p-defer": "^3.0.0",
     "tempy": "^1.0.1"
   },

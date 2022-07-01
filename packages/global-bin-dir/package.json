@@ -30,12 +30,12 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/global-bin-dir#readme",
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "@pnpm/error": "workspace:2.1.0",
+    "@pnpm/error": "workspace:*",
     "can-write-to-dir": "^1.1.1",
     "path-name": "^1.0.0"
   },
   "devDependencies": {
-    "@pnpm/global-bin-dir": "workspace:3.0.1",
+    "@pnpm/global-bin-dir": "workspace:*",
     "is-windows": "^1.0.2"
   }
 }

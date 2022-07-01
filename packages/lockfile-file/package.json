@@ -34,7 +34,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/lockfile-file": "workspace:4.3.1",
+    "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/logger": "^4.0.0",
     "@types/js-yaml": "^4.0.5",
     "@types/normalize-path": "^3.0.0",
@@ -46,11 +46,11 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/error": "workspace:2.1.0",
-    "@pnpm/lockfile-types": "workspace:3.2.0",
-    "@pnpm/merge-lockfile-changes": "workspace:2.0.8",
-    "@pnpm/types": "workspace:7.10.0",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/merge-lockfile-changes": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "comver-to-semver": "^1.0.0",
     "js-yaml": "npm:@zkochan/js-yaml@^0.0.5",

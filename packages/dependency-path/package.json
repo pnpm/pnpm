@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/dependency-path#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:7.10.0",
+    "@pnpm/types": "workspace:*",
     "encode-registry": "^3.0.0",
     "normalize-path": "^3.0.0",
     "semver": "^7.3.7"
@@ -39,7 +39,7 @@
   "devDependencies": {
     "@types/normalize-path": "^3.0.0",
     "@types/semver": "^7.3.9",
-    "dependency-path": "workspace:8.0.12"
+    "dependency-path": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm"
 }

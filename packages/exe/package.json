@@ -11,14 +11,14 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "optionalDependencies": {
-    "@pnpm/linux-arm64": "workspace:6.32.25",
-    "@pnpm/linux-x64": "workspace:6.32.25",
-    "@pnpm/macos-arm64": "workspace:6.32.25",
-    "@pnpm/macos-x64": "workspace:6.32.25",
-    "@pnpm/win-x64": "workspace:6.32.25"
+    "@pnpm/linux-arm64": "workspace:*",
+    "@pnpm/linux-x64": "workspace:*",
+    "@pnpm/macos-arm64": "workspace:*",
+    "@pnpm/macos-x64": "workspace:*",
+    "@pnpm/win-x64": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/exe": "workspace:6.32.25",
+    "@pnpm/exe": "workspace:*",
     "@zkochan/pkg": "0.0.0-2",
     "execa": "npm:safe-execa@^0.1.1"
   },

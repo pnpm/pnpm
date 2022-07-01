@@ -29,9 +29,9 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "@pnpm/types": "workspace:7.10.0"
+    "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
-    "@pnpm/lockfile-types": "workspace:3.2.0"
+    "@pnpm/lockfile-types": "workspace:*"
   }
 }

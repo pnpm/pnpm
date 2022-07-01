@@ -32,6 +32,6 @@
     "semver-utils": "^1.1.4"
   },
   "devDependencies": {
-    "@pnpm/which-version-is-pinned": "workspace:1.0.0"
+    "@pnpm/which-version-is-pinned": "workspace:*"
   }
 }

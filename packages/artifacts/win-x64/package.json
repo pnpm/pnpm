@@ -23,6 +23,6 @@
     "pnpm6"
   ],
   "devDependencies": {
-    "@pnpm/win-x64": "workspace:6.32.25"
+    "@pnpm/win-x64": "workspace:*"
   }
 }

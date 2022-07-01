@@ -23,6 +23,6 @@
     "pnpm6"
   ],
   "devDependencies": {
-    "@pnpm/linux-x64": "workspace:6.32.25"
+    "@pnpm/linux-x64": "workspace:*"
   }
 }

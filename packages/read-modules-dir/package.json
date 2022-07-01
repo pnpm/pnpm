@@ -32,7 +32,7 @@
     "graceful-fs": "^4.2.10"
   },
   "devDependencies": {
-    "@pnpm/read-modules-dir": "workspace:3.0.1",
+    "@pnpm/read-modules-dir": "workspace:*",
     "@types/graceful-fs": "^4.1.5"
   }
 }
