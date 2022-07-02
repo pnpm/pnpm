@@ -63,6 +63,33 @@ test('installing with "workspace:" should work even if link-workspace-packages i
   await projects['project-1'].has('project-2')
 })
 
+test('installing with "workspace:" should work even if link-workspace-packages is off and save-workspace-protocol is "rolling"', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+  ])
+
+  await add.handler({
+    ...DEFAULT_OPTIONS,
+    dir: path.resolve('project-1'),
+    linkWorkspacePackages: false,
+    saveWorkspaceProtocol: 'rolling',
+    workspaceDir: process.cwd(),
+  }, ['project-2@workspace:*'])
+
+  const pkg = await import(path.resolve('project-1/package.json'))
+
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' })
+
+  await projects['project-1'].has('project-2')
+})
+
 test('installing with "workspace=true" should work even if link-workspace-packages is off and save-workspace-protocol is false', async () => {
   const projects = preparePackages([
     {

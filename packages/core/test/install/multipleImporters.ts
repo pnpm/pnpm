@@ -801,6 +801,38 @@ test('adding a new dependency with the workspace: protocol', async () => {
   expect(manifest.dependencies).toStrictEqual({ foo: 'workspace:^1.0.0' })
 })
 
+test('adding a new dependency with the workspace: protocol and save-workspace-protocol is "rolling"', async () => {
+  await addDistTag({ package: 'foo', version: '1.0.0', distTag: 'latest' })
+  prepareEmpty()
+
+  const [{ manifest }] = await mutateModules([
+    {
+      dependencySelectors: ['foo'],
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+      },
+      mutation: 'installSome',
+      rootDir: path.resolve('project-1'),
+    },
+  ], await testDefaults({
+    saveWorkspaceProtocol: 'rolling',
+    workspacePackages: {
+      foo: {
+        '1.0.0': {
+          dir: '',
+          manifest: {
+            name: 'foo',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+  }))
+
+  expect(manifest.dependencies).toStrictEqual({ foo: 'workspace:^' })
+})
+
 test('update workspace range', async () => {
   prepareEmpty()
 
@@ -907,6 +939,119 @@ test('update workspace range', async () => {
     dep3: 'workspace:^2.0.0',
     dep4: 'workspace:^2.0.0',
     dep5: 'workspace:~2.0.0',
+    dep6: 'workspace:2.0.0',
+  }
+  expect(updatedImporters[0].manifest.dependencies).toStrictEqual(expected)
+  expect(updatedImporters[1].manifest.dependencies).toStrictEqual(expected)
+})
+
+test('update workspace range when save-workspace-protocol is "rolling"', async () => {
+  prepareEmpty()
+
+  const updatedImporters = await mutateModules([
+    {
+      dependencySelectors: ['dep1', 'dep2', 'dep3', 'dep4', 'dep5', 'dep6'],
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          dep1: 'workspace:1.0.0',
+          dep2: 'workspace:~1.0.0',
+          dep3: 'workspace:^1.0.0',
+          dep4: 'workspace:1',
+          dep5: 'workspace:1.0',
+          dep6: 'workspace:*',
+        },
+      },
+      mutation: 'installSome',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          dep1: 'workspace:1.0.0',
+          dep2: 'workspace:~1.0.0',
+          dep3: 'workspace:^1.0.0',
+          dep4: 'workspace:1',
+          dep5: 'workspace:1.0',
+          dep6: 'workspace:*',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ], await testDefaults({
+    saveWorkspaceProtocol: 'rolling',
+    update: true,
+    workspacePackages: {
+      dep1: {
+        '2.0.0': {
+          dir: '',
+          manifest: {
+            name: 'dep1',
+            version: '2.0.0',
+          },
+        },
+      },
+      dep2: {
+        '2.0.0': {
+          dir: '',
+          manifest: {
+            name: 'dep2',
+            version: '2.0.0',
+          },
+        },
+      },
+      dep3: {
+        '2.0.0': {
+          dir: '',
+          manifest: {
+            name: 'dep3',
+            version: '2.0.0',
+          },
+        },
+      },
+      dep4: {
+        '2.0.0': {
+          dir: '',
+          manifest: {
+            name: 'dep4',
+            version: '2.0.0',
+          },
+        },
+      },
+      dep5: {
+        '2.0.0': {
+          dir: '',
+          manifest: {
+            name: 'dep5',
+            version: '2.0.0',
+          },
+        },
+      },
+      dep6: {
+        '2.0.0': {
+          dir: '',
+          manifest: {
+            name: 'dep6',
+            version: '2.0.0',
+          },
+        },
+      },
+    },
+  }))
+
+  const expected = {
+    dep1: 'workspace:*',
+    dep2: 'workspace:~',
+    dep3: 'workspace:^',
+    dep4: 'workspace:^',
+    dep5: 'workspace:~',
     dep6: 'workspace:*',
   }
   expect(updatedImporters[0].manifest.dependencies).toStrictEqual(expected)

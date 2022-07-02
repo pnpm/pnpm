@@ -535,6 +535,47 @@ test('installing with "workspace=true" should work even if link-workspace-packag
   await projects['project-1'].has('project-2')
 })
 
+test('installing with "workspace=true" should work even if link-workspace-packages is off and save-workspace-protocol is "rolling"', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-2': '0.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+  ])
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), []),
+    dir: process.cwd(),
+    linkWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    recursive: true,
+    saveWorkspaceProtocol: 'rolling',
+    sharedWorkspaceLockfile: true,
+    workspace: true,
+    workspaceDir: process.cwd(),
+  }, ['project-2'])
+
+  {
+    const pkg = await import(path.resolve('project-1/package.json'))
+    expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:*' })
+  }
+  {
+    const pkg = await import(path.resolve('project-2/package.json'))
+    expect(pkg.dependencies).toBeFalsy()
+  }
+
+  await projects['project-1'].has('project-2')
+})
+
 test('recursive install on workspace with custom lockfile-dir', async () => {
   preparePackages([
     {

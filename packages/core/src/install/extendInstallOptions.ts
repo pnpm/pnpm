@@ -32,7 +32,7 @@ export interface StrictInstallOptions {
   fixLockfile: boolean
   ignorePackageManifest: boolean
   preferFrozenLockfile: boolean
-  saveWorkspaceProtocol: boolean
+  saveWorkspaceProtocol: boolean | 'rolling'
   preferWorkspacePackages: boolean
   preserveWorkspaceProtocol: boolean
   scriptsPrependNodePath: boolean | 'warn-only'

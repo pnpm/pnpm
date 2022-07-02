@@ -81,7 +81,7 @@ export default async function (
   opts: ResolveDependenciesOptions & {
     defaultUpdateDepth: number
     preserveWorkspaceProtocol: boolean
-    saveWorkspaceProtocol: boolean
+    saveWorkspaceProtocol: 'rolling' | boolean
   }
 ) {
   const _toResolveImporter = toResolveImporter.bind(null, {

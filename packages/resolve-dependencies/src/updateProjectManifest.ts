@@ -15,7 +15,7 @@ export default async function updateProjectManifest (
   opts: {
     directDependencies: ResolvedDirectDependency[]
     preserveWorkspaceProtocol: boolean
-    saveWorkspaceProtocol: boolean
+    saveWorkspaceProtocol: boolean | 'rolling'
   }
 ) {
   if (!importer.manifest) {
@@ -72,13 +72,20 @@ function resolvedDirectDepToSpecObject (
     nodeExecPath?: string
     pinnedVersion: PinnedVersion
     preserveWorkspaceProtocol: boolean
-    saveWorkspaceProtocol: boolean
+    saveWorkspaceProtocol: boolean | 'rolling'
   }
 ): PackageSpecObject {
   let pref!: string
   if (normalizedPref) {
     pref = normalizedPref
   } else {
+    const shouldUseWorkspaceProtocol = resolution.type === 'directory' &&
+      (
+        Boolean(opts.saveWorkspaceProtocol) ||
+        (opts.preserveWorkspaceProtocol && specRaw.includes('@workspace:'))
+      ) &&
+      opts.pinnedVersion !== 'none'
+
     if (isNew === true) {
       pref = getPrefPreferSpecifiedSpec({
         alias,
@@ -86,6 +93,7 @@ function resolvedDirectDepToSpecObject (
         pinnedVersion: opts.pinnedVersion,
         specRaw,
         version,
+        rolling: shouldUseWorkspaceProtocol && opts.saveWorkspaceProtocol === 'rolling',
       })
     } else {
       pref = getPrefPreferSpecifiedExoticSpec({
@@ -94,14 +102,11 @@ function resolvedDirectDepToSpecObject (
         pinnedVersion: opts.pinnedVersion,
         specRaw,
         version,
+        rolling: shouldUseWorkspaceProtocol && opts.saveWorkspaceProtocol === 'rolling',
       })
     }
     if (
-      resolution.type === 'directory' &&
-      (
-        opts.saveWorkspaceProtocol ||
-        (opts.preserveWorkspaceProtocol && specRaw.includes('@workspace:'))
-      ) &&
+      shouldUseWorkspaceProtocol &&
       !pref.startsWith('workspace:')
     ) {
       pref = `workspace:${pref}`
@@ -123,6 +128,7 @@ function getPrefPreferSpecifiedSpec (
     version: string
     specRaw: string
     pinnedVersion?: PinnedVersion
+    rolling: boolean
   }
 ) {
   const prefix = getPrefix(opts.alias, opts.name)
@@ -139,7 +145,7 @@ function getPrefPreferSpecifiedSpec (
   if (semver.parse(opts.version)?.prerelease.length) {
     return `${prefix}${opts.version}`
   }
-  return `${prefix}${createVersionSpec(opts.version, opts.pinnedVersion)}`
+  return `${prefix}${createVersionSpec(opts.version, { pinnedVersion: opts.pinnedVersion, rolling: opts.rolling })}`
 }
 
 function getPrefPreferSpecifiedExoticSpec (
@@ -149,6 +155,7 @@ function getPrefPreferSpecifiedExoticSpec (
     version: string
     specRaw: string
     pinnedVersion: PinnedVersion
+    rolling: boolean
   }
 ) {
   const prefix = getPrefix(opts.alias, opts.name)
@@ -159,5 +166,5 @@ function getPrefPreferSpecifiedExoticSpec (
       return opts.specRaw.slice(opts.alias.length + 1)
     }
   }
-  return `${prefix}${createVersionSpec(opts.version, opts.pinnedVersion)}`
+  return `${prefix}${createVersionSpec(opts.version, { pinnedVersion: opts.pinnedVersion, rolling: opts.rolling })}`
 }

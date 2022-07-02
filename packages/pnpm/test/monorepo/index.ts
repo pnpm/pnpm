@@ -150,6 +150,54 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
   await projects['project-1'].has('project-4')
 })
 
+test('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies and save-workspace-protocol is "rolling"', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+    {
+      name: 'project-3',
+      version: '3.0.0',
+    },
+    {
+      name: 'project-4',
+      version: '4.0.0',
+    },
+  ])
+
+  await fs.writeFile(
+    '.npmrc',
+    [
+      'link-workspace-packages = true',
+      'save-workspace-protocol = "rolling"',
+    ].join('\n'),
+    'utf8')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  process.chdir('project-1')
+
+  await execPnpm(['add', 'project-2'])
+
+  await execPnpm(['add', 'project-3', '--save-dev'])
+
+  await execPnpm(['add', 'project-4', '--save-optional', '--no-save-workspace-protocol'])
+
+  const { default: pkg } = await import(path.resolve('package.json'))
+
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
+  expect(pkg?.devDependencies).toStrictEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
+  expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
+
+  await projects['project-1'].has('project-2')
+  await projects['project-1'].has('project-3')
+  await projects['project-1'].has('project-4')
+})
+
 test('linking a package inside a monorepo with --link-workspace-packages', async () => {
   const projects = preparePackages([
     {
