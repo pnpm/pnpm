@@ -8,5 +8,5 @@ export function createBase32Hash (str: string): string {
 
 export async function createBase32HashFromFile (file: string): Promise<string> {
   const content = await fs.promises.readFile(file, 'utf8')
-  return createBase32Hash(content.replace('\r\n', '\n'))
+  return createBase32Hash(content.split('\r\n').join('\n'))
 }

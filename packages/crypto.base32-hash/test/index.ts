@@ -9,7 +9,7 @@ test('createBase32Hash()', () => {
 
 test('createBase32HashFromFile normalizes line endings before calculating the hash', async () => {
   tempDir()
-  fs.writeFileSync('win-eol.txt', 'a\r\nb')
-  fs.writeFileSync('posix-eol.txt', 'a\nb')
+  fs.writeFileSync('win-eol.txt', 'a\r\nb\r\nc')
+  fs.writeFileSync('posix-eol.txt', 'a\nb\r\nc')
   expect(await createBase32HashFromFile('win-eol.txt')).toEqual(await createBase32HashFromFile('posix-eol.txt'))
 })
