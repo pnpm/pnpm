@@ -1,5 +1,11 @@
 # @pnpm/package-store
 
+## 14.0.5
+
+### Patch Changes
+
+- @pnpm/package-requester@18.0.13
+
 ## 14.0.4
 
 ### Patch Changes

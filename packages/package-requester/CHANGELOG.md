@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 18.0.13
+
+### Patch Changes
+
+- dependency-path@9.2.3
+
 ## 18.0.12
 
 ### Patch Changes

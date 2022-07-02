@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 9.2.4
+
+### Patch Changes
+
+- @pnpm/link-bins@7.1.7
+
 ## 9.2.3
 
 ### Patch Changes

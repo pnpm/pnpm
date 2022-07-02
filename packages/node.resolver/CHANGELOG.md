@@ -1,5 +1,12 @@
 # @pnpm/node.resolver
 
+## 1.0.4
+
+### Patch Changes
+
+- Updated dependencies [2105735a0]
+  - @pnpm/node.fetcher@1.0.4
+
 ## 1.0.3
 
 ### Patch Changes

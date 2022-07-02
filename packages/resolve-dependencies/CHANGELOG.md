@@ -1,5 +1,24 @@
 # @pnpm/resolve-dependencies
 
+## 28.2.0
+
+### Minor Changes
+
+- f5621a42c: A new value `rolling` for option `save-workspace-protocol`. When selected, pnpm will save workspace versions using a rolling alias (e.g. `"foo": "workspace:^"`) instead of pinning the current version number (e.g. `"foo": "workspace:^1.0.0"`). Usage example:
+
+  ```
+  pnpm --save-workspace-protocol=rolling add foo
+  ```
+
+### Patch Changes
+
+- Updated dependencies [f5621a42c]
+  - @pnpm/manifest-utils@3.1.0
+  - @pnpm/which-version-is-pinned@3.0.0
+  - dependency-path@9.2.3
+  - @pnpm/lockfile-utils@4.0.10
+  - @pnpm/prune-lockfile@4.0.11
+
 ## 28.1.4
 
 ### Patch Changes

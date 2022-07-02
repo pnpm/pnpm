@@ -1,6 +1,6 @@
 {
   "name": "dependency-path",
-  "version": "9.2.2",
+  "version": "9.2.3",
   "description": "Utilities for working with symlinked node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

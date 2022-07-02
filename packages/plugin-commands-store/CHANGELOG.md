@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-store
 
+## 5.1.20
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.18
+- dependency-path@9.2.3
+- @pnpm/lockfile-utils@4.0.10
+- @pnpm/store-connection-manager@4.1.19
+
 ## 5.1.19
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/outdated
 
+## 10.0.13
+
+### Patch Changes
+
+- Updated dependencies [f5621a42c]
+  - @pnpm/manifest-utils@3.1.0
+  - dependency-path@9.2.3
+  - @pnpm/lockfile-utils@4.0.10
+
 ## 10.0.12
 
 ### Patch Changes

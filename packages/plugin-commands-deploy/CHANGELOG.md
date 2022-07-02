@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-deploy
 
+## 1.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.18
+- @pnpm/plugin-commands-installation@10.3.7
+
 ## 1.0.3
 
 ### Patch Changes

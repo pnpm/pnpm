@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/crypto.base32-hash",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Create a base32 hash",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

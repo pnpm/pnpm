@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/which-version-is-pinned",
   "description": "Takes a version spec and returns which version is pinned by it",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

@@ -1,5 +1,29 @@
 # @pnpm/core
 
+## 5.5.7
+
+### Patch Changes
+
+- ff7061929: `pnpm remove <pkg>` should not fail in a workspace that has patches [#4954](https://github.com/pnpm/pnpm/issues/4954#issuecomment-1172858634)
+- Updated dependencies [f5621a42c]
+- Updated dependencies [2bca856e0]
+  - @pnpm/manifest-utils@3.1.0
+  - @pnpm/resolve-dependencies@28.2.0
+  - @pnpm/which-version-is-pinned@3.0.0
+  - @pnpm/crypto.base32-hash@1.0.1
+  - @pnpm/link-bins@7.1.7
+  - dependency-path@9.2.3
+  - @pnpm/build-modules@9.2.4
+  - @pnpm/headless@18.3.6
+  - @pnpm/hoist@6.1.9
+  - @pnpm/filter-lockfile@6.0.11
+  - @pnpm/lockfile-to-pnp@0.5.17
+  - @pnpm/lockfile-utils@4.0.10
+  - @pnpm/lockfile-walker@5.0.10
+  - @pnpm/modules-cleaner@12.0.13
+  - @pnpm/package-requester@18.0.13
+  - @pnpm/prune-lockfile@4.0.11
+
 ## 5.5.6
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/node.fetcher
 
+## 1.0.4
+
+### Patch Changes
+
+- 2105735a0: `pnpm env use` should throw an error on a system that use the MUSL libc.
+
 ## 1.0.3
 
 ### Patch Changes

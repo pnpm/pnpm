@@ -1,5 +1,21 @@
 # pnpm
 
+## 7.5.0
+
+### Minor Changes
+
+- A new value `rolling` for option `save-workspace-protocol`. When selected, pnpm will save workspace versions using a rolling alias (e.g. `"foo": "workspace:^"`) instead of pinning the current version number (e.g. `"foo": "workspace:^1.0.0"`). Usage example, in the root of your workspace, create a `.npmrc` with the following content:
+
+  ```
+  save-workspace-protocol=rolling
+  ```
+
+### Patch Changes
+
+- `pnpm remove <pkg>` should not fail in a workspace that has patches [#4954](https://github.com/pnpm/pnpm/issues/4954#issuecomment-1172858634)
+- The hash of the patch file should be the same on both Windows and POSIX [#4961](https://github.com/pnpm/pnpm/issues/4961).
+- `pnpm env use` should throw an error on a system that use the MUSL libc.
+
 ## 7.4.1
 
 ### Patch Changes

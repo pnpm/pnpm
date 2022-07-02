@@ -1,5 +1,12 @@
 # dependencies-hierarchy
 
+## 11.0.12
+
+### Patch Changes
+
+- dependency-path@9.2.3
+- @pnpm/lockfile-utils@4.0.10
+
 ## 11.0.11
 
 ### Patch Changes
