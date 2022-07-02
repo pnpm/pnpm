@@ -613,11 +613,13 @@ importers:
   packages/crypto.base32-hash:
     specifiers:
       '@pnpm/crypto.base32-hash': workspace:*
+      '@pnpm/prepare': workspace:*
       rfc4648: ^1.5.1
     dependencies:
       rfc4648: 1.5.2
     devDependencies:
       '@pnpm/crypto.base32-hash': 'link:'
+      '@pnpm/prepare': link:../../privatePackages/prepare
 
   packages/default-reporter:
     specifiers:

@@ -34,7 +34,8 @@
     "rfc4648": "^1.5.1"
   },
   "devDependencies": {
-    "@pnpm/crypto.base32-hash": "workspace:*"
+    "@pnpm/crypto.base32-hash": "workspace:*",
+    "@pnpm/prepare": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
