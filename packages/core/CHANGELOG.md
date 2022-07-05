@@ -1,5 +1,66 @@
 # @pnpm/core
 
+## 2.10.0
+
+### Minor Changes
+
+- 6262a8f42: A new setting added: `pnpm.peerDependencyRules.allowAny`. `allowAny` is an array of package name patterns, any peer dependency matching the pattern will be resolved from any version, regardless of the range specified in `peerDependencies`. For instance:
+
+  ```
+  {
+    "pnpm": {
+      "peerDependencyRules": {
+        "allowAny": ["@babel/*", "eslint"]
+      }
+    }
+  }
+  ```
+
+  The above setting will mute any warnings about peer dependency version mismatches related to `@babel/` packages or `eslint`.
+
+- 6262a8f42: The `pnpm.peerDependencyRules.ignoreMissing` setting may accept package name patterns. So you may ignore any missing `@babel/*` peer dependencies, for instance:
+
+  ```json
+  {
+    "pnpm": {
+      "peerDependencyRules": {
+        "ignoreMissing": ["@babel/*"]
+      }
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [6262a8f42]
+  - @pnpm/types@7.11.0
+  - @pnpm/build-modules@8.0.9
+  - @pnpm/core-loggers@6.1.5
+  - dependency-path@8.0.13
+  - @pnpm/filter-lockfile@5.0.22
+  - @pnpm/get-context@5.3.9
+  - @pnpm/headless@17.3.17
+  - @pnpm/hoist@5.2.19
+  - @pnpm/lifecycle@12.1.10
+  - @pnpm/link-bins@6.2.15
+  - @pnpm/lockfile-file@4.3.2
+  - @pnpm/lockfile-to-pnp@0.4.56
+  - @pnpm/lockfile-utils@3.2.4
+  - @pnpm/lockfile-walker@4.0.17
+  - @pnpm/manifest-utils@2.1.11
+  - @pnpm/modules-cleaner@11.0.29
+  - @pnpm/modules-yaml@9.1.2
+  - @pnpm/normalize-registries@2.0.14
+  - @pnpm/package-requester@17.0.6
+  - @pnpm/prune-lockfile@3.0.18
+  - @pnpm/read-package-json@5.0.13
+  - @pnpm/read-project-manifest@2.0.14
+  - @pnpm/remove-bins@2.0.15
+  - @pnpm/v6.resolve-dependencies@26.0.1
+  - @pnpm/resolver-base@8.1.7
+  - @pnpm/store-controller-types@12.0.3
+  - @pnpm/symlink-dependency@4.0.14
+
 ## 2.9.9
 
 ### Patch Changes

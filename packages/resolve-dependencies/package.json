@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/v6.resolve-dependencies",
-  "version": "26.0.0",
+  "version": "26.0.1",
   "description": "Resolves dependency graph of a package",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

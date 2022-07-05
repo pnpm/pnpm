@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-rebuild
 
+## 5.4.31
+
+### Patch Changes
+
+- Updated dependencies [6262a8f42]
+  - @pnpm/types@7.11.0
+  - @pnpm/cli-utils@0.6.61
+  - @pnpm/config@13.14.2
+  - @pnpm/core-loggers@6.1.5
+  - dependency-path@8.0.13
+  - @pnpm/find-workspace-packages@3.1.53
+  - @pnpm/get-context@5.3.9
+  - @pnpm/lifecycle@12.1.10
+  - @pnpm/link-bins@6.2.15
+  - @pnpm/lockfile-utils@3.2.4
+  - @pnpm/lockfile-walker@4.0.17
+  - @pnpm/modules-yaml@9.1.2
+  - @pnpm/normalize-registries@2.0.14
+  - @pnpm/sort-packages@2.1.9
+  - @pnpm/store-controller-types@12.0.3
+  - @pnpm/store-connection-manager@3.2.23
+
 ## 5.4.30
 
 ### Patch Changes

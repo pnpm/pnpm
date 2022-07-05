@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "5.2.18",
+  "version": "5.2.19",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

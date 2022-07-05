@@ -1,5 +1,13 @@
 # @pnpm/node.fetcher
 
+## 0.1.2
+
+### Patch Changes
+
+- @pnpm/fetcher-base@11.2.1
+- @pnpm/package-store@12.2.1
+- @pnpm/tarball-fetcher@9.3.20
+
 ## 0.1.1
 
 ### Patch Changes

@@ -1,5 +1,35 @@
 # pnpm
 
+## 6.33.0
+
+### Minor Changes
+
+- A new setting added: `pnpm.peerDependencyRules.allowAny`. `allowAny` is an array of package name patterns, any peer dependency matching the pattern will be resolved from any version, regardless of the range specified in `peerDependencies`. For instance:
+
+  ```
+  {
+    "pnpm": {
+      "peerDependencyRules": {
+        "allowAny": ["@babel/*", "eslint"]
+      }
+    }
+  }
+  ```
+
+  The above setting will mute any warnings about peer dependency version mismatches related to `@babel/` packages or `eslint`.
+
+- The `pnpm.peerDependencyRules.ignoreMissing` setting may accept package name patterns. So you may ignore any missing `@babel/*` peer dependencies, for instance:
+
+  ```json
+  {
+    "pnpm": {
+      "peerDependencyRules": {
+        "ignoreMissing": ["@babel/*"]
+      }
+    }
+  }
+  ```
+
 ## 6.32.25
 
 ### Patch Changes

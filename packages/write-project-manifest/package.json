@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/write-project-manifest",
-  "version": "2.0.11",
+  "version": "2.0.12",
   "description": "Write a project manifest (called package.json in most cases)",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

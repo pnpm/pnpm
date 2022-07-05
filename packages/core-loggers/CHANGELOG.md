@@ -1,5 +1,12 @@
 # @pnpm/core-loggers
 
+## 6.1.5
+
+### Patch Changes
+
+- Updated dependencies [6262a8f42]
+  - @pnpm/types@7.11.0
+
 ## 6.1.4
 
 ### Patch Changes

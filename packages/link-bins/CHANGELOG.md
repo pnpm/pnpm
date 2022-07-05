@@ -1,5 +1,16 @@
 # @pnpm/link-bins
 
+## 6.2.15
+
+### Patch Changes
+
+- Updated dependencies [6262a8f42]
+  - @pnpm/types@7.11.0
+  - @pnpm/manifest-utils@2.1.11
+  - @pnpm/package-bins@5.0.13
+  - @pnpm/read-package-json@5.0.13
+  - @pnpm/read-project-manifest@2.0.14
+
 ## 6.2.14
 
 ### Patch Changes
