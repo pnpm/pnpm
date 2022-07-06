@@ -19,7 +19,7 @@
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
-    "mem": "^8.0.0",
+    "mem": "^8.1.1",
     "path-temp": "^2.0.0"
   },
   "devDependencies": {

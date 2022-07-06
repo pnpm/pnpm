@@ -41,7 +41,7 @@
     "@pnpm/git-fetcher": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-defer": "^3.0.0",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

@@ -37,7 +37,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "chalk": "^4.1.0",
+    "chalk": "^4.1.2",
     "path-absolute": "^1.0.1"
   },
   "peerDependencies": {

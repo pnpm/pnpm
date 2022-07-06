@@ -40,9 +40,9 @@
   "devDependencies": {
     "@pnpm/store-path": "workspace:*",
     "@types/is-windows": "^1.0.0",
-    "@types/node": "^14.17.32",
-    "@types/rimraf": "^3.0.0",
-    "@types/touch": "^3.1.1",
+    "@types/node": "^14.18.21",
+    "@types/rimraf": "^3.0.2",
+    "@types/touch": "^3.1.2",
     "is-windows": "^1.0.2",
     "rimraf": "^3.0.2"
   },

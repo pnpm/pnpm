@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@pnpm/git-utils": "workspace:*",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

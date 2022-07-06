@@ -50,9 +50,9 @@
     "@pnpm/store-connection-manager": "workspace:*",
     "escape-string-regexp": "^4.0.0",
     "ramda": "^0.28.0",
-    "render-help": "^1.0.1",
+    "render-help": "^1.0.2",
     "safe-execa": "^0.1.1",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"

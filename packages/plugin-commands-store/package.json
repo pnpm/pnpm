@@ -41,12 +41,12 @@
     "@pnpm/registry-mock": "2.20.0",
     "@types/archy": "0.0.31",
     "@types/ramda": "0.28.14",
-    "@types/ssri": "^7.1.0",
+    "@types/ssri": "^7.1.1",
     "@zkochan/rimraf": "^2.1.2",
     "execa": "npm:safe-execa@^0.1.1",
     "path-exists": "^4.0.0",
     "ssri": "^8.0.1",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:*",
@@ -68,7 +68,7 @@
     "load-json-file": "^6.2.0",
     "p-filter": "^2.1.0",
     "ramda": "^0.28.0",
-    "render-help": "^1.0.1"
+    "render-help": "^1.0.2"
   },
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"

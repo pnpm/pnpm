@@ -37,12 +37,12 @@
   "dependencies": {
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
-    "semver": "^7.3.4",
+    "semver": "^7.3.7",
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
-    "@types/semver": "^7.3.4"
+    "@types/semver": "^7.3.10"
   }
 }

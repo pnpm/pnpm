@@ -31,13 +31,13 @@
   "dependencies": {
     "@pnpm/types": "workspace:*",
     "archy": "^1.0.0",
-    "chalk": "^4.1.0",
+    "chalk": "^4.1.2",
     "cli-columns": "^4.0.0"
   },
   "devDependencies": {
     "@pnpm/render-peer-issues": "workspace:*",
     "@types/archy": "0.0.31",
-    "strip-ansi": "^6.0.0"
+    "strip-ansi": "^6.0.1"
   },
   "exports": {
     ".": "./lib/index.js"

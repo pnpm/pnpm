@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "fast-glob": "^3.2.4",
+    "fast-glob": "^3.2.11",
     "p-filter": "^2.1.0"
   },
   "funding": "https://opencollective.com/pnpm",

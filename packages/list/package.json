@@ -40,19 +40,19 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "archy": "^1.0.0",
-    "chalk": "^4.1.0",
+    "chalk": "^4.1.2",
     "cli-columns": "^4.0.0",
     "dependencies-hierarchy": "workspace:*",
     "p-limit": "^3.1.0",
     "ramda": "^0.28.0",
-    "semver": "^7.3.4"
+    "semver": "^7.3.7"
   },
   "devDependencies": {
     "@pnpm/list": "workspace:*",
     "@pnpm/logger": "^4.0.0",
     "@types/archy": "0.0.31",
     "@types/ramda": "0.28.14",
-    "@types/semver": "^7.3.4"
+    "@types/semver": "^7.3.10"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

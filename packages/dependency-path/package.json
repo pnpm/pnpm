@@ -34,10 +34,10 @@
     "@pnpm/crypto.base32-hash": "workspace:*",
     "@pnpm/types": "workspace:*",
     "encode-registry": "^3.0.0",
-    "semver": "^7.3.4"
+    "semver": "^7.3.7"
   },
   "devDependencies": {
-    "@types/semver": "^7.3.4",
+    "@types/semver": "^7.3.10",
     "dependency-path": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",

@@ -34,13 +34,13 @@
     "@pnpm/lockfile-types": "workspace:*",
     "comver-to-semver": "^1.0.0",
     "ramda": "^0.28.0",
-    "semver": "^7.3.4"
+    "semver": "^7.3.7"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/merge-lockfile-changes": "workspace:*",
     "@types/ramda": "0.28.14",
-    "@types/semver": "^7.3.4"
+    "@types/semver": "^7.3.10"
   },
   "exports": {
     ".": "./lib/index.js"

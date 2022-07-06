@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@types/ssri": "^7.1.0"
+    "@types/ssri": "^7.1.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {

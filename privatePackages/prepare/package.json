@@ -13,7 +13,7 @@
   },
   "devDependencies": {
     "@pnpm/prepare": "workspace:*",
-    "@types/node": "^14.17.32"
+    "@types/node": "^14.18.21"
   },
   "scripts": {
     "lint": "tslint -c ../../tslint.json --project .",

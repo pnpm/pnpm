@@ -34,13 +34,13 @@
     "@pnpm/types": "workspace:*",
     "detect-libc": "^2.0.1",
     "execa": "npm:safe-execa@^0.1.1",
-    "mem": "^8.0.0",
-    "semver": "^7.3.4"
+    "mem": "^8.1.1",
+    "semver": "^7.3.7"
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-is-installable": "workspace:*",
-    "@types/semver": "^7.3.4"
+    "@types/semver": "^7.3.10"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

@@ -40,11 +40,11 @@
     "@pnpm/registry-mock": "2.20.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.14",
-    "@types/semver": "^7.3.4",
-    "@types/sinon": "^10.0.6",
+    "@types/semver": "^7.3.10",
+    "@types/sinon": "^10.0.12",
     "execa": "npm:safe-execa@^0.1.1",
     "path-exists": "^4.0.0",
-    "sinon": "^11.1.1",
+    "sinon": "^11.1.2",
     "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
@@ -70,13 +70,13 @@
     "camelcase-keys": "^6.2.2",
     "dependency-path": "workspace:*",
     "load-json-file": "^6.2.0",
-    "mem": "^8.0.0",
+    "mem": "^8.1.1",
     "p-limit": "^3.1.0",
     "ramda": "^0.28.0",
     "read-ini-file": "^3.1.0",
-    "render-help": "^1.0.1",
+    "render-help": "^1.0.2",
     "run-groups": "^3.0.1",
-    "semver": "^7.3.4"
+    "semver": "^7.3.7"
   },
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"

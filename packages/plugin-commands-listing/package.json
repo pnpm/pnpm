@@ -41,7 +41,7 @@
     "@pnpm/registry-mock": "2.20.0",
     "@types/ramda": "0.28.14",
     "execa": "npm:safe-execa@^0.1.1",
-    "strip-ansi": "^6.0.0",
+    "strip-ansi": "^6.0.1",
     "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
@@ -52,7 +52,7 @@
     "@pnpm/list": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "^0.28.0",
-    "render-help": "^1.0.1"
+    "render-help": "^1.0.2"
   },
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"

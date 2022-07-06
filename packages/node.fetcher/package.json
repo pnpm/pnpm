@@ -40,10 +40,10 @@
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
-    "adm-zip": "^0.5.5",
+    "adm-zip": "^0.5.9",
     "detect-libc": "^2.0.1",
     "rename-overwrite": "^4.0.2",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "devDependencies": {
     "@pnpm/node.fetcher": "workspace:*",

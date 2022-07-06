@@ -42,7 +42,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
     "camelcase-keys": "^6.2.2",
-    "render-help": "^1.0.1"
+    "render-help": "^1.0.2"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

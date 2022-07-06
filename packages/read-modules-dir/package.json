@@ -29,7 +29,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "dependencies": {
-    "graceful-fs": "^4.2.6"
+    "graceful-fs": "^4.2.10"
   },
   "devDependencies": {
     "@pnpm/read-modules-dir": "workspace:*",

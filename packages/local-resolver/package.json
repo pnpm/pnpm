@@ -43,7 +43,7 @@
   "devDependencies": {
     "@pnpm/local-resolver": "workspace:*",
     "@types/normalize-path": "^3.0.0",
-    "@types/ssri": "^7.1.0"
+    "@types/ssri": "^7.1.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

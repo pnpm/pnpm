@@ -52,7 +52,7 @@
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
-    "render-help": "^1.0.1"
+    "render-help": "^1.0.2"
   },
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"

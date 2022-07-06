@@ -46,7 +46,7 @@
     "@pnpm/read-projects-context": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
-    "is-ci": "^3.0.0",
+    "is-ci": "^3.0.1",
     "path-absolute": "^1.0.1",
     "ramda": "^0.28.0"
   },
