@@ -160,8 +160,10 @@ export default async function linkPackages (
   if (opts.symlink) {
     await Promise.all(projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
       const deps = opts.dependenciesByProjectId[id]
+      const importerFromLockfile = newCurrentLockfile.importers[id]
       await Promise.all([
         ...Object.entries(deps)
+          .filter(([rootAlias]) => importerFromLockfile.specifiers[rootAlias])
           .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
           .filter(({ depGraphNode }) => depGraphNode)
           .map(async ({ rootAlias, depGraphNode }) => {

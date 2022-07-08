@@ -12,6 +12,7 @@ test('auto install non-optional peer dependencies', async () => {
     '/abc-optional-peers/1.0.0_peer-a@1.0.0',
     '/peer-a/1.0.0',
   ])
+  await project.hasNot('peer-a')
 })
 
 test('auto install the common peer dependency', async () => {
