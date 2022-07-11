@@ -7,10 +7,8 @@ export default function (streamParser: Object) {
   let logNum = 0
 
   // Clean up previous log files
-  if (global['writeDebugLogFile'] !== false) {
-    if (fs.existsSync(LOG_FILENAME)) fs.unlinkSync(LOG_FILENAME)
-    if (fs.existsSync(path.basename(LOG_FILENAME))) fs.unlinkSync(path.basename(LOG_FILENAME))
-  }
+  if (fs.existsSync(LOG_FILENAME)) fs.unlinkSync(LOG_FILENAME)
+  if (fs.existsSync(path.basename(LOG_FILENAME))) fs.unlinkSync(path.basename(LOG_FILENAME))
 
   streamParser['on']('data', function (logObj: Object) {
     if (isUsefulLog(logObj) && global['writeDebugLogFile'] !== false) {
@@ -20,6 +18,16 @@ export default function (streamParser: Object) {
       const dest = fs.existsSync(path.dirname(LOG_FILENAME)) ? LOG_FILENAME : path.basename(LOG_FILENAME)
       fs.appendFileSync(dest, jsonLogs)
       logNum++
+    }
+  })
+
+  process.on('exit', (code: number) => {
+    if (code === 0 || global['writeDebugLogFile'] === false) {
+      // it might not exist, so it is OK if it fails
+      try {
+        if (fs.existsSync(LOG_FILENAME)) fs.unlinkSync(LOG_FILENAME)
+        if (fs.existsSync(path.basename(LOG_FILENAME))) fs.unlinkSync(path.basename(LOG_FILENAME))
+      } catch (err) {}
     }
   })
 
