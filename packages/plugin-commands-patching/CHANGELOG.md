@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-patching
 
+## 1.1.0
+
+### Minor Changes
+
+- f0cd8b0f3: Avoid retaining a copy of the contents of files deleted during patching [#5003](https://github.com/pnpm/pnpm/issues/5003).
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@10.3.8
+
 ## 1.0.7
 
 ### Patch Changes

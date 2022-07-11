@@ -1,5 +1,13 @@
 # pnpm
 
+## 7.5.1
+
+### Patch Changes
+
+- Don't symlink the autoinstalled peer dependencies to the root of `node_modules` [#4988](https://github.com/pnpm/pnpm/issues/4988).
+- Avoid retaining a copy of the contents of files deleted during patching [#5003](https://github.com/pnpm/pnpm/issues/5003).
+- Remove file reporter logging. Logged file is not useful [#4949](https://github.com/pnpm/pnpm/issues/4949).
+
 ## 7.5.0
 
 ### Minor Changes

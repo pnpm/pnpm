@@ -1,5 +1,11 @@
 # @pnpm/core
 
+## 5.5.8
+
+### Patch Changes
+
+- d89bb43f2: Don't symlink the autoinstalled peer dependencies to the root of `node_modules` [#4988](https://github.com/pnpm/pnpm/issues/4988).
+
 ## 5.5.7
 
 ### Patch Changes
