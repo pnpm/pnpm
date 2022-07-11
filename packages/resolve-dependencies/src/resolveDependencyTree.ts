@@ -1,23 +1,25 @@
-import { Lockfile } from '@pnpm/lockfile-types'
+import { Lockfile, PatchFile } from '@pnpm/lockfile-types'
 import { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
+  AllowedDeprecatedVersions,
   ProjectManifest,
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import partition from 'ramda/src/partition'
+import partition from 'ramda/src/partition.js'
 import { WantedDependency } from './getNonDevWantedDependencies'
 import {
   createNodeId,
   nodeIdContainsSequence,
 } from './nodeIdUtils'
-import resolveDependencies, {
+import {
   ChildrenByParentDepPath,
   DependenciesTree,
   LinkedDependency,
   PendingNode,
   PkgAddress,
+  resolveRootDependencies,
   ResolvedPackage,
   ResolvedPackagesByDepPath,
 } from './resolveDependencies'
@@ -52,7 +54,9 @@ export interface ImporterToResolveGeneric<T> extends Importer<T> {
 }
 
 export interface ResolveDependenciesOptions {
+  autoInstallPeers?: boolean
   allowBuild?: (pkgName: string) => boolean
+  allowedDeprecatedVersions: AllowedDeprecatedVersions
   currentLockfile: Lockfile
   dryRun: boolean
   engineStrict: boolean
@@ -63,6 +67,7 @@ export interface ResolveDependenciesOptions {
   }
   nodeVersion: string
   registries: Registries
+  patchedDependencies?: Record<string, PatchFile>
   pnpmVersion: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
@@ -84,7 +89,9 @@ export default async function<T> (
 
   const wantedToBeSkippedPackageIds = new Set<string>()
   const ctx = {
+    autoInstallPeers: opts.autoInstallPeers === true,
     allowBuild: opts.allowBuild,
+    allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
     childrenByParentDepPath: {} as ChildrenByParentDepPath,
     currentLockfile: opts.currentLockfile,
     defaultTag: opts.tag,
@@ -97,6 +104,7 @@ export default async function<T> (
     lockfileDir: opts.lockfileDir,
     nodeVersion: opts.nodeVersion,
     outdatedDependencies: {} as {[pkgId: string]: string},
+    patchedDependencies: opts.patchedDependencies,
     pendingNodes: [] as PendingNode[],
     pnpmVersion: opts.pnpmVersion,
     preferWorkspacePackages: opts.preferWorkspacePackages,
@@ -108,6 +116,7 @@ export default async function<T> (
     updateMatching: opts.updateMatching,
     virtualStoreDir: opts.virtualStoreDir,
     wantedLockfile: opts.wantedLockfile,
+    appliedPatches: new Set<string>(),
   }
 
   await Promise.all(importers.map(async (importer) => {
@@ -133,7 +142,9 @@ export default async function<T> (
         nodeId: `>${importer.id}>`,
         optional: false,
         depPath: importer.id,
+        rootDir: importer.rootDir,
       },
+      parentPkgAliases: {},
       proceed,
       resolvedDependencies: {
         ...projectSnapshot.dependencies,
@@ -143,7 +154,7 @@ export default async function<T> (
       updateDepth: -1,
       workspacePackages: opts.workspacePackages,
     }
-    directDepsByImporterId[importer.id] = await resolveDependencies(
+    directDepsByImporterId[importer.id] = await resolveRootDependencies(
       resolveCtx,
       importer.preferredVersions ?? {},
       importer.wantedDependencies,
@@ -208,6 +219,7 @@ export default async function<T> (
     resolvedImporters,
     resolvedPackagesByDepPath: ctx.resolvedPackagesByDepPath,
     wantedToBeSkippedPackageIds,
+    appliedPatches: ctx.appliedPatches,
   }
 }
 
@@ -230,7 +242,7 @@ function buildTree (
       childrenNodeIds[child.alias] = child.depPath
       continue
     }
-    if (nodeIdContainsSequence(parentNodeId, parentId, child.depPath)) {
+    if (nodeIdContainsSequence(parentNodeId, parentId, child.depPath) || parentId === child.depPath) {
       continue
     }
     const childNodeId = createNodeId(parentNodeId, child.depPath)

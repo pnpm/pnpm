@@ -1,19 +1,14 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { Config, types as allTypes } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { InstallOptions, mutateModules } from '@pnpm/core'
-import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import { cliOptionsTypes } from './install'
 
 export const rcOptionsTypes = cliOptionsTypes
 
-export function cliOptionsTypes () {
-  return pick([
-    'production',
-    'dev',
-  ], allTypes)
-}
+export { cliOptionsTypes }
 
 export const commandNames = ['fetch']
 

@@ -1,5 +1,89 @@
 # @pnpm/pnpmfile
 
+## 2.0.6
+
+### Patch Changes
+
+- Updated dependencies [d01c32355]
+- Updated dependencies [8e5b77ef6]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/lockfile-types@4.2.0
+  - @pnpm/types@8.4.0
+  - @pnpm/core-loggers@7.0.5
+
+## 2.0.5
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-types@4.1.0
+  - @pnpm/core-loggers@7.0.4
+
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/lockfile-types@4.0.3
+
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/core-loggers@7.0.2
+  - @pnpm/lockfile-types@4.0.2
+
+## 2.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/core-loggers@7.0.1
+  - @pnpm/lockfile-types@4.0.1
+
+## 2.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+
+## 2.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/lockfile-types@4.0.0
+
+## 1.2.6
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+
+## 1.2.5
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+  - @pnpm/types@7.10.0
+  - @pnpm/core-loggers@6.1.4
+
 ## 1.2.4
 
 ### Patch Changes

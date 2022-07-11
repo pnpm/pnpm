@@ -1,5 +1,98 @@
 # @pnpm/remove-bins
 
+## 3.0.7
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
+## 3.0.6
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/core-loggers@7.0.5
+  - @pnpm/package-bins@6.0.5
+  - @pnpm/read-package-json@6.0.6
+
+## 3.0.5
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/package-bins@6.0.4
+  - @pnpm/read-package-json@6.0.5
+
+## 3.0.4
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/package-bins@6.0.3
+  - @pnpm/read-package-json@6.0.4
+
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/core-loggers@7.0.2
+  - @pnpm/package-bins@6.0.2
+  - @pnpm/read-package-json@6.0.3
+
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/core-loggers@7.0.1
+  - @pnpm/package-bins@6.0.1
+  - @pnpm/read-package-json@6.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/read-package-json@6.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/package-bins@6.0.0
+  - @pnpm/read-package-json@6.0.0
+
+## 2.0.14
+
+### Patch Changes
+
+- @pnpm/read-package-json@5.0.12
+
+## 2.0.13
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/core-loggers@6.1.4
+  - @pnpm/package-bins@5.0.12
+  - @pnpm/read-package-json@5.0.11
+
 ## 2.0.12
 
 ### Patch Changes

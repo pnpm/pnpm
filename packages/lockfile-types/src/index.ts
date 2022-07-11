@@ -1,4 +1,6 @@
-import { DependenciesMeta } from '@pnpm/types'
+import { DependenciesMeta, PatchFile } from '@pnpm/types'
+
+export { PatchFile }
 
 export interface Lockfile {
   importers: Record<string, ProjectSnapshot>
@@ -8,6 +10,7 @@ export interface Lockfile {
   onlyBuiltDependencies?: string[]
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
+  patchedDependencies?: Record<string, PatchFile>
 }
 
 export interface ProjectSnapshot {
@@ -66,6 +69,7 @@ export interface PackageSnapshot {
   dev?: true | false
   optional?: true
   requiresBuild?: true
+  patched?: true
   prepare?: true
   hasBin?: true
   // name and version are only needed
@@ -90,6 +94,7 @@ export interface PackageSnapshot {
   }
   os?: string[]
   cpu?: string[]
+  libc?: string[]
   deprecated?: string
 }
 

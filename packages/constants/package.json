@@ -1,11 +1,11 @@
 {
   "name": "@pnpm/constants",
-  "version": "5.0.0",
+  "version": "6.1.0",
   "description": "pnpm constants",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "files": [
     "lib",
@@ -30,6 +30,9 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/constants#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/constants": "workspace:5.0.0"
+    "@pnpm/constants": "workspace:*"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

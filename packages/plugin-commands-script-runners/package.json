@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "4.6.0",
+  "version": "5.0.25",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,14 +9,14 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
     "test:jest": "jest",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7778 pnpm run test:e2e",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7780 pnpm run test:e2e",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "start": "tsc --watch",
@@ -34,37 +34,44 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-script-runners#readme",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:4.4.20",
+    "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-script-runners": "workspace:4.6.0",
+    "@pnpm/plugin-commands-script-runners": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "2.12.1",
-    "@types/ramda": "0.27.39",
+    "@pnpm/registry-mock": "2.20.0",
+    "@types/is-windows": "^1.0.0",
+    "@types/ramda": "0.28.14",
     "is-windows": "^1.0.2",
     "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.6.48",
-    "@pnpm/command": "workspace:2.0.0",
-    "@pnpm/common-cli-options-help": "workspace:0.8.0",
-    "@pnpm/config": "workspace:13.13.0",
-    "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/lifecycle": "workspace:12.1.5",
-    "@pnpm/read-project-manifest": "workspace:2.0.11",
-    "@pnpm/sort-packages": "workspace:2.1.7",
-    "@pnpm/store-path": "^5.0.0",
-    "@pnpm/types": "workspace:7.9.0",
+    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/command": "workspace:*",
+    "@pnpm/common-cli-options-help": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/lifecycle": "workspace:*",
+    "@pnpm/package-bins": "workspace:*",
+    "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/sort-packages": "workspace:*",
+    "@pnpm/store-path": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "execa": "npm:safe-execa@^0.1.1",
     "p-limit": "^3.1.0",
     "path-exists": "^4.0.0",
     "path-name": "^1.0.0",
-    "ramda": "^0.27.1",
+    "ramda": "^0.28.0",
     "realpath-missing": "^1.1.0",
-    "render-help": "^1.0.1"
+    "render-help": "^1.0.2"
   },
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

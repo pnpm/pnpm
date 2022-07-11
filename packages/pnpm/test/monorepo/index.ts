@@ -150,6 +150,54 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
   await projects['project-1'].has('project-4')
 })
 
+test('linking a package inside a monorepo with --link-workspace-packages when installing new dependencies and save-workspace-protocol is "rolling"', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+    {
+      name: 'project-3',
+      version: '3.0.0',
+    },
+    {
+      name: 'project-4',
+      version: '4.0.0',
+    },
+  ])
+
+  await fs.writeFile(
+    '.npmrc',
+    [
+      'link-workspace-packages = true',
+      'save-workspace-protocol = "rolling"',
+    ].join('\n'),
+    'utf8')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  process.chdir('project-1')
+
+  await execPnpm(['add', 'project-2'])
+
+  await execPnpm(['add', 'project-3', '--save-dev'])
+
+  await execPnpm(['add', 'project-4', '--save-optional', '--no-save-workspace-protocol'])
+
+  const { default: pkg } = await import(path.resolve('package.json'))
+
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
+  expect(pkg?.devDependencies).toStrictEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
+  expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
+
+  await projects['project-1'].has('project-2')
+  await projects['project-1'].has('project-3')
+  await projects['project-1'].has('project-4')
+})
+
 test('linking a package inside a monorepo with --link-workspace-packages', async () => {
   const projects = preparePackages([
     {
@@ -326,14 +374,14 @@ test('test-pattern is respected by the test script', async () => {
     },
   ])
 
-  await execa('git', ['init'])
+  await execa('git', ['init', '--initial-branch=main'])
   await execa('git', ['config', 'user.email', 'x@y.z'])
   await execa('git', ['config', 'user.name', 'xyz'])
   await execa('git', ['init', '--bare'], { cwd: remote })
   await execa('git', ['add', '*'])
   await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
   await execa('git', ['remote', 'add', 'origin', remote])
-  await execa('git', ['push', '-u', 'origin', 'master'])
+  await execa('git', ['push', '-u', 'origin', 'main'])
 
   await fs.writeFile('project-2/file.js', '')
   await fs.writeFile('project-4/different-pattern.js', '')
@@ -347,7 +395,7 @@ test('test-pattern is respected by the test script', async () => {
 
   await execPnpm(['install'])
 
-  await execPnpm(['recursive', 'test', '--filter', '...[origin/master]'])
+  await execPnpm(['recursive', 'test', '--filter', '...[origin/main]'])
 
   const { default: output } = await import(path.resolve('..', 'output.json'))
   expect(output.sort()).toStrictEqual(['project-2', 'project-4'])
@@ -379,14 +427,14 @@ test('changed-files-ignore-pattern is respected', async () => {
     },
   ])
 
-  await execa('git', ['init'])
+  await execa('git', ['init', '--initial-branch=main'])
   await execa('git', ['config', 'user.email', 'x@y.z'])
   await execa('git', ['config', 'user.name', 'xyz'])
   await execa('git', ['init', '--bare'], { cwd: remote })
   await execa('git', ['add', '*'])
   await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
   await execa('git', ['remote', 'add', 'origin', remote])
-  await execa('git', ['push', '-u', 'origin', 'master'])
+  await execa('git', ['push', '-u', 'origin', 'main'])
 
   const npmrcLines = []
   await fs.writeFile('project-2-change-is-never-ignored/index.js', '')
@@ -427,7 +475,7 @@ test('changed-files-ignore-pattern is respected', async () => {
     const result = await execPnpmSync(
       [
         '--filter',
-        '[origin/master]',
+        '[origin/main]',
         opts?.overrideChangedFilesIgnorePatternWithNoPattern
           ? '--changed-files-ignore-pattern='
           : '',
@@ -935,7 +983,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
       },
     },
@@ -1030,7 +1078,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=',
+          integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
         },
       },
       '/is-positive/1.0.0': {
@@ -1039,7 +1087,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
       },
     },
@@ -1189,7 +1237,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     })
   }
 
-  await execPnpm(['uninstall', 'ajv'])
+  await execPnpm(['uninstall', 'ajv', '--no-strict-peer-dependencies'])
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
@@ -1499,31 +1547,172 @@ test('pnpm run should include the workspace root when --workspace-root option is
   expect(await exists('project/test')).toBeTruthy()
 })
 
-test('peer dependencies are resolved from the root of the workspace when a new dependency is added to a workspace project', async () => {
-  const projects = preparePackages([
+test('pnpm run should include the workspace root when include-workspace-root is set to true', async () => {
+  preparePackages([
     {
       location: '.',
       package: {
-        name: 'project-1',
-        version: '1.0.0',
-
-        dependencies: {
-          ajv: '4.10.4',
+        scripts: {
+          test: "node -e \"require('fs').writeFileSync('test','','utf8')\"",
         },
       },
     },
     {
-      name: 'project-2',
+      name: 'project',
       version: '1.0.0',
+      scripts: {
+        test: "node -e \"require('fs').writeFileSync('test','','utf8')\"",
+      },
     },
   ])
 
+  await fs.writeFile('.npmrc', 'include-workspace-root', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  process.chdir('project-2')
+  await execPnpm(['-r', 'test'])
 
-  await execPnpm(['add', 'ajv-keywords@1.5.0', '--strict-peer-dependencies'])
+  expect(await exists('test')).toBeTruthy()
+  expect(await exists('project/test')).toBeTruthy()
+})
 
-  const lockfile = await projects['project-1'].readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/ajv-keywords/1.5.0_ajv@4.10.4'])
+test('legacy directory filtering', async () => {
+  preparePackages([
+    {
+      location: 'packages/project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+      },
+    },
+    {
+      location: 'packages/project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  process.chdir('..')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await fs.writeFile('.npmrc', 'legacy-dir-filtering=true', 'utf8')
+
+  const { stdout } = execPnpmSync(['list', '--filter=./packages', '--parseable', '--depth=-1'])
+  const output = stdout.toString()
+  expect(output).toContain('project-1')
+  expect(output).toContain('project-2')
+})
+
+test('directory filtering', async () => {
+  preparePackages([
+    {
+      location: 'packages/project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+      },
+    },
+    {
+      location: 'packages/project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+      },
+    },
+  ])
+
+  process.chdir('..')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  {
+    const { stdout } = execPnpmSync(['list', '--filter=./packages', '--parseable', '--depth=-1'])
+    expect(stdout.toString()).toEqual('')
+  }
+  {
+    const { stdout } = execPnpmSync(['list', '--filter=./packages/**', '--parseable', '--depth=-1'])
+    const output = stdout.toString()
+    expect(output).toContain('project-1')
+    expect(output).toContain('project-2')
+  }
+})
+
+test('run --stream should prefix with dir name', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+      },
+    },
+    {
+      location: 'packages/alfa',
+      package: {
+        name: 'alfa',
+        version: '1.0.0',
+        scripts: {
+          test: "node -e \"console.log('OK')\"",
+        },
+      },
+    },
+    {
+      location: 'packages/beta',
+      package: {
+        name: 'beta',
+        version: '1.0.0',
+        scripts: {
+          test: "node -e \"console.log('OK')\"",
+        },
+      },
+    },
+  ])
+
+  process.chdir('..')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  const result = execPnpmSync([
+    '--stream',
+    '--filter',
+    'alfa',
+    '--filter',
+    'beta',
+    'run',
+    'test',
+  ])
+  expect(
+    result.stdout
+      .toString()
+      .trim()
+      .split('\n')
+      .sort()
+      .join('\n')
+  ).toBe(
+    `Scope: 2 of 3 workspace projects
+packages/alfa test$ node -e "console.log('OK')"
+packages/alfa test: Done
+packages/alfa test: OK
+packages/beta test$ node -e "console.log('OK')"
+packages/beta test: Done
+packages/beta test: OK`
+  )
+  const singleResult = execPnpmSync([
+    '--stream',
+    '--filter',
+    'alfa',
+    'run',
+    'test',
+  ])
+  expect(
+    singleResult.stdout
+      .toString()
+      .trim()
+      .split('\n')
+      .sort()
+      .join('\n')
+  ).toBe(
+    `packages/alfa test$ node -e "console.log('OK')"
+packages/alfa test: Done
+packages/alfa test: OK`
+  )
 })

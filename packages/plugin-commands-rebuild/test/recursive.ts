@@ -34,23 +34,25 @@ test('pnpm recursive rebuild', async () => {
     pnpmBin,
     'install',
     '-r',
-    '--registry',
-    REGISTRY,
-    '--store-dir',
-    path.resolve(DEFAULT_OPTS.storeDir),
+    `--registry=${REGISTRY}`,
+    `--store-dir=${path.resolve(DEFAULT_OPTS.storeDir)}`,
+    `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
     '--ignore-scripts',
-  ])
+    '--reporter=append-only',
+  ], { stdout: 'inherit' })
 
   await projects['project-1'].hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   await projects['project-1'].hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall.js')
   await projects['project-2'].hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   await projects['project-2'].hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 
+  const modulesManifest = await projects['project-1'].readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
+    registries: modulesManifest!.registries!,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, [])

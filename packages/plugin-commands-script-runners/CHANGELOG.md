@@ -1,5 +1,307 @@
 # @pnpm/plugin-commands-script-runners
 
+## 5.0.25
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@10.3.8
+
+## 5.0.24
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.18
+- @pnpm/plugin-commands-installation@10.3.7
+
+## 5.0.23
+
+### Patch Changes
+
+- Updated dependencies [b55b3782d]
+  - @pnpm/plugin-commands-installation@10.3.6
+
+## 5.0.22
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/cli-utils@0.7.17
+  - @pnpm/config@15.5.1
+  - @pnpm/plugin-commands-installation@10.3.5
+  - @pnpm/lifecycle@13.1.2
+
+## 5.0.21
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@10.3.4
+
+## 5.0.20
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@10.3.3
+
+## 5.0.19
+
+### Patch Changes
+
+- Updated dependencies [f48d46ef6]
+  - @pnpm/config@15.5.0
+  - @pnpm/cli-utils@0.7.16
+  - @pnpm/plugin-commands-installation@10.3.2
+
+## 5.0.18
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/plugin-commands-installation@10.3.1
+  - @pnpm/cli-utils@0.7.15
+  - @pnpm/config@15.4.1
+  - @pnpm/lifecycle@13.1.1
+  - @pnpm/package-bins@6.0.5
+  - @pnpm/read-package-json@6.0.6
+  - @pnpm/read-project-manifest@3.0.6
+  - @pnpm/sort-packages@3.0.6
+
+## 5.0.17
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [949e84ba8]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/types@8.3.0
+  - @pnpm/lifecycle@13.1.0
+  - @pnpm/plugin-commands-installation@10.3.0
+  - @pnpm/config@15.4.0
+  - @pnpm/cli-utils@0.7.14
+  - @pnpm/package-bins@6.0.4
+  - @pnpm/read-package-json@6.0.5
+  - @pnpm/read-project-manifest@3.0.5
+  - @pnpm/sort-packages@3.0.5
+
+## 5.0.16
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/config@15.3.0
+  - @pnpm/plugin-commands-installation@10.2.0
+  - @pnpm/cli-utils@0.7.13
+  - @pnpm/lifecycle@13.0.5
+  - @pnpm/package-bins@6.0.3
+  - @pnpm/read-package-json@6.0.4
+  - @pnpm/read-project-manifest@3.0.4
+  - @pnpm/sort-packages@3.0.4
+
+## 5.0.15
+
+### Patch Changes
+
+- Updated dependencies [25798aad1]
+  - @pnpm/config@15.2.1
+  - @pnpm/cli-utils@0.7.12
+  - @pnpm/plugin-commands-installation@10.1.1
+
+## 5.0.14
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/types@8.1.0
+  - @pnpm/plugin-commands-installation@10.1.0
+  - @pnpm/config@15.2.0
+  - @pnpm/cli-utils@0.7.11
+  - @pnpm/lifecycle@13.0.4
+  - @pnpm/package-bins@6.0.2
+  - @pnpm/read-package-json@6.0.3
+  - @pnpm/read-project-manifest@3.0.3
+  - @pnpm/sort-packages@3.0.3
+
+## 5.0.13
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@10.0.12
+
+## 5.0.12
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.10
+- @pnpm/plugin-commands-installation@10.0.11
+- @pnpm/lifecycle@13.0.3
+- @pnpm/config@15.1.4
+
+## 5.0.11
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@10.0.10
+
+## 5.0.10
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+  - @pnpm/cli-utils@0.7.9
+  - @pnpm/plugin-commands-installation@10.0.9
+
+## 5.0.9
+
+### Patch Changes
+
+- Updated dependencies [05159665d]
+  - @pnpm/config@15.1.3
+  - @pnpm/cli-utils@0.7.8
+  - @pnpm/plugin-commands-installation@10.0.8
+
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [190f0b331]
+  - @pnpm/plugin-commands-installation@10.0.7
+  - @pnpm/cli-utils@0.7.7
+
+## 5.0.7
+
+### Patch Changes
+
+- dddff3709: `pnpm dlx` shouldn't modify the lockfile in the current working directory [#4743](https://github.com/pnpm/pnpm/issues/4743).
+
+## 5.0.6
+
+### Patch Changes
+
+- Updated dependencies [af22c6c4f]
+  - @pnpm/config@15.1.2
+  - @pnpm/cli-utils@0.7.6
+  - @pnpm/plugin-commands-installation@10.0.6
+
+## 5.0.5
+
+### Patch Changes
+
+- 53f653340: `pnpm dlx` should work with git-hosted packages. For example: `pnpm dlx gengjiawen/envinfo` [#4714](https://github.com/pnpm/pnpm/issues/4714).
+- 325ed5cba: fix(plugin-commands-script-runner): run --stream should prefix with dir name
+- Updated dependencies [52b0576af]
+  - @pnpm/cli-utils@0.7.5
+  - @pnpm/plugin-commands-installation@10.0.5
+
+## 5.0.4
+
+### Patch Changes
+
+- 8ef4db94c: `pnpm dlx` should work when the bin name of the executed package isn't the same as the package name [#4672](https://github.com/pnpm/pnpm/issues/4672).
+- Updated dependencies [0075fcd23]
+- Updated dependencies [0075fcd23]
+- Updated dependencies [8ef4db94c]
+  - @pnpm/plugin-commands-installation@10.0.4
+  - @pnpm/cli-utils@0.7.4
+  - @pnpm/config@15.1.1
+
+## 5.0.3
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/cli-utils@0.7.3
+  - @pnpm/config@15.1.1
+  - @pnpm/lifecycle@13.0.2
+  - @pnpm/read-project-manifest@3.0.2
+  - @pnpm/sort-packages@3.0.2
+
+## 5.0.2
+
+### Patch Changes
+
+- c5caf8334: `pnpm dlx` should work without a configure global directory.
+- Updated dependencies [e05dcc48a]
+  - @pnpm/config@15.1.0
+  - @pnpm/cli-utils@0.7.2
+
+## 5.0.1
+
+### Patch Changes
+
+- 275c40523: When `pnpm exec` is running a command in a workspace project, the commands that are in the dependencies of that workspace project should be in the PATH [#4481](https://github.com/pnpm/pnpm/issues/4481).
+- Updated dependencies [2109f2e8e]
+- Updated dependencies [cdeb65203]
+- Updated dependencies [8dac029ef]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - @pnpm/sort-packages@3.0.1
+  - @pnpm/store-path@6.0.0
+  - @pnpm/config@15.0.0
+  - @pnpm/cli-utils@0.7.1
+  - @pnpm/lifecycle@13.0.1
+  - @pnpm/error@3.0.1
+  - @pnpm/read-project-manifest@3.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- c35ac786b: When using `pnpm run <script>`, all command line arguments after the script name are now passed to the script's argv, even `--`. For example, `pnpm run echo --hello -- world` will now pass `--hello -- world` to the `echo` script's argv. Previously flagged arguments (e.g. `--silent`) were interpreted as pnpm arguments unless `--` came before it.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [542014839]
+- Updated dependencies [d999a0801]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/types@8.0.0
+  - @pnpm/command@3.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/lifecycle@13.0.0
+  - @pnpm/read-project-manifest@3.0.0
+  - @pnpm/sort-packages@3.0.0
+  - @pnpm/cli-utils@0.7.0
+  - @pnpm/common-cli-options-help@0.9.0
+
+## 4.6.2
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/cli-utils@0.6.50
+  - @pnpm/config@13.13.2
+  - @pnpm/read-project-manifest@2.0.13
+  - @pnpm/lifecycle@12.1.7
+
+## 4.6.1
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/cli-utils@0.6.49
+  - @pnpm/config@13.13.1
+  - @pnpm/lifecycle@12.1.6
+  - @pnpm/read-project-manifest@2.0.12
+  - @pnpm/sort-packages@2.1.8
+
 ## 4.6.0
 
 ### Minor Changes
@@ -395,7 +697,7 @@
 
 ### Minor Changes
 
-- 376c30485: New command added for running packages in a tempory environment: `pnpm dlx <command> ...`
+- 376c30485: New command added for running packages in a temporary environment: `pnpm dlx <command> ...`
 
 ### Patch Changes
 

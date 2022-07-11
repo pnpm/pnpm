@@ -1,7 +1,7 @@
 import PnpmError from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, mutateModules } from '@pnpm/core'
-import { createObjectChecksum } from '@pnpm/core/lib/install/index'
+import { createObjectChecksum } from '../../lib/install/index'
 import {
   testDefaults,
 } from '../utils'
@@ -100,4 +100,17 @@ test('manifests are extended with fields specified by packageExtensions', async 
       'Cannot perform a frozen installation because the lockfile needs updates'
     )
   )
+})
+
+test('manifests are patched by extensions from the compatibility database', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {},
+    ['debug@4.0.0'],
+    await testDefaults()
+  )
+
+  const lockfile = await project.readLockfile()
+  expect(lockfile.packages['/debug/4.0.0'].peerDependenciesMeta?.['supports-color']?.optional).toBe(true)
 })

@@ -1,5 +1,172 @@
 # @pnpm/build-modules
 
+## 9.2.4
+
+### Patch Changes
+
+- @pnpm/link-bins@7.1.7
+
+## 9.2.3
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/link-bins@7.1.6
+  - @pnpm/lifecycle@13.1.2
+
+## 9.2.2
+
+### Patch Changes
+
+- 00c12fa53: Throw an error if a patch couldn't be applied.
+
+## 9.2.1
+
+### Patch Changes
+
+- 8e5b77ef6: Update the dependencies when a patch file is modified.
+- 285ff09ba: Patch packages even when scripts are ignored.
+- Updated dependencies [285ff09ba]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/calc-dep-state@3.0.1
+  - @pnpm/types@8.4.0
+  - @pnpm/core-loggers@7.0.5
+  - @pnpm/lifecycle@13.1.1
+  - @pnpm/link-bins@7.1.5
+  - @pnpm/read-package-json@6.0.6
+  - @pnpm/store-controller-types@14.0.1
+
+## 9.2.0
+
+### Minor Changes
+
+- 2a34b21ce: Support packages patching.
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/lifecycle@13.1.0
+  - @pnpm/calc-dep-state@3.0.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/link-bins@7.1.4
+  - @pnpm/read-package-json@6.0.5
+
+## 9.1.5
+
+### Patch Changes
+
+- 0abfe1718: `requiresBuild` may be of any value. This is just a workaround to a typing issue. `requiresBuild` will always be boolean.
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/lifecycle@13.0.5
+  - @pnpm/link-bins@7.1.3
+  - @pnpm/read-package-json@6.0.4
+  - @pnpm/store-controller-types@13.0.4
+
+## 9.1.4
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/core-loggers@7.0.2
+  - @pnpm/lifecycle@13.0.4
+  - @pnpm/link-bins@7.1.2
+  - @pnpm/read-package-json@6.0.3
+  - @pnpm/store-controller-types@13.0.3
+
+## 9.1.3
+
+### Patch Changes
+
+- 6756c2b02: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- Updated dependencies [6756c2b02]
+  - @pnpm/store-controller-types@13.0.2
+  - @pnpm/lifecycle@13.0.3
+  - @pnpm/link-bins@7.1.1
+
+## 9.1.2
+
+### Patch Changes
+
+- 971f2c4a5: Improve the performance of the build sequence calculation step.
+
+## 9.1.1
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/core-loggers@7.0.1
+  - @pnpm/lifecycle@13.0.2
+  - @pnpm/link-bins@7.1.1
+  - @pnpm/read-package-json@6.0.2
+  - @pnpm/store-controller-types@13.0.1
+
+## 9.1.0
+
+### Minor Changes
+
+- 8fa95fd86: New option added: `extraNodePaths`.
+
+### Patch Changes
+
+- 2109f2e8e: Use `@pnpm/graph-sequencer` instead of `graph-sequencer`.
+- Updated dependencies [8fa95fd86]
+  - @pnpm/link-bins@7.1.0
+  - @pnpm/lifecycle@13.0.1
+  - @pnpm/calc-dep-state@2.0.1
+  - @pnpm/read-package-json@6.0.1
+
+## 9.0.0
+
+### Major Changes
+
+- 516859178: `extendNodePath` removed.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+- Updated dependencies [d999a0801]
+  - @pnpm/link-bins@7.0.0
+  - @pnpm/types@8.0.0
+  - @pnpm/calc-dep-state@2.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/lifecycle@13.0.0
+  - @pnpm/read-package-json@6.0.0
+  - @pnpm/store-controller-types@13.0.0
+
+## 8.0.3
+
+### Patch Changes
+
+- Updated dependencies [5c525db13]
+  - @pnpm/store-controller-types@12.0.0
+  - @pnpm/link-bins@6.2.12
+  - @pnpm/read-package-json@5.0.12
+  - @pnpm/lifecycle@12.1.7
+
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/core-loggers@6.1.4
+  - @pnpm/lifecycle@12.1.6
+  - @pnpm/link-bins@6.2.11
+  - @pnpm/read-package-json@5.0.11
+  - @pnpm/store-controller-types@11.0.12
+
 ## 8.0.1
 
 ### Patch Changes

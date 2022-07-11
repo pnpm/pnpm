@@ -1,11 +1,11 @@
 {
   "name": "@pnpm/types",
-  "version": "7.9.0",
+  "version": "8.4.0",
   "description": "Basic types used by pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "files": [
     "lib",
@@ -30,6 +30,9 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/types#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/types": "workspace:7.9.0"
+    "@pnpm/types": "workspace:*"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

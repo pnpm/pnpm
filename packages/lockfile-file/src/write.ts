@@ -5,11 +5,12 @@ import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
 import yaml from 'js-yaml'
-import equals from 'ramda/src/equals'
-import isEmpty from 'ramda/src/isEmpty'
+import equals from 'ramda/src/equals.js'
+import isEmpty from 'ramda/src/isEmpty.js'
 import writeFileAtomicCB from 'write-file-atomic'
 import logger from './logger'
 import { sortLockfileKeys } from './sortLockfileKeys'
+import { getWantedLockfileName } from './lockfileName'
 
 async function writeFileAtomic (filename: string, data: string) {
   return new Promise<void>((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err?: Error) => (err != null) ? reject(err) : resolve()))
@@ -28,9 +29,12 @@ export async function writeWantedLockfile (
   wantedLockfile: Lockfile,
   opts?: {
     forceSharedFormat?: boolean
+    useGitBranchLockfile?: boolean
+    mergeGitBranchLockfiles?: boolean
   }
 ) {
-  return writeLockfile(WANTED_LOCKFILE, pkgPath, wantedLockfile, opts)
+  const wantedLockfileName: string = await getWantedLockfileName(opts)
+  return writeLockfile(wantedLockfileName, pkgPath, wantedLockfile, opts)
 }
 
 export async function writeCurrentLockfile (
@@ -119,6 +123,9 @@ export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolea
   if ((lockfileToSave.overrides != null) && isEmpty(lockfileToSave.overrides)) {
     delete lockfileToSave.overrides
   }
+  if ((lockfileToSave.patchedDependencies != null) && isEmpty(lockfileToSave.patchedDependencies)) {
+    delete lockfileToSave.patchedDependencies
+  }
   if (lockfileToSave.neverBuiltDependencies != null) {
     if (isEmpty(lockfileToSave.neverBuiltDependencies)) {
       delete lockfileToSave.neverBuiltDependencies
@@ -142,9 +149,12 @@ export default async function writeLockfiles (
     wantedLockfileDir: string
     currentLockfile: Lockfile
     currentLockfileDir: string
+    useGitBranchLockfile?: boolean
+    mergeGitBranchLockfiles?: boolean
   }
 ) {
-  const wantedLockfilePath = path.join(opts.wantedLockfileDir, WANTED_LOCKFILE)
+  const wantedLockfileName: string = await getWantedLockfileName(opts)
+  const wantedLockfilePath = path.join(opts.wantedLockfileDir, wantedLockfileName)
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
   // empty lockfile is not saved

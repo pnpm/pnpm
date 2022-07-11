@@ -1,5 +1,203 @@
 # @pnpm/package-requester
 
+## 18.0.13
+
+### Patch Changes
+
+- dependency-path@9.2.3
+
+## 18.0.12
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
+## 18.0.11
+
+### Patch Changes
+
+- Updated dependencies [fc581d371]
+  - dependency-path@9.2.2
+
+## 18.0.10
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/cafs@4.0.7
+  - @pnpm/core-loggers@7.0.5
+  - dependency-path@9.2.1
+  - @pnpm/fetcher-base@13.0.1
+  - @pnpm/package-is-installable@6.0.7
+  - @pnpm/read-package-json@6.0.6
+  - @pnpm/resolver-base@9.0.5
+  - @pnpm/store-controller-types@14.0.1
+
+## 18.0.9
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/types@8.3.0
+  - dependency-path@9.2.0
+  - @pnpm/fetcher-base@13.0.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/cafs@4.0.6
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/package-is-installable@6.0.6
+  - @pnpm/read-package-json@6.0.5
+  - @pnpm/resolver-base@9.0.4
+
+## 18.0.8
+
+### Patch Changes
+
+- 0abfe1718: Use `safe-promise-defer`.
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [725636a90]
+- Updated dependencies [0abfe1718]
+  - @pnpm/types@8.2.0
+  - dependency-path@9.1.4
+  - @pnpm/fetcher-base@12.1.0
+  - @pnpm/cafs@4.0.5
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/package-is-installable@6.0.5
+  - @pnpm/read-package-json@6.0.4
+  - @pnpm/resolver-base@9.0.3
+  - @pnpm/store-controller-types@13.0.4
+
+## 18.0.7
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/cafs@4.0.4
+  - @pnpm/core-loggers@7.0.2
+  - dependency-path@9.1.3
+  - @pnpm/fetcher-base@12.0.3
+  - @pnpm/package-is-installable@6.0.4
+  - @pnpm/read-package-json@6.0.3
+  - @pnpm/resolver-base@9.0.2
+  - @pnpm/store-controller-types@13.0.3
+
+## 18.0.6
+
+### Patch Changes
+
+- 6756c2b02: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- Updated dependencies [6756c2b02]
+  - @pnpm/cafs@4.0.3
+  - @pnpm/fetcher-base@12.0.2
+  - @pnpm/store-controller-types@13.0.2
+
+## 18.0.5
+
+### Patch Changes
+
+- Updated dependencies [c57695550]
+  - dependency-path@9.1.2
+
+## 18.0.4
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/package-is-installable@6.0.3
+
+## 18.0.3
+
+### Patch Changes
+
+- Updated dependencies [cadefe5b6]
+  - @pnpm/cafs@4.0.2
+
+## 18.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/core-loggers@7.0.1
+  - dependency-path@9.1.1
+  - @pnpm/fetcher-base@12.0.1
+  - @pnpm/package-is-installable@6.0.2
+  - @pnpm/read-package-json@6.0.2
+  - @pnpm/resolver-base@9.0.1
+  - @pnpm/store-controller-types@13.0.1
+  - @pnpm/cafs@4.0.1
+
+## 18.0.1
+
+### Patch Changes
+
+- 7cdca5ef2: Don't check the integrity of the store with the package version from the lockfile, when the package was updated [#4580](https://github.com/pnpm/pnpm/pull/4580).
+- Updated dependencies [0a70aedb1]
+  - dependency-path@9.1.0
+  - @pnpm/error@3.0.1
+  - @pnpm/package-is-installable@6.0.1
+  - @pnpm/read-package-json@6.0.1
+
+## 18.0.0
+
+### Major Changes
+
+- 9c22c063e: Local dependencies referenced through the `file:` protocol are hard linked (not symlinked) [#4408](https://github.com/pnpm/pnpm/pull/4408). If you need to symlink a dependency, use the `link:` protocol instead.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/cafs@4.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/graceful-fs@2.0.0
+  - @pnpm/package-is-installable@6.0.0
+  - @pnpm/read-package-json@6.0.0
+  - @pnpm/resolver-base@9.0.0
+  - @pnpm/store-controller-types@13.0.0
+
+## 17.0.0
+
+### Major Changes
+
+- 5c525db13: Changes to RequestPackageOptions: currentPkg.name and currentPkg.version removed.
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+- Updated dependencies [5c525db13]
+  - @pnpm/error@2.1.0
+  - @pnpm/store-controller-types@12.0.0
+  - @pnpm/package-is-installable@5.0.13
+  - @pnpm/read-package-json@5.0.12
+  - @pnpm/cafs@3.0.15
+
+## 16.0.2
+
+### Patch Changes
+
+- 800fb2836: Ignore case, when verifying package name in the store [#4367](https://github.com/pnpm/pnpm/issues/4367).
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/core-loggers@6.1.4
+  - dependency-path@8.0.11
+  - @pnpm/fetcher-base@11.1.6
+  - @pnpm/package-is-installable@5.0.12
+  - @pnpm/read-package-json@5.0.11
+  - @pnpm/resolver-base@8.1.6
+  - @pnpm/store-controller-types@11.0.12
+  - @pnpm/cafs@3.0.14
+
 ## 16.0.1
 
 ### Patch Changes

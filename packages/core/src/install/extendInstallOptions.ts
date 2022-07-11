@@ -7,6 +7,7 @@ import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registr
 import { WorkspacePackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
+  AllowedDeprecatedVersions,
   PackageExtension,
   PeerDependencyRules,
   ReadPackageHook,
@@ -16,6 +17,7 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
 export interface StrictInstallOptions {
+  autoInstallPeers: boolean
   forceSharedLockfile: boolean
   frozenLockfile: boolean
   frozenLockfileIfExists: boolean
@@ -23,12 +25,14 @@ export interface StrictInstallOptions {
   extraBinPaths: string[]
   hoistingLimits?: HoistingLimits
   useLockfile: boolean
+  useGitBranchLockfile: boolean
+  mergeGitBranchLockfiles: boolean
   linkWorkspacePackagesDepth: number
   lockfileOnly: boolean
   fixLockfile: boolean
   ignorePackageManifest: boolean
   preferFrozenLockfile: boolean
-  saveWorkspaceProtocol: boolean
+  saveWorkspaceProtocol: boolean | 'rolling'
   preferWorkspacePackages: boolean
   preserveWorkspaceProtocol: boolean
   scriptsPrependNodePath: boolean | 'warn-only'
@@ -48,10 +52,10 @@ export interface StrictInstallOptions {
   rawConfig: object
   verifyStoreIntegrity: boolean
   engineStrict: boolean
-  neverBuiltDependencies: string[]
+  neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
   nodeExecPath?: string
-  nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
+  nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion: string
   packageExtensions: Record<string, PackageExtension>
   packageManager: {
@@ -85,6 +89,7 @@ export interface StrictInstallOptions {
   enableModulesDir: boolean
   modulesCacheMaxAge: number
   peerDependencyRules: PeerDependencyRules
+  allowedDeprecatedVersions: AllowedDeprecatedVersions
 
   publicHoistPattern: string[] | undefined
   hoistPattern: string[] | undefined
@@ -95,6 +100,7 @@ export interface StrictInstallOptions {
 
   global: boolean
   globalBin?: string
+  patchedDependencies?: Record<string, string>
 }
 
 export type InstallOptions =
@@ -107,6 +113,8 @@ const defaults = async (opts: InstallOptions) => {
     version: pnpmPkgJson.version,
   }
   return {
+    allowedDeprecatedVersions: {},
+    autoInstallPeers: false,
     childConcurrency: 5,
     depth: 0,
     enablePnp: false,
@@ -131,7 +139,6 @@ const defaults = async (opts: InstallOptions) => {
     },
     lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
     lockfileOnly: false,
-    neverBuiltDependencies: [] as string[],
     nodeVersion: process.version,
     nodeLinker: 'isolated',
     overrides: {},
@@ -155,7 +162,7 @@ const defaults = async (opts: InstallOptions) => {
     symlink: true,
     storeController: opts.storeController,
     storeDir: opts.storeDir,
-    strictPeerDependencies: false,
+    strictPeerDependencies: true,
     tag: 'latest',
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||
@@ -163,6 +170,8 @@ const defaults = async (opts: InstallOptions) => {
       process.getuid() !== 0,
     update: false,
     useLockfile: true,
+    useGitBranchLockfile: false,
+    mergeGitBranchLockfiles: false,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     verifyStoreIntegrity: true,
     workspacePackages: {},

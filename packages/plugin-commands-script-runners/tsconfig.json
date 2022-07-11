@@ -34,10 +34,22 @@
       "path": "../lifecycle"
     },
     {
+      "path": "../package-bins"
+    },
+    {
+      "path": "../plugin-commands-installation"
+    },
+    {
+      "path": "../read-package-json"
+    },
+    {
       "path": "../read-project-manifest"
     },
     {
       "path": "../sort-packages"
+    },
+    {
+      "path": "../store-path"
     },
     {
       "path": "../types"

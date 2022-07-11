@@ -6,14 +6,15 @@ import PnpmError from '@pnpm/error'
 import runLifecycleHooks, { RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import runNpm from '@pnpm/run-npm'
 import { ProjectManifest } from '@pnpm/types'
+import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
 import { prompt } from 'enquirer'
 import rimraf from '@zkochan/rimraf'
-import pick from 'ramda/src/pick'
+import pick from 'ramda/src/pick.js'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
+import tempy from 'tempy'
 import * as pack from './pack'
 import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
-import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
 
 export function rcOptionsTypes () {
   return pick([
@@ -116,6 +117,15 @@ export async function handler (
     }
     const branches = opts.publishBranch ? [opts.publishBranch] : ['master', 'main']
     const currentBranch = await getCurrentBranch()
+    if (currentBranch === null) {
+      throw new PnpmError(
+        'GIT_UNKNOWN_BRANCH',
+        `The Git HEAD may not attached to any branch, but your "publish-branch" is set to "${branches.join('|')}".`,
+        {
+          hint: GIT_CHECKS_HINT,
+        }
+      )
+    }
     if (!branches.includes(currentBranch)) {
       const { confirm } = await prompt({
         message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". \
@@ -177,23 +187,21 @@ Do you want to continue?`,
     }
   }
 
+  // We have to publish the tarball from another location.
+  // Otherwise, npm would publish the package with the package.json file
+  // from the current working directory, ignoring the package.json file
+  // that was generated and packed to the tarball.
+  const packDestination = tempy.directory()
   const tarballName = await pack.handler({
     ...opts,
     dir,
+    packDestination,
   })
-  const tarballDir = path.dirname(path.join(dir, tarballName))
-  const localNpmrc = path.join(tarballDir, '.npmrc')
-  const copyNpmrc = !existsSync(localNpmrc) && opts.workspaceDir && existsSync(path.join(opts.workspaceDir, '.npmrc'))
-  if (copyNpmrc && opts.workspaceDir) {
-    await fs.copyFile(path.join(opts.workspaceDir, '.npmrc'), localNpmrc)
-  }
+  await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballName), ...args], {
-    cwd: tarballDir,
+    cwd: packDestination,
   })
-  await rimraf(path.join(dir, tarballName))
-  if (copyNpmrc) {
-    await rimraf(localNpmrc)
-  }
+  await rimraf(packDestination)
 
   if (status != null && status !== 0) {
     return { exitCode: status }
@@ -205,6 +213,25 @@ Do you want to continue?`,
     ], manifest)
   }
   return { manifest }
+}
+
+async function copyNpmrc (
+  { dir, workspaceDir, packDestination }: {
+    dir: string
+    workspaceDir?: string
+    packDestination: string
+  }
+) {
+  const localNpmrc = path.join(dir, '.npmrc')
+  if (existsSync(localNpmrc)) {
+    await fs.copyFile(localNpmrc, path.join(packDestination, '.npmrc'))
+    return
+  }
+  if (!workspaceDir) return
+  const workspaceNpmrc = path.join(workspaceDir, '.npmrc')
+  if (existsSync(workspaceNpmrc)) {
+    await fs.copyFile(workspaceNpmrc, path.join(packDestination, '.npmrc'))
+  }
 }
 
 export async function runScriptsIfPresent (

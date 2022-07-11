@@ -1,5 +1,192 @@
 # @pnpm/modules-cleaner
 
+## 12.0.13
+
+### Patch Changes
+
+- dependency-path@9.2.3
+- @pnpm/filter-lockfile@6.0.11
+- @pnpm/lockfile-utils@4.0.10
+
+## 12.0.12
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/filter-lockfile@6.0.10
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/remove-bins@3.0.7
+
+## 12.0.11
+
+### Patch Changes
+
+- Updated dependencies [fc581d371]
+  - dependency-path@9.2.2
+  - @pnpm/filter-lockfile@6.0.9
+  - @pnpm/lockfile-utils@4.0.8
+
+## 12.0.10
+
+### Patch Changes
+
+- Updated dependencies [d01c32355]
+- Updated dependencies [8e5b77ef6]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/lockfile-types@4.2.0
+  - @pnpm/types@8.4.0
+  - @pnpm/filter-lockfile@6.0.8
+  - @pnpm/lockfile-utils@4.0.7
+  - @pnpm/core-loggers@7.0.5
+  - dependency-path@9.2.1
+  - @pnpm/remove-bins@3.0.6
+  - @pnpm/store-controller-types@14.0.1
+
+## 12.0.9
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-types@4.1.0
+  - dependency-path@9.2.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/filter-lockfile@6.0.7
+  - @pnpm/lockfile-utils@4.0.6
+  - @pnpm/remove-bins@3.0.5
+
+## 12.0.8
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [725636a90]
+  - @pnpm/types@8.2.0
+  - dependency-path@9.1.4
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/filter-lockfile@6.0.6
+  - @pnpm/lockfile-types@4.0.3
+  - @pnpm/lockfile-utils@4.0.5
+  - @pnpm/remove-bins@3.0.4
+  - @pnpm/store-controller-types@13.0.4
+
+## 12.0.7
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/core-loggers@7.0.2
+  - dependency-path@9.1.3
+  - @pnpm/filter-lockfile@6.0.5
+  - @pnpm/lockfile-types@4.0.2
+  - @pnpm/lockfile-utils@4.0.4
+  - @pnpm/remove-bins@3.0.3
+  - @pnpm/store-controller-types@13.0.3
+
+## 12.0.6
+
+### Patch Changes
+
+- Updated dependencies [6756c2b02]
+  - @pnpm/store-controller-types@13.0.2
+
+## 12.0.5
+
+### Patch Changes
+
+- Updated dependencies [c57695550]
+  - dependency-path@9.1.2
+  - @pnpm/filter-lockfile@6.0.4
+  - @pnpm/lockfile-utils@4.0.3
+
+## 12.0.4
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/filter-lockfile@6.0.3
+
+## 12.0.3
+
+### Patch Changes
+
+- 0075fcd23: Do not remove hoisted dependencies, when pruneDirectDependencies is set to `true`.
+
+## 12.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/core-loggers@7.0.1
+  - dependency-path@9.1.1
+  - @pnpm/filter-lockfile@6.0.2
+  - @pnpm/lockfile-types@4.0.1
+  - @pnpm/lockfile-utils@4.0.2
+  - @pnpm/remove-bins@3.0.2
+  - @pnpm/store-controller-types@13.0.1
+
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [688b0eaff]
+  - dependency-path@9.1.0
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/filter-lockfile@6.0.1
+  - @pnpm/remove-bins@3.0.1
+
+## 12.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/filter-lockfile@6.0.0
+  - @pnpm/lockfile-types@4.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/read-modules-dir@4.0.0
+  - @pnpm/remove-bins@3.0.0
+  - @pnpm/store-controller-types@13.0.0
+
+## 11.0.23
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+- Updated dependencies [5c525db13]
+  - @pnpm/filter-lockfile@5.0.19
+  - @pnpm/store-controller-types@12.0.0
+  - @pnpm/remove-bins@2.0.14
+
+## 11.0.22
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+  - @pnpm/types@7.10.0
+  - @pnpm/filter-lockfile@5.0.18
+  - @pnpm/lockfile-utils@3.2.1
+  - @pnpm/core-loggers@6.1.4
+  - dependency-path@8.0.11
+  - @pnpm/remove-bins@2.0.13
+  - @pnpm/store-controller-types@11.0.12
+
 ## 11.0.21
 
 ### Patch Changes

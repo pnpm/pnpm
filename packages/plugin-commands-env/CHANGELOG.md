@@ -1,5 +1,246 @@
 # @pnpm/plugin-commands-env
 
+## 2.1.18
+
+### Patch Changes
+
+- Updated dependencies [2105735a0]
+  - @pnpm/node.fetcher@1.0.4
+  - @pnpm/cli-utils@0.7.18
+  - @pnpm/node.resolver@1.0.4
+
+## 2.1.17
+
+### Patch Changes
+
+- Updated dependencies [5f643f23b]
+  - @pnpm/cli-utils@0.7.17
+  - @pnpm/config@15.5.1
+  - @pnpm/node.fetcher@1.0.3
+  - @pnpm/node.resolver@1.0.3
+
+## 2.1.16
+
+### Patch Changes
+
+- @pnpm/node.fetcher@1.0.2
+- @pnpm/node.resolver@1.0.2
+
+## 2.1.15
+
+### Patch Changes
+
+- Updated dependencies [f48d46ef6]
+  - @pnpm/config@15.5.0
+  - @pnpm/cli-utils@0.7.16
+
+## 2.1.14
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.15
+- @pnpm/config@15.4.1
+- @pnpm/fetch@5.0.5
+- @pnpm/node.fetcher@1.0.1
+- @pnpm/node.resolver@1.0.1
+
+## 2.1.13
+
+### Patch Changes
+
+- d1df380ab: The `use-node-version` setting should work with prerelease Node.js versions. For instance:
+
+  ```
+  use-node-version=18.0.0-rc.3
+  ```
+
+- Updated dependencies [badbab154]
+- Updated dependencies [228dcc3c9]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/node.resolver@1.0.0
+  - @pnpm/node.fetcher@1.0.0
+  - @pnpm/config@15.4.0
+  - @pnpm/cli-utils@0.7.14
+  - @pnpm/fetch@5.0.4
+
+## 2.1.12
+
+### Patch Changes
+
+- Updated dependencies [9d5bf09c0]
+- Updated dependencies [56cf04cb3]
+- Updated dependencies [0abfe1718]
+- Updated dependencies [0abfe1718]
+  - @pnpm/fetch@5.0.3
+  - @pnpm/config@15.3.0
+  - @pnpm/create-cafs-store@1.1.0
+  - @pnpm/fetcher-base@12.1.0
+  - @pnpm/cli-utils@0.7.13
+  - @pnpm/tarball-fetcher@10.0.5
+
+## 2.1.11
+
+### Patch Changes
+
+- Updated dependencies [25798aad1]
+  - @pnpm/config@15.2.1
+  - @pnpm/cli-utils@0.7.12
+
+## 2.1.10
+
+### Patch Changes
+
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/config@15.2.0
+  - @pnpm/cli-utils@0.7.11
+  - @pnpm/fetcher-base@12.0.3
+  - @pnpm/fetch@5.0.2
+  - @pnpm/create-cafs-store@1.0.3
+  - @pnpm/tarball-fetcher@10.0.4
+
+## 2.1.9
+
+### Patch Changes
+
+- Updated dependencies [6756c2b02]
+  - @pnpm/fetcher-base@12.0.2
+  - @pnpm/cli-utils@0.7.10
+  - @pnpm/create-cafs-store@1.0.2
+  - @pnpm/tarball-fetcher@10.0.3
+  - @pnpm/config@15.1.4
+
+## 2.1.8
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+  - @pnpm/cli-utils@0.7.9
+
+## 2.1.7
+
+### Patch Changes
+
+- Updated dependencies [05159665d]
+  - @pnpm/config@15.1.3
+  - @pnpm/cli-utils@0.7.8
+
+## 2.1.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.7
+
+## 2.1.5
+
+### Patch Changes
+
+- Updated dependencies [af22c6c4f]
+  - @pnpm/config@15.1.2
+  - @pnpm/cli-utils@0.7.6
+
+## 2.1.4
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/cli-utils@0.7.5
+
+## 2.1.3
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@1.0.1
+- @pnpm/cli-utils@0.7.4
+- @pnpm/tarball-fetcher@10.0.2
+- @pnpm/config@15.1.1
+
+## 2.1.2
+
+### Patch Changes
+
+- Updated dependencies [1ceb632b1]
+  - @pnpm/create-cafs-store@1.0.0
+  - @pnpm/tarball-fetcher@10.0.2
+  - @pnpm/cli-utils@0.7.3
+  - @pnpm/config@15.1.1
+  - @pnpm/fetcher-base@12.0.1
+  - @pnpm/fetch@5.0.1
+
+## 2.1.1
+
+### Patch Changes
+
+- Updated dependencies [e05dcc48a]
+  - @pnpm/config@15.1.0
+  - @pnpm/cli-utils@0.7.2
+
+## 2.1.0
+
+### Minor Changes
+
+- 8fa95fd86: Path `extraNodePaths` to the bins linker.
+
+### Patch Changes
+
+- Updated dependencies [cdeb65203]
+- Updated dependencies [8dac029ef]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - @pnpm/store-path@6.0.0
+  - @pnpm/config@15.0.0
+  - @pnpm/package-store@13.0.1
+  - @pnpm/cli-utils@0.7.1
+  - @pnpm/error@3.0.1
+  - @pnpm/tarball-fetcher@10.0.1
+
+## 2.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [542014839]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/fetch@5.0.0
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/package-store@13.0.0
+  - @pnpm/tarball-fetcher@10.0.0
+  - @pnpm/cli-utils@0.7.0
+
+## 1.4.14
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/cli-utils@0.6.50
+  - @pnpm/config@13.13.2
+  - @pnpm/tarball-fetcher@9.3.17
+  - @pnpm/package-store@12.1.12
+
+## 1.4.13
+
+### Patch Changes
+
+- @pnpm/package-store@12.1.11
+- @pnpm/cli-utils@0.6.49
+- @pnpm/config@13.13.1
+- @pnpm/fetcher-base@11.1.6
+- @pnpm/tarball-fetcher@9.3.16
+- @pnpm/fetch@4.2.5
+
 ## 1.4.12
 
 ### Patch Changes
@@ -106,7 +347,7 @@
 
 ### Minor Changes
 
-- d16620cf9: If pnpm previously failed to install node when the `use-node-version` option is set, that download and install will now be re-attempted when pnpm is ran again.
+- d16620cf9: If pnpm previously failed to install node when the `use-node-version` option is set, that download and install will now be re-attempted when pnpm is run again.
 
 ### Patch Changes
 

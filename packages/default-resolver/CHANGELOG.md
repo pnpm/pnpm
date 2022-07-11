@@ -1,5 +1,114 @@
 # @pnpm/default-resolver
 
+## 15.0.8
+
+### Patch Changes
+
+- Updated dependencies [449ccef09]
+  - @pnpm/git-resolver@6.1.0
+
+## 15.0.7
+
+### Patch Changes
+
+- @pnpm/local-resolver@8.0.6
+- @pnpm/npm-resolver@13.0.6
+- @pnpm/resolver-base@9.0.5
+- @pnpm/git-resolver@6.0.6
+- @pnpm/tarball-resolver@6.0.5
+
+## 15.0.6
+
+### Patch Changes
+
+- @pnpm/local-resolver@8.0.5
+- @pnpm/npm-resolver@13.0.5
+- @pnpm/resolver-base@9.0.4
+- @pnpm/git-resolver@6.0.5
+- @pnpm/tarball-resolver@6.0.4
+
+## 15.0.5
+
+### Patch Changes
+
+- @pnpm/local-resolver@8.0.4
+- @pnpm/npm-resolver@13.0.4
+- @pnpm/resolver-base@9.0.3
+- @pnpm/git-resolver@6.0.4
+- @pnpm/tarball-resolver@6.0.3
+
+## 15.0.4
+
+### Patch Changes
+
+- @pnpm/local-resolver@8.0.3
+- @pnpm/npm-resolver@13.0.3
+- @pnpm/resolver-base@9.0.2
+- @pnpm/git-resolver@6.0.3
+- @pnpm/tarball-resolver@6.0.2
+
+## 15.0.3
+
+### Patch Changes
+
+- Updated dependencies [0fa446d10]
+  - @pnpm/git-resolver@6.0.2
+
+## 15.0.2
+
+### Patch Changes
+
+- @pnpm/local-resolver@8.0.2
+- @pnpm/npm-resolver@13.0.2
+- @pnpm/resolver-base@9.0.1
+- @pnpm/git-resolver@6.0.1
+- @pnpm/tarball-resolver@6.0.1
+
+## 15.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+- @pnpm/local-resolver@8.0.1
+- @pnpm/npm-resolver@13.0.1
+
+## 15.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [9c22c063e]
+- Updated dependencies [542014839]
+  - @pnpm/local-resolver@8.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/fetching-types@3.0.0
+  - @pnpm/git-resolver@6.0.0
+  - @pnpm/npm-resolver@13.0.0
+  - @pnpm/resolver-base@9.0.0
+  - @pnpm/tarball-resolver@6.0.0
+
+## 14.0.12
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/local-resolver@7.0.8
+  - @pnpm/npm-resolver@12.1.8
+
+## 14.0.11
+
+### Patch Changes
+
+- @pnpm/local-resolver@7.0.7
+- @pnpm/npm-resolver@12.1.7
+- @pnpm/resolver-base@8.1.6
+- @pnpm/git-resolver@5.1.17
+- @pnpm/tarball-resolver@5.0.11
+
 ## 14.0.10
 
 ### Patch Changes

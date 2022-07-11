@@ -1,5 +1,92 @@
 # dependency-path
 
+## 9.2.3
+
+### Patch Changes
+
+- Updated dependencies [2bca856e0]
+  - @pnpm/crypto.base32-hash@1.0.1
+
+## 9.2.2
+
+### Patch Changes
+
+- fc581d371: Remove patchFileHash from createPeersFolderSuffix().
+
+## 9.2.1
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+
+## 9.2.0
+
+### Minor Changes
+
+- c635f9fc1: Add patchFileHash as an optional argument to createPeersFolderSuffix().
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+
+## 9.1.4
+
+### Patch Changes
+
+- 725636a90: Use @pnpm/crypto.base32-hash.
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [725636a90]
+  - @pnpm/types@8.2.0
+  - @pnpm/crypto.base32-hash@1.0.0
+
+## 9.1.3
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+
+## 9.1.2
+
+### Patch Changes
+
+- c57695550: Sanitize the directory names created inside `node_modules/.pnpm` and inside the global store [#4716](https://github.com/pnpm/pnpm/issues/4716)
+
+## 9.1.1
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+
+## 9.1.0
+
+### Minor Changes
+
+- 0a70aedb1: Export new function: createPeersFolderSuffix().
+
+## 9.0.0
+
+### Major Changes
+
+- faf830b8f: Use a nicer path for saving local dependencies in the virtual store.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+
+## 8.0.11
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+
 ## 8.0.10
 
 ### Patch Changes

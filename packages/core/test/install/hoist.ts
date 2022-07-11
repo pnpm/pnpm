@@ -11,8 +11,9 @@ import {
 import rimraf from '@zkochan/rimraf'
 import resolveLinkTarget from 'resolve-link-target'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { addDistTag } from '@pnpm/registry-mock'
 import writeYamlFile from 'write-yaml-file'
-import { addDistTag, testDefaults } from '../utils'
+import { testDefaults } from '../utils'
 
 test('should hoist dependencies', async () => {
   const project = prepareEmpty()
@@ -206,7 +207,7 @@ test('hoistPattern=undefined throws exception when executed on node_modules inst
 })
 
 test('hoist by alias', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   // pkg-with-1-aliased-dep aliases dep-of-pkg-with-1-dep as just "dep"
@@ -392,7 +393,7 @@ test('hoist-pattern: hoist all dependencies to the virtual store node_modules', 
 })
 
 test('hoist when updating in one of the workspace projects', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const workspaceRootManifest = {
     name: 'root',

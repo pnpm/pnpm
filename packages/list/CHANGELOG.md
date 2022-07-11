@@ -1,5 +1,135 @@
 # @pnpm/list
 
+## 7.0.12
+
+### Patch Changes
+
+- dependencies-hierarchy@11.0.12
+
+## 7.0.11
+
+### Patch Changes
+
+- dependencies-hierarchy@11.0.11
+
+## 7.0.10
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- 42c1ea1c0: Update validate-npm-package-name to v4.
+  - dependencies-hierarchy@11.0.10
+
+## 7.0.9
+
+### Patch Changes
+
+- dependencies-hierarchy@11.0.9
+
+## 7.0.8
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - dependencies-hierarchy@11.0.8
+  - @pnpm/read-package-json@6.0.6
+  - @pnpm/read-project-manifest@3.0.6
+
+## 7.0.7
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - dependencies-hierarchy@11.0.7
+  - @pnpm/read-package-json@6.0.5
+  - @pnpm/read-project-manifest@3.0.5
+
+## 7.0.6
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+  - dependencies-hierarchy@11.0.6
+  - @pnpm/read-package-json@6.0.4
+  - @pnpm/read-project-manifest@3.0.4
+
+## 7.0.5
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - dependencies-hierarchy@11.0.5
+  - @pnpm/read-package-json@6.0.3
+  - @pnpm/read-project-manifest@3.0.3
+
+## 7.0.4
+
+### Patch Changes
+
+- dependencies-hierarchy@11.0.4
+
+## 7.0.3
+
+### Patch Changes
+
+- dependencies-hierarchy@11.0.3
+
+## 7.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - dependencies-hierarchy@11.0.2
+  - @pnpm/read-package-json@6.0.2
+  - @pnpm/read-project-manifest@3.0.2
+
+## 7.0.1
+
+### Patch Changes
+
+- dependencies-hierarchy@11.0.1
+- @pnpm/read-package-json@6.0.1
+- @pnpm/read-project-manifest@3.0.1
+
+## 7.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependencies-hierarchy@11.0.0
+  - @pnpm/matcher@3.0.0
+  - @pnpm/read-package-json@6.0.0
+  - @pnpm/read-project-manifest@3.0.0
+
+## 6.3.3
+
+### Patch Changes
+
+- @pnpm/read-package-json@5.0.12
+- @pnpm/read-project-manifest@2.0.13
+- dependencies-hierarchy@10.0.25
+
+## 6.3.2
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - dependencies-hierarchy@10.0.24
+  - @pnpm/read-package-json@5.0.11
+  - @pnpm/read-project-manifest@2.0.12
+
 ## 6.3.1
 
 ### Patch Changes
@@ -271,7 +401,7 @@
 
 ### Patch Changes
 
-- f1dc3c872: format package name in ls comand
+- f1dc3c872: format package name in ls command
 
 ## 5.0.19
 

@@ -11,8 +11,8 @@ import {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store-controller-types'
-import difference from 'ramda/src/difference'
-import isEmpty from 'ramda/src/isEmpty'
+import difference from 'ramda/src/difference.js'
+import isEmpty from 'ramda/src/isEmpty.js'
 import rimraf from '@zkochan/rimraf'
 import {
   DepHierarchy,
@@ -27,6 +27,7 @@ export default async function linkHoistedModules (
   opts: {
     depsStateCache: DepsStateCache
     force: boolean
+    ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
   }
@@ -82,11 +83,13 @@ async function linkAllPkgsInOrder (
   opts: {
     depsStateCache: DepsStateCache
     force: boolean
+    ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
     warn: (message: string) => void
   }
 ) {
+  const _calcDepState = calcDepState.bind(null, graph, opts.depsStateCache)
   await Promise.all(
     Object.entries(hierarchy).map(async ([dir, deps]) => {
       const depNode = graph[dir]
@@ -98,14 +101,18 @@ async function linkAllPkgsInOrder (
         throw err
       }
 
-      let targetEngine: string | undefined
+      let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = calcDepState(dir, graph, opts.depsStateCache)
+        sideEffectsCacheKey = _calcDepState(dir, {
+          isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
+          patchFileHash: depNode.patchFile?.hash,
+        })
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force || depNode.depPath !== prevGraph[dir]?.depPath,
-        targetEngine,
+        requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
+        sideEffectsCacheKey,
       })
       if (importMethod) {
         progressLogger.debug({

@@ -14,7 +14,7 @@ pnpm install -D @pnpm/assert-project
 import test = require('tape')
 import assertProject from '@pnpm/assert-project'
 
-test('...', t => {
+test('...', async t => {
   // ...
   const project = assertProject(t, pathToProject)
 

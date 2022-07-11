@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/graceful-fs",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Promisified graceful-fs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts",
@@ -28,10 +28,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/graceful-fs#readme",
   "dependencies": {
-    "graceful-fs": "^4.2.6"
+    "graceful-fs": "^4.2.10"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/graceful-fs": "workspace:1.0.0"
+    "@pnpm/graceful-fs": "workspace:*",
+    "@types/graceful-fs": "^4.1.5"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

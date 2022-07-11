@@ -33,6 +33,7 @@ const DEFAULT_OPTIONS = {
   },
   lock: true,
   pnpmfile: '.pnpmfile.cjs',
+  pnpmHomeDir: '',
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
   registries: {
@@ -134,7 +135,7 @@ test('interactively update', async () => {
       name: 'is-positive',
     },
     {
-      message: chalk`micromatch  3.0.0 ❯ {redBright.bold 4.0.4} `,
+      message: chalk`micromatch  3.0.0 ❯ {redBright.bold 4.0.5} `,
       name: 'micromatch',
     },
   ])

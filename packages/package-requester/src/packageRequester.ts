@@ -30,8 +30,11 @@ import {
 } from '@pnpm/resolver-base'
 import {
   BundledManifest,
+  BundledManifestFunction,
   FetchPackageToStoreFunction,
+  FetchPackageToStoreOptions,
   PackageResponse,
+  PkgNameVersion,
   RequestPackageFunction,
   RequestPackageOptions,
   WantedDependency,
@@ -43,12 +46,12 @@ import loadJsonFile from 'load-json-file'
 import pDefer from 'p-defer'
 import pathTemp from 'path-temp'
 import pShare from 'promise-share'
-import pick from 'ramda/src/pick'
+import pick from 'ramda/src/pick.js'
 import renameOverwrite from 'rename-overwrite'
 import semver from 'semver'
 import ssri from 'ssri'
 import equalOrSemverEqual from './equalOrSemverEqual'
-import safeDeferredPromise from './safeDeferredPromise'
+import safePromiseDefer from 'safe-promise-defer'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
@@ -193,7 +196,7 @@ async function resolveAndFetch (
 
   const id = pkgId as string
 
-  if (resolution.type === 'directory' && !wantedDependency.injected) {
+  if (resolution.type === 'directory' && !id.startsWith('file:')) {
     if (manifest == null) {
       throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref ?? ''}`)
     }
@@ -242,15 +245,19 @@ async function resolveAndFetch (
     }
   }
 
+  const pkg: PkgNameVersion = pick(['name', 'version'], manifest ?? {})
   const fetchResult = ctx.fetchPackageToStore({
     fetchRawManifest: true,
     force: forceFetch,
     lockfileDir: options.lockfileDir,
     pkg: {
-      ...pick(['name', 'version'], manifest ?? options.currentPkg ?? {}),
+      ...pkg,
       id,
       resolution,
     },
+    expectedPkg: options.expectedPkg?.name != null
+      ? (updated ? { name: options.expectedPkg.name, version: pkg.version } : options.expectedPkg)
+      : pkg,
   })
 
   return {
@@ -273,7 +280,7 @@ async function resolveAndFetch (
 }
 
 interface FetchLock {
-  bundledManifest?: Promise<BundledManifest>
+  bundledManifest?: Promise<BundledManifest | undefined>
   files: Promise<PackageFilesResponse>
   filesIndexFile: string
   finishing: Promise<void>
@@ -297,24 +304,17 @@ function fetchToStore (
     storeDir: string
     verifyStoreIntegrity: boolean
   },
-  opts: {
-    pkg: {
-      name?: string
-      version?: string
-      id: string
-      resolution: Resolution
-    }
-    fetchRawManifest?: boolean
-    force: boolean
-    lockfileDir: string
-  }
+  opts: FetchPackageToStoreOptions
 ): {
-    bundledManifest?: () => Promise<BundledManifest>
+    bundledManifest?: BundledManifestFunction
     filesIndexFile: string
     files: () => Promise<PackageFilesResponse>
     finishing: () => Promise<void>
   } {
-  const targetRelative = depPathToFilename(opts.pkg.id, opts.lockfileDir)
+  if (!opts.pkg.name) {
+    opts.fetchRawManifest = true
+  }
+  const targetRelative = depPathToFilename(opts.pkg.id)
   const target = path.join(ctx.storeDir, targetRelative)
 
   if (!ctx.fetchingLocker.has(opts.pkg.id)) {
@@ -346,7 +346,7 @@ function fetchToStore (
     // affecting previous invocations: so we need to replace the cache.
     //
     // Changing the value of fromStore is needed for correct reporting of `pnpm server`.
-    // Otherwise, if a package was not in store when the server started, it will be always
+    // Otherwise, if a package was not in store when the server started, it will always be
     // reported as "downloaded" instead of "reused".
     files.promise.then((cache) => { // eslint-disable-line
       progressLogger.debug({
@@ -386,6 +386,7 @@ function fetchToStore (
   if (opts.fetchRawManifest && (result.bundledManifest == null)) {
     result.bundledManifest = removeKeyOnFail(
       result.files.then(async (filesResult) => {
+        if (!filesResult.filesIndex['package.json']) return undefined
         if (!filesResult.local) {
           const { integrity, mode } = filesResult.filesIndex['package.json']
           const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
@@ -440,28 +441,28 @@ function fetchToStore (
 
         if ((pkgFilesIndex?.files) != null) {
           const manifest = opts.fetchRawManifest
-            ? safeDeferredPromise<DependencyManifest>()
+            ? safePromiseDefer<DependencyManifest | undefined>()
             : undefined
           if (
             (
               pkgFilesIndex.name != null &&
-              opts.pkg.name != null &&
-              pkgFilesIndex.name !== opts.pkg.name
+              opts.expectedPkg?.name != null &&
+              pkgFilesIndex.name.toLowerCase() !== opts.expectedPkg.name.toLowerCase()
             ) ||
             (
               pkgFilesIndex.version != null &&
-              opts.pkg.version != null &&
+              opts.expectedPkg?.version != null &&
               // We used to not normalize the package versions before writing them to the lockfile and store.
               // So it may happen that the version will be in different formats.
               // For instance, v1.0.0 and 1.0.0
               // Hence, we need to use semver.eq() to compare them.
-              !equalOrSemverEqual(pkgFilesIndex.version, opts.pkg.version)
+              !equalOrSemverEqual(pkgFilesIndex.version, opts.expectedPkg.version)
             )
           ) {
             /* eslint-disable @typescript-eslint/restrict-template-expressions */
             throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', `\
 Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store. \
-This means that the lockfile is broken. Expected package: ${opts.pkg.name}@${opts.pkg.version}. \
+This means that the lockfile is broken. Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
 Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`)
             /* eslint-enable @typescript-eslint/restrict-template-expressions */
           }
@@ -474,7 +475,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
             })
             if (manifest != null) {
               manifest()
-                .then((manifest) => bundledManifest.resolve(normalizeBundledManifest(manifest)))
+                .then((manifest) => bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest)))
                 .catch(bundledManifest.reject)
             }
             finishing.resolve(undefined)
@@ -493,15 +494,15 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       // Tarballs are requested first because they are bigger than metadata files.
       // However, when one line is left available, allow it to be picked up by a metadata request.
       // This is done in order to avoid situations when tarballs are downloaded in chunks
-      // As much tarballs should be downloaded simultaneously as possible.
+      // As many tarballs should be downloaded simultaneously as possible.
       const priority = (++ctx.requestsQueue['counter'] % ctx.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // eslint-disable-line
 
       const fetchManifest = opts.fetchRawManifest
-        ? safeDeferredPromise<DependencyManifest>()
+        ? safePromiseDefer<DependencyManifest | undefined>()
         : undefined
       if (fetchManifest != null) {
         fetchManifest()
-          .then((manifest) => bundledManifest.resolve(normalizeBundledManifest(manifest)))
+          .then((manifest) => bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest)))
           .catch(bundledManifest.reject)
       }
       const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(
@@ -550,11 +551,24 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
               }
             })
         )
-        await writeJsonFile(filesIndexFile, {
-          name: opts.pkg.name,
-          version: opts.pkg.version,
-          files: integrity,
-        })
+        if (opts.pkg.name && opts.pkg.version) {
+          await writeFilesIndexFile(filesIndexFile, {
+            pkg: opts.pkg,
+            files: integrity,
+          })
+        } else {
+          // Even though we could take the package name from the lockfile,
+          // it is not safe because the lockfile may be broken or manually edited.
+          // To be safe, we read the package name from the downloaded package's package.json instead.
+          /* eslint-disable @typescript-eslint/no-floating-promises */
+          bundledManifest.promise
+            .then((manifest) => writeFilesIndexFile(filesIndexFile, {
+              pkg: manifest ?? {},
+              files: integrity,
+            }))
+            .catch()
+          /* eslint-enable @typescript-eslint/no-floating-promises */
+        }
         filesResult = {
           fromStore: false,
           filesIndex: integrity,
@@ -582,6 +596,20 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       }
     }
   }
+}
+
+async function writeFilesIndexFile (
+  filesIndexFile: string,
+  { pkg, files }: {
+    pkg: PkgNameVersion
+    files: Record<string, PackageFileInfo>
+  }
+) {
+  await writeJsonFile(filesIndexFile, {
+    name: pkg.name,
+    version: pkg.version,
+    files,
+  })
 }
 
 async function writeJsonFile (filePath: string, data: Object) {

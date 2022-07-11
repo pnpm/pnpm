@@ -7,13 +7,13 @@ export default (registries: Registries, packageName: string, pref?: string) => {
 
 function getScope (pkgName: string, pref?: string): string | null {
   if (pref?.startsWith('npm:')) {
-    pref = pref.substr(4)
+    pref = pref.slice(4)
     if (pref[0] === '@') {
-      return pref.substr(0, pref.indexOf('/'))
+      return pref.substring(0, pref.indexOf('/'))
     }
   }
   if (pkgName[0] === '@') {
-    return pkgName.substr(0, pkgName.indexOf('/'))
+    return pkgName.substring(0, pkgName.indexOf('/'))
   }
   return null
 }

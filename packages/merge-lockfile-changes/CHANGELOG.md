@@ -1,5 +1,62 @@
 # @pnpm/merge-lockfile-changes
 
+## 3.0.6
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
+## 3.0.5
+
+### Patch Changes
+
+- Updated dependencies [d01c32355]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/lockfile-types@4.2.0
+
+## 3.0.4
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/lockfile-types@4.1.0
+
+## 3.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile-types@4.0.3
+
+## 3.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile-types@4.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/lockfile-types@4.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/lockfile-types@4.0.0
+
+## 2.0.8
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+
 ## 2.0.7
 
 ### Patch Changes

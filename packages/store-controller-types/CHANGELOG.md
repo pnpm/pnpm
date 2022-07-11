@@ -1,5 +1,94 @@
 # @pnpm/store-controller-types
 
+## 14.0.1
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/fetcher-base@13.0.1
+  - @pnpm/resolver-base@9.0.5
+
+## 14.0.0
+
+### Major Changes
+
+- 2a34b21ce: Rename engine and targetEngine fields to sideEffectsCacheKey.
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/types@8.3.0
+  - @pnpm/fetcher-base@13.0.0
+  - @pnpm/resolver-base@9.0.4
+
+## 13.0.4
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [0abfe1718]
+  - @pnpm/types@8.2.0
+  - @pnpm/fetcher-base@12.1.0
+  - @pnpm/resolver-base@9.0.3
+
+## 13.0.3
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/fetcher-base@12.0.3
+  - @pnpm/resolver-base@9.0.2
+
+## 13.0.2
+
+### Patch Changes
+
+- 6756c2b02: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- Updated dependencies [6756c2b02]
+  - @pnpm/fetcher-base@12.0.2
+
+## 13.0.1
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/fetcher-base@12.0.1
+  - @pnpm/resolver-base@9.0.1
+
+## 13.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/resolver-base@9.0.0
+
+## 12.0.0
+
+### Major Changes
+
+- 5c525db13: Changes to RequestPackageOptions: currentPkg.name and currentPkg.version removed.
+
+## 11.0.12
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/fetcher-base@11.1.6
+  - @pnpm/resolver-base@8.1.6
+
 ## 11.0.11
 
 ### Patch Changes

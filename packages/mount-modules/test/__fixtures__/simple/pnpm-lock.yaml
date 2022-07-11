@@ -1,14 +1,14 @@
+lockfileVersion: 5.4
+
 importers:
 
   .:
-    dependencies:
-      '@zkochan/git-config': 0.1.0
-      is-positive: 1.0.0
     specifiers:
       '@zkochan/git-config': 0.1.0
       is-positive: 1.0.0
-
-lockfileVersion: 5.3
+    dependencies:
+      '@zkochan/git-config': 0.1.0
+      is-positive: 1.0.0
 
 packages:
 
@@ -24,6 +24,5 @@ packages:
 
   /is-positive/1.0.0:
     resolution: {integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=}
+    engines: {node: '>=0.10.0'}
     dev: false
-    engines:
-      node: '>=0.10.0'

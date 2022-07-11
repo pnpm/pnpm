@@ -1,5 +1,4 @@
-import resolveDependencies from '@pnpm/resolve-dependencies'
-import getWantedDependencies from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
+import resolveDependencies, { getWantedDependencies } from '@pnpm/resolve-dependencies'
 import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import getContext, { GetContextOptions, ProjectOptions } from '@pnpm/get-context'
 import { createReadPackageHook } from './install'
@@ -11,11 +10,13 @@ export type ListMissingPeersOptions = Partial<GetContextOptions>
 & Pick<InstallOptions, 'hooks'
 | 'linkWorkspacePackagesDepth'
 | 'nodeVersion'
+| 'nodeLinker'
 | 'overrides'
 | 'packageExtensions'
 | 'preferWorkspacePackages'
 | 'saveWorkspaceProtocol'
 | 'storeController'
+| 'useGitBranchLockfile'
 | 'workspacePackages'
 >
 & Pick<GetContextOptions, 'storeDir'>
@@ -30,6 +31,7 @@ export async function getPeerDependencyIssues (
     forceSharedLockfile: false,
     extraBinPaths: [],
     lockfileDir,
+    nodeLinker: opts.nodeLinker ?? 'isolated',
     registries: DEFAULT_REGISTRIES,
     useLockfile: true,
     ...opts,
@@ -47,6 +49,7 @@ export async function getPeerDependencyIssues (
     projectsToResolve,
     {
       currentLockfile: ctx.currentLockfile,
+      allowedDeprecatedVersions: {},
       defaultUpdateDepth: -1,
       dryRun: true,
       engineStrict: false,

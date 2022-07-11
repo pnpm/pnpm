@@ -18,10 +18,6 @@ assignees: ''
 
 ### Code to reproduce the issue:
 
-<!--
-If there was a fatal error also include a gist of your node_modules/.pnpm-debug.log file.
--->
-
 ### Expected behavior:
 
 ### Actual behavior:

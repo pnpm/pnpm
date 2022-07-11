@@ -1,0 +1,8 @@
+lockfileVersion: 5.3
+
+specifiers:
+  is-positive: '1.0.0'
+
+packages:
+  /is-positive/1.0.0:
+    resolution: {integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='}

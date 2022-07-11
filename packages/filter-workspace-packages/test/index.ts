@@ -7,7 +7,7 @@ import execa from 'execa'
 import isCI from 'is-ci'
 import isWindows from 'is-windows'
 import path from 'path'
-import omit from 'ramda/src/omit'
+import omit from 'ramda/src/omit.js'
 import tempy from 'tempy'
 import touchCB from 'touch'
 
@@ -347,7 +347,7 @@ test('select changed packages', async () => {
   }
 
   const workspaceDir = tempy.directory()
-  await execa('git', ['init'], { cwd: workspaceDir })
+  await execa('git', ['init', '--initial-branch=main'], { cwd: workspaceDir })
   await execa('git', ['config', 'user.email', 'x@y.z'], { cwd: workspaceDir })
   await execa('git', ['config', 'user.name', 'xyz'], { cwd: workspaceDir })
   await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
@@ -365,6 +365,11 @@ test('select changed packages', async () => {
   const pkg3Dir = path.join(workspaceDir, 'package-3')
 
   await mkdir(pkg3Dir)
+
+  const pkgKorDir = path.join(workspaceDir, 'package-kor')
+
+  await mkdir(pkgKorDir)
+  await touch(path.join(pkgKorDir, 'fileKor한글.js'))
 
   await execa('git', ['add', '.'], { cwd: workspaceDir })
   await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
@@ -412,6 +417,16 @@ test('select changed packages', async () => {
         },
       },
     },
+    [pkgKorDir]: {
+      dependencies: [],
+      package: {
+        dir: pkgKorDir,
+        manifest: {
+          name: 'package-kor',
+          version: '0.0.0',
+        },
+      },
+    },
     [pkg20Dir]: {
       dependencies: [],
       package: {
@@ -429,7 +444,7 @@ test('select changed packages', async () => {
       diff: 'HEAD~1',
     }], { workspaceDir })
 
-    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg1Dir, pkg2Dir])
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg1Dir, pkg2Dir, pkgKorDir])
   }
   {
     const { selectedProjectsGraph } = await filterWorkspacePackages(pkgsGraph, [{
@@ -453,7 +468,7 @@ test('select changed packages', async () => {
       includeDependents: true,
     }], { workspaceDir, testPattern: ['*/file2.js'] })
 
-    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg1Dir, pkg2Dir])
+    expect(Object.keys(selectedProjectsGraph)).toStrictEqual([pkg1Dir, pkgKorDir, pkg2Dir])
   }
 })
 

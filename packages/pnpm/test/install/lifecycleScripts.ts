@@ -116,24 +116,20 @@ test('dependency should not be added to package.json and lockfile if it was not 
 test('node-gyp is in the PATH', async () => {
   prepare({
     scripts: {
-      test: 'node-gyp --help',
+      test: 'echo $PATH && node-gyp --help',
     },
   })
 
-  // `npm test` adds node-gyp to the PATH
-  // it is removed here to test that pnpm adds it
-  const initialPath = process.env.PATH
-
-  if (typeof initialPath !== 'string') throw new Error('PATH is not defined')
-
-  process.env[PATH] = initialPath
-    .split(path.delimiter)
-    .filter((p: string) => !p.includes('node-gyp-bin') && !p.includes('npm'))
-    .join(path.delimiter)
-
-  const result = execPnpmSync(['test'])
-
-  process.env[PATH] = initialPath
+  const result = execPnpmSync(['test'], {
+    env: {
+      // `npm test` adds node-gyp to the PATH
+      // it is removed here to test that pnpm adds it
+      [PATH]: process.env[PATH]!
+        .split(path.delimiter)
+        .filter((p: string) => !p.includes('node-gyp-bin'))
+        .join(path.delimiter),
+    },
+  })
 
   expect(result.status).toBe(0)
 })

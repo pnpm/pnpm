@@ -99,7 +99,7 @@ test.skip('audit does not exit with code 1 if the found vulnerabilities are havi
 Severity: 1 moderate`)
 })
 
-test('audit does not exit with code 1 if the registry responds with a non-200 reponse and ignoreRegistryErrors is used', async () => {
+test('audit does not exit with code 1 if the registry responds with a non-200 response and ignoreRegistryErrors is used', async () => {
   nock(registries.default)
     .post('/-/npm/v1/security/audits')
     .reply(500, { message: 'Something bad happened' })

@@ -1,5 +1,85 @@
 # @pnpm/cafs
 
+## 4.0.7
+
+### Patch Changes
+
+- @pnpm/fetcher-base@13.0.1
+- @pnpm/store-controller-types@14.0.1
+
+## 4.0.6
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/fetcher-base@13.0.0
+  - @pnpm/store-controller-types@14.0.0
+
+## 4.0.5
+
+### Patch Changes
+
+- Updated dependencies [0abfe1718]
+  - @pnpm/fetcher-base@12.1.0
+  - @pnpm/store-controller-types@13.0.4
+
+## 4.0.4
+
+### Patch Changes
+
+- @pnpm/fetcher-base@12.0.3
+- @pnpm/store-controller-types@13.0.3
+
+## 4.0.3
+
+### Patch Changes
+
+- 6756c2b02: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- Updated dependencies [6756c2b02]
+  - @pnpm/fetcher-base@12.0.2
+  - @pnpm/store-controller-types@13.0.2
+
+## 4.0.2
+
+### Patch Changes
+
+- cadefe5b6: Track the number of integrity checks.
+
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/fetcher-base@12.0.1
+- @pnpm/store-controller-types@13.0.1
+
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/graceful-fs@2.0.0
+  - @pnpm/store-controller-types@13.0.0
+
+## 3.0.15
+
+### Patch Changes
+
+- Updated dependencies [5c525db13]
+  - @pnpm/store-controller-types@12.0.0
+
+## 3.0.14
+
+### Patch Changes
+
+- @pnpm/fetcher-base@11.1.6
+- @pnpm/store-controller-types@11.0.12
+
 ## 3.0.13
 
 ### Patch Changes

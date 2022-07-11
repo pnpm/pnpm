@@ -236,4 +236,27 @@ test('satisfiesPackageManifest()', () => {
       foo: '1.0.0',
     },
   }, '.')).toBe(true)
+
+  expect(satisfiesPackageManifest({
+    ...DEFAULT_LOCKFILE_FIELDS,
+    importers: {
+      '.': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        specifiers: {
+          foo: '1.0.0',
+        },
+      },
+    },
+  }, {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: {
+      foo: '1.0.0',
+    },
+    devDependencies: {
+      foo: '1.0.0',
+    },
+    dependenciesMeta: {},
+  }, '.')).toBe(true)
 })

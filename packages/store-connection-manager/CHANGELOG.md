@@ -1,5 +1,233 @@
 # @pnpm/store-connection-manager
 
+## 4.1.19
+
+### Patch Changes
+
+- @pnpm/package-store@14.0.5
+- @pnpm/server@13.0.1
+
+## 4.1.18
+
+### Patch Changes
+
+- @pnpm/client@7.1.9
+- @pnpm/package-store@14.0.4
+- @pnpm/server@13.0.1
+
+## 4.1.17
+
+### Patch Changes
+
+- Updated dependencies [5f643f23b]
+  - @pnpm/config@15.5.1
+  - @pnpm/package-store@14.0.4
+  - @pnpm/client@7.1.8
+  - @pnpm/server@13.0.1
+
+## 4.1.16
+
+### Patch Changes
+
+- @pnpm/package-store@14.0.3
+- @pnpm/server@13.0.1
+
+## 4.1.15
+
+### Patch Changes
+
+- @pnpm/package-store@14.0.2
+- @pnpm/server@13.0.1
+
+## 4.1.14
+
+### Patch Changes
+
+- Updated dependencies [f48d46ef6]
+  - @pnpm/config@15.5.0
+
+## 4.1.13
+
+### Patch Changes
+
+- @pnpm/cli-meta@3.0.5
+- @pnpm/config@15.4.1
+- @pnpm/package-store@14.0.1
+- @pnpm/server@13.0.1
+- @pnpm/client@7.1.7
+
+## 4.1.12
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/package-store@14.0.0
+  - @pnpm/server@13.0.0
+  - @pnpm/config@15.4.0
+  - @pnpm/cli-meta@3.0.4
+  - @pnpm/client@7.1.6
+
+## 4.1.11
+
+### Patch Changes
+
+- Updated dependencies [56cf04cb3]
+  - @pnpm/config@15.3.0
+  - @pnpm/cli-meta@3.0.3
+  - @pnpm/package-store@13.0.8
+  - @pnpm/server@12.0.5
+  - @pnpm/client@7.1.5
+
+## 4.1.10
+
+### Patch Changes
+
+- Updated dependencies [8c8156165]
+- Updated dependencies [25798aad1]
+  - @pnpm/server@12.0.4
+  - @pnpm/config@15.2.1
+
+## 4.1.9
+
+### Patch Changes
+
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/config@15.2.0
+  - @pnpm/cli-meta@3.0.2
+  - @pnpm/package-store@13.0.7
+  - @pnpm/server@12.0.3
+  - @pnpm/client@7.1.4
+
+## 4.1.8
+
+### Patch Changes
+
+- @pnpm/package-store@13.0.6
+- @pnpm/server@12.0.2
+- @pnpm/client@7.1.3
+- @pnpm/config@15.1.4
+
+## 4.1.7
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+
+## 4.1.6
+
+### Patch Changes
+
+- Updated dependencies [05159665d]
+  - @pnpm/config@15.1.3
+
+## 4.1.5
+
+### Patch Changes
+
+- Updated dependencies [af22c6c4f]
+  - @pnpm/config@15.1.2
+  - @pnpm/package-store@13.0.5
+  - @pnpm/server@12.0.1
+  - @pnpm/client@7.1.2
+
+## 4.1.4
+
+### Patch Changes
+
+- @pnpm/package-store@13.0.4
+- @pnpm/server@12.0.1
+
+## 4.1.3
+
+### Patch Changes
+
+- @pnpm/package-store@13.0.3
+- @pnpm/server@12.0.1
+- @pnpm/config@15.1.1
+
+## 4.1.2
+
+### Patch Changes
+
+- @pnpm/package-store@13.0.2
+- @pnpm/cli-meta@3.0.1
+- @pnpm/config@15.1.1
+- @pnpm/server@12.0.1
+- @pnpm/client@7.1.1
+
+## 4.1.1
+
+### Patch Changes
+
+- Updated dependencies [e05dcc48a]
+  - @pnpm/config@15.1.0
+
+## 4.1.0
+
+### Minor Changes
+
+- c6463b9fd: New setting added: `git-shallow-hosts`. When cloning repositories from "shallow-hosts", pnpm will use shallow cloning to fetch only the needed commit, not all the history [#4548](https://github.com/pnpm/pnpm/pull/4548).
+
+### Patch Changes
+
+- Updated dependencies [cdeb65203]
+- Updated dependencies [8dac029ef]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - @pnpm/store-path@6.0.0
+  - @pnpm/config@15.0.0
+  - @pnpm/client@7.1.0
+  - @pnpm/package-store@13.0.1
+  - @pnpm/server@12.0.0
+  - @pnpm/error@3.0.1
+
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [542014839]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/cli-meta@3.0.0
+  - @pnpm/client@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/package-store@13.0.0
+  - @pnpm/server@12.0.0
+
+## 3.2.10
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/config@13.13.2
+  - @pnpm/package-store@12.1.12
+  - @pnpm/server@11.0.19
+  - @pnpm/client@6.1.3
+
+## 3.2.9
+
+### Patch Changes
+
+- @pnpm/package-store@12.1.11
+- @pnpm/server@11.0.18
+- @pnpm/cli-meta@2.0.2
+- @pnpm/config@13.13.1
+- @pnpm/client@6.1.2
+
 ## 3.2.8
 
 ### Patch Changes
@@ -1048,7 +1276,7 @@
 
 ### Patch Changes
 
-- d9310c034: Replace diable with a fork that has less dependencies.
+- d9310c034: Replace diable with a fork that has fewer dependencies.
   - @pnpm/client@1.0.1
   - @pnpm/package-store@9.0.13
   - @pnpm/server@8.0.5

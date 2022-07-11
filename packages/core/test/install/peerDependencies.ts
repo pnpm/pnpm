@@ -56,6 +56,7 @@ test('nothing is needlessly removed from node_modules', async () => {
   prepareEmpty()
   const opts = await testDefaults({
     modulesCacheMaxAge: 0,
+    strictPeerDependencies: false,
   })
   const manifest = await addDependenciesToPackage({}, ['using-ajv', 'ajv-keywords@1.5.0'], opts)
 
@@ -143,7 +144,7 @@ test('the right peer dependency is used in every workspace package', async () =>
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ lockfileOnly: true }))
+  await mutateModules(importers, await testDefaults({ lockfileOnly: true, strictPeerDependencies: false }))
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
 
@@ -161,7 +162,7 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
 
   const reporter = jest.fn()
 
-  await addDependenciesToPackage({}, ['ajv-keywords@1.5.0'], await testDefaults({ reporter }))
+  await addDependenciesToPackage({}, ['ajv-keywords@1.5.0'], await testDefaults({ reporter, strictPeerDependencies: false }))
 
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -197,7 +198,11 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
 
   let err!: PeerDependencyIssuesError
   try {
-    await addDependenciesToPackage({}, ['ajv-keywords@1.5.0'], await testDefaults({ strictPeerDependencies: true }))
+    await install({
+      dependencies: {
+        'ajv-keywords': '1.5.0',
+      },
+    }, await testDefaults({ strictPeerDependencies: true }))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -223,99 +228,13 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
   })
 })
 
-test('peer dependency is resolved from the dependencies of the workspace root project', async () => {
-  const projects = preparePackages([
-    {
-      location: '.',
-      package: { name: 'root' },
-    },
-    {
-      location: 'pkg',
-      package: {},
-    },
-  ])
-  const reporter = jest.fn()
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest: {
-        name: 'root',
-        version: '1.0.0',
-
-        dependencies: {
-          ajv: '4.10.0',
-        },
-      },
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-    {
-      buildIndex: 0,
-      manifest: {
-        name: 'pkg',
-        version: '1.0.0',
-
-        dependencies: {
-          'ajv-keywords': '1.5.0',
-        },
-      },
-      mutation: 'install',
-      rootDir: path.resolve('pkg'),
-    },
-  ], await testDefaults({ reporter }))
-
-  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
-    name: 'pnpm:peer-dependency-issues',
-  }))
-
-  {
-    const lockfile = await projects.root.readLockfile()
-    expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords']).toBe('1.5.0_ajv@4.10.0')
-  }
-
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest: {
-        name: 'root',
-        version: '1.0.0',
-
-        dependencies: {
-          ajv: '4.10.0',
-        },
-      },
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-    {
-      buildIndex: 0,
-      manifest: {
-        name: 'pkg',
-        version: '1.0.0',
-
-        dependencies: {
-          'ajv-keywords': '1.5.0',
-          'is-positive': '1.0.0',
-        },
-      },
-      mutation: 'install',
-      rootDir: path.resolve('pkg'),
-    },
-  ], await testDefaults({ reporter }))
-
-  {
-    const lockfile = await projects.root.readLockfile()
-    expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords']).toBe('1.5.0_ajv@4.10.0')
-  }
-})
-
 test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async () => {
   prepareEmpty()
   await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
 
   const reporter = jest.fn()
 
-  await addDependenciesToPackage({}, ['abc-grand-parent-without-c'], await testDefaults({ reporter }))
+  await addDependenciesToPackage({}, ['abc-grand-parent-without-c'], await testDefaults({ reporter, strictPeerDependencies: false }))
 
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -360,7 +279,7 @@ test('warning is reported when bad version of resolved peer dependency for non-t
 
   const reporter = jest.fn()
 
-  await addDependenciesToPackage({}, ['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ reporter }))
+  await addDependenciesToPackage({}, ['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ reporter, strictPeerDependencies: false }))
 
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -407,7 +326,12 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
 
   let err!: PeerDependencyIssuesError
   try {
-    await addDependenciesToPackage({}, ['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ strictPeerDependencies: true }))
+    await install({
+      dependencies: {
+        'abc-grand-parent-without-c': '1.0.0',
+        'peer-c': '2',
+      },
+    }, await testDefaults({ strictPeerDependencies: true }))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -457,9 +381,9 @@ test('top peer dependency is linked on subsequent install', async () => {
 test('top peer dependency is linked on subsequent install, through transitive peer', async () => {
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent@1.0.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent@1.0.0'], await testDefaults({ strictPeerDependencies: false }))
 
-  await addDependenciesToPackage(manifest, ['peer-c@1.0.0'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['peer-c@1.0.0'], await testDefaults({ strictPeerDependencies: false }))
 
   expect(await exists(path.resolve('node_modules/.pnpm/abc-grand-parent@1.0.0_peer-c@1.0.0/node_modules/abc-grand-parent'))).toBeTruthy()
 })
@@ -498,9 +422,9 @@ test('the list of transitive peer dependencies is kept up to date', async () => 
 test('top peer dependency is linked on subsequent install. Reverse order', async () => {
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['abc-parent-with-ab@1.0.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['abc-parent-with-ab@1.0.0'], await testDefaults({ strictPeerDependencies: false }))
 
-  await addDependenciesToPackage(manifest, ['peer-c@1.0.0'], await testDefaults({ modulesCacheMaxAge: 0 }))
+  await addDependenciesToPackage(manifest, ['peer-c@1.0.0'], await testDefaults({ modulesCacheMaxAge: 0, strictPeerDependencies: false }))
 
   expect(await exists(path.resolve('node_modules/.pnpm/abc-parent-with-ab@1.0.0/node_modules/abc-parent-with-ab'))).toBeFalsy()
   expect(await exists(path.resolve('node_modules/.pnpm/abc-parent-with-ab@1.0.0_peer-c@1.0.0/node_modules/abc-parent-with-ab'))).toBeTruthy()
@@ -519,18 +443,18 @@ test('peer dependencies are linked when running one named installation', async (
 
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent-with-c', 'abc-parent-with-ab', 'peer-c@2.0.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent-with-c', 'abc-parent-with-ab', 'peer-c@2.0.0'], await testDefaults({ strictPeerDependencies: false }))
 
   const pkgVariationsDir = path.resolve('node_modules/.pnpm/abc@1.0.0')
 
-  const pkgVariation1 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
+  const pkgVariation1 = path.join(pkgVariationsDir + '_6ea473aweg4rki46lsbci3nehq/node_modules')
   await okFile(path.join(pkgVariation1, 'abc'))
   await okFile(path.join(pkgVariation1, 'peer-a'))
   await okFile(path.join(pkgVariation1, 'peer-b'))
   await okFile(path.join(pkgVariation1, 'peer-c'))
   await okFile(path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
 
-  const pkgVariation2 = path.join(pkgVariationsDir + '_f101cfec1621b915239e5c82246da43c/node_modules')
+  const pkgVariation2 = path.join(pkgVariationsDir + '_czpb4cfd67t7o7o3k4vnbzkwma/node_modules')
   await okFile(path.join(pkgVariation2, 'abc'))
   await okFile(path.join(pkgVariation2, 'peer-a'))
   await okFile(path.join(pkgVariation2, 'peer-b'))
@@ -542,27 +466,28 @@ test('peer dependencies are linked when running one named installation', async (
 
   // this part was failing. See issue: https://github.com/pnpm/pnpm/issues/1201
   await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
-  await install(manifest, await testDefaults({ update: true, depth: 100 }))
+  await install(manifest, await testDefaults({ update: true, depth: 100, strictPeerDependencies: false }))
 })
 
 test('peer dependencies are linked when running two separate named installations', async () => {
+  await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent-with-c', 'peer-c@2.0.0'], await testDefaults())
-  await addDependenciesToPackage(manifest, ['abc-parent-with-ab'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent-with-c', 'peer-c@2.0.0'], await testDefaults({ strictPeerDependencies: false }))
+  await addDependenciesToPackage(manifest, ['abc-parent-with-ab'], await testDefaults({ strictPeerDependencies: false }))
 
   const pkgVariationsDir = path.resolve('node_modules/.pnpm/abc@1.0.0')
 
-  const pkgVariation1 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
+  const pkgVariation1 = path.join(pkgVariationsDir + '_6ea473aweg4rki46lsbci3nehq/node_modules')
   await okFile(path.join(pkgVariation1, 'abc'))
   await okFile(path.join(pkgVariation1, 'peer-a'))
   await okFile(path.join(pkgVariation1, 'peer-b'))
   await okFile(path.join(pkgVariation1, 'peer-c'))
   await okFile(path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
 
-  const pkgVariation2 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
+  const pkgVariation2 = path.join(pkgVariationsDir + '_6ea473aweg4rki46lsbci3nehq/node_modules')
   await okFile(path.join(pkgVariation2, 'abc'))
   await okFile(path.join(pkgVariation2, 'peer-a'))
   await okFile(path.join(pkgVariation2, 'peer-b'))
@@ -685,7 +610,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 
   const reporter = sinon.spy()
 
-  await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter, lockfileDir: path.resolve('..') }))
+  await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter, lockfileDir: path.resolve('..'), strictPeerDependencies: false }))
 
   expect(reporter.calledWithMatch({
     message: `localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.`,
@@ -718,8 +643,8 @@ test('peer dependency is grouped correctly with peer installed via separate inst
     dependencies: {
       abc: '1.0.0',
     },
-  }, await testDefaults({ reporter, lockfileDir }))
-  await addDependenciesToPackage(manifest, ['peer-c@2.0.0'], await testDefaults({ reporter, lockfileDir }))
+  }, await testDefaults({ reporter, lockfileDir, strictPeerDependencies: false }))
+  await addDependenciesToPackage(manifest, ['peer-c@2.0.0'], await testDefaults({ reporter, lockfileDir, strictPeerDependencies: false }))
 
   expect(await exists(path.join('../node_modules/.pnpm/abc@1.0.0_peer-c@2.0.0/node_modules/dep-of-pkg-with-1-dep'))).toBeTruthy()
 })
@@ -730,7 +655,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   process.chdir('_')
   const lockfileDir = path.resolve('..')
 
-  let manifest = await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ lockfileDir }))
+  let manifest = await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ lockfileDir, strictPeerDependencies: false }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
@@ -746,7 +671,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     })
   }
 
-  manifest = await install(manifest, await testDefaults({ lockfileDir }))
+  manifest = await install(manifest, await testDefaults({ lockfileDir, strictPeerDependencies: false }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
@@ -774,6 +699,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     ],
     await testDefaults({
       lockfileDir,
+      strictPeerDependencies: false,
     })
   )
 
@@ -835,7 +761,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
   process.chdir('_')
   const lockfileDir = path.resolve('..')
 
-  const manifest = await addDependenciesToPackage({}, ['peer-c@1.0.0', 'abc-parent-with-ab@1.0.0'], await testDefaults({ lockfileDir }))
+  const manifest = await addDependenciesToPackage({}, ['peer-c@1.0.0', 'abc-parent-with-ab@1.0.0'], await testDefaults({ lockfileDir, strictPeerDependencies: false }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
@@ -851,7 +777,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
     })
   }
 
-  await addDependenciesToPackage(manifest, ['peer-c@2.0.0'], await testDefaults({ lockfileDir }))
+  await addDependenciesToPackage(manifest, ['peer-c@2.0.0'], await testDefaults({ lockfileDir, strictPeerDependencies: false }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
@@ -1004,7 +930,7 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
 
   const reporter = jest.fn()
 
-  await addDependenciesToPackage({}, ['abc-optional-peers@1.0.0', 'peer-c@2.0.0'], await testDefaults({ reporter }))
+  await addDependenciesToPackage({}, ['abc-optional-peers@1.0.0', 'peer-c@2.0.0'], await testDefaults({ reporter, strictPeerDependencies: false }))
 
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -1076,7 +1002,7 @@ test('warning is not reported when cannot resolve optional peer dependency (spec
 
   const reporter = jest.fn()
 
-  await addDependenciesToPackage({}, ['abc-optional-peers-meta-only@1.0.0', 'peer-c@2.0.0'], await testDefaults({ reporter }))
+  await addDependenciesToPackage({}, ['abc-optional-peers-meta-only@1.0.0', 'peer-c@2.0.0'], await testDefaults({ reporter, strictPeerDependencies: false }))
 
   expect(reporter).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -1147,7 +1073,7 @@ test('local tarball dependency with peer dependency', async () => {
   ], await testDefaults({ reporter }))
 
   const integrityLocalPkgDirs = (await fs.readdir('node_modules/.pnpm'))
-    .filter((dir) => dir.startsWith('local+'))
+    .filter((dir) => dir.startsWith('file+'))
 
   expect(integrityLocalPkgDirs.length).toBe(1)
 
@@ -1164,7 +1090,7 @@ test('local tarball dependency with peer dependency', async () => {
 
   {
     const updatedLocalPkgDirs = (await fs.readdir('node_modules/.pnpm'))
-      .filter((dir) => dir.startsWith('local+'))
+      .filter((dir) => dir.startsWith('file+'))
     expect(updatedLocalPkgDirs).toStrictEqual(integrityLocalPkgDirs)
   }
 })
@@ -1187,10 +1113,10 @@ test('peer dependency that is resolved by a dev dependency', async () => {
       mutation: 'install',
       rootDir: process.cwd(),
     },
-  ], await testDefaults({ fastUnpack: false, lockfileOnly: true }))
+  ], await testDefaults({ fastUnpack: false, lockfileOnly: true, strictPeerDependencies: false }))
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/@types/mongoose/5.7.32'].dev).toBeTruthy()
+  expect(lockfile.packages['/@types/mongoose/5.7.32'].dev).toBeUndefined()
 
   await mutateModules([
     {
@@ -1210,4 +1136,47 @@ test('peer dependency that is resolved by a dev dependency', async () => {
 
   await project.has('@typegoose/typegoose')
   await project.hasNot('@types/mongoose')
+})
+
+test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'ajv-keywords': '1.5.0',
+      ajv: 'link:../ajv',
+    },
+  }
+  const project2Manifest = {
+    name: 'ajv',
+    version: '4.10.4',
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'ajv',
+      package: project2Manifest,
+    },
+  ])
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('ajv'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({}))
+
+  const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
+  expect(lockfile.packages?.['/ajv-keywords/1.5.0_ajv@ajv'].dependencies?.['ajv']).toBe('link:ajv')
 })

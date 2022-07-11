@@ -12,6 +12,7 @@ test('CLI prints the current store path', async () => {
   const candidateStorePath = await store.handler({
     cacheDir: path.resolve('cache'),
     dir: process.cwd(),
+    pnpmHomeDir: '',
     rawConfig: {
       registry: REGISTRY,
     },

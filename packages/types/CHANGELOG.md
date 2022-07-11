@@ -1,5 +1,74 @@
 # @pnpm/types
 
+## 8.4.0
+
+### Minor Changes
+
+- 8e5b77ef6: Add PatchFile type.
+
+## 8.3.0
+
+### Minor Changes
+
+- 2a34b21ce: Dependencies patching is possible via the `pnpm.patchedDependencies` field of the `package.json`.
+  To patch a package, the package name, exact version, and the relative path to the patch file should be specified. For instance:
+
+  ```json
+  {
+    "pnpm": {
+      "patchedDependencies": {
+        "eslint@1.0.0": "./patches/eslint@1.0.0.patch"
+      }
+    }
+  }
+  ```
+
+## 8.2.0
+
+### Minor Changes
+
+- fb5bbfd7a: A new setting added: `pnpm.peerDependencyRules.allowAny`. `allowAny` is an array of package name patterns, any peer dependency matching the pattern will be resolved from any version, regardless of the range specified in `peerDependencies`. For instance:
+
+  ```
+  {
+    "pnpm": {
+      "peerDependencyRules": {
+        "allowAny": ["@babel/*", "eslint"]
+      }
+    }
+  }
+  ```
+
+  The above setting will mute any warnings about peer dependency version mismatches related to `@babel/` packages or `eslint`.
+
+## 8.1.0
+
+### Minor Changes
+
+- 4d39e4a0c: Add new setting to pnpm field of the manifest: allowedDeprecatedVersions.
+
+## 8.0.1
+
+### Patch Changes
+
+- 18ba5e2c0: Add typesVersions to PUBLISH_CONFIG_WHITELIST
+
+## 8.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Minor Changes
+
+- d504dc380: New fields add to package.json type.
+
+## 7.10.0
+
+### Minor Changes
+
+- b138d048c: New optional field supported: `onlyBuiltDependencies`.
+
 ## 7.9.0
 
 ### Minor Changes
@@ -70,7 +139,7 @@
 
 ### Minor Changes
 
-- 9ad8c27bf: Allow to ignore builds of specified dependencies throught the `pnpm.neverBuiltDependencies` field in `package.json`.
+- 9ad8c27bf: Allow to ignore builds of specified dependencies through the `pnpm.neverBuiltDependencies` field in `package.json`.
 
 ## 6.3.1
 

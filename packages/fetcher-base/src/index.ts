@@ -11,7 +11,7 @@ export interface PackageFileInfo {
 
 export type PackageFilesResponse = {
   fromStore: boolean
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   sideEffects?: Record<string, Record<string, PackageFileInfo>>
 } & ({
   local: true
@@ -21,13 +21,16 @@ export type PackageFilesResponse = {
   filesIndex: Record<string, PackageFileInfo>
 })
 
+export interface ImportPackageOpts {
+  requiresBuild?: boolean
+  sideEffectsCacheKey?: string
+  filesResponse: PackageFilesResponse
+  force: boolean
+}
+
 export type ImportPackageFunction = (
   to: string,
-  opts: {
-    targetEngine?: string
-    filesResponse: PackageFilesResponse
-    force: boolean
-  }
+  opts: ImportPackageOpts
 ) => Promise<{ isBuilt: boolean, importMethod: undefined | string }>
 
 export interface Cafs {
@@ -45,7 +48,7 @@ export interface FetchOptions {
 }
 
 export interface DeferredManifestPromise {
-  resolve: (manifest: DependencyManifest) => void
+  resolve: (manifest: DependencyManifest | undefined) => void
   reject: (err: Error) => void
 }
 

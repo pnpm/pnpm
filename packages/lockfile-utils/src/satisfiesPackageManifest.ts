@@ -3,7 +3,7 @@ import {
   DEPENDENCIES_FIELDS,
   ProjectManifest,
 } from '@pnpm/types'
-import equals from 'ramda/src/equals'
+import equals from 'ramda/src/equals.js'
 
 export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string) => {
   const importer = lockfile.importers[importerId]
@@ -11,7 +11,7 @@ export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string) =>
   if (!equals({ ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }, importer.specifiers)) {
     return false
   }
-  if (!equals(pkg.dependenciesMeta, importer.dependenciesMeta)) return false
+  if (!equals(pkg.dependenciesMeta ?? {}, importer.dependenciesMeta ?? {})) return false
   for (const depField of DEPENDENCIES_FIELDS) {
     const importerDeps = importer[depField] ?? {}
     const pkgDeps = pkg[depField] ?? {}

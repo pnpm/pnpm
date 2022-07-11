@@ -1,5 +1,383 @@
 # @pnpm/plugin-commands-rebuild
 
+## 6.1.20
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.18
+- @pnpm/link-bins@7.1.7
+- dependency-path@9.2.3
+- @pnpm/find-workspace-packages@4.0.18
+- @pnpm/lockfile-utils@4.0.10
+- @pnpm/lockfile-walker@5.0.10
+- @pnpm/store-connection-manager@4.1.19
+
+## 6.1.19
+
+### Patch Changes
+
+- @pnpm/get-context@6.2.4
+- @pnpm/store-connection-manager@4.1.18
+
+## 6.1.18
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- 42c1ea1c0: Update validate-npm-package-name to v4.
+- Updated dependencies [5f643f23b]
+  - @pnpm/cli-utils@0.7.17
+  - @pnpm/config@15.5.1
+  - @pnpm/get-context@6.2.3
+  - @pnpm/link-bins@7.1.6
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/lockfile-walker@5.0.9
+  - @pnpm/find-workspace-packages@4.0.17
+  - @pnpm/store-connection-manager@4.1.17
+  - @pnpm/lifecycle@13.1.2
+
+## 6.1.17
+
+### Patch Changes
+
+- Updated dependencies [fc581d371]
+  - dependency-path@9.2.2
+  - @pnpm/lockfile-utils@4.0.8
+  - @pnpm/lockfile-walker@5.0.8
+  - @pnpm/store-connection-manager@4.1.16
+
+## 6.1.16
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@4.1.15
+
+## 6.1.15
+
+### Patch Changes
+
+- Updated dependencies [f48d46ef6]
+  - @pnpm/config@15.5.0
+  - @pnpm/cli-utils@0.7.16
+  - @pnpm/store-connection-manager@4.1.14
+  - @pnpm/find-workspace-packages@4.0.16
+
+## 6.1.14
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-utils@4.0.7
+  - @pnpm/lockfile-walker@5.0.7
+  - @pnpm/cli-utils@0.7.15
+  - @pnpm/config@15.4.1
+  - @pnpm/core-loggers@7.0.5
+  - dependency-path@9.2.1
+  - @pnpm/find-workspace-packages@4.0.15
+  - @pnpm/get-context@6.2.2
+  - @pnpm/lifecycle@13.1.1
+  - @pnpm/link-bins@7.1.5
+  - @pnpm/modules-yaml@10.0.5
+  - @pnpm/normalize-registries@3.0.5
+  - @pnpm/sort-packages@3.0.6
+  - @pnpm/store-controller-types@14.0.1
+  - @pnpm/store-connection-manager@4.1.13
+
+## 6.1.13
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/types@8.3.0
+  - @pnpm/lifecycle@13.1.0
+  - dependency-path@9.2.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/config@15.4.0
+  - @pnpm/cli-utils@0.7.14
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/find-workspace-packages@4.0.14
+  - @pnpm/get-context@6.2.1
+  - @pnpm/link-bins@7.1.4
+  - @pnpm/lockfile-utils@4.0.6
+  - @pnpm/lockfile-walker@5.0.6
+  - @pnpm/modules-yaml@10.0.4
+  - @pnpm/normalize-registries@3.0.4
+  - @pnpm/sort-packages@3.0.5
+  - @pnpm/store-connection-manager@4.1.12
+
+## 6.1.12
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+- Updated dependencies [725636a90]
+  - @pnpm/types@8.2.0
+  - @pnpm/config@15.3.0
+  - @pnpm/get-context@6.2.0
+  - dependency-path@9.1.4
+  - @pnpm/cli-utils@0.7.13
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/find-workspace-packages@4.0.13
+  - @pnpm/lifecycle@13.0.5
+  - @pnpm/link-bins@7.1.3
+  - @pnpm/lockfile-utils@4.0.5
+  - @pnpm/lockfile-walker@5.0.5
+  - @pnpm/modules-yaml@10.0.3
+  - @pnpm/normalize-registries@3.0.3
+  - @pnpm/sort-packages@3.0.4
+  - @pnpm/store-controller-types@13.0.4
+  - @pnpm/store-connection-manager@4.1.11
+
+## 6.1.11
+
+### Patch Changes
+
+- Updated dependencies [25798aad1]
+  - @pnpm/config@15.2.1
+  - @pnpm/store-connection-manager@4.1.10
+  - @pnpm/cli-utils@0.7.12
+  - @pnpm/find-workspace-packages@4.0.12
+
+## 6.1.10
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/types@8.1.0
+  - @pnpm/config@15.2.0
+  - @pnpm/cli-utils@0.7.11
+  - @pnpm/core-loggers@7.0.2
+  - dependency-path@9.1.3
+  - @pnpm/find-workspace-packages@4.0.11
+  - @pnpm/get-context@6.1.3
+  - @pnpm/lifecycle@13.0.4
+  - @pnpm/link-bins@7.1.2
+  - @pnpm/lockfile-utils@4.0.4
+  - @pnpm/lockfile-walker@5.0.4
+  - @pnpm/modules-yaml@10.0.2
+  - @pnpm/normalize-registries@3.0.2
+  - @pnpm/sort-packages@3.0.3
+  - @pnpm/store-controller-types@13.0.3
+  - @pnpm/store-connection-manager@4.1.9
+
+## 6.1.9
+
+### Patch Changes
+
+- Updated dependencies [6756c2b02]
+  - @pnpm/store-controller-types@13.0.2
+  - @pnpm/cli-utils@0.7.10
+  - @pnpm/lifecycle@13.0.3
+  - @pnpm/find-workspace-packages@4.0.10
+  - @pnpm/store-connection-manager@4.1.8
+  - @pnpm/config@15.1.4
+  - @pnpm/link-bins@7.1.1
+
+## 6.1.8
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+  - @pnpm/cli-utils@0.7.9
+  - @pnpm/store-connection-manager@4.1.7
+  - @pnpm/find-workspace-packages@4.0.9
+
+## 6.1.7
+
+### Patch Changes
+
+- Updated dependencies [05159665d]
+  - @pnpm/config@15.1.3
+  - @pnpm/cli-utils@0.7.8
+  - @pnpm/store-connection-manager@4.1.6
+  - @pnpm/find-workspace-packages@4.0.8
+
+## 6.1.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.7
+- @pnpm/find-workspace-packages@4.0.7
+
+## 6.1.5
+
+### Patch Changes
+
+- Updated dependencies [af22c6c4f]
+- Updated dependencies [c57695550]
+  - @pnpm/config@15.1.2
+  - dependency-path@9.1.2
+  - @pnpm/cli-utils@0.7.6
+  - @pnpm/store-connection-manager@4.1.5
+  - @pnpm/lockfile-utils@4.0.3
+  - @pnpm/lockfile-walker@5.0.3
+  - @pnpm/find-workspace-packages@4.0.6
+
+## 6.1.4
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/cli-utils@0.7.5
+  - @pnpm/find-workspace-packages@4.0.5
+  - @pnpm/get-context@6.1.2
+  - @pnpm/store-connection-manager@4.1.4
+
+## 6.1.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.4
+- @pnpm/store-connection-manager@4.1.3
+- @pnpm/find-workspace-packages@4.0.4
+- @pnpm/config@15.1.1
+- @pnpm/link-bins@7.1.1
+
+## 6.1.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/cli-utils@0.7.3
+  - @pnpm/config@15.1.1
+  - @pnpm/core-loggers@7.0.1
+  - dependency-path@9.1.1
+  - @pnpm/find-workspace-packages@4.0.3
+  - @pnpm/get-context@6.1.1
+  - @pnpm/lifecycle@13.0.2
+  - @pnpm/link-bins@7.1.1
+  - @pnpm/lockfile-utils@4.0.2
+  - @pnpm/lockfile-walker@5.0.2
+  - @pnpm/modules-yaml@10.0.1
+  - @pnpm/normalize-registries@3.0.1
+  - @pnpm/sort-packages@3.0.2
+  - @pnpm/store-controller-types@13.0.1
+  - @pnpm/store-connection-manager@4.1.2
+
+## 6.1.1
+
+### Patch Changes
+
+- Updated dependencies [e05dcc48a]
+  - @pnpm/config@15.1.0
+  - @pnpm/cli-utils@0.7.2
+  - @pnpm/store-connection-manager@4.1.1
+  - @pnpm/find-workspace-packages@4.0.2
+
+## 6.1.0
+
+### Minor Changes
+
+- 8fa95fd86: Path `extraNodePaths` to the bins linker.
+
+### Patch Changes
+
+- 2109f2e8e: Use `@pnpm/graph-sequencer` instead of `graph-sequencer`.
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [8fa95fd86]
+- Updated dependencies [2109f2e8e]
+- Updated dependencies [8fa95fd86]
+- Updated dependencies [8dac029ef]
+- Updated dependencies [688b0eaff]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+- Updated dependencies [1267e4eff]
+  - dependency-path@9.1.0
+  - @pnpm/link-bins@7.1.0
+  - @pnpm/sort-packages@3.0.1
+  - @pnpm/get-context@6.1.0
+  - @pnpm/config@15.0.0
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/store-connection-manager@4.1.0
+  - @pnpm/constants@6.1.0
+  - @pnpm/lockfile-walker@5.0.1
+  - @pnpm/cli-utils@0.7.1
+  - @pnpm/lifecycle@13.0.1
+  - @pnpm/find-workspace-packages@4.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+- Updated dependencies [d999a0801]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/link-bins@7.0.0
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/find-workspace-packages@4.0.0
+  - @pnpm/get-context@6.0.0
+  - @pnpm/lifecycle@13.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/lockfile-walker@5.0.0
+  - @pnpm/modules-yaml@10.0.0
+  - @pnpm/normalize-registries@3.0.0
+  - @pnpm/sort-packages@3.0.0
+  - @pnpm/store-connection-manager@4.0.0
+  - @pnpm/store-controller-types@13.0.0
+  - @pnpm/cli-utils@0.7.0
+  - @pnpm/common-cli-options-help@0.9.0
+
+## 5.4.14
+
+### Patch Changes
+
+- Updated dependencies [5c525db13]
+  - @pnpm/store-controller-types@12.0.0
+  - @pnpm/cli-utils@0.6.50
+  - @pnpm/config@13.13.2
+  - @pnpm/get-context@5.3.8
+  - @pnpm/link-bins@6.2.12
+  - @pnpm/store-connection-manager@3.2.10
+  - @pnpm/lifecycle@12.1.7
+  - @pnpm/find-workspace-packages@3.1.42
+
+## 5.4.13
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/get-context@5.3.7
+  - @pnpm/lockfile-utils@3.2.1
+  - @pnpm/lockfile-walker@4.0.15
+  - @pnpm/cli-utils@0.6.49
+  - @pnpm/config@13.13.1
+  - @pnpm/core-loggers@6.1.4
+  - dependency-path@8.0.11
+  - @pnpm/find-workspace-packages@3.1.41
+  - @pnpm/lifecycle@12.1.6
+  - @pnpm/link-bins@6.2.11
+  - @pnpm/modules-yaml@9.1.1
+  - @pnpm/normalize-registries@2.0.13
+  - @pnpm/sort-packages@2.1.8
+  - @pnpm/store-controller-types@11.0.12
+  - @pnpm/store-connection-manager@3.2.9
+
 ## 5.4.12
 
 ### Patch Changes

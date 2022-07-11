@@ -58,7 +58,7 @@ test('recursive is returned as the command name if no subcommand passed', async 
   expect(options).toHaveProperty(['recursive'])
 })
 
-test('when runnning a global command inside a workspace, the workspace should be ignored', async () => {
+test('when running a global command inside a workspace, the workspace should be ignored', async () => {
   const { workspaceDir } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: { global: Boolean },
@@ -66,7 +66,7 @@ test('when runnning a global command inside a workspace, the workspace should be
   expect(workspaceDir).toBeFalsy()
 })
 
-test('when runnning with --ignore-workspace option inside a workspace, the workspace should be ignored', async () => {
+test('when running with --ignore-workspace option inside a workspace, the workspace should be ignored', async () => {
   const { workspaceDir } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: { global: Boolean },

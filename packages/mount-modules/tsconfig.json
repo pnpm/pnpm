@@ -13,6 +13,9 @@
       "path": "../cafs"
     },
     {
+      "path": "../config"
+    },
+    {
       "path": "../dependency-path"
     },
     {
@@ -20,6 +23,9 @@
     },
     {
       "path": "../lockfile-utils"
+    },
+    {
+      "path": "../store-path"
     },
     {
       "path": "../types"

@@ -11,10 +11,10 @@ import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { KeyValuePair } from 'ramda'
-import isEmpty from 'ramda/src/isEmpty'
-import fromPairs from 'ramda/src/fromPairs'
-import merge from 'ramda/src/merge'
-import partition from 'ramda/src/partition'
+import isEmpty from 'ramda/src/isEmpty.js'
+import fromPairs from 'ramda/src/fromPairs.js'
+import mergeRight from 'ramda/src/mergeRight.js'
+import partition from 'ramda/src/partition.js'
 import depPathToRef from './depPathToRef'
 import { ResolvedPackage } from './resolveDependencies'
 import { DependenciesGraph } from '.'
@@ -144,6 +144,9 @@ function toLockfileDependency (
   if (pkg.additionalInfo.os != null) {
     result['os'] = pkg.additionalInfo.os
   }
+  if (pkg.additionalInfo.libc != null) {
+    result['libc'] = pkg.additionalInfo.libc
+  }
   if (Array.isArray(pkg.additionalInfo.bundledDependencies) || Array.isArray(pkg.additionalInfo.bundleDependencies)) {
     result['bundledDependencies'] = pkg.additionalInfo.bundledDependencies ?? pkg.additionalInfo.bundleDependencies
   }
@@ -153,7 +156,12 @@ function toLockfileDependency (
   if (pkg.hasBin) {
     result['hasBin'] = true
   }
-  if (pkg.requiresBuild !== undefined) {
+  if (pkg.patchFile) {
+    result['patched'] = true
+  }
+  const requiresBuildIsKnown = typeof pkg.requiresBuild === 'boolean'
+  let pending = false
+  if (requiresBuildIsKnown) {
     if (pkg.requiresBuild) {
       result['requiresBuild'] = true
     }
@@ -169,14 +177,17 @@ function toLockfileDependency (
     result['requiresBuild'] = true
   } else {
     pendingRequiresBuilds.push(opts.depPath)
+    pending = true
   }
-  pkg.requiresBuild = result['requiresBuild']
+  if (!requiresBuildIsKnown && !pending) {
+    pkg.requiresBuild['resolve'](result['requiresBuild'] ?? false)
+  }
   /* eslint-enable @typescript-eslint/dot-notation */
   return result
 }
 
 // previous resolutions should not be removed from lockfile
-// as installation might not reanalize the whole dependency graph
+// as installation might not reanalyze the whole dependency graph
 // the `depth` property defines how deep should dependencies be checked
 function updateResolvedDeps (
   prevResolvedDeps: ResolvedDependencies,
@@ -202,7 +213,7 @@ function updateResolvedDeps (
         ]
       })
   )
-  return merge(
+  return mergeRight(
     prevResolvedDeps,
     newResolvedDeps
   )
@@ -225,7 +236,7 @@ function toLockfileResolution (
   const base = registry !== resolution['registry'] ? { registry: resolution['registry'] } : {}
   // Sometimes packages are hosted under non-standard tarball URLs.
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
-  // Or in othere weird cases, like https://github.com/pnpm/pnpm/issues/1072
+  // Or in other weird cases, like https://github.com/pnpm/pnpm/issues/1072
   const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
   const actualTarball = resolution['tarball'].replace('%2f', '/')
   if (removeProtocol(expectedTarball) !== removeProtocol(actualTarball)) {
@@ -255,10 +266,10 @@ export function relativeTarball (tarball: string, registry: string) {
   // So we add @mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz
   // not /@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz
   // Related issue: https://github.com/pnpm/pnpm/issues/1827
-  if (tarball.substr(0, registry.length) !== registry) {
+  if (tarball.slice(0, registry.length) !== registry) {
     return tarball
   }
-  const relative = tarball.substr(registry.length)
+  const relative = tarball.slice(registry.length)
   if (relative[0] === '/') return relative.substring(1)
   return relative
 }

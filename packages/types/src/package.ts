@@ -50,12 +50,21 @@ export interface DependenciesMeta {
   [dependencyName: string]: {
     injected?: boolean
     node?: string
+    patch?: string
   }
 }
 
 export interface PublishConfig extends Record<string, unknown> {
   directory?: string
   executableFiles?: string[]
+}
+
+type Version = string
+type Pattern = string
+export interface TypesVersions {
+  [version: Version]: {
+    [pattern: Pattern]: string[]
+  }
 }
 
 export interface BaseManifest {
@@ -66,6 +75,7 @@ export interface BaseManifest {
   directories?: {
     bin?: string
   }
+  files?: string[]
   dependencies?: Dependencies
   devDependencies?: Dependencies
   optionalDependencies?: Dependencies
@@ -85,12 +95,17 @@ export interface BaseManifest {
   }
   cpu?: string[]
   os?: string[]
+  libc?: string[]
   main?: string
   module?: string
   typings?: string
   types?: string
   publishConfig?: PublishConfig
+  typesVersions?: TypesVersions
   readme?: string
+  keywords?: string[]
+  author?: string
+  license?: string
 }
 
 export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'name' | 'version'>>
@@ -99,8 +114,11 @@ export type PackageExtension = Pick<BaseManifest, 'dependencies' | 'optionalDepe
 
 export interface PeerDependencyRules {
   ignoreMissing?: string[]
+  allowAny?: string[]
   allowedVersions?: Record<string, string>
 }
+
+export type AllowedDeprecatedVersions = Record<string, string>
 
 export type ProjectManifest = BaseManifest & {
   pnpm?: {
@@ -109,6 +127,8 @@ export type ProjectManifest = BaseManifest & {
     overrides?: Record<string, string>
     packageExtensions?: Record<string, PackageExtension>
     peerDependencyRules?: PeerDependencyRules
+    allowedDeprecatedVersions?: AllowedDeprecatedVersions
+    patchedDependencies?: Record<string, string>
   }
   private?: boolean
   resolutions?: Record<string, string>

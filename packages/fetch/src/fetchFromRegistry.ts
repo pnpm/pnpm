@@ -1,6 +1,6 @@
 import { URL } from 'url'
 import { FetchFromRegistry } from '@pnpm/fetching-types'
-import npmRegistryAgent, { AgentOptions } from '@pnpm/npm-registry-agent'
+import { getAgent, AgentOptions } from '@pnpm/network.agent'
 import fetch, { isRedirect, Response, RequestInfo, RequestInit } from './fetch'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
@@ -14,10 +14,10 @@ export type FetchWithAgentOptions = RequestInit & {
 }
 
 export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions) {
-  const agent = npmRegistryAgent(url.toString(), {
+  const agent = getAgent(url.toString(), {
     ...opts.agentOptions,
     strictSsl: opts.agentOptions.strictSsl ?? true,
-  } as any) // eslint-disable-line
+  } as any) as any // eslint-disable-line
   const headers = opts.headers ?? {}
   headers['connection'] = agent ? 'keep-alive' : 'close'
   return fetch(url, {

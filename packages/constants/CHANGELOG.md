@@ -1,5 +1,17 @@
 # @pnpm/constants
 
+## 6.1.0
+
+### Minor Changes
+
+- 1267e4eff: Lockfile version bumped to 5.4
+
+## 6.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
 ## 5.0.0
 
 ### Major Changes

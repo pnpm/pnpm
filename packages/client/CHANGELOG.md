@@ -1,5 +1,141 @@
 # @pnpm/client
 
+## 7.1.9
+
+### Patch Changes
+
+- @pnpm/default-resolver@15.0.8
+
+## 7.1.8
+
+### Patch Changes
+
+- Updated dependencies [5f643f23b]
+  - @pnpm/directory-fetcher@3.0.7
+  - @pnpm/tarball-fetcher@10.0.8
+
+## 7.1.7
+
+### Patch Changes
+
+- @pnpm/git-fetcher@5.1.6
+- @pnpm/resolver-base@9.0.5
+- @pnpm/fetch@5.0.5
+- @pnpm/tarball-fetcher@10.0.7
+- @pnpm/directory-fetcher@3.0.6
+- @pnpm/default-resolver@15.0.7
+
+## 7.1.6
+
+### Patch Changes
+
+- @pnpm/git-fetcher@5.1.5
+- @pnpm/resolver-base@9.0.4
+- @pnpm/tarball-fetcher@10.0.6
+- @pnpm/directory-fetcher@3.0.5
+- @pnpm/fetch@5.0.4
+- @pnpm/default-resolver@15.0.6
+
+## 7.1.5
+
+### Patch Changes
+
+- Updated dependencies [9d5bf09c0]
+  - @pnpm/fetch@5.0.3
+  - @pnpm/git-fetcher@5.1.4
+  - @pnpm/resolver-base@9.0.3
+  - @pnpm/default-resolver@15.0.5
+  - @pnpm/tarball-fetcher@10.0.5
+  - @pnpm/directory-fetcher@3.0.4
+
+## 7.1.4
+
+### Patch Changes
+
+- @pnpm/git-fetcher@5.1.3
+- @pnpm/resolver-base@9.0.2
+- @pnpm/fetch@5.0.2
+- @pnpm/tarball-fetcher@10.0.4
+- @pnpm/directory-fetcher@3.0.3
+- @pnpm/default-resolver@15.0.4
+
+## 7.1.3
+
+### Patch Changes
+
+- @pnpm/git-fetcher@5.1.2
+- @pnpm/directory-fetcher@3.0.2
+- @pnpm/tarball-fetcher@10.0.3
+
+## 7.1.2
+
+### Patch Changes
+
+- @pnpm/default-resolver@15.0.3
+
+## 7.1.1
+
+### Patch Changes
+
+- @pnpm/git-fetcher@5.1.1
+- @pnpm/tarball-fetcher@10.0.2
+- @pnpm/resolver-base@9.0.1
+- @pnpm/fetch@5.0.1
+- @pnpm/directory-fetcher@3.0.1
+- @pnpm/default-resolver@15.0.2
+
+## 7.1.0
+
+### Minor Changes
+
+- c6463b9fd: New setting added: `git-shallow-hosts`. When cloning repositories from "shallow-hosts", pnpm will use shallow cloning to fetch only the needed commit, not all the history [#4548](https://github.com/pnpm/pnpm/pull/4548).
+
+### Patch Changes
+
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [41cae6450]
+  - @pnpm/git-fetcher@5.1.0
+  - @pnpm/directory-fetcher@3.0.0
+  - @pnpm/tarball-fetcher@10.0.1
+  - @pnpm/default-resolver@15.0.1
+
+## 7.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/default-resolver@15.0.0
+  - @pnpm/directory-fetcher@2.0.0
+  - @pnpm/fetch@5.0.0
+  - @pnpm/fetching-types@3.0.0
+  - @pnpm/git-fetcher@5.0.0
+  - @pnpm/resolver-base@9.0.0
+  - @pnpm/tarball-fetcher@10.0.0
+
+## 6.1.3
+
+### Patch Changes
+
+- @pnpm/default-resolver@14.0.12
+- @pnpm/tarball-fetcher@9.3.17
+- @pnpm/git-fetcher@4.1.16
+- @pnpm/directory-fetcher@1.0.7
+
+## 6.1.2
+
+### Patch Changes
+
+- @pnpm/git-fetcher@4.1.15
+- @pnpm/resolver-base@8.1.6
+- @pnpm/tarball-fetcher@9.3.16
+- @pnpm/fetch@4.2.5
+- @pnpm/directory-fetcher@1.0.6
+- @pnpm/default-resolver@14.0.11
+
 ## 6.1.1
 
 ### Patch Changes

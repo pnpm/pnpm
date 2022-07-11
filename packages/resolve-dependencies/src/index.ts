@@ -1,5 +1,6 @@
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import PnpmError from '@pnpm/error'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
@@ -19,7 +20,9 @@ import {
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
-import difference from 'ramda/src/difference'
+import promiseShare from 'promise-share'
+import difference from 'ramda/src/difference.js'
+import getWantedDependencies, { WantedDependency } from './getWantedDependencies'
 import depPathToRef from './depPathToRef'
 import resolveDependencyTree, {
   Importer,
@@ -41,8 +44,11 @@ export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
 export type DependenciesGraphNode = GenericDependenciesGraphNode & ResolvedPackage
 
 export {
+  getWantedDependencies,
   LinkedDependency,
   ResolvedPackage,
+  PinnedVersion,
+  WantedDependency,
 }
 
 interface ProjectToLink {
@@ -75,7 +81,7 @@ export default async function (
   opts: ResolveDependenciesOptions & {
     defaultUpdateDepth: number
     preserveWorkspaceProtocol: boolean
-    saveWorkspaceProtocol: boolean
+    saveWorkspaceProtocol: 'rolling' | boolean
   }
 ) {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -93,7 +99,17 @@ export default async function (
     resolvedImporters,
     resolvedPackagesByDepPath,
     wantedToBeSkippedPackageIds,
+    appliedPatches,
   } = await resolveDependencyTree(projectsToResolve, opts)
+
+  // We only check whether patches were applied in cases when the whole lockfile was reanalyzed.
+  if (
+    opts.patchedDependencies &&
+    (opts.forceFullResolution || !opts.wantedLockfile.packages?.length) &&
+    Object.keys(opts.wantedLockfile.importers).length === importers.length
+  ) {
+    verifyPatches(Object.keys(opts.patchedDependencies), appliedPatches)
+  }
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
   const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project, index) => {
@@ -127,17 +143,24 @@ export default async function (
       )
     }
 
-    const topParents = project.manifest
+    const topParents: Array<{ name: string, version: string, linkedDir?: string }> = project.manifest
       ? await getTopParents(
         difference(
           Object.keys(getAllDependenciesFromManifest(project.manifest)),
           resolvedImporter.directDependencies
-            .filter((dep, index) => project.wantedDependencies[index].isNew === true)
+            .filter((dep, index) => project.wantedDependencies[index]?.isNew === true)
             .map(({ alias }) => alias) || []
         ),
         project.modulesDir
       )
       : []
+    resolvedImporter.linkedDependencies.forEach((linkedDependency) => {
+      topParents.push({
+        name: linkedDependency.alias,
+        version: linkedDependency.version,
+        linkedDir: `link:${path.relative(opts.lockfileDir, linkedDependency.resolution.directory)}`,
+      })
+    })
 
     const manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
     importers[index].manifest = manifest
@@ -146,7 +169,7 @@ export default async function (
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
       id: project.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
-      manifest,
+      manifest: project.manifest,
       modulesDir: project.modulesDir,
       rootDir: project.rootDir,
       topParents,
@@ -172,7 +195,6 @@ export default async function (
       }
 
       const depNode = dependenciesGraph[depPath]
-      if (depNode.isPure) continue
 
       const ref = depPathToRef(depPath, {
         alias,
@@ -199,7 +221,7 @@ export default async function (
         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
         (opts.allowBuild != null && !opts.allowBuild(pkg.name)) ||
         (opts.wantedLockfile.packages?.[depPath] == null) ||
-        pkg.requiresBuild
+        pkg.requiresBuild === true
       ) continue
       pendingRequiresBuilds.push(depPath)
     }
@@ -211,13 +233,22 @@ export default async function (
   return {
     dependenciesByProjectId,
     dependenciesGraph,
-    finishLockfileUpdates: finishLockfileUpdates.bind(null, dependenciesGraph, pendingRequiresBuilds, newLockfile),
+    finishLockfileUpdates: promiseShare(finishLockfileUpdates(dependenciesGraph, pendingRequiresBuilds, newLockfile)),
     outdatedDependencies,
     linkedDependenciesByProjectId,
     newLockfile,
     peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,
     wantedToBeSkippedPackageIds,
+  }
+}
+
+function verifyPatches (patchedDependencies: string[], appliedPatches: Set<string>) {
+  const nonAppliedPatches: string[] = patchedDependencies.filter((patchKey) => !appliedPatches.has(patchKey))
+  if (nonAppliedPatches.length) {
+    throw new PnpmError('PATCH_NOT_APPLIED', `The following patches were not applied: ${nonAppliedPatches.join(', ')}`, {
+      hint: 'Either remove them from "patchedDependencies" or update them to much packages in your dependencies.',
+    })
   }
 }
 
@@ -228,16 +259,17 @@ async function finishLockfileUpdates (
 ) {
   return Promise.all(pendingRequiresBuilds.map(async (depPath) => {
     const depNode = dependenciesGraph[depPath]
+    let requiresBuild!: boolean
     if (depNode.optional) {
       // We assume that all optional dependencies have to be built.
       // Optional dependencies are not always downloaded, so there is no way to know whether they need to be built or not.
-      depNode.requiresBuild = true
+      requiresBuild = true
     } else if (depNode.fetchingBundledManifest != null) {
       const filesResponse = await depNode.fetchingFiles()
       // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
       const pkgJson = await depNode.fetchingBundledManifest()
-      depNode.requiresBuild = Boolean(
-        pkgJson.scripts != null && (
+      requiresBuild = Boolean(
+        pkgJson?.scripts != null && (
           Boolean(pkgJson.scripts.preinstall) ||
           Boolean(pkgJson.scripts.install) ||
           Boolean(pkgJson.scripts.postinstall)
@@ -249,10 +281,13 @@ async function finishLockfileUpdates (
       // This should never ever happen
       throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${depPath}"`)
     }
+    if (typeof depNode.requiresBuild === 'function') {
+      depNode.requiresBuild['resolve'](requiresBuild)
+    }
 
     // TODO: try to cover with unit test the case when entry is no longer available in lockfile
     // It is an edge that probably happens if the entry is removed during lockfile prune
-    if (depNode.requiresBuild && newLockfile.packages![depPath]) {
+    if (requiresBuild && newLockfile.packages![depPath]) {
       newLockfile.packages![depPath].requiresBuild = true
     }
   }))

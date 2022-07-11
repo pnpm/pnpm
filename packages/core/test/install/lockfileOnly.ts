@@ -2,17 +2,17 @@ import path from 'path'
 import assertStore from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT, addDistTag } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,
   install,
 } from '@pnpm/core'
 import exists from 'path-exists'
 import sinon from 'sinon'
-import { addDistTag, testDefaults } from '../utils'
+import { testDefaults } from '../utils'
 
 test('install with lockfileOnly = true', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' as const })
@@ -75,4 +75,24 @@ test('warn when installing with lockfileOnly = true and node_modules exists', as
 
   const currentLockfile = await project.readCurrentLockfile()
   expect(currentLockfile.packages['/rimraf/2.5.1']).toBeFalsy()
+})
+
+// For @pnpm/core it might make sense to throw an exception in this case but for now it is better than having
+// the https://github.com/pnpm/pnpm/issues/4951 issue.
+test('always update the lockfile when lockfileOnly is used, even if frozenLockfile is used', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({
+    lockfileOnly: true,
+  }))
+  await install({
+    dependencies: {
+      'is-positive': '2.0.0',
+    },
+  }, await testDefaults({
+    lockfileOnly: true,
+    frozenLockfile: true,
+  }))
+
+  const lockfile = await project.readLockfile()
+  expect(lockfile.specifiers['is-positive']).toBe('2.0.0')
 })

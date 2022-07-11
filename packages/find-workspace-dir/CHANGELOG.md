@@ -1,5 +1,35 @@
 # @pnpm/find-workspace-dir
 
+## 4.0.2
+
+### Patch Changes
+
+- 6434a8291: Resolve native workspace path for case-insensitive file systems [#4904](https://github.com/pnpm/pnpm/issues/4904).
+
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/error@3.0.0
+
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+
 ## 3.0.1
 
 ### Patch Changes

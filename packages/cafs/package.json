@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cafs",
-  "version": "3.0.13",
+  "version": "4.0.7",
   "description": "A content-addressable filesystem for the packages storage",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -16,13 +16,13 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@pnpm/fetcher-base": "workspace:11.1.5",
-    "@pnpm/graceful-fs": "workspace:1.0.0",
-    "@pnpm/store-controller-types": "workspace:11.0.11",
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "concat-stream": "^2.0.0",
     "decompress-maybe": "^1.0.0",
-    "get-stream": "^6.0.0",
+    "get-stream": "^6.0.1",
     "p-limit": "^3.1.0",
     "path-temp": "^2.0.0",
     "rename-overwrite": "^4.0.2",
@@ -31,18 +31,20 @@
     "tar-stream": "^2.2.0"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:3.0.13",
-    "@types/concat-stream": "^1.6.0",
-    "@types/node": "^14.17.32",
-    "@types/ssri": "^7.1.0",
-    "@types/tar-stream": "^2.1.0",
-    "tempy": "^1.0.0"
+    "@pnpm/cafs": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@types/concat-stream": "^1.6.1",
+    "@types/node": "^14.18.21",
+    "@types/ssri": "^7.1.1",
+    "@types/tar-stream": "^2.2.2",
+    "p-defer": "^3.0.0",
+    "tempy": "^1.0.1"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "files": [
     "lib",
@@ -50,5 +52,8 @@
   ],
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/cafs#readme",
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/cafs",
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

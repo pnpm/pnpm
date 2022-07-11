@@ -11,7 +11,7 @@ import { DependencyManifest } from '@pnpm/types'
 
 import pLimit from 'p-limit'
 import pShare from 'promise-share'
-import uuid from 'uuid'
+import { v4 as uuidv4 } from 'uuid'
 
 export type StoreServerController = StoreController & {
   stop: () => Promise<void>
@@ -46,7 +46,7 @@ export default async function (
       stop: async () => {
         await limitedFetch(`${remotePrefix}/stop`, {})
       },
-      upload: async (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}) => {
+      upload: async (builtPkgLocation: string, opts: {filesIndexFile: string, sideEffectsCacheKey: string}) => {
         await limitedFetch(`${remotePrefix}/upload`, {
           builtPkgLocation,
           opts,
@@ -88,7 +88,7 @@ async function requestPackage (
   wantedDependency: WantedDependency,
   options: RequestPackageOptions
 ): Promise<PackageResponse> {
-  const msgId = uuid.v4()
+  const msgId = uuidv4()
 
   return limitedFetch(`${remotePrefix}/requestPackage`, {
     msgId,
@@ -133,7 +133,7 @@ function fetchPackage (
     finishing: () => Promise<void>
     inStoreLocation: string
   } {
-  const msgId = uuid.v4()
+  const msgId = uuidv4()
 
   return limitedFetch(`${remotePrefix}/fetchPackage`, {
     msgId,

@@ -1,5 +1,98 @@
 # @pnpm/directory-fetcher
 
+## 3.0.7
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
+## 3.0.6
+
+### Patch Changes
+
+- @pnpm/fetcher-base@13.0.1
+- @pnpm/read-project-manifest@3.0.6
+- @pnpm/resolver-base@9.0.5
+
+## 3.0.5
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/fetcher-base@13.0.0
+  - @pnpm/read-project-manifest@3.0.5
+  - @pnpm/resolver-base@9.0.4
+
+## 3.0.4
+
+### Patch Changes
+
+- Updated dependencies [0abfe1718]
+  - @pnpm/fetcher-base@12.1.0
+  - @pnpm/read-project-manifest@3.0.4
+  - @pnpm/resolver-base@9.0.3
+
+## 3.0.3
+
+### Patch Changes
+
+- @pnpm/fetcher-base@12.0.3
+- @pnpm/read-project-manifest@3.0.3
+- @pnpm/resolver-base@9.0.2
+
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [6756c2b02]
+  - @pnpm/fetcher-base@12.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/fetcher-base@12.0.1
+- @pnpm/read-project-manifest@3.0.2
+- @pnpm/resolver-base@9.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 41cae6450: Fetch all files from the directory by default.
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@3.0.1
+
+## 2.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/read-project-manifest@3.0.0
+  - @pnpm/resolver-base@9.0.0
+
+## 1.0.7
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@2.0.13
+
+## 1.0.6
+
+### Patch Changes
+
+- @pnpm/fetcher-base@11.1.6
+- @pnpm/read-project-manifest@2.0.12
+- @pnpm/resolver-base@8.1.6
+
 ## 1.0.5
 
 ### Patch Changes

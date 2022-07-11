@@ -1,6 +1,7 @@
 {
   "extends": [
-    "config:base"
+    "config:base",
+    "helpers:pinGitHubActionDigests"
   ],
   "ignoreDeps": [
     "@pnpm/assert-project",
@@ -57,7 +58,6 @@
     "find-packages",
     "npm",
     "pkgs-graph",
-    "pnpm-file-reporter",
     "publish-packed",
     "remove-all-except-outer-links",
     "@pnpm/core",

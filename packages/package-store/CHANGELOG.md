@@ -1,5 +1,192 @@
 # @pnpm/package-store
 
+## 14.0.5
+
+### Patch Changes
+
+- @pnpm/package-requester@18.0.13
+
+## 14.0.4
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/package-requester@18.0.12
+
+## 14.0.3
+
+### Patch Changes
+
+- @pnpm/package-requester@18.0.11
+
+## 14.0.2
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@2.0.2
+- @pnpm/package-requester@18.0.10
+
+## 14.0.1
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/cafs@4.0.7
+  - @pnpm/fetcher-base@13.0.1
+  - @pnpm/package-requester@18.0.10
+  - @pnpm/resolver-base@9.0.5
+  - @pnpm/store-controller-types@14.0.1
+  - @pnpm/create-cafs-store@2.0.1
+
+## 14.0.0
+
+### Major Changes
+
+- 2a34b21ce: Rename engine and targetEngine fields to sideEffectsCacheKey.
+
+### Minor Changes
+
+- 47b5e45dd: `package-import-method` supports a new option: `clone-or-copy`.
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/types@8.3.0
+  - @pnpm/create-cafs-store@2.0.0
+  - @pnpm/fetcher-base@13.0.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/cafs@4.0.6
+  - @pnpm/package-requester@18.0.9
+  - @pnpm/resolver-base@9.0.4
+
+## 13.0.8
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [0abfe1718]
+- Updated dependencies [0abfe1718]
+- Updated dependencies [0abfe1718]
+  - @pnpm/types@8.2.0
+  - @pnpm/package-requester@18.0.8
+  - @pnpm/create-cafs-store@1.1.0
+  - @pnpm/fetcher-base@12.1.0
+  - @pnpm/cafs@4.0.5
+  - @pnpm/resolver-base@9.0.3
+  - @pnpm/store-controller-types@13.0.4
+
+## 13.0.7
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/cafs@4.0.4
+  - @pnpm/fetcher-base@12.0.3
+  - @pnpm/package-requester@18.0.7
+  - @pnpm/resolver-base@9.0.2
+  - @pnpm/store-controller-types@13.0.3
+  - @pnpm/create-cafs-store@1.0.3
+
+## 13.0.6
+
+### Patch Changes
+
+- Updated dependencies [6756c2b02]
+  - @pnpm/cafs@4.0.3
+  - @pnpm/fetcher-base@12.0.2
+  - @pnpm/package-requester@18.0.6
+  - @pnpm/store-controller-types@13.0.2
+  - @pnpm/create-cafs-store@1.0.2
+
+## 13.0.5
+
+### Patch Changes
+
+- @pnpm/package-requester@18.0.5
+
+## 13.0.4
+
+### Patch Changes
+
+- @pnpm/package-requester@18.0.4
+
+## 13.0.3
+
+### Patch Changes
+
+- Updated dependencies [cadefe5b6]
+  - @pnpm/cafs@4.0.2
+  - @pnpm/create-cafs-store@1.0.1
+  - @pnpm/package-requester@18.0.3
+
+## 13.0.2
+
+### Patch Changes
+
+- Updated dependencies [1ceb632b1]
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/create-cafs-store@1.0.0
+  - @pnpm/types@8.0.1
+  - @pnpm/package-requester@18.0.2
+  - @pnpm/fetcher-base@12.0.1
+  - @pnpm/resolver-base@9.0.1
+  - @pnpm/store-controller-types@13.0.1
+  - @pnpm/cafs@4.0.1
+
+## 13.0.1
+
+### Patch Changes
+
+- Updated dependencies [7cdca5ef2]
+  - @pnpm/package-requester@18.0.1
+
+## 13.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [9c22c063e]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/package-requester@18.0.0
+  - @pnpm/cafs@4.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/resolver-base@9.0.0
+  - @pnpm/store-controller-types@13.0.0
+
+## 12.1.12
+
+### Patch Changes
+
+- Updated dependencies [5c525db13]
+  - @pnpm/package-requester@17.0.0
+  - @pnpm/store-controller-types@12.0.0
+  - @pnpm/cafs@3.0.15
+
+## 12.1.11
+
+### Patch Changes
+
+- Updated dependencies [800fb2836]
+- Updated dependencies [b138d048c]
+  - @pnpm/package-requester@16.0.2
+  - @pnpm/types@7.10.0
+  - @pnpm/core-loggers@6.1.4
+  - @pnpm/fetcher-base@11.1.6
+  - @pnpm/resolver-base@8.1.6
+  - @pnpm/store-controller-types@11.0.12
+  - @pnpm/cafs@3.0.14
+
 ## 12.1.10
 
 ### Patch Changes
@@ -607,7 +794,7 @@
 
 ### Patch Changes
 
-- 1adacd41e: only scan diretories when doing store prune
+- 1adacd41e: only scan directories when doing store prune
 
 ## 9.0.8
 

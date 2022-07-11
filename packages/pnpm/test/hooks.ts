@@ -92,7 +92,7 @@ test('filterLog hook filters peer dependency warning', async () => {
       }
     `
   await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
-  const result = execPnpmSync(['add', '@rollup/pluginutils@3.1.0'])
+  const result = execPnpmSync(['add', '@rollup/pluginutils@3.1.0', '--no-strict-peer-dependencies'])
 
   expect(result.status).toBe(0)
   expect(result.stdout.toString()).toEqual(

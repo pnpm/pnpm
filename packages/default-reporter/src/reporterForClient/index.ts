@@ -9,7 +9,7 @@ import reportDeprecations from './reportDeprecations'
 import reportHooks from './reportHooks'
 import reportInstallChecks from './reportInstallChecks'
 import reportLifecycleScripts from './reportLifecycleScripts'
-import reportMisc from './reportMisc'
+import reportMisc, { LOG_LEVEL_NUMBER } from './reportMisc'
 import reportPeerDependencyIssues from './reportPeerDependencyIssues'
 import reportProgress from './reportProgress'
 import reportRequestRetry from './reportRequestRetry'
@@ -47,6 +47,7 @@ export default function (
     appendOnly?: boolean
     cmd: string
     config?: Config
+    env: NodeJS.ProcessEnv
     isRecursive: boolean
     logLevel?: LogLevel
     pnpmConfig?: Config
@@ -63,18 +64,12 @@ export default function (
     : undefined
 
   const outputs: Array<Rx.Observable<Rx.Observable<{msg: string}>>> = [
-    reportProgress(log$, {
-      cwd,
-      throttle,
-    }),
-    reportPeerDependencyIssues(log$),
     reportLifecycleScripts(log$, {
       appendOnly: opts.appendOnly === true || opts.streamLifecycleOutput,
       aggregateOutput: opts.aggregateOutput,
       cwd,
       width,
     }),
-    reportDeprecations(log$.deprecation, { cwd, isRecursive: opts.isRecursive }),
     reportMisc(
       log$,
       {
@@ -85,20 +80,39 @@ export default function (
         zoomOutCurrent: opts.isRecursive,
       }
     ),
-    ...reportStats(log$, {
-      cmd: opts.cmd,
-      cwd,
-      isRecursive: opts.isRecursive,
-      width,
-    }),
     reportInstallChecks(log$.installCheck, { cwd }),
-    reportRequestRetry(log$.requestRetry),
     reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
     reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
     reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
     reportContext(log$, { cwd }),
-    reportUpdateCheck(log$.updateCheck),
+    reportUpdateCheck(log$.updateCheck, opts),
   ]
+
+  // logLevelNumber: 0123 = error warn info debug
+  const logLevelNumber = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
+
+  if (logLevelNumber >= LOG_LEVEL_NUMBER.warn) {
+    outputs.push(
+      reportPeerDependencyIssues(log$),
+      reportDeprecations(log$.deprecation, { cwd, isRecursive: opts.isRecursive }),
+      reportRequestRetry(log$.requestRetry)
+    )
+  }
+
+  if (logLevelNumber >= LOG_LEVEL_NUMBER.info) {
+    outputs.push(
+      reportProgress(log$, {
+        cwd,
+        throttle,
+      }),
+      ...reportStats(log$, {
+        cmd: opts.cmd,
+        cwd,
+        isRecursive: opts.isRecursive,
+        width,
+      })
+    )
+  }
 
   if (!opts.appendOnly) {
     outputs.push(reportBigTarballsProgress(log$))
@@ -107,6 +121,7 @@ export default function (
   if (!opts.isRecursive) {
     outputs.push(reportSummary(log$, {
       cwd,
+      env: opts.env,
       pnpmConfig: opts.pnpmConfig,
     }))
   }

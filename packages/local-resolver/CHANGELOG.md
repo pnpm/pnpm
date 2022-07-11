@@ -1,5 +1,91 @@
 # @pnpm/local-resolver
 
+## 8.0.6
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/read-project-manifest@3.0.6
+  - @pnpm/resolver-base@9.0.5
+
+## 8.0.5
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/read-project-manifest@3.0.5
+  - @pnpm/resolver-base@9.0.4
+
+## 8.0.4
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+  - @pnpm/read-project-manifest@3.0.4
+  - @pnpm/resolver-base@9.0.3
+
+## 8.0.3
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/read-project-manifest@3.0.3
+  - @pnpm/resolver-base@9.0.2
+
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/read-project-manifest@3.0.2
+  - @pnpm/resolver-base@9.0.1
+
+## 8.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+- @pnpm/read-project-manifest@3.0.1
+
+## 8.0.0
+
+### Major Changes
+
+- 9c22c063e: Local dependencies referenced through the `file:` protocol are hard linked (not symlinked) [#4408](https://github.com/pnpm/pnpm/pull/4408). If you need to symlink a dependency, use the `link:` protocol instead.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/graceful-fs@2.0.0
+  - @pnpm/read-project-manifest@3.0.0
+  - @pnpm/resolver-base@9.0.0
+
+## 7.0.8
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/read-project-manifest@2.0.13
+
+## 7.0.7
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/read-project-manifest@2.0.12
+  - @pnpm/resolver-base@8.1.6
+
 ## 7.0.6
 
 ### Patch Changes

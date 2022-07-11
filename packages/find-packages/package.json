@@ -1,6 +1,6 @@
 {
   "name": "find-packages",
-  "version": "8.0.11",
+  "version": "9.0.6",
   "description": "Find all packages inside a directory",
   "main": "lib/index.js",
   "files": [
@@ -22,7 +22,7 @@
     "package"
   ],
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "license": "MIT",
   "bugs": {
@@ -30,13 +30,16 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/find-packages#readme",
   "dependencies": {
-    "@pnpm/read-project-manifest": "workspace:2.0.11",
-    "@pnpm/types": "workspace:7.9.0",
-    "fast-glob": "^3.2.4",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "fast-glob": "^3.2.11",
     "p-filter": "^2.1.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "find-packages": "workspace:8.0.11"
+    "find-packages": "workspace:*"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

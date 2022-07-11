@@ -6,7 +6,7 @@ import PnpmError from '@pnpm/error'
 import { Lockfile, TarballResolution } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { ProjectManifest } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
 import {
@@ -20,10 +20,7 @@ import nock from 'nock'
 import exists from 'path-exists'
 import sinon from 'sinon'
 import writeYamlFile from 'write-yaml-file'
-import {
-  addDistTag,
-  testDefaults,
-} from './utils'
+import { testDefaults } from './utils'
 
 const LOCKFILE_WARN_LOG = {
   level: 'warn',
@@ -99,7 +96,7 @@ test('lockfile with scoped package', async () => {
     packages: {
       '/@types/semver/5.3.31': {
         resolution: {
-          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=',
+          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
         },
       },
     },
@@ -119,10 +116,10 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
   const project = prepareEmpty()
 
   // dependends on react-onclickoutside@5.9.0
-  const manifest = await addDependenciesToPackage({}, ['react-datetime@2.8.8'], await testDefaults({ fastUnpack: false, save: true }))
+  const manifest = await addDependenciesToPackage({}, ['react-datetime@2.8.8'], await testDefaults({ fastUnpack: false, save: true, strictPeerDependencies: false }))
 
   // dependends on react-onclickoutside@0.3.4
-  await addDependenciesToPackage(manifest, ['react-datetime@1.3.0'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(manifest, ['react-datetime@1.3.0'], await testDefaults({ save: true, strictPeerDependencies: false }))
 
   expect(
     project.requireModule('.pnpm/react-datetime@1.3.0/node_modules/react-onclickoutside/package.json').version
@@ -180,7 +177,7 @@ test('lockfile is fixed when it does not match package.json', async () => {
     packages: {
       '/@types/semver/5.3.31': {
         resolution: {
-          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=',
+          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
         },
       },
       '/is-negative/2.1.0': {
@@ -190,7 +187,7 @@ test('lockfile is fixed when it does not match package.json', async () => {
       },
       '/is-positive/3.1.0': {
         resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
       },
     },
@@ -238,7 +235,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
     packages: {
       '/@types/semver/5.3.31': {
         resolution: {
-          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=',
+          integrity: 'sha512-WBv5F9HrWTyG800cB9M3veCVkFahqXN7KA7c3VUCYZm/xhNzzIFiXiq+rZmj75j7GvWelN3YNrLX7FjtqBvhMw==',
         },
       },
       '/is-negative/2.1.0': {
@@ -248,7 +245,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
       },
       '/is-positive/3.1.0': {
         resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
       },
     },
@@ -287,7 +284,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   // })
 
   const pkgs = ['foo', 'bar', 'qar']
-  await Promise.all(pkgs.map(async (pkgName) => addDistTag(pkgName, '100.0.0', 'latest')))
+  await Promise.all(pkgs.map(async (pkgName) => addDistTag({ package: pkgName, version: '100.0.0', distTag: 'latest' })))
 
   let manifest = await addDependenciesToPackage({}, ['foo'], await testDefaults({ save: true, reporter }))
   // t.equal(reporter.withArgs(fooProgress).callCount, 1, 'reported foo once')
@@ -301,7 +298,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/foo'))).version).toBe('100.0.0')
   expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/bar'))).version).toBe('100.0.0')
 
-  await Promise.all(pkgs.map(async (pkgName) => addDistTag(pkgName, '100.1.0', 'latest')))
+  await Promise.all(pkgs.map(async (pkgName) => addDistTag({ package: pkgName, version: '100.1.0', distTag: 'latest' })))
 
   await rimraf('node_modules')
   await rimraf(path.join('..', '.store'))
@@ -331,7 +328,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
 test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not match the inner one`, async () => {
   const project = prepareEmpty()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
 
@@ -408,7 +405,7 @@ test('repeat install with lockfile should not mutate lockfile when dependency ha
 test('package is not marked dev if it is also a subdep of a regular dependency', async () => {
   const project = prepareEmpty()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
 
@@ -426,7 +423,7 @@ test('package is not marked dev if it is also a subdep of a regular dependency',
 test('package is not marked optional if it is also a subdep of a regular dependency', async () => {
   const project = prepareEmpty()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
   await addDependenciesToPackage(manifest, ['dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
@@ -485,7 +482,7 @@ test('scoped module from different registry', async () => {
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=',
+          integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
         },
       },
       '/is-positive/3.1.0': {
@@ -494,7 +491,7 @@ test('scoped module from different registry', async () => {
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
       },
     },
@@ -521,7 +518,7 @@ test('repeat install with no inner lockfile should not rewrite packages in node_
 test('packages are placed in devDependencies even if they are present as non-dev as well', async () => {
   const project = prepareEmpty()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   const reporter = sinon.spy()
   await install({
@@ -842,7 +839,12 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   process.chdir('project-2')
 
-  await addDependenciesToPackage(manifest, ['is-positive'], await testDefaults({ save: true, lockfileDir: path.resolve('..'), storeDir }))
+  await addDependenciesToPackage(manifest, ['is-positive'], await testDefaults({
+    save: true,
+    lockfileDir: path.resolve('..'),
+    storeDir,
+    pruneLockfileImporters: false,
+  }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
@@ -919,7 +921,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
       },
       '/is-positive/3.1.0': {
         resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
       },
     },
@@ -978,14 +980,14 @@ test(`use current ${WANTED_LOCKFILE} as initial wanted one, when wanted was remo
 test('existing dependencies are preserved when updating a lockfile to a newer format', async () => {
   const project = prepareEmpty()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
 
   const initialLockfile = await project.readLockfile()
   await writeYamlFile(WANTED_LOCKFILE, { ...initialLockfile, lockfileVersion: 5.01 }, { lineWidth: 1000 })
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   await mutateModules([
     {
@@ -1033,7 +1035,7 @@ test('lockfile is not getting broken if the used registry changes', async () => 
 
 test('broken lockfile is fixed even if it seems like up-to-date at first. Unless frozenLockfile option is set to true', async () => {
   const project = prepareEmpty()
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ lockfileOnly: true }))
   {
@@ -1317,7 +1319,7 @@ packages:
 
 // Covers https://github.com/pnpm/pnpm/issues/2928
 test('build metadata is always ignored in versions and the lockfile is not flickering because of them', async () => {
-  await addDistTag('@monorepolint/core', '0.5.0-alpha.51', 'latest')
+  await addDistTag({ package: '@monorepolint/core', version: '0.5.0-alpha.51', distTag: 'latest' })
   const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({},
@@ -1336,4 +1338,41 @@ test('build metadata is always ignored in versions and the lockfile is not flick
 
   const updatedLockfile = await project.readLockfile()
   expect(initialPkgEntry).toStrictEqual(updatedLockfile.packages[depPath])
+})
+
+test('a broken lockfile should not break the store', async () => {
+  prepareEmpty()
+  const opts = await testDefaults()
+
+  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], { ...opts, lockfileOnly: true })
+
+  const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
+  lockfile.packages!['/is-positive/1.0.0'].name = 'bad-name'
+  lockfile.packages!['/is-positive/1.0.0'].version = '1.0.0'
+
+  await writeYamlFile(WANTED_LOCKFILE, lockfile)
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ lockfileOnly: true, storeDir: path.resolve('store2') }))
+
+  delete lockfile.packages!['/is-positive/1.0.0'].name
+  delete lockfile.packages!['/is-positive/1.0.0'].version
+
+  await writeYamlFile(WANTED_LOCKFILE, lockfile)
+  await rimraf(path.resolve('node_modules'))
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ lockfileOnly: true, storeDir: path.resolve('store2') }))
 })

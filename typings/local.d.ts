@@ -23,12 +23,12 @@ declare module '@zkochan/libnpx/index' {
   export = anything;
 }
 
-declare module '@zkochan/npm-conf' {
+declare module '@pnpm/npm-conf' {
   const anything: any;
   export = anything;
 }
 
-declare module '@zkochan/npm-conf/lib/types' {
+declare module '@pnpm/npm-conf/lib/types' {
   const anything: any;
   export = anything;
 }
@@ -38,7 +38,7 @@ declare module '@pnpm/npm-lifecycle' {
   export = anything;
 }
 
-declare module '@zkochan/npm-package-arg' {
+declare module '@pnpm/npm-package-arg' {
   const anything: any;
   export = anything;
 }
@@ -88,7 +88,7 @@ declare module 'graceful-git' {
   export = anything;
 }
 
-declare module 'graph-sequencer' {
+declare module '@pnpm/graph-sequencer' {
   namespace graphSequencer {
     type Graph<T> = Map<T, T[]>;
     type Groups<T> = Array<T[]>;
@@ -169,4 +169,8 @@ declare module 'stream-cache' {
 declare module 'mdast-util-to-string' {
   const anything: any;
   export = anything;
+}
+
+declare module 'patch-package/dist/applyPatches' {
+  export function applyPatch(opts: any): boolean;
 }

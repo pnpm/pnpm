@@ -21,7 +21,7 @@ export function createLatestSpecs (specs: string[], manifest: ProjectManifest) {
   const allDeps = getAllDependenciesFromManifest(manifest)
   return specs
     .filter((selector) => selector.includes('@', 1)
-      ? allDeps[selector.substr(0, selector.indexOf('@', 1))]
+      ? allDeps[selector.slice(0, selector.indexOf('@', 1))]
       : allDeps[selector]
     )
     .map((selector) => {
@@ -39,5 +39,5 @@ export function createLatestSpecs (specs: string[], manifest: ProjectManifest) {
 }
 
 function removeVersionFromSpec (spec: string) {
-  return spec.substr(0, spec.lastIndexOf('@'))
+  return spec.substring(0, spec.lastIndexOf('@'))
 }

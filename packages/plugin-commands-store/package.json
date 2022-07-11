@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "4.1.11",
+  "version": "5.1.20",
   "description": "Commands for controlling the store",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,14 +9,14 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
     "test:jest": "jest",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7779 pnpm run test:e2e",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7781 pnpm run test:e2e",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
@@ -34,44 +34,47 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-store#readme",
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:4.2.6",
+    "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/plugin-commands-store": "workspace:4.1.11",
+    "@pnpm/plugin-commands-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "2.12.1",
+    "@pnpm/registry-mock": "2.20.0",
     "@types/archy": "0.0.31",
-    "@types/ramda": "0.27.39",
-    "@types/ssri": "^7.1.0",
+    "@types/ramda": "0.28.14",
+    "@types/ssri": "^7.1.1",
     "@zkochan/rimraf": "^2.1.2",
     "execa": "npm:safe-execa@^0.1.1",
     "path-exists": "^4.0.0",
     "ssri": "^8.0.1",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:3.0.13",
-    "@pnpm/cli-utils": "workspace:0.6.48",
-    "@pnpm/config": "workspace:13.13.0",
-    "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/get-context": "workspace:5.3.6",
-    "@pnpm/lockfile-utils": "workspace:3.2.0",
-    "@pnpm/normalize-registries": "workspace:2.0.12",
-    "@pnpm/parse-wanted-dependency": "workspace:2.0.0",
-    "@pnpm/pick-registry-for-package": "workspace:2.0.10",
-    "@pnpm/store-connection-manager": "workspace:3.2.8",
-    "@pnpm/store-controller-types": "workspace:11.0.11",
-    "@pnpm/store-path": "^5.0.0",
-    "@pnpm/types": "workspace:7.9.0",
+    "@pnpm/cafs": "workspace:*",
+    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/get-context": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/normalize-registries": "workspace:*",
+    "@pnpm/parse-wanted-dependency": "workspace:*",
+    "@pnpm/pick-registry-for-package": "workspace:*",
+    "@pnpm/store-connection-manager": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/store-path": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "archy": "^1.0.0",
-    "dependency-path": "workspace:8.0.10",
+    "dependency-path": "workspace:*",
     "dint": "^5.1.0",
     "load-json-file": "^6.2.0",
     "p-filter": "^2.1.0",
-    "ramda": "^0.27.1",
-    "render-help": "^1.0.1"
+    "ramda": "^0.28.0",
+    "render-help": "^1.0.2"
   },
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

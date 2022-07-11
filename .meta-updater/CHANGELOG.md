@@ -1,5 +1,100 @@
 # @pnpm-private/updater
 
+## 0.3.9
+
+### Patch Changes
+
+- Updated dependencies [ab684d77e]
+  - @pnpm/lockfile-file@5.1.4
+
+## 0.3.8
+
+### Patch Changes
+
+- Updated dependencies [5f643f23b]
+  - @pnpm/lockfile-file@5.1.3
+
+## 0.3.7
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-file@5.1.2
+
+## 0.3.6
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-file@5.1.1
+
+## 0.3.5
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/lockfile-file@5.1.0
+
+## 0.3.4
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/lockfile-file@5.0.4
+
+## 0.3.3
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/lockfile-file@5.0.3
+
+## 0.3.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/lockfile-file@5.0.2
+
+## 0.3.1
+
+### Patch Changes
+
+- @pnpm/lockfile-file@5.0.1
+
+## 0.3.0
+
+### Minor Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/lockfile-file@5.0.0
+
+## 0.2.9
+
+### Patch Changes
+
+- @pnpm/lockfile-file@4.3.1
+
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-file@4.3.0
+  - @pnpm/types@7.10.0
+
 ## 0.2.7
 
 ### Patch Changes

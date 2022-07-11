@@ -6,11 +6,11 @@ import {
   createOrConnectStoreController,
   CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import pick from 'ramda/src/pick'
+import pick from 'ramda/src/pick.js'
 import renderHelp from 'render-help'
 import {
-  rebuild,
-  rebuildPkgs,
+  rebuildProjects,
+  rebuildSelectedPkgs,
 } from './implementation'
 import recursive from './recursive'
 
@@ -102,7 +102,7 @@ export async function handler (
   })
 
   if (params.length === 0) {
-    await rebuild(
+    await rebuildProjects(
       [
         {
           buildIndex: 0,
@@ -113,7 +113,7 @@ export async function handler (
       rebuildOpts
     )
   }
-  await rebuildPkgs(
+  await rebuildSelectedPkgs(
     [
       {
         manifest: await readProjectManifestOnly(rebuildOpts.dir, opts),

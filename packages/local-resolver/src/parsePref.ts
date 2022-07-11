@@ -62,7 +62,14 @@ function fromLocal (
     .replace(/^(file|link|workspace):[/]*([A-Za-z]:)/, '$2') // drive name paths on windows
     .replace(/^(file|link|workspace):(?:[/]*([~./]))?/, '$2')
 
-  const protocol = type === 'directory' && !injected ? 'link:' : 'file:'
+  let protocol!: string
+  if (pref.startsWith('file:')) {
+    protocol = 'file:'
+  } else if (pref.startsWith('link:')) {
+    protocol = 'link:'
+  } else {
+    protocol = type === 'directory' && !injected ? 'link:' : 'file:'
+  }
   let fetchSpec!: string
   let normalizedPref!: string
   if (/^~[/]/.test(spec)) {
@@ -78,6 +85,7 @@ function fromLocal (
     }
   }
 
+  injected = protocol === 'file:'
   const dependencyPath = injected
     ? normalize(path.relative(lockfileDir, fetchSpec))
     : normalize(path.resolve(fetchSpec))

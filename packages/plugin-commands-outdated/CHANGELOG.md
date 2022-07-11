@@ -1,5 +1,257 @@
 # @pnpm/plugin-commands-outdated
 
+## 6.0.20
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.18
+- @pnpm/outdated@10.0.13
+
+## 6.0.19
+
+### Patch Changes
+
+- Updated dependencies [ab684d77e]
+  - @pnpm/lockfile-file@5.1.4
+  - @pnpm/default-resolver@15.0.8
+  - @pnpm/outdated@10.0.12
+
+## 6.0.18
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/cli-utils@0.7.17
+  - @pnpm/config@15.5.1
+  - @pnpm/lockfile-file@5.1.3
+  - @pnpm/outdated@10.0.11
+
+## 6.0.17
+
+### Patch Changes
+
+- @pnpm/outdated@10.0.10
+
+## 6.0.16
+
+### Patch Changes
+
+- Updated dependencies [f48d46ef6]
+  - @pnpm/config@15.5.0
+  - @pnpm/cli-utils@0.7.16
+
+## 6.0.15
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-file@5.1.2
+  - @pnpm/cli-utils@0.7.15
+  - @pnpm/config@15.4.1
+  - @pnpm/modules-yaml@10.0.5
+  - @pnpm/outdated@10.0.9
+  - @pnpm/default-resolver@15.0.7
+
+## 6.0.14
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/types@8.3.0
+  - @pnpm/config@15.4.0
+  - @pnpm/cli-utils@0.7.14
+  - @pnpm/lockfile-file@5.1.1
+  - @pnpm/modules-yaml@10.0.4
+  - @pnpm/outdated@10.0.8
+  - @pnpm/default-resolver@15.0.6
+
+## 6.0.13
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/config@15.3.0
+  - @pnpm/lockfile-file@5.1.0
+  - @pnpm/cli-utils@0.7.13
+  - @pnpm/modules-yaml@10.0.3
+  - @pnpm/outdated@10.0.7
+  - @pnpm/default-resolver@15.0.5
+
+## 6.0.12
+
+### Patch Changes
+
+- Updated dependencies [25798aad1]
+  - @pnpm/config@15.2.1
+  - @pnpm/cli-utils@0.7.12
+
+## 6.0.11
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/types@8.1.0
+  - @pnpm/config@15.2.0
+  - @pnpm/cli-utils@0.7.11
+  - @pnpm/lockfile-file@5.0.4
+  - @pnpm/modules-yaml@10.0.2
+  - @pnpm/outdated@10.0.6
+  - @pnpm/default-resolver@15.0.4
+
+## 6.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.10
+- @pnpm/outdated@10.0.5
+- @pnpm/config@15.1.4
+
+## 6.0.9
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+  - @pnpm/cli-utils@0.7.9
+
+## 6.0.8
+
+### Patch Changes
+
+- Updated dependencies [05159665d]
+  - @pnpm/config@15.1.3
+  - @pnpm/cli-utils@0.7.8
+
+## 6.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.7
+
+## 6.0.6
+
+### Patch Changes
+
+- Updated dependencies [af22c6c4f]
+  - @pnpm/config@15.1.2
+  - @pnpm/cli-utils@0.7.6
+  - @pnpm/outdated@10.0.4
+  - @pnpm/default-resolver@15.0.3
+
+## 6.0.5
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/cli-utils@0.7.5
+  - @pnpm/lockfile-file@5.0.3
+  - @pnpm/outdated@10.0.3
+
+## 6.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.4
+- @pnpm/config@15.1.1
+
+## 6.0.3
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/cli-utils@0.7.3
+  - @pnpm/config@15.1.1
+  - @pnpm/lockfile-file@5.0.2
+  - @pnpm/modules-yaml@10.0.1
+  - @pnpm/outdated@10.0.2
+  - @pnpm/default-resolver@15.0.2
+
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [e05dcc48a]
+  - @pnpm/config@15.1.0
+  - @pnpm/cli-utils@0.7.2
+
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [cdeb65203]
+- Updated dependencies [8dac029ef]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - @pnpm/store-path@6.0.0
+  - @pnpm/config@15.0.0
+  - @pnpm/outdated@10.0.1
+  - @pnpm/cli-utils@0.7.1
+  - @pnpm/error@3.0.1
+  - @pnpm/lockfile-file@5.0.1
+  - @pnpm/default-resolver@15.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [542014839]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/types@8.0.0
+  - @pnpm/command@3.0.0
+  - @pnpm/default-resolver@15.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/lockfile-file@5.0.0
+  - @pnpm/matcher@3.0.0
+  - @pnpm/modules-yaml@10.0.0
+  - @pnpm/outdated@10.0.0
+  - @pnpm/cli-utils@0.7.0
+  - @pnpm/common-cli-options-help@0.9.0
+
+## 5.1.10
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/cli-utils@0.6.50
+  - @pnpm/config@13.13.2
+  - @pnpm/default-resolver@14.0.12
+  - @pnpm/lockfile-file@4.3.1
+  - @pnpm/outdated@9.0.32
+
+## 5.1.9
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-file@4.3.0
+  - @pnpm/types@7.10.0
+  - @pnpm/outdated@9.0.31
+  - @pnpm/cli-utils@0.6.49
+  - @pnpm/config@13.13.1
+  - @pnpm/modules-yaml@9.1.1
+  - @pnpm/default-resolver@14.0.11
+
 ## 5.1.8
 
 ### Patch Changes

@@ -1,5 +1,122 @@
 # @pnpm/lockfile-file
 
+## 5.1.4
+
+### Patch Changes
+
+- ab684d77e: Never add an empty patchedDependencies field to `pnpm-lock.yaml`.
+
+## 5.1.3
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/merge-lockfile-changes@3.0.6
+
+## 5.1.2
+
+### Patch Changes
+
+- Updated dependencies [d01c32355]
+- Updated dependencies [8e5b77ef6]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/lockfile-types@4.2.0
+  - @pnpm/types@8.4.0
+  - @pnpm/merge-lockfile-changes@3.0.5
+
+## 5.1.1
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-types@4.1.0
+  - @pnpm/merge-lockfile-changes@3.0.4
+
+## 5.1.0
+
+### Minor Changes
+
+- 56cf04cb3: New settings added: use-git-branch-lockfile, merge-git-branch-lockfiles, merge-git-branch-lockfiles-branch-pattern.
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/git-utils@0.1.0
+  - @pnpm/lockfile-types@4.0.3
+  - @pnpm/merge-lockfile-changes@3.0.3
+
+## 5.0.4
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/lockfile-types@4.0.2
+  - @pnpm/merge-lockfile-changes@3.0.2
+
+## 5.0.3
+
+### Patch Changes
+
+- 52b0576af: feat: support libc filed
+
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/lockfile-types@4.0.1
+  - @pnpm/merge-lockfile-changes@3.0.1
+
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [1267e4eff]
+  - @pnpm/constants@6.1.0
+  - @pnpm/error@3.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/lockfile-types@4.0.0
+  - @pnpm/merge-lockfile-changes@3.0.0
+
+## 4.3.1
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+
+## 4.3.0
+
+### Minor Changes
+
+- b138d048c: New optional field supported: `onlyBuiltDependencies`.
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+  - @pnpm/types@7.10.0
+  - @pnpm/merge-lockfile-changes@2.0.8
+
 ## 4.2.6
 
 ### Patch Changes

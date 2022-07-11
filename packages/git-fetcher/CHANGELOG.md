@@ -1,5 +1,85 @@
 # @pnpm/git-fetcher
 
+## 5.1.6
+
+### Patch Changes
+
+- @pnpm/fetcher-base@13.0.1
+- @pnpm/prepare-package@2.0.6
+
+## 5.1.5
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/fetcher-base@13.0.0
+  - @pnpm/prepare-package@2.0.5
+
+## 5.1.4
+
+### Patch Changes
+
+- Updated dependencies [0abfe1718]
+  - @pnpm/fetcher-base@12.1.0
+  - @pnpm/prepare-package@2.0.4
+
+## 5.1.3
+
+### Patch Changes
+
+- @pnpm/fetcher-base@12.0.3
+- @pnpm/prepare-package@2.0.3
+
+## 5.1.2
+
+### Patch Changes
+
+- Updated dependencies [6756c2b02]
+  - @pnpm/fetcher-base@12.0.2
+
+## 5.1.1
+
+### Patch Changes
+
+- @pnpm/fetcher-base@12.0.1
+- @pnpm/prepare-package@2.0.2
+
+## 5.1.0
+
+### Minor Changes
+
+- c6463b9fd: feat(git-fetcher): shallow clone when fetching git resource
+
+### Patch Changes
+
+- @pnpm/prepare-package@2.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/prepare-package@2.0.0
+
+## 4.1.16
+
+### Patch Changes
+
+- @pnpm/prepare-package@1.0.13
+
+## 4.1.15
+
+### Patch Changes
+
+- @pnpm/fetcher-base@11.1.6
+- @pnpm/prepare-package@1.0.12
+
 ## 4.1.14
 
 ### Patch Changes

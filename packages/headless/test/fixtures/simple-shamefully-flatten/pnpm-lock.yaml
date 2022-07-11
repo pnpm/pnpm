@@ -34,6 +34,7 @@ packages:
   /colors/1.2.0:
     resolution: {integrity: sha512-lweugcX5nailCqZBttArTojZZpHGWhmFJX78KJHlxwhM8tLAy5QCgRgRxrubrksdvA+2Y3inWG5TToyyjL82BQ==}
     engines: {node: '>=0.1.90'}
+    requiresBuild: true
     dev: false
     optional: true
 
@@ -45,19 +46,19 @@ packages:
     resolution: {integrity: sha1-FQStJSMVjKpA20onh8sBQRmU6k8=}
     dev: false
 
-  /glob/7.1.7:
-    resolution: {integrity: sha512-OvD9ENzPLbegENnYP5UUfJIirTg4+XwMWGaQfQTY0JenxNvvIKP3U3/tAQSPIu/lHxXYSZmpXlUHeqAIdKzBLQ==}
+  /glob/7.2.0:
+    resolution: {integrity: sha512-lmLf6gtyrPq8tTjSmrO94wBeQbFR3HbLHbuyD69wuyQkImp2hWqMGB47OX65FBkPffO641IP9jWa1z4ivqG26Q==}
     dependencies:
       fs.realpath: 1.0.0
       inflight: 1.0.6
       inherits: 2.0.4
-      minimatch: 3.0.4
+      minimatch: 3.1.2
       once: 1.4.0
       path-is-absolute: 1.0.1
     dev: false
 
   /hello-world-js-bin/1.0.0:
-    resolution: {integrity: sha512-g9DaVvwKClJZUDrsYc7DRhvwMuGLzWlKOJlrHWZz5qiT/RdE1jdT+7Fh1T5XNKW7Oa/pbyxHNz7fK1+vLXe/3w==}
+    resolution: {integrity: sha512-0wmzOwltlD4Vy3XHbJlASP2OOZOOk39jbxWVQdohHQPiSPq7UDKUMkykrl+09FjPhanu2c3DuCmRA0Jy9Hf8rQ==}
     hasBin: true
     dev: false
 
@@ -82,8 +83,8 @@ packages:
     engines: {node: '>=0.10.0'}
     dev: false
 
-  /minimatch/3.0.4:
-    resolution: {integrity: sha512-yJHVQEhyqPLUTgt9B83PXu6W3rx4MvvHvSUvToogpwoGDOUQ+yDrR0HRot+yOCdCO7u4hX3pWft6kWBBcqh0UA==}
+  /minimatch/3.1.2:
+    resolution: {integrity: sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==}
     dependencies:
       brace-expansion: 1.1.11
     dev: false
@@ -111,7 +112,7 @@ packages:
     resolution: {integrity: sha512-uWjbaKIK3T1OSVptzX7Nl6PvQ3qAGtKEtVRjRuazjfL3Bx5eI409VZSqgND+4UNnmzLVdPj9FqFJNPqBZFve4w==}
     hasBin: true
     dependencies:
-      glob: 7.1.7
+      glob: 7.2.0
     dev: false
 
   /wrappy/1.0.2:

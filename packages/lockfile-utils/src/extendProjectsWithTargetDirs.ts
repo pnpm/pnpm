@@ -1,20 +1,19 @@
 import path from 'path'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { depPathToFilename } from 'dependency-path'
-import fromPairs from 'ramda/src/fromPairs'
+import fromPairs from 'ramda/src/fromPairs.js'
 
 export default function extendProjectsWithTargetDirs<T> (
   projects: Array<T & { id: string }>,
   lockfile: Lockfile,
   ctx: {
-    lockfileDir: string
     virtualStoreDir: string
     pkgLocationByDepPath?: Record<string, string>
   }
 ): Array<T & { id: string, stages: string[], targetDirs: string[] }> {
   const getLocalLocation = ctx.pkgLocationByDepPath != null
     ? (depPath: string) => ctx.pkgLocationByDepPath![depPath]
-    : (depPath: string, pkgName: string) => path.join(ctx.virtualStoreDir, depPathToFilename(depPath, ctx.lockfileDir), 'node_modules', pkgName)
+    : (depPath: string, pkgName: string) => path.join(ctx.virtualStoreDir, depPathToFilename(depPath), 'node_modules', pkgName)
   const projectsById: Record<string, T & { id: string, targetDirs: string[], stages?: string[] }> =
     fromPairs(projects.map((project) => [project.id, { ...project, targetDirs: [] as string[] }]))
   Object.entries(lockfile.packages ?? {})

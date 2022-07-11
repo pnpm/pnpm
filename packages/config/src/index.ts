@@ -2,13 +2,15 @@ import path from 'path'
 import fs from 'fs'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
+import loadNpmConf from '@pnpm/npm-conf'
+import npmTypes from '@pnpm/npm-conf/lib/types'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
+import { getCurrentBranch } from '@pnpm/git-utils'
+import matcher from '@pnpm/matcher'
 import camelcase from 'camelcase'
-import loadNpmConf from '@zkochan/npm-conf'
-import npmTypes from '@zkochan/npm-conf/lib/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
-import fromPairs from 'ramda/src/fromPairs'
+import fromPairs from 'ramda/src/fromPairs.js'
 import realpathMissing from 'realpath-missing'
 import whichcb from 'which'
 import { checkGlobalBinDir } from './checkGlobalBinDir'
@@ -32,9 +34,12 @@ async function which (cmd: string) {
 }
 
 export const types = Object.assign({
+  'auto-install-peers': Boolean,
   bail: Boolean,
   'cache-dir': String,
   'child-concurrency': Number,
+  'merge-git-branch-lockfiles': Boolean,
+  'merge-git-branch-lockfiles-branch-pattern': Array,
   color: ['always', 'auto', 'never'],
   'config-dir': String,
   dev: [null, true],
@@ -46,17 +51,20 @@ export const types = Object.assign({
   filter: [String, Array],
   'filter-prod': [String, Array],
   'frozen-lockfile': Boolean,
-  'frozen-shrinkwrap': Boolean,
   'git-checks': Boolean,
+  'git-shallow-hosts': Array,
   'global-bin-dir': String,
   'global-dir': String,
   'global-path': String,
   'global-pnpmfile': String,
+  'git-branch-lockfile': Boolean,
   hoist: Boolean,
   'hoist-pattern': Array,
   'ignore-pnpmfile': Boolean,
   'ignore-workspace': Boolean,
   'ignore-workspace-root-check': Boolean,
+  'include-workspace-root': Boolean,
+  'legacy-dir-filtering': Boolean,
   'link-workspace-packages': [Boolean, 'deep'],
   lockfile: Boolean,
   'lockfile-dir': String,
@@ -74,7 +82,6 @@ export const types = Object.assign({
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
   pnpmfile: String,
   'prefer-frozen-lockfile': Boolean,
-  'prefer-frozen-shrinkwrap': Boolean,
   'prefer-offline': Boolean,
   'prefer-workspace-packages': Boolean,
   production: [null, true],
@@ -89,16 +96,12 @@ export const types = Object.assign({
   'shamefully-flatten': Boolean,
   'shamefully-hoist': Boolean,
   'shared-workspace-lockfile': Boolean,
-  'shared-workspace-shrinkwrap': Boolean,
   'shell-emulator': Boolean,
-  'shrinkwrap-directory': String,
-  'shrinkwrap-only': Boolean,
   'side-effects-cache': Boolean,
   'side-effects-cache-readonly': Boolean,
   symlink: Boolean,
   sort: Boolean,
   'state-dir': String,
-  store: String, // TODO: deprecate
   'store-dir': String,
   stream: Boolean,
   'strict-peer-dependencies': Boolean,
@@ -170,6 +173,7 @@ export default async (
   }
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
   const npmConfig = loadNpmConf(cliOptions, rcOptionsTypes, {
+    'auto-install-peers': false,
     bail: true,
     color: 'auto',
     'enable-modules-dir': true,
@@ -178,22 +182,28 @@ export default async (
     'fetch-retry-maxtimeout': 60000,
     'fetch-retry-mintimeout': 10000,
     'fetch-timeout': 60000,
+    'git-shallow-hosts': [
+      // Follow https://github.com/npm/git/blob/1e1dbd26bd5b87ca055defecc3679777cb480e2a/lib/clone.js#L13-L19
+      'github.com',
+      'gist.github.com',
+      'gitlab.com',
+      'bitbucket.com',
+      'bitbucket.org',
+    ],
     globalconfig: npmDefaults.globalconfig,
+    'git-branch-lockfile': false,
     hoist: true,
     'hoist-pattern': ['*'],
     'ignore-workspace-root-check': false,
     'link-workspace-packages': true,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
+    'node-linker': 'isolated',
     'package-lock': npmDefaults['package-lock'],
     pending: false,
     'prefer-workspace-packages': false,
     'public-hoist-pattern': [
-      // Packages like @types/node, @babel/types
-      // should be publicly hoisted because TypeScript only searches in the root of node_modules
-      '*types*',
       '*eslint*',
-      '@prettier/plugin-*',
-      '*prettier-plugin-*',
+      '*prettier*',
     ],
     'recursive-install': true,
     registry: npmDefaults.registry,
@@ -203,12 +213,10 @@ export default async (
     'side-effects-cache': true,
     symlink: true,
     'shared-workspace-lockfile': true,
-    'shared-workspace-shrinkwrap': true,
     'shell-emulator': false,
-    shrinkwrap: npmDefaults.shrinkwrap,
     reverse: false,
     sort: true,
-    'strict-peer-dependencies': false,
+    'strict-peer-dependencies': true,
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'use-beta-cli': false,
     userconfig: npmDefaults.userconfig,
@@ -255,25 +263,26 @@ export default async (
     default: normalizeRegistryUrl(pnpmConfig.rawConfig.registry),
     ...getScopeRegistries(pnpmConfig.rawConfig),
   }
-  pnpmConfig.lockfileDir = pnpmConfig.lockfileDir ?? pnpmConfig.lockfileDirectory ?? pnpmConfig.shrinkwrapDirectory
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig['lockfile'] === 'boolean') return pnpmConfig['lockfile']
     if (typeof pnpmConfig['packageLock'] === 'boolean') return pnpmConfig['packageLock']
-    if (typeof pnpmConfig['shrinkwrap'] === 'boolean') return pnpmConfig['shrinkwrap']
     return false
   })()
-  pnpmConfig.lockfileOnly = typeof pnpmConfig['lockfileOnly'] === 'undefined'
-    ? pnpmConfig.shrinkwrapOnly
-    : pnpmConfig['lockfileOnly']
-  pnpmConfig.frozenLockfile = typeof pnpmConfig['frozenLockfile'] === 'undefined'
-    ? pnpmConfig.frozenShrinkwrap
-    : pnpmConfig['frozenLockfile']
-  pnpmConfig.preferFrozenLockfile = typeof pnpmConfig['preferFrozenLockfile'] === 'undefined'
-    ? pnpmConfig.preferFrozenShrinkwrap
-    : pnpmConfig['preferFrozenLockfile']
-  pnpmConfig.sharedWorkspaceLockfile = typeof pnpmConfig['sharedWorkspaceLockfile'] === 'undefined'
-    ? pnpmConfig.sharedWorkspaceShrinkwrap
-    : pnpmConfig['sharedWorkspaceLockfile']
+  pnpmConfig.useGitBranchLockfile = (() => {
+    if (typeof pnpmConfig['gitBranchLockfile'] === 'boolean') return pnpmConfig['gitBranchLockfile']
+    return false
+  })()
+  pnpmConfig.mergeGitBranchLockfiles = await (async () => {
+    if (typeof pnpmConfig['mergeGitBranchLockfiles'] === 'boolean') return pnpmConfig['mergeGitBranchLockfiles']
+    if (pnpmConfig['mergeGitBranchLockfilesBranchPattern'] != null && pnpmConfig['mergeGitBranchLockfilesBranchPattern'].length > 0) {
+      const branch = await getCurrentBranch()
+      if (branch) {
+        const branchMatcher = matcher(pnpmConfig['mergeGitBranchLockfilesBranchPattern'])
+        return branchMatcher(branch)
+      }
+    }
+    return undefined
+  })()
   pnpmConfig.pnpmHomeDir = getDataDir(process)
 
   if (cliOptions['global']) {
@@ -281,14 +290,14 @@ export default async (
     if (pnpmConfig['globalDir']) {
       globalDirRoot = pnpmConfig['globalDir']
     } else {
-      globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global-packages')
+      globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
     }
     pnpmConfig.dir = path.join(globalDirRoot, LAYOUT_VERSION.toString())
 
     pnpmConfig.bin = npmConfig.get('global-bin-dir') ?? env.PNPM_HOME
     if (pnpmConfig.bin) {
       fs.mkdirSync(pnpmConfig.bin, { recursive: true })
-      checkGlobalBinDir(pnpmConfig.bin, { env, shouldAllowWrite: opts.globalDirShouldAllowWrite })
+      await checkGlobalBinDir(pnpmConfig.bin, { env, shouldAllowWrite: opts.globalDirShouldAllowWrite })
     } else {
       throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
         hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
@@ -331,7 +340,7 @@ export default async (
       throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
         'Configuration conflict. "virtual-store-dir" may not be used with "global"')
     }
-    delete pnpmConfig.virtualStoreDir
+    pnpmConfig.virtualStoreDir = '.pnpm'
   } else {
     pnpmConfig.dir = cwd
     pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
@@ -350,6 +359,15 @@ export default async (
   }
 
   pnpmConfig.packageManager = packageManager
+
+  if (env.NODE_ENV) {
+    if (cliOptions.production) {
+      pnpmConfig.only = 'production'
+    }
+    if (cliOptions.dev) {
+      pnpmConfig.only = 'dev'
+    }
+  }
 
   if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
     pnpmConfig.production = true
@@ -379,10 +397,6 @@ export default async (
   if (pnpmConfig['shamefullyFlatten']) {
     warnings.push('The "shamefully-flatten" setting has been renamed to "shamefully-hoist". Also, in most cases you won\'t need "shamefully-hoist". Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).')
     pnpmConfig.shamefullyHoist = true
-  }
-  if (!pnpmConfig.storeDir && pnpmConfig['store']) {
-    warnings.push('The "store" setting has been renamed to "store-dir". Please use the new name.')
-    pnpmConfig.storeDir = pnpmConfig['store']
   }
   if (!pnpmConfig.cacheDir) {
     pnpmConfig.cacheDir = getCacheDir(process)

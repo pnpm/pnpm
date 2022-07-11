@@ -1,5 +1,169 @@
 # dependencies-hierarchy
 
+## 11.0.12
+
+### Patch Changes
+
+- dependency-path@9.2.3
+- @pnpm/lockfile-utils@4.0.10
+
+## 11.0.11
+
+### Patch Changes
+
+- Updated dependencies [ab684d77e]
+  - @pnpm/lockfile-file@5.1.4
+
+## 11.0.10
+
+### Patch Changes
+
+- Updated dependencies [5f643f23b]
+  - @pnpm/lockfile-file@5.1.3
+  - @pnpm/lockfile-utils@4.0.9
+
+## 11.0.9
+
+### Patch Changes
+
+- Updated dependencies [fc581d371]
+  - dependency-path@9.2.2
+  - @pnpm/lockfile-utils@4.0.8
+
+## 11.0.8
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-file@5.1.2
+  - @pnpm/lockfile-utils@4.0.7
+  - dependency-path@9.2.1
+  - @pnpm/modules-yaml@10.0.5
+  - @pnpm/normalize-registries@3.0.5
+  - @pnpm/read-package-json@6.0.6
+
+## 11.0.7
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+  - @pnpm/types@8.3.0
+  - dependency-path@9.2.0
+  - @pnpm/lockfile-file@5.1.1
+  - @pnpm/lockfile-utils@4.0.6
+  - @pnpm/modules-yaml@10.0.4
+  - @pnpm/normalize-registries@3.0.4
+  - @pnpm/read-package-json@6.0.5
+
+## 11.0.6
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+- Updated dependencies [725636a90]
+  - @pnpm/types@8.2.0
+  - @pnpm/lockfile-file@5.1.0
+  - dependency-path@9.1.4
+  - @pnpm/lockfile-utils@4.0.5
+  - @pnpm/modules-yaml@10.0.3
+  - @pnpm/normalize-registries@3.0.3
+  - @pnpm/read-package-json@6.0.4
+
+## 11.0.5
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - dependency-path@9.1.3
+  - @pnpm/lockfile-file@5.0.4
+  - @pnpm/lockfile-utils@4.0.4
+  - @pnpm/modules-yaml@10.0.2
+  - @pnpm/normalize-registries@3.0.2
+  - @pnpm/read-package-json@6.0.3
+
+## 11.0.4
+
+### Patch Changes
+
+- Updated dependencies [c57695550]
+  - dependency-path@9.1.2
+  - @pnpm/lockfile-utils@4.0.3
+
+## 11.0.3
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/lockfile-file@5.0.3
+
+## 11.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - dependency-path@9.1.1
+  - @pnpm/lockfile-file@5.0.2
+  - @pnpm/lockfile-utils@4.0.2
+  - @pnpm/modules-yaml@10.0.1
+  - @pnpm/normalize-registries@3.0.1
+  - @pnpm/read-package-json@6.0.2
+
+## 11.0.1
+
+### Patch Changes
+
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [688b0eaff]
+  - dependency-path@9.1.0
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/lockfile-file@5.0.1
+  - @pnpm/read-package-json@6.0.1
+
+## 11.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/lockfile-file@5.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/modules-yaml@10.0.0
+  - @pnpm/normalize-registries@3.0.0
+  - @pnpm/read-modules-dir@4.0.0
+  - @pnpm/read-package-json@6.0.0
+
+## 10.0.25
+
+### Patch Changes
+
+- @pnpm/lockfile-file@4.3.1
+- @pnpm/read-package-json@5.0.12
+
+## 10.0.24
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-file@4.3.0
+  - @pnpm/types@7.10.0
+  - @pnpm/lockfile-utils@3.2.1
+  - dependency-path@8.0.11
+  - @pnpm/modules-yaml@9.1.1
+  - @pnpm/normalize-registries@2.0.13
+  - @pnpm/read-package-json@5.0.11
+
 ## 10.0.23
 
 ### Patch Changes

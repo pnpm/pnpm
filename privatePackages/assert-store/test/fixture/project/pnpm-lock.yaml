@@ -1,12 +1,14 @@
-dependencies:
-  is-positive: 3.1.0
-lockfileVersion: 5.2
-packages:
-  /is-positive/3.1.0:
-    dev: false
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha1-hX21hKG6XRyymAUn/DtsQ103sP0=
+lockfileVersion: 5.4
+
 specifiers:
   is-positive: 3.1.0
+
+dependencies:
+  is-positive: 3.1.0
+
+packages:
+
+  /is-positive/3.1.0:
+    resolution: {integrity: sha1-hX21hKG6XRyymAUn/DtsQ103sP0=}
+    engines: {node: '>=0.10.0'}
+    dev: false

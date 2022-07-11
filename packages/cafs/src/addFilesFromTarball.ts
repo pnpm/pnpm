@@ -20,7 +20,7 @@ export default async function (
       // which are the same file.
       // Hence, we are normalizing the file name, replacing // with / and checking for duplicates.
       // Example of such package: @pnpm/colorize-semver-diff@1.0.1
-      const filename = header.name.substr(header.name.indexOf('/') + 1).replace(/\/\//g, '/')
+      const filename = header.name.slice(header.name.indexOf('/') + 1).replace(/\/\//g, '/')
       if (header.type !== 'file' || ignore(filename) || filesIndex[filename]) {
         fileStream.resume()
         next()
@@ -47,5 +47,8 @@ export default async function (
       .pipe(decompress() as Duplex)
       .on('error', reject).pipe(extract)
   })
+  if (!filesIndex['package.json'] && manifest != null) {
+    manifest.resolve(undefined)
+  }
   return filesIndex
 }

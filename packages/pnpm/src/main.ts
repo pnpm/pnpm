@@ -16,12 +16,11 @@ import chalk from 'chalk'
 import checkForUpdates from './checkForUpdates'
 import pnpmCmds, { rcOptionsTypes } from './cmd'
 import { formatUnknownOptionsError } from './formatError'
-import './logging/fileLogger'
 import parseCliArgs from './parseCliArgs'
 import initReporter, { ReporterType } from './reporter'
 import isCI from 'is-ci'
 import path from 'path'
-import isEmpty from 'ramda/src/isEmpty'
+import isEmpty from 'ramda/src/isEmpty.js'
 import stripAnsi from 'strip-ansi'
 import which from 'which'
 
@@ -98,6 +97,9 @@ export default async function run (inputArgv: string[]) {
       workspaceDir,
       checkUnknownSetting: false,
     }) as typeof config
+    if (cmd === 'dlx') {
+      config.useStderr = true
+    }
     config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
     config.argv = argv
     config.fallbackCommandUsed = fallbackCommandUsed
@@ -144,12 +146,16 @@ export default async function run (inputArgv: string[]) {
 
   if (selfUpdate) {
     await pnpmCmds.server(config as any, ['stop']) // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (config.cliOptions['global-dir'] == null) {
-      try {
-        config.bin = path.dirname(which.sync('pnpm'))
-      } catch (err) {
-        // if pnpm not found, then ignore
+    try {
+      const currentPnpmDir = path.dirname(which.sync('pnpm'))
+      if (path.relative(currentPnpmDir, config.bin) !== '') {
+        console.log(`The location of the currently running pnpm differs from the location where pnpm will be installed
+ Current pnpm location: ${currentPnpmDir}
+ Target location: ${config.bin}
+`)
       }
+    } catch (err) {
+      // if pnpm not found, then ignore
     }
   }
 
@@ -190,7 +196,7 @@ export default async function run (inputArgv: string[]) {
     const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
     if (config.workspaceRoot) {
       filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: false })
-    } else if (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test') {
+    } else if (!config.includeWorkspaceRoot && (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')) {
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: false })
     }
 
@@ -200,7 +206,7 @@ export default async function run (inputArgv: string[]) {
       workspaceDir: wsDir,
       testPattern: config.testPattern,
       changedFilesIgnorePattern: config.changedFilesIgnorePattern,
-      useGlobDirFiltering: true,
+      useGlobDirFiltering: !config.legacyDirFiltering,
     })
     config.selectedProjectsGraph = filterResults.selectedProjectsGraph
     if (isEmpty(config.selectedProjectsGraph)) {

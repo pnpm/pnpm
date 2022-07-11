@@ -1,5 +1,112 @@
 # @pnpm/real-hoist
 
+## 0.2.10
+
+### Patch Changes
+
+- dependency-path@9.2.3
+- @pnpm/lockfile-utils@4.0.10
+
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies [5f643f23b]
+  - @pnpm/lockfile-utils@4.0.9
+
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies [fc581d371]
+  - dependency-path@9.2.2
+  - @pnpm/lockfile-utils@4.0.8
+
+## 0.2.7
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@4.0.7
+- dependency-path@9.2.1
+
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies [c635f9fc1]
+  - dependency-path@9.2.0
+  - @pnpm/lockfile-utils@4.0.6
+
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies [725636a90]
+  - dependency-path@9.1.4
+  - @pnpm/lockfile-utils@4.0.5
+
+## 0.2.4
+
+### Patch Changes
+
+- dependency-path@9.1.3
+- @pnpm/lockfile-utils@4.0.4
+
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [c57695550]
+  - dependency-path@9.1.2
+  - @pnpm/lockfile-utils@4.0.3
+
+## 0.2.2
+
+### Patch Changes
+
+- dependency-path@9.1.1
+- @pnpm/lockfile-utils@4.0.2
+
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [688b0eaff]
+  - dependency-path@9.1.0
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/error@3.0.1
+
+## 0.2.0
+
+### Minor Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- 9b9b13c3a: Update Yarn dependencies.
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - dependency-path@9.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/lockfile-utils@4.0.0
+
+## 0.1.8
+
+### Patch Changes
+
+- 70ba51da9: Throw a meaningful error message on `pnpm install` when the lockfile is broken and `node-linker` is set to `hoisted`.
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+
+## 0.1.7
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@3.2.1
+- dependency-path@8.0.11
+
 ## 0.1.6
 
 ### Patch Changes

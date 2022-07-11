@@ -1,5 +1,11 @@
 # @pnpm/common-cli-options-help
 
+## 0.9.0
+
+### Minor Changes
+
+- 542014839: Node.js 12 is not supported.
+
 ## 0.8.0
 
 ### Minor Changes

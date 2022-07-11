@@ -20,6 +20,12 @@ import {
   REMOVED_CHAR,
 } from './outputConstants'
 
+const CONFIG_BY_DEP_TYPE = {
+  prod: 'production',
+  dev: 'dev',
+  optional: 'optional',
+}
+
 export default (
   log$: {
     deprecation: Rx.Observable<DeprecationLog>
@@ -29,6 +35,7 @@ export default (
   },
   opts: {
     cwd: string
+    env: NodeJS.ProcessEnv
     pnpmConfig?: Config
   }
 ) => {
@@ -55,6 +62,13 @@ export default (
             }
             msg += EOL
             msg += printDiffs(diffs, { prefix: opts.cwd })
+            msg += EOL
+          } else if (opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
+            msg += EOL
+            msg += `${chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)} skipped`
+            if (opts.env.NODE_ENV === 'production' && depType === 'dev') {
+              msg += ' because NODE_ENV is set to production'
+            }
             msg += EOL
           }
         }

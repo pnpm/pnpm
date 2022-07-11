@@ -1,5 +1,142 @@
 # @pnpm/get-context
 
+## 6.2.4
+
+### Patch Changes
+
+- Updated dependencies [ab684d77e]
+  - @pnpm/lockfile-file@5.1.4
+  - @pnpm/read-projects-context@6.0.9
+
+## 6.2.3
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/lockfile-file@5.1.3
+  - @pnpm/read-projects-context@6.0.8
+
+## 6.2.2
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-file@5.1.2
+  - @pnpm/core-loggers@7.0.5
+  - @pnpm/modules-yaml@10.0.5
+  - @pnpm/read-projects-context@6.0.7
+
+## 6.2.1
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/lockfile-file@5.1.1
+  - @pnpm/modules-yaml@10.0.4
+  - @pnpm/read-projects-context@6.0.6
+
+## 6.2.0
+
+### Minor Changes
+
+- 56cf04cb3: New settings added: use-git-branch-lockfile, merge-git-branch-lockfiles, merge-git-branch-lockfiles-branch-pattern.
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/lockfile-file@5.1.0
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/modules-yaml@10.0.3
+  - @pnpm/read-projects-context@6.0.5
+
+## 6.1.3
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/core-loggers@7.0.2
+  - @pnpm/lockfile-file@5.0.4
+  - @pnpm/modules-yaml@10.0.2
+  - @pnpm/read-projects-context@6.0.4
+
+## 6.1.2
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/lockfile-file@5.0.3
+  - @pnpm/read-projects-context@6.0.3
+
+## 6.1.1
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/core-loggers@7.0.1
+  - @pnpm/lockfile-file@5.0.2
+  - @pnpm/modules-yaml@10.0.1
+  - @pnpm/read-projects-context@6.0.2
+
+## 6.1.0
+
+### Minor Changes
+
+- 8fa95fd86: `extraNodePaths` added to the context.
+
+### Patch Changes
+
+- Updated dependencies [1267e4eff]
+  - @pnpm/constants@6.1.0
+  - @pnpm/error@3.0.1
+  - @pnpm/lockfile-file@5.0.1
+  - @pnpm/read-projects-context@6.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/lockfile-file@5.0.0
+  - @pnpm/modules-yaml@10.0.0
+  - @pnpm/read-projects-context@6.0.0
+
+## 5.3.8
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/lockfile-file@4.3.1
+  - @pnpm/read-projects-context@5.0.19
+
+## 5.3.7
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-file@4.3.0
+  - @pnpm/types@7.10.0
+  - @pnpm/read-projects-context@5.0.18
+  - @pnpm/core-loggers@6.1.4
+  - @pnpm/modules-yaml@9.1.1
+
 ## 5.3.6
 
 ### Patch Changes

@@ -15,3 +15,5 @@ export {
   writeCurrentLockfile,
   writeWantedLockfile,
 }
+
+export { cleanGitBranchLockfiles } from './gitBranchLockfile'

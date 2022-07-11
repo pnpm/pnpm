@@ -5,7 +5,30 @@ import fixtures from '@pnpm/test-fixtures'
 
 const f = fixtures(__dirname)
 
-test('fetch', async () => {
+test('fetch including only package files', async () => {
+  process.chdir(f.find('simple-pkg'))
+  const fetcher = createFetcher({ includeOnlyPackageFiles: true })
+
+  // eslint-disable-next-line
+  const fetchResult = await fetcher.directory({} as any, {
+    directory: '.',
+    type: 'directory',
+  }, {
+    lockfileDir: process.cwd(),
+  })
+
+  expect(fetchResult.local).toBe(true)
+  expect(fetchResult.packageImportMethod).toBe('hardlink')
+  expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
+
+  // Only those files are included which would get published
+  expect(Object.keys(fetchResult.filesIndex).sort()).toStrictEqual([
+    'index.js',
+    'package.json',
+  ])
+})
+
+test('fetch including all files', async () => {
   process.chdir(f.find('simple-pkg'))
   const fetcher = createFetcher()
 
@@ -25,6 +48,7 @@ test('fetch', async () => {
   expect(Object.keys(fetchResult.filesIndex).sort()).toStrictEqual([
     'index.js',
     'package.json',
+    'test.js',
   ])
 })
 

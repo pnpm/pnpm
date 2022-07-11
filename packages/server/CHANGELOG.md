@@ -1,5 +1,99 @@
 # @pnpm/server
 
+## 13.0.1
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/store-controller-types@14.0.1
+  - @pnpm/fetch@5.0.5
+
+## 13.0.0
+
+### Major Changes
+
+- 2a34b21ce: Rename engine and targetEngine fields to sideEffectsCacheKey.
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/fetch@5.0.4
+
+## 12.0.5
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [9d5bf09c0]
+  - @pnpm/types@8.2.0
+  - @pnpm/fetch@5.0.3
+  - @pnpm/store-controller-types@13.0.4
+
+## 12.0.4
+
+### Patch Changes
+
+- 8c8156165: Update uuid.
+
+## 12.0.3
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/store-controller-types@13.0.3
+  - @pnpm/fetch@5.0.2
+
+## 12.0.2
+
+### Patch Changes
+
+- Updated dependencies [6756c2b02]
+  - @pnpm/store-controller-types@13.0.2
+
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/store-controller-types@13.0.1
+  - @pnpm/fetch@5.0.1
+
+## 12.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/fetch@5.0.0
+  - @pnpm/store-controller-types@13.0.0
+
+## 11.0.19
+
+### Patch Changes
+
+- Updated dependencies [5c525db13]
+  - @pnpm/store-controller-types@12.0.0
+
+## 11.0.18
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/store-controller-types@11.0.12
+  - @pnpm/fetch@4.2.5
+
 ## 11.0.17
 
 ### Patch Changes

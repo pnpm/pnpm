@@ -1,4 +1,4 @@
-import parsePref, { RegistryPackageSpec } from '@pnpm/npm-resolver/lib/parsePref'
+import { parsePref, RegistryPackageSpec } from '@pnpm/npm-resolver'
 import { WorkspacePackages } from '@pnpm/resolver-base'
 import { PackageManifest } from '@pnpm/types'
 import semver from 'semver'

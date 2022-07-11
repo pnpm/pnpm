@@ -1,5 +1,702 @@
 # @pnpm/core
 
+## 5.5.8
+
+### Patch Changes
+
+- d89bb43f2: Don't symlink the autoinstalled peer dependencies to the root of `node_modules` [#4988](https://github.com/pnpm/pnpm/issues/4988).
+
+## 5.5.7
+
+### Patch Changes
+
+- ff7061929: `pnpm remove <pkg>` should not fail in a workspace that has patches [#4954](https://github.com/pnpm/pnpm/issues/4954#issuecomment-1172858634)
+- Updated dependencies [f5621a42c]
+- Updated dependencies [2bca856e0]
+  - @pnpm/manifest-utils@3.1.0
+  - @pnpm/resolve-dependencies@28.2.0
+  - @pnpm/which-version-is-pinned@3.0.0
+  - @pnpm/crypto.base32-hash@1.0.1
+  - @pnpm/link-bins@7.1.7
+  - dependency-path@9.2.3
+  - @pnpm/build-modules@9.2.4
+  - @pnpm/headless@18.3.6
+  - @pnpm/hoist@6.1.9
+  - @pnpm/filter-lockfile@6.0.11
+  - @pnpm/lockfile-to-pnp@0.5.17
+  - @pnpm/lockfile-utils@4.0.10
+  - @pnpm/lockfile-walker@5.0.10
+  - @pnpm/modules-cleaner@12.0.13
+  - @pnpm/package-requester@18.0.13
+  - @pnpm/prune-lockfile@4.0.11
+
+## 5.5.6
+
+### Patch Changes
+
+- b55b3782d: Never skip lockfile resolution when the lockfile is not up-to-date and `--lockfile-only` is used. Even if `frozen-lockfile` is `true` [#4951](https://github.com/pnpm/pnpm/issues/4951).
+- Updated dependencies [5e0e7f5db]
+- Updated dependencies [ab684d77e]
+  - @pnpm/resolve-dependencies@28.1.4
+  - @pnpm/lockfile-file@5.1.4
+  - @pnpm/get-context@6.2.4
+  - @pnpm/headless@18.3.5
+  - @pnpm/lockfile-to-pnp@0.5.16
+  - @pnpm/package-requester@18.0.12
+
+## 5.5.5
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- 42c1ea1c0: Update validate-npm-package-name to v4.
+- c5fdc5f35: Update the compatibility database.
+- Updated dependencies [5f643f23b]
+- Updated dependencies [42c1ea1c0]
+  - @pnpm/build-modules@9.2.3
+  - @pnpm/filter-lockfile@6.0.10
+  - @pnpm/get-context@6.2.3
+  - @pnpm/headless@18.3.4
+  - @pnpm/hoist@6.1.8
+  - @pnpm/link-bins@7.1.6
+  - @pnpm/lockfile-file@5.1.3
+  - @pnpm/lockfile-to-pnp@0.5.15
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/lockfile-walker@5.0.9
+  - @pnpm/modules-cleaner@12.0.12
+  - @pnpm/package-requester@18.0.12
+  - @pnpm/prune-lockfile@4.0.10
+  - @pnpm/remove-bins@3.0.7
+  - @pnpm/resolve-dependencies@28.1.3
+  - @pnpm/parse-wanted-dependency@3.0.1
+  - @pnpm/lifecycle@13.1.2
+  - @pnpm/parse-overrides@2.0.2
+
+## 5.5.4
+
+### Patch Changes
+
+- fc581d371: Don't fail when the patched package appears multiple times in the dependency graph [#4938](https://github.com/pnpm/pnpm/issues/4938).
+- Updated dependencies [fc581d371]
+- Updated dependencies [00c12fa53]
+- Updated dependencies [fc581d371]
+  - @pnpm/resolve-dependencies@28.1.2
+  - @pnpm/build-modules@9.2.2
+  - dependency-path@9.2.2
+  - @pnpm/headless@18.3.3
+  - @pnpm/filter-lockfile@6.0.9
+  - @pnpm/hoist@6.1.7
+  - @pnpm/lockfile-to-pnp@0.5.14
+  - @pnpm/lockfile-utils@4.0.8
+  - @pnpm/lockfile-walker@5.0.8
+  - @pnpm/modules-cleaner@12.0.11
+  - @pnpm/package-requester@18.0.11
+  - @pnpm/prune-lockfile@4.0.9
+
+## 5.5.3
+
+### Patch Changes
+
+- 7922d6314: Don't link local dev dependencies, when prod dependencies should only be installed.
+  - @pnpm/package-requester@18.0.10
+  - @pnpm/headless@18.3.2
+
+## 5.5.2
+
+### Patch Changes
+
+- 12aa1e2e1: Return early when the lockfile is up-to-date.
+  - @pnpm/lockfile-to-pnp@0.5.13
+  - @pnpm/headless@18.3.2
+
+## 5.5.1
+
+### Patch Changes
+
+- 8e5b77ef6: Update the dependencies when a patch file is modified.
+- 285ff09ba: Patch packages even when scripts are ignored.
+- Updated dependencies [285ff09ba]
+- Updated dependencies [8e5b77ef6]
+- Updated dependencies [285ff09ba]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/calc-dep-state@3.0.1
+  - @pnpm/build-modules@9.2.1
+  - @pnpm/headless@18.3.1
+  - @pnpm/resolve-dependencies@28.1.1
+  - @pnpm/types@8.4.0
+  - @pnpm/filter-lockfile@6.0.8
+  - @pnpm/hoist@6.1.6
+  - @pnpm/lockfile-file@5.1.2
+  - @pnpm/lockfile-utils@4.0.7
+  - @pnpm/lockfile-walker@5.0.7
+  - @pnpm/modules-cleaner@12.0.10
+  - @pnpm/prune-lockfile@4.0.8
+  - @pnpm/core-loggers@7.0.5
+  - dependency-path@9.2.1
+  - @pnpm/get-context@6.2.2
+  - @pnpm/lifecycle@13.1.1
+  - @pnpm/link-bins@7.1.5
+  - @pnpm/lockfile-to-pnp@0.5.12
+  - @pnpm/manifest-utils@3.0.6
+  - @pnpm/modules-yaml@10.0.5
+  - @pnpm/normalize-registries@3.0.5
+  - @pnpm/package-requester@18.0.10
+  - @pnpm/read-package-json@6.0.6
+  - @pnpm/read-project-manifest@3.0.6
+  - @pnpm/remove-bins@3.0.6
+  - @pnpm/resolver-base@9.0.5
+  - @pnpm/store-controller-types@14.0.1
+  - @pnpm/symlink-dependency@5.0.5
+
+## 5.5.0
+
+### Minor Changes
+
+- 2a34b21ce: Dependencies patching is possible via the `pnpm.patchedDependencies` field of the `package.json`.
+  To patch a package, the package name, exact version, and the relative path to the patch file should be specified. For instance:
+
+  ```json
+  {
+    "pnpm": {
+      "patchedDependencies": {
+        "eslint@1.0.0": "./patches/eslint@1.0.0.patch"
+      }
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [2a34b21ce]
+  - @pnpm/headless@18.3.0
+  - @pnpm/types@8.3.0
+  - @pnpm/resolve-dependencies@28.1.0
+  - @pnpm/lifecycle@13.1.0
+  - dependency-path@9.2.0
+  - @pnpm/calc-dep-state@3.0.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/build-modules@9.2.0
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/filter-lockfile@6.0.7
+  - @pnpm/get-context@6.2.1
+  - @pnpm/hoist@6.1.5
+  - @pnpm/link-bins@7.1.4
+  - @pnpm/lockfile-file@5.1.1
+  - @pnpm/lockfile-to-pnp@0.5.11
+  - @pnpm/lockfile-utils@4.0.6
+  - @pnpm/lockfile-walker@5.0.6
+  - @pnpm/manifest-utils@3.0.5
+  - @pnpm/modules-cleaner@12.0.9
+  - @pnpm/modules-yaml@10.0.4
+  - @pnpm/normalize-registries@3.0.4
+  - @pnpm/package-requester@18.0.9
+  - @pnpm/prune-lockfile@4.0.7
+  - @pnpm/read-package-json@6.0.5
+  - @pnpm/read-project-manifest@3.0.5
+  - @pnpm/remove-bins@3.0.5
+  - @pnpm/resolver-base@9.0.4
+  - @pnpm/symlink-dependency@5.0.4
+
+## 5.4.0
+
+### Minor Changes
+
+- fb5bbfd7a: A new setting added: `pnpm.peerDependencyRules.allowAny`. `allowAny` is an array of package name patterns, any peer dependency matching the pattern will be resolved from any version, regardless of the range specified in `peerDependencies`. For instance:
+
+  ```
+  {
+    "pnpm": {
+      "peerDependencyRules": {
+        "allowAny": ["@babel/*", "eslint"]
+      }
+    }
+  }
+  ```
+
+  The above setting will mute any warnings about peer dependency version mismatches related to `@babel/` packages or `eslint`.
+
+- fb5bbfd7a: The `pnpm.peerDependencyRules.ignoreMissing` setting may accept package name patterns. So you may ignore any missing `@babel/*` peer dependencies, for instance:
+
+  ```json
+  {
+    "pnpm": {
+      "peerDependencyRules": {
+        "ignoreMissing": ["@babel/*"]
+      }
+    }
+  }
+  ```
+
+- 56cf04cb3: New settings added: use-git-branch-lockfile, merge-git-branch-lockfiles, merge-git-branch-lockfiles-branch-pattern.
+
+### Patch Changes
+
+- 0abfe1718: Packages that should be built are always cloned or copied from the store. This is required to prevent the postinstall scripts from modifying the original source files of the package.
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [0abfe1718]
+- Updated dependencies [0abfe1718]
+- Updated dependencies [0abfe1718]
+- Updated dependencies [56cf04cb3]
+- Updated dependencies [725636a90]
+- Updated dependencies [0abfe1718]
+  - @pnpm/types@8.2.0
+  - @pnpm/build-modules@9.1.5
+  - @pnpm/resolve-dependencies@28.0.0
+  - @pnpm/headless@18.2.0
+  - @pnpm/get-context@6.2.0
+  - @pnpm/lockfile-file@5.1.0
+  - dependency-path@9.1.4
+  - @pnpm/package-requester@18.0.8
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/filter-lockfile@6.0.6
+  - @pnpm/hoist@6.1.4
+  - @pnpm/lifecycle@13.0.5
+  - @pnpm/link-bins@7.1.3
+  - @pnpm/lockfile-to-pnp@0.5.10
+  - @pnpm/lockfile-utils@4.0.5
+  - @pnpm/lockfile-walker@5.0.5
+  - @pnpm/manifest-utils@3.0.4
+  - @pnpm/modules-cleaner@12.0.8
+  - @pnpm/modules-yaml@10.0.3
+  - @pnpm/normalize-registries@3.0.3
+  - @pnpm/prune-lockfile@4.0.6
+  - @pnpm/read-package-json@6.0.4
+  - @pnpm/read-project-manifest@3.0.4
+  - @pnpm/remove-bins@3.0.4
+  - @pnpm/resolver-base@9.0.3
+  - @pnpm/store-controller-types@13.0.4
+  - @pnpm/symlink-dependency@5.0.3
+
+## 5.3.1
+
+### Patch Changes
+
+- @pnpm/lockfile-to-pnp@0.5.9
+- @pnpm/headless@18.1.11
+
+## 5.3.0
+
+### Minor Changes
+
+- 4d39e4a0c: A new setting is supported for ignoring specific deprecation messages: `pnpm.allowedDeprecatedVersions`. The setting should be provided in the `pnpm` section of the root `package.json` file. The below example will mute any deprecation warnings about the `request` package and warnings about `express` v1:
+
+  ```json
+  {
+    "pnpm": {
+      "allowedDeprecatedVersions": {
+        "request": "*",
+        "express": "1"
+      }
+    }
+  }
+  ```
+
+  Related issue: [#4306](https://github.com/pnpm/pnpm/issues/4306)
+  Related PR: [#4864](https://github.com/pnpm/pnpm/pull/4864)
+
+### Patch Changes
+
+- c1238946f: Update the compatibility database.
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [26413c30c]
+  - @pnpm/types@8.1.0
+  - @pnpm/resolve-dependencies@27.2.0
+  - @pnpm/build-modules@9.1.4
+  - @pnpm/core-loggers@7.0.2
+  - dependency-path@9.1.3
+  - @pnpm/filter-lockfile@6.0.5
+  - @pnpm/get-context@6.1.3
+  - @pnpm/headless@18.1.10
+  - @pnpm/hoist@6.1.3
+  - @pnpm/lifecycle@13.0.4
+  - @pnpm/link-bins@7.1.2
+  - @pnpm/lockfile-file@5.0.4
+  - @pnpm/lockfile-to-pnp@0.5.8
+  - @pnpm/lockfile-utils@4.0.4
+  - @pnpm/lockfile-walker@5.0.4
+  - @pnpm/manifest-utils@3.0.3
+  - @pnpm/modules-cleaner@12.0.7
+  - @pnpm/modules-yaml@10.0.2
+  - @pnpm/normalize-registries@3.0.2
+  - @pnpm/package-requester@18.0.7
+  - @pnpm/prune-lockfile@4.0.5
+  - @pnpm/read-package-json@6.0.3
+  - @pnpm/read-project-manifest@3.0.3
+  - @pnpm/remove-bins@3.0.3
+  - @pnpm/resolver-base@9.0.2
+  - @pnpm/store-controller-types@13.0.3
+  - @pnpm/symlink-dependency@5.0.2
+
+## 5.2.5
+
+### Patch Changes
+
+- Updated dependencies [9f5352014]
+  - @pnpm/resolve-dependencies@27.1.4
+
+## 5.2.4
+
+### Patch Changes
+
+- 6756c2b02: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- Updated dependencies [6756c2b02]
+  - @pnpm/build-modules@9.1.3
+  - @pnpm/package-requester@18.0.6
+  - @pnpm/resolve-dependencies@27.1.3
+  - @pnpm/store-controller-types@13.0.2
+  - @pnpm/headless@18.1.9
+  - @pnpm/lifecycle@13.0.3
+  - @pnpm/modules-cleaner@12.0.6
+  - @pnpm/link-bins@7.1.1
+
+## 5.2.3
+
+### Patch Changes
+
+- Updated dependencies [971f2c4a5]
+- Updated dependencies [2b543c774]
+  - @pnpm/build-modules@9.1.2
+  - @pnpm/resolve-dependencies@27.1.2
+  - @pnpm/headless@18.1.8
+
+## 5.2.2
+
+### Patch Changes
+
+- Updated dependencies [45238e358]
+  - @pnpm/resolve-dependencies@27.1.1
+  - @pnpm/lockfile-to-pnp@0.5.7
+  - @pnpm/headless@18.1.7
+
+## 5.2.1
+
+### Patch Changes
+
+- @pnpm/lockfile-to-pnp@0.5.6
+- @pnpm/headless@18.1.6
+
+## 5.2.0
+
+### Minor Changes
+
+- 190f0b331: New option added for automatically installing missing peer dependencies: `autoInstallPeers`.
+
+### Patch Changes
+
+- Updated dependencies [190f0b331]
+- Updated dependencies [190f0b331]
+  - @pnpm/resolve-dependencies@27.1.0
+  - @pnpm/prune-lockfile@4.0.4
+
+## 5.1.2
+
+### Patch Changes
+
+- Updated dependencies [c57695550]
+  - dependency-path@9.1.2
+  - @pnpm/lockfile-to-pnp@0.5.5
+  - @pnpm/filter-lockfile@6.0.4
+  - @pnpm/headless@18.1.5
+  - @pnpm/hoist@6.1.2
+  - @pnpm/lockfile-utils@4.0.3
+  - @pnpm/lockfile-walker@5.0.3
+  - @pnpm/modules-cleaner@12.0.5
+  - @pnpm/package-requester@18.0.5
+  - @pnpm/prune-lockfile@4.0.3
+  - @pnpm/resolve-dependencies@27.0.4
+
+## 5.1.1
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/filter-lockfile@6.0.3
+  - @pnpm/lockfile-file@5.0.3
+  - @pnpm/resolve-dependencies@27.0.3
+  - @pnpm/headless@18.1.4
+  - @pnpm/modules-cleaner@12.0.4
+  - @pnpm/get-context@6.1.2
+  - @pnpm/lockfile-to-pnp@0.5.4
+  - @pnpm/package-requester@18.0.4
+
+## 5.1.0
+
+### Minor Changes
+
+- 0075fcd23: The `install()` function accepts the `pruneDirectDependencies` option.
+
+### Patch Changes
+
+- cadefe5b6: Print a warning when the integrity of more than 1K files is checked in the CAFS.
+- 315871260: Use Yarn's compatibility database to patch broken packages in the ecosystem with package extensions.
+- Updated dependencies [0075fcd23]
+  - @pnpm/modules-cleaner@12.0.3
+  - @pnpm/package-requester@18.0.3
+  - @pnpm/headless@18.1.3
+  - @pnpm/link-bins@7.1.1
+
+## 5.0.0
+
+### Major Changes
+
+- af6ac00e4: Remove linkFromGlobal and linkToGlobal.
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/package-requester@18.0.2
+  - @pnpm/build-modules@9.1.1
+  - @pnpm/core-loggers@7.0.1
+  - dependency-path@9.1.1
+  - @pnpm/filter-lockfile@6.0.2
+  - @pnpm/get-context@6.1.1
+  - @pnpm/headless@18.1.2
+  - @pnpm/hoist@6.1.1
+  - @pnpm/lifecycle@13.0.2
+  - @pnpm/link-bins@7.1.1
+  - @pnpm/lockfile-file@5.0.2
+  - @pnpm/lockfile-to-pnp@0.5.3
+  - @pnpm/lockfile-utils@4.0.2
+  - @pnpm/lockfile-walker@5.0.2
+  - @pnpm/manifest-utils@3.0.2
+  - @pnpm/modules-cleaner@12.0.2
+  - @pnpm/modules-yaml@10.0.1
+  - @pnpm/normalize-registries@3.0.1
+  - @pnpm/prune-lockfile@4.0.2
+  - @pnpm/read-package-json@6.0.2
+  - @pnpm/read-project-manifest@3.0.2
+  - @pnpm/remove-bins@3.0.2
+  - @pnpm/resolve-dependencies@27.0.2
+  - @pnpm/resolver-base@9.0.1
+  - @pnpm/store-controller-types@13.0.1
+  - @pnpm/symlink-dependency@5.0.1
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [3345c2cce]
+- Updated dependencies [7478cbd05]
+  - @pnpm/resolve-dependencies@27.0.1
+
+## 4.0.1
+
+### Patch Changes
+
+- c38feff08: Only `pnpm install` should fail on peer dependency issues.
+  - @pnpm/lockfile-to-pnp@0.5.2
+  - @pnpm/headless@18.1.1
+
+## 4.0.0
+
+### Major Changes
+
+- 0a70aedb1: Use a base32 hash instead of a hex to encode too long dependency paths inside `node_modules/.pnpm` [#4552](https://github.com/pnpm/pnpm/pull/4552).
+- e7bdc2cc2: Dependencies of the root workspace project are not used to resolve peer dependencies of other workspace projects [#4469](https://github.com/pnpm/pnpm/pull/4469).
+
+### Patch Changes
+
+- 2109f2e8e: Use `@pnpm/graph-sequencer` instead of `graph-sequencer`.
+- 88289a42c: peerDependencyRules will no longer cause duplicated peer dependency rules in the lockfile when used in workspaces
+- aecd4acdd: Linked in dependencies should be considered when resolving peer dependencies [#4541](https://github.com/pnpm/pnpm/pull/4541).
+- dbe366990: Peer dependency should be correctly resolved from the workspace, when it is declared using a workspace protocol [#4529](https://github.com/pnpm/pnpm/issues/4529).
+- Updated dependencies [948a8151e]
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [8fa95fd86]
+- Updated dependencies [2109f2e8e]
+- Updated dependencies [8fa95fd86]
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [e531325c3]
+- Updated dependencies [7cdca5ef2]
+- Updated dependencies [e7bdc2cc2]
+- Updated dependencies [688b0eaff]
+- Updated dependencies [aecd4acdd]
+- Updated dependencies [dbe366990]
+- Updated dependencies [b716d2d06]
+- Updated dependencies [618842b0d]
+- Updated dependencies [1267e4eff]
+  - @pnpm/resolve-dependencies@27.0.0
+  - dependency-path@9.1.0
+  - @pnpm/build-modules@9.1.0
+  - @pnpm/headless@18.1.0
+  - @pnpm/hoist@6.1.0
+  - @pnpm/link-bins@7.1.0
+  - @pnpm/get-context@6.1.0
+  - @pnpm/package-requester@18.0.1
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/manifest-utils@3.0.1
+  - @pnpm/constants@6.1.0
+  - @pnpm/filter-lockfile@6.0.1
+  - @pnpm/lockfile-to-pnp@0.5.1
+  - @pnpm/lockfile-walker@5.0.1
+  - @pnpm/modules-cleaner@12.0.1
+  - @pnpm/prune-lockfile@4.0.1
+  - @pnpm/lifecycle@13.0.1
+  - @pnpm/calc-dep-state@2.0.1
+  - @pnpm/error@3.0.1
+  - @pnpm/lockfile-file@5.0.1
+  - @pnpm/parse-overrides@2.0.1
+  - @pnpm/read-package-json@6.0.1
+  - @pnpm/read-project-manifest@3.0.1
+  - @pnpm/remove-bins@3.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 516859178: `extendNodePath` removed.
+- a36b6026b: pruneLockfileImporters is true by default.
+- 73d71a2d5: `strict-peer-dependencies` is `true` by default.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [9c22c063e]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [9b9b13c3a]
+- Updated dependencies [542014839]
+- Updated dependencies [0845a8704]
+- Updated dependencies [d999a0801]
+  - @pnpm/build-modules@9.0.0
+  - @pnpm/headless@18.0.0
+  - @pnpm/hoist@6.0.0
+  - @pnpm/link-bins@7.0.0
+  - @pnpm/types@8.0.0
+  - @pnpm/package-requester@18.0.0
+  - dependency-path@9.0.0
+  - @pnpm/resolve-dependencies@26.0.0
+  - @pnpm/calc-dep-state@2.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/filter-lockfile@6.0.0
+  - @pnpm/get-context@6.0.0
+  - @pnpm/lifecycle@13.0.0
+  - @pnpm/lockfile-file@5.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/lockfile-walker@5.0.0
+  - @pnpm/manifest-utils@3.0.0
+  - @pnpm/modules-cleaner@12.0.0
+  - @pnpm/modules-yaml@10.0.0
+  - @pnpm/normalize-registries@3.0.0
+  - @pnpm/parse-overrides@2.0.0
+  - @pnpm/parse-wanted-dependency@3.0.0
+  - @pnpm/prune-lockfile@4.0.0
+  - @pnpm/read-modules-dir@4.0.0
+  - @pnpm/read-package-json@6.0.0
+  - @pnpm/read-project-manifest@3.0.0
+  - @pnpm/remove-bins@3.0.0
+  - @pnpm/resolver-base@9.0.0
+  - @pnpm/store-controller-types@13.0.0
+  - @pnpm/symlink-dependency@5.0.0
+  - @pnpm/which-version-is-pinned@2.0.0
+  - @pnpm/lockfile-to-pnp@0.5.0
+
+## 2.7.3
+
+### Patch Changes
+
+- Updated dependencies [4941f31ee]
+  - @pnpm/resolve-dependencies@25.0.2
+
+## 2.7.2
+
+### Patch Changes
+
+- 5c525db13: In order to guarantee that only correct data is written to the store, data from the lockfile should not be written to the store. Only data directly from the package tarball or package metadata.
+- Updated dependencies [5c525db13]
+- Updated dependencies [70ba51da9]
+- Updated dependencies [70ba51da9]
+- Updated dependencies [5c525db13]
+  - @pnpm/resolve-dependencies@25.0.1
+  - @pnpm/filter-lockfile@5.0.19
+  - @pnpm/error@2.1.0
+  - @pnpm/package-requester@17.0.0
+  - @pnpm/store-controller-types@12.0.0
+  - @pnpm/headless@17.3.2
+  - @pnpm/modules-cleaner@11.0.23
+  - @pnpm/get-context@5.3.8
+  - @pnpm/link-bins@6.2.12
+  - @pnpm/lockfile-file@4.3.1
+  - @pnpm/manifest-utils@2.1.9
+  - @pnpm/parse-overrides@1.0.1
+  - @pnpm/read-package-json@5.0.12
+  - @pnpm/read-project-manifest@2.0.13
+  - @pnpm/build-modules@8.0.3
+  - @pnpm/lifecycle@12.1.7
+  - @pnpm/lockfile-to-pnp@0.4.47
+  - @pnpm/hoist@5.2.15
+  - @pnpm/remove-bins@2.0.14
+
+## 2.7.1
+
+### Patch Changes
+
+- 4e3b99ae0: `onlyBuiltDependencies` should work.
+
+## 2.7.0
+
+### Minor Changes
+
+- b138d048c: New optional field supported: `onlyBuiltDependencies`.
+- d84b73b15: When adding a new dependency, use the version specifier from the overrides, when present [#4313](https://github.com/pnpm/pnpm/issues/4313).
+
+  Normally, if the latest version of `foo` is `2.0.0`, then `pnpm add foo` installs `foo@^2.0.0`. This behavior changes if `foo` is specified in an override:
+
+  ```json
+  {
+    "pnpm": {
+      "overrides": {
+        "foo": "1.0.0"
+      }
+    }
+  }
+  ```
+
+  In this case, `pnpm add foo` will add `foo@1.0.0` to the dependency. However, if a version is explicitly specifying, then the specified version will be used and the override will be ignored. So `pnpm add foo@0` will install v0 and it doesn't matter what is in the overrides.
+
+### Patch Changes
+
+- 076c3753a: When a peer dependency range is extended with `*`, just replace any range with `*`.
+- Updated dependencies [800fb2836]
+- Updated dependencies [b138d048c]
+- Updated dependencies [b138d048c]
+  - @pnpm/package-requester@16.0.2
+  - @pnpm/lockfile-file@4.3.0
+  - @pnpm/types@7.10.0
+  - @pnpm/resolve-dependencies@25.0.0
+  - @pnpm/headless@17.3.1
+  - @pnpm/get-context@5.3.7
+  - @pnpm/lockfile-to-pnp@0.4.46
+  - @pnpm/filter-lockfile@5.0.18
+  - @pnpm/hoist@5.2.14
+  - @pnpm/lockfile-utils@3.2.1
+  - @pnpm/lockfile-walker@4.0.15
+  - @pnpm/modules-cleaner@11.0.22
+  - @pnpm/prune-lockfile@3.0.15
+  - @pnpm/build-modules@8.0.2
+  - @pnpm/core-loggers@6.1.4
+  - dependency-path@8.0.11
+  - @pnpm/lifecycle@12.1.6
+  - @pnpm/link-bins@6.2.11
+  - @pnpm/manifest-utils@2.1.8
+  - @pnpm/modules-yaml@9.1.1
+  - @pnpm/normalize-registries@2.0.13
+  - @pnpm/read-package-json@5.0.11
+  - @pnpm/read-project-manifest@2.0.12
+  - @pnpm/remove-bins@2.0.13
+  - @pnpm/resolver-base@8.1.6
+  - @pnpm/store-controller-types@11.0.12
+  - @pnpm/symlink-dependency@4.0.13
+
 ## 2.6.0
 
 ### Minor Changes
@@ -1421,7 +2118,7 @@
 
 ### Minor Changes
 
-- 9ad8c27bf: Allow to ignore builds of specified dependencies throught the `pnpm.neverBuiltDependencies` field in `package.json`.
+- 9ad8c27bf: Allow to ignore builds of specified dependencies through the `pnpm.neverBuiltDependencies` field in `package.json`.
 
 ### Patch Changes
 
@@ -1874,7 +2571,7 @@
 
 ### Patch Changes
 
-- 95ad9cafa: Install should fail if there are references to a prunned workspace project.
+- 95ad9cafa: Install should fail if there are references to a pruned workspace project.
 
 ## 0.43.2
 

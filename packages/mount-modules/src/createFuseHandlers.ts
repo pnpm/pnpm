@@ -23,13 +23,13 @@ const STAT_DEFAULT = {
 export default async function createFuseHandlers (lockfileDir: string, cafsDir: string) {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
   if (lockfile == null) throw new Error('Cannot generate a .pnp.cjs without a lockfile')
-  return createFuseHandlersFromLockfile(lockfile, lockfileDir, cafsDir)
+  return createFuseHandlersFromLockfile(lockfile, cafsDir)
 }
 
 /* eslint-disable node/no-callback-literal */
-export function createFuseHandlersFromLockfile (lockfile: Lockfile, lockfileDir: string, cafsDir: string) {
+export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: string) {
   const pkgSnapshotCache = new Map<string, { name: string, version: string, pkgSnapshot: PackageSnapshot, index: PackageFilesIndex }>()
-  const virtualNodeModules = makeVirtualNodeModules(lockfile, lockfileDir)
+  const virtualNodeModules = makeVirtualNodeModules(lockfile)
   return {
     open (p: string, flags: string | number, cb: (exitCode: number, fd?: number) => void) {
       const dirEnt = getDirEnt(p)

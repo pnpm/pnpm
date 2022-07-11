@@ -35,34 +35,48 @@ DependencyManifest,
 | 'version'
 >
 
+export interface UploadPkgToStoreOpts {
+  filesIndexFile: string
+  sideEffectsCacheKey: string
+}
+
+export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStoreOpts) => Promise<void>
+
 export interface StoreController {
   requestPackage: RequestPackageFunction
   fetchPackage: FetchPackageToStoreFunction
   importPackage: ImportPackageFunction
   close: () => Promise<void>
   prune: () => Promise<void>
-  upload: (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}) => Promise<void>
+  upload: UploadPkgToStore
 }
 
 export type FetchPackageToStoreFunction = (
   opts: FetchPackageToStoreOptions
 ) => {
-  bundledManifest?: () => Promise<BundledManifest>
+  bundledManifest?: BundledManifestFunction
   filesIndexFile: string
   files: () => Promise<PackageFilesResponse>
   finishing: () => Promise<void>
+}
+
+export interface PkgNameVersion {
+  name?: string
+  version?: string
 }
 
 export interface FetchPackageToStoreOptions {
   fetchRawManifest?: boolean
   force: boolean
   lockfileDir: string
-  pkg: {
+  pkg: PkgNameVersion & {
     id: string
-    name?: string
-    version?: string
     resolution: Resolution
   }
+  /**
+   * Expected package is the package name and version that are found in the lockfile.
+   */
+  expectedPkg?: PkgNameVersion
 }
 
 export type RequestPackageFunction = (
@@ -74,10 +88,12 @@ export interface RequestPackageOptions {
   alwaysTryWorkspacePackages?: boolean
   currentPkg?: {
     id?: string
-    name?: string
-    version?: string
     resolution?: Resolution
   }
+  /**
+   * Expected package is the package name and version that are found in the lockfile.
+   */
+  expectedPkg?: PkgNameVersion
   defaultTag?: string
   downloadPriority: number
   projectDir: string
@@ -91,8 +107,10 @@ export interface RequestPackageOptions {
   workspacePackages?: WorkspacePackages
 }
 
+export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
+
 export interface PackageResponse {
-  bundledManifest?: () => Promise<BundledManifest>
+  bundledManifest?: BundledManifestFunction
   files?: () => Promise<PackageFilesResponse>
   filesIndexFile?: string
   finishing?: () => Promise<void> // a package request is finished once its integrity is generated and saved

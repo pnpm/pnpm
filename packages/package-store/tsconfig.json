@@ -19,7 +19,7 @@
       "path": "../client"
     },
     {
-      "path": "../core-loggers"
+      "path": "../create-cafs-store"
     },
     {
       "path": "../fetcher-base"

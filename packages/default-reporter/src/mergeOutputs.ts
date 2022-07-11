@@ -6,7 +6,7 @@ export default function mergeOutputs (outputs: Array<Rx.Observable<Rx.Observable
   let blockNo = 0
   let fixedBlockNo = 0
   let started = false
-  let previousOuput: string | null = null
+  let previousOutput: string | null = null
   return Rx.merge(...outputs).pipe(
     map((log: Rx.Observable<{msg: string}>) => {
       let currentBlockNo = -1
@@ -66,8 +66,8 @@ export default function mergeOutputs (outputs: Array<Rx.Observable<Rx.Observable
       return true
     }),
     filter((msg) => {
-      if (msg !== previousOuput) {
-        previousOuput = msg
+      if (msg !== previousOutput) {
+        previousOutput = msg
         return true
       }
       return false

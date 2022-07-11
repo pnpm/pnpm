@@ -39,7 +39,7 @@ export interface Project {
    *
    * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
    */
-  readLockfile: () => Promise<Required<RawLockfile>>
+  readLockfile: (lockfileName?: string) => Promise<Required<RawLockfile>>
   writePackageJson: (pkgJson: object) => Promise<void>
 }
 
@@ -143,9 +143,9 @@ export default (projectPath: string, encodedRegistryName?: string): Project => {
       }
     },
     readModulesManifest: async () => readModules(modules),
-    async readLockfile () {
+    async readLockfile (lockfileName: string = WANTED_LOCKFILE) {
       try {
-        return await readYamlFile(path.join(projectPath, WANTED_LOCKFILE)) // eslint-disable-line
+        return await readYamlFile(path.join(projectPath, lockfileName)) // eslint-disable-line
       } catch (err: any) { // eslint-disable-line
         if (err.code === 'ENOENT') return null!
         throw err

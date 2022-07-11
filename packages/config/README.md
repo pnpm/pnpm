@@ -1,6 +1,6 @@
 # @pnpm/config
 
-> Gets configution options for pnpm
+> Gets configuration options for pnpm
 
 <!--@shields('npm')-->
 [![npm version](https://img.shields.io/npm/v/@pnpm/config.svg)](https://www.npmjs.com/package/@pnpm/config)

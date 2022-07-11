@@ -21,7 +21,7 @@ test('resolveFromGit() with commit', async () => {
 test('resolveFromGit() with no commit', async () => {
   // This is repeated twice because there was a bug which caused the normalizedPref
   // to contain the commit hash on second call.
-  // The issue occured because .hosted field (which is class from the 'hosted-git-info' package)
+  // The issue occurred because .hosted field (which is class from the 'hosted-git-info' package)
   // was mutated. A 'committish' field was added to it.
   for (let i = 0; i < 2; i++) {
     const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative' })
@@ -65,6 +65,18 @@ test('resolveFromGit() with branch', async () => {
   expect(resolveResult).toStrictEqual({
     id: 'github.com/zkochan/is-negative/4c39fbc124cd4944ee51cb082ad49320fab58121',
     normalizedPref: 'github:zkochan/is-negative#canary',
+    resolution: {
+      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/4c39fbc124cd4944ee51cb082ad49320fab58121',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
+test('resolveFromGit() with branch relative to refs', async () => {
+  const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative#heads/canary' })
+  expect(resolveResult).toStrictEqual({
+    id: 'github.com/zkochan/is-negative/4c39fbc124cd4944ee51cb082ad49320fab58121',
+    normalizedPref: 'github:zkochan/is-negative#heads/canary',
     resolution: {
       tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/4c39fbc124cd4944ee51cb082ad49320fab58121',
     },

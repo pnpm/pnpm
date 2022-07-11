@@ -1,5 +1,222 @@
 # @pnpm/plugin-commands-listing
 
+## 5.0.20
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.18
+- @pnpm/list@7.0.12
+
+## 5.0.19
+
+### Patch Changes
+
+- @pnpm/list@7.0.11
+
+## 5.0.18
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+- Updated dependencies [42c1ea1c0]
+  - @pnpm/cli-utils@0.7.17
+  - @pnpm/config@15.5.1
+  - @pnpm/list@7.0.10
+
+## 5.0.17
+
+### Patch Changes
+
+- @pnpm/list@7.0.9
+
+## 5.0.16
+
+### Patch Changes
+
+- Updated dependencies [f48d46ef6]
+  - @pnpm/config@15.5.0
+  - @pnpm/cli-utils@0.7.16
+
+## 5.0.15
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/cli-utils@0.7.15
+  - @pnpm/config@15.4.1
+  - @pnpm/list@7.0.8
+
+## 5.0.14
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/types@8.3.0
+  - @pnpm/config@15.4.0
+  - @pnpm/cli-utils@0.7.14
+  - @pnpm/list@7.0.7
+
+## 5.0.13
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/config@15.3.0
+  - @pnpm/cli-utils@0.7.13
+  - @pnpm/list@7.0.6
+
+## 5.0.12
+
+### Patch Changes
+
+- Updated dependencies [25798aad1]
+  - @pnpm/config@15.2.1
+  - @pnpm/cli-utils@0.7.12
+
+## 5.0.11
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/types@8.1.0
+  - @pnpm/config@15.2.0
+  - @pnpm/cli-utils@0.7.11
+  - @pnpm/list@7.0.5
+
+## 5.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.10
+- @pnpm/config@15.1.4
+
+## 5.0.9
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+  - @pnpm/cli-utils@0.7.9
+
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [05159665d]
+  - @pnpm/config@15.1.3
+  - @pnpm/cli-utils@0.7.8
+
+## 5.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.7
+
+## 5.0.6
+
+### Patch Changes
+
+- Updated dependencies [af22c6c4f]
+  - @pnpm/config@15.1.2
+  - @pnpm/cli-utils@0.7.6
+  - @pnpm/list@7.0.4
+
+## 5.0.5
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/cli-utils@0.7.5
+  - @pnpm/list@7.0.3
+
+## 5.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.4
+- @pnpm/config@15.1.1
+
+## 5.0.3
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/cli-utils@0.7.3
+  - @pnpm/config@15.1.1
+  - @pnpm/list@7.0.2
+
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [e05dcc48a]
+  - @pnpm/config@15.1.0
+  - @pnpm/cli-utils@0.7.2
+
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [8dac029ef]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - @pnpm/config@15.0.0
+  - @pnpm/cli-utils@0.7.1
+  - @pnpm/error@3.0.1
+  - @pnpm/list@7.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [542014839]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/types@8.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/list@7.0.0
+  - @pnpm/cli-utils@0.7.0
+  - @pnpm/common-cli-options-help@0.9.0
+
+## 4.1.11
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/cli-utils@0.6.50
+  - @pnpm/config@13.13.2
+  - @pnpm/list@6.3.3
+
+## 4.1.10
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/cli-utils@0.6.49
+  - @pnpm/config@13.13.1
+  - @pnpm/list@6.3.2
+
 ## 4.1.9
 
 ### Patch Changes

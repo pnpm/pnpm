@@ -16,6 +16,7 @@ packages:
   /not-compatible-with-any-os/1.0.0:
     resolution: {integrity: sha512-vTrzbhOeYAAhfduz8iCEmTC+512IDxBAaDLl3C6d3S+KOIKhSInhQbaTO3di+h7NND/2YpGUG4WmgGvAhzAcrA==}
     os: [this-os-does-not-exist]
+    requiresBuild: true
     dependencies:
       dep-of-optional-pkg: 1.0.0
     dev: false

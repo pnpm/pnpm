@@ -40,6 +40,9 @@
       "path": "../core-loggers"
     },
     {
+      "path": "../crypto.base32-hash"
+    },
+    {
       "path": "../dependency-path"
     },
     {
@@ -50,6 +53,9 @@
     },
     {
       "path": "../get-context"
+    },
+    {
+      "path": "../git-utils"
     },
     {
       "path": "../headless"
@@ -77,6 +83,9 @@
     },
     {
       "path": "../manifest-utils"
+    },
+    {
+      "path": "../matcher"
     },
     {
       "path": "../modules-cleaner"
@@ -122,6 +131,9 @@
     },
     {
       "path": "../store-controller-types"
+    },
+    {
+      "path": "../store-path"
     },
     {
       "path": "../symlink-dependency"

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "6.3.1",
+  "version": "7.0.12",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -26,7 +26,7 @@
     "ls"
   ],
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "license": "MIT",
   "bugs": {
@@ -34,25 +34,28 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/list#readme",
   "dependencies": {
-    "@pnpm/matcher": "workspace:2.0.0",
-    "@pnpm/read-package-json": "workspace:5.0.10",
-    "@pnpm/read-project-manifest": "workspace:2.0.11",
-    "@pnpm/types": "workspace:7.9.0",
-    "@zkochan/npm-package-arg": "^2.0.1",
+    "@pnpm/matcher": "workspace:*",
+    "@pnpm/npm-package-arg": "^1.0.0",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "archy": "^1.0.0",
-    "chalk": "^4.1.0",
+    "chalk": "^4.1.2",
     "cli-columns": "^4.0.0",
-    "dependencies-hierarchy": "workspace:10.0.23",
+    "dependencies-hierarchy": "workspace:*",
     "p-limit": "^3.1.0",
-    "ramda": "^0.27.1",
-    "semver": "^7.3.4"
+    "ramda": "^0.28.0",
+    "semver": "^7.3.7"
   },
   "devDependencies": {
-    "@pnpm/list": "workspace:6.3.1",
+    "@pnpm/list": "workspace:*",
     "@pnpm/logger": "^4.0.0",
     "@types/archy": "0.0.31",
-    "@types/ramda": "0.27.39",
-    "@types/semver": "^7.3.4"
+    "@types/ramda": "0.28.14",
+    "@types/semver": "^7.3.10"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

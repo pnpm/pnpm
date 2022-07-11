@@ -1,6 +1,6 @@
 import { ProjectsGraph } from '@pnpm/types'
-import graphSequencer from 'graph-sequencer'
-import type { Result as GraphSequencerResult } from 'graph-sequencer'
+import graphSequencer from '@pnpm/graph-sequencer'
+import type { Result as GraphSequencerResult } from '@pnpm/graph-sequencer'
 
 export function sequenceGraph (pkgGraph: ProjectsGraph): GraphSequencerResult<string> {
   const keys = Object.keys(pkgGraph)

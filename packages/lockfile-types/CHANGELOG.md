@@ -1,5 +1,83 @@
 # @pnpm/lockfile-types
 
+## 4.2.0
+
+### Minor Changes
+
+- d01c32355: Add optional "patched" field to package object in the lockfile.
+
+### Patch Changes
+
+- 8e5b77ef6: Update the dependencies when a patch file is modified.
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+
+## 4.1.0
+
+### Minor Changes
+
+- 2a34b21ce: Dependencies patching is possible via the `pnpm.patchedDependencies` field of the `package.json`.
+  To patch a package, the package name, exact version, and the relative path to the patch file should be specified. For instance:
+
+  ```json
+  {
+    "pnpm": {
+      "patchedDependencies": {
+        "eslint@1.0.0": "./patches/eslint@1.0.0.patch"
+      }
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+
+## 4.0.3
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+
+## 4.0.1
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+
+## 3.2.0
+
+### Minor Changes
+
+- b138d048c: New optional field supported: `onlyBuiltDependencies`.
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+
 ## 3.1.5
 
 ### Patch Changes

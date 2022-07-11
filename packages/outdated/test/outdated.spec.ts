@@ -1,4 +1,4 @@
-import outdated from '@pnpm/outdated/lib/outdated'
+import outdated from '../lib/outdated'
 
 async function getLatestManifest (packageName: string) {
   return ({
@@ -55,7 +55,7 @@ test('outdated()', async () => {
         '/is-positive/1.0.0': {
           dev: true,
           resolution: {
-            integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+            integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
         },
         'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4': {
@@ -111,7 +111,7 @@ test('outdated()', async () => {
         },
         '/is-positive/3.1.0': {
           resolution: {
-            integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+            integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
         },
         'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
@@ -255,7 +255,7 @@ test('using a matcher', async () => {
         },
         '/is-positive/1.0.0': {
           resolution: {
-            integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+            integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
         },
         'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4': {
@@ -307,7 +307,7 @@ test('using a matcher', async () => {
         },
         '/is-positive/3.1.0': {
           resolution: {
-            integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+            integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
         },
         'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
@@ -361,7 +361,7 @@ test('outdated() aliased dependency', async () => {
       packages: {
         '/is-positive/1.0.0': {
           resolution: {
-            integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+            integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
         },
       },
@@ -392,7 +392,7 @@ test('outdated() aliased dependency', async () => {
       packages: {
         '/is-positive/3.1.0': {
           resolution: {
-            integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+            integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
         },
       },

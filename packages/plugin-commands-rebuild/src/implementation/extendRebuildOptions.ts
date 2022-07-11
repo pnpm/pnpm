@@ -10,6 +10,7 @@ export interface StrictRebuildOptions {
   childConcurrency: number
   extraBinPaths: string[]
   lockfileDir: string
+  nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   scriptShell?: string
   sideEffectsCacheRead: boolean
   scriptsPrependNodePath: boolean | 'warn-only'
@@ -21,6 +22,7 @@ export interface StrictRebuildOptions {
   useLockfile: boolean
   registries: Registries
   dir: string
+  pnpmHomeDir: string
 
   reporter: (logObj: LogBase) => void
   production: boolean
@@ -53,6 +55,7 @@ const defaults = async (opts: RebuildOptions) => {
     force: false,
     forceSharedLockfile: false,
     lockfileDir,
+    nodeLinker: 'isolated',
     optional: true,
     packageManager,
     pending: false,

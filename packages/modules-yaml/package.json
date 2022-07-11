@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-yaml",
-  "version": "9.1.0",
+  "version": "10.0.5",
   "description": "Reads/writes `node_modules/.modules.yaml`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",
@@ -31,15 +31,18 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/modules-yaml#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:7.9.0",
+    "@pnpm/types": "workspace:*",
     "is-windows": "^1.0.2",
     "read-yaml-file": "^2.1.0",
     "write-yaml-file": "^4.2.0"
   },
   "devDependencies": {
-    "@pnpm/modules-yaml": "workspace:9.1.0",
+    "@pnpm/modules-yaml": "workspace:*",
     "@types/is-windows": "^1.0.0",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

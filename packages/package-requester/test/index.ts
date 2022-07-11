@@ -5,7 +5,7 @@ import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'
 import createClient from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
 import createPackageRequester, { PackageFilesResponse, PackageResponse } from '@pnpm/package-requester'
-import { createCafsStore } from '@pnpm/package-store'
+import createCafsStore from '@pnpm/create-cafs-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import fixtures from '@pnpm/test-fixtures'
 import { DependencyManifest } from '@pnpm/types'
@@ -59,7 +59,7 @@ test('request package', async () => {
   expect(pkgResponse.body.manifest?.name).toBe('is-positive')
   expect(!pkgResponse.body.normalizedPref).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
-    integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
     registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
@@ -103,7 +103,7 @@ test('request package but skip fetching', async () => {
   expect(pkgResponse.body.manifest?.name).toBe('is-positive')
   expect(!pkgResponse.body.normalizedPref).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
-    integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
     registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
@@ -128,11 +128,9 @@ test('request package but skip fetching, when resolution is already available', 
   const projectDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     currentPkg: {
-      name: 'is-positive',
-      version: '1.0.0',
       id: `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`,
       resolution: {
-        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
@@ -162,7 +160,7 @@ test('request package but skip fetching, when resolution is already available', 
   expect(pkgResponse.body.manifest.name).toBe('is-positive')
   expect(!pkgResponse.body.normalizedPref).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
-    integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
     registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
@@ -203,8 +201,6 @@ test('refetch local tarball if its integrity has changed', async () => {
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       currentPkg: {
-        name: '@pnpm/package-requester',
-        version: '0.8.1',
         id: pkgId,
         resolution: {
           integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
@@ -238,8 +234,6 @@ test('refetch local tarball if its integrity has changed', async () => {
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       currentPkg: {
-        name: '@pnpm/package-requester',
-        version: '0.8.1',
         id: pkgId,
         resolution: {
           integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
@@ -267,8 +261,6 @@ test('refetch local tarball if its integrity has changed', async () => {
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       currentPkg: {
-        name: '@pnpm/package-requester',
-        version: '0.8.1',
         id: pkgId,
         resolution: {
           integrity: 'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
@@ -392,7 +384,7 @@ test('fetchPackageToStore()', async () => {
       version: '1.0.0',
       id: pkgId,
       resolution: {
-        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
@@ -420,7 +412,7 @@ test('fetchPackageToStore()', async () => {
       version: '1.0.0',
       id: pkgId,
       resolution: {
-        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
@@ -466,7 +458,7 @@ test('fetchPackageToStore() concurrency check', async () => {
         version: '1.0.0',
         id: pkgId,
         resolution: {
-          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
         },
@@ -480,7 +472,7 @@ test('fetchPackageToStore() concurrency check', async () => {
         version: '1.0.0',
         id: pkgId,
         resolution: {
-          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
         },
@@ -554,7 +546,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
       version: '1.0.0',
       id: pkgId,
       resolution: {
-        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
@@ -570,7 +562,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
       version: '1.0.0',
       id: pkgId,
       resolution: {
-        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
@@ -616,11 +608,9 @@ test('always return a package manifest in the response', async () => {
   {
     const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
       currentPkg: {
-        name: 'is-positive',
-        version: '1.0.0',
         id: `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`,
         resolution: {
-          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
         },
@@ -775,7 +765,7 @@ test('refetch package to store if it has been modified', async () => {
 
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'warn',
-    message: `Refetching ${path.join(storeDir, depPathToFilename(pkgId, process.cwd()))} to store. It was either modified or had no integrity checksums`,
+    message: `Refetching ${path.join(storeDir, depPathToFilename(pkgId))} to store. It was either modified or had no integrity checksums`,
     name: 'pnpm:package-requester',
     prefix: lockfileDir,
   }))
@@ -894,6 +884,10 @@ test('throw exception if the package data in the store differs from the expected
         id: pkgResponse.body.id,
         resolution: pkgResponse.body.resolution,
       },
+      expectedPkg: {
+        name: 'is-negative',
+        version: '1.0.0',
+      },
     })
     await expect(files()).rejects.toThrow(/Package name mismatch found while reading/)
   }
@@ -916,6 +910,10 @@ test('throw exception if the package data in the store differs from the expected
         version: '2.0.0',
         id: pkgResponse.body.id,
         resolution: pkgResponse.body.resolution,
+      },
+      expectedPkg: {
+        name: 'is-negative',
+        version: '2.0.0',
       },
     })
     await expect(files()).rejects.toThrow(/Package name mismatch found while reading/)
@@ -940,9 +938,85 @@ test('throw exception if the package data in the store differs from the expected
         id: pkgResponse.body.id,
         resolution: pkgResponse.body.resolution,
       },
+      expectedPkg: {
+        name: 'is-positive',
+        version: 'v1.0.0',
+      },
     })
     await expect(files()).resolves.toStrictEqual(expect.anything())
   }
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+    })
+    const { files } = requestPackage.fetchPackageToStore({
+      force: false,
+      lockfileDir: tempy.directory(),
+      pkg: {
+        name: 'IS-positive',
+        version: 'v1.0.0',
+        id: pkgResponse.body.id,
+        resolution: pkgResponse.body.resolution,
+      },
+      expectedPkg: {
+        name: 'IS-positive',
+        version: 'v1.0.0',
+      },
+    })
+    await expect(files()).resolves.toStrictEqual(expect.anything())
+  }
+})
+
+test("don't throw an error if the package was updated, so the expectedPkg has a different version than the version in the store", async () => {
+  const storeDir = tempy.directory()
+  const cafs = createCafsStore(storeDir)
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+    })
+
+    const projectDir = tempy.directory()
+    const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '3.1.0' }, {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      registry,
+    })
+    await pkgResponse.finishing!()
+  }
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+  })
+  const projectDir = tempy.directory()
+  const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '3.1.0' }, {
+    downloadPriority: 0,
+    lockfileDir: tempy.directory(),
+    preferredVersions: {},
+    projectDir,
+    registry,
+    expectedPkg: {
+      name: 'is-positive',
+      version: '3.0.0',
+    },
+  })
+  await expect(pkgResponse.files!()).resolves.toStrictEqual(expect.anything())
 })
 
 test('the version in the bundled manifest should be normalized', async () => {

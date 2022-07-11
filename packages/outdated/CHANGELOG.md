@@ -1,5 +1,199 @@
 # @pnpm/outdated
 
+## 10.0.13
+
+### Patch Changes
+
+- Updated dependencies [f5621a42c]
+  - @pnpm/manifest-utils@3.1.0
+  - dependency-path@9.2.3
+  - @pnpm/lockfile-utils@4.0.10
+
+## 10.0.12
+
+### Patch Changes
+
+- Updated dependencies [ab684d77e]
+  - @pnpm/lockfile-file@5.1.4
+  - @pnpm/client@7.1.9
+
+## 10.0.11
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/lockfile-file@5.1.3
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/client@7.1.8
+
+## 10.0.10
+
+### Patch Changes
+
+- Updated dependencies [fc581d371]
+  - dependency-path@9.2.2
+  - @pnpm/lockfile-utils@4.0.8
+
+## 10.0.9
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-file@5.1.2
+  - @pnpm/lockfile-utils@4.0.7
+  - dependency-path@9.2.1
+  - @pnpm/manifest-utils@3.0.6
+  - @pnpm/modules-yaml@10.0.5
+  - @pnpm/pick-registry-for-package@3.0.5
+  - @pnpm/client@7.1.7
+
+## 10.0.8
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+  - @pnpm/types@8.3.0
+  - dependency-path@9.2.0
+  - @pnpm/lockfile-file@5.1.1
+  - @pnpm/lockfile-utils@4.0.6
+  - @pnpm/manifest-utils@3.0.5
+  - @pnpm/modules-yaml@10.0.4
+  - @pnpm/pick-registry-for-package@3.0.4
+  - @pnpm/client@7.1.6
+
+## 10.0.7
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+- Updated dependencies [725636a90]
+  - @pnpm/types@8.2.0
+  - @pnpm/lockfile-file@5.1.0
+  - dependency-path@9.1.4
+  - @pnpm/lockfile-utils@4.0.5
+  - @pnpm/manifest-utils@3.0.4
+  - @pnpm/modules-yaml@10.0.3
+  - @pnpm/pick-registry-for-package@3.0.3
+  - @pnpm/client@7.1.5
+
+## 10.0.6
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - dependency-path@9.1.3
+  - @pnpm/lockfile-file@5.0.4
+  - @pnpm/lockfile-utils@4.0.4
+  - @pnpm/manifest-utils@3.0.3
+  - @pnpm/modules-yaml@10.0.2
+  - @pnpm/pick-registry-for-package@3.0.2
+  - @pnpm/client@7.1.4
+
+## 10.0.5
+
+### Patch Changes
+
+- @pnpm/client@7.1.3
+
+## 10.0.4
+
+### Patch Changes
+
+- Updated dependencies [c57695550]
+  - dependency-path@9.1.2
+  - @pnpm/lockfile-utils@4.0.3
+  - @pnpm/client@7.1.2
+
+## 10.0.3
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/lockfile-file@5.0.3
+
+## 10.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - dependency-path@9.1.1
+  - @pnpm/lockfile-file@5.0.2
+  - @pnpm/lockfile-utils@4.0.2
+  - @pnpm/manifest-utils@3.0.2
+  - @pnpm/modules-yaml@10.0.1
+  - @pnpm/pick-registry-for-package@3.0.1
+  - @pnpm/client@7.1.1
+
+## 10.0.1
+
+### Patch Changes
+
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [688b0eaff]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [618842b0d]
+- Updated dependencies [1267e4eff]
+  - dependency-path@9.1.0
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/client@7.1.0
+  - @pnpm/manifest-utils@3.0.1
+  - @pnpm/constants@6.1.0
+  - @pnpm/error@3.0.1
+  - @pnpm/lockfile-file@5.0.1
+
+## 10.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/client@7.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/lockfile-file@5.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/manifest-utils@3.0.0
+  - @pnpm/matcher@3.0.0
+  - @pnpm/modules-yaml@10.0.0
+  - @pnpm/pick-registry-for-package@3.0.0
+
+## 9.0.32
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/lockfile-file@4.3.1
+  - @pnpm/manifest-utils@2.1.9
+  - @pnpm/client@6.1.3
+
+## 9.0.31
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-file@4.3.0
+  - @pnpm/types@7.10.0
+  - @pnpm/lockfile-utils@3.2.1
+  - dependency-path@8.0.11
+  - @pnpm/manifest-utils@2.1.8
+  - @pnpm/modules-yaml@9.1.1
+  - @pnpm/pick-registry-for-package@2.0.11
+  - @pnpm/client@6.1.2
+
 ## 9.0.30
 
 ### Patch Changes

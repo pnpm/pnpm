@@ -13,6 +13,9 @@
       "path": "../cafs"
     },
     {
+      "path": "../create-cafs-store"
+    },
+    {
       "path": "../fetcher-base"
     },
     {

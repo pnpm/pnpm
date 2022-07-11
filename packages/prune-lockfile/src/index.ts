@@ -7,10 +7,9 @@ import {
 } from '@pnpm/lockfile-types'
 import { PackageManifest } from '@pnpm/types'
 import { refToRelative } from 'dependency-path'
-import difference from 'ramda/src/difference'
-import isEmpty from 'ramda/src/isEmpty'
-import omit from 'ramda/src/omit'
-import unnest from 'ramda/src/unnest'
+import difference from 'ramda/src/difference.js'
+import isEmpty from 'ramda/src/isEmpty.js'
+import unnest from 'ramda/src/unnest.js'
 
 export * from '@pnpm/lockfile-types'
 
@@ -29,14 +28,14 @@ export function pruneSharedLockfile (
       warn: opts?.warn ?? ((msg: string) => undefined),
     })
 
-  const prunnedLockfile: Lockfile = {
+  const prunedLockfile: Lockfile = {
     ...lockfile,
     packages: copiedPackages,
   }
-  if (isEmpty(prunnedLockfile.packages)) {
-    delete prunnedLockfile.packages
+  if (isEmpty(prunedLockfile.packages)) {
+    delete prunedLockfile.packages
   }
-  return prunnedLockfile
+  return prunedLockfile
 }
 
 export function pruneLockfile (
@@ -197,7 +196,7 @@ function copyDependencySubGraph (
     } else if (depLockfile.dev === undefined && !ctx.notProdOnly.has(depPath)) {
       depLockfile.dev = false
     }
-    const newDependencies = resolvedDepsToDepPaths(omit(Object.keys(depLockfile.peerDependencies ?? {}) ?? [], depLockfile.dependencies ?? {}))
+    const newDependencies = resolvedDepsToDepPaths(depLockfile.dependencies ?? {})
     copyDependencySubGraph(ctx, newDependencies, opts)
     const newOptionalDependencies = resolvedDepsToDepPaths(depLockfile.optionalDependencies ?? {})
     copyDependencySubGraph(ctx, newOptionalDependencies, { dev: opts.dev, optional: true })

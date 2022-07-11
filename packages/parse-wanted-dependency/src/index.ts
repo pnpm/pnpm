@@ -10,11 +10,11 @@ export default function parseWantedDependency (
 ): Partial<ParsedWantedDependency> & (Omit<ParsedWantedDependency, 'pref'> | Omit<ParsedWantedDependency, 'alias'> | ParsedWantedDependency) {
   const versionDelimiter = rawWantedDependency.indexOf('@', 1) // starting from 1 to skip the @ that marks scope
   if (versionDelimiter !== -1) {
-    const alias = rawWantedDependency.substr(0, versionDelimiter)
+    const alias = rawWantedDependency.slice(0, versionDelimiter)
     if (validateNpmPackageName(alias).validForOldPackages) {
       return {
         alias,
-        pref: rawWantedDependency.substr(versionDelimiter + 1),
+        pref: rawWantedDependency.slice(versionDelimiter + 1),
       }
     }
     return {

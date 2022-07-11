@@ -1,149 +1,70 @@
-import fs from 'fs'
-
-import { homedir } from 'os'
-import { tempDir } from '@pnpm/prepare'
+import PnpmError from '@pnpm/error'
 import { setup } from '@pnpm/plugin-commands-setup'
+import { addDirToEnvPath, PathExtenderReport } from '@pnpm/os.env.path-extender'
 
-jest.mock('os', () => {
-  const os = jest.requireActual('os')
-  return {
-    ...os,
-    homedir: jest.fn(),
+jest.mock('@pnpm/os.env.path-extender', () => ({
+  addDirToEnvPath: jest.fn(),
+}))
+
+jest.mock('fs')
+
+test('setup makes no changes', async () => {
+  addDirToEnvPath['mockReturnValue'](Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  const output = await setup.handler({ pnpmHomeDir: '' })
+  expect(output).toBe('No changes to the environment were made. Everything is already up-to-date.')
+})
+
+test('setup makes changes on POSIX', async () => {
+  addDirToEnvPath['mockReturnValue'](Promise.resolve<PathExtenderReport>({
+    configFile: {
+      changeType: 'created',
+      path: '~/.bashrc',
+    },
+    oldSettings: 'export PNPM_HOME=dir1',
+    newSettings: 'export PNPM_HOME=dir2',
+  }))
+  const output = await setup.handler({ pnpmHomeDir: '' })
+  expect(output).toBe(`Created ~/.bashrc
+
+Next configuration changes were made:
+export PNPM_HOME=dir2
+
+Setup complete. Open a new terminal to start using pnpm.`)
+})
+
+test('setup makes changes on Windows', async () => {
+  addDirToEnvPath['mockReturnValue'](Promise.resolve<PathExtenderReport>({
+    oldSettings: 'export PNPM_HOME=dir1',
+    newSettings: 'export PNPM_HOME=dir2',
+  }))
+  const output = await setup.handler({ pnpmHomeDir: '' })
+  expect(output).toBe(`Next configuration changes were made:
+export PNPM_HOME=dir2
+
+Setup complete. Open a new terminal to start using pnpm.`)
+})
+
+test('hint is added to ERR_PNPM_BAD_ENV_FOUND error object', async () => {
+  addDirToEnvPath['mockReturnValue'](Promise.reject(new PnpmError('BAD_ENV_FOUND', '')))
+  let err!: PnpmError
+  try {
+    await setup.handler({ pnpmHomeDir: '' })
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
   }
+  expect(err?.hint).toBe('If you want to override the existing env variable, use the --force option')
 })
 
-test('PNPM_HOME is added to ~/.bashrc', async () => {
-  process.env.SHELL = '/bin/bash'
-  tempDir()
-  fs.writeFileSync('.bashrc', '', 'utf8')
-  homedir['mockReturnValue'](process.cwd())
-  const output = await setup.handler({
-    pnpmHomeDir: __dirname,
-  })
-  expect(output).toMatch(/^Updated /)
-  const bashRCContent = fs.readFileSync('.bashrc', 'utf8')
-  expect(bashRCContent).toEqual(`
-export PNPM_HOME="${__dirname}"
-export PATH="$PNPM_HOME:$PATH"
-`)
-})
-
-test('PNPM_HOME is added to ~/.bashrc and .bashrc file created', async () => {
-  process.env.SHELL = '/bin/bash'
-  tempDir()
-  homedir['mockReturnValue'](process.cwd())
-  const output = await setup.handler({
-    pnpmHomeDir: __dirname,
-  })
-  expect(output).toMatch(/^Created /)
-  const bashRCContent = fs.readFileSync('.bashrc', 'utf8')
-  expect(bashRCContent).toEqual(`export PNPM_HOME="${__dirname}"
-export PATH="$PNPM_HOME:$PATH"
-`)
-})
-
-test('PNPM_HOME is not added to ~/.bashrc if already present', async () => {
-  process.env.SHELL = '/bin/bash'
-  tempDir()
-  fs.writeFileSync('.bashrc', `
-export PNPM_HOME="pnpm_home"
-export PATH="$PNPM_HOME:$PATH"
-`, 'utf8')
-  homedir['mockReturnValue'](process.cwd())
-  const output = await setup.handler({
-    pnpmHomeDir: __dirname,
-  })
-  expect(output).toMatch(/^PNPM_HOME is already in /)
-  const bashRCContent = fs.readFileSync('.bashrc', 'utf8')
-  expect(bashRCContent).toEqual(`
-export PNPM_HOME="pnpm_home"
-export PATH="$PNPM_HOME:$PATH"
-`)
-})
-
-test('PNPM_HOME is added to ~/.zshrc', async () => {
-  process.env.SHELL = '/bin/zsh'
-  tempDir()
-  fs.writeFileSync('.zshrc', '', 'utf8')
-  homedir['mockReturnValue'](process.cwd())
-  const output = await setup.handler({
-    pnpmHomeDir: __dirname,
-  })
-  expect(output).toMatch(/^Updated /)
-  const bashRCContent = fs.readFileSync('.zshrc', 'utf8')
-  expect(bashRCContent).toEqual(`
-export PNPM_HOME="${__dirname}"
-export PATH="$PNPM_HOME:$PATH"
-`)
-})
-
-test('PNPM_HOME is not added to ~/.zshrc if already present', async () => {
-  process.env.SHELL = '/bin/zsh'
-  tempDir()
-  fs.writeFileSync('.zshrc', `
-export PNPM_HOME="pnpm_home"
-export PATH="$PNPM_HOME:$PATH"
-`, 'utf8')
-  homedir['mockReturnValue'](process.cwd())
-  const output = await setup.handler({
-    pnpmHomeDir: __dirname,
-  })
-  expect(output).toMatch(/^PNPM_HOME is already in /)
-  const bashRCContent = fs.readFileSync('.zshrc', 'utf8')
-  expect(bashRCContent).toEqual(`
-export PNPM_HOME="pnpm_home"
-export PATH="$PNPM_HOME:$PATH"
-`)
-})
-
-test('PNPM_HOME is added to ~/.config/fish/config.fish', async () => {
-  process.env.SHELL = '/bin/fish'
-  tempDir()
-  fs.mkdirSync('.config/fish', { recursive: true })
-  fs.writeFileSync('.config/fish/config.fish', '', 'utf8')
-  homedir['mockReturnValue'](process.cwd())
-  const output = await setup.handler({
-    pnpmHomeDir: __dirname,
-  })
-  expect(output).toMatch(/^Updated /)
-  const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
-  expect(bashRCContent).toEqual(`
-set -gx PNPM_HOME "${__dirname}"
-set -gx PATH "$PNPM_HOME" $PATH
-`)
-})
-
-test('PNPM_HOME is added to ~/.config/fish/config.fish and config.fish file created', async () => {
-  process.env.SHELL = '/bin/fish'
-  tempDir()
-  fs.mkdirSync('.config/fish', { recursive: true })
-  homedir['mockReturnValue'](process.cwd())
-  const output = await setup.handler({
-    pnpmHomeDir: __dirname,
-  })
-  expect(output).toMatch(/^Created /)
-  const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
-  expect(bashRCContent).toEqual(`set -gx PNPM_HOME "${__dirname}"
-set -gx PATH "$PNPM_HOME" $PATH
-`)
-})
-
-test('PNPM_HOME is not added to ~/.config/fish/config.fish if already present', async () => {
-  process.env.SHELL = '/bin/fish'
-  tempDir()
-  fs.mkdirSync('.config/fish', { recursive: true })
-  fs.writeFileSync('.config/fish/config.fish', `
-set -gx PNPM_HOME "pnpm_home"
-set -gx PATH "$PNPM_HOME" $PATH
-`, 'utf8')
-  homedir['mockReturnValue'](process.cwd())
-  const output = await setup.handler({
-    pnpmHomeDir: __dirname,
-  })
-  expect(output).toMatch(/^PNPM_HOME is already in /)
-  const bashRCContent = fs.readFileSync('.config/fish/config.fish', 'utf8')
-  expect(bashRCContent).toEqual(`
-set -gx PNPM_HOME "pnpm_home"
-set -gx PATH "$PNPM_HOME" $PATH
-`)
+test('hint is added to ERR_PNPM_BAD_SHELL_SECTION error object', async () => {
+  addDirToEnvPath['mockReturnValue'](Promise.reject(new PnpmError('BAD_SHELL_SECTION', '')))
+  let err!: PnpmError
+  try {
+    await setup.handler({ pnpmHomeDir: '' })
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err?.hint).toBe('If you want to override the existing configuration section, use the --force option')
 })

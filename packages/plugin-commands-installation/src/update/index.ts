@@ -6,12 +6,13 @@ import {
 import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import { globalInfo } from '@pnpm/logger'
 import matcher from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
-import pick from 'ramda/src/pick'
-import unnest from 'ramda/src/unnest'
+import pick from 'ramda/src/pick.js'
+import unnest from 'ramda/src/unnest.js'
 import renderHelp from 'render-help'
 import { InstallCommandOptions } from '../install'
 import installDeps from '../installDeps'
@@ -235,6 +236,13 @@ async function interactiveUpdate (
     },
     k () {
       return this.up()
+    },
+    cancel () {
+      // By default, canceling the prompt via Ctrl+c throws an empty string.
+      // The custom cancel function prevents that behavior.
+      // Otherwise, pnpm CLI would print an error and confuse users.
+      // See related issue: https://github.com/enquirer/enquirer/issues/225
+      globalInfo('Update canceled')
     },
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
   return update(updateDependencies, opts)

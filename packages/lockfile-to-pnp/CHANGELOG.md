@@ -1,5 +1,215 @@
 # @pnpm/lockfile-to-pnp
 
+## 0.5.17
+
+### Patch Changes
+
+- dependency-path@9.2.3
+- @pnpm/lockfile-utils@4.0.10
+
+## 0.5.16
+
+### Patch Changes
+
+- Updated dependencies [ab684d77e]
+  - @pnpm/lockfile-file@5.1.4
+
+## 0.5.15
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/config@15.5.1
+  - @pnpm/lockfile-file@5.1.3
+  - @pnpm/lockfile-utils@4.0.9
+
+## 0.5.14
+
+### Patch Changes
+
+- Updated dependencies [fc581d371]
+  - dependency-path@9.2.2
+  - @pnpm/lockfile-utils@4.0.8
+
+## 0.5.13
+
+### Patch Changes
+
+- Updated dependencies [f48d46ef6]
+  - @pnpm/config@15.5.0
+
+## 0.5.12
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-file@5.1.2
+  - @pnpm/lockfile-utils@4.0.7
+  - @pnpm/config@15.4.1
+  - dependency-path@9.2.1
+  - @pnpm/read-project-manifest@3.0.6
+
+## 0.5.11
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/types@8.3.0
+  - dependency-path@9.2.0
+  - @pnpm/config@15.4.0
+  - @pnpm/lockfile-file@5.1.1
+  - @pnpm/lockfile-utils@4.0.6
+  - @pnpm/read-project-manifest@3.0.5
+
+## 0.5.10
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+- Updated dependencies [725636a90]
+  - @pnpm/types@8.2.0
+  - @pnpm/config@15.3.0
+  - @pnpm/lockfile-file@5.1.0
+  - dependency-path@9.1.4
+  - @pnpm/lockfile-utils@4.0.5
+  - @pnpm/read-project-manifest@3.0.4
+
+## 0.5.9
+
+### Patch Changes
+
+- Updated dependencies [25798aad1]
+  - @pnpm/config@15.2.1
+
+## 0.5.8
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/types@8.1.0
+  - @pnpm/config@15.2.0
+  - dependency-path@9.1.3
+  - @pnpm/lockfile-file@5.0.4
+  - @pnpm/lockfile-utils@4.0.4
+  - @pnpm/read-project-manifest@3.0.3
+
+## 0.5.7
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+
+## 0.5.6
+
+### Patch Changes
+
+- Updated dependencies [05159665d]
+  - @pnpm/config@15.1.3
+
+## 0.5.5
+
+### Patch Changes
+
+- Updated dependencies [af22c6c4f]
+- Updated dependencies [c57695550]
+  - @pnpm/config@15.1.2
+  - dependency-path@9.1.2
+  - @pnpm/lockfile-utils@4.0.3
+
+## 0.5.4
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/lockfile-file@5.0.3
+
+## 0.5.3
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/config@15.1.1
+  - dependency-path@9.1.1
+  - @pnpm/lockfile-file@5.0.2
+  - @pnpm/lockfile-utils@4.0.2
+  - @pnpm/read-project-manifest@3.0.2
+
+## 0.5.2
+
+### Patch Changes
+
+- Updated dependencies [e05dcc48a]
+  - @pnpm/config@15.1.0
+
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [8dac029ef]
+- Updated dependencies [688b0eaff]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - dependency-path@9.1.0
+  - @pnpm/config@15.0.0
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/lockfile-file@5.0.1
+  - @pnpm/read-project-manifest@3.0.1
+
+## 0.5.0
+
+### Minor Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/lockfile-file@5.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/read-project-manifest@3.0.0
+
+## 0.4.47
+
+### Patch Changes
+
+- @pnpm/config@13.13.2
+- @pnpm/lockfile-file@4.3.1
+- @pnpm/read-project-manifest@2.0.13
+
+## 0.4.46
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-file@4.3.0
+  - @pnpm/types@7.10.0
+  - @pnpm/lockfile-utils@3.2.1
+  - @pnpm/config@13.13.1
+  - dependency-path@8.0.11
+  - @pnpm/read-project-manifest@2.0.12
+
 ## 0.4.45
 
 ### Patch Changes

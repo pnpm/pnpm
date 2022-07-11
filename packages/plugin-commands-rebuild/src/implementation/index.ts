@@ -23,8 +23,8 @@ import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { ProjectManifest } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import runGroups from 'run-groups'
-import npa from '@zkochan/npm-package-arg'
-import graphSequencer from 'graph-sequencer'
+import graphSequencer from '@pnpm/graph-sequencer'
+import npa from '@pnpm/npm-package-arg'
 import pLimit from 'p-limit'
 import semver from 'semver'
 import extendOptions, {
@@ -76,7 +76,7 @@ type PackageSelector = string | {
   range: string
 }
 
-export async function rebuildPkgs (
+export async function rebuildSelectedPkgs (
   projects: Array<{ manifest: ProjectManifest, rootDir: string }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions
@@ -122,7 +122,7 @@ export async function rebuildPkgs (
   )
 }
 
-export async function rebuild (
+export async function rebuildProjects (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
   maybeOpts: RebuildOptions
 ) {
@@ -228,6 +228,7 @@ async function _rebuild (
     currentLockfile: Lockfile
     projects: Array<{ id: string, rootDir: string }>
     extraBinPaths: string[]
+    extraNodePaths: string[]
   },
   opts: StrictRebuildOptions
 ) {
@@ -269,11 +270,11 @@ async function _rebuild (
     async () => {
       const pkgSnapshot = pkgSnapshots[depPath]
       const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const pkgRoot = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.lockfileDir), 'node_modules', pkgInfo.name)
+      const pkgRoot = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules', pkgInfo.name)
       try {
-        const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.lockfileDir), 'node_modules')
+        const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
         const binPath = path.join(pkgRoot, 'node_modules', '.bin')
-        await linkBins(modules, binPath, { warn })
+        await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
         await runPostinstallHooks({
           depPath,
           extraBinPaths: ctx.extraBinPaths,
@@ -316,7 +317,7 @@ async function _rebuild (
       .map(async (depPath) => limitLinking(async () => {
         const pkgSnapshot = pkgSnapshots[depPath]
         const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath, opts.lockfileDir), 'node_modules')
+        const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
         const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
         return linkBins(modules, binPath, { warn })
       }))

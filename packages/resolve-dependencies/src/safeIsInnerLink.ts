@@ -1,8 +1,8 @@
-import { promises as fs } from 'fs'
 import path from 'path'
 import logger from '@pnpm/logger'
 import isInnerLink from 'is-inner-link'
 import isSubdir from 'is-subdir'
+import renameOverwrite from 'rename-overwrite'
 
 export default async function safeIsInnerLink (
   projectModulesDir: string,
@@ -30,8 +30,7 @@ export default async function safeIsInnerLink (
         prefix: opts.projectDir,
       })
       const ignoredDir = path.join(projectModulesDir, '.ignored', depName)
-      await fs.mkdir(path.dirname(ignoredDir), { recursive: true })
-      await fs.rename(
+      await renameOverwrite(
         path.join(projectModulesDir, depName),
         ignoredDir
       )

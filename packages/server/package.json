@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/server",
-  "version": "11.0.17",
+  "version": "13.0.1",
   "description": "A pnpm installer server",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",
@@ -33,27 +33,30 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/client": "workspace:6.1.1",
+    "@pnpm/client": "workspace:*",
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/package-requester": "workspace:16.0.1",
-    "@pnpm/package-store": "workspace:12.1.10",
-    "@pnpm/server": "workspace:11.0.17",
-    "@types/mz": "^2.7.3",
-    "@types/uuid": "^8.3.0",
+    "@pnpm/package-requester": "workspace:*",
+    "@pnpm/package-store": "workspace:*",
+    "@pnpm/server": "workspace:*",
+    "@types/mz": "^2.7.4",
+    "@types/uuid": "^8.3.4",
     "@zkochan/rimraf": "^2.1.2",
     "get-port": "^5.1.1",
     "is-port-reachable": "3.0.0",
     "load-json-file": "^6.2.0",
     "node-fetch": "3.0.0-beta.9",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "dependencies": {
-    "@pnpm/fetch": "workspace:4.2.4",
-    "@pnpm/store-controller-types": "workspace:11.0.11",
-    "@pnpm/types": "workspace:7.9.0",
+    "@pnpm/fetch": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "p-limit": "^3.1.0",
     "promise-share": "^1.0.0",
-    "uuid": "^3.4.0"
+    "uuid": "^8.3.2"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

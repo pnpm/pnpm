@@ -1,5 +1,127 @@
 # @pnpm/link-bins
 
+## 7.1.7
+
+### Patch Changes
+
+- Updated dependencies [f5621a42c]
+  - @pnpm/manifest-utils@3.1.0
+
+## 7.1.6
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
+## 7.1.5
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/manifest-utils@3.0.6
+  - @pnpm/package-bins@6.0.5
+  - @pnpm/read-package-json@6.0.6
+  - @pnpm/read-project-manifest@3.0.6
+
+## 7.1.4
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/manifest-utils@3.0.5
+  - @pnpm/package-bins@6.0.4
+  - @pnpm/read-package-json@6.0.5
+  - @pnpm/read-project-manifest@3.0.5
+
+## 7.1.3
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+  - @pnpm/manifest-utils@3.0.4
+  - @pnpm/package-bins@6.0.3
+  - @pnpm/read-package-json@6.0.4
+  - @pnpm/read-project-manifest@3.0.4
+
+## 7.1.2
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/manifest-utils@3.0.3
+  - @pnpm/package-bins@6.0.2
+  - @pnpm/read-package-json@6.0.3
+  - @pnpm/read-project-manifest@3.0.3
+
+## 7.1.1
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/manifest-utils@3.0.2
+  - @pnpm/package-bins@6.0.1
+  - @pnpm/read-package-json@6.0.2
+  - @pnpm/read-project-manifest@3.0.2
+
+## 7.1.0
+
+### Minor Changes
+
+- 8fa95fd86: New option added: `extraNodePaths`.
+
+### Patch Changes
+
+- Updated dependencies [618842b0d]
+  - @pnpm/manifest-utils@3.0.1
+  - @pnpm/error@3.0.1
+  - @pnpm/read-package-json@6.0.1
+  - @pnpm/read-project-manifest@3.0.1
+
+## 7.0.0
+
+### Major Changes
+
+- 516859178: `extendNodePath` removed.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/manifest-utils@3.0.0
+  - @pnpm/package-bins@6.0.0
+  - @pnpm/read-modules-dir@4.0.0
+  - @pnpm/read-package-json@6.0.0
+  - @pnpm/read-project-manifest@3.0.0
+
+## 6.2.12
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/manifest-utils@2.1.9
+  - @pnpm/read-package-json@5.0.12
+  - @pnpm/read-project-manifest@2.0.13
+
+## 6.2.11
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/manifest-utils@2.1.8
+  - @pnpm/package-bins@5.0.12
+  - @pnpm/read-package-json@5.0.11
+  - @pnpm/read-project-manifest@2.0.12
+
 ## 6.2.10
 
 ### Patch Changes

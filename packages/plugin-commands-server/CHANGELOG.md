@@ -1,5 +1,250 @@
 # @pnpm/plugin-commands-server
 
+## 4.0.21
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.18
+- @pnpm/server@13.0.1
+- @pnpm/store-connection-manager@4.1.19
+
+## 4.0.20
+
+### Patch Changes
+
+- @pnpm/server@13.0.1
+- @pnpm/store-connection-manager@4.1.18
+
+## 4.0.19
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/cli-utils@0.7.17
+  - @pnpm/config@15.5.1
+  - @pnpm/store-connection-manager@4.1.17
+  - @pnpm/server@13.0.1
+
+## 4.0.18
+
+### Patch Changes
+
+- @pnpm/server@13.0.1
+- @pnpm/store-connection-manager@4.1.16
+
+## 4.0.17
+
+### Patch Changes
+
+- @pnpm/server@13.0.1
+- @pnpm/store-connection-manager@4.1.15
+
+## 4.0.16
+
+### Patch Changes
+
+- Updated dependencies [f48d46ef6]
+  - @pnpm/config@15.5.0
+  - @pnpm/cli-utils@0.7.16
+  - @pnpm/store-connection-manager@4.1.14
+
+## 4.0.15
+
+### Patch Changes
+
+- @pnpm/cli-meta@3.0.5
+- @pnpm/cli-utils@0.7.15
+- @pnpm/config@15.4.1
+- @pnpm/server@13.0.1
+- @pnpm/store-connection-manager@4.1.13
+
+## 4.0.14
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/server@13.0.0
+  - @pnpm/config@15.4.0
+  - @pnpm/cli-meta@3.0.4
+  - @pnpm/cli-utils@0.7.14
+  - @pnpm/store-connection-manager@4.1.12
+
+## 4.0.13
+
+### Patch Changes
+
+- Updated dependencies [56cf04cb3]
+  - @pnpm/config@15.3.0
+  - @pnpm/cli-meta@3.0.3
+  - @pnpm/cli-utils@0.7.13
+  - @pnpm/server@12.0.5
+  - @pnpm/store-connection-manager@4.1.11
+
+## 4.0.12
+
+### Patch Changes
+
+- Updated dependencies [8c8156165]
+- Updated dependencies [25798aad1]
+  - @pnpm/server@12.0.4
+  - @pnpm/config@15.2.1
+  - @pnpm/store-connection-manager@4.1.10
+  - @pnpm/cli-utils@0.7.12
+
+## 4.0.11
+
+### Patch Changes
+
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/config@15.2.0
+  - @pnpm/cli-meta@3.0.2
+  - @pnpm/cli-utils@0.7.11
+  - @pnpm/server@12.0.3
+  - @pnpm/store-connection-manager@4.1.9
+
+## 4.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.10
+- @pnpm/server@12.0.2
+- @pnpm/store-connection-manager@4.1.8
+- @pnpm/config@15.1.4
+
+## 4.0.9
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+  - @pnpm/cli-utils@0.7.9
+  - @pnpm/store-connection-manager@4.1.7
+
+## 4.0.8
+
+### Patch Changes
+
+- Updated dependencies [05159665d]
+  - @pnpm/config@15.1.3
+  - @pnpm/cli-utils@0.7.8
+  - @pnpm/store-connection-manager@4.1.6
+
+## 4.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.7
+
+## 4.0.6
+
+### Patch Changes
+
+- Updated dependencies [af22c6c4f]
+  - @pnpm/config@15.1.2
+  - @pnpm/cli-utils@0.7.6
+  - @pnpm/store-connection-manager@4.1.5
+  - @pnpm/server@12.0.1
+
+## 4.0.5
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/cli-utils@0.7.5
+  - @pnpm/server@12.0.1
+  - @pnpm/store-connection-manager@4.1.4
+
+## 4.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.4
+- @pnpm/server@12.0.1
+- @pnpm/store-connection-manager@4.1.3
+- @pnpm/config@15.1.1
+
+## 4.0.3
+
+### Patch Changes
+
+- @pnpm/cli-meta@3.0.1
+- @pnpm/cli-utils@0.7.3
+- @pnpm/config@15.1.1
+- @pnpm/server@12.0.1
+- @pnpm/store-connection-manager@4.1.2
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [e05dcc48a]
+  - @pnpm/config@15.1.0
+  - @pnpm/cli-utils@0.7.2
+  - @pnpm/store-connection-manager@4.1.1
+
+## 4.0.1
+
+### Patch Changes
+
+- Updated dependencies [cdeb65203]
+- Updated dependencies [8dac029ef]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - @pnpm/store-path@6.0.0
+  - @pnpm/config@15.0.0
+  - @pnpm/store-connection-manager@4.1.0
+  - @pnpm/server@12.0.0
+  - @pnpm/cli-utils@0.7.1
+  - @pnpm/error@3.0.1
+
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [542014839]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/cli-meta@3.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/server@12.0.0
+  - @pnpm/store-connection-manager@4.0.0
+  - @pnpm/cli-utils@0.7.0
+  - @pnpm/common-cli-options-help@0.9.0
+
+## 3.0.70
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/cli-utils@0.6.50
+  - @pnpm/config@13.13.2
+  - @pnpm/store-connection-manager@3.2.10
+  - @pnpm/server@11.0.19
+
+## 3.0.69
+
+### Patch Changes
+
+- @pnpm/server@11.0.18
+- @pnpm/cli-meta@2.0.2
+- @pnpm/cli-utils@0.6.49
+- @pnpm/config@13.13.1
+- @pnpm/store-connection-manager@3.2.9
+
 ## 3.0.68
 
 ### Patch Changes
@@ -1116,7 +1361,7 @@
 
 ### Patch Changes
 
-- d9310c034: Replace diable with a fork that has less dependencies.
+- d9310c034: Replace diable with a fork that has fewer dependencies.
 - Updated dependencies [d9310c034]
   - @pnpm/store-connection-manager@0.3.17
   - @pnpm/server@8.0.5

@@ -1,5 +1,100 @@
 # @pnpm/tarball-fetcher
 
+## 10.0.8
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
+## 10.0.7
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.5
+- @pnpm/fetcher-base@13.0.1
+- @pnpm/prepare-package@2.0.6
+
+## 10.0.6
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/fetcher-base@13.0.0
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/prepare-package@2.0.5
+
+## 10.0.5
+
+### Patch Changes
+
+- Updated dependencies [0abfe1718]
+  - @pnpm/fetcher-base@12.1.0
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/prepare-package@2.0.4
+
+## 10.0.4
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.2
+- @pnpm/fetcher-base@12.0.3
+- @pnpm/prepare-package@2.0.3
+
+## 10.0.3
+
+### Patch Changes
+
+- Updated dependencies [6756c2b02]
+  - @pnpm/fetcher-base@12.0.2
+
+## 10.0.2
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.1
+- @pnpm/fetcher-base@12.0.1
+- @pnpm/prepare-package@2.0.2
+
+## 10.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+- @pnpm/prepare-package@2.0.1
+
+## 10.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/fetcher-base@12.0.0
+  - @pnpm/fetching-types@3.0.0
+  - @pnpm/graceful-fs@2.0.0
+  - @pnpm/prepare-package@2.0.0
+
+## 9.3.17
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/prepare-package@1.0.13
+
+## 9.3.16
+
+### Patch Changes
+
+- @pnpm/core-loggers@6.1.4
+- @pnpm/fetcher-base@11.1.6
+- @pnpm/prepare-package@1.0.12
+
 ## 9.3.15
 
 ### Patch Changes

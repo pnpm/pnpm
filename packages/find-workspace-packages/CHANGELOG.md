@@ -1,5 +1,164 @@
 # @pnpm/find-workspace-packages
 
+## 4.0.18
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.18
+
+## 4.0.17
+
+### Patch Changes
+
+- Updated dependencies [5f643f23b]
+  - @pnpm/cli-utils@0.7.17
+
+## 4.0.16
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.16
+
+## 4.0.15
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/cli-utils@0.7.15
+  - find-packages@9.0.6
+
+## 4.0.14
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/cli-utils@0.7.14
+  - find-packages@9.0.5
+
+## 4.0.13
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+  - @pnpm/cli-utils@0.7.13
+  - find-packages@9.0.4
+
+## 4.0.12
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.12
+
+## 4.0.11
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/cli-utils@0.7.11
+  - find-packages@9.0.3
+
+## 4.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.10
+
+## 4.0.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.9
+
+## 4.0.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.8
+
+## 4.0.7
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.7
+
+## 4.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.6
+
+## 4.0.5
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/cli-utils@0.7.5
+
+## 4.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.4
+
+## 4.0.3
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/cli-utils@0.7.3
+  - find-packages@9.0.2
+
+## 4.0.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.2
+
+## 4.0.1
+
+### Patch Changes
+
+- Updated dependencies [1267e4eff]
+  - @pnpm/constants@6.1.0
+  - @pnpm/cli-utils@0.7.1
+  - find-packages@9.0.1
+
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/constants@6.0.0
+  - find-packages@9.0.0
+  - @pnpm/cli-utils@0.7.0
+
+## 3.1.42
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.6.50
+- find-packages@8.0.13
+
+## 3.1.41
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/cli-utils@0.6.49
+  - find-packages@8.0.12
+
 ## 3.1.40
 
 ### Patch Changes

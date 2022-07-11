@@ -2,10 +2,12 @@ import { CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { env } from '@pnpm/plugin-commands-env'
+import { deploy } from '@pnpm/plugin-commands-deploy'
 import { add, fetch, install, link, prune, remove, unlink, update, importCommand } from '@pnpm/plugin-commands-installation'
 import { list, ll, why } from '@pnpm/plugin-commands-listing'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
+import { patch, patchCommit } from '@pnpm/plugin-commands-patching'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import {
   create,
@@ -18,7 +20,8 @@ import {
 import { server } from '@pnpm/plugin-commands-server'
 import { setup } from '@pnpm/plugin-commands-setup'
 import { store } from '@pnpm/plugin-commands-store'
-import pick from 'ramda/src/pick'
+import { init } from '@pnpm/plugin-commands-init'
+import pick from 'ramda/src/pick.js'
 import { PnpmOptions } from '../types'
 import * as bin from './bin'
 import createCompletion from './completion'
@@ -45,6 +48,7 @@ export const GLOBAL_OPTIONS = pick([
   'ignore-workspace',
   'workspace-packages',
   'workspace-root',
+  'include-workspace-root',
 ], allTypes)
 
 export type CommandResponse = string | { output: string, exitCode: number } | undefined
@@ -54,24 +58,53 @@ export type Command = (
   params: string[]
 ) => CommandResponse | Promise<CommandResponse>
 
-const commands: Array<{
-  cliOptionsTypes: () => Object
-  commandNames: string[]
-  completion?: CompletionFunc
+export interface CommandDefinition {
+  /** The main logic of the command. */
   handler: Function
+  /** The help text for the command that describes its usage and options. */
   help: () => string
+  /** The names that will trigger this command handler. */
+  commandNames: string[]
+  /**
+   * A function that returns an object whose keys are acceptable CLI options
+   * for this command and whose values are the types of values
+   * for these options for validation.
+   */
+  cliOptionsTypes: () => Object
+  /**
+   * A function that returns an object whose keys are acceptable options
+   * in the .npmrc file for this command and whose values are the types of values
+   * for these options for validation.
+   */
   rcOptionsTypes: () => Record<string, unknown>
+  /** Auto-completion provider for this command. */
+  completion?: CompletionFunc
+  /**
+   * Option names that will resolve into one or more of the other options.
+   *
+   * Example:
+   * ```ts
+   * {
+   *   D: '--dev',
+   *   parallel: ['--no-sort', '--recursive'],
+   * }
+   * ```
+   */
   shorthands?: Record<string, string | string[]>
-}> = [
+}
+
+const commands: CommandDefinition[] = [
   add,
   audit,
   bin,
   create,
+  deploy,
   dlx,
   env,
   exec,
   fetch,
   importCommand,
+  init,
   install,
   installTest,
   link,
@@ -79,6 +112,8 @@ const commands: Array<{
   ll,
   outdated,
   pack,
+  patch,
+  patchCommit,
   prune,
   publish,
   rebuild,

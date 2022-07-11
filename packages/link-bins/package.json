@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "6.2.10",
+  "version": "7.1.7",
   "description": "Link bins to node_modules/.bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts test/**/*.ts",
@@ -31,35 +31,38 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/link-bins#readme",
   "dependencies": {
-    "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/manifest-utils": "workspace:2.1.7",
-    "@pnpm/package-bins": "workspace:5.0.11",
-    "@pnpm/read-modules-dir": "workspace:3.0.1",
-    "@pnpm/read-package-json": "workspace:5.0.10",
-    "@pnpm/read-project-manifest": "workspace:2.0.11",
-    "@pnpm/types": "workspace:7.9.0",
-    "@zkochan/cmd-shim": "^5.2.1",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/manifest-utils": "workspace:*",
+    "@pnpm/package-bins": "workspace:*",
+    "@pnpm/read-modules-dir": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@zkochan/cmd-shim": "^5.3.0",
     "bin-links": "^2.3.0",
-    "is-subdir": "^1.1.1",
+    "is-subdir": "^1.2.0",
     "is-windows": "^1.0.2",
     "normalize-path": "^3.0.0",
     "p-settle": "^4.1.1",
-    "ramda": "^0.27.1"
+    "ramda": "^0.28.0"
   },
   "devDependencies": {
-    "@pnpm/link-bins": "workspace:6.2.10",
+    "@pnpm/link-bins": "workspace:*",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.0",
-    "@types/node": "^14.17.32",
+    "@types/node": "^14.18.21",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "0.27.39",
+    "@types/ramda": "0.28.14",
     "cmd-extension": "^1.0.2",
     "path-exists": "^4.0.0",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

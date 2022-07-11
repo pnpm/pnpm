@@ -8,6 +8,9 @@ import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import writeJsonFile from 'write-json-file'
 
+const NEXT_TAG = 'next-7'
+const CLI_PKG_NAME = 'pnpm'
+
 export default async (workspaceDir: string) => {
   const pnpmManifest = loadJsonFile.sync(path.join(workspaceDir, 'packages/pnpm/package.json'))
   const pnpmVersion = pnpmManifest!['version'] // eslint-disable-line
@@ -19,6 +22,10 @@ export default async (workspaceDir: string) => {
   }
   return {
     'package.json': (manifest: ProjectManifest & { keywords?: string[] }, dir: string) => {
+      if (manifest.name === 'monorepo-root') {
+        manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${NEXT_TAG} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${NEXT_TAG} --access=public`
+        return manifest
+      }
       if (!isSubdir(pkgsDir, dir)) {
         if (manifest.name) {
           manifest.devDependencies = {
@@ -28,10 +35,10 @@ export default async (workspaceDir: string) => {
         }
         return manifest
       }
-      if (manifest.name && manifest.name !== 'pnpm') {
+      if (manifest.name && manifest.name !== CLI_PKG_NAME) {
         manifest.devDependencies = {
           ...manifest.devDependencies,
-          [manifest.name]: `workspace:${manifest.version}`,
+          [manifest.name]: `workspace:*`,
         }
       }
       manifest.keywords = [
@@ -42,7 +49,7 @@ export default async (workspaceDir: string) => {
         manifest.version = pnpmVersion
         if (manifest.name === '@pnpm/exe') {
           for (const depName of ['@pnpm/linux-arm64', '@pnpm/linux-x64', '@pnpm/win-x64', '@pnpm/macos-x64', '@pnpm/macos-arm64']) {
-            manifest.optionalDependencies![depName] = `workspace:${pnpmVersion}`
+            manifest.optionalDependencies![depName] = `workspace:*`
           }
         }
         return manifest
@@ -77,7 +84,7 @@ async function updateTSConfig (
   const references = [] as Array<{ path: string }>
   for (const [depName, spec] of Object.entries(deps)) {
     if (!spec.startsWith('link:') || spec.length === 5) continue
-    const relativePath = spec.substr(5)
+    const relativePath = spec.slice(5)
     if (!await exists(path.join(dir, relativePath, 'tsconfig.json'))) continue
     if (
       depName === '@pnpm/package-store' && (
@@ -125,11 +132,13 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-installation':
   case '@pnpm/plugin-commands-listing':
   case '@pnpm/plugin-commands-outdated':
+  case '@pnpm/plugin-commands-patching':
   case '@pnpm/plugin-commands-publishing':
   case '@pnpm/plugin-commands-rebuild':
   case '@pnpm/plugin-commands-script-runners':
   case '@pnpm/plugin-commands-store':
-  case 'pnpm':
+  case '@pnpm/plugin-commands-deploy':
+  case CLI_PKG_NAME:
   case '@pnpm/core': {
     // @pnpm/core tests currently works only with port 4873 due to the usage of
     // the next package: pkg-with-tarball-dep-from-registry
@@ -160,6 +169,9 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
     break
   }
+  if (manifest.name === CLI_PKG_NAME) {
+    manifest.publishConfig!.tag = NEXT_TAG
+  }
   if (scripts._test) {
     if (scripts.pretest) {
       scripts._test = `pnpm pretest && ${scripts._test}`
@@ -175,7 +187,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   delete scripts.tsc
   let homepage: string
   let repository: string | { type: 'git', url: string }
-  if (manifest.name === 'pnpm') {
+  if (manifest.name === CLI_PKG_NAME) {
     homepage = 'https://pnpm.io'
     repository = {
       type: 'git',
@@ -199,7 +211,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
   }
   const files: string[] = []
-  if (manifest.name === 'pnpm' || manifest.name?.endsWith('/pnpm')) {
+  if (manifest.name === CLI_PKG_NAME || manifest.name?.endsWith('/pnpm')) {
     files.push('dist')
     files.push('bin')
   } else {
@@ -216,7 +228,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       url: 'https://github.com/pnpm/pnpm/issues',
     },
     engines: {
-      node: '>=12.17',
+      node: '>=14.6',
     },
     files,
     funding: 'https://opencollective.com/pnpm',
@@ -224,5 +236,8 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     license: 'MIT',
     repository,
     scripts,
+    exports: {
+      '.': manifest.name === 'pnpm' ? './package.json' : './lib/index.js',
+    },
   }
 }

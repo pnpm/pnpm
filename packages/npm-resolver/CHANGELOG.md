@@ -1,5 +1,90 @@
 # @pnpm/npm-resolver
 
+## 13.0.6
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/core-loggers@7.0.5
+  - @pnpm/resolver-base@9.0.5
+
+## 13.0.5
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/resolver-base@9.0.4
+
+## 13.0.4
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/resolver-base@9.0.3
+
+## 13.0.3
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/core-loggers@7.0.2
+  - @pnpm/resolver-base@9.0.2
+
+## 13.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/core-loggers@7.0.1
+  - @pnpm/resolver-base@9.0.1
+
+## 13.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+
+## 13.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/fetching-types@3.0.0
+  - @pnpm/graceful-fs@2.0.0
+  - @pnpm/resolve-workspace-range@3.0.0
+  - @pnpm/resolver-base@9.0.0
+
+## 12.1.8
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+
+## 12.1.7
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/core-loggers@6.1.4
+  - @pnpm/resolver-base@8.1.6
+
 ## 12.1.6
 
 ### Patch Changes

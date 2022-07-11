@@ -2,7 +2,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import pick from 'ramda/src/pick'
+import pick from 'ramda/src/pick.js'
 import renderHelp from 'render-help'
 import { InstallCommandOptions } from './install'
 import installDeps from './installDeps'
@@ -18,6 +18,7 @@ export function rcOptionsTypes () {
     'fetch-retry-mintimeout',
     'fetch-timeout',
     'force',
+    'global-bin-dir',
     'global-dir',
     'global-pnpmfile',
     'global',
@@ -160,15 +161,17 @@ For options that may be used with `-r`, see "pnpm help recursive"',
   })
 }
 
+export type AddCommandOptions = InstallCommandOptions & {
+  allowNew?: boolean
+  ignoreWorkspaceRootCheck?: boolean
+  save?: boolean
+  update?: boolean
+  useBetaCli?: boolean
+  workspaceRoot?: boolean
+}
+
 export async function handler (
-  opts: InstallCommandOptions & {
-    allowNew?: boolean
-    ignoreWorkspaceRootCheck?: boolean
-    save?: boolean
-    update?: boolean
-    useBetaCli?: boolean
-    workspaceRoot?: boolean
-  },
+  opts: AddCommandOptions,
   params: string[]
 ) {
   if (opts.cliOptions['save'] === false) {

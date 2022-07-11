@@ -1,5 +1,189 @@
 # @pnpm/default-reporter
 
+## 9.1.7
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/config@15.5.1
+
+## 9.1.6
+
+### Patch Changes
+
+- Updated dependencies [f48d46ef6]
+  - @pnpm/config@15.5.0
+
+## 9.1.5
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/config@15.4.1
+  - @pnpm/core-loggers@7.0.5
+  - @pnpm/render-peer-issues@2.0.5
+
+## 9.1.4
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/types@8.3.0
+  - @pnpm/config@15.4.0
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/render-peer-issues@2.0.4
+
+## 9.1.3
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/config@15.3.0
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/render-peer-issues@2.0.3
+
+## 9.1.2
+
+### Patch Changes
+
+- Updated dependencies [25798aad1]
+  - @pnpm/config@15.2.1
+
+## 9.1.1
+
+### Patch Changes
+
+- 9b7941c81: Add better hints to the peer dependency issue errors.
+- Updated dependencies [4d39e4a0c]
+- Updated dependencies [bc80631d3]
+- Updated dependencies [d5730ba81]
+  - @pnpm/types@8.1.0
+  - @pnpm/config@15.2.0
+  - @pnpm/core-loggers@7.0.2
+  - @pnpm/render-peer-issues@2.0.2
+
+## 9.1.0
+
+### Minor Changes
+
+- 2493b8ef3: Suggest to update using Corepack when pnpm was installed via Corepack.
+
+### Patch Changes
+
+- @pnpm/config@15.1.4
+
+## 9.0.8
+
+### Patch Changes
+
+- Updated dependencies [ae2f845c5]
+  - @pnpm/config@15.1.4
+
+## 9.0.7
+
+### Patch Changes
+
+- Updated dependencies [05159665d]
+  - @pnpm/config@15.1.3
+
+## 9.0.6
+
+### Patch Changes
+
+- 190f0b331: Add hints to the peer dependencies error.
+
+## 9.0.5
+
+### Patch Changes
+
+- Updated dependencies [af22c6c4f]
+  - @pnpm/config@15.1.2
+
+## 9.0.4
+
+### Patch Changes
+
+- 3b98e43a9: Do not report request retry warnings when loglevel is set to `error` [#4669](https://github.com/pnpm/pnpm/issues/4669).
+  - @pnpm/config@15.1.1
+
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/config@15.1.1
+  - @pnpm/core-loggers@7.0.1
+  - @pnpm/render-peer-issues@2.0.1
+
+## 9.0.2
+
+### Patch Changes
+
+- Updated dependencies [e05dcc48a]
+  - @pnpm/config@15.1.0
+
+## 9.0.1
+
+### Patch Changes
+
+- e94149987: Hide "WARN deprecated" messages on loglevel error [#4507](https://github.com/pnpm/pnpm/pull/4507)
+
+  Don't show the progress bar when loglevel is set to warn or error.
+
+- Updated dependencies [8dac029ef]
+- Updated dependencies [72b79f55a]
+- Updated dependencies [546e644e9]
+- Updated dependencies [c6463b9fd]
+- Updated dependencies [4bed585e2]
+- Updated dependencies [8fa95fd86]
+  - @pnpm/config@15.0.0
+  - @pnpm/error@3.0.1
+
+## 9.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [73d71a2d5]
+- Updated dependencies [fa656992c]
+- Updated dependencies [542014839]
+- Updated dependencies [585e9ca9e]
+  - @pnpm/config@14.0.0
+  - @pnpm/types@8.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/render-peer-issues@2.0.0
+
+## 8.5.13
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/config@13.13.2
+
+## 8.5.12
+
+### Patch Changes
+
+- 5f00eb0e0: When some dependency types are skipped, let the user know via the installation summary.
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/config@13.13.1
+  - @pnpm/core-loggers@6.1.4
+  - @pnpm/render-peer-issues@1.1.2
+
 ## 8.5.11
 
 ### Patch Changes

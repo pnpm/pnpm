@@ -1,91 +1,17 @@
-import { promises as fs } from 'fs'
-import path from 'path'
-import createCafs, {
-  getFilePathByModeInCafs,
+import {
   PackageFilesIndex,
 } from '@pnpm/cafs'
-import { FetchFunction, PackageFilesResponse } from '@pnpm/fetcher-base'
+import createCafsStore from '@pnpm/create-cafs-store'
+import { FetchFunction } from '@pnpm/fetcher-base'
 import createPackageRequester from '@pnpm/package-requester'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import {
-  ImportPackageFunction,
   PackageFileInfo,
   StoreController,
 } from '@pnpm/store-controller-types'
 import loadJsonFile from 'load-json-file'
-import memoize from 'mem'
-import pathTemp from 'path-temp'
 import writeJsonFile from 'write-json-file'
-import createImportPackage from './createImportPackage'
 import prune from './prune'
-
-function createPackageImporter (
-  opts: {
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
-    cafsDir: string
-  }
-): ImportPackageFunction {
-  const cachedImporterCreator = memoize(createImportPackage)
-  const packageImportMethod = opts.packageImportMethod
-  const gfm = getFlatMap.bind(null, opts.cafsDir)
-  return async (to, opts) => {
-    const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.targetEngine)
-    const impPkg = cachedImporterCreator(opts.filesResponse.packageImportMethod ?? packageImportMethod)
-    const importMethod = await impPkg(to, { filesMap, fromStore: opts.filesResponse.fromStore, force: opts.force })
-    return { importMethod, isBuilt }
-  }
-}
-
-function getFlatMap (
-  cafsDir: string,
-  filesResponse: PackageFilesResponse,
-  targetEngine?: string
-): { filesMap: Record<string, string>, isBuilt: boolean } {
-  if (filesResponse.local) {
-    return {
-      filesMap: filesResponse.filesIndex,
-      isBuilt: false,
-    }
-  }
-  let isBuilt!: boolean
-  let filesIndex!: Record<string, PackageFileInfo>
-  if (targetEngine && ((filesResponse.sideEffects?.[targetEngine]) != null)) {
-    filesIndex = filesResponse.sideEffects?.[targetEngine]
-    isBuilt = true
-  } else {
-    filesIndex = filesResponse.filesIndex
-    isBuilt = false
-  }
-  const filesMap = {}
-  for (const [fileName, fileMeta] of Object.entries(filesIndex)) {
-    filesMap[fileName] = getFilePathByModeInCafs(cafsDir, fileMeta.integrity, fileMeta.mode)
-  }
-  return { filesMap, isBuilt }
-}
-
-export function createCafsStore (
-  storeDir: string,
-  opts?: {
-    ignoreFile?: (filename: string) => boolean
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
-  }
-) {
-  const cafsDir = path.join(storeDir, 'files')
-  const baseTempDir = path.join(storeDir, 'tmp')
-  const importPackage = createPackageImporter({
-    packageImportMethod: opts?.packageImportMethod,
-    cafsDir,
-  })
-  return {
-    ...createCafs(cafsDir, opts?.ignoreFile),
-    importPackage,
-    tempDir: async () => {
-      const tmpDir = pathTemp(baseTempDir)
-      await fs.mkdir(tmpDir, { recursive: true })
-      return tmpDir
-    },
-  }
-}
 
 export default async function (
   resolve: ResolveFunction,
@@ -98,7 +24,7 @@ export default async function (
     ignoreFile?: (filename: string) => boolean
     storeDir: string
     networkConcurrency?: number
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
     verifyStoreIntegrity: boolean
   }
 ): Promise<StoreController> {
@@ -127,23 +53,23 @@ export default async function (
     upload,
   }
 
-  async function upload (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}) {
+  async function upload (builtPkgLocation: string, opts: {filesIndexFile: string, sideEffectsCacheKey: string}) {
     const sideEffectsIndex = await cafs.addFilesFromDir(builtPkgLocation)
     // TODO: move this to a function
     // This is duplicated in @pnpm/package-requester
     const integrity: Record<string, PackageFileInfo> = {}
     await Promise.all(
-      Object.keys(sideEffectsIndex)
-        .map(async (filename) => {
+      Object.entries(sideEffectsIndex)
+        .map(async ([filename, { writeResult, mode, size }]) => {
           const {
             checkedAt,
             integrity: fileIntegrity,
-          } = await sideEffectsIndex[filename].writeResult
+          } = await writeResult
           integrity[filename] = {
             checkedAt,
             integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
-            mode: sideEffectsIndex[filename].mode,
-            size: sideEffectsIndex[filename].size,
+            mode,
+            size,
           }
         })
     )
@@ -154,7 +80,7 @@ export default async function (
       filesIndex = { files: integrity }
     }
     filesIndex.sideEffects = filesIndex.sideEffects ?? {}
-    filesIndex.sideEffects[opts.engine] = integrity
+    filesIndex.sideEffects[opts.sideEffectsCacheKey] = integrity
     await writeJsonFile(opts.filesIndexFile, filesIndex, { indent: undefined })
   }
 }

@@ -7,7 +7,7 @@ import { Config } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
-import { rebuild } from '@pnpm/plugin-commands-rebuild/lib/implementation'
+import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { IncludedDependencies, Project } from '@pnpm/types'
 import {
@@ -20,7 +20,6 @@ import {
 import logger from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import isSubdir from 'is-subdir'
-import isEmpty from 'ramda/src/isEmpty'
 import getOptionsFromRootManifest from './getOptionsFromRootManifest'
 import getPinnedVersion from './getPinnedVersion'
 import getSaveType from './getSaveType'
@@ -134,7 +133,7 @@ when running add/update with the --workspace option')
       // Check and warn if there are cyclic dependencies
       if (!sequencedGraph.safe) {
         const cyclicDependenciesInfo = sequencedGraph.cycles.length > 0
-          ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
+          ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}` // eslint-disable-line
           : ''
         logger.warn({
           message: `There are cyclic workspace dependencies${cyclicDependenciesInfo}`,
@@ -168,8 +167,8 @@ when running add/update with the --workspace option')
 
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
   if (manifest === null) {
-    if (opts.update) {
-      throw new PnpmError('NO_IMPORTER_MANIFEST', 'No package.json found')
+    if (opts.update === true || params.length === 0) {
+      throw new PnpmError('NO_PKG_MANIFEST', `No package.json found in ${opts.dir}`)
     }
     manifest = {}
   }
@@ -233,26 +232,8 @@ when running add/update with the --workspace option')
       rootDir: opts.dir,
       targetDependenciesField: getSaveType(opts),
     }
-    let [updatedImporter] = await mutateModules([mutatedProject], installOpts)
+    const [updatedImporter] = await mutateModules([mutatedProject], installOpts)
     if (opts.save !== false) {
-      if (opts.autoInstallPeers && !isEmpty(updatedImporter.peerDependencyIssues?.intersections ?? {})) {
-        logger.info({
-          message: 'Installing missing peer dependencies',
-          prefix: opts.dir,
-        })
-        const dependencySelectors = Object.entries(updatedImporter.peerDependencyIssues!.intersections)
-          .map(([name, version]: [string, string]) => `${name}@${version}`)
-        const result = await mutateModules([
-          {
-            ...mutatedProject,
-            dependencySelectors,
-            manifest: updatedImporter.manifest,
-            peer: false,
-            targetDependenciesField: 'devDependencies',
-          },
-        ], installOpts)
-        updatedImporter = result[0]
-      }
       await writeProjectManifest(updatedImporter.manifest)
     }
     return
@@ -277,12 +258,12 @@ when running add/update with the --workspace option')
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
       selectedProjectsGraph,
-      workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understant that is is not undefined
+      workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understand that is not undefined
     }, 'install')
 
     if (opts.ignoreScripts) return
 
-    await rebuild(
+    await rebuildProjects(
       [
         {
           buildIndex: 0,

@@ -1,12 +1,12 @@
 {
   "name": "@pnpm/mount-modules",
-  "version": "0.1.21",
+  "version": "0.2.19",
   "description": "Mounts a node_modules directory with FUSE",
   "main": "lib/index.js",
   "bin": "bin/mount-modules.js",
   "types": "lib/index.d.ts",
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "files": [
     "lib",
@@ -38,16 +38,18 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/mount-modules": "workspace:0.1.21",
+    "@pnpm/mount-modules": "workspace:*",
+    "@types/normalize-path": "^3.0.0",
     "rimraf": "^3.0.2"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:3.0.13",
-    "@pnpm/lockfile-file": "workspace:4.2.6",
-    "@pnpm/lockfile-utils": "workspace:3.2.0",
-    "@pnpm/store-path": "^5.0.0",
-    "@pnpm/types": "workspace:7.9.0",
-    "dependency-path": "workspace:8.0.10",
+    "@pnpm/cafs": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/store-path": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "dependency-path": "workspace:*",
     "hyperdrive-schemas": "^2.0.0",
     "load-json-file": "^6.2.0",
     "normalize-path": "^3.0.0"
@@ -55,5 +57,8 @@
   "funding": "https://opencollective.com/pnpm",
   "optionalDependencies": {
     "fuse-native": "^2.2.6"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

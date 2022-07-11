@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/run-npm",
-  "version": "3.1.0",
+  "version": "4.0.1",
   "description": "Runs the npm CLI",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts",
@@ -27,12 +27,15 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/run-npm#readme",
   "devDependencies": {
-    "@pnpm/run-npm": "workspace:3.1.0",
+    "@pnpm/run-npm": "workspace:*",
     "@types/cross-spawn": "^6.0.2"
   },
   "dependencies": {
     "cross-spawn": "^7.0.3",
     "path-name": "^1.0.0"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

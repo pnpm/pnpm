@@ -28,12 +28,12 @@ import {
 } from '@pnpm/types'
 import pLimit from 'p-limit'
 import pathExists from 'path-exists'
-import fromPairs from 'ramda/src/fromPairs'
-import equals from 'ramda/src/equals'
-import isEmpty from 'ramda/src/isEmpty'
-import difference from 'ramda/src/difference'
-import omit from 'ramda/src/omit'
-import props from 'ramda/src/props'
+import fromPairs from 'ramda/src/fromPairs.js'
+import equals from 'ramda/src/equals.js'
+import isEmpty from 'ramda/src/isEmpty.js'
+import difference from 'ramda/src/difference.js'
+import omit from 'ramda/src/omit.js'
+import props from 'ramda/src/props.js'
 import { ImporterToUpdate } from './index'
 
 const brokenModulesLogger = logger('_broken_node_modules')
@@ -48,9 +48,11 @@ export default async function linkPackages (
     }
     force: boolean
     depsStateCache: DepsStateCache
+    extraNodePaths: string[]
     hoistedDependencies: HoistedDependencies
     hoistedModulesDir: string
     hoistPattern?: string[]
+    ignoreScripts: boolean
     publicHoistPattern?: string[]
     include: IncludedDependencies
     linkedDependenciesByProjectId: Record<string, LinkedDependency[]>
@@ -139,6 +141,7 @@ export default async function linkPackages (
     {
       force: opts.force,
       depsStateCache: opts.depsStateCache,
+      ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
       optional: opts.include.optionalDependencies,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
@@ -157,22 +160,19 @@ export default async function linkPackages (
   if (opts.symlink) {
     await Promise.all(projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
       const deps = opts.dependenciesByProjectId[id]
+      const importerFromLockfile = newCurrentLockfile.importers[id]
       await Promise.all([
         ...Object.entries(deps)
+          .filter(([rootAlias]) => importerFromLockfile.specifiers[rootAlias])
           .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
           .filter(({ depGraphNode }) => depGraphNode)
           .map(async ({ rootAlias, depGraphNode }) => {
-            const isDev = Boolean(manifest.devDependencies?.[depGraphNode.name])
-            const isOptional = Boolean(manifest.optionalDependencies?.[depGraphNode.name])
-            if (
-              isDev && !opts.include.devDependencies ||
-              isOptional && !opts.include.optionalDependencies ||
-              !isDev && !isOptional && !opts.include.dependencies
-            ) return
             if (
               (await symlinkDependency(depGraphNode.dir, modulesDir, rootAlias)).reused
             ) return
 
+            const isDev = Boolean(manifest.devDependencies?.[depGraphNode.name])
+            const isOptional = Boolean(manifest.optionalDependencies?.[depGraphNode.name])
             rootLogger.debug({
               added: {
                 dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
@@ -248,9 +248,9 @@ export default async function linkPackages (
       packages: omit(Array.from(opts.skipped), currentLockfile.packages),
     }
     newHoistedDependencies = await hoist({
+      extraNodePath: opts.extraNodePaths,
       lockfile: hoistLockfile,
       importerIds: projectIds,
-      lockfileDir: opts.lockfileDir,
       privateHoistedModulesDir: opts.hoistedModulesDir,
       privateHoistPattern: opts.hoistPattern ?? [],
       publicHoistedModulesDir: opts.rootModulesDir,
@@ -285,6 +285,7 @@ async function linkNewPackages (
     depsStateCache: DepsStateCache
     force: boolean
     optional: boolean
+    ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
     symlink: boolean
@@ -347,6 +348,7 @@ async function linkNewPackages (
       depGraph,
       depsStateCache: opts.depsStateCache,
       force: opts.force,
+      ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
     }),
@@ -395,6 +397,7 @@ async function linkAllPkgs (
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     force: boolean
+    ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
   }
@@ -403,14 +406,21 @@ async function linkAllPkgs (
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles()
 
-      let targetEngine: string | undefined
+      if (typeof depNode.requiresBuild === 'function') {
+        depNode.requiresBuild = await depNode.requiresBuild()
+      }
+      let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = calcDepState(depNode.depPath, opts.depGraph, opts.depsStateCache)
+        sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
+          isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
+          patchFileHash: depNode.patchFile?.hash,
+        })
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
-        targetEngine,
+        sideEffectsCacheKey,
+        requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
       })
       if (importMethod) {
         progressLogger.debug({
@@ -458,7 +468,7 @@ async function linkAllModules (
           Object.entries(childrenToLink)
             .map(async ([childAlias, childDepPath]) => {
               if (childDepPath.startsWith('link:')) {
-                await limitLinking(async () => symlinkDependency(path.resolve(opts.lockfileDir, childDepPath.substr(5)), modules, childAlias))
+                await limitLinking(async () => symlinkDependency(path.resolve(opts.lockfileDir, childDepPath.slice(5)), modules, childAlias))
                 return
               }
               const pkg = depGraph[childDepPath]

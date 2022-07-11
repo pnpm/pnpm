@@ -6,7 +6,7 @@ import { exec, run } from '@pnpm/plugin-commands-script-runners'
 import prepare, { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
-import { DEFAULT_OPTS, REGISTRY } from './utils'
+import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
 
@@ -52,11 +52,11 @@ test('pnpm recursive exec', async () => {
   ])
 
   const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await execa('pnpm', [
+  await execa(pnpmBin, [
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -72,6 +72,45 @@ test('pnpm recursive exec', async () => {
 
   expect(outputs1).toStrictEqual(['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
   expect(outputs2).toStrictEqual(['project-1', 'project-3'])
+})
+
+test('pnpm recursive exec finds bin files of workspace projects', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        cowsay: '1.5.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        cowsay: '1.5.0',
+      },
+    },
+  ])
+
+  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['cowsay', 'hi'])
+
+  // If there was no exception, the test passed
 })
 
 test('exec inside a workspace package', async () => {
@@ -115,11 +154,11 @@ test('exec inside a workspace package', async () => {
     },
   ])
 
-  await execa('pnpm', [
+  await execa(pnpmBin, [
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -196,11 +235,11 @@ test('testing the bail config with "pnpm recursive exec"', async () => {
   ])
 
   const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await execa('pnpm', [
+  await execa(pnpmBin, [
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -272,11 +311,11 @@ test('pnpm recursive exec --no-sort', async () => {
   ])
 
   const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await execa('pnpm', [
+  await execa(pnpmBin, [
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -338,7 +377,7 @@ test('pnpm recursive exec --reverse', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
@@ -489,7 +528,7 @@ test('pnpm recursive exec works with PnP', async () => {
     'install',
     '-r',
     '--registry',
-    REGISTRY,
+    REGISTRY_URL,
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ], {

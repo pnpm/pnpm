@@ -1,5 +1,119 @@
 # @pnpm/lockfile-utils
 
+## 4.0.10
+
+### Patch Changes
+
+- dependency-path@9.2.3
+
+## 4.0.9
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
+## 4.0.8
+
+### Patch Changes
+
+- Updated dependencies [fc581d371]
+  - dependency-path@9.2.2
+
+## 4.0.7
+
+### Patch Changes
+
+- Updated dependencies [d01c32355]
+- Updated dependencies [8e5b77ef6]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/lockfile-types@4.2.0
+  - @pnpm/types@8.4.0
+  - dependency-path@9.2.1
+  - @pnpm/resolver-base@9.0.5
+
+## 4.0.6
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-types@4.1.0
+  - dependency-path@9.2.0
+  - @pnpm/resolver-base@9.0.4
+
+## 4.0.5
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [725636a90]
+  - @pnpm/types@8.2.0
+  - dependency-path@9.1.4
+  - @pnpm/lockfile-types@4.0.3
+  - @pnpm/resolver-base@9.0.3
+
+## 4.0.4
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - dependency-path@9.1.3
+  - @pnpm/lockfile-types@4.0.2
+  - @pnpm/resolver-base@9.0.2
+
+## 4.0.3
+
+### Patch Changes
+
+- Updated dependencies [c57695550]
+  - dependency-path@9.1.2
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - dependency-path@9.1.1
+  - @pnpm/lockfile-types@4.0.1
+  - @pnpm/resolver-base@9.0.1
+
+## 4.0.1
+
+### Patch Changes
+
+- 688b0eaff: When checking if the lockfile is up-to-date, an empty `dependenciesMeta` field in the manifest should be satisfied by a not set field in the lockfile [#4463](https://github.com/pnpm/pnpm/pull/4463).
+- Updated dependencies [0a70aedb1]
+  - dependency-path@9.1.0
+
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/lockfile-types@4.0.0
+  - @pnpm/resolver-base@9.0.0
+
+## 3.2.1
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+  - @pnpm/types@7.10.0
+  - dependency-path@8.0.11
+  - @pnpm/resolver-base@8.1.6
+
 ## 3.2.0
 
 ### Minor Changes
@@ -50,7 +164,7 @@
 
 ### Patch Changes
 
-- 3cf543fc1: Non-standard tarball URL should be correctly calculated when the registry has no traling slash in the configuration file [#4052](https://github.com/pnpm/pnpm/issues/4052). This is a regression caused introduced in v6.23.2 caused by [#4032](https://github.com/pnpm/pnpm/pull/4032).
+- 3cf543fc1: Non-standard tarball URL should be correctly calculated when the registry has no trailing slash in the configuration file [#4052](https://github.com/pnpm/pnpm/issues/4052). This is a regression caused introduced in v6.23.2 caused by [#4032](https://github.com/pnpm/pnpm/pull/4032).
 
 ## 3.1.1
 

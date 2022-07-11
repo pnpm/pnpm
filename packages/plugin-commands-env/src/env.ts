@@ -3,10 +3,12 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import PnpmError from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
+import { resolveNodeVersion } from '@pnpm/node.resolver'
 import cmdShim from '@zkochan/cmd-shim'
 import renderHelp from 'render-help'
 import { getNodeDir, NvmNodeCommandOptions } from './node'
-import resolveNodeVersion from './resolveNodeVersion'
+import getNodeMirror from './getNodeMirror'
+import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
 
 export function rcOptionsTypes () {
   return {}
@@ -58,14 +60,16 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
       throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
     }
     const fetch = createFetchFromRegistry(opts)
-    const { version: nodeVersion, releaseDir } = await resolveNodeVersion(fetch, params[1], opts.rawConfig)
+    const { releaseDir, versionSpecifier } = parseNodeEditionSpecifier(params[1])
+    const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseDir)
+    const nodeVersion = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
     if (!nodeVersion) {
       throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${params[1]}`)
     }
     const nodeDir = await getNodeDir(fetch, {
       ...opts,
       useNodeVersion: nodeVersion,
-      releaseDir,
+      nodeMirrorBaseUrl,
     })
     const src = path.join(nodeDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
     const dest = path.join(opts.bin, process.platform === 'win32' ? 'node.exe' : 'node')
@@ -91,7 +95,7 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     } catch (err: any) { // eslint-disable-line
       // ignore
     }
-    return `Node.js ${nodeVersion} is activated
+    return `Node.js ${nodeVersion as string} is activated
   ${dest} -> ${src}`
   }
   default: {

@@ -12,6 +12,7 @@ import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
+import symlinkDir from 'symlink-dir'
 
 test('recursive add/remove', async () => {
   const projects = preparePackages([
@@ -534,6 +535,47 @@ test('installing with "workspace=true" should work even if link-workspace-packag
   await projects['project-1'].has('project-2')
 })
 
+test('installing with "workspace=true" should work even if link-workspace-packages is off and save-workspace-protocol is "rolling"', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-2': '0.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+  ])
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), []),
+    dir: process.cwd(),
+    linkWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    recursive: true,
+    saveWorkspaceProtocol: 'rolling',
+    sharedWorkspaceLockfile: true,
+    workspace: true,
+    workspaceDir: process.cwd(),
+  }, ['project-2'])
+
+  {
+    const pkg = await import(path.resolve('project-1/package.json'))
+    expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:*' })
+  }
+  {
+    const pkg = await import(path.resolve('project-2/package.json'))
+    expect(pkg.dependencies).toBeFalsy()
+  }
+
+  await projects['project-1'].has('project-2')
+})
+
 test('recursive install on workspace with custom lockfile-dir', async () => {
   preparePackages([
     {
@@ -642,4 +684,31 @@ test('prefer-workspace-package', async () => {
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve('pnpm-lock.yaml'))
   expect(lockfile.importers['project-1'].dependencies?.foo).toBe('link:../foo')
+})
+
+test('installing in monorepo with shared lockfile should work on virtual drives', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+  const virtualPath = process.cwd() + '-virtual-disk'
+  // symlink simulates windows' subst
+  await symlinkDir(process.cwd(), virtualPath)
+  const { allProjects, selectedProjectsGraph } = await readProjects(virtualPath, [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    lockfileDir: virtualPath,
+    allProjects,
+    dir: virtualPath,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: virtualPath,
+  })
+
+  await projects['project-1'].has('is-positive')
 })

@@ -11,7 +11,7 @@ export interface DepsGraphNode {
 }
 
 export interface DepsStateCache {
-  [nodeId: string]: DepStateObj
+  [depPath: string]: DepStateObj
 }
 
 export interface DepStateObj {
@@ -19,22 +19,33 @@ export interface DepStateObj {
 }
 
 export function calcDepState (
-  nodeId: string,
   depsGraph: DepsGraph,
-  cache: DepsStateCache
+  cache: DepsStateCache,
+  depPath: string,
+  opts: {
+    patchFileHash?: string
+    isBuilt: boolean
+  }
 ): string {
-  const depStateObj = calcDepStateObj(nodeId, depsGraph, cache, new Set())
-  return `${ENGINE_NAME}-${JSON.stringify(depStateObj)}`
+  let result = ENGINE_NAME
+  if (opts.isBuilt) {
+    const depStateObj = calcDepStateObj(depPath, depsGraph, cache, new Set())
+    result += `-${JSON.stringify(depStateObj)}`
+  }
+  if (opts.patchFileHash) {
+    result += `-${opts.patchFileHash}`
+  }
+  return result
 }
 
 function calcDepStateObj (
-  nodeId: string,
+  depPath: string,
   depsGraph: DepsGraph,
   cache: DepsStateCache,
   parents: Set<string>
 ): DepStateObj {
-  if (cache[nodeId]) return cache[nodeId]
-  const node = depsGraph[nodeId]
+  if (cache[depPath]) return cache[depPath]
+  const node = depsGraph[depPath]
   if (!node) return {}
   const nextParents = new Set([...Array.from(parents), node.depPath])
   const state: DepStateObj = {}
@@ -47,6 +58,6 @@ function calcDepStateObj (
     }
     state[child.depPath] = calcDepStateObj(childId, depsGraph, cache, nextParents)
   }
-  cache[nodeId] = sortKeys(state)
-  return cache[nodeId]
+  cache[depPath] = sortKeys(state)
+  return cache[depPath]
 }

@@ -1,5 +1,147 @@
 # @pnpm/filter-workspace-packages
 
+## 5.0.18
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.18
+
+## 5.0.17
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+- Updated dependencies [42c1ea1c0]
+  - pkgs-graph@7.0.1
+  - @pnpm/find-workspace-packages@4.0.17
+
+## 5.0.16
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.16
+
+## 5.0.15
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.15
+
+## 5.0.14
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.14
+
+## 5.0.13
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.13
+
+## 5.0.12
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.12
+
+## 5.0.11
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.11
+
+## 5.0.10
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.10
+
+## 5.0.9
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.9
+
+## 5.0.8
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.8
+
+## 5.0.7
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.7
+
+## 5.0.6
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.6
+
+## 5.0.5
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.5
+
+## 5.0.4
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.4
+
+## 5.0.3
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@4.0.3
+
+## 5.0.2
+
+### Patch Changes
+
+- 9f0616282: 'filter-workspace-packages' will filter the package well even if Korean is included in the path. fix #4594
+  - @pnpm/find-workspace-packages@4.0.2
+
+## 5.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+- @pnpm/find-workspace-packages@4.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/error@3.0.0
+  - @pnpm/find-workspace-packages@4.0.0
+  - @pnpm/matcher@3.0.0
+  - pkgs-graph@7.0.0
+
+## 4.4.22
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/find-workspace-packages@3.1.42
+
+## 4.4.21
+
+### Patch Changes
+
+- @pnpm/find-workspace-packages@3.1.41
+
 ## 4.4.20
 
 ### Patch Changes

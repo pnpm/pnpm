@@ -1,5 +1,17 @@
 # @pnpm/run-npm
 
+## 4.0.1
+
+### Patch Changes
+
+- 9177ddbc9: If running npm errors, throw an error.
+
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
 ## 3.1.0
 
 ### Minor Changes

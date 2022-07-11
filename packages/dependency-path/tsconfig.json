@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../crypto.base32-hash"
+    },
+    {
       "path": "../types"
     }
   ]

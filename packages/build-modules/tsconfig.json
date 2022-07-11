@@ -16,6 +16,9 @@
       "path": "../core-loggers"
     },
     {
+      "path": "../error"
+    },
+    {
       "path": "../lifecycle"
     },
     {

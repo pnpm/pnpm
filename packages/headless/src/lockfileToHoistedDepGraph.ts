@@ -11,7 +11,7 @@ import {
 } from '@pnpm/lockfile-utils'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import packageIsInstallable from '@pnpm/package-is-installable'
-import { Registries } from '@pnpm/types'
+import { PatchFile, Registries } from '@pnpm/types'
 import {
   FetchPackageToStoreFunction,
   StoreController,
@@ -35,6 +35,7 @@ export interface LockfileToHoistedDepGraphOptions {
   nodeVersion: string
   pnpmVersion: string
   registries: Registries
+  patchedDependencies?: Record<string, PatchFile>
   sideEffectsCacheRead: boolean
   skipped: Set<string>
   storeController: StoreController
@@ -124,7 +125,7 @@ function pickLinkedDirectDeps (
   const directDeps = {}
   for (const [alias, ref] of Object.entries(rootDeps)) {
     if (ref.startsWith('link:')) {
-      directDeps[alias] = path.resolve(importerDir, ref.substr(5))
+      directDeps[alias] = path.resolve(importerDir, ref.slice(5))
     }
   }
   return directDeps
@@ -157,6 +158,7 @@ async function fetchDeps (
       engines: pkgSnapshot.engines,
       cpu: pkgSnapshot.cpu,
       os: pkgSnapshot.os,
+      libc: pkgSnapshot.libc,
     }
     if (!opts.force &&
       packageIsInstallable(packageId, pkg, {
@@ -178,10 +180,12 @@ async function fetchDeps (
         force: false,
         lockfileDir: opts.lockfileDir,
         pkg: {
-          name: pkgName,
-          version: pkgVersion,
           id: packageId,
           resolution,
+        },
+        expectedPkg: {
+          name: pkgName,
+          version: pkgVersion,
         },
       })
       if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
@@ -205,6 +209,7 @@ async function fetchDeps (
       optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
       prepare: pkgSnapshot.prepare === true,
       requiresBuild: pkgSnapshot.requiresBuild === true,
+      patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
     }
     opts.pkgLocationByDepPath[depPath] = dir
     depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies)

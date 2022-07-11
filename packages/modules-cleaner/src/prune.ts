@@ -22,11 +22,11 @@ import {
 } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
 import rimraf from '@zkochan/rimraf'
-import difference from 'ramda/src/difference'
-import equals from 'ramda/src/equals'
-import mergeAll from 'ramda/src/mergeAll'
-import pickAll from 'ramda/src/pickAll'
-import props from 'ramda/src/props'
+import difference from 'ramda/src/difference.js'
+import equals from 'ramda/src/equals.js'
+import mergeAll from 'ramda/src/mergeAll.js'
+import pickAll from 'ramda/src/pickAll.js'
+import props from 'ramda/src/props.js'
 import removeDirectDependency from './removeDirectDependency'
 
 export default async function prune (
@@ -74,10 +74,11 @@ export default async function prune (
       ...difference(currentPkgs, wantedPkgs).map(([depName]) => depName),
     ])
     if (pruneDirectDependencies) {
+      const publiclyHoistedDeps = getPubliclyHoistedDependencies(opts.hoistedDependencies)
       if (allCurrentPackages.size > 0) {
         const newPkgsSet = new Set<string>(wantedPkgs.map(([depName]) => depName))
         for (const currentPackage of Array.from(allCurrentPackages)) {
-          if (!newPkgsSet.has(currentPackage)) {
+          if (!newPkgsSet.has(currentPackage) && !publiclyHoistedDeps.has(currentPackage)) {
             depsToRemove.add(currentPackage)
           }
         }
@@ -152,13 +153,13 @@ export default async function prune (
       const _tryRemovePkg = tryRemovePkg.bind(null, opts.lockfileDir, opts.virtualStoreDir)
       await Promise.all(
         orphanDepPaths
-          .map((orphanDepPath) => depPathToFilename(orphanDepPath, opts.lockfileDir))
+          .map((orphanDepPath) => depPathToFilename(orphanDepPath))
           .map(async (orphanDepPath) => _tryRemovePkg(orphanDepPath))
       )
       const neededPkgs: Set<string> = new Set()
       for (const depPath of Object.keys(opts.wantedLockfile.packages ?? {})) {
         if (opts.skipped.has(depPath)) continue
-        neededPkgs.add(depPathToFilename(depPath, opts.lockfileDir))
+        neededPkgs.add(depPathToFilename(depPath))
       }
       const availablePkgs = await readVirtualStoreDir(opts.virtualStoreDir, opts.lockfileDir)
       await Promise.all(
@@ -244,4 +245,16 @@ function getPkgsDepPathsOwnedOnlyByImporters (
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
   const packagesOfSelectedOnly = pickAll(difference(Object.keys(selected.packages!), Object.keys(other.packages!)), selected.packages!) as PackageSnapshots
   return getPkgsDepPaths(registries, packagesOfSelectedOnly, skipped)
+}
+
+function getPubliclyHoistedDependencies (hoistedDependencies: HoistedDependencies): Set<string> {
+  const publiclyHoistedDeps = new Set<string>()
+  for (const hoistedAliases of Object.values(hoistedDependencies)) {
+    for (const [alias, hoistType] of Object.entries(hoistedAliases)) {
+      if (hoistType === 'public') {
+        publiclyHoistedDeps.add(alias)
+      }
+    }
+  }
+  return publiclyHoistedDeps
 }

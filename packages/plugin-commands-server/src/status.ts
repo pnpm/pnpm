@@ -5,9 +5,13 @@ import { serverConnectionInfoDir, tryLoadServerJson } from '@pnpm/store-connecti
 import storePath from '@pnpm/store-path'
 
 export default async (
-  opts: Pick<Config, 'dir' | 'storeDir'>
+  opts: Pick<Config, 'dir' | 'pnpmHomeDir' | 'storeDir'>
 ) => {
-  const storeDir = await storePath(opts.dir, opts.storeDir)
+  const storeDir = await storePath({
+    pkgRoot: opts.dir,
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
   const connectionInfoDir = serverConnectionInfoDir(storeDir)
   const serverJson = await tryLoadServerJson({
     serverJsonPath: path.join(connectionInfoDir, 'server.json'),

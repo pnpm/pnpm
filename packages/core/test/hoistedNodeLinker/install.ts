@@ -2,10 +2,11 @@ import fs from 'fs'
 import path from 'path'
 import { addDependenciesToPackage, install, mutateModules } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import { sync as loadJsonFile } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
-import { addDistTag, testDefaults } from '../utils'
+import { testDefaults } from '../utils'
 
 test('installing with hoisted node-linker', async () => {
   prepareEmpty()
@@ -82,7 +83,7 @@ test('overwriting existing files in node_modules', async () => {
 test('preserve subdeps on update', async () => {
   prepareEmpty()
 
-  await addDistTag('foobarqar', '1.0.0', 'latest')
+  await addDistTag({ package: 'foobarqar', version: '1.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage(
     {},
@@ -145,7 +146,7 @@ test('adding a new dependency to one of the workspace projects', async () => {
 })
 
 test('installing the same package with alias and no alias', async () => {
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   prepareEmpty()
 
   await addDependenciesToPackage(

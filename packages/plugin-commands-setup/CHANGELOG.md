@@ -1,5 +1,148 @@
 # @pnpm/plugin-commands-setup
 
+## 2.0.19
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.18
+
+## 2.0.18
+
+### Patch Changes
+
+- Updated dependencies [5f643f23b]
+  - @pnpm/cli-utils@0.7.17
+
+## 2.0.17
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.16
+
+## 2.0.16
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.15
+
+## 2.0.15
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.14
+
+## 2.0.14
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.13
+
+## 2.0.13
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.12
+
+## 2.0.12
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.11
+
+## 2.0.11
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.10
+
+## 2.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.9
+
+## 2.0.9
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.8
+
+## 2.0.8
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.7
+
+## 2.0.7
+
+### Patch Changes
+
+- e6a9f157d: `pnpm setup` should not fail on Windows if `PNPM_HOME` is not yet in the system registry [#4757](https://github.com/pnpm/pnpm/issues/4757)
+
+## 2.0.6
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.6
+
+## 2.0.5
+
+### Patch Changes
+
+- 71c7ed998: `pnpm setup` should update the config of the current shell, not the preferred shell.
+- 460ccf60e: fix: make `pnpm setup` free of garbled characters.
+- 61d102a99: `pnpm setup` should not override the PNPM_HOME env variable on Windows, unless `--force` is used.
+- 7c9362d3d: fix `pnpm setup` breaks %PATH% with non-ascii characters [#4698](https://github.com/pnpm/pnpm/issues/4698)
+- Updated dependencies [52b0576af]
+  - @pnpm/cli-utils@0.7.5
+
+## 2.0.4
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.4
+
+## 2.0.3
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.3
+
+## 2.0.2
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.2
+
+## 2.0.1
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.1
+
+## 2.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/cli-utils@0.7.0
+
+## 1.1.35
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.6.50
+
+## 1.1.34
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.6.49
+
 ## 1.1.33
 
 ### Patch Changes
@@ -214,7 +357,7 @@
 
 ### Major Changes
 
-- 71cc21832: Print info message about the requirment to open a new terminal.
+- 71cc21832: Print info message about the requirement to open a new terminal.
 
 ## 0.2.1
 

@@ -30,8 +30,7 @@ test('publish: fails git check if branch is not on master or main', async () => 
     version: '0.0.0',
   })
 
-  await execa('git', ['init'])
-  await execa('git', ['checkout', '-b', 'test'])
+  await execa('git', ['init', '--initial-branch=test'])
   await execa('git', ['config', 'user.email', 'x@y.z'])
   await execa('git', ['config', 'user.name', 'xyz'])
   await execa('git', ['add', '*'])
@@ -87,7 +86,7 @@ test('publish: fails git check if branch is not clean', async () => {
     version: '0.0.0',
   })
 
-  await execa('git', ['init'])
+  await execa('git', ['init', '--initial-branch=main'])
   await execa('git', ['config', 'user.email', 'x@y.z'])
   await execa('git', ['config', 'user.name', 'xyz'])
   await execa('git', ['add', '*'])
@@ -114,7 +113,7 @@ test('publish: fails git check if branch is not up-to-date', async () => {
     version: '0.0.0',
   })
 
-  await execa('git', ['init'])
+  await execa('git', ['init', '--initial-branch=main'])
   await execa('git', ['config', 'user.email', 'x@y.z'])
   await execa('git', ['config', 'user.name', 'xyz'])
   await execa('git', ['init', '--bare'], { cwd: remote })
@@ -122,7 +121,7 @@ test('publish: fails git check if branch is not up-to-date', async () => {
   await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
   await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'])
   await execa('git', ['remote', 'add', 'origin', remote])
-  await execa('git', ['push', '-u', 'origin', 'master'])
+  await execa('git', ['push', '-u', 'origin', 'main'])
   await execa('git', ['reset', '--hard', 'HEAD~1'])
 
   await expect(
@@ -133,5 +132,30 @@ test('publish: fails git check if branch is not up-to-date', async () => {
     }, [])
   ).rejects.toThrow(
     new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.')
+  )
+})
+
+test('publish: fails git check if HEAD is detached', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+  })
+
+  await execa('git', ['init'])
+  await execa('git', ['config', 'user.email', 'x@y.z'])
+  await execa('git', ['config', 'user.name', 'xyz'])
+  await execa('git', ['add', '*'])
+  await execa('git', ['commit', '-m', 'init', '--no-gpg-sign'])
+  await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'])
+  await execa('git', ['checkout', 'HEAD~1'])
+
+  await expect(
+    publish.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: ['publish', ...CREDENTIALS] },
+      dir: process.cwd(),
+    }, [])
+  ).rejects.toThrow(
+    new PnpmError('GIT_UNKNOWN_BRANCH', 'The Git HEAD may not attached to any branch, but your "publish-branch" is set to "master|main".')
   )
 })

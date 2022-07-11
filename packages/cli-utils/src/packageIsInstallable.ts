@@ -8,6 +8,7 @@ export function packageIsInstallable (
     engines?: WantedEngine
     cpu?: string[]
     os?: string[]
+    libc?: string[]
   },
   opts: {
     engineStrict?: boolean

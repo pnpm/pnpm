@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import fixtures from '@pnpm/test-fixtures'
@@ -7,6 +8,7 @@ const f = fixtures(__dirname)
 
 test('makeDedicatedLockfile()', async () => {
   const tmp = f.prepare('fixture')
+  fs.writeFileSync('.npmrc', 'store-dir=store\ncache-dir=cache', 'utf8')
   const projectDir = path.join(tmp, 'packages/is-negative')
   await makeDedicatedLockfile(tmp, projectDir)
 

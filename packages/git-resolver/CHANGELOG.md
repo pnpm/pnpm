@@ -1,5 +1,72 @@
 # @pnpm/git-resolver
 
+## 6.1.0
+
+### Minor Changes
+
+- 449ccef09: Add `refs/` to git resolution prefixes
+
+## 6.0.6
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.5
+- @pnpm/fetch@5.0.5
+
+## 6.0.5
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.4
+- @pnpm/fetch@5.0.4
+
+## 6.0.4
+
+### Patch Changes
+
+- Updated dependencies [9d5bf09c0]
+  - @pnpm/fetch@5.0.3
+  - @pnpm/resolver-base@9.0.3
+
+## 6.0.3
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.2
+- @pnpm/fetch@5.0.2
+
+## 6.0.2
+
+### Patch Changes
+
+- 0fa446d10: Resolve commits from GitHub via https.
+
+## 6.0.1
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.1
+- @pnpm/fetch@5.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/fetch@5.0.0
+  - @pnpm/resolver-base@9.0.0
+
+## 5.1.17
+
+### Patch Changes
+
+- @pnpm/resolver-base@8.1.6
+- @pnpm/fetch@4.2.5
+
 ## 5.1.16
 
 ### Patch Changes

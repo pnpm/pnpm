@@ -16,8 +16,8 @@ const hoistLogger = logger('hoist')
 
 export default async function hoistByLockfile (
   opts: {
+    extraNodePath?: string[]
     lockfile: Lockfile
-    lockfileDir: string
     importerIds?: string[]
     privateHoistPattern: string[]
     privateHoistedModulesDir: string
@@ -55,7 +55,6 @@ export default async function hoistByLockfile (
 
   await symlinkHoistedDependencies(hoistedDependencies, {
     lockfile: opts.lockfile,
-    lockfileDir: opts.lockfileDir,
     privateHoistedModulesDir: opts.privateHoistedModulesDir,
     publicHoistedModulesDir: opts.publicHoistedModulesDir,
     virtualStoreDir: opts.virtualStoreDir,
@@ -66,7 +65,7 @@ export default async function hoistByLockfile (
   // the bins of the project's direct dependencies.
   // This is possible because the publicly hoisted modules
   // are in the same directory as the regular dependencies.
-  await linkAllBins(opts.privateHoistedModulesDir)
+  await linkAllBins(opts.privateHoistedModulesDir, { extraNodePaths: opts.extraNodePath })
 
   return hoistedDependencies
 }
@@ -86,14 +85,18 @@ function createGetAliasHoistType (
   }
 }
 
-async function linkAllBins (modulesDir: string) {
+async function linkAllBins (modulesDir: string, opts: { extraNodePaths?: string[] }) {
   const bin = path.join(modulesDir, '.bin')
   const warn: WarnFunction = (message, code) => {
     if (code === 'BINARIES_CONFLICT') return
     logger.info({ message, prefix: path.join(modulesDir, '../..') })
   }
   try {
-    await linkBins(modulesDir, bin, { allowExoticManifests: true, warn })
+    await linkBins(modulesDir, bin, {
+      allowExoticManifests: true,
+      extraNodePaths: opts.extraNodePaths,
+      warn,
+    })
   } catch (err: any) { // eslint-disable-line
     // Some packages generate their commands with lifecycle hooks.
     // At this stage, such commands are not generated yet.
@@ -185,7 +188,6 @@ async function symlinkHoistedDependencies (
   hoistedDependencies: HoistedDependencies,
   opts: {
     lockfile: Lockfile
-    lockfileDir: string
     privateHoistedModulesDir: string
     publicHoistedModulesDir: string
     virtualStoreDir: string
@@ -201,7 +203,7 @@ async function symlinkHoistedDependencies (
           return
         }
         const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
-        const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.lockfileDir), 'node_modules')
+        const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
         const depLocation = path.join(modules, pkgName)
         await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
           const targetDir = hoistType === 'public'

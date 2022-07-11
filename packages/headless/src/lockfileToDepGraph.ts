@@ -15,7 +15,7 @@ import {
 import logger from '@pnpm/logger'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import packageIsInstallable from '@pnpm/package-is-installable'
-import { Registries } from '@pnpm/types'
+import { PatchFile, Registries } from '@pnpm/types'
 import {
   FetchPackageToStoreFunction,
   PackageFilesResponse,
@@ -23,7 +23,7 @@ import {
 } from '@pnpm/store-controller-types'
 import * as dp from 'dependency-path'
 import pathExists from 'path-exists'
-import equals from 'ramda/src/equals'
+import equals from 'ramda/src/equals.js'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
@@ -44,6 +44,7 @@ export interface DependenciesGraphNode {
   prepare: boolean
   hasBin: boolean
   filesIndexFile: string
+  patchFile?: PatchFile
 }
 
 export interface DependenciesGraph {
@@ -58,6 +59,7 @@ export interface LockfileToDepGraphOptions {
   lockfileDir: string
   nodeVersion: string
   pnpmVersion: string
+  patchedDependencies?: Record<string, PatchFile>
   registries: Registries
   sideEffectsCacheRead: boolean
   skipped: Set<string>
@@ -99,7 +101,7 @@ export default async function lockfileToDepGraph (
         const pkgSnapshot = lockfile.packages![depPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath, opts.lockfileDir), 'node_modules')
+        const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
         const packageId = packageIdFromSnapshot(depPath, pkgSnapshot, opts.registries)
 
         const pkg = {
@@ -108,6 +110,7 @@ export default async function lockfileToDepGraph (
           engines: pkgSnapshot.engines,
           cpu: pkgSnapshot.cpu,
           os: pkgSnapshot.os,
+          libc: pkgSnapshot.libc,
         }
         if (!opts.force &&
           packageIsInstallable(packageId, pkg, {
@@ -146,10 +149,12 @@ export default async function lockfileToDepGraph (
             force: false,
             lockfileDir: opts.lockfileDir,
             pkg: {
-              name: pkgName,
-              version: pkgVersion,
               id: packageId,
               resolution,
+            },
+            expectedPkg: {
+              name: pkgName,
+              version: pkgVersion,
             },
           })
           if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
@@ -172,6 +177,7 @@ export default async function lockfileToDepGraph (
           optionalDependencies: new Set(Object.keys(pkgSnapshot.optionalDependencies ?? {})),
           prepare: pkgSnapshot.prepare === true,
           requiresBuild: pkgSnapshot.requiresBuild === true,
+          patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
         }
         pkgSnapshotByLocation[dir] = pkgSnapshot
       })
@@ -232,7 +238,7 @@ async function getChildrenPaths (
   for (const alias of Object.keys(allDeps)) {
     const childDepPath = dp.refToAbsolute(allDeps[alias], alias, ctx.registries)
     if (childDepPath === null) {
-      children[alias] = path.resolve(ctx.lockfileDir, importerId, allDeps[alias].substr(5))
+      children[alias] = path.resolve(ctx.lockfileDir, importerId, allDeps[alias].slice(5))
       continue
     }
     const childRelDepPath = dp.refToRelative(allDeps[alias], alias) as string
@@ -242,9 +248,9 @@ async function getChildrenPaths (
     } else if (childPkgSnapshot) {
       if (ctx.skipped.has(childRelDepPath)) continue
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-      children[alias] = path.join(ctx.virtualStoreDir, dp.depPathToFilename(childRelDepPath, ctx.lockfileDir), 'node_modules', pkgName)
+      children[alias] = path.join(ctx.virtualStoreDir, dp.depPathToFilename(childRelDepPath), 'node_modules', pkgName)
     } else if (allDeps[alias].indexOf('file:') === 0) {
-      children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].substr(5))
+      children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].slice(5))
     } else if (!ctx.skipped.has(childRelDepPath) && ((peerDeps == null) || !peerDeps.has(alias))) {
       throw new Error(`${childRelDepPath} not found in ${WANTED_LOCKFILE}`)
     }

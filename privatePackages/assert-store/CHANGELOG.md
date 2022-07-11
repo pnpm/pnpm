@@ -1,5 +1,68 @@
 # @pnpm/assert-store
 
+## 1.0.40
+
+### Patch Changes
+
+- @pnpm/cafs@4.0.7
+
+## 1.0.39
+
+### Patch Changes
+
+- @pnpm/cafs@4.0.6
+
+## 1.0.38
+
+### Patch Changes
+
+- @pnpm/cafs@4.0.5
+
+## 1.0.37
+
+### Patch Changes
+
+- @pnpm/cafs@4.0.4
+
+## 1.0.36
+
+### Patch Changes
+
+- Updated dependencies [6756c2b02]
+  - @pnpm/cafs@4.0.3
+
+## 1.0.35
+
+### Patch Changes
+
+- Updated dependencies [cadefe5b6]
+  - @pnpm/cafs@4.0.2
+
+## 1.0.34
+
+### Patch Changes
+
+- @pnpm/cafs@4.0.1
+
+## 1.0.33
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/cafs@4.0.0
+
+## 1.0.32
+
+### Patch Changes
+
+- @pnpm/cafs@3.0.15
+
+## 1.0.31
+
+### Patch Changes
+
+- @pnpm/cafs@3.0.14
+
 ## 1.0.30
 
 ### Patch Changes

@@ -13,7 +13,7 @@ import runLifecycleHooks, {
   RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
 import { ProjectManifest } from '@pnpm/types'
-import pick from 'ramda/src/pick'
+import pick from 'ramda/src/pick.js'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import runRecursive, { RecursiveRunOpts } from './runRecursive'

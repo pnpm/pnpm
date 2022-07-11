@@ -1,5 +1,392 @@
 # @pnpm/resolve-dependencies
 
+## 28.2.0
+
+### Minor Changes
+
+- f5621a42c: A new value `rolling` for option `save-workspace-protocol`. When selected, pnpm will save workspace versions using a rolling alias (e.g. `"foo": "workspace:^"`) instead of pinning the current version number (e.g. `"foo": "workspace:^1.0.0"`). Usage example:
+
+  ```
+  pnpm --save-workspace-protocol=rolling add foo
+  ```
+
+### Patch Changes
+
+- Updated dependencies [f5621a42c]
+  - @pnpm/manifest-utils@3.1.0
+  - @pnpm/which-version-is-pinned@3.0.0
+  - dependency-path@9.2.3
+  - @pnpm/lockfile-utils@4.0.10
+  - @pnpm/prune-lockfile@4.0.11
+
+## 28.1.4
+
+### Patch Changes
+
+- 5e0e7f5db: `pnpm install` in a workspace with patches should not fail when doing partial installation [#4954](https://github.com/pnpm/pnpm/issues/4954).
+
+## 28.1.3
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/prune-lockfile@4.0.10
+
+## 28.1.2
+
+### Patch Changes
+
+- fc581d371: Don't fail when the patched package appears multiple times in the dependency graph [#4938](https://github.com/pnpm/pnpm/issues/4938).
+- Updated dependencies [fc581d371]
+  - dependency-path@9.2.2
+  - @pnpm/lockfile-utils@4.0.8
+  - @pnpm/prune-lockfile@4.0.9
+
+## 28.1.1
+
+### Patch Changes
+
+- 8e5b77ef6: Update the dependencies when a patch file is modified.
+- Updated dependencies [d01c32355]
+- Updated dependencies [8e5b77ef6]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/lockfile-types@4.2.0
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-utils@4.0.7
+  - @pnpm/prune-lockfile@4.0.8
+  - @pnpm/core-loggers@7.0.5
+  - dependency-path@9.2.1
+  - @pnpm/manifest-utils@3.0.6
+  - @pnpm/npm-resolver@13.0.6
+  - @pnpm/pick-registry-for-package@3.0.5
+  - @pnpm/read-package-json@6.0.6
+  - @pnpm/resolver-base@9.0.5
+  - @pnpm/store-controller-types@14.0.1
+
+## 28.1.0
+
+### Minor Changes
+
+- 2a34b21ce: Dependencies patching is possible via the `pnpm.patchedDependencies` field of the `package.json`.
+  To patch a package, the package name, exact version, and the relative path to the patch file should be specified. For instance:
+
+  ```json
+  {
+    "pnpm": {
+      "patchedDependencies": {
+        "eslint@1.0.0": "./patches/eslint@1.0.0.patch"
+      }
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-types@4.1.0
+  - dependency-path@9.2.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/lockfile-utils@4.0.6
+  - @pnpm/manifest-utils@3.0.5
+  - @pnpm/npm-resolver@13.0.5
+  - @pnpm/pick-registry-for-package@3.0.4
+  - @pnpm/prune-lockfile@4.0.7
+  - @pnpm/read-package-json@6.0.5
+  - @pnpm/resolver-base@9.0.4
+
+## 28.0.0
+
+### Major Changes
+
+- 0abfe1718: `requiresBuild` is sometimes a function that return a boolean promise.
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [725636a90]
+  - @pnpm/types@8.2.0
+  - dependency-path@9.1.4
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/lockfile-types@4.0.3
+  - @pnpm/lockfile-utils@4.0.5
+  - @pnpm/manifest-utils@3.0.4
+  - @pnpm/npm-resolver@13.0.4
+  - @pnpm/pick-registry-for-package@3.0.3
+  - @pnpm/prune-lockfile@4.0.6
+  - @pnpm/read-package-json@6.0.4
+  - @pnpm/resolver-base@9.0.3
+  - @pnpm/store-controller-types@13.0.4
+
+## 27.2.0
+
+### Minor Changes
+
+- 4d39e4a0c: A new setting is supported for ignoring specific deprecation messages: `pnpm.allowedDeprecatedVersions`. The setting should be provided in the `pnpm` section of the root `package.json` file. The below example will mute any deprecation warnings about the `request` package and warnings about `express` v1:
+
+  ```json
+  {
+    "pnpm": {
+      "allowedDeprecatedVersions": {
+        "request": "*",
+        "express": "1"
+      }
+    }
+  }
+  ```
+
+  Related issue: [#4306](https://github.com/pnpm/pnpm/issues/4306)
+  Related PR: [#4864](https://github.com/pnpm/pnpm/pull/4864)
+
+### Patch Changes
+
+- 26413c30c: Report only the first occurence of a deprecated package.
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/core-loggers@7.0.2
+  - dependency-path@9.1.3
+  - @pnpm/lockfile-types@4.0.2
+  - @pnpm/lockfile-utils@4.0.4
+  - @pnpm/manifest-utils@3.0.3
+  - @pnpm/npm-resolver@13.0.3
+  - @pnpm/pick-registry-for-package@3.0.2
+  - @pnpm/prune-lockfile@4.0.5
+  - @pnpm/read-package-json@6.0.3
+  - @pnpm/resolver-base@9.0.2
+  - @pnpm/store-controller-types@13.0.3
+
+## 27.1.4
+
+### Patch Changes
+
+- 9f5352014: When the same package is found several times in the dependency graph, correctly autoinstall its missing peer dependencies at all times [#4820](https://github.com/pnpm/pnpm/issues/4820).
+
+## 27.1.3
+
+### Patch Changes
+
+- 6756c2b02: It should be possible to install a git-hosted package that has no `package.json` file [#4822](https://github.com/pnpm/pnpm/issues/4822).
+- Updated dependencies [6756c2b02]
+  - @pnpm/store-controller-types@13.0.2
+  - @pnpm/npm-resolver@13.0.2
+
+## 27.1.2
+
+### Patch Changes
+
+- 2b543c774: Correctly detect repeated dependency sequence during resolution.
+
+## 27.1.1
+
+### Patch Changes
+
+- 45238e358: Don't fail on projects with linked dependencies, when `auto-install-peers` is set to `true` [#4796](https://github.com/pnpm/pnpm/issues/4796).
+
+## 27.1.0
+
+### Minor Changes
+
+- 190f0b331: New option added for automatically installing missing peer dependencies: `autoInstallPeers`.
+
+### Patch Changes
+
+- Updated dependencies [190f0b331]
+  - @pnpm/prune-lockfile@4.0.4
+
+## 27.0.4
+
+### Patch Changes
+
+- Updated dependencies [c57695550]
+  - dependency-path@9.1.2
+  - @pnpm/lockfile-utils@4.0.3
+  - @pnpm/prune-lockfile@4.0.3
+
+## 27.0.3
+
+### Patch Changes
+
+- 52b0576af: feat: support libc filed
+
+## 27.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/core-loggers@7.0.1
+  - dependency-path@9.1.1
+  - @pnpm/lockfile-types@4.0.1
+  - @pnpm/lockfile-utils@4.0.2
+  - @pnpm/manifest-utils@3.0.2
+  - @pnpm/npm-resolver@13.0.2
+  - @pnpm/pick-registry-for-package@3.0.1
+  - @pnpm/prune-lockfile@4.0.2
+  - @pnpm/read-package-json@6.0.2
+  - @pnpm/resolver-base@9.0.1
+  - @pnpm/store-controller-types@13.0.1
+
+## 27.0.1
+
+### Patch Changes
+
+- 3345c2cce: It should be possible to use a chain of local file dependencies [#4611](https://github.com/pnpm/pnpm/issues/4611).
+- 7478cbd05: Installation shouldn't fail when a package from node_modules is moved to the `node_modules/.ignored` subfolder and a package with that name is already present in `node_modules/.ignored'.
+
+## 27.0.0
+
+### Major Changes
+
+- 0a70aedb1: Use a base32 hash instead of a hex to encode too long dependency paths inside `node_modules/.pnpm` [#4552](https://github.com/pnpm/pnpm/pull/4552).
+- e7bdc2cc2: Dependencies of the root workspace project are not used to resolve peer dependencies of other workspace projects [#4469](https://github.com/pnpm/pnpm/pull/4469).
+
+### Patch Changes
+
+- 948a8151e: Fix an error with peer resolutions, which was happening when there was a circular dependency and another dependency that had the name of the circular dependency as a substring.
+- e531325c3: `dependenciesMeta` should be saved into the lockfile, when it is added to the package manifest by a hook.
+- aecd4acdd: Linked in dependencies should be considered when resolving peer dependencies [#4541](https://github.com/pnpm/pnpm/pull/4541).
+- dbe366990: Peer dependency should be correctly resolved from the workspace, when it is declared using a workspace protocol [#4529](https://github.com/pnpm/pnpm/issues/4529).
+- b716d2d06: Don't update a direct dependency that has the same name as a dependency in the workspace, when adding a new dependency to a workspace project [#4575](https://github.com/pnpm/pnpm/pull/4575).
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [688b0eaff]
+- Updated dependencies [618842b0d]
+- Updated dependencies [1267e4eff]
+  - dependency-path@9.1.0
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/manifest-utils@3.0.1
+  - @pnpm/constants@6.1.0
+  - @pnpm/prune-lockfile@4.0.1
+  - @pnpm/error@3.0.1
+  - @pnpm/npm-resolver@13.0.1
+  - @pnpm/read-package-json@6.0.1
+
+## 26.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+- 0845a8704: A prerelease version is always added as an exact version to `package.json`. If the `next` version of `foo` is `1.0.0-beta.1` then running `pnpm add foo@next` will add this to `package.json`:
+
+  ```json
+  {
+    "dependencies": {
+      "foo": "1.0.0-beta.1"
+    }
+  }
+  ```
+
+### Patch Changes
+
+- 9b9b13c3a: Update Yarn dependencies.
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/lockfile-types@4.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/manifest-utils@3.0.0
+  - @pnpm/npm-resolver@13.0.0
+  - @pnpm/pick-registry-for-package@3.0.0
+  - @pnpm/prune-lockfile@4.0.0
+  - @pnpm/read-package-json@6.0.0
+  - @pnpm/resolver-base@9.0.0
+  - @pnpm/store-controller-types@13.0.0
+  - @pnpm/which-version-is-pinned@2.0.0
+
+## 25.0.2
+
+### Patch Changes
+
+- 4941f31ee: The location of an injected directory dependency should be correctly located, when there is a chain of local dependencies (declared via the `file:` protocol`).
+
+  The next scenario was not working prior to the fix. There are 3 projects in the same folder: foo, bar, qar.
+
+  `foo/package.json`:
+
+  ```json
+  {
+    "name": "foo",
+    "dependencies": {
+      "bar": "file:../bar"
+    },
+    "dependenciesMeta": {
+      "bar": {
+        "injected": true
+      }
+    }
+  }
+  ```
+
+  `bar/package.json`:
+
+  ```json
+  {
+    "name": "bar",
+    "dependencies": {
+      "qar": "file:../qar"
+    },
+    "dependenciesMeta": {
+      "qar": {
+        "injected": true
+      }
+    }
+  }
+  ```
+
+  `qar/package.json`:
+
+  ```json
+  {
+    "name": "qar"
+  }
+  ```
+
+  Related PR: [#4415](https://github.com/pnpm/pnpm/pull/4415).
+
+## 25.0.1
+
+### Patch Changes
+
+- 5c525db13: In order to guarantee that only correct data is written to the store, data from the lockfile should not be written to the store. Only data directly from the package tarball or package metadata.
+- Updated dependencies [70ba51da9]
+- Updated dependencies [5c525db13]
+  - @pnpm/error@2.1.0
+  - @pnpm/store-controller-types@12.0.0
+  - @pnpm/manifest-utils@2.1.9
+  - @pnpm/npm-resolver@12.1.8
+  - @pnpm/read-package-json@5.0.12
+
+## 25.0.0
+
+### Major Changes
+
+- b138d048c: Removed the `neverBuiltDependencies` option. In order to ignore scripts of some dependencies, use the new `allowBuild`. `allowBuild` is a function that accepts the package name and returns `true` if the package should be allowed to build.
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+  - @pnpm/types@7.10.0
+  - @pnpm/lockfile-utils@3.2.1
+  - @pnpm/prune-lockfile@3.0.15
+  - @pnpm/core-loggers@6.1.4
+  - dependency-path@8.0.11
+  - @pnpm/manifest-utils@2.1.8
+  - @pnpm/npm-resolver@12.1.7
+  - @pnpm/pick-registry-for-package@2.0.11
+  - @pnpm/read-package-json@5.0.11
+  - @pnpm/resolver-base@8.1.6
+  - @pnpm/store-controller-types@11.0.12
+
 ## 24.0.0
 
 ### Major Changes
@@ -260,7 +647,7 @@
 
 ### Major Changes
 
-- 07e7b1c0c: Optional dependencies are always marked as `requiresBuild` as they are not always fetched and as a result there is no way to check whethere they need to be built or not.
+- 07e7b1c0c: Optional dependencies are always marked as `requiresBuild` as they are not always fetched and as a result there is no way to check whether they need to be built or not.
 
 ## 20.0.16
 
@@ -643,7 +1030,7 @@
 
 ### Minor Changes
 
-- fcdad632f: When some of the dependencies of a package have the package as a peer depenendency, don't make the dependency a peer depenendency of itself.
+- fcdad632f: When some of the dependencies of a package have the package as a peer dependency, don't make the dependency a peer dependency of itself.
 
 ### Patch Changes
 
@@ -770,7 +1157,7 @@
 
   So we resolve `foo > bar > qar > foo`.
   But we stop on `foo > bar > qar > foo > qar`.
-  In the second example, there's no reason to walk qar again when qar is included the first time, the dependencies of foo are already resolved and included as parent dependencies of qar. So during peers resolution, qar cannot possibly get any new or different peers resolved, after the first ocurrence.
+  In the second example, there's no reason to walk qar again when qar is included the first time, the dependencies of foo are already resolved and included as parent dependencies of qar. So during peers resolution, qar cannot possibly get any new or different peers resolved, after the first occurrence.
 
   However, in the next example we would analyze the second qar as well, because zoo is a new parent package:
   `foo > bar > qar > zoo > qar`
@@ -931,7 +1318,7 @@
 
 ### Major Changes
 
-- 0730bb938: Check the existense of a dependency in `node_modules` at the right location.
+- 0730bb938: Check the existence of a dependency in `node_modules` at the right location.
 - 242cf8737: The `alwaysTryWorkspacePackages` option is removed. A new option called `linkWorkspacePackagesDepth` is added.
   When `linkWorkspacePackageDepth` is `0`, workspace packages are linked to direct dependencies even if these direct
   dependencies are not using workspace ranges (so this is similar to the old `alwaysTryWorkspacePackages=true`).
@@ -1042,7 +1429,7 @@
 
 ### Patch Changes
 
-- 0730bb938: Check the existense of a dependency in `node_modules` at the right location.
+- 0730bb938: Check the existence of a dependency in `node_modules` at the right location.
 
 ## 14.4.5-alpha.3
 

@@ -1,5 +1,111 @@
 # @pnpm/lockfile-walker
 
+## 5.0.10
+
+### Patch Changes
+
+- dependency-path@9.2.3
+
+## 5.0.9
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [fc581d371]
+  - dependency-path@9.2.2
+
+## 5.0.7
+
+### Patch Changes
+
+- Updated dependencies [d01c32355]
+- Updated dependencies [8e5b77ef6]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/lockfile-types@4.2.0
+  - @pnpm/types@8.4.0
+  - dependency-path@9.2.1
+
+## 5.0.6
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-types@4.1.0
+  - dependency-path@9.2.0
+
+## 5.0.5
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [725636a90]
+  - @pnpm/types@8.2.0
+  - dependency-path@9.1.4
+  - @pnpm/lockfile-types@4.0.3
+
+## 5.0.4
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - dependency-path@9.1.3
+  - @pnpm/lockfile-types@4.0.2
+
+## 5.0.3
+
+### Patch Changes
+
+- Updated dependencies [c57695550]
+  - dependency-path@9.1.2
+
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - dependency-path@9.1.1
+  - @pnpm/lockfile-types@4.0.1
+
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [0a70aedb1]
+  - dependency-path@9.1.0
+
+## 5.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/lockfile-types@4.0.0
+
+## 4.0.15
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+  - @pnpm/types@7.10.0
+  - dependency-path@8.0.11
+
 ## 4.0.14
 
 ### Patch Changes

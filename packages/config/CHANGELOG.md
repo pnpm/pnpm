@@ -1,5 +1,176 @@
 # @pnpm/config
 
+## 15.5.1
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
+## 15.5.0
+
+### Minor Changes
+
+- f48d46ef6: New setting added: `include-workspace-root`. When it is set to `true`, the `run`, `exec`, `add`, and `test` commands will include the root package, when executed recursively [#4906](https://github.com/pnpm/pnpm/issues/4906)
+
+## 15.4.1
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/pnpmfile@2.0.6
+  - @pnpm/read-project-manifest@3.0.6
+
+## 15.4.0
+
+### Minor Changes
+
+- 47b5e45dd: `package-import-method` supports a new option: `clone-or-copy`.
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/pnpmfile@2.0.5
+  - @pnpm/read-project-manifest@3.0.5
+
+## 15.3.0
+
+### Minor Changes
+
+- 56cf04cb3: New settings added: use-git-branch-lockfile, merge-git-branch-lockfiles, merge-git-branch-lockfiles-branch-pattern.
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/git-utils@0.1.0
+  - @pnpm/pnpmfile@2.0.4
+  - @pnpm/read-project-manifest@3.0.4
+
+## 15.2.1
+
+### Patch Changes
+
+- 25798aad1: Don't fail when the cafile setting is specified [#4877](https://github.com/pnpm/pnpm/issues/4877). This fixes a regression introduced in pnpm v7.2.0.
+
+## 15.2.0
+
+### Minor Changes
+
+- d5730ba81: The ca and cert options may accept an array of string.
+
+### Patch Changes
+
+- bc80631d3: Update npm-conf.
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/pnpmfile@2.0.3
+  - @pnpm/read-project-manifest@3.0.3
+
+## 15.1.4
+
+### Patch Changes
+
+- ae2f845c5: `NODE_ENV=production pnpm install --dev` should only install dev deps [#4745](https://github.com/pnpm/pnpm/pull/4745).
+
+## 15.1.3
+
+### Patch Changes
+
+- 05159665d: Do not return a default value for the node-version setting.
+
+## 15.1.2
+
+### Patch Changes
+
+- af22c6c4f: When the global bin directory is set to a symlink, check not only the symlink in the PATH but also the target of the symlink [#4744](https://github.com/pnpm/pnpm/issues/4744).
+
+## 15.1.1
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/pnpmfile@2.0.2
+  - @pnpm/read-project-manifest@3.0.2
+
+## 15.1.0
+
+### Minor Changes
+
+- e05dcc48a: New setting added to turn back v6 directory filtering that doesn't require globs: `legacy-dir-filtering`.
+
+## 15.0.0
+
+### Major Changes
+
+- 546e644e9: Don't hoist types by default to the root of `node_modules` [#4459](https://github.com/pnpm/pnpm/pull/4459).
+- 4bed585e2: The next deprecated settings were removed:
+
+  - frozen-shrinkwrap
+  - prefer-frozen-shrinkwrap
+  - shared-workspace-shrinkwrap
+  - shrinkwrap-directory
+  - lockfile-directory
+  - shrinkwrap-only
+  - store
+
+### Minor Changes
+
+- 8dac029ef: Any package with "prettier" in its name is hoisted.
+- c6463b9fd: New setting added: `git-shallow-hosts`. When cloning repositories from "shallow-hosts", pnpm will use shallow cloning to fetch only the needed commit, not all the history [#4548](https://github.com/pnpm/pnpm/pull/4548).
+- 8fa95fd86: The default value of `nodeLinker` is set to `isolated`.
+
+### Patch Changes
+
+- 72b79f55a: Setting the `auto-install-peers` to `true` should work.
+- Updated dependencies [1267e4eff]
+  - @pnpm/constants@6.1.0
+  - @pnpm/error@3.0.1
+  - @pnpm/pnpmfile@2.0.1
+  - @pnpm/read-project-manifest@3.0.1
+
+## 14.0.0
+
+### Major Changes
+
+- 516859178: `extendNodePath` removed.
+- 73d71a2d5: `strict-peer-dependencies` is `true` by default.
+- fa656992c: The `embed-readme` setting is `false` by default.
+- 542014839: Node.js 12 is not supported.
+- 585e9ca9e: `pnpm install -g pkg` will add the global command only to a predefined location. pnpm will not try to add a bin to the global Node.js or npm folder. To set the global bin directory, either set the `PNPM_HOME` env variable or the [`global-bin-dir`](https://pnpm.io/npmrc#global-bin-dir) setting.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/pnpmfile@2.0.0
+  - @pnpm/read-project-manifest@3.0.0
+
+## 13.13.2
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/global-bin-dir@3.0.1
+  - @pnpm/pnpmfile@1.2.6
+  - @pnpm/read-project-manifest@2.0.13
+
+## 13.13.1
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/pnpmfile@1.2.5
+  - @pnpm/read-project-manifest@2.0.12
+
 ## 13.13.0
 
 ### Minor Changes

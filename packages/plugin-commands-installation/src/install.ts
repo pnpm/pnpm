@@ -4,7 +4,7 @@ import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import isCI from 'is-ci'
-import pick from 'ramda/src/pick'
+import pick from 'ramda/src/pick.js'
 import renderHelp from 'render-help'
 import installDeps from './installDeps'
 
@@ -33,6 +33,8 @@ export function rcOptionsTypes () {
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
+    'merge-git-branch-lockfiles',
+    'merge-git-branch-lockfiles-branch-pattern',
     'modules-dir',
     'network-concurrency',
     'node-linker',
@@ -140,6 +142,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--fix-lockfile',
           },
           {
+            description: 'Merge lockfiles were generated on git branch',
+            name: '--merge-git-branch-lockfiles',
+          },
+          {
             description: 'The directory in which dependencies will be installed (instead of node_modules)',
             name: '--modules-dir <dir>',
           },
@@ -239,6 +245,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'depth'
 | 'dev'
 | 'engineStrict'
+| 'frozenLockfile'
 | 'global'
 | 'globalPnpmfile'
 | 'hooks'
@@ -248,7 +255,9 @@ export type InstallCommandOptions = Pick<Config,
 | 'rawLocalConfig'
 | 'lockfileDir'
 | 'lockfileOnly'
+| 'modulesDir'
 | 'pnpmfile'
+| 'preferFrozenLockfile'
 | 'production'
 | 'registries'
 | 'save'
@@ -266,6 +275,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'tag'
 | 'optional'
+| 'virtualStoreDir'
 | 'workspaceConcurrency'
 | 'workspaceDir'
 > & CreateStoreControllerOptions & {
@@ -274,9 +284,11 @@ export type InstallCommandOptions = Pick<Config,
   }
   fixLockfile?: boolean
   useBetaCli?: boolean
+  pruneDirectDependencies?: boolean
+  pruneStore?: boolean
   recursive?: boolean
   workspace?: boolean
-} & Partial<Pick<Config, 'pnpmHomeDir' | 'preferWorkspacePackages'>>
+} & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages'>>
 
 export async function handler (
   opts: InstallCommandOptions
@@ -288,7 +300,7 @@ export async function handler (
   }
   return installDeps({
     ...opts,
-    frozenLockfileIfExists: isCI &&
+    frozenLockfileIfExists: isCI && !opts.lockfileOnly &&
       typeof opts.rawLocalConfig['frozen-lockfile'] === 'undefined' &&
       typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined',
     include,

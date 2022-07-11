@@ -1,5 +1,52 @@
 # @pnpm/tarball-resolver
 
+## 6.0.5
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.5
+
+## 6.0.4
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.4
+
+## 6.0.3
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.3
+
+## 6.0.2
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.2
+
+## 6.0.1
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/resolver-base@9.0.0
+
+## 5.0.11
+
+### Patch Changes
+
+- @pnpm/resolver-base@8.1.6
+
 ## 5.0.10
 
 ### Patch Changes

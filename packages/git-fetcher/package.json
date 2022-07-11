@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/git-fetcher",
-  "version": "4.1.14",
+  "version": "5.1.6",
   "description": "A fetcher for git-hosted packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -17,7 +17,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/git-fetcher",
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "keywords": [
     "pnpm7",
@@ -30,18 +30,21 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/git-fetcher#readme",
   "dependencies": {
-    "@pnpm/fetcher-base": "workspace:11.1.5",
-    "@pnpm/prepare-package": "workspace:1.0.11",
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/prepare-package": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "execa": "npm:safe-execa@^0.1.1"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:3.0.13",
-    "@pnpm/git-fetcher": "workspace:4.1.14",
-    "@pnpm/package-store": "workspace:12.1.10",
-    "@pnpm/types": "workspace:7.9.0",
+    "@pnpm/cafs": "workspace:*",
+    "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/git-fetcher": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "p-defer": "^3.0.0",
-    "tempy": "^1.0.0"
+    "tempy": "^1.0.1"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

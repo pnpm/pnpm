@@ -1,0 +1,7 @@
+# Comment to be posted to on PRs from first time contributors in your repository
+newPRWelcomeComment: |
+  💖 Thanks for opening this pull request! 💖
+  Please be patient and we will get back to you as soon as we can.
+# Comment to be posted to on pull requests merged by a first time user
+firstPRMergeComment: >
+  Congrats on merging your first pull request! 🎉🎉🎉

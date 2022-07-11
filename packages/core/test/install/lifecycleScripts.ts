@@ -128,24 +128,6 @@ test('run install scripts in the current project when its name is different than
   expect(output).toStrictEqual(['preinstall', 'install', 'postinstall'])
 })
 
-test('do not run install scripts if unsafePerm is false', async () => {
-  prepareEmpty()
-  const opts = await testDefaults({ fastUnpack: false, unsafePerm: false })
-  const manifest = await addDependenciesToPackage({
-    name: 'different-name',
-    scripts: {
-      install: 'node -e "process.stdout.write(\'install\')" | json-append output.json',
-      postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
-      preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
-    },
-  }, ['json-append@1.1.1'], opts)
-  await install(manifest, opts)
-
-  const outputExists = await exists('output.json')
-
-  expect(outputExists).toBeFalsy()
-})
-
 test('installation fails if lifecycle script fails', async () => {
   prepareEmpty()
 

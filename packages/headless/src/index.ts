@@ -30,6 +30,7 @@ import {
   readCurrentLockfile,
   readWantedLockfile,
   writeCurrentLockfile,
+  PatchFile,
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
@@ -58,12 +59,12 @@ import { DependencyManifest, HoistedDependencies, ProjectManifest, Registries } 
 import * as dp from 'dependency-path'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
-import equals from 'ramda/src/equals'
-import fromPairs from 'ramda/src/fromPairs'
-import isEmpty from 'ramda/src/isEmpty'
-import omit from 'ramda/src/omit'
-import props from 'ramda/src/props'
-import union from 'ramda/src/union'
+import equals from 'ramda/src/equals.js'
+import fromPairs from 'ramda/src/fromPairs.js'
+import isEmpty from 'ramda/src/isEmpty.js'
+import omit from 'ramda/src/omit.js'
+import props from 'ramda/src/props.js'
+import union from 'ramda/src/union.js'
 import realpathMissing from 'realpath-missing'
 import linkHoistedModules from './linkHoistedModules'
 import lockfileToDepGraph, {
@@ -98,6 +99,7 @@ export interface HeadlessOptions {
   enablePnp?: boolean
   engineStrict: boolean
   extraBinPaths?: string[]
+  extraNodePaths?: string[]
   hoistingLimits?: HoistingLimits
   ignoreScripts: boolean
   ignorePackageManifest?: boolean
@@ -110,6 +112,7 @@ export interface HeadlessOptions {
   lockfileDir: string
   modulesDir?: string
   virtualStoreDir?: string
+  patchedDependencies?: Record<string, PatchFile>
   scriptsPrependNodePath?: boolean | 'warn-only'
   scriptShell?: string
   shellEmulator?: boolean
@@ -136,6 +139,7 @@ export interface HeadlessOptions {
   skipped: Set<string>
   enableModulesDir?: boolean
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
+  useGitBranchLockfile?: boolean
 }
 
 export default async (opts: HeadlessOptions) => {
@@ -145,7 +149,12 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const lockfileDir = opts.lockfileDir
-  const wantedLockfile = opts.wantedLockfile ?? await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
+  const wantedLockfile = opts.wantedLockfile ?? await readWantedLockfile(lockfileDir, {
+    ignoreIncompatible: false,
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    // mergeGitBranchLockfiles is intentionally not supported in headless
+    mergeGitBranchLockfiles: false,
+  })
 
   if (wantedLockfile == null) {
     throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
@@ -293,6 +302,7 @@ export default async (opts: HeadlessOptions) => {
     await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
       depsStateCache,
       force: opts.force,
+      ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
     })
@@ -322,6 +332,7 @@ export default async (opts: HeadlessOptions) => {
         force: opts.force,
         depGraph: graph,
         depsStateCache,
+        ignoreScripts: opts.ignoreScripts,
         lockfileDir: opts.lockfileDir,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
       }),
@@ -341,9 +352,9 @@ export default async (opts: HeadlessOptions) => {
         packages: omit(Array.from(skipped), filteredLockfile.packages),
       }
       newHoistedDependencies = await hoist({
+        extraNodePath: opts.extraNodePaths,
         lockfile: hoistLockfile,
         importerIds,
-        lockfileDir,
         privateHoistedModulesDir: hoistedModulesDir,
         privateHoistPattern: opts.hoistPattern ?? [],
         publicHoistedModulesDir,
@@ -354,10 +365,14 @@ export default async (opts: HeadlessOptions) => {
       newHoistedDependencies = {}
     }
 
-    await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
+    await linkAllBins(graph, {
+      extraNodePaths: opts.extraNodePaths,
+      optional: opts.include.optionalDependencies,
+      warn,
+    })
 
     if ((currentLockfile != null) && !equals(importerIds.sort(), Object.keys(filteredLockfile.importers).sort())) {
-      Object.assign(filteredLockfile.packages, currentLockfile.packages)
+      Object.assign(filteredLockfile.packages!, currentLockfile.packages)
     }
 
     /** Skip linking and due to no project manifest */
@@ -391,7 +406,8 @@ export default async (opts: HeadlessOptions) => {
           .filter(({ requiresBuild }) => requiresBuild)
           .map(({ depPath }) => depPath)
       )
-  } else {
+  }
+  if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
       Object
@@ -414,6 +430,7 @@ export default async (opts: HeadlessOptions) => {
       extraBinPaths,
       extraEnv,
       depsStateCache,
+      ignoreScripts: opts.ignoreScripts,
       lockfileDir,
       optional: opts.include.optionalDependencies,
       rawConfig: opts.rawConfig,
@@ -429,7 +446,6 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const projectsToBeBuilt = extendProjectsWithTargetDirs(opts.projects, wantedLockfile, {
-    lockfileDir: opts.lockfileDir,
     pkgLocationByDepPath,
     virtualStoreDir,
   })
@@ -439,7 +455,7 @@ export default async (opts: HeadlessOptions) => {
     if (!opts.ignorePackageManifest) {
       await Promise.all(opts.projects.map(async (project) => {
         if (opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
-          await linkBinsOfImporter(project)
+          await linkBinsOfImporter(project, { extraNodePaths: opts.extraNodePaths })
         } else {
           const directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
           await linkBinsOfPackages(
@@ -452,7 +468,10 @@ export default async (opts: HeadlessOptions) => {
               )
             )
               .filter(({ manifest }) => manifest != null) as Array<{ location: string, manifest: DependencyManifest }>,
-            project.binsDir
+            project.binsDir,
+            {
+              extraNodePaths: opts.extraNodePaths,
+            }
           )
         }
       }))
@@ -548,10 +567,12 @@ async function linkBinsOfImporter (
     manifest: ProjectManifest
     modulesDir: string
     rootDir: string
-  }
+  },
+  { extraNodePaths }: { extraNodePaths?: string[] } = {}
 ) {
   const warn = (message: string) => logger.info({ message, prefix: rootDir })
   return linkBins(modulesDir, binsDir, {
+    extraNodePaths,
     allowExoticManifests: true,
     projectManifest: manifest,
     warn,
@@ -586,7 +607,7 @@ async function linkRootPackages (
         if (allDeps[alias].startsWith('link:')) {
           const isDev = Boolean(projectSnapshot.devDependencies?.[alias])
           const isOptional = Boolean(projectSnapshot.optionalDependencies?.[alias])
-          const packageDir = path.join(opts.projectDir, allDeps[alias].substr(5))
+          const packageDir = path.join(opts.projectDir, allDeps[alias].slice(5))
           const linkedPackage = await (async () => {
             const importerId = getLockfileImporterId(opts.lockfileDir, packageDir)
             if (importerManifestsByImporterId[importerId]) {
@@ -650,6 +671,7 @@ async function linkAllPkgs (
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
     force: boolean
+    ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
   }
@@ -664,14 +686,18 @@ async function linkAllPkgs (
         throw err
       }
 
-      let targetEngine: string | undefined
+      let sideEffectsCacheKey: string | undefined
       if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        targetEngine = calcDepState(depNode.dir, opts.depGraph, opts.depsStateCache)
+        sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.dir, {
+          isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
+          patchFileHash: depNode.patchFile?.hash,
+        })
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
-        targetEngine,
+        requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
+        sideEffectsCacheKey,
       })
       if (importMethod) {
         progressLogger.debug({
@@ -697,6 +723,7 @@ async function linkAllPkgs (
 async function linkAllBins (
   depGraph: DependenciesGraph,
   opts: {
+    extraNodePaths?: string[]
     optional: boolean
     warn: (message: string) => void
   }
@@ -718,7 +745,7 @@ async function linkAllBins (
         const pkgSnapshots = props<string, DependenciesGraphNode>(Object.values(childrenToLink), depGraph)
 
         if (pkgSnapshots.includes(undefined as any)) { // eslint-disable-line
-          await linkBins(depNode.modules, binPath, { warn: opts.warn })
+          await linkBins(depNode.modules, binPath, { extraNodePaths: opts.extraNodePaths, warn: opts.warn })
         } else {
           const pkgs = await Promise.all(
             pkgSnapshots
@@ -729,13 +756,13 @@ async function linkAllBins (
               }))
           )
 
-          await linkBinsOfPackages(pkgs, binPath)
+          await linkBinsOfPackages(pkgs, binPath, { extraNodePaths: opts.extraNodePaths })
         }
 
         // link also the bundled dependencies` bins
         if (depNode.hasBundledDependencies) {
           const bundledModules = path.join(depNode.dir, 'node_modules')
-          await linkBins(bundledModules, binPath, { warn: opts.warn })
+          await linkBins(bundledModules, binPath, { extraNodePaths: opts.extraNodePaths, warn: opts.warn })
         }
       }))
   )

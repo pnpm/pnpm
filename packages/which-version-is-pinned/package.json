@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/which-version-is-pinned",
   "description": "Takes a version spec and returns which version is pinned by it",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -16,7 +16,7 @@
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/which-version-is-pinned",
   "scripts": {
@@ -32,6 +32,9 @@
     "semver-utils": "^1.1.4"
   },
   "devDependencies": {
-    "@pnpm/which-version-is-pinned": "workspace:1.0.0"
+    "@pnpm/which-version-is-pinned": "workspace:*"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

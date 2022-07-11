@@ -1,4 +1,4 @@
-import createPackagesSearcher from '@pnpm/list/lib/createPackagesSearcher'
+import createPackagesSearcher from '../lib/createPackagesSearcher'
 
 test('packages searcher', () => {
   {

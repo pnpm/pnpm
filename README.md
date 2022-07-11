@@ -1,7 +1,9 @@
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner-direct.svg)](https://stand-with-ukraine.pp.ua)
+
 [中文](https://pnpm.io/zh/) |
 [日本語](https://pnpm.io/ja/) |
+[한국어](https://pnpm.io/ko/) |
 [Italiano](https://pnpm.io/it/) |
-[Русский](https://pnpm.io/ru/) |
 [Français](https://pnpm.io/fr/)
 
 ![](https://i.imgur.com/qlW1eEG.png)
@@ -16,7 +18,7 @@ Fast, disk space efficient package manager:
 * **Works as a Node.js version manager.** See [pnpm env use](https://pnpm.io/cli/env).
 * **Works everywhere.** Supports Windows, Linux, and macOS.
 * **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.io/users) since 2016.
-  
+
 To quote the [Rush](https://rushjs.io/) team:
 
 > Microsoft uses pnpm in Rush repos with hundreds of projects and hundreds of PRs per day, and we’ve found it to be very fast and reliable.
@@ -27,19 +29,65 @@ To quote the [Rush](https://rushjs.io/) team:
 [![OpenCollective](https://opencollective.com/pnpm/sponsors/badge.svg)](#sponsors)
 [![Twitter Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://twitter.com/intent/follow?screen_name=pnpmjs&region=follow_link)
 
-## Sponsors
+## Gold Sponsors
 
 <table>
   <tbody>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://bit.dev" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/bit.svg" width="80"></a>
+        <a href="https://bit.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/bit.svg" width="80">
+        </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://prisma.io" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma.svg" width="180"></a>
+        <a href="https://nhost.io/?utm_source=pnpm&utm_medium=readme#gh-light-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/nhost.svg" width="180">
+        </a>
+        <a href="https://nhost.io/?utm_source=pnpm&utm_medium=readme#gh-dark-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/nhost_light.svg" width="180">
+        </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://leniolabs.com" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/leniolabs.jpg" width="80"></a>
+        <a href="https://novu.co/?utm_source=pnpm&utm_medium=readme#gh-light-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/novu.svg" width="180">
+        </a>
+        <a href="https://novu.co/?utm_source=pnpm&utm_medium=readme#gh-dark-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/novu_light.svg" width="180">
+        </a>
+      </td>
+    </tr>
+</table>
+
+## Silver Sponsors
+
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme#gh-light-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma.svg" width="180">
+        </a>
+        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme#gh-dark-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma_light.svg" width="180">
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://leniolabs.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/leniolabs.jpg" width="80">
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://vercel.com/?utm_source=pnpm&utm_medium=readme#gh-light-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/vercel.svg" width="180">
+        </a>
+        <a href="https://vercel.com/?utm_source=pnpm&utm_medium=readme#gh-dark-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/vercel_light.svg" width="180">
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://www.takeshape.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/takeshape.svg" width="280">
+        </a>
       </td>
     </tr>
   </tbody>

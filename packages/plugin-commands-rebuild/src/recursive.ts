@@ -15,7 +15,7 @@ import camelcaseKeys from 'camelcase-keys'
 import mem from 'mem'
 import pLimit from 'p-limit'
 import readIniFile from 'read-ini-file'
-import { rebuild as rebuildAll, RebuildOptions, rebuildPkgs } from './implementation'
+import { rebuildProjects as rebuildAll, RebuildOptions, rebuildSelectedPkgs } from './implementation'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'hoistPattern'
@@ -100,7 +100,7 @@ export default async function recursive (
   const rebuild = (
     params.length === 0
       ? rebuildAll
-    : (importers: any, opts: any) => rebuildPkgs(importers, params, opts) // eslint-disable-line
+    : (importers: any, opts: any) => rebuildSelectedPkgs(importers, params, opts) // eslint-disable-line
   )
   if (opts.lockfileDir) {
     const importers = await getImporters()

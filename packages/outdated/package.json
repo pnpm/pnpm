@@ -1,11 +1,11 @@
 {
   "name": "@pnpm/outdated",
-  "version": "9.0.30",
+  "version": "10.0.13",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "files": [
     "lib",
@@ -36,26 +36,29 @@
     "@pnpm/logger": "^4.0.0"
   },
   "dependencies": {
-    "@pnpm/client": "workspace:6.1.1",
-    "@pnpm/constants": "workspace:5.0.0",
-    "@pnpm/error": "workspace:2.0.0",
-    "@pnpm/lockfile-file": "workspace:4.2.6",
-    "@pnpm/lockfile-utils": "workspace:3.2.0",
-    "@pnpm/manifest-utils": "workspace:2.1.7",
-    "@pnpm/matcher": "workspace:2.0.0",
-    "@pnpm/modules-yaml": "workspace:9.1.0",
-    "@pnpm/pick-registry-for-package": "workspace:2.0.10",
-    "@pnpm/types": "workspace:7.9.0",
-    "dependency-path": "workspace:8.0.10",
-    "ramda": "^0.27.1",
-    "semver": "^7.3.4"
+    "@pnpm/client": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/manifest-utils": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
+    "@pnpm/modules-yaml": "workspace:*",
+    "@pnpm/pick-registry-for-package": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "dependency-path": "workspace:*",
+    "ramda": "^0.28.0",
+    "semver": "^7.3.7"
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",
-    "@pnpm/outdated": "workspace:9.0.30",
-    "@types/ramda": "0.27.39",
-    "@types/semver": "^7.3.4",
+    "@pnpm/outdated": "workspace:*",
+    "@types/ramda": "0.28.14",
+    "@types/semver": "^7.3.10",
     "npm-run-all": "^4.1.5"
   },
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

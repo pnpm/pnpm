@@ -1,5 +1,40 @@
 # @pnpm/parse-cli-args
 
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [6434a8291]
+  - @pnpm/find-workspace-dir@4.0.2
+
+## 5.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+- @pnpm/find-workspace-dir@4.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- c35ac786b: When using `pnpm run <script>`, all command line arguments after the script name are now passed to the script's argv, even `--`. For example, `pnpm run echo --hello -- world` will now pass `--hello -- world` to the `echo` script's argv. Previously flagged arguments (e.g. `--silent`) were interpreted as pnpm arguments unless `--` came before it.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/error@3.0.0
+  - @pnpm/find-workspace-dir@4.0.0
+
+## 4.4.1
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/find-workspace-dir@3.0.2
+
 ## 4.4.0
 
 ### Minor Changes

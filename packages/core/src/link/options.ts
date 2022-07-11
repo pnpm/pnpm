@@ -14,6 +14,7 @@ interface StrictLinkOptions {
   forceSharedLockfile: boolean
   useLockfile: boolean
   lockfileDir: string
+  nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   pinnedVersion: 'major' | 'minor' | 'patch'
   storeController: StoreController
   manifest: ProjectManifest
@@ -28,6 +29,9 @@ interface StrictLinkOptions {
 
   publicHoistPattern: string[] | undefined
   forcePublicHoistPattern: boolean
+
+  useGitBranchLockfile: boolean
+  mergeGitBranchLockfiles: boolean
 }
 
 export type LinkOptions =
@@ -57,6 +61,7 @@ async function defaults (opts: LinkOptions) {
     forceSharedLockfile: false,
     hoistPattern: undefined,
     lockfileDir: opts.lockfileDir ?? dir,
+    nodeLinker: 'isolated',
     registries: DEFAULT_REGISTRIES,
     storeController: opts.storeController,
     storeDir: opts.storeDir,

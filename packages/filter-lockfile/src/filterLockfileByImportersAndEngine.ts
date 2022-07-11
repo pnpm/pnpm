@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LockfileMissingDependencyError } from '@pnpm/error'
 import {
   Lockfile,
   PackageSnapshots,
@@ -8,9 +9,8 @@ import pnpmLogger from '@pnpm/logger'
 import packageIsInstallable from '@pnpm/package-is-installable'
 import { DependenciesField } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import unnest from 'ramda/src/unnest'
+import unnest from 'ramda/src/unnest.js'
 import filterImporter from './filterImporter'
-import LockfileMissingDependencyError from './LockfileMissingDependencyError'
 
 const logger = pnpmLogger('lockfile')
 
@@ -137,6 +137,7 @@ function pkgAllDeps (
         cpu: pkgSnapshot.cpu,
         engines: pkgSnapshot.engines,
         os: pkgSnapshot.os,
+        libc: pkgSnapshot.libc,
       }
       // TODO: depPath is not the package ID. Should be fixed
       installable = opts.includeIncompatiblePackages || packageIsInstallable(pkgSnapshot.id ?? depPath, pkg, {

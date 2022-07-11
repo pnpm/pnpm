@@ -24,12 +24,12 @@ Once the packages are in the store, run:
 mount-modules
 ```
 
-If something goes wrong and the modules directory will be not accessible, unmout it using:
+If something goes wrong and the modules directory will be not accessible, unmount it using:
 
 ```
 unmount <path to node_modules>
 ```
 
-## License 
+## License
 
 MIT

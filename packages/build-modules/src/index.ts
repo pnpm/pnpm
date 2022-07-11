@@ -1,15 +1,16 @@
 import path from 'path'
 import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
+import PnpmError from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger from '@pnpm/logger'
-import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import { fromDir as readPackageFromDir, safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
-import { DependencyManifest, PackageManifest } from '@pnpm/types'
+import { DependencyManifest } from '@pnpm/types'
+import { applyPatch } from 'patch-package/dist/applyPatches'
 import runGroups from 'run-groups'
-import graphSequencer from 'graph-sequencer'
-import filter from 'ramda/src/filter'
+import buildSequence, { DependenciesGraph, DependenciesGraphNode } from './buildSequence'
 
 export { DepsStateCache }
 
@@ -21,7 +22,9 @@ export default async (
     depsToBuild?: Set<string>
     depsStateCache: DepsStateCache
     extraBinPaths?: string[]
+    extraNodePaths?: string[]
     extraEnv?: Record<string, string>
+    ignoreScripts?: boolean
     lockfileDir: string
     optional: boolean
     rawConfig: object
@@ -37,23 +40,14 @@ export default async (
 ) => {
   const warn = (message: string) => logger.warn({ message, prefix: opts.lockfileDir })
   // postinstall hooks
-  const nodesToBuild = new Set<string>()
-  getSubgraphToBuild(depGraph, rootDepPaths, nodesToBuild, new Set<string>())
-  const onlyFromBuildGraph = filter((depPath: string) => nodesToBuild.has(depPath))
 
-  const nodesToBuildArray = Array.from(nodesToBuild)
-  const graph = new Map(
-    nodesToBuildArray
-      .map((depPath) => [depPath, onlyFromBuildGraph(Object.values(depGraph[depPath].children))])
-  )
-  const graphSequencerResult = graphSequencer({
-    graph,
-    groups: [nodesToBuildArray],
-  })
-  const chunks = graphSequencerResult.chunks as string[][]
   const buildDepOpts = { ...opts, warn }
+  const chunks = buildSequence(depGraph, rootDepPaths)
   const groups = chunks.map((chunk) => {
-    chunk = chunk.filter((depPath) => depGraph[depPath].requiresBuild && !depGraph[depPath].isBuilt)
+    chunk = chunk.filter((depPath) => {
+      const node = depGraph[depPath]
+      return (node.requiresBuild || node.patchFile != null) && !node.isBuilt
+    })
     if (opts.depsToBuild != null) {
       chunk = chunk.filter((depPath) => opts.depsToBuild!.has(depPath))
     }
@@ -70,8 +64,10 @@ async function buildDependency (
   depGraph: DependenciesGraph,
   opts: {
     extraBinPaths?: string[]
+    extraNodePaths?: string[]
     extraEnv?: Record<string, string>
     depsStateCache: DepsStateCache
+    ignoreScripts?: boolean
     lockfileDir: string
     optional: boolean
     rawConfig: object
@@ -88,7 +84,11 @@ async function buildDependency (
   const depNode = depGraph[depPath]
   try {
     await linkBinsOfDependencies(depNode, depGraph, opts)
-    const hasSideEffects = await runPostinstallHooks({
+    const isPatched = depNode.patchFile?.path != null
+    if (isPatched) {
+      applyPatchToDep(depNode.dir, depNode.patchFile!.path)
+    }
+    const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
       depPath,
       extraBinPaths: opts.extraBinPaths,
       extraEnv: opts.extraEnv,
@@ -102,10 +102,14 @@ async function buildDependency (
       shellEmulator: opts.shellEmulator,
       unsafePerm: opts.unsafePerm || false,
     })
-    if (hasSideEffects && opts.sideEffectsCacheWrite) {
+    if ((isPatched || hasSideEffects) && opts.sideEffectsCacheWrite) {
       try {
+        const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
+          patchFileHash: depNode.patchFile?.hash,
+          isBuilt: hasSideEffects,
+        })
         await opts.storeController.upload(depNode.dir, {
-          engine: calcDepState(depPath, depGraph, opts.depsStateCache),
+          sideEffectsCacheKey,
           filesIndexFile: depNode.filesIndexFile,
         })
       } catch (err: any) { // eslint-disable-line
@@ -143,53 +147,26 @@ async function buildDependency (
   }
 }
 
-function getSubgraphToBuild (
-  graph: DependenciesGraph,
-  entryNodes: string[],
-  nodesToBuild: Set<string>,
-  walked: Set<string>
-) {
-  let currentShouldBeBuilt = false
-  for (const depPath of entryNodes) {
-    if (!graph[depPath]) continue // packages that are already in node_modules are skipped
-    if (nodesToBuild.has(depPath)) {
-      currentShouldBeBuilt = true
-    }
-    if (walked.has(depPath)) continue
-    walked.add(depPath)
-    const childShouldBeBuilt = getSubgraphToBuild(graph, Object.values(graph[depPath].children), nodesToBuild, walked) ||
-      graph[depPath].requiresBuild
-    if (childShouldBeBuilt) {
-      nodesToBuild.add(depPath)
-      currentShouldBeBuilt = true
-    }
+function applyPatchToDep (patchDir: string, patchFilePath: string) {
+  // Ideally, we would just run "patch" or "git apply".
+  // However, "patch" is not available on Windows and "git apply" is hard to execute on a subdirectory of an existing repository
+  const cwd = process.cwd()
+  process.chdir(patchDir)
+  const success = applyPatch({
+    patchFilePath,
+    patchDir: patchDir,
+  })
+  process.chdir(cwd)
+  if (!success) {
+    throw new PnpmError('PATCH_FAILED', `Could not apply patch ${patchFilePath} to ${patchDir}`)
   }
-  return currentShouldBeBuilt
-}
-
-export interface DependenciesGraphNode {
-  children: {[alias: string]: string}
-  depPath: string
-  dir: string
-  fetchingBundledManifest?: () => Promise<PackageManifest>
-  filesIndexFile: string
-  hasBin: boolean
-  hasBundledDependencies: boolean
-  installable?: boolean
-  isBuilt?: boolean
-  optional: boolean
-  optionalDependencies: Set<string>
-  requiresBuild?: boolean
-}
-
-export interface DependenciesGraph {
-  [depPath: string]: DependenciesGraphNode
 }
 
 export async function linkBinsOfDependencies (
   depNode: DependenciesGraphNode,
   depGraph: DependenciesGraph,
   opts: {
+    extraNodePaths?: string[]
     optional: boolean
     warn: (message: string) => void
   }
@@ -223,15 +200,15 @@ export async function linkBinsOfDependencies (
   const pkgs = await Promise.all(pkgNodes
     .map(async (dep) => ({
       location: dep.dir,
-      manifest: await dep.fetchingBundledManifest?.() ?? (await readPackageFromDir(dep.dir) as DependencyManifest),
+      manifest: await dep.fetchingBundledManifest?.() ?? (await safeReadPackageFromDir(dep.dir) as DependencyManifest) ?? {},
     }))
   )
 
-  await linkBinsOfPackages(pkgs, binPath)
+  await linkBinsOfPackages(pkgs, binPath, { extraNodePaths: opts.extraNodePaths })
 
   // link also the bundled dependencies` bins
   if (depNode.hasBundledDependencies) {
     const bundledModules = path.join(depNode.dir, 'node_modules')
-    await linkBins(bundledModules, binPath, { warn: opts.warn })
+    await linkBins(bundledModules, binPath, { extraNodePaths: opts.extraNodePaths, warn: opts.warn })
   }
 }

@@ -29,6 +29,9 @@
     },
     {
       "path": "../store-connection-manager"
+    },
+    {
+      "path": "../store-path"
     }
   ]
 }

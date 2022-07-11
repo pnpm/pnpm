@@ -1,6 +1,5 @@
 import { createReadStream, promises as fs, mkdirSync } from 'fs'
 import path from 'path'
-import pathExists from 'path-exists'
 import PATH_NAME from 'path-name'
 import prepare, { prepareEmpty } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
@@ -61,7 +60,7 @@ test('pass through to npm with all the args', async () => {
   prepare()
   await rimraf('package.json')
 
-  const result = execPnpmSync(['init', '-y'])
+  const result = execPnpmSync(['dist-tag', 'ls', 'pnpm'])
 
   expect(result.status).toBe(0)
 })
@@ -136,7 +135,7 @@ test('pnpx works', () => {
 
   const result = execPnpxSync(['hello-world-js-bin'], { env })
 
-  expect(result.stdout.toString()).toMatch(/Hello world!/)
+  expect(result.stdout.toString()).toEqual('Hello world!\n')
   expect(result.status).toBe(0)
 })
 
@@ -146,7 +145,6 @@ test('exit code from plugin is used to end the process', () => {
 
   expect(result.status).toBe(1)
   expect(result.stdout.toString()).toMatch(/is-positive/)
-  expect(pathExists.sync('node_modules/.pnpm-debug.log')).toBeFalsy()
 })
 
 const PNPM_CLI = path.join(__dirname, '../dist/pnpm.cjs')

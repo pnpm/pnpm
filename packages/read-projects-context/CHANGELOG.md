@@ -1,5 +1,114 @@
 # @pnpm/read-projects-context
 
+## 6.0.9
+
+### Patch Changes
+
+- Updated dependencies [ab684d77e]
+  - @pnpm/lockfile-file@5.1.4
+
+## 6.0.8
+
+### Patch Changes
+
+- Updated dependencies [5f643f23b]
+  - @pnpm/lockfile-file@5.1.3
+
+## 6.0.7
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-file@5.1.2
+  - @pnpm/modules-yaml@10.0.5
+  - @pnpm/normalize-registries@3.0.5
+
+## 6.0.6
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-file@5.1.1
+  - @pnpm/modules-yaml@10.0.4
+  - @pnpm/normalize-registries@3.0.4
+
+## 6.0.5
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/lockfile-file@5.1.0
+  - @pnpm/modules-yaml@10.0.3
+  - @pnpm/normalize-registries@3.0.3
+
+## 6.0.4
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/lockfile-file@5.0.4
+  - @pnpm/modules-yaml@10.0.2
+  - @pnpm/normalize-registries@3.0.2
+
+## 6.0.3
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/lockfile-file@5.0.3
+
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/lockfile-file@5.0.2
+  - @pnpm/modules-yaml@10.0.1
+  - @pnpm/normalize-registries@3.0.1
+
+## 6.0.1
+
+### Patch Changes
+
+- @pnpm/lockfile-file@5.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/lockfile-file@5.0.0
+  - @pnpm/modules-yaml@10.0.0
+  - @pnpm/normalize-registries@3.0.0
+
+## 5.0.19
+
+### Patch Changes
+
+- @pnpm/lockfile-file@4.3.1
+
+## 5.0.18
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-file@4.3.0
+  - @pnpm/types@7.10.0
+  - @pnpm/modules-yaml@9.1.1
+  - @pnpm/normalize-registries@2.0.13
+
 ## 5.0.17
 
 ### Patch Changes

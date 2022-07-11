@@ -10,7 +10,7 @@ import {
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import readProjectManifest from '@pnpm/read-project-manifest'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import fromPairs from 'ramda/src/fromPairs'
+import fromPairs from 'ramda/src/fromPairs.js'
 import renameOverwrite from 'rename-overwrite'
 
 export default async function (lockfileDir: string, projectDir: string) {
@@ -23,7 +23,7 @@ export default async function (lockfileDir: string, projectDir: string) {
   const baseImporterId = getLockfileImporterId(lockfileDir, projectDir)
   for (const [importerId, importer] of Object.entries(allImporters)) {
     if (importerId.startsWith(`${baseImporterId}/`)) {
-      const newImporterId = importerId.substr(baseImporterId.length + 1)
+      const newImporterId = importerId.slice(baseImporterId.length + 1)
       lockfile.importers[newImporterId] = projectSnapshotWithoutLinkedDeps(importer)
       continue
     }
@@ -55,7 +55,7 @@ export default async function (lockfileDir: string, projectDir: string) {
       'install',
       '--frozen-lockfile',
       '--lockfile-dir=.',
-      '--lockfile-only',
+      '--fix-lockfile',
       '--filter=.',
       '--no-link-workspace-packages',
     ], {

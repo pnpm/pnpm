@@ -1,5 +1,136 @@
 # @pnpm/audit
 
+## 3.0.10
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@4.0.10
+- @pnpm/lockfile-walker@5.0.10
+
+## 3.0.9
+
+### Patch Changes
+
+- Updated dependencies [5f643f23b]
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/lockfile-walker@5.0.9
+
+## 3.0.8
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@4.0.8
+- @pnpm/lockfile-walker@5.0.8
+
+## 3.0.7
+
+### Patch Changes
+
+- Updated dependencies [d01c32355]
+- Updated dependencies [8e5b77ef6]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/lockfile-types@4.2.0
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-utils@4.0.7
+  - @pnpm/lockfile-walker@5.0.7
+  - @pnpm/fetch@5.0.5
+
+## 3.0.6
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-types@4.1.0
+  - @pnpm/lockfile-utils@4.0.6
+  - @pnpm/lockfile-walker@5.0.6
+  - @pnpm/fetch@5.0.4
+
+## 3.0.5
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [9d5bf09c0]
+  - @pnpm/types@8.2.0
+  - @pnpm/fetch@5.0.3
+  - @pnpm/lockfile-types@4.0.3
+  - @pnpm/lockfile-utils@4.0.5
+  - @pnpm/lockfile-walker@5.0.5
+
+## 3.0.4
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/lockfile-types@4.0.2
+  - @pnpm/lockfile-utils@4.0.4
+  - @pnpm/lockfile-walker@5.0.4
+  - @pnpm/fetch@5.0.2
+
+## 3.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@4.0.3
+- @pnpm/lockfile-walker@5.0.3
+
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/lockfile-types@4.0.1
+  - @pnpm/lockfile-utils@4.0.2
+  - @pnpm/lockfile-walker@5.0.2
+  - @pnpm/fetch@5.0.1
+
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [688b0eaff]
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/lockfile-walker@5.0.1
+  - @pnpm/error@3.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/fetch@5.0.0
+  - @pnpm/lockfile-types@4.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/lockfile-walker@5.0.0
+
+## 2.2.7
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+
+## 2.2.6
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+  - @pnpm/types@7.10.0
+  - @pnpm/lockfile-utils@3.2.1
+  - @pnpm/lockfile-walker@4.0.15
+  - @pnpm/fetch@4.2.5
+
 ## 2.2.5
 
 ### Patch Changes
@@ -185,7 +316,7 @@
 
 ### Patch Changes
 
-- 40b75fbb9: Escape the dependency names to avoud 502 errors from the registry.
+- 40b75fbb9: Escape the dependency names to avoid 502 errors from the registry.
 
 ## 2.1.0
 

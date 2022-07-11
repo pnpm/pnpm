@@ -1,5 +1,108 @@
 # @pnpm/assert-project
 
+## 2.3.2
+
+### Patch Changes
+
+- Updated dependencies [d01c32355]
+- Updated dependencies [8e5b77ef6]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/lockfile-types@4.2.0
+  - @pnpm/types@8.4.0
+  - @pnpm/modules-yaml@10.0.5
+  - @pnpm/assert-store@1.0.40
+
+## 2.3.1
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-types@4.1.0
+  - @pnpm/modules-yaml@10.0.4
+  - @pnpm/assert-store@1.0.39
+
+## 2.3.0
+
+### Minor Changes
+
+- 56cf04cb3: New settings added: use-git-branch-lockfile, merge-git-branch-lockfiles, merge-git-branch-lockfiles-branch-pattern.
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+  - @pnpm/lockfile-types@4.0.3
+  - @pnpm/modules-yaml@10.0.3
+  - @pnpm/assert-store@1.0.38
+
+## 2.2.23
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/lockfile-types@4.0.2
+  - @pnpm/modules-yaml@10.0.2
+  - @pnpm/assert-store@1.0.37
+
+## 2.2.22
+
+### Patch Changes
+
+- @pnpm/assert-store@1.0.36
+
+## 2.2.21
+
+### Patch Changes
+
+- @pnpm/assert-store@1.0.35
+
+## 2.2.20
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/lockfile-types@4.0.1
+  - @pnpm/modules-yaml@10.0.1
+  - @pnpm/assert-store@1.0.34
+
+## 2.2.19
+
+### Patch Changes
+
+- Updated dependencies [1267e4eff]
+  - @pnpm/constants@6.1.0
+
+## 2.2.18
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/lockfile-types@4.0.0
+  - @pnpm/modules-yaml@10.0.0
+  - @pnpm/assert-store@1.0.33
+
+## 2.2.17
+
+### Patch Changes
+
+- @pnpm/assert-store@1.0.32
+
+## 2.2.16
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+  - @pnpm/types@7.10.0
+  - @pnpm/modules-yaml@9.1.1
+  - @pnpm/assert-store@1.0.31
+
 ## 2.2.15
 
 ### Patch Changes

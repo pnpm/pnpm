@@ -1,5 +1,29 @@
 # @pnpm/error
 
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [1267e4eff]
+  - @pnpm/constants@6.1.0
+
+## 3.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/constants@6.0.0
+
+## 2.1.0
+
+### Minor Changes
+
+- 70ba51da9: Add new error object: LockfileMissingDependencyError.
+
 ## 2.0.0
 
 ### Major Changes

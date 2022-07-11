@@ -1,5 +1,136 @@
 # @pnpm/lifecycle
 
+## 13.1.2
+
+### Patch Changes
+
+- Updated dependencies [5f643f23b]
+  - @pnpm/directory-fetcher@3.0.7
+
+## 13.1.1
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/core-loggers@7.0.5
+  - @pnpm/read-package-json@6.0.6
+  - @pnpm/store-controller-types@14.0.1
+  - @pnpm/directory-fetcher@3.0.6
+
+## 13.1.0
+
+### Minor Changes
+
+- 2a34b21ce: Dependencies patching is possible via the `pnpm.patchedDependencies` field of the `package.json`.
+  To patch a package, the package name, exact version, and the relative path to the patch file should be specified. For instance:
+
+  ```json
+  {
+    "pnpm": {
+      "patchedDependencies": {
+        "eslint@1.0.0": "./patches/eslint@1.0.0.patch"
+      }
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/read-package-json@6.0.5
+  - @pnpm/directory-fetcher@3.0.5
+
+## 13.0.5
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/read-package-json@6.0.4
+  - @pnpm/store-controller-types@13.0.4
+  - @pnpm/directory-fetcher@3.0.4
+
+## 13.0.4
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/core-loggers@7.0.2
+  - @pnpm/read-package-json@6.0.3
+  - @pnpm/store-controller-types@13.0.3
+  - @pnpm/directory-fetcher@3.0.3
+
+## 13.0.3
+
+### Patch Changes
+
+- Updated dependencies [6756c2b02]
+  - @pnpm/store-controller-types@13.0.2
+  - @pnpm/directory-fetcher@3.0.2
+
+## 13.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/core-loggers@7.0.1
+  - @pnpm/read-package-json@6.0.2
+  - @pnpm/store-controller-types@13.0.1
+  - @pnpm/directory-fetcher@3.0.1
+
+## 13.0.1
+
+### Patch Changes
+
+- Updated dependencies [41cae6450]
+  - @pnpm/directory-fetcher@3.0.0
+  - @pnpm/read-package-json@6.0.1
+
+## 13.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+- d999a0801: Allow to execute a lifecycle script in a directory that doesn't match the package's name. Previously this was only allowed with the `--unsafe-perm` CLI option [#3709](https://github.com/pnpm/pnpm/issues/3709).
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/directory-fetcher@2.0.0
+  - @pnpm/read-package-json@6.0.0
+  - @pnpm/store-controller-types@13.0.0
+
+## 12.1.7
+
+### Patch Changes
+
+- Updated dependencies [5c525db13]
+  - @pnpm/store-controller-types@12.0.0
+  - @pnpm/read-package-json@5.0.12
+  - @pnpm/directory-fetcher@1.0.7
+
+## 12.1.6
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+  - @pnpm/core-loggers@6.1.4
+  - @pnpm/read-package-json@5.0.11
+  - @pnpm/store-controller-types@11.0.12
+  - @pnpm/directory-fetcher@1.0.6
+
 ## 12.1.5
 
 ### Patch Changes

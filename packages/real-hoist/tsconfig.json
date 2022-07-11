@@ -13,6 +13,9 @@
       "path": "../dependency-path"
     },
     {
+      "path": "../error"
+    },
+    {
       "path": "../lockfile-file"
     },
     {

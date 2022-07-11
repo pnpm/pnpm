@@ -1,6 +1,6 @@
 import matcher from '@pnpm/matcher'
+import npa from '@pnpm/npm-package-arg'
 import { SearchFunction } from 'dependencies-hierarchy'
-import npa from '@zkochan/npm-package-arg'
 import semver from 'semver'
 
 export default function createPatternSearcher (queries: string[]) {
@@ -34,7 +34,7 @@ function parseSearchQuery (query: string) {
     return { matchName: matcher(parsed.name) }
   }
   if (parsed.type !== 'version' && parsed.type !== 'range') {
-    throw new Error(`Invalid queryument - ${query}. List can search only by version or range`)
+    throw new Error(`Invalid queryment - ${query}. List can search only by version or range`)
   }
   return {
     matchName: matcher(parsed.name),

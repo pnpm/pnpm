@@ -8,7 +8,7 @@ import sortPackages from '@pnpm/sort-packages'
 import { Project } from '@pnpm/types'
 import execa from 'execa'
 import pLimit from 'p-limit'
-import pick from 'ramda/src/pick'
+import pick from 'ramda/src/pick.js'
 import renderHelp from 'render-help'
 import existsInDir from './existsInDir'
 import { makeEnv } from './makeEnv'
@@ -137,7 +137,7 @@ export async function handler (
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph?.[prefix]?.package.manifest.name,
             },
             prependPaths: [
-              path.join(opts.dir, 'node_modules/.bin'),
+              path.join(prefix, 'node_modules/.bin'),
               ...opts.extraBinPaths,
             ],
             userAgent: opts.userAgent,

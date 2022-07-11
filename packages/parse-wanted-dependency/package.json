@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/parse-wanted-dependency",
   "description": "Parse dependency specifier",
-  "version": "2.0.0",
+  "version": "3.0.1",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,15 +12,15 @@
     "!*.map"
   ],
   "devDependencies": {
-    "@pnpm/parse-wanted-dependency": "workspace:2.0.0",
-    "@types/validate-npm-package-name": "^3.0.2"
+    "@pnpm/parse-wanted-dependency": "workspace:*",
+    "@types/validate-npm-package-name": "^3.0.3"
   },
   "keywords": [
     "pnpm7"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/parse-wanted-dependency",
   "scripts": {
@@ -30,8 +30,11 @@
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {
-    "validate-npm-package-name": "3.0.0"
+    "validate-npm-package-name": "4.0.0"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/parse-wanted-dependency#readme",
-  "funding": "https://opencollective.com/pnpm"
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
 }

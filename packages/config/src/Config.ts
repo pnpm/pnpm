@@ -28,12 +28,13 @@ export interface Config {
   dir: string
   bin: string
   ignoreScripts?: boolean
+  includeWorkspaceRoot?: boolean
   save?: boolean
   saveProd?: boolean
   saveDev?: boolean
   saveOptional?: boolean
   savePeer?: boolean
-  saveWorkspaceProtocol?: boolean
+  saveWorkspaceProtocol?: boolean | 'rolling'
   scriptShell?: string
   stream?: boolean
   pnpmExecPath: string
@@ -85,9 +86,9 @@ export interface Config {
   noProxy?: string | boolean
 
   // ssl
-  cert?: string
+  cert?: string | string[]
   key?: string
-  ca?: string
+  ca?: string | string[]
   strictSsl?: boolean
 
   userAgent?: string
@@ -112,7 +113,7 @@ export interface Config {
   ignorePnpmfile?: boolean
   pnpmfile: string
   hooks?: Hooks
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   hoistPattern?: string[]
   publicHoistPattern?: string[]
   useStoreServer?: boolean
@@ -130,6 +131,9 @@ export interface Config {
   modulesDir?: string
   sharedWorkspaceLockfile?: boolean
   useLockfile: boolean
+  useGitBranchLockfile: boolean
+  mergeGitBranchLockfiles?: boolean
+  mergeGitBranchLockfilesBranchPattern?: string[]
   globalPnpmfile?: string
   npmPath?: string
   gitChecks?: boolean
@@ -140,6 +144,8 @@ export interface Config {
   enableModulesDir: boolean
   modulesCacheMaxAge: number
   embedReadme?: boolean
+  gitShallowHosts?: string[]
+  legacyDirFiltering?: boolean
 
   registries: Registries
   ignoreWorkspaceRootCheck: boolean
@@ -152,12 +158,6 @@ export interface Config {
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
-  frozenShrinkwrap?: boolean
   globalPrefix?: string
   proxy?: string
-  lockfileDirectory?: string
-  preferFrozenShrinkwrap?: boolean
-  sharedWorkspaceShrinkwrap?: boolean
-  shrinkwrapDirectory?: string
-  shrinkwrapOnly?: boolean
 }

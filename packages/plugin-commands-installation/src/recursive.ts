@@ -80,6 +80,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   useBetaCli?: boolean
   selectedProjectsGraph: ProjectsGraph
   preferredVersions?: PreferredVersions
+  pruneDirectDependencies?: boolean
 } & Partial<
 Pick<Config,
 | 'sort'
@@ -176,7 +177,7 @@ export default async function recursive (
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
     let importers = await getImporters()
-    const calculatedRepositoryRoot = calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir))
+    const calculatedRepositoryRoot = await fs.realpath(calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir)))
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
     importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
     if (importers.length === 0) return true
@@ -258,23 +259,11 @@ export default async function recursive (
           manifest,
           modulesDir,
           mutation,
+          pruneDirectDependencies: opts.pruneDirectDependencies,
           rootDir,
         } as MutatedProject)
       }
     }))
-    if (!opts.selectedProjectsGraph[opts.workspaceDir] && manifestsByPath[opts.workspaceDir] != null) {
-      const localConfig = await memReadLocalConfig(opts.workspaceDir)
-      const modulesDir = localConfig.modulesDir ?? opts.modulesDir
-      const { manifest, writeProjectManifest } = manifestsByPath[opts.workspaceDir]
-      writeProjectManifests.push(writeProjectManifest)
-      mutatedImporters.push({
-        buildIndex: 0,
-        manifest,
-        modulesDir,
-        mutation: 'install',
-        rootDir: opts.workspaceDir,
-      } as MutatedProject)
-    }
     if ((mutatedImporters.length === 0) && cmdFullName === 'update' && opts.depth === 0) {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies of any of the projects.')
@@ -508,8 +497,8 @@ export function createMatcher (params: string[]) {
       pattern = param
       spec = ''
     } else {
-      pattern = param.substr(0, atIndex)
-      spec = param.substr(atIndex + 1)
+      pattern = param.slice(0, atIndex)
+      spec = param.slice(atIndex + 1)
     }
     return {
       match: matcher(pattern),

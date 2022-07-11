@@ -24,6 +24,7 @@ const DEFAULT_OPTIONS = {
   },
   lock: true,
   pnpmfile: '.pnpmfile.cjs',
+  pnpmHomeDir: '',
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
   registries: {
@@ -58,6 +59,33 @@ test('installing with "workspace:" should work even if link-workspace-packages i
   const pkg = await import(path.resolve('project-1/package.json'))
 
   expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' })
+
+  await projects['project-1'].has('project-2')
+})
+
+test('installing with "workspace:" should work even if link-workspace-packages is off and save-workspace-protocol is "rolling"', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+  ])
+
+  await add.handler({
+    ...DEFAULT_OPTIONS,
+    dir: path.resolve('project-1'),
+    linkWorkspacePackages: false,
+    saveWorkspaceProtocol: 'rolling',
+    workspaceDir: process.cwd(),
+  }, ['project-2@workspace:*'])
+
+  const pkg = await import(path.resolve('project-1/package.json'))
+
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' })
 
   await projects['project-1'].has('project-2')
 })
@@ -151,7 +179,7 @@ test('add: fail when "workspace" option is true but linkWorkspacePackages is fal
   expect(err.message.startsWith('This workspace has link-workspace-packages turned off')).toBeTruthy()
 })
 
-test('installing with "workspace=true" with linkWorkpacePackages on and saveWorkspaceProtocol off', async () => {
+test('installing with "workspace=true" with linkWorkspacePackages on and saveWorkspaceProtocol off', async () => {
   const projects = preparePackages([
     {
       name: 'project-1',
@@ -290,7 +318,7 @@ test('pnpm add - should add prefix when set in .npmrc when a range is not specif
 })
 
 test('pnpm add automatically installs missing peer dependencies', async () => {
-  prepare()
+  const project = prepare()
   await add.handler({
     ...DEFAULT_OPTIONS,
     autoInstallPeers: true,
@@ -298,10 +326,6 @@ test('pnpm add automatically installs missing peer dependencies', async () => {
     linkWorkspacePackages: false,
   }, ['abc@1.0.0'])
 
-  const manifest = (await import(path.resolve('package.json')))
-
-  expect(manifest.dependencies['abc']).toBe('1.0.0')
-  expect(manifest.devDependencies['peer-a']).toBe('^1.0.0')
-  expect(manifest.devDependencies['peer-b']).toBe('^1.0.0')
-  expect(manifest.devDependencies['peer-c']).toBe('^1.0.0')
+  const lockfile = await project.readLockfile()
+  expect(Object.keys(lockfile.packages).length).toBe(5)
 })

@@ -1,12 +1,14 @@
 {
+  "name": "monorepo-root",
   "private": true,
   "scripts": {
     "bump": "changeset version && pnpm update-manifests",
     "changeset": "changeset",
     "preinstall": "npx only-allow pnpm",
-    "prepare": "pnpm --dir=verdaccio install && husky install",
+    "prepare": "husky install",
     "pretest": "pnpm run compile-only && pnpm --dir=fixtures run prepareFixtures",
-    "lint": "pnpm lint:meta && syncpack list-mismatches && eslint **/src/**/*.ts **/test/**/*.ts",
+    "lint": "pnpm lint:meta && syncpack list-mismatches && pnpm run lint:ts",
+    "lint:ts": "eslint **/src/**/*.ts **/test/**/*.ts",
     "test-main": "pnpm pretest && pnpm lint --quiet && run-p -r verdaccio test-pkgs-main",
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
     "test-pkgs-main": "pnpm remove-temp-dir && cross-env PNPM_REGISTRY_MOCK_UPLINK=http://localhost:7348 pnpm --filter=./packages/** --filter=./privatePackages/** run --no-sort --workspace-concurrency=2 _test",
@@ -22,48 +24,48 @@
     "lint:meta": "pnpm run meta-updater --test",
     "copy-artifacts": "ts-node utils/scripts/src/copy-artifacts.ts",
     "make-release-description": "pnpm --filter=@pnpm/get-release-text run write-release-text",
-    "release": "pnpm --filter=@pnpm/exe publish --tag=next-7 --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=next-7 --access=public"
+    "release": "pnpm --filter=@pnpm/exe publish --tag=next-7 --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=next-7 --access=public",
+    "dev-setup": "pnpm -C=./packages/pnpm/dev link -g"
   },
   "devDependencies": {
-    "@babel/core": "^7.16.7",
-    "@babel/plugin-proposal-dynamic-import": "^7.16.7",
-    "@babel/plugin-transform-modules-commonjs": "^7.16.8",
-    "@babel/preset-typescript": "^7.16.7",
-    "@babel/types": "^7.16.8",
-    "@changesets/cli": "^2.19.0",
-    "@commitlint/cli": "^16.0.2",
-    "@commitlint/config-conventional": "^16.0.0",
-    "@commitlint/prompt-cli": "^16.0.0",
+    "@babel/core": "^7.18.6",
+    "@babel/plugin-proposal-dynamic-import": "^7.18.6",
+    "@babel/plugin-transform-modules-commonjs": "^7.18.6",
+    "@babel/preset-typescript": "^7.18.6",
+    "@babel/types": "^7.18.7",
+    "@changesets/cli": "^2.23.0",
+    "@commitlint/cli": "^17.0.3",
+    "@commitlint/config-conventional": "^17.0.3",
+    "@commitlint/prompt-cli": "^17.0.3",
     "@pnpm/eslint-config": "workspace:*",
     "@pnpm/meta-updater": "0.0.6",
-    "@pnpm/registry-mock": "2.12.1",
+    "@pnpm/registry-mock": "2.20.0",
     "@pnpm/tsconfig": "workspace:*",
-    "@types/jest": "^27.4.0",
-    "@types/node": "^14.17.32",
-    "c8": "^7.11.0",
+    "@types/jest": "^27.5.2",
+    "@types/node": "^14.18.21",
+    "c8": "^7.11.3",
     "cross-env": "^7.0.3",
-    "eslint": "^8.6.0",
+    "eslint": "^8.19.0",
     "husky": "^7.0.4",
-    "jest": "^27.4.7",
-    "lcov-result-merger": "^3.1.0",
+    "jest": "^28.1.2",
+    "lcov-result-merger": "^3.3.0",
     "npm-run-all": "^4.1.5",
     "publish-packed": "^4.1.1",
     "rimraf": "^3.0.2",
     "shx": "^0.3.4",
-    "syncpack": "^6.2.0",
-    "ts-jest": "27.1.3",
-    "ts-node": "^10.4.0",
-    "typescript": "4.6.0-beta",
-    "verdaccio": "^5.5.2",
+    "syncpack": "^6.2.1",
+    "ts-jest": "28.0.5",
+    "ts-node": "^10.8.2",
+    "typescript": "4.7.4",
+    "verdaccio": "^5.13.1",
     "vite": "^2.8.4"
   },
   "engines": {
-    "pnpm": ">=7"
+    "pnpm": ">=7.0.1"
   },
   "packageManager": "pnpm@7.0.0-alpha.1",
   "pnpm": {
     "overrides": {
-      "@yarnpkg/core": "3.2.0-rc.9",
       "ansi-regex@<5": "^5.0.1",
       "clipanion": "3.2.0-rc.6",
       "glob-parent@3": "^5.1.2",
@@ -71,17 +73,18 @@
       "hosted-git-info@4": "npm:@zkochan/hosted-git-info@^4.0.2",
       "http-errors": "^1.7.3",
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
-      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.5",
+      "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.6",
       "lodash@<4.17.19": "^4.17.9",
       "nopt@5": "npm:@pnpm/nopt@^0.2.1",
-      "pkg-fetch": "3.1.1",
+      "pkg-fetch": "3.4.1",
       "rimraf@<3": "3",
       "table@^6.0.3": "6.0.4",
       "trim-newlines@1": "^3.0.1",
       "trim@<0.0.3": ">=0.0.3",
       "set-value@<4.0.1": "^4.0.1",
       "validator@<13.7.0": ">=13.7.0",
-      "json-schema@<0.4.0": ">=0.4.0"
+      "json-schema@<0.4.0": ">=0.4.0",
+      "jsdom@<=16.4.0": ">=16.5.0"
     },
     "packageExtensions": {
       "@babel/parser": {
@@ -91,7 +94,7 @@
       },
       "@yarnpkg/core": {
         "dependencies": {
-          "@types/lodash": "^4.14.136"
+          "@types/lodash": "4.14.181"
         }
       },
       "jest-circus": {
@@ -117,8 +120,15 @@
     "peerDependencyRules": {
       "allowedVersions": {
         "eslint": "*",
-        "@typescript-eslint/eslint-plugin": "^5.6.0"
-      }
+        "@typescript-eslint/eslint-plugin": "^5.6.0",
+        "@yarnpkg/core": "*"
+      },
+      "ignoreMissing": [
+        "@yarnpkg/plugin-patch"
+      ]
+    },
+    "patchedDependencies": {
+      "pkg@5.7.0": "patches/pkg@5.7.0.patch"
     }
   }
 }

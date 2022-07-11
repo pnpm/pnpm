@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/common-cli-options-help",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Help for some common CLI options",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=12.17"
+    "node": ">=14.6"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts",
@@ -29,6 +29,9 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/common-cli-options-help#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/common-cli-options-help": "workspace:0.8.0"
+    "@pnpm/common-cli-options-help": "workspace:*"
+  },
+  "exports": {
+    ".": "./lib/index.js"
   }
 }

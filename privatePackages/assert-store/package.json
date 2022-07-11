@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-store",
   "description": "Utils for testing pnpm store",
-  "version": "1.0.30",
+  "version": "1.0.40",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -17,7 +17,6 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "private": true,
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
@@ -41,8 +40,8 @@
     "test": "pnpm pretest && pnpm run compile && jest"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:3.0.13",
-    "@pnpm/registry-mock": "2.12.1",
+    "@pnpm/cafs": "workspace:*",
+    "@pnpm/registry-mock": "2.20.0",
     "path-exists": "^4.0.0"
   },
   "devDependencies": {

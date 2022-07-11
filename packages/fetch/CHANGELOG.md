@@ -1,5 +1,57 @@
 # @pnpm/fetch
 
+## 5.0.5
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.5
+
+## 5.0.4
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.4
+
+## 5.0.3
+
+### Patch Changes
+
+- 9d5bf09c0: Use @pnpm/network.agent instead of @pnpm/npm-registry-agent.
+  - @pnpm/core-loggers@7.0.3
+
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [d5730ba81]
+  - @pnpm/npm-registry-agent@6.1.0
+  - @pnpm/core-loggers@7.0.2
+
+## 5.0.1
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/fetching-types@3.0.0
+  - @pnpm/npm-registry-agent@6.0.0
+
+## 4.2.5
+
+### Patch Changes
+
+- @pnpm/core-loggers@6.1.4
+
 ## 4.2.4
 
 ### Patch Changes

@@ -1,5 +1,167 @@
 # @pnpm/filter-lockfile
 
+## 6.0.11
+
+### Patch Changes
+
+- dependency-path@9.2.3
+- @pnpm/lockfile-utils@4.0.10
+- @pnpm/lockfile-walker@5.0.10
+
+## 6.0.10
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/lockfile-walker@5.0.9
+
+## 6.0.9
+
+### Patch Changes
+
+- Updated dependencies [fc581d371]
+  - dependency-path@9.2.2
+  - @pnpm/lockfile-utils@4.0.8
+  - @pnpm/lockfile-walker@5.0.8
+
+## 6.0.8
+
+### Patch Changes
+
+- Updated dependencies [d01c32355]
+- Updated dependencies [8e5b77ef6]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/lockfile-types@4.2.0
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-utils@4.0.7
+  - @pnpm/lockfile-walker@5.0.7
+  - dependency-path@9.2.1
+  - @pnpm/package-is-installable@6.0.7
+
+## 6.0.7
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-types@4.1.0
+  - dependency-path@9.2.0
+  - @pnpm/lockfile-utils@4.0.6
+  - @pnpm/lockfile-walker@5.0.6
+  - @pnpm/package-is-installable@6.0.6
+
+## 6.0.6
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [725636a90]
+  - @pnpm/types@8.2.0
+  - dependency-path@9.1.4
+  - @pnpm/lockfile-types@4.0.3
+  - @pnpm/lockfile-utils@4.0.5
+  - @pnpm/lockfile-walker@5.0.5
+  - @pnpm/package-is-installable@6.0.5
+
+## 6.0.5
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - dependency-path@9.1.3
+  - @pnpm/lockfile-types@4.0.2
+  - @pnpm/lockfile-utils@4.0.4
+  - @pnpm/lockfile-walker@5.0.4
+  - @pnpm/package-is-installable@6.0.4
+
+## 6.0.4
+
+### Patch Changes
+
+- Updated dependencies [c57695550]
+  - dependency-path@9.1.2
+  - @pnpm/lockfile-utils@4.0.3
+  - @pnpm/lockfile-walker@5.0.3
+
+## 6.0.3
+
+### Patch Changes
+
+- 52b0576af: feat: support libc filed
+- Updated dependencies [52b0576af]
+  - @pnpm/package-is-installable@6.0.3
+
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - dependency-path@9.1.1
+  - @pnpm/lockfile-types@4.0.1
+  - @pnpm/lockfile-utils@4.0.2
+  - @pnpm/lockfile-walker@5.0.2
+  - @pnpm/package-is-installable@6.0.2
+
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [688b0eaff]
+- Updated dependencies [1267e4eff]
+  - dependency-path@9.1.0
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/constants@6.1.0
+  - @pnpm/lockfile-walker@5.0.1
+  - @pnpm/error@3.0.1
+  - @pnpm/package-is-installable@6.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/lockfile-types@4.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/lockfile-walker@5.0.0
+  - @pnpm/package-is-installable@6.0.0
+
+## 5.0.19
+
+### Patch Changes
+
+- 70ba51da9: Update `@pnpm/error`.
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/package-is-installable@5.0.13
+
+## 5.0.18
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+  - @pnpm/types@7.10.0
+  - @pnpm/lockfile-utils@3.2.1
+  - @pnpm/lockfile-walker@4.0.15
+  - dependency-path@8.0.11
+  - @pnpm/package-is-installable@5.0.12
+
 ## 5.0.17
 
 ### Patch Changes

@@ -1,5 +1,23 @@
 # pkgs-graph
 
+## 7.0.1
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- 42c1ea1c0: Update validate-npm-package-name to v4.
+
+## 7.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/resolve-workspace-range@3.0.0
+
 ## 6.1.3
 
 ### Patch Changes

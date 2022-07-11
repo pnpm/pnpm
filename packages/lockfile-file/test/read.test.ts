@@ -1,4 +1,5 @@
 import path from 'path'
+import { getCurrentBranch } from '@pnpm/git-utils'
 import {
   existsWantedLockfile,
   readCurrentLockfile,
@@ -7,6 +8,8 @@ import {
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'
 import tempy from 'tempy'
+
+jest.mock('@pnpm/git-utils', () => ({ getCurrentBranch: jest.fn() }))
 
 process.chdir(__dirname)
 
@@ -189,4 +192,72 @@ test('existsWantedLockfile()', async () => {
     },
   })
   expect(await existsWantedLockfile(projectPath)).toBe(true)
+})
+
+test('readWantedLockfile() when useGitBranchLockfile', async () => {
+  getCurrentBranch['mockReturnValue']('branch')
+  const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
+    ignoreIncompatible: false,
+  })
+  expect(lockfile?.importers).toEqual({
+    '.': {
+      specifiers: {
+        'is-positive': '1.0.0',
+      },
+    },
+  })
+  expect(lockfile?.packages).toStrictEqual({
+    '/is-positive/1.0.0': {
+      resolution: {
+        integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+      },
+    },
+  })
+
+  const gitBranchLockfile = await readWantedLockfile(path.join('fixtures', '6'), {
+    ignoreIncompatible: false,
+    useGitBranchLockfile: true,
+  })
+  expect(gitBranchLockfile?.importers).toEqual({
+    '.': {
+      specifiers: {
+        'is-positive': '2.0.0',
+      },
+    },
+  })
+  expect(gitBranchLockfile?.packages).toStrictEqual({
+    '/is-positive/2.0.0': {
+      resolution: {
+        integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+      },
+    },
+  })
+})
+
+test('readWantedLockfile() when useGitBranchLockfile and mergeGitBranchLockfiles', async () => {
+  getCurrentBranch['mockReturnValue']('branch')
+  const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
+    ignoreIncompatible: false,
+    useGitBranchLockfile: true,
+    mergeGitBranchLockfiles: true,
+  })
+  expect(lockfile?.importers).toEqual({
+    '.': {
+      specifiers: {
+        'is-positive': '2.0.0',
+      },
+    },
+  })
+  expect(lockfile?.packages).toStrictEqual({
+    '/is-positive/1.0.0': {
+      resolution: {
+        integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+      },
+    },
+    '/is-positive/2.0.0': {
+      resolution: {
+        integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+      },
+    },
+  })
 })
