@@ -30,7 +30,6 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/default-reporter": "workspace:*",
-    "@pnpm/file-reporter": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/find-workspace-packages": "workspace:*",

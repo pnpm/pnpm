@@ -58,7 +58,6 @@
     "find-packages",
     "npm",
     "pkgs-graph",
-    "pnpm-file-reporter",
     "publish-packed",
     "remove-all-except-outer-links",
     "@pnpm/core",
