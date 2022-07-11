@@ -40,7 +40,7 @@
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/real-hoist": "workspace:*",
-    "vitest": "^0.4.1"
+    "vitest": "^0.18.0"
   },
   "exports": {
     ".": "./lib/index.js"
