@@ -1,6 +1,5 @@
 import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
-import pathExists from 'path-exists'
 import prepare, { prepareEmpty } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
@@ -145,7 +144,6 @@ test('exit code from plugin is used to end the process', () => {
 
   expect(result.status).toBe(1)
   expect(result.stdout.toString()).toMatch(/is-positive/)
-  expect(pathExists.sync('node_modules/.pnpm-debug.log')).toBeFalsy()
 })
 
 const PNPM_CLI = path.join(__dirname, '../dist/pnpm.cjs')

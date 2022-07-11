@@ -46,9 +46,6 @@
       "path": "../default-reporter"
     },
     {
-      "path": "../file-reporter"
-    },
-    {
       "path": "../filter-workspace-packages"
     },
     {
