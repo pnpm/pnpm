@@ -24,10 +24,8 @@ export default function (streamParser: Object) {
   process.on('exit', (code: number) => {
     if (code === 0 || global['writeDebugLogFile'] === false) {
       // it might not exist, so it is OK if it fails
-      try {
-        if (fs.existsSync(LOG_FILENAME)) fs.unlinkSync(LOG_FILENAME)
-        if (fs.existsSync(path.basename(LOG_FILENAME))) fs.unlinkSync(path.basename(LOG_FILENAME))
-      } catch (err) {}
+      if (fs.existsSync(LOG_FILENAME)) fs.unlinkSync(LOG_FILENAME)
+      if (fs.existsSync(path.basename(LOG_FILENAME))) fs.unlinkSync(path.basename(LOG_FILENAME))
     }
   })
 
