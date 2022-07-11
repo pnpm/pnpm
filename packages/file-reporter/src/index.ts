@@ -4,49 +4,34 @@ import fs from 'graceful-fs'
 const LOG_FILENAME = 'node_modules/.pnpm-debug.log'
 
 export default function (streamParser: Object) {
-  const logs: Object[] = []
+  let logNum = 0
 
-  streamParser['on']('data', function (logObj: Object) {
-    if (isUsefulLog(logObj)) {
-      logs.push(logObj)
-    }
-  })
-
-  process.on('exit', (code: number) => {
-    if (code === 0 || global['writeDebugLogFile'] === false) {
-      // it might not exist, so it is OK if it fails
-      try {
-        fs.unlinkSync(LOG_FILENAME)
-      } catch (err) {}
-      return
-    }
-
-    const prettyLogs = getPrettyLogs()
-    const jsonLogs = JSON.stringify(prettyLogs, null, 2)
-    // Don't create a node_modules directory if it does not exist
-    const dest = fs.existsSync(path.dirname(LOG_FILENAME))
-      ? LOG_FILENAME
-      : path.basename(LOG_FILENAME)
-    fs.writeFileSync(dest, jsonLogs, 'utf-8')
-  })
-
-  function getPrettyLogs () {
-    const prettyLogs = {}
-    logs.forEach((logObj, i) => {
-      // eslint-disable-next-line
-      const key = `${i} ${logObj['level']} ${logObj['name']}`
-      const msgobj = getMessageObj(logObj)
-      prettyLogs[key] = prettify(msgobj)
-    })
-    return prettyLogs
+  // Clean up previous log files
+  if (global['writeDebugLogFile'] !== false) {
+    if (fs.existsSync(LOG_FILENAME)) fs.unlinkSync(LOG_FILENAME)
+    if (fs.existsSync(path.basename(LOG_FILENAME))) fs.unlinkSync(path.basename(LOG_FILENAME))
   }
 
+  streamParser['on']('data', function (logObj: Object) {
+    if (isUsefulLog(logObj) && global['writeDebugLogFile'] !== false) {
+      const msgobj = getMessageObj(logObj)
+      const prettyLogs = prettify(msgobj)
+      const jsonLogs = JSON.stringify(prettyLogs, null, 2) + '\n'
+      const dest = fs.existsSync(path.dirname(LOG_FILENAME)) ? LOG_FILENAME : path.basename(LOG_FILENAME)
+      fs.appendFileSync(dest, jsonLogs)
+      logNum++
+    }
+  })
+
   function getMessageObj (logobj: Object): Object {
-    const msgobj = {}
+    const msgobj: { [key: string]: string } = {}
     for (const key in logobj) {
       if (['time', 'hostname', 'pid', 'level', 'name'].includes(key)) continue
       msgobj[key] = logobj[key]
     }
+    const logLevel: string = logobj['level']
+    const logName: string = logobj['name']
+    msgobj.key = `${logNum} ${logLevel} ${logName}`
     return msgobj
   }
 
