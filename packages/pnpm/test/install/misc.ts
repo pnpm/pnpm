@@ -36,16 +36,6 @@ test('bin files are found by lifecycle scripts', () => {
   expect(result.stdout.toString()).toContain('Hello world!')
 })
 
-skipOnWindows('create a "node_modules/.pnpm-debug.log" file when the command fails', async () => {
-  prepare()
-
-  const result = execPnpmSync(['add', '@zkochan/i-do-not-exist'])
-
-  expect(result.status).toBe(1)
-
-  expect(await exists('.pnpm-debug.log')).toBeTruthy()
-})
-
 skipOnWindows('install --lockfile-only', async () => {
   const project = prepare()
 

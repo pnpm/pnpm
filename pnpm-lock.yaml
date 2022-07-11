@@ -27,11 +27,6 @@ overrides:
 
 packageExtensionsChecksum: 1373aa954ee01713eb42037cfa3725eb
 
-patchedDependencies:
-  pkg@5.7.0:
-    hash: pp6fkuhwkrqq7cjcj7uqpf37e4
-    path: patches/pkg@5.7.0.patch
-
 importers:
 
   .:
@@ -806,7 +801,7 @@ importers:
     devDependencies:
       '@pnpm/exe': 'link:'
       execa: /safe-execa/0.1.1
-      pkg: github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2_pp6fkuhwkrqq7cjcj7uqpf37e4
+      pkg: github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2
 
   packages/exportable-manifest:
     specifiers:
@@ -869,23 +864,6 @@ importers:
       node-fetch: 3.0.0-beta.9
     devDependencies:
       '@pnpm/fetching-types': 'link:'
-
-  packages/file-reporter:
-    specifiers:
-      '@pnpm/file-reporter': workspace:*
-      '@types/graceful-fs': ^4.1.5
-      exists-file: ^3.0.2
-      graceful-fs: ^4.2.10
-      ndjson: ^2.0.0
-      path-exists: ^4.0.0
-    dependencies:
-      graceful-fs: 4.2.10
-      path-exists: 4.0.0
-    devDependencies:
-      '@pnpm/file-reporter': 'link:'
-      '@types/graceful-fs': 4.1.5
-      exists-file: 3.0.2
-      ndjson: 2.0.0
 
   packages/filter-lockfile:
     specifiers:
@@ -2974,7 +2952,6 @@ importers:
       '@pnpm/constants': workspace:*
       '@pnpm/core-loggers': workspace:*
       '@pnpm/default-reporter': workspace:*
-      '@pnpm/file-reporter': workspace:*
       '@pnpm/filter-workspace-packages': workspace:*
       '@pnpm/find-workspace-dir': workspace:*
       '@pnpm/find-workspace-packages': workspace:*
@@ -3064,7 +3041,6 @@ importers:
       '@pnpm/constants': link:../constants
       '@pnpm/core-loggers': link:../core-loggers
       '@pnpm/default-reporter': link:../default-reporter
-      '@pnpm/file-reporter': link:../file-reporter
       '@pnpm/filter-workspace-packages': link:../filter-workspace-packages
       '@pnpm/find-workspace-dir': link:../find-workspace-dir
       '@pnpm/find-workspace-packages': link:../find-workspace-packages
@@ -4058,7 +4034,7 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
     dependencies:
-      '@babel/types': 7.17.10
+      '@babel/types': 7.18.7
     dev: true
 
   /@babel/parser/7.18.6:
@@ -7049,14 +7025,6 @@ packages:
   /caseless/0.12.0:
     resolution: {integrity: sha512-4tYFyifaFfGacoiObjJegolkwSU4xQNGbVgUiNYVUxbQ2x2lUsFvY4hVgVzGiIe6WLOPqycWXA40l+PWsxthUw==}
 
-  /cb2promise/1.1.1:
-    resolution: {integrity: sha512-ShCxBARPFJlSO+Y4pxSpbXh6y+tW54Dmy4jKf0gB1C7qUslRqWqFi80+W9416zSoj6RsqMsnKUcpkt3bOrZmDg==}
-    engines: {node: '>= 4'}
-    dependencies:
-      mimic-fn: 2.0.0
-      sliced: 1.0.1
-    dev: true
-
   /ccount/1.1.0:
     resolution: {integrity: sha512-vlNK021QdI7PNeiUh/lKkC/mNHHfV0m/Ad5JoI0TYtlBnJAslM/JIkm/tGC88bkLIwO6OQ5uV6ztS6kVAtCDlg==}
     dev: false
@@ -8570,13 +8538,6 @@ packages:
       onetime: 5.1.2
       signal-exit: 3.0.7
       strip-final-newline: 2.0.0
-
-  /exists-file/3.0.2:
-    resolution: {integrity: sha512-0mO5ZIWiJl35mTCkyyh/cU1ucn+17fOn7/P+QzNCby+/OLKOKKH9fR5kh+riKlNutxYTbZG+OHyYqFfQfpweGw==}
-    engines: {node: '>= 4'}
-    dependencies:
-      cb2promise: 1.1.1
-    dev: true
 
   /exists-link/2.0.0:
     resolution: {integrity: sha512-YbykYxM4Xl9aCcANggu2MqOAMa7dh+5fq1HNpoqp42R2qiRWHXRhsgYSX6XQS/b2tQlg/LeZ7Jpnekl5B3M7/w==}
@@ -11075,11 +11036,6 @@ packages:
     engines: {node: '>=4'}
     dev: true
 
-  /mimic-fn/2.0.0:
-    resolution: {integrity: sha512-jbex9Yd/3lmICXwYT6gA/j2mNQGU48wCh/VzRd+/Y/PjYQtlg1gLMdZqvu9s/xH7qKvngxRObl56XZR609IMbA==}
-    engines: {node: '>=6'}
-    dev: true
-
   /mimic-fn/2.1.0:
     resolution: {integrity: sha512-OqbOk5oEQeAZ8WXWydlu9HJjz9WVdEIvamMCcXmuqUYjTknH/sqsWvhQ3vgwKFRR1HpjvNBKQ37nbJgYzGqGcg==}
     engines: {node: '>=6'}
@@ -13031,10 +12987,6 @@ packages:
       astral-regex: 2.0.0
       is-fullwidth-code-point: 3.0.0
 
-  /sliced/1.0.1:
-    resolution: {integrity: sha512-VZBmZP8WU3sMOZm1bdgTadsQbcscK0UM8oKxKVBs4XAhUo2Xxzm/OFMGBkPusxw9xL3Uy8LrzEqGqJhclsr0yA==}
-    dev: true
-
   /slide/1.1.6:
     resolution: {integrity: sha512-NwrtjCg+lZoqhFU8fOwl4ay2ei8PaqCBOUV3/ektPY9trO1yQ1oXEfmHAhKArUVUr/hOHvy5f6AdP17dCM0zMw==}
 
@@ -14621,9 +14573,8 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
-  github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2_pp6fkuhwkrqq7cjcj7uqpf37e4:
+  github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2:
     resolution: {tarball: https://codeload.github.com/vercel/pkg/tar.gz/7e4fef9f0828b11c7a9655b95425f32094f2daa2}
-    id: github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2
     name: pkg
     version: 5.7.0
     hasBin: true
@@ -14653,4 +14604,8 @@ packages:
       - encoding
       - supports-color
     dev: true
-    patched: true
+
+patchedDependencies:
+  pkg@5.7.0:
+    hash: pp6fkuhwkrqq7cjcj7uqpf37e4
+    path: patches/pkg@5.7.0.patch
