@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 15.5.2
+
+### Patch Changes
+
+- Updated dependencies [744d47d90]
+  - @pnpm/pnpmfile@2.0.7
+
 ## 15.5.1
 
 ### Patch Changes

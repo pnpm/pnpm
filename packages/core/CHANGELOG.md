@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 5.5.9
+
+### Patch Changes
+
+- @pnpm/lockfile-to-pnp@0.5.18
+- @pnpm/headless@18.3.7
+
 ## 5.5.8
 
 ### Patch Changes

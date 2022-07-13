@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "18.3.6",
+  "version": "18.3.7",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

@@ -1,5 +1,11 @@
 # @pnpm/pnpmfile
 
+## 2.0.7
+
+### Patch Changes
+
+- 744d47d90: Don't print any info messages about .pnpmfile.cjs [#5027](https://github.com/pnpm/pnpm/issues/5027).
+
 ## 2.0.6
 
 ### Patch Changes

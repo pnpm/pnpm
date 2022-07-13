@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 9.1.8
+
+### Patch Changes
+
+- c71215041: Do not print a package with unchanged version in the installation summary.
+  - @pnpm/config@15.5.2
+
 ## 9.1.7
 
 ### Patch Changes
