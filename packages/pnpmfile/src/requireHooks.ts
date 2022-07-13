@@ -1,6 +1,5 @@
 import path from 'path'
 import { hookLogger } from '@pnpm/core-loggers'
-import logger from '@pnpm/logger'
 import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
 import type { Log } from '@pnpm/core-loggers'
@@ -48,12 +47,6 @@ export default function requireHooks (
   globalHooks = globalHooks || {}
   hooks = hooks || {}
   const cookedHooks: CookedHooks = {}
-  if ((globalHooks.readPackage != null) || (hooks.readPackage != null)) {
-    logger.info({
-      message: 'readPackage hook is declared. Manifests of dependencies might get overridden',
-      prefix,
-    })
-  }
   for (const hookName of ['readPackage', 'afterAllResolved']) {
     if (globalHooks[hookName] && hooks[hookName]) {
       const globalHookContext = createReadPackageHookContext(globalPnpmfile.filename, prefix, hookName)
