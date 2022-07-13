@@ -1,5 +1,13 @@
 # pnpm
 
+## 6.33.1
+
+### Patch Changes
+
+- Don't print any info messages about .pnpmfile.cjs [#5027](https://github.com/pnpm/pnpm/issues/5027).
+- Do not print a package with unchanged version in the installation summary [#5032](https://github.com/pnpm/pnpm/pull/5032).
+- Remove file reporter logging. Logged file is not useful [#4949](https://github.com/pnpm/pnpm/issues/4949).
+
 ## 6.33.0
 
 ### Minor Changes

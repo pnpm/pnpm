@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 13.14.3
+
+### Patch Changes
+
+- Updated dependencies [ffbee1cf0]
+  - @pnpm/pnpmfile@1.2.8
+
 ## 13.14.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 8.6.4
+
+### Patch Changes
+
+- b92e46a3b: Do not print a package with unchanged version in the installation summary.
+  - @pnpm/config@13.14.3
+
 ## 8.6.3
 
 ### Patch Changes
