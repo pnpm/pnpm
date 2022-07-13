@@ -27,10 +27,6 @@ class PnpmFileFailError extends PnpmError {
 export default (pnpmFilePath: string, prefix: string) => {
   try {
     const pnpmfile = require(pnpmFilePath) // eslint-disable-line
-    logger.info({
-      message: `Using hooks from: ${pnpmFilePath}`,
-      prefix,
-    })
     if (typeof pnpmfile === 'undefined') {
       logger.warn({
         message: `Ignoring the pnpmfile at "${pnpmFilePath}". It exports "undefined".`,
