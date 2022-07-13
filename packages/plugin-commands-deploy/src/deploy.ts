@@ -45,7 +45,7 @@ export async function handler (
     throw new PnpmError('INVALID_DEPLOY_TARGET', 'This command requires one parameter')
   }
   const deployedDir = selectedDirs[0]
-  const deployDir = path.join(opts.workspaceDir, params[0])
+  const deployDir = path.resolve(params[0])
   await rimraf(deployDir)
   await fs.promises.mkdir(deployDir, { recursive: true })
   await copyProject(deployedDir, deployDir)
