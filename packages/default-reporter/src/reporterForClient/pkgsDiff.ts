@@ -56,25 +56,32 @@ export default function (
     scan((pkgsDiff, args) => {
       const rootLog = args[0]
       const deprecationSet = args[1] as Set<string>
+      let action: '-' | '+' | undefined
+      let log!: any // eslint-disable-line
       if (rootLog['added']) {
-        pkgsDiff[rootLog['added'].dependencyType || 'nodeModulesOnly'][`+${rootLog['added'].name as string}`] = {
-          added: true,
-          deprecated: deprecationSet.has(rootLog['added'].id),
-          from: rootLog['added'].linkedFrom,
-          latest: rootLog['added'].latest,
-          name: rootLog['added'].name,
-          realName: rootLog['added'].realName,
-          version: rootLog['added'].version,
-        }
+        action = '+'
+        log = rootLog['added']
+      } else if (rootLog['removed']) {
+        action = '-'
+        log = rootLog['removed']
+      } else {
         return pkgsDiff
       }
-      if (rootLog['removed']) {
-        pkgsDiff[rootLog['removed'].dependencyType || 'nodeModulesOnly'][`-${rootLog['removed'].name as string}`] = {
-          added: false,
-          name: rootLog['removed'].name,
-          version: rootLog['removed'].version,
-        }
+      const depType = log.dependencyType || 'nodeModulesOnly'
+      const oppositeKey = `${action === '-' ? '+' : '-'}${log.name as string}`
+      const previous = pkgsDiff[depType][oppositeKey]
+      if (previous && previous.version === log.version) {
+        delete pkgsDiff[depType][oppositeKey]
         return pkgsDiff
+      }
+      pkgsDiff[depType][`${action}${log.name as string}`] = {
+        added: action === '+',
+        deprecated: deprecationSet.has(log.id),
+        from: log.linkedFrom,
+        latest: log.latest,
+        name: log.name,
+        realName: log.realName,
+        version: log.version,
       }
       return pkgsDiff
     }, {
