@@ -34,7 +34,7 @@ const h1 = chalk.cyanBright
 
 const EOL = '\n'
 
-test('prints summary (of current package only)', (done) => {
+test.only('prints summary (of current package only)', (done) => {
   const prefix = '/home/jane/project'
   const output$ = toOutput$({
     context: {
@@ -97,6 +97,24 @@ test('prints summary (of current package only)', (done) => {
       name: 'foo',
       version: '0.1.0',
     },
+  })
+  rootLogger.debug({
+    prefix,
+    removed: {
+      dependencyType: 'prod',
+      name: 'no-changes',
+      version: '1.0.0',
+    },
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/no-changes/2.0.0',
+      name: 'no-changes',
+      realName: 'no-changes',
+      version: '1.0.0',
+    },
+    prefix,
   })
   rootLogger.debug({
     added: {
