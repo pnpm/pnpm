@@ -51,7 +51,7 @@
     "@pnpm/logger": "^4.0.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.0",
-    "@types/node": "^14.18.21",
+    "@types/node": "^14.18.22",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.14",
     "cmd-extension": "^1.0.2",
