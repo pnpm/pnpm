@@ -21,6 +21,7 @@ export function rcOptionsTypes () {
       'reporter',
       'scripts-prepend-node-path',
       'unsafe-perm',
+      'store-dir',
     ], allTypes),
   }
 }
@@ -54,6 +55,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           {
             description: 'Rebuild packages that were not build during installation. Packages are not build when installing with the --ignore-scripts flag',
             name: '--pending',
+          },
+          {
+            description: 'The directory in which all the packages are saved on the disk',
+            name: '--store-dir <dir>',
           },
           ...UNIVERSAL_OPTIONS,
         ],
