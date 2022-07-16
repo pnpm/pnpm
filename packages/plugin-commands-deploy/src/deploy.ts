@@ -61,7 +61,6 @@ export async function handler (
     },
     frozenLockfile: false,
     preferFrozenLockfile: false,
-    dev: false,
     virtualStoreDir: path.join(deployDir, 'node_modules/.pnpm'),
     modulesDir: path.relative(deployedDir, path.join(deployDir, 'node_modules')),
   })
