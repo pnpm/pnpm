@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
-import { Config } from '@pnpm/config'
+import { Config, types } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
@@ -10,16 +10,22 @@ import packageBins from '@pnpm/package-bins'
 import storePath from '@pnpm/store-path'
 import execa from 'execa'
 import omit from 'ramda/src/omit.js'
+import pick from 'ramda/src/pick.js'
 import renderHelp from 'render-help'
 import { makeEnv } from './makeEnv'
 
 export const commandNames = ['dlx']
 
 export function rcOptionsTypes () {
-  return {}
+  return {
+    ...pick([
+      'use-node-version',
+    ], types),
+  }
 }
 
 export const cliOptionsTypes = () => ({
+  ...rcOptionsTypes(),
   package: [String, Array],
 })
 

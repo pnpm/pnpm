@@ -29,6 +29,7 @@ export function rcOptionsTypes () {
     ...pick([
       'bail',
       'sort',
+      'use-node-version',
       'unsafe-perm',
       'workspace-concurrency',
     ], types),

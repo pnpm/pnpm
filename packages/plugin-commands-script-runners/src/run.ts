@@ -50,6 +50,7 @@ export function rcOptionsTypes () {
   return {
     ...pick([
       'npm-path',
+      'use-node-version',
     ], allTypes),
   }
 }
@@ -60,6 +61,7 @@ export function cliOptionsTypes () {
       'bail',
       'sort',
       'unsafe-perm',
+      'use-node-version',
       'workspace-concurrency',
       'scripts-prepend-node-path',
     ], allTypes),
