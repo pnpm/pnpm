@@ -2556,6 +2556,7 @@ importers:
     specifiers:
       '@pnpm/cli-utils': workspace:*
       '@pnpm/client': workspace:*
+      '@pnpm/common-cli-options-help': workspace:*
       '@pnpm/config': workspace:*
       '@pnpm/error': workspace:*
       '@pnpm/exportable-manifest': workspace:*
@@ -2603,6 +2604,7 @@ importers:
     dependencies:
       '@pnpm/cli-utils': link:../cli-utils
       '@pnpm/client': link:../client
+      '@pnpm/common-cli-options-help': link:../common-cli-options-help
       '@pnpm/config': link:../config
       '@pnpm/error': link:../error
       '@pnpm/exportable-manifest': link:../exportable-manifest
@@ -11462,6 +11464,7 @@ packages:
 
   /npmlog/4.1.2:
     resolution: {integrity: sha512-2uUqazuKlTaSI/dC8AzicUck7+IrEaOnN/e0jd3Xtt1KcGpwx30v50mL7oPyr/h9bL3E4aZccVwpwP+5W9Vjkg==}
+    requiresBuild: true
     dependencies:
       are-we-there-yet: 1.1.7
       console-control-strings: 1.1.0

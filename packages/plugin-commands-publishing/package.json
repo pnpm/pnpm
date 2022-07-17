@@ -60,6 +60,7 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/client": "workspace:*",
+    "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exportable-manifest": "workspace:*",

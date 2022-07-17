@@ -148,6 +148,17 @@ function getHelpText () {
           },
         ],
       },
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: 'Run the command for each project in the workspace.',
+            name: '--recursive',
+            shortAlias: '-r',
+          },
+        ],
+      },
     ],
     usages: ['pnpm [command] [flags]', 'pnpm [ -h | --help | -v | --version ]'],
   })

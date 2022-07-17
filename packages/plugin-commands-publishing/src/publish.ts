@@ -1,6 +1,7 @@
 import { promises as fs, existsSync } from 'fs'
 import path from 'path'
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
+import { FILTERING } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks, { RunLifecycleHookOptions } from '@pnpm/lifecycle'
@@ -88,8 +89,14 @@ export function help () {
             description: 'When publishing packages that require two-factor authentication, this option can specify a one-time password',
             name: '--otp',
           },
+          {
+            description: 'Publish all packages from the workspace',
+            name: '--recursive',
+            shortAlias: '-r',
+          },
         ],
       },
+      FILTERING,
     ],
     url: docsUrl('publish'),
     usages: ['pnpm publish [<tarball>|<dir>] [--tag <tag>] [--access <public|restricted>] [options]'],

@@ -19,6 +19,9 @@
       "path": "../client"
     },
     {
+      "path": "../common-cli-options-help"
+    },
+    {
       "path": "../config"
     },
     {
