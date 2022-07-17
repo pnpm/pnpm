@@ -36,7 +36,7 @@
     "@types/ramda": "0.28.14",
     "@types/zkochan__table": "npm:@types/table@6.0.0",
     "load-json-file": "^6.2.0",
-    "nock": "12.0.3",
+    "nock": "13.2.8",
     "strip-ansi": "^6.0.1",
     "tempy": "^1.0.1"
   },

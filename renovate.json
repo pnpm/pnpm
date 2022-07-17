@@ -96,10 +96,6 @@
       "allowedVersions": "^3.4.0"
     },
     {
-      "packageNames": ["nock"],
-      "allowedVersions": "12.0.3"
-    },
-    {
       "packageNames": ["p-queue"],
       "allowedVersions": "^6.6.2"
     },
