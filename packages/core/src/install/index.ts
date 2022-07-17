@@ -31,7 +31,7 @@ import {
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
-import logger, { globalWarn, streamParser } from '@pnpm/logger'
+import logger, { globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDirs from '@pnpm/read-modules-dir'
@@ -199,7 +199,7 @@ export async function mutateModules (
   const result = await _install()
 
   if (global['verifiedFileIntegrity'] > 1000) {
-    globalWarn(`The integrity of ${global['verifiedFileIntegrity']} files was checked. This might have caused installation to take longer.`) // eslint-disable-line
+    globalInfo(`The integrity of ${global['verifiedFileIntegrity']} files was checked. This might have caused installation to take longer.`) // eslint-disable-line
   }
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
