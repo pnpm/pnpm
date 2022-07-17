@@ -48,6 +48,8 @@ test('deploy', async () => {
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
+    dev: false,
+    production: true,
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),

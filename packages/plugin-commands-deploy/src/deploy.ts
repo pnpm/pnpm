@@ -8,6 +8,8 @@ import PnpmError from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 
+export const shorthands = install.shorthands
+
 export function rcOptionsTypes () {
   return install.rcOptionsTypes()
 }
@@ -21,9 +23,29 @@ export const commandNames = ['deploy']
 export function help () {
   return renderHelp({
     description: 'Experimental! Deploy a package from a workspace',
-    descriptionLists: [],
     url: docsUrl('deploy'),
     usages: ['pnpm --filter=<deployed project name> deploy <target directory>'],
+    descriptionLists: [
+      {
+        title: 'Options',
+        list: [
+          {
+            description: "Packages in `devDependencies` won't be installed",
+            name: '--prod',
+            shortAlias: '-P',
+          },
+          {
+            description: 'Only `devDependencies` are installed regardless of the `NODE_ENV`',
+            name: '--dev',
+            shortAlias: '-D',
+          },
+          {
+            description: '`optionalDependencies` are not installed',
+            name: '--no-optional',
+          },
+        ],
+      },
+    ],
   })
 }
 
@@ -61,7 +83,6 @@ export async function handler (
     },
     frozenLockfile: false,
     preferFrozenLockfile: false,
-    dev: false,
     virtualStoreDir: path.join(deployDir, 'node_modules/.pnpm'),
     modulesDir: path.relative(deployedDir, path.join(deployDir, 'node_modules')),
   })
