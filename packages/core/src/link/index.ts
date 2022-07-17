@@ -118,6 +118,7 @@ export default async function link (
   const linkToBin = maybeOpts?.linkToBin ?? path.join(destModules, '.bin')
   await linkBinsOfPackages(linkedPkgs.map((p) => ({ manifest: p.manifest, location: p.path })), linkToBin, {
     extraNodePaths: ctx.extraNodePaths,
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
   })
 
   let newPkg!: ProjectManifest

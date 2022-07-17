@@ -83,6 +83,7 @@ export const types = Object.assign({
   pnpmfile: String,
   'prefer-frozen-lockfile': Boolean,
   'prefer-offline': Boolean,
+  'prefer-symlinked-executables': Boolean,
   'prefer-workspace-packages': Boolean,
   production: [null, true],
   'public-hoist-pattern': Array,
@@ -458,7 +459,16 @@ export default async (
   if (!pnpmConfig.noProxy) {
     pnpmConfig.noProxy = pnpmConfig['noproxy'] ?? getProcessEnv('no_proxy')
   }
-  pnpmConfig.enablePnp = pnpmConfig.nodeLinker === 'pnp'
+  switch (pnpmConfig.nodeLinker) {
+  case 'pnp':
+    pnpmConfig.enablePnp = pnpmConfig.nodeLinker === 'pnp'
+    break
+  case 'hoisted':
+    if (pnpmConfig.preferSymlinkedExecutables == null) {
+      pnpmConfig.preferSymlinkedExecutables = true
+    }
+    break
+  }
   if (!pnpmConfig.userConfig) {
     pnpmConfig.userConfig = npmConfig.sources.user?.data
   }

@@ -17,6 +17,7 @@ const hoistLogger = logger('hoist')
 export default async function hoistByLockfile (
   opts: {
     extraNodePath?: string[]
+    preferSymlinkedExecutables?: boolean
     lockfile: Lockfile
     importerIds?: string[]
     privateHoistPattern: string[]
@@ -65,7 +66,10 @@ export default async function hoistByLockfile (
   // the bins of the project's direct dependencies.
   // This is possible because the publicly hoisted modules
   // are in the same directory as the regular dependencies.
-  await linkAllBins(opts.privateHoistedModulesDir, { extraNodePaths: opts.extraNodePath })
+  await linkAllBins(opts.privateHoistedModulesDir, {
+    extraNodePaths: opts.extraNodePath,
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+  })
 
   return hoistedDependencies
 }
@@ -85,7 +89,12 @@ function createGetAliasHoistType (
   }
 }
 
-async function linkAllBins (modulesDir: string, opts: { extraNodePaths?: string[] }) {
+interface LinkAllBinsOptions {
+  extraNodePaths?: string[]
+  preferSymlinkedExecutables?: boolean
+}
+
+async function linkAllBins (modulesDir: string, opts: LinkAllBinsOptions) {
   const bin = path.join(modulesDir, '.bin')
   const warn: WarnFunction = (message, code) => {
     if (code === 'BINARIES_CONFLICT') return
@@ -95,6 +104,7 @@ async function linkAllBins (modulesDir: string, opts: { extraNodePaths?: string[
     await linkBins(modulesDir, bin, {
       allowExoticManifests: true,
       extraNodePaths: opts.extraNodePaths,
+      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       warn,
     })
   } catch (err: any) { // eslint-disable-line

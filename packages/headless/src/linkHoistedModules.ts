@@ -29,6 +29,7 @@ export default async function linkHoistedModules (
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
+    preferSymlinkedExecutables?: boolean
     sideEffectsCacheRead: boolean
   }
 ): Promise<void> {
@@ -85,6 +86,7 @@ async function linkAllPkgsInOrder (
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
+    preferSymlinkedExecutables?: boolean
     sideEffectsCacheRead: boolean
     warn: (message: string) => void
   }
@@ -130,6 +132,7 @@ async function linkAllPkgsInOrder (
   const binsDir = path.join(modulesDir, '.bin')
   await linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     warn: opts.warn,
   })
 }

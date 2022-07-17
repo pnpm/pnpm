@@ -78,6 +78,7 @@ export interface Config {
   useNodeVersion?: string
   useStderr?: boolean
   nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+  preferSymlinkedExecutables?: boolean
 
   // proxy
   httpProxy?: string

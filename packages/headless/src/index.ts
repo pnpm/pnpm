@@ -100,6 +100,7 @@ export interface HeadlessOptions {
   engineStrict: boolean
   extraBinPaths?: string[]
   extraNodePaths?: string[]
+  preferSymlinkedExecutables?: boolean
   hoistingLimits?: HoistingLimits
   ignoreScripts: boolean
   ignorePackageManifest?: boolean
@@ -304,6 +305,7 @@ export default async (opts: HeadlessOptions) => {
       force: opts.force,
       ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
+      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
     })
     stageLogger.debug({
@@ -355,6 +357,7 @@ export default async (opts: HeadlessOptions) => {
         extraNodePath: opts.extraNodePaths,
         lockfile: hoistLockfile,
         importerIds,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
         privateHoistedModulesDir: hoistedModulesDir,
         privateHoistPattern: opts.hoistPattern ?? [],
         publicHoistedModulesDir,
@@ -368,6 +371,7 @@ export default async (opts: HeadlessOptions) => {
     await linkAllBins(graph, {
       extraNodePaths: opts.extraNodePaths,
       optional: opts.include.optionalDependencies,
+      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       warn,
     })
 
@@ -433,6 +437,7 @@ export default async (opts: HeadlessOptions) => {
       ignoreScripts: opts.ignoreScripts,
       lockfileDir,
       optional: opts.include.optionalDependencies,
+      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       rawConfig: opts.rawConfig,
       rootModulesDir: virtualStoreDir,
       scriptsPrependNodePath: opts.scriptsPrependNodePath,
@@ -455,7 +460,10 @@ export default async (opts: HeadlessOptions) => {
     if (!opts.ignorePackageManifest) {
       await Promise.all(opts.projects.map(async (project) => {
         if (opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
-          await linkBinsOfImporter(project, { extraNodePaths: opts.extraNodePaths })
+          await linkBinsOfImporter(project, {
+            extraNodePaths: opts.extraNodePaths,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+          })
         } else {
           const directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
           await linkBinsOfPackages(
@@ -471,6 +479,7 @@ export default async (opts: HeadlessOptions) => {
             project.binsDir,
             {
               extraNodePaths: opts.extraNodePaths,
+              preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
             }
           )
         }
@@ -568,12 +577,13 @@ async function linkBinsOfImporter (
     modulesDir: string
     rootDir: string
   },
-  { extraNodePaths }: { extraNodePaths?: string[] } = {}
+  { extraNodePaths, preferSymlinkedExecutables }: { extraNodePaths?: string[], preferSymlinkedExecutables?: boolean } = {}
 ) {
   const warn = (message: string) => logger.info({ message, prefix: rootDir })
   return linkBins(modulesDir, binsDir, {
     extraNodePaths,
     allowExoticManifests: true,
+    preferSymlinkedExecutables,
     projectManifest: manifest,
     warn,
   })
@@ -725,6 +735,7 @@ async function linkAllBins (
   opts: {
     extraNodePaths?: string[]
     optional: boolean
+    preferSymlinkedExecutables?: boolean
     warn: (message: string) => void
   }
 ) {
@@ -745,7 +756,11 @@ async function linkAllBins (
         const pkgSnapshots = props<string, DependenciesGraphNode>(Object.values(childrenToLink), depGraph)
 
         if (pkgSnapshots.includes(undefined as any)) { // eslint-disable-line
-          await linkBins(depNode.modules, binPath, { extraNodePaths: opts.extraNodePaths, warn: opts.warn })
+          await linkBins(depNode.modules, binPath, {
+            extraNodePaths: opts.extraNodePaths,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            warn: opts.warn,
+          })
         } else {
           const pkgs = await Promise.all(
             pkgSnapshots
@@ -756,13 +771,20 @@ async function linkAllBins (
               }))
           )
 
-          await linkBinsOfPackages(pkgs, binPath, { extraNodePaths: opts.extraNodePaths })
+          await linkBinsOfPackages(pkgs, binPath, {
+            extraNodePaths: opts.extraNodePaths,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+          })
         }
 
         // link also the bundled dependencies` bins
         if (depNode.hasBundledDependencies) {
           const bundledModules = path.join(depNode.dir, 'node_modules')
-          await linkBins(bundledModules, binPath, { extraNodePaths: opts.extraNodePaths, warn: opts.warn })
+          await linkBins(bundledModules, binPath, {
+            extraNodePaths: opts.extraNodePaths,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            warn: opts.warn,
+          })
         }
       }))
   )

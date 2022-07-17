@@ -23,6 +23,7 @@ interface StrictLinkOptions {
   reporter: ReporterFunction
   targetDependenciesField?: DependenciesField
   dir: string
+  preferSymlinkedExecutables: boolean
 
   hoistPattern: string[] | undefined
   forceHoistPattern: boolean

@@ -27,6 +27,7 @@ export default async (
     ignoreScripts?: boolean
     lockfileDir: string
     optional: boolean
+    preferSymlinkedExecutables?: boolean
     rawConfig: object
     unsafePerm: boolean
     userAgent: string
@@ -70,6 +71,7 @@ async function buildDependency (
     ignoreScripts?: boolean
     lockfileDir: string
     optional: boolean
+    preferSymlinkedExecutables?: boolean
     rawConfig: object
     rootModulesDir: string
     scriptsPrependNodePath?: boolean | 'warn-only'
@@ -168,6 +170,7 @@ export async function linkBinsOfDependencies (
   opts: {
     extraNodePaths?: string[]
     optional: boolean
+    preferSymlinkedExecutables?: boolean
     warn: (message: string) => void
   }
 ) {
@@ -204,11 +207,18 @@ export async function linkBinsOfDependencies (
     }))
   )
 
-  await linkBinsOfPackages(pkgs, binPath, { extraNodePaths: opts.extraNodePaths })
+  await linkBinsOfPackages(pkgs, binPath, {
+    extraNodePaths: opts.extraNodePaths,
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+  })
 
   // link also the bundled dependencies` bins
   if (depNode.hasBundledDependencies) {
     const bundledModules = path.join(depNode.dir, 'node_modules')
-    await linkBins(bundledModules, binPath, { extraNodePaths: opts.extraNodePaths, warn: opts.warn })
+    await linkBins(bundledModules, binPath, {
+      extraNodePaths: opts.extraNodePaths,
+      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+      warn: opts.warn,
+    })
   }
 }

@@ -937,6 +937,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           ignoreScripts: opts.ignoreScripts,
           lockfileDir: ctx.lockfileDir,
           optional: opts.include.optionalDependencies,
+          preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           rawConfig: opts.rawConfig,
           rootModulesDir: ctx.virtualStoreDir,
           scriptsPrependNodePath: opts.scriptsPrependNodePath,
@@ -972,6 +973,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           }, {})
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
+          preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           projectManifest: project.manifest,
           nodeExecPathByAlias,
           extraNodePaths: ctx.extraNodePaths,
@@ -1009,6 +1011,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           project.binsDir,
           {
             extraNodePaths: ctx.extraNodePaths,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           }
         )
       }
@@ -1170,6 +1173,7 @@ async function linkAllBins (
   depGraph: DependenciesGraph,
   opts: {
     extraNodePaths?: string[]
+    preferSymlinkedExecutables?: boolean
     optional: boolean
     warn: (message: string) => void
   }

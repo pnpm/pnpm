@@ -90,6 +90,7 @@ export interface StrictInstallOptions {
   modulesCacheMaxAge: number
   peerDependencyRules: PeerDependencyRules
   allowedDeprecatedVersions: AllowedDeprecatedVersions
+  preferSymlinkedExecutables: boolean
 
   publicHoistPattern: string[] | undefined
   hoistPattern: string[] | undefined
