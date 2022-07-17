@@ -897,3 +897,18 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
     expect(config.mergeGitBranchLockfiles).toBe(true)
   }
 })
+
+test('preferSymlinkedExecutables should be true when nodeLinker is hoisted', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {
+      'node-linker': 'hoisted',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.preferSymlinkedExecutables).toBeTruthy()
+})
