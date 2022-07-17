@@ -162,7 +162,7 @@ importers:
       '@pnpm/lockfile-utils': workspace:*
       '@pnpm/lockfile-walker': workspace:*
       '@pnpm/types': workspace:*
-      nock: 12.0.3
+      nock: 13.2.8
     dependencies:
       '@pnpm/error': link:../error
       '@pnpm/fetch': link:../fetch
@@ -174,7 +174,7 @@ importers:
       '@pnpm/audit': 'link:'
       '@pnpm/constants': link:../constants
       '@pnpm/lockfile-file': link:../lockfile-file
-      nock: 12.0.3
+      nock: 13.2.8
 
   packages/build-modules:
     specifiers:
@@ -472,7 +472,7 @@ importers:
       is-inner-link: ^4.0.0
       is-windows: ^1.0.2
       load-json-file: ^6.2.0
-      nock: 12.0.3
+      nock: 13.2.8
       normalize-path: ^3.0.0
       p-every: ^2.0.0
       p-filter: ^2.1.0
@@ -567,7 +567,7 @@ importers:
       exists-link: 2.0.0
       is-ci: 3.0.1
       is-windows: 1.0.2
-      nock: 12.0.3
+      nock: 13.2.8
       path-name: 1.0.0
       read-yaml-file: 2.1.0
       resolve-link-target: 2.0.0
@@ -833,7 +833,7 @@ importers:
       '@pnpm/logger': ^4.0.0
       '@pnpm/network.agent': 0.0.3
       '@zkochan/retry': ^0.2.0
-      nock: 12.0.3
+      nock: 13.2.8
       node-fetch: 3.0.0-beta.9
     dependencies:
       '@pnpm/core-loggers': link:../core-loggers
@@ -844,7 +844,7 @@ importers:
     devDependencies:
       '@pnpm/fetch': 'link:'
       '@pnpm/logger': 4.0.0
-      nock: 12.0.3
+      nock: 13.2.8
 
   packages/fetcher-base:
     specifiers:
@@ -1800,7 +1800,7 @@ importers:
       encode-registry: ^3.0.0
       load-json-file: ^6.2.0
       lru-cache: ^6.0.0
-      nock: 12.0.3
+      nock: 13.2.8
       normalize-path: ^3.0.0
       p-limit: ^3.1.0
       p-memoize: 4.0.1
@@ -1842,7 +1842,7 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/semver': 7.3.10
       '@types/ssri': 7.1.1
-      nock: 12.0.3
+      nock: 13.2.8
       path-exists: 4.0.0
       tempy: 1.0.1
 
@@ -1952,7 +1952,7 @@ importers:
       delay: ^5.0.0
       dependency-path: workspace:*
       load-json-file: ^6.2.0
-      nock: 12.0.3
+      nock: 13.2.8
       normalize-path: ^3.0.0
       p-defer: ^3.0.0
       p-limit: ^3.1.0
@@ -2000,7 +2000,7 @@ importers:
       '@types/semver': 7.3.10
       '@types/ssri': 7.1.1
       delay: 5.0.0
-      nock: 12.0.3
+      nock: 13.2.8
       normalize-path: 3.0.0
       tempy: 1.0.1
 
@@ -2129,7 +2129,7 @@ importers:
       '@zkochan/table': ^1.0.0
       chalk: ^4.1.2
       load-json-file: ^6.2.0
-      nock: 12.0.3
+      nock: 13.2.8
       ramda: ^0.28.0
       render-help: ^1.0.2
       strip-ansi: ^6.0.1
@@ -2153,7 +2153,7 @@ importers:
       '@types/ramda': 0.28.14
       '@types/zkochan__table': /@types/table/6.0.0
       load-json-file: 6.2.0
-      nock: 12.0.3
+      nock: 13.2.8
       strip-ansi: 6.0.1
       tempy: 1.0.1
 
@@ -2206,7 +2206,7 @@ importers:
       adm-zip: ^0.5.9
       execa: npm:safe-execa@^0.1.1
       load-json-file: ^6.2.0
-      nock: 12.0.3
+      nock: 13.2.8
       node-fetch: 3.0.0-beta.9
       path-name: ^1.0.0
       render-help: ^1.0.2
@@ -2229,7 +2229,7 @@ importers:
       '@types/adm-zip': 0.4.34
       adm-zip: 0.5.9
       execa: /safe-execa/0.1.1
-      nock: 12.0.3
+      nock: 13.2.8
       node-fetch: 3.0.0-beta.9
       path-name: 1.0.0
 
@@ -3596,7 +3596,7 @@ importers:
       '@types/retry': ^0.12.2
       '@types/ssri': ^7.1.1
       '@zkochan/retry': ^0.2.0
-      nock: 12.0.3
+      nock: 13.2.8
       ramda: ^0.28.0
       ssri: ^8.0.1
       tempy: ^1.0.1
@@ -3619,7 +3619,7 @@ importers:
       '@types/ramda': 0.28.14
       '@types/retry': 0.12.2
       '@types/ssri': 7.1.1
-      nock: 12.0.3
+      nock: 13.2.8
       tempy: 1.0.1
 
   packages/tarball-resolver:
@@ -11277,8 +11277,8 @@ packages:
       walk-filtered: 0.9.3
     dev: true
 
-  /nock/12.0.3:
-    resolution: {integrity: sha512-QNb/j8kbFnKCiyqi9C5DD0jH/FubFGj5rt9NQFONXwQm3IPB0CULECg/eS3AU1KgZb/6SwUa4/DTRKhVxkGABw==}
+  /nock/13.2.8:
+    resolution: {integrity: sha512-JT42FrXfQRpfyL4cnbBEJdf4nmBpVP0yoCcSBr+xkT8Q1y3pgtaCKHGAAOIFcEJ3O3t0QbVAmid0S0f2bj3Wpg==}
     engines: {node: '>= 10.13'}
     dependencies:
       debug: 4.3.4

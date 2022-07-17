@@ -42,7 +42,7 @@
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
     "@pnpm/logger": "^4.0.0",
-    "nock": "12.0.3"
+    "nock": "13.2.8"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
