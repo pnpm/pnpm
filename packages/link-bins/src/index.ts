@@ -205,9 +205,6 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     await symlinkDir(cmd.path, externalBinPath)
     return
   }
-  console.log(opts)
-  console.log(IS_WINDOWS)
-  console.log(cmd)
 
   try {
     await cmdShim(cmd.path, externalBinPath, {
