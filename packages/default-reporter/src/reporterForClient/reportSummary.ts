@@ -42,18 +42,24 @@ export default (
   const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
 
   const summaryLog$ = log$.summary.pipe(take(1))
+  const packageManifest$ = log$.packageManifest.pipe(take(1))
 
-  return Rx.combineLatest(
+  return Rx.combineLatest([
     pkgsDiff$,
-    summaryLog$
-  )
+    packageManifest$,
+    summaryLog$,
+  ])
     .pipe(
       take(1),
-      map(([pkgsDiff]) => {
+      map(([pkgsDiff, packageManifest]) => {
         let msg = ''
         for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly']) {
           const diffs: PackageDiff[] = Object.values(pkgsDiff[depType])
           if (diffs.length > 0) {
+            if ('initial' in packageManifest && packageManifest.initial.name) {
+              msg += EOL
+              msg += packageManifest.initial.name as string
+            }
             msg += EOL
             if (opts.pnpmConfig?.global) {
               msg += chalk.cyanBright(`${opts.cwd}:`)
