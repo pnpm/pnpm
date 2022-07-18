@@ -116,10 +116,6 @@ export function help () {
             shortAlias: '-E',
           },
           {
-            description: 'Save URL of resolved tarball to lockfile.',
-            name: '--save-tarball-url',
-          },
-          {
             description: 'Save packages from the workspace with a "workspace:" protocol. True by default',
             name: '--[no-]save-workspace-protocol',
           },
