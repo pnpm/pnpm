@@ -157,6 +157,7 @@ importers:
       '@pnpm/constants': workspace:*
       '@pnpm/error': workspace:*
       '@pnpm/fetch': workspace:*
+      '@pnpm/fetching-types': workspace:*
       '@pnpm/lockfile-file': workspace:*
       '@pnpm/lockfile-types': workspace:*
       '@pnpm/lockfile-utils': workspace:*
@@ -166,6 +167,7 @@ importers:
     dependencies:
       '@pnpm/error': link:../error
       '@pnpm/fetch': link:../fetch
+      '@pnpm/fetching-types': link:../fetching-types
       '@pnpm/lockfile-types': link:../lockfile-types
       '@pnpm/lockfile-utils': link:../lockfile-utils
       '@pnpm/lockfile-walker': link:../lockfile-walker
@@ -2128,7 +2130,9 @@ importers:
       '@types/zkochan__table': npm:@types/table@6.0.0
       '@zkochan/table': ^1.0.0
       chalk: ^4.1.2
+      credentials-by-uri: ^2.1.0
       load-json-file: ^6.2.0
+      mem: ^8.1.1
       nock: 13.2.8
       ramda: ^0.28.0
       render-help: ^1.0.2
@@ -2145,6 +2149,8 @@ importers:
       '@pnpm/types': link:../types
       '@zkochan/table': 1.0.0
       chalk: 4.1.2
+      credentials-by-uri: 2.1.0
+      mem: 8.1.1
       ramda: 0.28.0
       render-help: 1.0.2
     devDependencies:
