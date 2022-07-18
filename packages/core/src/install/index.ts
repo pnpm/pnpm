@@ -810,6 +810,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages,
       patchedDependencies: opts.patchedDependencies,
+      saveTarballUrl: opts.saveTarballUrl,
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {

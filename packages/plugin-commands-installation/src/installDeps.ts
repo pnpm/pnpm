@@ -62,6 +62,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'savePrefix'
 | 'saveProd'
 | 'saveWorkspaceProtocol'
+| 'saveTarballUrl'
 | 'scriptsPrependNodePath'
 | 'scriptShell'
 | 'selectedProjectsGraph'

@@ -23,7 +23,8 @@ export default function (
   depGraph: DependenciesGraph,
   lockfile: Lockfile,
   prefix: string,
-  registries: Registries
+  registries: Registries,
+  saveTarballUrl?: boolean
 ): {
     newLockfile: Lockfile
     pendingRequiresBuilds: string[]
@@ -44,6 +45,7 @@ export default function (
       registry: dp.getRegistryByPackageName(registries, depNode.name),
       updatedDeps,
       updatedOptionalDeps,
+      saveTarballUrl,
     })
   }
   const warn = (message: string) => logger.warn({ message, prefix })
@@ -64,13 +66,15 @@ function toLockfileDependency (
     updatedOptionalDeps: Array<{alias: string, depPath: string}>
     depGraph: DependenciesGraph
     prevSnapshot?: PackageSnapshot
+    saveTarballUrl?: boolean
   }
 ): PackageSnapshot {
   const lockfileResolution = toLockfileResolution(
     { id: pkg.id, name: pkg.name, version: pkg.version },
     opts.depPath,
     pkg.resolution,
-    opts.registry
+    opts.registry,
+    opts.saveTarballUrl
   )
   const newResolvedDeps = updateResolvedDeps(
     opts.prevSnapshot?.dependencies ?? {},
@@ -227,13 +231,21 @@ function toLockfileResolution (
   },
   depPath: string,
   resolution: Resolution,
-  registry: string
+  registry: string,
+  saveTarballUrl?: boolean
 ): LockfileResolution {
   /* eslint-disable @typescript-eslint/dot-notation */
   if (dp.isAbsolute(depPath) || resolution.type !== undefined || !resolution['integrity']) {
     return resolution as LockfileResolution
   }
   const base = registry !== resolution['registry'] ? { registry: resolution['registry'] } : {}
+  if (saveTarballUrl) {
+    return {
+      ...base,
+      integrity: resolution['integrity'],
+      tarball: resolution['tarball'],
+    }
+  }
   // Sometimes packages are hosted under non-standard tarball URLs.
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
   // Or in other weird cases, like https://github.com/pnpm/pnpm/issues/1072
