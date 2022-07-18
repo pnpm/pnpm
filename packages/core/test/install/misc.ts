@@ -562,6 +562,20 @@ test('bin specified in the directories property linked to .bin folder', async ()
   await project.isExecutable('.bin/pkg-with-directories-bin')
 })
 
+test('bin specified in the directories property symlinked to .bin folder when prefer-symlinked-executables is true on POSIX', async () => {
+  const project = prepareEmpty()
+
+  const opts = await testDefaults({ fastUnpack: false, preferSymlinkedExecutables: true })
+  await addDependenciesToPackage({}, ['pkg-with-directories-bin'], opts)
+
+  await project.isExecutable('.bin/pkg-with-directories-bin')
+
+  if (!isWindows()) {
+    const link = await fs.readlink('node_modules/.bin/pkg-with-directories-bin')
+    expect(link).toBeTruthy()
+  }
+})
+
 testOnNonWindows('building native addons', async () => {
   const project = prepareEmpty()
 

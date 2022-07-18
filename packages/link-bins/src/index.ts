@@ -18,6 +18,7 @@ import fromPairs from 'ramda/src/fromPairs.js'
 import isEmpty from 'ramda/src/isEmpty.js'
 import unnest from 'ramda/src/unnest.js'
 import partition from 'ramda/src/partition.js'
+import symlinkDir from 'symlink-dir'
 import fixBin from 'bin-links/lib/fix-bin'
 
 const binsConflictLogger = logger('bins-conflict')
@@ -32,9 +33,8 @@ export type WarnFunction = (msg: string, code: WarningCode) => void
 export default async (
   modulesDir: string,
   binsDir: string,
-  opts: {
+  opts: LinkBinOptions & {
     allowExoticManifests?: boolean
-    extraNodePaths?: string[]
     nodeExecPathByAlias?: Record<string, string>
     projectManifest?: ProjectManifest
     warn: WarnFunction
@@ -88,7 +88,7 @@ export async function linkBinsOfPackages (
     location: string
   }>,
   binsTarget: string,
-  opts: { extraNodePaths?: string[] } = {}
+  opts: LinkBinOptions = {}
 ): Promise<string[]> {
   if (pkgs.length === 0) return []
 
@@ -113,7 +113,7 @@ type CommandInfo = Command & {
 async function linkBins (
   allCmds: CommandInfo[],
   binsDir: string,
-  opts: { extraNodePaths?: string[] }
+  opts: LinkBinOptions
 ): Promise<string[]> {
   if (allCmds.length === 0) return [] as string[]
 
@@ -193,8 +193,18 @@ async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir:
   }))
 }
 
-async function linkBin (cmd: CommandInfo, binsDir: string, opts?: { extraNodePaths?: string[] }) {
+export interface LinkBinOptions {
+  extraNodePaths?: string[]
+  preferSymlinkedExecutables?: boolean
+}
+
+async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions) {
   const externalBinPath = path.join(binsDir, cmd.name)
+
+  if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null) {
+    await symlinkDir(cmd.path, externalBinPath)
+    return
+  }
 
   try {
     await cmdShim(cmd.path, externalBinPath, {

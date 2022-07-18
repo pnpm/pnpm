@@ -1321,6 +1321,7 @@ importers:
       p-settle: ^4.1.1
       path-exists: ^4.0.0
       ramda: ^0.28.0
+      symlink-dir: ^5.0.1
       tempy: ^1.0.1
     dependencies:
       '@pnpm/error': link:../error
@@ -1337,6 +1338,7 @@ importers:
       normalize-path: 3.0.0
       p-settle: 4.1.1
       ramda: 0.28.0
+      symlink-dir: 5.0.1
     devDependencies:
       '@pnpm/link-bins': 'link:'
       '@pnpm/logger': 4.0.0
