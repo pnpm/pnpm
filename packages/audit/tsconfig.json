@@ -19,6 +19,9 @@
       "path": "../fetch"
     },
     {
+      "path": "../fetching-types"
+    },
+    {
       "path": "../lockfile-file"
     },
     {

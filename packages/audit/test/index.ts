@@ -73,7 +73,10 @@ describe('audit', () => {
 
   test('an error is thrown if the audit endpoint responds with a non-OK code', async () => {
     const registry = 'http://registry.registry/'
-    nock(registry)
+    const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
+    nock(registry, {
+      badheaders: ['authorization'],
+    })
       .post('/-/npm/v1/security/audits')
       .reply(500, { message: 'Something bad happened' })
 
@@ -82,7 +85,9 @@ describe('audit', () => {
       await audit({
         importers: {},
         lockfileVersion: 5,
-      }, {
+      },
+      getCredentials,
+      {
         registry,
         retry: {
           retries: 0,
@@ -95,5 +100,28 @@ describe('audit', () => {
     expect(err).toBeDefined()
     expect(err.code).toEqual('ERR_PNPM_AUDIT_BAD_RESPONSE')
     expect(err.message).toEqual('The audit endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}')
+  })
+
+  test('authorization header is sent if alwaysAuth is true', async () => {
+    const registry = 'http://registry.registry/'
+    const getCredentials = () => ({ authHeaderValue: 'Bearer 123', alwaysAuth: true })
+
+    nock(registry, {
+      reqheaders: { authorization: 'Bearer 123' },
+    })
+      .post('/-/npm/v1/security/audits')
+      .reply(200, {})
+
+    await audit({
+      importers: {},
+      lockfileVersion: 5,
+    },
+    getCredentials,
+    {
+      registry,
+      retry: {
+        retries: 0,
+      },
+    })
   })
 })

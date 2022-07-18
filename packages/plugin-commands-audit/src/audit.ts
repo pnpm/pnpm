@@ -10,6 +10,7 @@ import chalk from 'chalk'
 import pick from 'ramda/src/pick.js'
 import renderHelp from 'render-help'
 import fix from './fix'
+import getCredentialsByURI from 'credentials-by-uri'
 
 // eslint-disable
 const AUDIT_LEVEL_NUMBER = {
@@ -123,6 +124,9 @@ export async function handler (
   | 'production'
   | 'dev'
   | 'optional'
+  | 'alwaysAuth'
+  | 'userConfig'
+  | 'rawConfig'
   >
 ) {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })
@@ -135,8 +139,9 @@ export async function handler (
     optionalDependencies: opts.optional !== false,
   }
   let auditReport!: AuditReport
+  const getCredentials = (registry: string) => getCredentialsByURI(opts.rawConfig, registry, opts.userConfig)
   try {
-    auditReport = await audit(lockfile, {
+    auditReport = await audit(lockfile, getCredentials, {
       agentOptions: {
         ca: opts.ca,
         cert: opts.cert,

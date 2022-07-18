@@ -1,5 +1,6 @@
 import PnpmError from '@pnpm/error'
 import { AgentOptions, fetchWithAgent, RetryTimeoutOptions } from '@pnpm/fetch'
+import { GetCredentials } from '@pnpm/fetching-types'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
 import lockfileToAuditTree from './lockfileToAuditTree'
@@ -9,6 +10,7 @@ export * from './types'
 
 export default async function audit (
   lockfile: Lockfile,
+  getCredentials: GetCredentials,
   opts: {
     agentOptions?: AgentOptions
     include?: { [dependenciesField in DependenciesField]: boolean }
@@ -20,10 +22,15 @@ export default async function audit (
   const auditTree = lockfileToAuditTree(lockfile, { include: opts.include })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/audits`
+  const credentials = getCredentials(registry)
+
   const res = await fetchWithAgent(auditUrl, {
     agentOptions: opts.agentOptions ?? {},
     body: JSON.stringify(auditTree),
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(credentials),
+    },
     method: 'post',
     retry: opts.retry,
     timeout: opts.timeout,
@@ -32,4 +39,17 @@ export default async function audit (
     throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
   }
   return res.json() as Promise<AuditReport>
+}
+
+function getAuthHeaders (
+  credentials: {
+    authHeaderValue: string | undefined
+    alwaysAuth: boolean | undefined
+  }
+) {
+  const headers: { authorization?: string } = {}
+  if (credentials.alwaysAuth && credentials.authHeaderValue) {
+    headers['authorization'] = credentials.authHeaderValue // eslint-disable-line
+  }
+  return headers
 }
