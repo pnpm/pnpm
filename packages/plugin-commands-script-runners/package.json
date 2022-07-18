@@ -59,7 +59,7 @@
     "@pnpm/store-path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
-    "execa": "npm:safe-execa@^0.1.1",
+    "execa": "npm:safe-execa@^0.1.2",
     "p-limit": "^3.1.0",
     "path-exists": "^4.0.0",
     "path-name": "^1.0.0",

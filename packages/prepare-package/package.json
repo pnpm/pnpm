@@ -31,7 +31,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
-    "execa": "npm:safe-execa@^0.1.1",
+    "execa": "npm:safe-execa@^0.1.2",
     "preferred-pm": "^3.0.3"
   },
   "funding": "https://opencollective.com/pnpm",

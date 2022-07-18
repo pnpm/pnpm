@@ -466,7 +466,7 @@ importers:
       '@zkochan/rimraf': ^2.1.2
       deep-require-cwd: 1.0.0
       dependency-path: workspace:*
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       exists-link: 2.0.0
       is-ci: ^3.0.1
       is-inner-link: ^4.0.0
@@ -563,7 +563,7 @@ importers:
       '@types/sinon': 10.0.12
       '@yarnpkg/core': 3.2.0
       deep-require-cwd: 1.0.0
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
       exists-link: 2.0.0
       is-ci: 3.0.1
       is-windows: 1.0.2
@@ -795,7 +795,7 @@ importers:
       '@pnpm/macos-arm64': workspace:*
       '@pnpm/macos-x64': workspace:*
       '@pnpm/win-x64': workspace:*
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       pkg: github:vercel/pkg#5.7.0
     optionalDependencies:
       '@pnpm/linux-arm64': link:../artifacts/linux-arm64
@@ -805,7 +805,7 @@ importers:
       '@pnpm/win-x64': link:../artifacts/win-x64
     devDependencies:
       '@pnpm/exe': 'link:'
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
       pkg: github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2_pp6fkuhwkrqq7cjcj7uqpf37e4
 
   packages/exportable-manifest:
@@ -918,7 +918,7 @@ importers:
       '@types/micromatch': ^4.0.2
       '@types/ramda': 0.28.14
       '@types/touch': ^3.1.2
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       find-up: ^5.0.0
       is-ci: ^3.0.1
       is-subdir: ^1.2.0
@@ -932,7 +932,7 @@ importers:
       '@pnpm/error': link:../error
       '@pnpm/find-workspace-packages': link:../find-workspace-packages
       '@pnpm/matcher': link:../matcher
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
       find-up: 5.0.0
       is-subdir: 1.2.0
       micromatch: 4.0.5
@@ -1064,14 +1064,14 @@ importers:
       '@pnpm/prepare-package': workspace:*
       '@pnpm/types': workspace:*
       '@zkochan/rimraf': ^2.1.2
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       p-defer: ^3.0.0
       tempy: ^1.0.1
     dependencies:
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/prepare-package': link:../prepare-package
       '@zkochan/rimraf': 2.1.2
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
     devDependencies:
       '@pnpm/cafs': link:../cafs
       '@pnpm/create-cafs-store': link:../create-cafs-store
@@ -1108,10 +1108,10 @@ importers:
   packages/git-utils:
     specifiers:
       '@pnpm/git-utils': workspace:*
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       tempy: ^1.0.1
     dependencies:
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
     devDependencies:
       '@pnpm/git-utils': 'link:'
       tempy: 1.0.1
@@ -1911,7 +1911,7 @@ importers:
       '@pnpm/types': workspace:*
       '@types/semver': ^7.3.10
       detect-libc: ^2.0.1
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       mem: ^8.1.1
       semver: ^7.3.7
     dependencies:
@@ -1919,7 +1919,7 @@ importers:
       '@pnpm/error': link:../error
       '@pnpm/types': link:../types
       detect-libc: 2.0.1
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
       mem: 8.1.1
       semver: 7.3.7
     devDependencies:
@@ -2204,7 +2204,7 @@ importers:
       '@types/adm-zip': ^0.4.34
       '@zkochan/cmd-shim': ^5.3.0
       adm-zip: ^0.5.9
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       load-json-file: ^6.2.0
       nock: 13.2.8
       node-fetch: 3.0.0-beta.9
@@ -2228,7 +2228,7 @@ importers:
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@types/adm-zip': 0.4.34
       adm-zip: 0.5.9
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
       nock: 13.2.8
       node-fetch: 3.0.0-beta.9
       path-name: 1.0.0
@@ -2417,7 +2417,7 @@ importers:
       '@pnpm/registry-mock': 2.20.0
       '@pnpm/types': workspace:*
       '@types/ramda': 0.28.14
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       ramda: ^0.28.0
       render-help: ^1.0.2
       strip-ansi: ^6.0.1
@@ -2440,7 +2440,7 @@ importers:
       '@pnpm/prepare': link:../../privatePackages/prepare
       '@pnpm/registry-mock': 2.20.0
       '@types/ramda': 0.28.14
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
       strip-ansi: 6.0.1
       write-yaml-file: 4.2.0
 
@@ -2585,7 +2585,7 @@ importers:
       '@zkochan/rimraf': ^2.1.2
       cross-spawn: ^7.0.3
       enquirer: ^2.3.6
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       fast-glob: ^3.2.11
       is-ci: ^3.0.1
       is-windows: ^1.0.2
@@ -2618,7 +2618,7 @@ importers:
       '@pnpm/types': link:../types
       '@zkochan/rimraf': 2.1.2
       enquirer: 2.3.6
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
       fast-glob: 3.2.11
       npm-packlist: 3.0.0
       p-filter: 2.1.0
@@ -2683,7 +2683,7 @@ importers:
       '@types/sinon': ^10.0.12
       camelcase-keys: ^6.2.2
       dependency-path: workspace:*
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       load-json-file: ^6.2.0
       mem: ^8.1.1
       p-limit: ^3.1.0
@@ -2735,7 +2735,7 @@ importers:
       '@types/ramda': 0.28.14
       '@types/semver': 7.3.10
       '@types/sinon': 10.0.12
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
       path-exists: 4.0.0
       sinon: 14.0.0
       write-yaml-file: 4.2.0
@@ -2763,7 +2763,7 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/ramda': 0.28.14
       '@zkochan/rimraf': ^2.1.2
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       is-windows: ^1.0.2
       p-limit: ^3.1.0
       path-exists: ^4.0.0
@@ -2787,7 +2787,7 @@ importers:
       '@pnpm/store-path': link:../store-path
       '@pnpm/types': link:../types
       '@zkochan/rimraf': 2.1.2
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
       p-limit: 3.1.0
       path-exists: 4.0.0
       path-name: 1.0.0
@@ -2901,7 +2901,7 @@ importers:
       archy: ^1.0.0
       dependency-path: workspace:*
       dint: ^5.1.0
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       load-json-file: ^6.2.0
       p-filter: ^2.1.0
       path-exists: ^4.0.0
@@ -2941,7 +2941,7 @@ importers:
       '@types/ramda': 0.28.14
       '@types/ssri': 7.1.1
       '@zkochan/rimraf': 2.1.2
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
       path-exists: 4.0.0
       ssri: 8.0.1
       tempy: 1.0.1
@@ -3006,7 +3006,7 @@ importers:
       delay: ^5.0.0
       dir-is-case-sensitive: ^2.0.0
       esbuild: ^0.14.49
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       exists-link: 2.0.0
       is-ci: ^3.0.1
       is-windows: ^1.0.2
@@ -3095,7 +3095,7 @@ importers:
       delay: 5.0.0
       dir-is-case-sensitive: 2.0.0
       esbuild: 0.14.49
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
       exists-link: 2.0.0
       is-ci: 3.0.1
       is-windows: 1.0.2
@@ -3150,13 +3150,13 @@ importers:
       '@pnpm/prepare-package': workspace:*
       '@pnpm/read-package-json': workspace:*
       '@zkochan/rimraf': ^2.1.2
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       preferred-pm: ^3.0.3
     dependencies:
       '@pnpm/error': link:../error
       '@pnpm/read-package-json': link:../read-package-json
       '@zkochan/rimraf': 2.1.2
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
       preferred-pm: 3.0.3
     devDependencies:
       '@pnpm/prepare-package': 'link:'
@@ -3809,10 +3809,10 @@ importers:
   utils/scripts:
     specifiers:
       '@pnpm/scripts': workspace:*
-      execa: npm:safe-execa@^0.1.1
+      execa: npm:safe-execa@^0.1.2
       make-empty-dir: ^2.0.0
     dependencies:
-      execa: /safe-execa/0.1.1
+      execa: /safe-execa/0.1.2
       make-empty-dir: 2.0.0
     devDependencies:
       '@pnpm/scripts': 'link:'
@@ -4041,7 +4041,7 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
     dependencies:
-      '@babel/types': 7.17.10
+      '@babel/types': 7.18.8
     dev: true
 
   /@babel/parser/7.18.8:
@@ -12794,6 +12794,14 @@ packages:
 
   /safe-execa/0.1.1:
     resolution: {integrity: sha512-2KPID7iC4AMoJVozDPtcLGV+7LdpE0sR1hPkJUCaEnRsiYSZH2wgOFvxZ9UOtj1r8hNk8pVWn1tgmaEyyFZ4NA==}
+    engines: {node: '>=12'}
+    dependencies:
+      '@zkochan/which': 2.0.3
+      execa: 5.1.1
+      path-name: 1.0.0
+
+  /safe-execa/0.1.2:
+    resolution: {integrity: sha512-vdTshSQ2JsRCgT8eKZWNJIL26C6bVqy1SOmuCMlKHegVeo8KYRobRrefOdUq9OozSPUUiSxrylteeRmLOMFfWg==}
     engines: {node: '>=12'}
     dependencies:
       '@zkochan/which': 2.0.3

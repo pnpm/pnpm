@@ -33,7 +33,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/git-utils#readme",
   "dependencies": {
-    "execa": "npm:safe-execa@^0.1.1"
+    "execa": "npm:safe-execa@^0.1.2"
   },
   "devDependencies": {
     "@pnpm/git-utils": "workspace:*",

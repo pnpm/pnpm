@@ -74,7 +74,7 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "enquirer": "^2.3.6",
-    "execa": "npm:safe-execa@^0.1.1",
+    "execa": "npm:safe-execa@^0.1.2",
     "fast-glob": "^3.2.11",
     "npm-packlist": "^3.0.0",
     "p-filter": "^2.1.0",

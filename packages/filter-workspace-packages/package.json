@@ -32,7 +32,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/find-workspace-packages": "workspace:*",
     "@pnpm/matcher": "workspace:*",
-    "execa": "npm:safe-execa@^0.1.1",
+    "execa": "npm:safe-execa@^0.1.2",
     "find-up": "^5.0.0",
     "is-subdir": "^1.2.0",
     "micromatch": "^4.0.5",

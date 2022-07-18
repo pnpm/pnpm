@@ -89,7 +89,7 @@
     "@types/sinon": "^10.0.12",
     "@yarnpkg/core": "3.2.0",
     "deep-require-cwd": "1.0.0",
-    "execa": "npm:safe-execa@^0.1.1",
+    "execa": "npm:safe-execa@^0.1.2",
     "exists-link": "2.0.0",
     "is-ci": "^3.0.1",
     "is-windows": "^1.0.2",
