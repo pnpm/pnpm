@@ -35,7 +35,7 @@ export interface Config {
   saveOptional?: boolean
   savePeer?: boolean
   saveWorkspaceProtocol?: boolean | 'rolling'
-  saveTarballUrl?: boolean
+  lockfileIncludeTarballUrl?: boolean
   scriptShell?: string
   stream?: boolean
   pnpmExecPath: string

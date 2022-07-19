@@ -268,7 +268,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'savePrefix'
 | 'saveProd'
 | 'saveWorkspaceProtocol'
-| 'saveTarballUrl'
+| 'lockfileIncludeTarballUrl'
 | 'selectedProjectsGraph'
 | 'sideEffectsCache'
 | 'sideEffectsCacheReadonly'

@@ -24,7 +24,7 @@ export default function (
   lockfile: Lockfile,
   prefix: string,
   registries: Registries,
-  saveTarballUrl?: boolean
+  lockfileIncludeTarballUrl?: boolean
 ): {
     newLockfile: Lockfile
     pendingRequiresBuilds: string[]
@@ -45,7 +45,7 @@ export default function (
       registry: dp.getRegistryByPackageName(registries, depNode.name),
       updatedDeps,
       updatedOptionalDeps,
-      saveTarballUrl,
+      lockfileIncludeTarballUrl,
     })
   }
   const warn = (message: string) => logger.warn({ message, prefix })
@@ -66,7 +66,7 @@ function toLockfileDependency (
     updatedOptionalDeps: Array<{alias: string, depPath: string}>
     depGraph: DependenciesGraph
     prevSnapshot?: PackageSnapshot
-    saveTarballUrl?: boolean
+    lockfileIncludeTarballUrl?: boolean
   }
 ): PackageSnapshot {
   const lockfileResolution = toLockfileResolution(
@@ -74,7 +74,7 @@ function toLockfileDependency (
     opts.depPath,
     pkg.resolution,
     opts.registry,
-    opts.saveTarballUrl
+    opts.lockfileIncludeTarballUrl
   )
   const newResolvedDeps = updateResolvedDeps(
     opts.prevSnapshot?.dependencies ?? {},
@@ -232,14 +232,14 @@ function toLockfileResolution (
   depPath: string,
   resolution: Resolution,
   registry: string,
-  saveTarballUrl?: boolean
+  lockfileIncludeTarballUrl?: boolean
 ): LockfileResolution {
   /* eslint-disable @typescript-eslint/dot-notation */
   if (dp.isAbsolute(depPath) || resolution.type !== undefined || !resolution['integrity']) {
     return resolution as LockfileResolution
   }
   const base = registry !== resolution['registry'] ? { registry: resolution['registry'] } : {}
-  if (saveTarballUrl) {
+  if (lockfileIncludeTarballUrl) {
     return {
       ...base,
       integrity: resolution['integrity'],

@@ -69,6 +69,7 @@ export const types = Object.assign({
   lockfile: Boolean,
   'lockfile-dir': String,
   'lockfile-directory': String, // TODO: deprecate
+  'lockfile-include-tarball-url': Boolean,
   'lockfile-only': Boolean,
   loglevel: ['silent', 'error', 'warn', 'info', 'debug'],
   maxsockets: Number,
@@ -93,7 +94,6 @@ export const types = Object.assign({
   'aggregate-output': Boolean,
   'save-peer': Boolean,
   'save-workspace-protocol': Boolean,
-  'save-tarball-url': Boolean,
   'script-shell': String,
   'shamefully-flatten': Boolean,
   'shamefully-hoist': Boolean,
@@ -198,6 +198,7 @@ export default async (
     'hoist-pattern': ['*'],
     'ignore-workspace-root-check': false,
     'link-workspace-packages': true,
+    'lockfile-include-tarball-url': false,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'node-linker': 'isolated',
     'package-lock': npmDefaults['package-lock'],
@@ -211,7 +212,6 @@ export default async (
     registry: npmDefaults.registry,
     'save-peer': false,
     'save-workspace-protocol': true,
-    'save-tarball-url': false,
     'scripts-prepend-node-path': false,
     'side-effects-cache': true,
     symlink: true,

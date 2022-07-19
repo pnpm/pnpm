@@ -5,6 +5,7 @@ import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import loadJsonFile from 'load-json-file'
 import tempy from 'tempy'
+import { TarballResolution } from '@pnpm/lockfile-types'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const tmp = tempy.directory()
@@ -328,4 +329,18 @@ test('pnpm add automatically installs missing peer dependencies', async () => {
 
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages).length).toBe(5)
+})
+
+test('pnpm add - tarball URL is saved to lockfile when lockfile-include-tarball-url=true', async () => {
+  const project = prepare()
+  await add.handler({
+    ...DEFAULT_OPTIONS,
+    lockfileIncludeTarballUrl: true,
+    dir: process.cwd(),
+    linkWorkspacePackages: false,
+  }, ['abc@1.0.0'])
+
+  const lockfile = await project.readLockfile()
+  expect(Object.keys(lockfile.packages['/abc/1.0.0'].resolution)).toContain('tarball')
+  expect((lockfile.packages['/abc/1.0.0'].resolution as TarballResolution).tarball).toBe(`${REGISTRY_URL}/abc/-/abc-1.0.0.tgz`)
 })
