@@ -60,8 +60,8 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
       throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
     }
     const fetch = createFetchFromRegistry(opts)
-    const { releaseDir, versionSpecifier } = parseNodeEditionSpecifier(params[1])
-    const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseDir)
+    const { releaseChannel, versionSpecifier } = parseNodeEditionSpecifier(params[1])
+    const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
     const nodeVersion = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
     if (!nodeVersion) {
       throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${params[1]}`)

@@ -46,8 +46,8 @@ export async function getNodeBinDir (opts: NvmNodeCommandOptions) {
       default: wantedNodeVersion,
     })
   }
-  const { versionSpecifier, releaseDir } = parseNodeEditionSpecifier(wantedNodeVersion)
-  const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseDir)
+  const { versionSpecifier, releaseChannel } = parseNodeEditionSpecifier(wantedNodeVersion)
+  const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
   const nodeDir = await getNodeDir(fetch, {
     ...opts,
     useNodeVersion: versionSpecifier,

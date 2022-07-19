@@ -1,19 +1,19 @@
 export interface NodeEditionSpecifier {
-  releaseDir: string
+  releaseChannel: string
   versionSpecifier: string
 }
 
 export function parseNodeEditionSpecifier (specifier: string): NodeEditionSpecifier {
   if (specifier.includes('/')) {
-    const [releaseDir, versionSpecifier] = specifier.split('/')
-    return { releaseDir, versionSpecifier }
+    const [releaseChannel, versionSpecifier] = specifier.split('/')
+    return { releaseChannel, versionSpecifier }
   }
   const prereleaseMatch = specifier.match(/-(nightly|rc|test|v8-canary)/)
   if (prereleaseMatch != null) {
-    return { releaseDir: prereleaseMatch[1], versionSpecifier: specifier }
+    return { releaseChannel: prereleaseMatch[1], versionSpecifier: specifier }
   }
   if (['nightly', 'rc', 'test', 'release', 'v8-canary'].includes(specifier)) {
-    return { releaseDir: specifier, versionSpecifier: 'latest' }
+    return { releaseChannel: specifier, versionSpecifier: 'latest' }
   }
-  return { releaseDir: 'release', versionSpecifier: specifier }
+  return { releaseChannel: 'release', versionSpecifier: specifier }
 }
