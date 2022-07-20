@@ -140,7 +140,8 @@ export default async function (
         projectSnapshot,
         resolvedImporter.linkedDependencies,
         resolvedImporter.directDependencies,
-        opts.registries
+        opts.registries,
+        opts.autoInstallPeers
       )
     }
 
@@ -305,7 +306,8 @@ function addDirectDependenciesToLockfile (
   projectSnapshot: ProjectSnapshot,
   linkedPackages: Array<{alias: string}>,
   directDependencies: ResolvedDirectDependency[],
-  registries: Registries
+  registries: Registries,
+  autoInstallPeers?: boolean
 ): ProjectSnapshot {
   const newProjectSnapshot = {
     dependencies: {},
@@ -323,7 +325,14 @@ function addDirectDependenciesToLockfile (
     return acc
   }, {})
 
-  const allDeps = Array.from(new Set(Object.keys(getAllDependenciesFromManifest(newManifest))))
+  let allDepsObj = getAllDependenciesFromManifest(newManifest)
+  if (autoInstallPeers) {
+    allDepsObj = {
+      ...newManifest.peerDependencies,
+      ...allDepsObj,
+    }
+  }
+  const allDeps = Array.from(new Set(Object.keys(allDepsObj)))
 
   for (const alias of allDeps) {
     if (directDependenciesByAlias[alias]) {

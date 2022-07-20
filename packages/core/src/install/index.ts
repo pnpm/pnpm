@@ -428,6 +428,7 @@ export async function mutateModules (
 
     async function installCase (project: any) { // eslint-disable-line
       const wantedDependencies = getWantedDependencies(project.manifest, {
+        autoInstallPeers: opts.autoInstallPeers,
         includeDirect: opts.includeDirect,
         updateWorkspaceDependencies: opts.update,
         nodeExecPath: opts.nodeExecPath,
