@@ -5,4 +5,4 @@
 "@pnpm/resolve-dependencies": patch
 ---
 
-feat: add lockfile-include-tarball-url option to save tarballs urls in lockfile when adding new packages #5054.
+When `lockfile-include-tarball-url` is set to `true`, every entry in `pnpm-lock.yaml` will contain the full URL to the package's tarball [#5054](https://github.com/pnpm/pnpm/pull/5054).

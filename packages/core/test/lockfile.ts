@@ -1376,3 +1376,14 @@ test('a broken lockfile should not break the store', async () => {
     },
   ], await testDefaults({ lockfileOnly: true, storeDir: path.resolve('store2') }))
 })
+
+test('include tarball URL', async () => {
+  const project = prepareEmpty()
+
+  const opts = await testDefaults({ fastUnpack: false, lockfileIncludeTarballUrl: true })
+  await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], opts)
+
+  const lockfile = await project.readLockfile()
+  expect((lockfile.packages['/pkg-with-1-dep/100.0.0'].resolution as TarballResolution).tarball)
+    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
+})

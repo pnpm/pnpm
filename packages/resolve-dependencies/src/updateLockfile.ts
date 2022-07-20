@@ -20,25 +20,26 @@ import { ResolvedPackage } from './resolveDependencies'
 import { DependenciesGraph } from '.'
 
 export default function (
-  depGraph: DependenciesGraph,
-  lockfile: Lockfile,
-  prefix: string,
-  registries: Registries,
-  lockfileIncludeTarballUrl?: boolean
+  { dependenciesGraph, lockfile, prefix, registries, lockfileIncludeTarballUrl }: {
+    dependenciesGraph: DependenciesGraph
+    lockfile: Lockfile
+    prefix: string
+    registries: Registries
+    lockfileIncludeTarballUrl?: boolean
+  }
 ): {
     newLockfile: Lockfile
     pendingRequiresBuilds: string[]
   } {
   lockfile.packages = lockfile.packages ?? {}
   const pendingRequiresBuilds = [] as string[]
-  for (const depPath of Object.keys(depGraph)) {
-    const depNode = depGraph[depPath]
+  for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
       (child) => depNode.optionalDependencies.has(child.alias),
       Object.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] }))
     )
     lockfile.packages[depPath] = toLockfileDependency(pendingRequiresBuilds, depNode, {
-      depGraph,
+      depGraph: dependenciesGraph,
       depPath,
       prevSnapshot: lockfile.packages[depPath],
       registries,
