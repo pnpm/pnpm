@@ -82,6 +82,7 @@ export default async function (
     defaultUpdateDepth: number
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: 'rolling' | boolean
+    lockfileIncludeTarballUrl?: boolean
   }
 ) {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -212,7 +213,13 @@ export default async function (
     }
   }
 
-  const { newLockfile, pendingRequiresBuilds } = updateLockfile(dependenciesGraph, opts.wantedLockfile, opts.virtualStoreDir, opts.registries) // eslint-disable-line:prefer-const
+  const { newLockfile, pendingRequiresBuilds } = updateLockfile({
+    dependenciesGraph,
+    lockfile: opts.wantedLockfile,
+    prefix: opts.virtualStoreDir,
+    registries: opts.registries,
+    lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
+  })
 
   if (opts.forceFullResolution && opts.wantedLockfile != null) {
     for (const [depPath, pkg] of Object.entries(dependenciesGraph)) {

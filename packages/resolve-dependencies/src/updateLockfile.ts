@@ -20,30 +20,33 @@ import { ResolvedPackage } from './resolveDependencies'
 import { DependenciesGraph } from '.'
 
 export default function (
-  depGraph: DependenciesGraph,
-  lockfile: Lockfile,
-  prefix: string,
-  registries: Registries
+  { dependenciesGraph, lockfile, prefix, registries, lockfileIncludeTarballUrl }: {
+    dependenciesGraph: DependenciesGraph
+    lockfile: Lockfile
+    prefix: string
+    registries: Registries
+    lockfileIncludeTarballUrl?: boolean
+  }
 ): {
     newLockfile: Lockfile
     pendingRequiresBuilds: string[]
   } {
   lockfile.packages = lockfile.packages ?? {}
   const pendingRequiresBuilds = [] as string[]
-  for (const depPath of Object.keys(depGraph)) {
-    const depNode = depGraph[depPath]
+  for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
       (child) => depNode.optionalDependencies.has(child.alias),
       Object.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] }))
     )
     lockfile.packages[depPath] = toLockfileDependency(pendingRequiresBuilds, depNode, {
-      depGraph,
+      depGraph: dependenciesGraph,
       depPath,
       prevSnapshot: lockfile.packages[depPath],
       registries,
       registry: dp.getRegistryByPackageName(registries, depNode.name),
       updatedDeps,
       updatedOptionalDeps,
+      lockfileIncludeTarballUrl,
     })
   }
   const warn = (message: string) => logger.warn({ message, prefix })
@@ -64,13 +67,15 @@ function toLockfileDependency (
     updatedOptionalDeps: Array<{alias: string, depPath: string}>
     depGraph: DependenciesGraph
     prevSnapshot?: PackageSnapshot
+    lockfileIncludeTarballUrl?: boolean
   }
 ): PackageSnapshot {
   const lockfileResolution = toLockfileResolution(
     { id: pkg.id, name: pkg.name, version: pkg.version },
     opts.depPath,
     pkg.resolution,
-    opts.registry
+    opts.registry,
+    opts.lockfileIncludeTarballUrl
   )
   const newResolvedDeps = updateResolvedDeps(
     opts.prevSnapshot?.dependencies ?? {},
@@ -227,13 +232,21 @@ function toLockfileResolution (
   },
   depPath: string,
   resolution: Resolution,
-  registry: string
+  registry: string,
+  lockfileIncludeTarballUrl?: boolean
 ): LockfileResolution {
   /* eslint-disable @typescript-eslint/dot-notation */
   if (dp.isAbsolute(depPath) || resolution.type !== undefined || !resolution['integrity']) {
     return resolution as LockfileResolution
   }
   const base = registry !== resolution['registry'] ? { registry: resolution['registry'] } : {}
+  if (lockfileIncludeTarballUrl) {
+    return {
+      ...base,
+      integrity: resolution['integrity'],
+      tarball: resolution['tarball'],
+    }
+  }
   // Sometimes packages are hosted under non-standard tarball URLs.
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
   // Or in other weird cases, like https://github.com/pnpm/pnpm/issues/1072

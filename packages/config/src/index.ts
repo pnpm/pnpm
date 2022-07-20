@@ -69,6 +69,7 @@ export const types = Object.assign({
   lockfile: Boolean,
   'lockfile-dir': String,
   'lockfile-directory': String, // TODO: deprecate
+  'lockfile-include-tarball-url': Boolean,
   'lockfile-only': Boolean,
   loglevel: ['silent', 'error', 'warn', 'info', 'debug'],
   maxsockets: Number,
@@ -197,6 +198,7 @@ export default async (
     'hoist-pattern': ['*'],
     'ignore-workspace-root-check': false,
     'link-workspace-packages': true,
+    'lockfile-include-tarball-url': false,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'node-linker': 'isolated',
     'package-lock': npmDefaults['package-lock'],

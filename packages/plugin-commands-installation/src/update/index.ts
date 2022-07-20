@@ -40,6 +40,7 @@ export function rcOptionsTypes () {
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
+    'lockfile-include-tarball-url',
     'network-concurrency',
     'noproxy',
     'npmPath',

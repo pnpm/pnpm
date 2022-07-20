@@ -33,6 +33,7 @@ export interface StrictInstallOptions {
   ignorePackageManifest: boolean
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean | 'rolling'
+  lockfileIncludeTarballUrl: boolean
   preferWorkspacePackages: boolean
   preserveWorkspaceProtocol: boolean
   scriptsPrependNodePath: boolean | 'warn-only'
@@ -155,6 +156,7 @@ const defaults = async (opts: InstallOptions) => {
     rawConfig: {},
     registries: DEFAULT_REGISTRIES,
     saveWorkspaceProtocol: true,
+    lockfileIncludeTarballUrl: false,
     scriptsPrependNodePath: false,
     shamefullyHoist: false,
     shellEmulator: false,

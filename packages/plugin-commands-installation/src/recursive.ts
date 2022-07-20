@@ -64,6 +64,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'savePrefix'
 | 'saveProd'
 | 'saveWorkspaceProtocol'
+| 'lockfileIncludeTarballUrl'
 | 'sharedWorkspaceLockfile'
 | 'tag'
 > & {
