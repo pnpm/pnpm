@@ -11,6 +11,8 @@
 
   Related issue: [#4782](https://github.com/pnpm/pnpm/issues/4782).
 
+- When `lockfile-include-tarball-url` is set to `true`, every entry in `pnpm-lock.yaml` will contain the full URL to the package's tarball [#5054](https://github.com/pnpm/pnpm/pull/5054).
+
 ### Patch Changes
 
 - `pnpm deploy` should include all dependencies by default [#5035](https://github.com/pnpm/pnpm/issues/5035).
