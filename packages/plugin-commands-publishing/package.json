@@ -46,7 +46,7 @@
     "@types/npm-packlist": "^1.1.2",
     "@types/proxyquire": "^1.3.28",
     "@types/ramda": "0.28.14",
-    "@types/sinon": "^10.0.12",
+    "@types/sinon": "^10.0.13",
     "@types/tar": "^4.0.5",
     "@types/tar-stream": "^2.2.2",
     "cross-spawn": "^7.0.3",

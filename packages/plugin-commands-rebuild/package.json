@@ -41,7 +41,7 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.14",
     "@types/semver": "^7.3.10",
-    "@types/sinon": "^10.0.12",
+    "@types/sinon": "^10.0.13",
     "execa": "npm:safe-execa@^0.1.2",
     "path-exists": "^4.0.0",
     "sinon": "^14.0.0",

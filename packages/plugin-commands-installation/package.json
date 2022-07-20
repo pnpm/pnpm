@@ -44,7 +44,7 @@
     "@types/is-ci": "^3.0.0",
     "@types/proxyquire": "^1.3.28",
     "@types/ramda": "0.28.14",
-    "@types/sinon": "^10.0.12",
+    "@types/sinon": "^10.0.13",
     "@types/yarnpkg__lockfile": "^1.1.5",
     "@types/zkochan__table": "npm:@types/table@6.0.0",
     "path-name": "^1.0.0",

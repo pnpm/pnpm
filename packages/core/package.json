@@ -86,7 +86,7 @@
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.14",
     "@types/semver": "^7.3.10",
-    "@types/sinon": "^10.0.12",
+    "@types/sinon": "^10.0.13",
     "@yarnpkg/core": "3.2.0",
     "deep-require-cwd": "1.0.0",
     "execa": "npm:safe-execa@^0.1.2",
