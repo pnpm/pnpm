@@ -1,5 +1,25 @@
 # @pnpm/headless
 
+## 18.4.0
+
+### Minor Changes
+
+- 28f000509: A new setting supported: `prefer-symlinked-executables`. When `true`, pnpm will create symlinks to executables in
+  `node_modules/.bin` instead of command shims (but on POSIX systems only).
+
+  This setting is `true` by default when `node-linker` is set to `hoisted`.
+
+  Related issue: [#4782](https://github.com/pnpm/pnpm/issues/4782).
+
+### Patch Changes
+
+- Updated dependencies [28f000509]
+  - @pnpm/build-modules@9.3.0
+  - @pnpm/hoist@6.2.0
+  - @pnpm/link-bins@7.2.0
+  - @pnpm/lockfile-to-pnp@0.5.19
+  - @pnpm/package-requester@18.0.13
+
 ## 18.3.7
 
 ### Patch Changes

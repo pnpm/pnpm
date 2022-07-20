@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-setup
 
+## 2.0.21
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.20
+
 ## 2.0.20
 
 ### Patch Changes

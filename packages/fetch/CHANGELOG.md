@@ -1,5 +1,11 @@
 # @pnpm/fetch
 
+## 5.0.6
+
+### Patch Changes
+
+- e018a8b14: Some HTTP errors should not be retried [#4917](https://github.com/pnpm/pnpm/pull/4917).
+
 ## 5.0.5
 
 ### Patch Changes

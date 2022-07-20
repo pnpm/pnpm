@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-publishing
 
+## 5.1.8
+
+### Patch Changes
+
+- 348580c3f: `pnpm publish --help` should print the `--recursive` and `--filter` options [#5019](https://github.com/pnpm/pnpm/issues/5019).
+- Updated dependencies [28f000509]
+- Updated dependencies [406656f80]
+  - @pnpm/config@15.6.0
+  - @pnpm/client@7.1.10
+  - @pnpm/cli-utils@0.7.20
+
 ## 5.1.7
 
 ### Patch Changes

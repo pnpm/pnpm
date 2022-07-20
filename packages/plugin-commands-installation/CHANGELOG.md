@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-installation
 
+## 10.3.10
+
+### Patch Changes
+
+- 406656f80: When `lockfile-include-tarball-url` is set to `true`, every entry in `pnpm-lock.yaml` will contain the full URL to the package's tarball [#5054](https://github.com/pnpm/pnpm/pull/5054).
+- Updated dependencies [0ee3dfbe0]
+- Updated dependencies [28f000509]
+- Updated dependencies [406656f80]
+- Updated dependencies [13210db3c]
+  - @pnpm/core@5.6.0
+  - @pnpm/config@15.6.0
+  - @pnpm/plugin-commands-rebuild@6.1.22
+  - @pnpm/cli-utils@0.7.20
+  - @pnpm/store-connection-manager@4.1.21
+  - @pnpm/outdated@10.0.14
+  - @pnpm/package-store@14.0.5
+  - @pnpm/find-workspace-packages@4.0.20
+  - @pnpm/filter-workspace-packages@5.0.20
+
 ## 10.3.9
 
 ### Patch Changes

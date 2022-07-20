@@ -1,5 +1,16 @@
 # @pnpm/link-bins
 
+## 7.2.0
+
+### Minor Changes
+
+- 28f000509: A new setting supported: `prefer-symlinked-executables`. When `true`, pnpm will create symlinks to executables in
+  `node_modules/.bin` instead of command shims (but on POSIX systems only).
+
+  This setting is `true` by default when `node-linker` is set to `hoisted`.
+
+  Related issue: [#4782](https://github.com/pnpm/pnpm/issues/4782).
+
 ## 7.1.7
 
 ### Patch Changes

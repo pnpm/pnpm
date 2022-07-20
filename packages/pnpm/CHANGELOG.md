@@ -1,5 +1,23 @@
 # pnpm
 
+## 7.6.0-0
+
+### Minor Changes
+
+- A new setting supported: `prefer-symlinked-executables`. When `true`, pnpm will create symlinks to executables in
+  `node_modules/.bin` instead of command shims (but on POSIX systems only).
+
+  This setting is `true` by default when `node-linker` is set to `hoisted`.
+
+  Related issue: [#4782](https://github.com/pnpm/pnpm/issues/4782).
+
+### Patch Changes
+
+- `pnpm deploy` should include all dependencies by default [#5035](https://github.com/pnpm/pnpm/issues/5035).
+- Don't print warnings about file verifications. Just print info messages instead.
+- `pnpm publish --help` should print the `--recursive` and `--filter` options [#5019](https://github.com/pnpm/pnpm/issues/5019).
+- It should be possible to run exec/run/dlx with the `--use-node-version` option.
+
 ## 7.5.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 28.2.1
+
+### Patch Changes
+
+- 406656f80: When `lockfile-include-tarball-url` is set to `true`, every entry in `pnpm-lock.yaml` will contain the full URL to the package's tarball [#5054](https://github.com/pnpm/pnpm/pull/5054).
+  - @pnpm/npm-resolver@13.0.6
+
 ## 28.2.0
 
 ### Minor Changes

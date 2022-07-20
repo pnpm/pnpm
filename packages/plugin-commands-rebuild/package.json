@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-rebuild",
-  "version": "6.1.21",
+  "version": "6.1.22",
   "description": "Commands for rebuilding dependencies",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

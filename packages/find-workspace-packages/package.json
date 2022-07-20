@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/find-workspace-packages",
-  "version": "4.0.19",
+  "version": "4.0.20",
   "description": "Finds packages inside a workspace",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

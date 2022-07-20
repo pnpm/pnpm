@@ -1,5 +1,30 @@
 # @pnpm/core
 
+## 5.6.0
+
+### Minor Changes
+
+- 28f000509: A new setting supported: `prefer-symlinked-executables`. When `true`, pnpm will create symlinks to executables in
+  `node_modules/.bin` instead of command shims (but on POSIX systems only).
+
+  This setting is `true` by default when `node-linker` is set to `hoisted`.
+
+  Related issue: [#4782](https://github.com/pnpm/pnpm/issues/4782).
+
+### Patch Changes
+
+- 0ee3dfbe0: Don't print warnings about file verifications. Just print info messages instead.
+- 406656f80: When `lockfile-include-tarball-url` is set to `true`, every entry in `pnpm-lock.yaml` will contain the full URL to the package's tarball [#5054](https://github.com/pnpm/pnpm/pull/5054).
+- Updated dependencies [28f000509]
+- Updated dependencies [406656f80]
+  - @pnpm/build-modules@9.3.0
+  - @pnpm/headless@18.4.0
+  - @pnpm/hoist@6.2.0
+  - @pnpm/link-bins@7.2.0
+  - @pnpm/resolve-dependencies@28.2.1
+  - @pnpm/lockfile-to-pnp@0.5.19
+  - @pnpm/package-requester@18.0.13
+
 ## 5.5.9
 
 ### Patch Changes

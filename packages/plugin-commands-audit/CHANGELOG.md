@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-audit
 
+## 6.1.0
+
+### Minor Changes
+
+- af79b6184: Add authentication to audit command
+
+### Patch Changes
+
+- Updated dependencies [af79b6184]
+- Updated dependencies [28f000509]
+- Updated dependencies [406656f80]
+  - @pnpm/audit@3.1.0
+  - @pnpm/config@15.6.0
+  - @pnpm/cli-utils@0.7.20
+
 ## 6.0.21
 
 ### Patch Changes

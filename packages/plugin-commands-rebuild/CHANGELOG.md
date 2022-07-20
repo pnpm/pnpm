@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-rebuild
 
+## 6.1.22
+
+### Patch Changes
+
+- 13210db3c: pnpm rebuild accepts --store-dir
+- Updated dependencies [28f000509]
+- Updated dependencies [406656f80]
+  - @pnpm/config@15.6.0
+  - @pnpm/link-bins@7.2.0
+  - @pnpm/cli-utils@0.7.20
+  - @pnpm/store-connection-manager@4.1.21
+  - @pnpm/find-workspace-packages@4.0.20
+
 ## 6.1.21
 
 ### Patch Changes

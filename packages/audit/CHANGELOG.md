@@ -1,5 +1,16 @@
 # @pnpm/audit
 
+## 3.1.0
+
+### Minor Changes
+
+- af79b6184: Add authentication to audit command
+
+### Patch Changes
+
+- Updated dependencies [e018a8b14]
+  - @pnpm/fetch@5.0.6
+
 ## 3.0.10
 
 ### Patch Changes

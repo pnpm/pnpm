@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-deploy
 
+## 1.0.7
+
+### Patch Changes
+
+- 31e73ba77: `pnpm deploy` should include all dependencies by default [#5035](https://github.com/pnpm/pnpm/issues/5035).
+- Updated dependencies [406656f80]
+  - @pnpm/plugin-commands-installation@10.3.10
+  - @pnpm/cli-utils@0.7.20
+
 ## 1.0.6
 
 ### Patch Changes

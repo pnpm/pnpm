@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-script-runners
 
+## 5.0.27
+
+### Patch Changes
+
+- 0e9fa30ac: It should be possible to run exec/run/dlx with the `--use-node-version` option.
+- Updated dependencies [28f000509]
+- Updated dependencies [406656f80]
+  - @pnpm/config@15.6.0
+  - @pnpm/plugin-commands-installation@10.3.10
+  - @pnpm/cli-utils@0.7.20
+
 ## 5.0.26
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @pnpm/config
 
+## 15.6.0
+
+### Minor Changes
+
+- 28f000509: A new setting supported: `prefer-symlinked-executables`. When `true`, pnpm will create symlinks to executables in
+  `node_modules/.bin` instead of command shims (but on POSIX systems only).
+
+  This setting is `true` by default when `node-linker` is set to `hoisted`.
+
+  Related issue: [#4782](https://github.com/pnpm/pnpm/issues/4782).
+
+### Patch Changes
+
+- 406656f80: When `lockfile-include-tarball-url` is set to `true`, every entry in `pnpm-lock.yaml` will contain the full URL to the package's tarball [#5054](https://github.com/pnpm/pnpm/pull/5054).
+
 ## 15.5.2
 
 ### Patch Changes

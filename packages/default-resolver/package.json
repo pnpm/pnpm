@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-resolver",
-  "version": "15.0.8",
+  "version": "15.0.9",
   "description": "pnpm's default package resolver",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
