@@ -1,5 +1,12 @@
 # @pnpm/link-bins
 
+## 7.2.1
+
+### Patch Changes
+
+- Updated dependencies [e3f4d131c]
+  - @pnpm/manifest-utils@3.1.1
+
 ## 7.2.0
 
 ### Minor Changes

@@ -1,5 +1,23 @@
 # @pnpm/headless
 
+## 18.5.0
+
+### Minor Changes
+
+- e3f4d131c: New option added: autoInstallPeers.
+
+### Patch Changes
+
+- Updated dependencies [e3f4d131c]
+  - @pnpm/lockfile-utils@4.1.0
+  - @pnpm/lockfile-to-pnp@0.5.20
+  - @pnpm/link-bins@7.2.1
+  - @pnpm/filter-lockfile@6.0.12
+  - @pnpm/hoist@6.2.1
+  - @pnpm/modules-cleaner@12.0.14
+  - @pnpm/real-hoist@0.2.11
+  - @pnpm/build-modules@9.3.1
+
 ## 18.4.0
 
 ### Minor Changes

@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-rebuild
 
+## 6.1.23
+
+### Patch Changes
+
+- Updated dependencies [7334b347b]
+- Updated dependencies [e3f4d131c]
+  - @pnpm/config@15.6.1
+  - @pnpm/lockfile-utils@4.1.0
+  - @pnpm/cli-utils@0.7.21
+  - @pnpm/store-connection-manager@4.1.22
+  - @pnpm/link-bins@7.2.1
+  - @pnpm/find-workspace-packages@4.0.21
+
 ## 6.1.22
 
 ### Patch Changes

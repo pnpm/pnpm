@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.6.0-0
+## 7.6.0
 
 ### Minor Changes
 
@@ -19,6 +19,24 @@
 - Don't print warnings about file verifications. Just print info messages instead.
 - `pnpm publish --help` should print the `--recursive` and `--filter` options [#5019](https://github.com/pnpm/pnpm/issues/5019).
 - It should be possible to run exec/run/dlx with the `--use-node-version` option.
+- `pnpm deploy` should not modify the lockfile [#5071](https://github.com/pnpm/pnpm/issues/5071)
+- `pnpm deploy` should not fail in CI [#5071](https://github.com/pnpm/pnpm/issues/5071)
+- When `auto-install-peers` is set to `true`, automatically install direct peer dependencies [#5028](https://github.com/pnpm/pnpm/pull/5067).
+
+  So if your project the next manifest:
+
+  ```json
+  {
+    "dependencies": {
+      "lodash": "^4.17.21"
+    },
+    "peerDependencies": {
+      "react": "^18.2.0"
+    }
+  }
+  ```
+
+  pnpm will install both lodash and react as a regular dependencies.
 
 ## 7.5.2
 

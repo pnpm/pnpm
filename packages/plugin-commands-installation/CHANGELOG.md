@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-installation
 
+## 10.4.0
+
+### Minor Changes
+
+- 0569f1022: When `saveLockfile` is set to `false`, no changes to `pnpm-lock.yaml` are written to the filesystem.
+
+### Patch Changes
+
+- Updated dependencies [e3f4d131c]
+- Updated dependencies [7334b347b]
+- Updated dependencies [e3f4d131c]
+- Updated dependencies [0569f1022]
+  - @pnpm/core@5.7.0
+  - @pnpm/config@15.6.1
+  - @pnpm/manifest-utils@3.1.1
+  - @pnpm/cli-utils@0.7.21
+  - @pnpm/plugin-commands-rebuild@6.1.23
+  - @pnpm/store-connection-manager@4.1.22
+  - @pnpm/outdated@10.0.15
+  - @pnpm/find-workspace-packages@4.0.21
+  - @pnpm/filter-workspace-packages@5.0.21
+
 ## 10.3.10
 
 ### Patch Changes

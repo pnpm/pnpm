@@ -1,5 +1,11 @@
 # @pnpm/manifest-utils
 
+## 3.1.1
+
+### Patch Changes
+
+- e3f4d131c: getSpecFromPackageManifest should also read spec from peerDependencies.
+
 ## 3.1.0
 
 ### Minor Changes

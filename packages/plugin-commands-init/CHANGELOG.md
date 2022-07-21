@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-init
 
+## 1.0.21
+
+### Patch Changes
+
+- Updated dependencies [7334b347b]
+  - @pnpm/config@15.6.1
+  - @pnpm/cli-utils@0.7.21
+
 ## 1.0.20
 
 ### Patch Changes

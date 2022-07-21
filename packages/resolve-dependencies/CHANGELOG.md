@@ -1,5 +1,31 @@
 # @pnpm/resolve-dependencies
 
+## 28.2.2
+
+### Patch Changes
+
+- e3f4d131c: When `auto-install-peers` is set to `true`, automatically install direct peer dependencies [#5028](https://github.com/pnpm/pnpm/pull/5067).
+
+  So if your project the next manifest:
+
+  ```json
+  {
+    "dependencies": {
+      "lodash": "^4.17.21"
+    },
+    "peerDependencies": {
+      "react": "^18.2.0"
+    }
+  }
+  ```
+
+  pnpm will install both lodash and react as a regular dependencies.
+
+- Updated dependencies [e3f4d131c]
+- Updated dependencies [e3f4d131c]
+  - @pnpm/manifest-utils@3.1.1
+  - @pnpm/lockfile-utils@4.1.0
+
 ## 28.2.1
 
 ### Patch Changes

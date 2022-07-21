@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-deploy
 
+## 1.0.8
+
+### Patch Changes
+
+- 0569f1022: `pnpm deploy` should not modify the lockfile [#5071](https://github.com/pnpm/pnpm/issues/5071)
+- 0569f1022: `pnpm deploy` should not fail in CI [#5071](https://github.com/pnpm/pnpm/issues/5071)
+- Updated dependencies [0569f1022]
+  - @pnpm/plugin-commands-installation@10.4.0
+  - @pnpm/cli-utils@0.7.21
+
 ## 1.0.7
 
 ### Patch Changes

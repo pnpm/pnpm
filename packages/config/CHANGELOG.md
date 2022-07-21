@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 15.6.1
+
+### Patch Changes
+
+- 7334b347b: Update npm-conf.
+
 ## 15.6.0
 
 ### Minor Changes

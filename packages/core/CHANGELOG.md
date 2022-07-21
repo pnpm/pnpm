@@ -1,5 +1,44 @@
 # @pnpm/core
 
+## 5.7.0
+
+### Minor Changes
+
+- 0569f1022: When `saveLockfile` is set to `false`, no changes to `pnpm-lock.yaml` are written to the filesystem.
+
+### Patch Changes
+
+- e3f4d131c: When `auto-install-peers` is set to `true`, automatically install direct peer dependencies [#5028](https://github.com/pnpm/pnpm/pull/5067).
+
+  So if your project the next manifest:
+
+  ```json
+  {
+    "dependencies": {
+      "lodash": "^4.17.21"
+    },
+    "peerDependencies": {
+      "react": "^18.2.0"
+    }
+  }
+  ```
+
+  pnpm will install both lodash and react as a regular dependencies.
+
+- Updated dependencies [e3f4d131c]
+- Updated dependencies [e3f4d131c]
+- Updated dependencies [e3f4d131c]
+  - @pnpm/resolve-dependencies@28.2.2
+  - @pnpm/manifest-utils@3.1.1
+  - @pnpm/headless@18.5.0
+  - @pnpm/lockfile-utils@4.1.0
+  - @pnpm/lockfile-to-pnp@0.5.20
+  - @pnpm/link-bins@7.2.1
+  - @pnpm/filter-lockfile@6.0.12
+  - @pnpm/hoist@6.2.1
+  - @pnpm/modules-cleaner@12.0.14
+  - @pnpm/build-modules@9.3.1
+
 ## 5.6.0
 
 ### Minor Changes

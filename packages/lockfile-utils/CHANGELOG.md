@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 4.1.0
+
+### Minor Changes
+
+- e3f4d131c: New option added: autoInstallPeers.
+
 ## 4.0.10
 
 ### Patch Changes
