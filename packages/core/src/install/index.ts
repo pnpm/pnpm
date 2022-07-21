@@ -277,6 +277,7 @@ export async function mutateModules (
         ctx.existsWantedLockfile &&
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
         await allProjectsAreUpToDate(ctx.projects, {
+          autoInstallPeers: opts.autoInstallPeers,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
           wantedLockfile: ctx.wantedLockfile,
           workspacePackages: opts.workspacePackages,
