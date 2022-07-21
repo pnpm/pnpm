@@ -19,24 +19,32 @@ export interface WantedDependency {
 }
 
 export default function getWantedDependencies (
-  pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies' | 'dependenciesMeta'>,
+  pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies' | 'dependenciesMeta' | 'peerDependencies'>,
   opts?: {
+    autoInstallPeers?: boolean
     includeDirect?: IncludedDependencies
     nodeExecPath?: string
     updateWorkspaceDependencies?: boolean
   }
 ): WantedDependency[] {
-  const depsToInstall = filterDependenciesByType(pkg,
+  let depsToInstall = filterDependenciesByType(pkg,
     opts?.includeDirect ?? {
       dependencies: true,
       devDependencies: true,
       optionalDependencies: true,
     })
+  if (opts?.autoInstallPeers) {
+    depsToInstall = {
+      ...pkg.peerDependencies,
+      ...depsToInstall,
+    }
+  }
   return getWantedDependenciesFromGivenSet(depsToInstall, {
     dependencies: pkg.dependencies ?? {},
     devDependencies: pkg.devDependencies ?? {},
     optionalDependencies: pkg.optionalDependencies ?? {},
     dependenciesMeta: pkg.dependenciesMeta ?? {},
+    peerDependencies: pkg.peerDependencies ?? {},
     updatePref: opts?.updateWorkspaceDependencies === true
       ? updateWorkspacePref
       : (pref) => pref,
@@ -53,6 +61,7 @@ function getWantedDependenciesFromGivenSet (
     dependencies: Dependencies
     devDependencies: Dependencies
     optionalDependencies: Dependencies
+    peerDependencies: Dependencies
     dependenciesMeta: DependenciesMeta
     nodeExecPath?: string
     updatePref: (pref: string) => string
@@ -65,6 +74,7 @@ function getWantedDependenciesFromGivenSet (
     if (opts.optionalDependencies[alias] != null) depType = 'optional'
     else if (opts.dependencies[alias] != null) depType = 'prod'
     else if (opts.devDependencies[alias] != null) depType = 'dev'
+    else if (opts.peerDependencies[alias] != null) depType = 'prod'
     return {
       alias,
       dev: depType === 'dev',

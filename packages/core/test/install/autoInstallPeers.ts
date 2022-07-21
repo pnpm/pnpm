@@ -1,6 +1,7 @@
-import { addDependenciesToPackage } from '@pnpm/core'
+import { addDependenciesToPackage, install, mutateModules } from '@pnpm/core'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import rimraf from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
 test('auto install non-optional peer dependencies', async () => {
@@ -138,4 +139,85 @@ test('don\'t install the same missing peer dependency twice', async () => {
     '/has-has-y-peer-peer/1.0.0_c7ewbmm644hn6ztbh6kbjiyhkq',
     '/has-y-peer/1.0.0_@pnpm+y@1.0.0',
   ])
+})
+
+test('automatically install root peer dependencies', async () => {
+  const project = prepareEmpty()
+
+  let manifest = await install({
+    dependencies: {
+      'is-negative': '^1.0.0',
+    },
+    peerDependencies: {
+      'is-positive': '^1.0.0',
+    },
+  }, await testDefaults({ autoInstallPeers: true }))
+
+  await project.has('is-positive')
+  await project.has('is-negative')
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.specifiers).toStrictEqual({
+      'is-positive': '^1.0.0',
+      'is-negative': '^1.0.0',
+    })
+    expect(lockfile.dependencies).toStrictEqual({
+      'is-positive': '1.0.0',
+      'is-negative': '1.0.1',
+    })
+  }
+
+  // Automatically install the peer dependency when the lockfile is up-to-date
+  await rimraf('node_modules')
+
+  await install(manifest, await testDefaults({ autoInstallPeers: true, frozenLockfile: true }))
+
+  await project.has('is-positive')
+  await project.has('is-negative')
+
+  // The auto installed peer is not removed when a new dependency is added
+  manifest = await addDependenciesToPackage(manifest, ['is-odd@1.0.0'], await testDefaults({ autoInstallPeers: true }))
+  await project.has('is-odd')
+  await project.has('is-positive')
+  await project.has('is-negative')
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.specifiers).toStrictEqual({
+      'is-odd': '1.0.0',
+      'is-positive': '^1.0.0',
+      'is-negative': '^1.0.0',
+    })
+    expect(lockfile.dependencies).toStrictEqual({
+      'is-odd': '1.0.0',
+      'is-positive': '1.0.0',
+      'is-negative': '1.0.1',
+    })
+  }
+
+  // The auto installed peer is not removed when a dependency is removed
+  await mutateModules([
+    {
+      dependencyNames: ['is-odd'],
+      manifest,
+      mutation: 'uninstallSome',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ autoInstallPeers: true }))
+  await project.hasNot('is-odd')
+  await project.has('is-positive')
+  await project.has('is-negative')
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.specifiers).toStrictEqual({
+      'is-positive': '^1.0.0',
+      'is-negative': '^1.0.0',
+    })
+    expect(lockfile.dependencies).toStrictEqual({
+      'is-positive': '1.0.0',
+      'is-negative': '1.0.1',
+    })
+  }
 })

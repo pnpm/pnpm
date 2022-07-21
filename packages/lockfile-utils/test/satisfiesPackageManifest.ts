@@ -259,4 +259,28 @@ test('satisfiesPackageManifest()', () => {
     },
     dependenciesMeta: {},
   }, '.')).toBe(true)
+
+  expect(satisfiesPackageManifest({
+    ...DEFAULT_LOCKFILE_FIELDS,
+    importers: {
+      '.': {
+        dependencies: {
+          foo: '1.0.0',
+          bar: '1.0.0',
+        },
+        specifiers: {
+          foo: '1.0.0',
+          bar: '^1.0.0',
+        },
+      },
+    },
+  }, {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: {
+      foo: '1.0.0',
+    },
+    peerDependencies: {
+      bar: '^1.0.0',
+    },
+  }, '.', { autoInstallPeers: true })).toBe(true)
 })

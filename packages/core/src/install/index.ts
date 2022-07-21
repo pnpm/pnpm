@@ -277,6 +277,7 @@ export async function mutateModules (
         ctx.existsWantedLockfile &&
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
         await allProjectsAreUpToDate(ctx.projects, {
+          autoInstallPeers: opts.autoInstallPeers,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
           wantedLockfile: ctx.wantedLockfile,
           workspacePackages: opts.workspacePackages,
@@ -428,6 +429,7 @@ export async function mutateModules (
 
     async function installCase (project: any) { // eslint-disable-line
       const wantedDependencies = getWantedDependencies(project.manifest, {
+        autoInstallPeers: opts.autoInstallPeers,
         includeDirect: opts.includeDirect,
         updateWorkspaceDependencies: opts.update,
         nodeExecPath: opts.nodeExecPath,

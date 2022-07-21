@@ -90,6 +90,7 @@ export interface Project {
 }
 
 export interface HeadlessOptions {
+  autoInstallPeers?: boolean
   childConcurrency?: number
   currentLockfile?: Lockfile
   currentEngine: {
@@ -171,7 +172,7 @@ export default async (opts: HeadlessOptions) => {
 
   if (!opts.ignorePackageManifest) {
     for (const { id, manifest, rootDir } of opts.projects) {
-      if (!satisfiesPackageManifest(wantedLockfile, manifest, id)) {
+      if (!satisfiesPackageManifest(wantedLockfile, manifest, id, { autoInstallPeers: opts.autoInstallPeers })) {
         throw new PnpmError('OUTDATED_LOCKFILE',
           `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
           path.relative(lockfileDir, path.join(rootDir, 'package.json')), {

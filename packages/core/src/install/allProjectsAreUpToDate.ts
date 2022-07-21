@@ -19,6 +19,7 @@ import semver from 'semver'
 export default async function allProjectsAreUpToDate (
   projects: Array<ProjectOptions & { id: string }>,
   opts: {
+    autoInstallPeers: boolean
     linkWorkspacePackages: boolean
     wantedLockfile: Lockfile
     workspacePackages: WorkspacePackages
@@ -34,7 +35,7 @@ export default async function allProjectsAreUpToDate (
   return pEvery(projects, (project) => {
     const importer = opts.wantedLockfile.importers[project.id]
     return !hasLocalTarballDepsInRoot(importer) &&
-      _satisfiesPackageManifest(project.manifest, project.id) &&
+      _satisfiesPackageManifest(project.manifest, project.id, { autoInstallPeers: opts.autoInstallPeers }) &&
       _linkedPackagesAreUpToDate({
         dir: project.rootDir,
         manifest: project.manifest,
