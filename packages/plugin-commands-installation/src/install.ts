@@ -288,6 +288,7 @@ export type InstallCommandOptions = Pick<Config,
   pruneDirectDependencies?: boolean
   pruneStore?: boolean
   recursive?: boolean
+  saveLockfile?: boolean
   workspace?: boolean
 } & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages'>>
 

@@ -1030,7 +1030,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
     const projectsWithTargetDirs = extendProjectsWithTargetDirs(projects, newLockfile, ctx)
     await Promise.all([
-      opts.useLockfile
+      opts.useLockfile && opts.saveLockfile
         ? writeLockfiles({
           currentLockfile: result.currentLockfile,
           currentLockfileDir: ctx.virtualStoreDir,
