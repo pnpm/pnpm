@@ -52,6 +52,8 @@ test('deploy', async () => {
     production: true,
     recursive: true,
     selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
   }, ['deploy'])
 
@@ -62,4 +64,5 @@ test('deploy', async () => {
   await project.hasNot('is-negative')
   expect(fs.existsSync('deploy/index.js')).toBeTruthy()
   expect(fs.existsSync('deploy/test.js')).toBeFalsy()
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
