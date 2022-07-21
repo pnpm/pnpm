@@ -282,5 +282,5 @@ test('satisfiesPackageManifest()', () => {
     peerDependencies: {
       bar: '^1.0.0',
     },
-  }, '.', { includePeerDependencies: true })).toBe(true)
+  }, '.', { autoInstallPeers: true })).toBe(true)
 })

@@ -5,12 +5,15 @@ import {
 } from '@pnpm/types'
 import equals from 'ramda/src/equals.js'
 
-export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string, opts?: { includePeerDependencies?: boolean }) => {
+export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string, opts?: { autoInstallPeers?: boolean }) => {
   const importer = lockfile.importers[importerId]
   if (!importer) return false
-  const existingDeps = { ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }
-  if (opts?.includePeerDependencies) {
-    Object.assign(existingDeps, pkg.peerDependencies)
+  let existingDeps = { ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }
+  if (opts?.autoInstallPeers) {
+    existingDeps = {
+      ...pkg.peerDependencies,
+      ...existingDeps,
+    }
     pkg = {
       ...pkg,
       dependencies: {

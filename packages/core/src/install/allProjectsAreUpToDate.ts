@@ -35,7 +35,7 @@ export default async function allProjectsAreUpToDate (
   return pEvery(projects, (project) => {
     const importer = opts.wantedLockfile.importers[project.id]
     return !hasLocalTarballDepsInRoot(importer) &&
-      _satisfiesPackageManifest(project.manifest, project.id, { includePeerDependencies: opts.autoInstallPeers }) &&
+      _satisfiesPackageManifest(project.manifest, project.id, { autoInstallPeers: opts.autoInstallPeers }) &&
       _linkedPackagesAreUpToDate({
         dir: project.rootDir,
         manifest: project.manifest,
