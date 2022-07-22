@@ -1,0 +1,26 @@
+name: Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version
+        required: true
+      tag:
+        description: Tag
+        default: latest
+        required: true
+
+jobs:
+  build:
+    environment: release
+    steps:
+    - name: Setup Node
+      uses: actions/setup-node@v2
+    - name: Update tag
+      env:
+        NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      run: |
+        npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
+        npm dist-tag add pnpm@${{ github.event.inputs.version }} ${{ github.event.inputs.tag }}
+        npm dist-tag add @pnpm/exe@${{ github.event.inputs.version }} ${{ github.event.inputs.tag }}
