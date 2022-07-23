@@ -7,6 +7,7 @@ import { install } from '@pnpm/plugin-commands-installation'
 import PnpmError from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
+import { deployHook } from './deployHook'
 
 export const shorthands = install.shorthands
 
@@ -98,16 +99,4 @@ async function copyProject (src: string, dest: string) {
   const { filesIndex } = await fetchFromDir(src, { includeOnlyPackageFiles: true })
   const importPkg = createIndexedPkgImporter('clone-or-copy')
   await importPkg(dest, { filesMap: filesIndex, force: true, fromStore: true })
-}
-
-function deployHook (pkg: any) { // eslint-disable-line
-  pkg.dependenciesMeta = pkg.dependenciesMeta || {}
-  for (const [depName, depVersion] of Object.entries(pkg.dependencies ?? {})) {
-    if ((depVersion as string).startsWith('workspace:')) {
-      pkg.dependenciesMeta[depName] = {
-        injected: true,
-      }
-    }
-  }
-  return pkg
 }

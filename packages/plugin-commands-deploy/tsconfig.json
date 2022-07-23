@@ -35,6 +35,9 @@
     },
     {
       "path": "../plugin-commands-installation"
+    },
+    {
+      "path": "../types"
     }
   ]
 }

@@ -2180,6 +2180,7 @@ importers:
       '@pnpm/plugin-commands-installation': workspace:*
       '@pnpm/prepare': workspace:*
       '@pnpm/registry-mock': 2.20.0
+      '@pnpm/types': workspace:*
       '@zkochan/rimraf': ^2.1.2
       render-help: ^1.0.2
     dependencies:
@@ -2188,6 +2189,7 @@ importers:
       '@pnpm/error': link:../error
       '@pnpm/fs.indexed-pkg-importer': link:../fs.indexed-pkg-importer
       '@pnpm/plugin-commands-installation': link:../plugin-commands-installation
+      '@pnpm/types': link:../types
       '@zkochan/rimraf': 2.1.2
       render-help: 1.0.2
     devDependencies:

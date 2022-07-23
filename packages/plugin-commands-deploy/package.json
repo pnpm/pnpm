@@ -51,6 +51,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "render-help": "^1.0.2"
   },
