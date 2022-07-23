@@ -173,3 +173,17 @@ test('preserve trailing new line at the end of package.json5', async () => {
   const rawManifest = await fs.readFile('package.json5', 'utf8')
   expect(rawManifest).toBe("{dependencies:{bar:'1.0.0'}}")
 })
+
+test('canceling changes to a manifest', async () => {
+  process.chdir(tempy.directory())
+
+  await fs.writeFile('package.json', JSON.stringify({ name: 'foo' }), 'utf8')
+
+  const { writeProjectManifest } = await readProjectManifest(process.cwd())
+
+  await writeProjectManifest({ name: 'bar' })
+  expect(await fs.readFile('package.json', 'utf8')).toBe(JSON.stringify({ name: 'bar' }))
+
+  await writeProjectManifest({ name: 'foo' })
+  expect(await fs.readFile('package.json', 'utf8')).toBe(JSON.stringify({ name: 'foo' }))
+})

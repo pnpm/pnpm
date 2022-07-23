@@ -179,14 +179,16 @@ function createManifestWriter (
     manifestPath: string
   }
 ): (WriteProjectManifest) {
-  const initialManifest = normalize(JSON.parse(JSON.stringify(opts.initialManifest)))
+  let initialManifest = normalize(opts.initialManifest)
   return async (updatedManifest: ProjectManifest, force?: boolean) => {
     updatedManifest = normalize(updatedManifest)
     if (force === true || !equal(initialManifest, updatedManifest)) {
-      return writeProjectManifest(opts.manifestPath, updatedManifest, {
+      await writeProjectManifest(opts.manifestPath, updatedManifest, {
         indent: opts.indent,
         insertFinalNewline: opts.insertFinalNewline,
       })
+      initialManifest = normalize(updatedManifest)
+      return Promise.resolve(undefined)
     }
     return Promise.resolve(undefined)
   }
@@ -200,6 +202,7 @@ const dependencyKeys = new Set([
 ])
 
 function normalize (manifest: ProjectManifest) {
+  manifest = JSON.parse(JSON.stringify(manifest))
   const result = {}
 
   for (const key of Object.keys(manifest)) {
