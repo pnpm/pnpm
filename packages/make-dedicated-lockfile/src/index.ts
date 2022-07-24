@@ -34,6 +34,11 @@ export default async function (lockfileDir: string, projectDir: string) {
   const dedicatedLockfile = pruneSharedLockfile(lockfile)
 
   await writeWantedLockfile(projectDir, dedicatedLockfile)
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(projectDir)
+  const publishManifest = await exportableManifest(projectDir, manifest)
+  await writeProjectManifest(publishManifest)
+
   const modulesDir = path.join(projectDir, 'node_modules')
   const tmp = path.join(projectDir, 'tmp_node_modules')
   const tempModulesDir = path.join(projectDir, 'node_modules/.tmp')
@@ -45,10 +50,6 @@ export default async function (lockfileDir: string, projectDir: string) {
   } catch (err: any) { // eslint-disable-line
     if (err['code'] !== 'ENOENT') throw err
   }
-
-  const { manifest, writeProjectManifest } = await readProjectManifest(projectDir)
-  const publishManifest = await exportableManifest(projectDir, manifest)
-  await writeProjectManifest(publishManifest)
 
   try {
     await pnpmExec([

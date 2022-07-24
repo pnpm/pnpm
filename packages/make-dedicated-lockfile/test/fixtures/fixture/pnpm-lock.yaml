@@ -4,7 +4,7 @@ importers:
 
   packages/is-negative:
     specifiers:
-      is-positive: workspace:1.0.0
+      is-positive: workspace:^
       ramda: 0.26.0
       request: 2.0.0
     dependencies:
