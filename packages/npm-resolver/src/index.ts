@@ -291,11 +291,13 @@ function pickMatchingLocalVersionOrNull (
   }
 }
 
+interface LocalPackage {
+  dir: string
+  manifest: DependencyManifest
+}
+
 function resolveFromLocalPackage (
-  localPackage: {
-    dir: string
-    manifest: DependencyManifest
-  },
+  localPackage: LocalPackage,
   normalizedPref: string | undefined,
   opts: {
     hardLinkLocalPackages?: boolean
@@ -305,12 +307,13 @@ function resolveFromLocalPackage (
 ) {
   let id!: string
   let directory!: string
+  const localPackageDir = resolveLocalPackageDir(localPackage)
   if (opts.hardLinkLocalPackages) {
-    directory = normalize(path.relative(opts.lockfileDir!, localPackage.dir))
+    directory = normalize(path.relative(opts.lockfileDir!, localPackageDir))
     id = `file:${directory}`
   } else {
-    directory = localPackage.dir
-    id = `link:${normalize(path.relative(opts.projectDir, localPackage.dir))}`
+    directory = localPackageDir
+    id = `link:${normalize(path.relative(opts.projectDir, localPackageDir))}`
   }
   return {
     id,
@@ -322,6 +325,11 @@ function resolveFromLocalPackage (
     },
     resolvedVia: 'local-filesystem',
   }
+}
+
+function resolveLocalPackageDir (localPackage: LocalPackage) {
+  if (localPackage.manifest.publishConfig?.directory == null) return localPackage.dir
+  return path.join(localPackage.dir, localPackage.manifest.publishConfig.directory)
 }
 
 function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackageSpec {
