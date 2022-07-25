@@ -11,6 +11,7 @@ import {
   mutateModules,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
+import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
 import pick from 'ramda/src/pick.js'
 import sinon from 'sinon'
@@ -1529,4 +1530,69 @@ test('do not update dependency that has the same name as a dependency in the wor
     '/dep-of-pkg-with-1-dep/100.0.0',
     '/is-negative/2.1.0',
   ])
+})
+
+test('symlink local package from the location described in its publishConfig.directory', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1' },
+    },
+    {
+      location: 'project-1/dist',
+      package: { name: 'project-1-dist' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2' },
+    },
+  ])
+
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    publishConfig: {
+      directory: 'dist',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+
+    dependencies: {
+      'project-1': 'workspace:*',
+    },
+  }
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const workspacePackages = {
+    'project-1': {
+      '1.0.0': {
+        dir: path.resolve('project-1'),
+        manifest: project1Manifest,
+      },
+    },
+    'project-2': {
+      '1.0.0': {
+        dir: path.resolve('project-2'),
+        manifest: project2Manifest,
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({ workspacePackages }))
+
+  const linkedManifest = await loadJsonFile<{ name: string }>('project-2/node_modules/project-1/package.json')
+  expect(linkedManifest.name).toBe('project-1-dist')
 })
