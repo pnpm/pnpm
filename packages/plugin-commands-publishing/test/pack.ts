@@ -223,3 +223,42 @@ test('pack: remove publishConfig', async () => {
     types: 'index.d.ts',
   })
 })
+
+test('pack should read from the correct node_modules when publishing from a custom directory', async () => {
+  prepare({
+    name: 'custom-publish-dir',
+    version: '0.0.0',
+    publishConfig: {
+      directory: 'dist',
+    },
+    dependencies: {
+      local: 'workspace:*',
+    },
+  })
+
+  fs.mkdirSync('dist')
+  fs.copyFileSync('package.json', 'dist/package.json')
+  fs.mkdirSync('node_modules/local', { recursive: true })
+  fs.writeFileSync('node_modules/local/package.json', JSON.stringify({ name: 'local', version: '1.0.0' }), 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+
+  await tar.x({ file: 'custom-publish-dir-0.0.0.tgz' })
+
+  expect((await import(path.resolve('package/package.json'))).default).toStrictEqual({
+    name: 'custom-publish-dir',
+    version: '0.0.0',
+    dependencies: {
+      local: '1.0.0',
+    },
+    publishConfig: {
+      directory: 'dist',
+    },
+  })
+})
