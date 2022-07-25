@@ -110,6 +110,7 @@ export async function handler (
     filesMap,
     projectDir: dir,
     embedReadme: opts.embedReadme,
+    modulesDir: path.join(opts.dir, 'node_modules'),
   })
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['postpack'], entryManifest)
@@ -132,6 +133,7 @@ async function packPkg (opts: {
   filesMap: Record<string, string>
   projectDir: string
   embedReadme?: boolean
+  modulesDir: string
 }): Promise<void> {
   const {
     destFile,
@@ -152,7 +154,7 @@ async function packPkg (opts: {
     const mode = isExecutable ? 0o755 : 0o644
     if (/^package\/package\.(json|json5|yaml)/.test(name)) {
       const readmeFile = embedReadme ? await readReadmeFile(filesMap) : undefined
-      const publishManifest = await exportableManifest(projectDir, manifest, { readmeFile })
+      const publishManifest = await exportableManifest(projectDir, manifest, { readmeFile, modulesDir: opts.modulesDir })
       pack.entry({ mode, mtime, name: 'package/package.json' }, JSON.stringify(publishManifest, null, 2))
       continue
     }
