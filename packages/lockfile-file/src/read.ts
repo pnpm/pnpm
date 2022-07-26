@@ -226,10 +226,10 @@ async function _readGitBranchLockfiles (
  * Reverts changes from the "forceSharedFormat" write option if necessary.
  */
 function convertFromLockfileFileMutable (lockfileFile: LockfileFile): Lockfile {
-  if (typeof lockfileFile?.['specifiers'] !== 'undefined') {
+  if (typeof lockfileFile?.['importers'] === 'undefined') {
     lockfileFile.importers = {
       '.': {
-        specifiers: lockfileFile['specifiers'],
+        specifiers: lockfileFile['specifiers'] ?? {},
         dependenciesMeta: lockfileFile['dependenciesMeta'],
       },
     }
