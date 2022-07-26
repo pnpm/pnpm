@@ -15,13 +15,22 @@ const PREPUBLISH_SCRIPTS = [
   'postpublish',
 ]
 
-export default async function makePublishManifest (dir: string, originalManifest: ProjectManifest, opts?: { readmeFile?: string }) {
+export interface MakePublishManifestOptions {
+  modulesDir?: string
+  readmeFile?: string
+}
+
+export default async function makePublishManifest (
+  dir: string,
+  originalManifest: ProjectManifest,
+  opts?: MakePublishManifestOptions
+) {
   const publishManifest: ProjectManifest = omit(['pnpm', 'scripts'], originalManifest)
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
   }
   for (const depsField of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
-    const deps = await makePublishDependencies(dir, originalManifest[depsField])
+    const deps = await makePublishDependencies(dir, originalManifest[depsField], opts?.modulesDir)
     if (deps != null) {
       publishManifest[depsField] = deps
     }
@@ -36,21 +45,21 @@ export default async function makePublishManifest (dir: string, originalManifest
   return publishManifest
 }
 
-async function makePublishDependencies (dir: string, dependencies: Dependencies | undefined) {
+async function makePublishDependencies (dir: string, dependencies: Dependencies | undefined, modulesDir?: string) {
   if (dependencies == null) return dependencies
   const publishDependencies: Dependencies = fromPairs(
     await Promise.all(
       Object.entries(dependencies)
         .map(async ([depName, depSpec]) => [
           depName,
-          await makePublishDependency(depName, depSpec, dir),
+          await makePublishDependency(depName, depSpec, dir, modulesDir),
         ])
     ) as any, // eslint-disable-line
   )
   return publishDependencies
 }
 
-async function makePublishDependency (depName: string, depSpec: string, dir: string) {
+async function makePublishDependency (depName: string, depSpec: string, dir: string, modulesDir?: string) {
   if (!depSpec.startsWith('workspace:')) {
     return depSpec
   }
@@ -58,7 +67,8 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
   // Dependencies with bare "*", "^" and "~" versions
   const versionAliasSpecParts = /^workspace:([^@]+@)?([\^~*])$/.exec(depSpec)
   if (versionAliasSpecParts != null) {
-    const { manifest } = await tryReadProjectManifest(path.join(dir, 'node_modules', depName))
+    modulesDir = modulesDir ?? path.join(dir, 'node_modules')
+    const { manifest } = await tryReadProjectManifest(path.join(modulesDir, depName))
     if ((manifest == null) || !manifest.version) {
       throw new PnpmError(
         'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
