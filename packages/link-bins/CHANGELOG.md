@@ -1,5 +1,12 @@
 # @pnpm/link-bins
 
+## 7.2.2
+
+### Patch Changes
+
+- Updated dependencies [01c5834bf]
+  - @pnpm/read-project-manifest@3.0.7
+
 ## 7.2.1
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/exportable-manifest
 
+## 3.1.0
+
+### Minor Changes
+
+- eb2426cf8: Accept the module directory path where the dependency's manifest should be read.
+
+### Patch Changes
+
+- Updated dependencies [01c5834bf]
+  - @pnpm/read-project-manifest@3.0.7
+
 ## 3.0.7
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-publishing
 
+## 5.1.10
+
+### Patch Changes
+
+- eb2426cf8: It should be possible to publish a package with local dependencies from a custom publish directory (set via `publishConfig.directory`) [#3901](https://github.com/pnpm/pnpm/issues/3901#issuecomment-1194156886).
+- Updated dependencies [eb2426cf8]
+- Updated dependencies [4fa1091c8]
+  - @pnpm/exportable-manifest@3.1.0
+  - @pnpm/config@15.7.0
+  - @pnpm/cli-utils@0.7.22
+  - @pnpm/client@7.1.11
+  - @pnpm/lifecycle@13.1.3
+
 ## 5.1.9
 
 ### Patch Changes

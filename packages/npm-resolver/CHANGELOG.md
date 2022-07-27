@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 13.0.7
+
+### Patch Changes
+
+- eb2426cf8: When a project in a workspace has a `publishConfig.directory` set, dependent projects should install the project from that directory [#3901](https://github.com/pnpm/pnpm/issues/3901)
+
 ## 13.0.6
 
 ### Patch Changes

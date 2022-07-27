@@ -1,5 +1,13 @@
 # @pnpm/get-context
 
+## 6.2.5
+
+### Patch Changes
+
+- Updated dependencies [4fa1091c8]
+  - @pnpm/lockfile-file@5.2.0
+  - @pnpm/read-projects-context@6.0.10
+
 ## 6.2.4
 
 ### Patch Changes

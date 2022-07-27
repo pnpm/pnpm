@@ -1,5 +1,18 @@
 # @pnpm/config
 
+## 15.7.0
+
+### Minor Changes
+
+- 4fa1091c8: Add experimental lockfile format that should merge conflict less in the `importers` section. Enabled by setting the `use-inline-specifiers-lockfile-format = true` feature flag in `.npmrc`.
+
+  If this feature flag is committed to a repo, we recommend setting the minimum allowed version of pnpm to this release in the `package.json` `engines` field. Once this is set, older pnpm versions will throw on invalid lockfile versions.
+
+### Patch Changes
+
+- Updated dependencies [01c5834bf]
+  - @pnpm/read-project-manifest@3.0.7
+
 ## 15.6.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # find-packages
 
+## 9.0.7
+
+### Patch Changes
+
+- Updated dependencies [01c5834bf]
+  - @pnpm/read-project-manifest@3.0.7
+
 ## 9.0.6
 
 ### Patch Changes

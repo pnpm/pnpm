@@ -1,5 +1,29 @@
 # @pnpm/core
 
+## 5.8.0
+
+### Minor Changes
+
+- 4fa1091c8: Add experimental lockfile format that should merge conflict less in the `importers` section. Enabled by setting the `use-inline-specifiers-lockfile-format = true` feature flag in `.npmrc`.
+
+  If this feature flag is committed to a repo, we recommend setting the minimum allowed version of pnpm to this release in the `package.json` `engines` field. Once this is set, older pnpm versions will throw on invalid lockfile versions.
+
+### Patch Changes
+
+- Updated dependencies [01c5834bf]
+- Updated dependencies [4fa1091c8]
+  - @pnpm/read-project-manifest@3.0.7
+  - @pnpm/lockfile-file@5.2.0
+  - @pnpm/headless@18.5.1
+  - @pnpm/link-bins@7.2.2
+  - @pnpm/lockfile-to-pnp@0.5.21
+  - @pnpm/get-context@6.2.5
+  - @pnpm/resolve-dependencies@28.2.3
+  - @pnpm/lifecycle@13.1.3
+  - @pnpm/build-modules@9.3.2
+  - @pnpm/hoist@6.2.2
+  - @pnpm/package-requester@18.0.13
+
 ## 5.7.0
 
 ### Minor Changes

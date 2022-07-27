@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-deploy
 
+## 1.0.9
+
+### Patch Changes
+
+- 107d01109: `pnpm deploy` should inject local dependencies of all types (dependencies, optionalDependencies, devDependencies) [#5078](https://github.com/pnpm/pnpm/issues/5078).
+  - @pnpm/cli-utils@0.7.22
+  - @pnpm/directory-fetcher@3.0.8
+  - @pnpm/plugin-commands-installation@10.4.1
+
 ## 1.0.8
 
 ### Patch Changes

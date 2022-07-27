@@ -1,5 +1,17 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.3.15
+
+### Patch Changes
+
+- 01c5834bf: Read the dependency versions before moving node_modules.
+- Updated dependencies [eb2426cf8]
+- Updated dependencies [01c5834bf]
+- Updated dependencies [4fa1091c8]
+  - @pnpm/exportable-manifest@3.1.0
+  - @pnpm/read-project-manifest@3.0.7
+  - @pnpm/lockfile-file@5.2.0
+
 ## 0.3.14
 
 ### Patch Changes

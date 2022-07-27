@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 7.0.14
+
+### Patch Changes
+
+- Updated dependencies [01c5834bf]
+  - @pnpm/read-project-manifest@3.0.7
+  - dependencies-hierarchy@11.0.14
+
 ## 7.0.13
 
 ### Patch Changes

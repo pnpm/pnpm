@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-projects-context",
-  "version": "6.0.9",
+  "version": "6.0.10",
   "description": "Reads the current state of projects from modules manifest",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

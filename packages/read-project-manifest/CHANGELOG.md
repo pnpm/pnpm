@@ -1,5 +1,11 @@
 # @pnpm/read-project-manifest
 
+## 3.0.7
+
+### Patch Changes
+
+- 01c5834bf: It should be possible to rewrite a manifest back to its initial content [#5061](https://github.com/pnpm/pnpm/issues/5061).
+
 ## 3.0.6
 
 ### Patch Changes
