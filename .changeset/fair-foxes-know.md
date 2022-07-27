@@ -1,5 +1,6 @@
 ---
-"@pnpm/plugin-commands-deploy": major
+"pnpm": "patch"
+"@pnpm/plugin-commands-deploy": patch
 ---
 
-Accept absolute paths and use cwd instead of workspaceDir for deploy target directory.
+**pnpm deploy**: accept absolute paths and use cwd instead of workspaceDir for deploy target directory.
