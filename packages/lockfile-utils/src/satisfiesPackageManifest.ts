@@ -22,7 +22,10 @@ export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string, op
       },
     }
   }
-  if (!equals(existingDeps, importer.specifiers)) {
+  if (
+    !equals(existingDeps, importer.specifiers) ||
+    importer.publishDirectory !== pkg.publishConfig?.directory
+  ) {
     return false
   }
   if (!equals(pkg.dependenciesMeta ?? {}, importer.dependenciesMeta ?? {})) return false

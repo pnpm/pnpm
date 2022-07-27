@@ -110,7 +110,7 @@ export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolea
       ...lockfile,
       importers: Object.keys(lockfile.importers).reduce((acc, alias) => {
         const importer = lockfile.importers[alias]
-        const normalizedImporter = {
+        const normalizedImporter: ProjectSnapshot = {
           specifiers: importer.specifiers ?? {},
         }
         if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
@@ -120,6 +120,9 @@ export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolea
           if (!isEmpty(importer[depType] ?? {})) {
             normalizedImporter[depType] = importer[depType]
           }
+        }
+        if (importer.publishDirectory) {
+          normalizedImporter.publishDirectory = importer.publishDirectory
         }
         acc[alias] = normalizedImporter
         return acc

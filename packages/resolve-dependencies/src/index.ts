@@ -309,11 +309,15 @@ function addDirectDependenciesToLockfile (
   registries: Registries,
   autoInstallPeers?: boolean
 ): ProjectSnapshot {
-  const newProjectSnapshot = {
+  const newProjectSnapshot: ProjectSnapshot & Required<Pick<ProjectSnapshot, 'dependencies' | 'devDependencies' | 'optionalDependencies'>> = {
     dependencies: {},
     devDependencies: {},
     optionalDependencies: {},
     specifiers: {},
+  }
+
+  if (newManifest.publishConfig?.directory) {
+    newProjectSnapshot.publishDirectory = newManifest.publishConfig.directory
   }
 
   linkedPackages.forEach((linkedPkg) => {
