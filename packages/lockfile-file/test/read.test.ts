@@ -261,3 +261,30 @@ test('readWantedLockfile() when useGitBranchLockfile and mergeGitBranchLockfiles
     },
   })
 })
+
+test('readWantedLockfile() with inlineSpecifiersFormat', async () => {
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+        specifiers: {
+          'is-positive': '^1.0.0',
+        },
+      },
+    },
+    packages: {
+      '/is-positive/1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+    registry: 'https://registry.npmjs.org',
+  }
+
+  const lockfile = await readWantedLockfile(path.join('fixtures', '7'), { ignoreIncompatible: false })
+  expect(lockfile?.importers).toEqual(wantedLockfile.importers)
+  expect(lockfile?.packages).toEqual(wantedLockfile.packages)
+})

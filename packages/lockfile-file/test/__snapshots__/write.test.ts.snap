@@ -29,3 +29,18 @@ packages:
     resolution: {integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=}
 "
 `;
+
+exports[`writeLockfiles() when useInlineSpecifiersFormat 1`] = `
+"lockfileVersion: 5.4-inlineSpecifiers
+
+dependencies:
+  foo:
+    specifier: ^1.0.0
+    version: 1.0.0
+
+packages:
+
+  /foo/1.0.0:
+    resolution: {integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=}
+"
+`;

@@ -857,7 +857,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   }
 
   const depsStateCache: DepsStateCache = {}
-  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile, useGitBranchLockfile: opts.useGitBranchLockfile, mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles }
+  const lockfileOpts = {
+    forceSharedFormat: opts.forceSharedLockfile,
+    useInlineSpecifiersFormat: opts.useInlineSpecifiersLockfileFormat,
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+  }
   if (!opts.lockfileOnly && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,

@@ -11,6 +11,7 @@ import writeFileAtomicCB from 'write-file-atomic'
 import logger from './logger'
 import { sortLockfileKeys } from './sortLockfileKeys'
 import { getWantedLockfileName } from './lockfileName'
+import { convertToInlineSpecifiersFormat } from './experiments/inlineSpecifiersLockfileConverters'
 
 async function writeFileAtomic (filename: string, data: string) {
   return new Promise<void>((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err?: Error) => (err != null) ? reject(err) : resolve()))
@@ -29,6 +30,7 @@ export async function writeWantedLockfile (
   wantedLockfile: Lockfile,
   opts?: {
     forceSharedFormat?: boolean
+    useInlineSpecifiersFormat?: boolean
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
   }
@@ -48,13 +50,16 @@ export async function writeCurrentLockfile (
   return writeLockfile('lock.yaml', virtualStoreDir, currentLockfile, opts)
 }
 
+interface LockfileFormatOptions {
+  forceSharedFormat?: boolean
+  useInlineSpecifiersFormat?: boolean
+}
+
 async function writeLockfile (
   lockfileFilename: string,
   pkgPath: string,
   wantedLockfile: Lockfile,
-  opts?: {
-    forceSharedFormat?: boolean
-  }
+  opts?: LockfileFormatOptions
 ) {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
@@ -63,7 +68,11 @@ async function writeLockfile (
     return rimraf(lockfilePath)
   }
 
-  const yamlDoc = yamlStringify(wantedLockfile, opts?.forceSharedFormat === true)
+  const lockfileToStringify = (opts?.useInlineSpecifiersFormat ?? false)
+    ? convertToInlineSpecifiersFormat(wantedLockfile) as unknown as Lockfile
+    : wantedLockfile
+
+  const yamlDoc = yamlStringify(lockfileToStringify, opts?.forceSharedFormat === true)
 
   return writeFileAtomic(lockfilePath, yamlDoc)
 }
@@ -145,6 +154,7 @@ export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolea
 export default async function writeLockfiles (
   opts: {
     forceSharedFormat?: boolean
+    useInlineSpecifiersFormat?: boolean
     wantedLockfile: Lockfile
     wantedLockfileDir: string
     currentLockfile: Lockfile
@@ -167,7 +177,10 @@ export default async function writeLockfiles (
   }
 
   const forceSharedFormat = opts?.forceSharedFormat === true
-  const yamlDoc = yamlStringify(opts.wantedLockfile, forceSharedFormat)
+  const wantedLockfileToStringify = (opts.useInlineSpecifiersFormat ?? false)
+    ? convertToInlineSpecifiersFormat(opts.wantedLockfile) as unknown as Lockfile
+    : opts.wantedLockfile
+  const yamlDoc = yamlStringify(wantedLockfileToStringify, forceSharedFormat)
 
   // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal
   // in those cases the YAML document can be stringified only once for both files

@@ -18,6 +18,7 @@ import logger from './logger'
 import { LockfileFile } from './write'
 import { getWantedLockfileName } from './lockfileName'
 import { getGitBranchLockfileNames } from './gitBranchLockfile'
+import { revertFromInlineSpecifiersFormatIfNecessary } from './experiments/inlineSpecifiersLockfileConverters'
 
 export async function readCurrentLockfile (
   virtualStoreDir: string,
@@ -101,7 +102,7 @@ async function _read (
     })
   }
   if (lockfileFile) {
-    const lockfile = convertFromLockfileFileMutable(lockfileFile)
+    const lockfile = revertFromInlineSpecifiersFormatIfNecessary(convertFromLockfileFileMutable(lockfileFile))
     const lockfileSemver = comverToSemver((lockfile.lockfileVersion ?? 0).toString())
     /* eslint-enable @typescript-eslint/dot-notation */
     if (typeof opts.wantedVersion !== 'number' || semver.major(lockfileSemver) === semver.major(comverToSemver(opts.wantedVersion.toString()))) {
@@ -225,10 +226,10 @@ async function _readGitBranchLockfiles (
  * Reverts changes from the "forceSharedFormat" write option if necessary.
  */
 function convertFromLockfileFileMutable (lockfileFile: LockfileFile): Lockfile {
-  if (typeof lockfileFile?.['specifiers'] !== 'undefined') {
+  if (typeof lockfileFile?.['importers'] === 'undefined') {
     lockfileFile.importers = {
       '.': {
-        specifiers: lockfileFile['specifiers'],
+        specifiers: lockfileFile['specifiers'] ?? {},
         dependenciesMeta: lockfileFile['dependenciesMeta'],
       },
     }

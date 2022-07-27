@@ -231,3 +231,39 @@ test('writeLockfiles() when useGitBranchLockfile', async () => {
   expect(fs.existsSync(path.join(projectPath, WANTED_LOCKFILE))).toBeFalsy()
   expect(fs.existsSync(path.join(projectPath, `pnpm-lock.${branchName}.yaml`))).toBeTruthy()
 })
+
+test('writeLockfiles() when useInlineSpecifiersFormat', async () => {
+  const projectPath = tempy.directory()
+  const wantedLockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        specifiers: {
+          foo: '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '/foo/1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  }
+
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+    useInlineSpecifiersFormat: true,
+  })
+
+  expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+  expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
+  expect(fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')).toMatchSnapshot()
+})
