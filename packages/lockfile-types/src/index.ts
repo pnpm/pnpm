@@ -19,6 +19,7 @@ export interface ProjectSnapshot {
   optionalDependencies?: ResolvedDependencies
   devDependencies?: ResolvedDependencies
   dependenciesMeta?: DependenciesMeta
+  publishDirectory?: string
 }
 
 export interface PackageSnapshots {

@@ -283,4 +283,50 @@ test('satisfiesPackageManifest()', () => {
       bar: '^1.0.0',
     },
   }, '.', { autoInstallPeers: true })).toBe(true)
+
+  expect(satisfiesPackageManifest({
+    ...DEFAULT_LOCKFILE_FIELDS,
+    importers: {
+      '.': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        specifiers: {
+          foo: '1.0.0',
+        },
+        publishDirectory: 'dist',
+      },
+    },
+  }, {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: {
+      foo: '1.0.0',
+    },
+    publishConfig: {
+      directory: 'dist',
+    },
+  }, '.')).toBe(true)
+
+  expect(satisfiesPackageManifest({
+    ...DEFAULT_LOCKFILE_FIELDS,
+    importers: {
+      '.': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        specifiers: {
+          foo: '1.0.0',
+        },
+        publishDirectory: 'dist',
+      },
+    },
+  }, {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: {
+      foo: '1.0.0',
+    },
+    publishConfig: {
+      directory: 'lib',
+    },
+  }, '.')).toBe(false)
 })

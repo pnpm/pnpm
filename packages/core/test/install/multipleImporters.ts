@@ -1593,6 +1593,20 @@ test('symlink local package from the location described in its publishConfig.dir
   }
   await mutateModules(importers, await testDefaults({ workspacePackages }))
 
-  const linkedManifest = await loadJsonFile<{ name: string }>('project-2/node_modules/project-1/package.json')
-  expect(linkedManifest.name).toBe('project-1-dist')
+  {
+    const linkedManifest = await loadJsonFile<{ name: string }>('project-2/node_modules/project-1/package.json')
+    expect(linkedManifest.name).toBe('project-1-dist')
+  }
+
+  const project = assertProject(process.cwd())
+  const lockfile = await project.readLockfile()
+  expect(lockfile.importers['project-1'].publishDirectory).toBe('dist')
+
+  await rimraf('node_modules')
+  await mutateModules(importers, await testDefaults({ frozenLockfile: true, workspacePackages }))
+
+  {
+    const linkedManifest = await loadJsonFile<{ name: string }>('project-2/node_modules/project-1/package.json')
+    expect(linkedManifest.name).toBe('project-1-dist')
+  }
 })
