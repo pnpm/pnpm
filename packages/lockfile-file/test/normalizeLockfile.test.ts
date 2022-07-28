@@ -20,7 +20,10 @@ test('empty overrides and neverBuiltDependencies are removed during lockfile nor
         },
       },
     },
-  }, false)).toStrictEqual({
+  }, {
+    forceSharedFormat: false,
+    includeEmptySpecifiersField: false,
+  })).toStrictEqual({
     lockfileVersion: LOCKFILE_VERSION,
     onlyBuiltDependencies: [],
     importers: {
@@ -32,6 +35,48 @@ test('empty overrides and neverBuiltDependencies are removed during lockfile nor
           bar: 'link:../bar',
         },
       },
+    },
+  })
+})
+
+test('empty specifiers field is preserved', () => {
+  expect(normalizeLockfile({
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {},
+    importers: {
+      foo: {
+        specifiers: {},
+      },
+    },
+  }, {
+    forceSharedFormat: false,
+    includeEmptySpecifiersField: true,
+  })).toStrictEqual({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      foo: {
+        specifiers: {},
+      },
+    },
+  })
+})
+
+test('empty specifiers field is removed', () => {
+  expect(normalizeLockfile({
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {},
+    importers: {
+      foo: {
+        specifiers: {},
+      },
+    },
+  }, {
+    forceSharedFormat: false,
+    includeEmptySpecifiersField: false,
+  })).toStrictEqual({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      foo: {},
     },
   })
 })
