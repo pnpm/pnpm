@@ -72,13 +72,16 @@ async function writeLockfile (
     ? convertToInlineSpecifiersFormat(wantedLockfile) as unknown as Lockfile
     : wantedLockfile
 
-  const yamlDoc = yamlStringify(lockfileToStringify, opts?.forceSharedFormat === true)
+  const yamlDoc = yamlStringify(lockfileToStringify, {
+    forceSharedFormat: opts?.forceSharedFormat === true,
+    includeEmptySpecifiersField: !opts?.useInlineSpecifiersFormat,
+  })
 
   return writeFileAtomic(lockfilePath, yamlDoc)
 }
 
-function yamlStringify (lockfile: Lockfile, forceSharedFormat: boolean) {
-  let normalizedLockfile = normalizeLockfile(lockfile, forceSharedFormat)
+function yamlStringify (lockfile: Lockfile, opts: NormalizeLockfileOpts) {
+  let normalizedLockfile = normalizeLockfile(lockfile, opts)
   normalizedLockfile = sortLockfileKeys(normalizedLockfile)
   return yaml.dump(normalizedLockfile, LOCKFILE_YAML_FORMAT)
 }
@@ -89,9 +92,14 @@ function isEmptyLockfile (lockfile: Lockfile) {
 
 export type LockfileFile = Omit<Lockfile, 'importers'> & Partial<ProjectSnapshot> & Partial<Pick<Lockfile, 'importers'>>
 
-export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
+export interface NormalizeLockfileOpts {
+  forceSharedFormat: boolean
+  includeEmptySpecifiersField: boolean
+}
+
+export function normalizeLockfile (lockfile: Lockfile, opts: NormalizeLockfileOpts) {
   let lockfileToSave!: LockfileFile
-  if (!forceSharedFormat && equals(Object.keys(lockfile.importers), ['.'])) {
+  if (!opts.forceSharedFormat && equals(Object.keys(lockfile.importers), ['.'])) {
     lockfileToSave = {
       ...lockfile,
       ...lockfile.importers['.'],
@@ -110,8 +118,9 @@ export function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolea
       ...lockfile,
       importers: Object.keys(lockfile.importers).reduce((acc, alias) => {
         const importer = lockfile.importers[alias]
-        const normalizedImporter: ProjectSnapshot = {
-          specifiers: importer.specifiers ?? {},
+        const normalizedImporter: Partial<ProjectSnapshot> = {}
+        if (!isEmpty(importer.specifiers ?? {}) || opts.includeEmptySpecifiersField) {
+          normalizedImporter['specifiers'] = importer.specifiers ?? {}
         }
         if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
           normalizedImporter['dependenciesMeta'] = importer.dependenciesMeta
@@ -183,7 +192,11 @@ export default async function writeLockfiles (
   const wantedLockfileToStringify = (opts.useInlineSpecifiersFormat ?? false)
     ? convertToInlineSpecifiersFormat(opts.wantedLockfile) as unknown as Lockfile
     : opts.wantedLockfile
-  const yamlDoc = yamlStringify(wantedLockfileToStringify, forceSharedFormat)
+  const normalizeOpts = {
+    forceSharedFormat,
+    includeEmptySpecifiersField: !opts.useInlineSpecifiersFormat,
+  }
+  const yamlDoc = yamlStringify(wantedLockfileToStringify, normalizeOpts)
 
   // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal
   // in those cases the YAML document can be stringified only once for both files
@@ -204,7 +217,7 @@ export default async function writeLockfiles (
     prefix: opts.wantedLockfileDir,
   })
 
-  const currentYamlDoc = yamlStringify(opts.currentLockfile, forceSharedFormat)
+  const currentYamlDoc = yamlStringify(opts.currentLockfile, normalizeOpts)
 
   await Promise.all([
     writeFileAtomic(wantedLockfilePath, yamlDoc),

@@ -57,7 +57,7 @@ export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string, op
       return false
     }
     for (const depName of pkgDepNames) {
-      if (!importerDeps[depName] || importer.specifiers[depName] !== pkgDeps[depName]) return false
+      if (!importerDeps[depName] || importer.specifiers?.[depName] !== pkgDeps[depName]) return false
     }
   }
   return true
