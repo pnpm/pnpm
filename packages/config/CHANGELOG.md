@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 15.7.1
+
+### Patch Changes
+
+- @pnpm/pnpmfile@2.0.8
+
 ## 15.7.0
 
 ### Minor Changes

@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-deploy
 
+## 1.0.10
+
+### Patch Changes
+
+- c7519ad6a: **pnpm deploy**: accept absolute paths and use cwd instead of workspaceDir for deploy target directory [#4980](https://github.com/pnpm/pnpm/issues/4980).
+  - @pnpm/plugin-commands-installation@10.4.2
+  - @pnpm/cli-utils@0.7.23
+  - @pnpm/fs.indexed-pkg-importer@1.0.0
+  - @pnpm/directory-fetcher@3.0.8
+
 ## 1.0.9
 
 ### Patch Changes

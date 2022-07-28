@@ -1,5 +1,19 @@
 # @pnpm/resolve-dependencies
 
+## 28.3.0
+
+### Minor Changes
+
+- 8dcfbe357: Add `publishDirectory` field to the lockfile and relink the project when it changes.
+
+### Patch Changes
+
+- Updated dependencies [8dcfbe357]
+  - @pnpm/lockfile-types@4.3.0
+  - @pnpm/lockfile-utils@4.2.0
+  - @pnpm/prune-lockfile@4.0.12
+  - @pnpm/npm-resolver@13.0.7
+
 ## 28.2.3
 
 ### Patch Changes

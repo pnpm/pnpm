@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.7.0-0
+## 7.7.0-1
 
 ### Minor Changes
 
@@ -8,11 +8,14 @@
 
   If this feature flag is committed to a repo, we recommend setting the minimum allowed version of pnpm to this release in the `package.json` `engines` field. Once this is set, older pnpm versions will throw on invalid lockfile versions.
 
+- Add `publishDirectory` field to the lockfile and relink the project when it changes.
+
 ### Patch Changes
 
 - It should be possible to publish a package with local dependencies from a custom publish directory (set via `publishConfig.directory`) [#3901](https://github.com/pnpm/pnpm/issues/3901#issuecomment-1194156886).
 - `pnpm deploy` should inject local dependencies of all types (dependencies, optionalDependencies, devDependencies) [#5078](https://github.com/pnpm/pnpm/issues/5078).
 - When a project in a workspace has a `publishConfig.directory` set, dependent projects should install the project from that directory [#3901](https://github.com/pnpm/pnpm/issues/3901)
+- **pnpm deploy**: accept absolute paths and use cwd instead of workspaceDir for deploy target directory [#4980](https://github.com/pnpm/pnpm/issues/4980).
 
 ## 7.6.0
 

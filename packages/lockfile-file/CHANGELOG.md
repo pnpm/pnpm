@@ -1,5 +1,17 @@
 # @pnpm/lockfile-file
 
+## 5.3.0
+
+### Minor Changes
+
+- 8dcfbe357: Add `publishDirectory` field to the lockfile and relink the project when it changes.
+
+### Patch Changes
+
+- Updated dependencies [8dcfbe357]
+  - @pnpm/lockfile-types@4.3.0
+  - @pnpm/merge-lockfile-changes@3.0.7
+
 ## 5.2.0
 
 ### Minor Changes

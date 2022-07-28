@@ -1,5 +1,25 @@
 # @pnpm/core
 
+## 5.8.1
+
+### Patch Changes
+
+- Updated dependencies [8dcfbe357]
+  - @pnpm/lockfile-file@5.3.0
+  - @pnpm/lockfile-utils@4.2.0
+  - @pnpm/resolve-dependencies@28.3.0
+  - @pnpm/get-context@6.2.6
+  - @pnpm/headless@18.5.2
+  - @pnpm/lockfile-to-pnp@0.5.22
+  - @pnpm/filter-lockfile@6.0.13
+  - @pnpm/hoist@6.2.3
+  - @pnpm/lockfile-walker@5.0.11
+  - @pnpm/modules-cleaner@12.0.15
+  - @pnpm/prune-lockfile@4.0.12
+  - @pnpm/crypto.base32-hash@1.0.1
+  - @pnpm/link-bins@7.2.2
+  - @pnpm/package-requester@18.0.13
+
 ## 5.8.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli-utils",
-  "version": "0.7.22",
+  "version": "0.7.23",
   "description": "Utils for pnpm commands",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -1,5 +1,20 @@
 # @pnpm/headless
 
+## 18.5.2
+
+### Patch Changes
+
+- Updated dependencies [8dcfbe357]
+  - @pnpm/lockfile-file@5.3.0
+  - @pnpm/lockfile-utils@4.2.0
+  - @pnpm/lockfile-to-pnp@0.5.22
+  - @pnpm/real-hoist@0.2.12
+  - @pnpm/filter-lockfile@6.0.13
+  - @pnpm/hoist@6.2.3
+  - @pnpm/modules-cleaner@12.0.15
+  - @pnpm/link-bins@7.2.2
+  - @pnpm/package-requester@18.0.13
+
 ## 18.5.1
 
 ### Patch Changes

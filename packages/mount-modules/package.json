@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/mount-modules",
-  "version": "0.2.23",
+  "version": "0.2.24",
   "description": "Mounts a node_modules directory with FUSE",
   "main": "lib/index.js",
   "bin": "bin/mount-modules.js",
