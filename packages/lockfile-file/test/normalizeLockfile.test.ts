@@ -20,7 +20,10 @@ test('empty overrides and neverBuiltDependencies are removed during lockfile nor
         },
       },
     },
-  }, false)).toStrictEqual({
+  }, {
+    forceSharedFormat: false,
+    includeEmptySpecifiersField: false,
+  })).toStrictEqual({
     lockfileVersion: LOCKFILE_VERSION,
     onlyBuiltDependencies: [],
     importers: {
