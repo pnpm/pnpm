@@ -435,6 +435,12 @@ test('JSON list with aliased dep', async () => {
           resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
 
           description: 'Test if a number is positive',
+          license: 'MIT',
+          author: {
+            name: 'Kevin Martensson',
+            email: 'kevinmartensson@gmail.com',
+            url: 'github.com/kevva',
+          },
           homepage: 'https://github.com/kevva/is-positive#readme',
           repository: 'git+https://github.com/kevva/is-positive.git',
         },
