@@ -1,4 +1,5 @@
 ---
+"@pnpm/config": minor
 "@pnpm/package-requester": minor
 "@pnpm/plugin-commands-installation": minor
 "pnpm": minor
