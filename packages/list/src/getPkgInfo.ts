@@ -28,6 +28,8 @@ export default async function getPkgInfo (
     resolved: pkg.resolved,
 
     description: manifest.description,
+    license: manifest.license,
+    author: manifest.author,
 
     homepage: manifest.homepage,
     repository: (manifest.repository && (
