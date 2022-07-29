@@ -52,7 +52,7 @@ export const shorthands = {
   P: '--production',
 }
 
-export const commandNames = ['outdated']
+export const commandNames = ['outdated', 'out']
 
 export function help () {
   return renderHelp({
