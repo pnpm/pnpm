@@ -80,6 +80,7 @@ export const types = Object.assign({
   noproxy: String,
   'npm-path': String,
   offline: Boolean,
+  'only-built-dependencies': [String],
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
   pnpmfile: String,
   'prefer-frozen-lockfile': Boolean,

@@ -24,13 +24,16 @@ export default function getOptionsFromRootManifest (manifest: ProjectManifest): 
   const peerDependencyRules = manifest.pnpm?.peerDependencyRules
   const allowedDeprecatedVersions = manifest.pnpm?.allowedDeprecatedVersions
   const patchedDependencies = manifest.pnpm?.patchedDependencies
-  return {
+  const settings = {
     allowedDeprecatedVersions,
     overrides,
     neverBuiltDependencies,
-    onlyBuiltDependencies,
     packageExtensions,
     peerDependencyRules,
     patchedDependencies,
   }
+  if (onlyBuiltDependencies) {
+    settings['onlyBuiltDependencies'] = onlyBuiltDependencies
+  }
+  return settings
 }
