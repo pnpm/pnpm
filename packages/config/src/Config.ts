@@ -148,6 +148,7 @@ export interface Config {
   embedReadme?: boolean
   gitShallowHosts?: string[]
   legacyDirFiltering?: boolean
+  onlyBuiltDependencies?: string[]
 
   registries: Registries
   ignoreWorkspaceRootCheck: boolean
