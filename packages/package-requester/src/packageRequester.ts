@@ -110,14 +110,14 @@ export default function (
   const getFilePathInCafs = _getFilePathInCafs.bind(null, cafsDir)
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs)
   const fetchPackageToStore = fetchToStore.bind(null, {
-    checkFilesIntegrity: _checkFilesIntegrity.bind(null, cafsDir),
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-boolean-literal-compare
+    checkFilesIntegrity: opts.verifyStoreIntegrity === false ? async () => true : _checkFilesIntegrity.bind(null, cafsDir),
     fetch,
     fetchingLocker: new Map(),
     getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, cafsDir),
     getFilePathInCafs,
     requestsQueue,
     storeDir: opts.storeDir,
-    verifyStoreIntegrity: opts.verifyStoreIntegrity,
   })
   const requestPackage = resolveAndFetch.bind(null, {
     engineStrict: opts.engineStrict,
@@ -128,7 +128,6 @@ export default function (
     requestsQueue,
     resolve: opts.resolve,
     storeDir: opts.storeDir,
-    verifyStoreIntegrity: opts.verifyStoreIntegrity,
   })
 
   return Object.assign(requestPackage, { fetchPackageToStore, requestPackage })
@@ -144,7 +143,6 @@ async function resolveAndFetch (
     resolve: ResolveFunction
     fetchPackageToStore: FetchPackageToStoreFunction
     storeDir: string
-    verifyStoreIntegrity: boolean
   },
   wantedDependency: WantedDependency & { optional?: boolean },
   options: RequestPackageOptions
@@ -302,7 +300,6 @@ function fetchToStore (
     getFilePathByModeInCafs: (integrity: string, mode: number) => string
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>}
     storeDir: string
-    verifyStoreIntegrity: boolean
   },
   opts: FetchPackageToStoreOptions
 ): {
