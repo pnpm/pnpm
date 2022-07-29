@@ -225,6 +225,7 @@ export default async (
     'use-beta-cli': false,
     'use-inline-specifiers-lockfile-format': false,
     userconfig: npmDefaults.userconfig,
+    'verify-store-integrity': true,
     'virtual-store-dir': 'node_modules/.pnpm',
     'workspace-concurrency': 4,
     'workspace-prefix': opts.workspaceDir,
