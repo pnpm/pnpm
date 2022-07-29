@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 15.8.0
+
+### Minor Changes
+
+- cac34ad69: `verify-store-integrity=false` makes pnpm skip checking the integrities of files in the global content-addressable store.
+- 99019e071: Allow to set `only-built-dependencies[]` through `.npmrc`.
+
 ## 15.7.1
 
 ### Patch Changes

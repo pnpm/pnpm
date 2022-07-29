@@ -1,5 +1,11 @@
 # @pnpm/find-workspace-packages
 
+## 4.0.24
+
+### Patch Changes
+
+- @pnpm/cli-utils@0.7.24
+
 ## 4.0.23
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.7.0-1
+## 7.7.0
 
 ### Minor Changes
 
@@ -10,12 +10,17 @@
 
 - Add `publishDirectory` field to the lockfile and relink the project when it changes.
 
+- `verify-store-integrity=false` makes pnpm skip checking the integrities of files in the global content-addressable store.
+
+- Allow to set `only-built-dependencies[]` through `.npmrc`.
+
 ### Patch Changes
 
 - It should be possible to publish a package with local dependencies from a custom publish directory (set via `publishConfig.directory`) [#3901](https://github.com/pnpm/pnpm/issues/3901#issuecomment-1194156886).
 - `pnpm deploy` should inject local dependencies of all types (dependencies, optionalDependencies, devDependencies) [#5078](https://github.com/pnpm/pnpm/issues/5078).
 - When a project in a workspace has a `publishConfig.directory` set, dependent projects should install the project from that directory [#3901](https://github.com/pnpm/pnpm/issues/3901)
 - **pnpm deploy**: accept absolute paths and use cwd instead of workspaceDir for deploy target directory [#4980](https://github.com/pnpm/pnpm/issues/4980).
+- **pnpm setup** should update `.zshrc` in the right directory when a `$ZDOTDIR` is set.
 
 ## 7.6.0
 

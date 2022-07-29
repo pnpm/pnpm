@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 18.5.3
+
+### Patch Changes
+
+- Updated dependencies [cac34ad69]
+  - @pnpm/package-requester@18.1.0
+  - @pnpm/lockfile-to-pnp@0.5.23
+
 ## 18.5.2
 
 ### Patch Changes

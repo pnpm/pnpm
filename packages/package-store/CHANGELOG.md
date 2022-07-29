@@ -1,5 +1,12 @@
 # @pnpm/package-store
 
+## 14.0.6
+
+### Patch Changes
+
+- Updated dependencies [cac34ad69]
+  - @pnpm/package-requester@18.1.0
+
 ## 14.0.5
 
 ### Patch Changes

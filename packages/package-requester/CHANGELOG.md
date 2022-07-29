@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 18.1.0
+
+### Minor Changes
+
+- cac34ad69: `verify-store-integrity=false` makes pnpm skip checking the integrities of files in the global content-addressable store.
+
 ## 18.0.13
 
 ### Patch Changes

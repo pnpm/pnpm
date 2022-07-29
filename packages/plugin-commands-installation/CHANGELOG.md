@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-installation
 
+## 10.5.0
+
+### Minor Changes
+
+- cac34ad69: `verify-store-integrity=false` makes pnpm skip checking the integrities of files in the global content-addressable store.
+- 99019e071: Allow to set `only-built-dependencies[]` through `.npmrc`.
+
+### Patch Changes
+
+- Updated dependencies [cac34ad69]
+- Updated dependencies [99019e071]
+  - @pnpm/config@15.8.0
+  - @pnpm/cli-utils@0.7.24
+  - @pnpm/plugin-commands-rebuild@6.1.26
+  - @pnpm/store-connection-manager@4.1.25
+  - @pnpm/core@5.8.2
+  - @pnpm/package-store@14.0.6
+  - @pnpm/find-workspace-packages@4.0.24
+  - @pnpm/filter-workspace-packages@5.0.24
+
 ## 10.4.2
 
 ### Patch Changes
