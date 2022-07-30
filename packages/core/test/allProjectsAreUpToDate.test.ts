@@ -178,6 +178,8 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
           manifest: {
             dependencies: {
               foo: 'workspace:*',
+              foo2: 'workspace:~',
+              foo3: 'workspace:^',
             },
           },
           rootDir: 'bar',
@@ -196,6 +198,22 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
           manifest: fooManifest,
           rootDir: 'foo',
         },
+        {
+          id: 'foo2',
+          manifest: {
+            name: 'foo2',
+            version: '1.0.0',
+          },
+          rootDir: 'foo2',
+        },
+        {
+          id: 'foo3',
+          manifest: {
+            name: 'foo3',
+            version: '1.0.0',
+          },
+          rootDir: 'foo3',
+        },
       ],
       {
         autoInstallPeers: false,
@@ -205,9 +223,13 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
             bar: {
               dependencies: {
                 foo: 'link:../foo',
+                foo2: 'link:../foo2',
+                foo3: 'link:../foo3',
               },
               specifiers: {
                 foo: 'workspace:*',
+                foo2: 'workspace:~',
+                foo3: 'workspace:^',
               },
             },
             bar2: {
@@ -219,6 +241,12 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
               },
             },
             foo: {
+              specifiers: {},
+            },
+            foo2: {
+              specifiers: {},
+            },
+            foo3: {
               specifiers: {},
             },
           },

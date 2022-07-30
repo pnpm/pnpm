@@ -102,7 +102,7 @@ async function linkedPackagesAreUpToDate (
       const linkedPkg = manifestsByDir[linkedDir] ?? await safeReadPkgFromDir(linkedDir)
       const availableRange = getVersionRange(currentSpec)
       // This should pass the same options to semver as @pnpm/npm-resolver
-      const localPackageSatisfiesRange = availableRange === '*' ||
+      const localPackageSatisfiesRange = availableRange === '*' || availableRange === '^' || availableRange === '~' ||
         linkedPkg && semver.satisfies(linkedPkg.version, availableRange, { loose: true })
       if (isLinked !== localPackageSatisfiesRange) return false
     }
