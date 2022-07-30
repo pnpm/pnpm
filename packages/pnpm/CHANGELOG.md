@@ -1,5 +1,12 @@
 # pnpm
 
+## 7.7.1
+
+### Patch Changes
+
+- pnpm should not consider a lockfile out-of-date if `auto-install-peers` is set to `true` and the peer dependency is in `devDependencies` or `optionalDependencies` [#5080](https://github.com/pnpm/pnpm/issues/5080).
+- Don't incorrectly consider a lockfile out-of-date when `workspace:^` or `workspace:~` version specs are used in a workspace.
+
 ## 7.7.0
 
 ### Minor Changes

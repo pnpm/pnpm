@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-lockfile",
-  "version": "6.0.13",
+  "version": "6.0.14",
   "description": "Filters a lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

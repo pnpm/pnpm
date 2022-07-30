@@ -1,5 +1,19 @@
 # @pnpm/core
 
+## 5.8.3
+
+### Patch Changes
+
+- c7d65fe7f: Don't incorrectly consider a lockfile out-of-date when `workspace:^` or `workspace:~` version specs are used in a workspace.
+- Updated dependencies [c83f40c10]
+  - @pnpm/lockfile-utils@4.2.1
+  - @pnpm/filter-lockfile@6.0.14
+  - @pnpm/headless@18.5.4
+  - @pnpm/hoist@6.2.4
+  - @pnpm/lockfile-to-pnp@0.5.24
+  - @pnpm/modules-cleaner@12.0.16
+  - @pnpm/resolve-dependencies@28.3.1
+
 ## 5.8.2
 
 ### Patch Changes

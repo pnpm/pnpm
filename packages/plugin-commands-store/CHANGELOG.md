@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-store
 
+## 5.1.27
+
+### Patch Changes
+
+- Updated dependencies [c83f40c10]
+  - @pnpm/lockfile-utils@4.2.1
+
 ## 5.1.26
 
 ### Patch Changes

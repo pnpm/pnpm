@@ -1,5 +1,12 @@
 # @pnpm/hoist
 
+## 6.2.4
+
+### Patch Changes
+
+- Updated dependencies [c83f40c10]
+  - @pnpm/lockfile-utils@4.2.1
+
 ## 6.2.3
 
 ### Patch Changes

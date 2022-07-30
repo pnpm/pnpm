@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "5.0.31",
+  "version": "5.0.32",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

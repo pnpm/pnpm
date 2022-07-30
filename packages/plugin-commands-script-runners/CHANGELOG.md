@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-script-runners
 
+## 5.0.32
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@10.5.1
+
 ## 5.0.31
 
 ### Patch Changes

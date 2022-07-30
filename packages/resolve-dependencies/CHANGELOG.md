@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 28.3.1
+
+### Patch Changes
+
+- Updated dependencies [c83f40c10]
+  - @pnpm/lockfile-utils@4.2.1
+
 ## 28.3.0
 
 ### Minor Changes
