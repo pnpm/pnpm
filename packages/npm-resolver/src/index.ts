@@ -328,7 +328,10 @@ function resolveFromLocalPackage (
 }
 
 function resolveLocalPackageDir (localPackage: LocalPackage) {
-  if (localPackage.manifest.publishConfig?.directory == null) return localPackage.dir
+  if (
+    localPackage.manifest.publishConfig?.directory == null ||
+    localPackage.manifest.publishConfig?.linkDirectory !== true
+  ) return localPackage.dir
   return path.join(localPackage.dir, localPackage.manifest.publishConfig.directory)
 }
 
