@@ -288,6 +288,36 @@ test('satisfiesPackageManifest()', () => {
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
+        optionalDependencies: {
+          bar: '1.0.0',
+        },
+        devDependencies: {
+          foo: '1.0.0',
+        },
+        specifiers: {
+          foo: '1.0.0',
+          bar: '1.0.0',
+        },
+      },
+    },
+  }, {
+    ...DEFAULT_PKG_FIELDS,
+    optionalDependencies: {
+      bar: '1.0.0',
+    },
+    devDependencies: {
+      foo: '1.0.0',
+    },
+    peerDependencies: {
+      foo: '^1.0.0',
+      bar: '^1.0.0',
+    },
+  }, '.', { autoInstallPeers: true })).toBe(true)
+
+  expect(satisfiesPackageManifest({
+    ...DEFAULT_LOCKFILE_FIELDS,
+    importers: {
+      '.': {
         dependencies: {
           foo: '1.0.0',
         },

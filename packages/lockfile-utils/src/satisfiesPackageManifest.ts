@@ -4,22 +4,23 @@ import {
   ProjectManifest,
 } from '@pnpm/types'
 import equals from 'ramda/src/equals.js'
+import omit from 'ramda/src/omit.js'
 
 export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string, opts?: { autoInstallPeers?: boolean }) => {
   const importer = lockfile.importers[importerId]
   if (!importer) return false
   let existingDeps = { ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }
   if (opts?.autoInstallPeers) {
-    existingDeps = {
-      ...pkg.peerDependencies,
-      ...existingDeps,
-    }
     pkg = {
       ...pkg,
       dependencies: {
-        ...pkg.peerDependencies,
+        ...omit(Object.keys(existingDeps), pkg.peerDependencies),
         ...pkg.dependencies,
       },
+    }
+    existingDeps = {
+      ...pkg.peerDependencies,
+      ...existingDeps,
     }
   }
   if (
