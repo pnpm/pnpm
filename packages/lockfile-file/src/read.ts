@@ -231,6 +231,7 @@ function convertFromLockfileFileMutable (lockfileFile: LockfileFile): Lockfile {
       '.': {
         specifiers: lockfileFile['specifiers'] ?? {},
         dependenciesMeta: lockfileFile['dependenciesMeta'],
+        publishDirectory: lockfileFile['publishDirectory'],
       },
     }
     delete lockfileFile.specifiers

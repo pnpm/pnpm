@@ -27,6 +27,7 @@ test('readWantedLockfile()', async () => {
         dependenciesMeta: {
           foo: { injected: true },
         },
+        publishDirectory: undefined,
       },
     })
   }
