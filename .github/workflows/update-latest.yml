@@ -13,6 +13,7 @@ on:
 
 jobs:
   build:
+    name: Tagging ${{ github.event.inputs.version }} as ${{ github.event.inputs.tag }}
     environment: release
     runs-on: ubuntu-latest
     steps:
