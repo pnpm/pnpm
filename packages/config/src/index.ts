@@ -144,7 +144,6 @@ export default async (
   const env = opts.env ?? process.env
   const packageManager = opts.packageManager ?? { name: 'pnpm', version: 'undefined' }
   const cliOptions = opts.cliOptions ?? {}
-  const warnings = new Array<string>()
 
   if (cliOptions['hoist'] === false) {
     if (cliOptions['shamefully-hoist'] === true) {
@@ -176,7 +175,7 @@ export default async (
     cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
-  const npmConfig = loadNpmConf(cliOptions, rcOptionsTypes, {
+  const { config: npmConfig, warnings } = loadNpmConf(cliOptions, rcOptionsTypes, {
     'auto-install-peers': false,
     bail: true,
     color: 'auto',

@@ -912,3 +912,16 @@ test('preferSymlinkedExecutables should be true when nodeLinker is hoisted', asy
   })
   expect(config.preferSymlinkedExecutables).toBeTruthy()
 })
+
+test('return a warning when the .npmrc has an env variable that does not exist', async () => {
+  await fs.writeFile('.npmrc', 'foo=${ENV_VAR_123}', 'utf8') // eslint-disable-line
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(warnings[0]).toContain('Failed to replace env in config: ${ENV_VAR_123}') // eslint-disable-line
+})

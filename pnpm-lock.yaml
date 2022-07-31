@@ -475,8 +475,8 @@ importers:
         specifier: workspace:*
         version: link:../matcher
       '@pnpm/npm-conf':
-        specifier: 1.0.5
-        version: 1.0.5
+        specifier: 2.0.0
+        version: 2.0.0
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../pnpmfile
@@ -5519,7 +5519,7 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
     dependencies:
-      '@babel/types': 7.17.10
+      '@babel/types': 7.18.9
     dev: true
 
   /@babel/parser/7.18.9:
@@ -6752,8 +6752,8 @@ packages:
       config-chain: 1.1.13
     dev: true
 
-  /@pnpm/npm-conf/1.0.5:
-    resolution: {integrity: sha512-hD8ml183638O3R6/Txrh0L8VzGOrFXgRtRDG4qQC4tONdZ5Z1M+tlUUDUvrjYdmK6G+JTBTeaCLMna11cXzi8A==}
+  /@pnpm/npm-conf/2.0.0:
+    resolution: {integrity: sha512-Ot3xJvdbRQ3fwtDeRYMik/97BbCKij9ZupSgY1tJLCzPPgYRTIIjwdOBHQX2qGbwqNeKd6EneMyKAAsUMO09Bw==}
     engines: {node: '>=12'}
     dependencies:
       '@pnpm/network.ca-file': 1.0.1
