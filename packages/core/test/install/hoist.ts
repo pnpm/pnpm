@@ -198,7 +198,7 @@ test('hoistPattern=undefined throws exception when executed on node_modules inst
     })
   ).rejects.toThrow(/different hoist-pattern value/)
 
-  // Instatll doesn't fail if the value of hoistPattern isn't forced
+  // Install doesn't fail if the value of hoistPattern isn't forced
   await addDependenciesToPackage(manifest, ['is-negative'], {
     ...opts,
     forceHoistPattern: false,
