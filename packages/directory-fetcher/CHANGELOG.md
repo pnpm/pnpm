@@ -1,5 +1,13 @@
 # @pnpm/directory-fetcher
 
+## 3.0.9
+
+### Patch Changes
+
+- @pnpm/fetcher-base@13.0.2
+- @pnpm/read-project-manifest@3.0.8
+- @pnpm/resolver-base@9.0.6
+
 ## 3.0.8
 
 ### Patch Changes

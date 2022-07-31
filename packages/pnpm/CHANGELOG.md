@@ -1,5 +1,16 @@
 # pnpm
 
+## 7.8.0
+
+### Minor Changes
+
+- When `publishConfig.directory` is set, only symlink it to other workspace projects if `publishConfig.linkDirectory` is set to `true`. Otherwise, only use it for publishing [#5115](https://github.com/pnpm/pnpm/issues/5115).
+
+### Patch Changes
+
+- Don't incorrectly identify a lockfile out-of-date when the package has a publishConfig.directory field [#5124](https://github.com/pnpm/pnpm/issues/5124).
+- Don't crash when a config file contains a setting with an env variable that doesn't exist [#5093](https://github.com/pnpm/pnpm/issues/5093).
+
 ## 7.7.1
 
 ### Patch Changes

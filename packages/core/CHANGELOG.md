@@ -1,5 +1,40 @@
 # @pnpm/core
 
+## 5.8.4
+
+### Patch Changes
+
+- Updated dependencies [44544b493]
+- Updated dependencies [c90798461]
+  - @pnpm/lockfile-file@5.3.1
+  - @pnpm/types@8.5.0
+  - @pnpm/get-context@6.2.7
+  - @pnpm/headless@18.5.5
+  - @pnpm/lockfile-to-pnp@0.5.25
+  - @pnpm/resolve-dependencies@28.3.2
+  - @pnpm/build-modules@9.3.3
+  - @pnpm/core-loggers@7.0.6
+  - dependency-path@9.2.4
+  - @pnpm/filter-lockfile@6.0.15
+  - @pnpm/hoist@6.2.5
+  - @pnpm/lifecycle@13.1.4
+  - @pnpm/link-bins@7.2.3
+  - @pnpm/lockfile-utils@4.2.2
+  - @pnpm/lockfile-walker@5.0.12
+  - @pnpm/manifest-utils@3.1.2
+  - @pnpm/modules-cleaner@12.0.17
+  - @pnpm/modules-yaml@10.0.6
+  - @pnpm/normalize-registries@3.0.6
+  - @pnpm/package-requester@18.1.1
+  - @pnpm/prune-lockfile@4.0.13
+  - @pnpm/read-package-json@6.0.7
+  - @pnpm/read-project-manifest@3.0.8
+  - @pnpm/remove-bins@3.0.8
+  - @pnpm/resolver-base@9.0.6
+  - @pnpm/store-controller-types@14.0.2
+  - @pnpm/symlink-dependency@5.0.6
+  - @pnpm/crypto.base32-hash@1.0.1
+
 ## 5.8.3
 
 ### Patch Changes

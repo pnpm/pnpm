@@ -1,5 +1,15 @@
 # @pnpm/lockfile-file
 
+## 5.3.1
+
+### Patch Changes
+
+- 44544b493: Don't incorrectly identify a lockfile out-of-date when the package has a publishConfig.directory field [#5124](https://github.com/pnpm/pnpm/issues/5124).
+- Updated dependencies [c90798461]
+  - @pnpm/types@8.5.0
+  - @pnpm/lockfile-types@4.3.1
+  - @pnpm/merge-lockfile-changes@3.0.8
+
 ## 5.3.0
 
 ### Minor Changes

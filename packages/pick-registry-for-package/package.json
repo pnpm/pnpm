@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/pick-registry-for-package",
   "description": "Picks the right registry for the package from a registries config",
-  "version": "3.0.5",
+  "version": "3.0.6",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

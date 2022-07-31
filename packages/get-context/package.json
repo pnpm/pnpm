@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/get-context",
-  "version": "6.2.6",
+  "version": "6.2.7",
   "description": "Gets context information about a project",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

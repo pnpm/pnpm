@@ -1,5 +1,18 @@
 # @pnpm/npm-resolver
 
+## 13.1.0
+
+### Minor Changes
+
+- c90798461: When `publishConfig.directory` is set, only symlink it to other workspace projects if `publishConfig.linkDirectory` is set to `true`. Otherwise, only use it for publishing [#5115](https://github.com/pnpm/pnpm/issues/5115).
+
+### Patch Changes
+
+- Updated dependencies [c90798461]
+  - @pnpm/types@8.5.0
+  - @pnpm/core-loggers@7.0.6
+  - @pnpm/resolver-base@9.0.6
+
 ## 13.0.7
 
 ### Patch Changes

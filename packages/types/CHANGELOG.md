@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 8.5.0
+
+### Minor Changes
+
+- c90798461: When `publishConfig.directory` is set, only symlink it to other workspace projects if `publishConfig.linkDirectory` is set to `true`. Otherwise, only use it for publishing [#5115](https://github.com/pnpm/pnpm/issues/5115).
+
 ## 8.4.0
 
 ### Minor Changes

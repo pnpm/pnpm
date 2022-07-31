@@ -1,5 +1,19 @@
 # @pnpm/cli-utils
 
+## 0.7.25
+
+### Patch Changes
+
+- Updated dependencies [c90798461]
+- Updated dependencies [34121d753]
+  - @pnpm/types@8.5.0
+  - @pnpm/config@15.8.1
+  - @pnpm/cli-meta@3.0.6
+  - @pnpm/default-reporter@9.1.14
+  - @pnpm/manifest-utils@3.1.2
+  - @pnpm/package-is-installable@6.0.8
+  - @pnpm/read-project-manifest@3.0.8
+
 ## 0.7.24
 
 ### Patch Changes

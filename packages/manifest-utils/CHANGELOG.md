@@ -1,5 +1,13 @@
 # @pnpm/manifest-utils
 
+## 3.1.2
+
+### Patch Changes
+
+- Updated dependencies [c90798461]
+  - @pnpm/types@8.5.0
+  - @pnpm/core-loggers@7.0.6
+
 ## 3.1.1
 
 ### Patch Changes

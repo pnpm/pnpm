@@ -1,5 +1,15 @@
 # @pnpm/config
 
+## 15.8.1
+
+### Patch Changes
+
+- 34121d753: Don't crash when a config file contains a setting with an env variable that doesn't exist [#5093](https://github.com/pnpm/pnpm/issues/5093).
+- Updated dependencies [c90798461]
+  - @pnpm/types@8.5.0
+  - @pnpm/pnpmfile@2.0.9
+  - @pnpm/read-project-manifest@3.0.8
+
 ## 15.8.0
 
 ### Minor Changes
