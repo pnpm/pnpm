@@ -56,6 +56,7 @@ export interface DependenciesMeta {
 
 export interface PublishConfig extends Record<string, unknown> {
   directory?: string
+  linkDirectory?: boolean
   executableFiles?: string[]
 }
 
