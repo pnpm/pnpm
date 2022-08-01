@@ -28,6 +28,7 @@ export interface StrictInstallOptions {
   linkWorkspacePackagesDepth: number
   lockfileOnly: boolean
   fixLockfile: boolean
+  ignoreCompatibilityDb: boolean
   ignorePackageManifest: boolean
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean
@@ -139,6 +140,7 @@ const defaults = async (opts: InstallOptions) => {
     nodeLinker: 'isolated',
     overrides: {},
     ownLifecycleHooksStdio: 'inherit',
+    ignoreCompatibilityDb: false,
     ignorePackageManifest: false,
     packageExtensions: {},
     packageManager,

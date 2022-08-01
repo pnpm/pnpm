@@ -9,6 +9,7 @@ import { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 
 export type ListMissingPeersOptions = Partial<GetContextOptions>
 & Pick<InstallOptions, 'hooks'
+| 'ignoreCompatibilityDb'
 | 'linkWorkspacePackagesDepth'
 | 'nodeVersion'
 | 'overrides'
@@ -54,6 +55,7 @@ export async function getPeerDependencyIssues (
       forceFullResolution: true,
       hooks: {
         readPackage: createReadPackageHook({
+          ignoreCompatibilityDb: opts.ignoreCompatibilityDb,
           lockfileDir,
           overrides: opts.overrides,
           packageExtensions: opts.packageExtensions,

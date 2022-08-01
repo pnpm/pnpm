@@ -174,6 +174,7 @@ export async function mutateModules (
     // so reading its manifest explicitly here.
     await safeReadProjectManifestOnly(opts.lockfileDir)
   opts.hooks.readPackage = createReadPackageHook({
+    ignoreCompatibilityDb: opts.ignoreCompatibilityDb,
     readPackageHook: opts.hooks.readPackage,
     overrides: opts.overrides,
     lockfileDir: opts.lockfileDir,
@@ -504,12 +505,14 @@ export function createObjectChecksum (obj: Object) {
 
 export function createReadPackageHook (
   {
+    ignoreCompatibilityDb,
     lockfileDir,
     overrides,
     packageExtensions,
     peerDependencyRules,
     readPackageHook,
   }: {
+    ignoreCompatibilityDb?: boolean
     lockfileDir: string
     overrides?: Record<string, string>
     packageExtensions?: Record<string, PackageExtension>
@@ -521,7 +524,9 @@ export function createReadPackageHook (
   if (!isEmpty(overrides ?? {})) {
     hooks.push(createVersionsOverrider(overrides!, lockfileDir))
   }
-  hooks.push(createPackageExtender(fromPairs(compatPackageExtensions)))
+  if (!ignoreCompatibilityDb) {
+    hooks.push(createPackageExtender(fromPairs(compatPackageExtensions)))
+  }
   if (!isEmpty(packageExtensions ?? {})) {
     hooks.push(createPackageExtender(packageExtensions!))
   }
