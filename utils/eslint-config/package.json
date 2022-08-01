@@ -18,7 +18,7 @@
   "keywords": [],
   "license": "MIT",
   "engines": {
-    "node": ">=10"
+    "node": ">=12.22.0"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/utils/eslint-config",
   "scripts": {},
@@ -26,10 +26,11 @@
     "@typescript-eslint/eslint-plugin": "^5.31.0",
     "@typescript-eslint/parser": "^5.31.0",
     "eslint": "^8.20.0",
-    "eslint-config-standard-with-typescript": "^21.0.1",
+    "eslint-config-standard-with-typescript": "^22.0.0",
     "eslint-plugin-import": "^2.26.0",
+    "eslint-plugin-n": "^15.2.4",
     "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-promise": "^5.2.0",
+    "eslint-plugin-promise": "^6.0.0",
     "typescript": "4.7.4"
   },
   "devDependencies": {
