@@ -4383,6 +4383,9 @@ importers:
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../lockfile-types
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../store-controller-types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types

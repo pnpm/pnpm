@@ -36,6 +36,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "chalk": "^4.1.2",
     "path-absolute": "^1.0.1"
