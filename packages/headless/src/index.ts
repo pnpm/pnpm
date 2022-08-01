@@ -103,6 +103,7 @@ export interface HeadlessOptions {
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
   hoistingLimits?: HoistingLimits
+  ignoreDepScripts: boolean
   ignoreScripts: boolean
   ignorePackageManifest?: boolean
   include: IncludedDependencies
@@ -435,7 +436,7 @@ export default async (opts: HeadlessOptions) => {
       extraBinPaths,
       extraEnv,
       depsStateCache,
-      ignoreScripts: opts.ignoreScripts,
+      ignoreScripts: opts.ignoreScripts || opts.ignoreDepScripts,
       lockfileDir,
       optional: opts.include.optionalDependencies,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,

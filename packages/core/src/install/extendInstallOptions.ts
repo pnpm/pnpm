@@ -33,6 +33,7 @@ export interface StrictInstallOptions {
   lockfileOnly: boolean
   fixLockfile: boolean
   ignoreCompatibilityDb: boolean
+  ignoreDepScripts: boolean
   ignorePackageManifest: boolean
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean | 'rolling'
@@ -131,6 +132,7 @@ const defaults = async (opts: InstallOptions) => {
     publicHoistPattern: undefined,
     hooks: {},
     ignoreCurrentPrefs: false,
+    ignoreDepScripts: false,
     ignoreScripts: false,
     include: {
       dependencies: true,
