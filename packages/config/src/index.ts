@@ -60,6 +60,7 @@ export const types = Object.assign({
   'git-branch-lockfile': Boolean,
   hoist: Boolean,
   'hoist-pattern': Array,
+  'ignore-compatibility-db': Boolean,
   'ignore-pnpmfile': Boolean,
   'ignore-workspace': Boolean,
   'ignore-workspace-root-check': Boolean,
