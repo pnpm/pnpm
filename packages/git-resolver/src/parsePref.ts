@@ -4,7 +4,7 @@ import fetch from '@pnpm/fetch'
 import git from 'graceful-git'
 import HostedGit from 'hosted-git-info'
 
-export type HostedPackageSpec = ({
+export interface HostedPackageSpec {
   fetchSpec: string
   hosted?: {
     type: string
@@ -16,7 +16,7 @@ export type HostedPackageSpec = ({
   normalizedPref: string
   gitCommittish: string | null
   gitRange?: string
-})
+}
 
 const gitProtocols = new Set([
   'git',

@@ -271,11 +271,11 @@ test('moves fixed line to the end', (done) => {
   logger.warn({ message: 'foo', prefix })
 
   stageLogger.debug({
-    prefix: prefix,
+    prefix,
     stage: 'resolution_done',
   })
   stageLogger.debug({
-    prefix: prefix,
+    prefix,
     stage: 'importing_done',
   })
 })
