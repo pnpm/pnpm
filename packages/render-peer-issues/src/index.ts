@@ -85,14 +85,15 @@ interface PkgNode {
 
 function createTree (pkgNode: PkgNode, pkgs: Array<{ name: string, version: string }>, issueText: string) {
   const [pkg, ...rest] = pkgs
-  if (!pkgNode.dependencies[pkg.name]) {
-    pkgNode.dependencies[pkg.name] = { dependencies: {}, peerIssues: [] }
+  const label = `${pkg.name} ${chalk.grey(pkg.version)}`
+  if (!pkgNode.dependencies[label]) {
+    pkgNode.dependencies[label] = { dependencies: {}, peerIssues: [] }
   }
   if (rest.length === 0) {
-    pkgNode.dependencies[pkg.name].peerIssues.push(issueText)
+    pkgNode.dependencies[label].peerIssues.push(issueText)
     return
   }
-  createTree(pkgNode.dependencies[pkg.name], rest, issueText)
+  createTree(pkgNode.dependencies[label], rest, issueText)
 }
 
 function toArchyData (depName: string, pkgNode: PkgNode): archy.Data {
