@@ -45,7 +45,6 @@
   "devDependencies": {
     "@pnpm/read-project-manifest": "workspace:*",
     "@types/is-windows": "^1.0.0",
-    "@types/json5": "^2.2.0",
     "@types/parse-json": "^4.0.0",
     "tempy": "^1.0.1"
   },

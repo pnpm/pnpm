@@ -129,7 +129,7 @@ export async function handler (
     pkgPaths.map(async (dir) => installLimit(async () => {
       const s = await createOrConnectStoreControllerCached(storeControllerCache, opts)
       const config = await getConfig(
-        { ...opts.cliOptions, dir: dir },
+        { ...opts.cliOptions, dir },
         {
           excludeReporter: true,
           rcOptionsTypes: installCommand.rcOptionsTypes(),

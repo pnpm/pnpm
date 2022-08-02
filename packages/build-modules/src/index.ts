@@ -156,7 +156,7 @@ function applyPatchToDep (patchDir: string, patchFilePath: string) {
   process.chdir(patchDir)
   const success = applyPatch({
     patchFilePath,
-    patchDir: patchDir,
+    patchDir,
   })
   process.chdir(cwd)
   if (!success) {

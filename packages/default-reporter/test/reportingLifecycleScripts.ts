@@ -665,7 +665,7 @@ test('output of failed optional dependency is not shown', (done) => {
     optional: true,
     script: 'node foo',
     stage: 'install',
-    wd: wd,
+    wd,
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
@@ -707,7 +707,7 @@ test('output of failed non-optional dependency is printed', (done) => {
     optional: false,
     script: 'node foo',
     stage: 'install',
-    wd: wd,
+    wd,
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',

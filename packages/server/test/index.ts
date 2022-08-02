@@ -290,7 +290,7 @@ test('server should only allow POST', async () => {
 
   for (const method of methods) {
     // Ensure 405 error is received
-    const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: method })
+    const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method })
     expect(response.status).toBe(405)
     expect((await response.json() as any).error).toBeTruthy() // eslint-disable-line
   }

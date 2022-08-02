@@ -26,7 +26,6 @@ export default async function createFuseHandlers (lockfileDir: string, cafsDir: 
   return createFuseHandlersFromLockfile(lockfile, cafsDir)
 }
 
-/* eslint-disable node/no-callback-literal */
 export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: string) {
   const pkgSnapshotCache = new Map<string, { name: string, version: string, pkgSnapshot: PackageSnapshot, index: PackageFilesIndex }>()
   const virtualNodeModules = makeVirtualNodeModules(lockfile)
@@ -34,29 +33,35 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
     open (p: string, flags: string | number, cb: (exitCode: number, fd?: number) => void) {
       const dirEnt = getDirEnt(p)
       if (dirEnt?.entryType !== 'index') {
+        // eslint-disable-next-line n/no-callback-literal
         cb(-1)
         return
       }
       const fileInfo = dirEnt.index.files[dirEnt.subPath]
       if (!fileInfo) {
+        // eslint-disable-next-line n/no-callback-literal
         cb(-1)
         return
       }
       const filePathInStore = getFilePathByModeInCafs(cafsDir, fileInfo.integrity, fileInfo.mode)
       fs.open(filePathInStore, flags, (err, fd) => {
         if (err != null) {
+        // eslint-disable-next-line n/no-callback-literal
           cb(-1)
           return
         }
+        // eslint-disable-next-line n/no-callback-literal
         cb(0, fd)
       })
     },
     release (p: string, fd: number, cb: (exitCode: number) => void) {
+      // eslint-disable-next-line n/no-callback-literal
       fs.close(fd, (err) => cb((err != null) ? -1 : 0))
     },
     read (p: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void) {
       fs.read(fd, buffer, position, length, position, (err, bytesRead) => {
         if (err != null) {
+        // eslint-disable-next-line n/no-callback-literal
           cb(-1)
           return
         }
@@ -69,6 +74,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
         cb(Fuse.ENOENT)
         return
       }
+      // eslint-disable-next-line n/no-callback-literal
       cb(0, dirEnt.target)
     },
     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
@@ -79,6 +85,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
         return
       }
       if (dirEnt.entryType === 'directory' || dirEnt.entryType === 'index' && !dirEnt.subPath) {
+        // eslint-disable-next-line n/no-callback-literal
         cb(0, schemas.Stat.directory({
           ...STAT_DEFAULT,
           size: 1,
@@ -86,6 +93,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
         return
       }
       if (dirEnt.entryType === 'symlink') {
+        // eslint-disable-next-line n/no-callback-literal
         cb(0, schemas.Stat.symlink({
           ...STAT_DEFAULT,
           size: 1,
@@ -95,12 +103,14 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
       if (dirEnt.entryType === 'index') {
         switch (cafsExplorer.dirEntityType(dirEnt.index, dirEnt.subPath)) {
         case 'file':
+        // eslint-disable-next-line n/no-callback-literal
           cb(0, schemas.Stat.file({
             ...STAT_DEFAULT,
             size: dirEnt.index.files[dirEnt.subPath].size,
           }))
           return
         case 'directory':
+        // eslint-disable-next-line n/no-callback-literal
           cb(0, schemas.Stat.directory({
             ...STAT_DEFAULT,
             size: 1,
@@ -123,6 +133,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
         cb(Fuse.ENOENT)
         return
       }
+      // eslint-disable-next-line n/no-callback-literal
       cb(0, dirEnts)
       return
     }
@@ -130,6 +141,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
       cb(Fuse.ENOENT)
       return
     }
+    // eslint-disable-next-line n/no-callback-literal
     cb(0, Object.keys(dirEnt.entries))
   }
   function getDirEnt (p: string) {
