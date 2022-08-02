@@ -41,10 +41,8 @@
     "rimraf": "^3.0.2"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
-    "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@yarnpkg/pnp": "^2.3.2",
     "dependency-path": "workspace:*",
