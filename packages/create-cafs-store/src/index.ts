@@ -14,11 +14,14 @@ import pathTemp from 'path-temp'
 
 function createPackageImporter (
   opts: {
+    importIndexedPackage?: Function
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
     cafsDir: string
   }
 ): ImportPackageFunction {
-  const cachedImporterCreator = memoize(createIndexedPkgImporter)
+  const cachedImporterCreator = opts.importIndexedPackage
+    ? () => opts.importIndexedPackage!
+    : memoize(createIndexedPkgImporter)
   const packageImportMethod = opts.packageImportMethod
   const gfm = getFlatMap.bind(null, opts.cafsDir)
   return async (to, opts) => {
@@ -69,7 +72,8 @@ export default function createCafsStore (
 ) {
   const cafsDir = path.join(storeDir, 'files')
   const baseTempDir = path.join(storeDir, 'tmp')
-  const importPackage = opts?.importPackage ?? createPackageImporter({
+  const importPackage = createPackageImporter({
+    importIndexedPackage: opts?.importPackage,
     packageImportMethod: opts?.packageImportMethod,
     cafsDir,
   })
