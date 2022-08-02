@@ -1,17 +1,17 @@
 ---
-"@pnpm/build-modules": minor
-"@pnpm/cafs": minor
-"@pnpm/default-reporter": minor
-"@pnpm/directory-fetcher": minor
-"@pnpm/git-resolver": minor
-"@pnpm/mount-modules": minor
-"@pnpm/plugin-commands-installation": minor
-"@pnpm/plugin-commands-publishing": minor
-"@pnpm/plugin-commands-server": minor
-"@pnpm/read-project-manifest": minor
-"@pnpm/server": minor
-"@pnpm/write-project-manifest": minor
-"@pnpm/eslint-config": minor
+"@pnpm/build-modules": patch
+"@pnpm/cafs": patch
+"@pnpm/default-reporter": patch
+"@pnpm/directory-fetcher": patch
+"@pnpm/git-resolver": patch
+"@pnpm/mount-modules": patch
+"@pnpm/plugin-commands-installation": patch
+"@pnpm/plugin-commands-publishing": patch
+"@pnpm/plugin-commands-server": patch
+"@pnpm/read-project-manifest": patch
+"@pnpm/server": patch
+"@pnpm/write-project-manifest": patch
+"@pnpm/eslint-config": patch
 ---
 
 upgrade various dependencies
