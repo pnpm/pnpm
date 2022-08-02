@@ -947,7 +947,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           extraBinPaths: ctx.extraBinPaths,
           extraNodePaths: ctx.extraNodePaths,
           extraEnv,
-          ignoreScripts: opts.ignoreScripts,
+          ignoreScripts: opts.ignoreScripts || opts.ignoreDepScripts,
           lockfileDir: ctx.lockfileDir,
           optional: opts.include.optionalDependencies,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,

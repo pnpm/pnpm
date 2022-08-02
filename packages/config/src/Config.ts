@@ -27,6 +27,7 @@ export interface Config {
   global?: boolean
   dir: string
   bin: string
+  ignoreDepScripts?: boolean
   ignoreScripts?: boolean
   ignoreCompatibilityDb?: boolean
   includeWorkspaceRoot?: boolean

@@ -618,3 +618,41 @@ test('lifecycle scripts run after linking root dependencies', async () => {
 
   // if there was no exception, the test passed
 })
+
+test('ignore-dep-scripts', async () => {
+  prepareEmpty()
+  const manifest = {
+    scripts: {
+      'pnpm:devPreinstall': 'node -e "require(\'fs\').writeFileSync(\'test.txt\', \'\', \'utf-8\')"',
+      install: 'node -e "process.stdout.write(\'install\')" | json-append output.json',
+      postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
+      preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
+    },
+    dependencies: {
+      'json-append': '1.1.1',
+      'pre-and-postinstall-scripts-example': '1.0.0',
+    },
+  }
+  await install(manifest, await testDefaults({ fastUnpack: false, ignoreDepScripts: true }))
+
+  {
+    const output = await loadJsonFile<string[]>('output.json')
+
+    expect(output).toStrictEqual(['preinstall', 'install', 'postinstall'])
+    expect(await exists('test.txt')).toBeTruthy()
+
+    expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  }
+
+  await rimraf('node_modules')
+  await rimraf('output.json')
+  await install(manifest, await testDefaults({ fastUnpack: false, ignoreDepScripts: true }))
+  {
+    const output = await loadJsonFile<string[]>('output.json')
+
+    expect(output).toStrictEqual(['preinstall', 'install', 'postinstall'])
+    expect(await exists('test.txt')).toBeTruthy()
+
+    expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  }
+})
