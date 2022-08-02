@@ -15,6 +15,7 @@ import {
 } from '@pnpm/types'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
+import { PreResolveHook } from './hooks'
 
 export interface StrictInstallOptions {
   autoInstallPeers: boolean
@@ -70,6 +71,7 @@ export interface StrictInstallOptions {
   pruneLockfileImporters: boolean
   hooks: {
     readPackage?: ReadPackageHook
+    preResolution?: PreResolveHook
     afterAllResolved?: (lockfile: Lockfile) => Lockfile | Promise<Lockfile>
   }
   sideEffectsCacheRead: boolean

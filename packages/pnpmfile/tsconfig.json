@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../core"
+    },
+    {
       "path": "../core-loggers"
     },
     {

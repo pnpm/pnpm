@@ -4356,6 +4356,9 @@ importers:
 
   packages/pnpmfile:
     dependencies:
+      '@pnpm/core':
+        specifier: workspace:*
+        version: link:../core
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../core-loggers

@@ -33,6 +33,7 @@
     "@pnpm/pnpmfile": "workspace:*"
   },
   "dependencies": {
+    "@pnpm/core": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",

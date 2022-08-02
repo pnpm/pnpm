@@ -1,4 +1,5 @@
 import path from 'path'
+import type { PreResolveHook } from '@pnpm/core'
 import { hookLogger } from '@pnpm/core-loggers'
 import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
@@ -13,6 +14,7 @@ interface HookContext {
 interface Hooks {
   // eslint-disable-next-line
   readPackage?: (pkg: any, context: HookContext) => any
+  preResolution?: PreResolveHook
   afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile | Promise<Lockfile>
   filterLog?: (log: Log) => boolean
   importPackage?: ImportIndexedPackage
@@ -27,6 +29,7 @@ type Cook<T extends (...args: any[]) => any> = (
 
 export interface CookedHooks {
   readPackage?: Cook<Required<Hooks>['readPackage']>
+  preResolution?: Cook<Required<Hooks>['preResolution']>
   afterAllResolved?: Cook<Required<Hooks>['afterAllResolved']>
   filterLog?: Cook<Required<Hooks>['filterLog']>
   importPackage?: ImportIndexedPackage
@@ -79,6 +82,7 @@ export default function requireHooks (
     cookedHooks.filterLog = globalFilterLog ?? filterLog
   }
   cookedHooks.importPackage = hooks.importPackage ?? globalHooks.importPackage
+  cookedHooks.preResolution = hooks.preResolution ?? globalHooks.preResolution
   return cookedHooks
 }
 
