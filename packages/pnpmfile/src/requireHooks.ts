@@ -3,7 +3,7 @@ import { hookLogger } from '@pnpm/core-loggers'
 import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
 import type { Log } from '@pnpm/core-loggers'
-import { ImportPackageFunction } from '@pnpm/store-controller-types'
+import { ImportIndexedPackage } from '@pnpm/store-controller-types'
 import requirePnpmfile from './requirePnpmfile'
 
 interface HookContext {
@@ -15,7 +15,7 @@ interface Hooks {
   readPackage?: (pkg: any, context: HookContext) => any
   afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile | Promise<Lockfile>
   filterLog?: (log: Log) => boolean
-  importPackage?: ImportPackageFunction
+  importPackage?: ImportIndexedPackage
 }
 
 // eslint-disable-next-line
@@ -29,7 +29,7 @@ export interface CookedHooks {
   readPackage?: Cook<Required<Hooks>['readPackage']>
   afterAllResolved?: Cook<Required<Hooks>['afterAllResolved']>
   filterLog?: Cook<Required<Hooks>['filterLog']>
-  importPackage?: ImportPackageFunction
+  importPackage?: ImportIndexedPackage
 }
 
 export default function requireHooks (

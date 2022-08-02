@@ -6,7 +6,7 @@ import { FetchFunction } from '@pnpm/fetcher-base'
 import createPackageRequester from '@pnpm/package-requester'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import {
-  ImportPackageFunction,
+  ImportIndexedPackage,
   PackageFileInfo,
   StoreController,
 } from '@pnpm/store-controller-types'
@@ -21,7 +21,7 @@ export default async function (
     engineStrict?: boolean
     force?: boolean
     nodeVersion?: string
-    importPackage?: ImportPackageFunction
+    importPackage?: ImportIndexedPackage
     pnpmVersion?: string
     ignoreFile?: (filename: string) => boolean
     storeDir: string

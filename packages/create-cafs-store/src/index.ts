@@ -6,6 +6,7 @@ import createCafs, {
 import { PackageFilesResponse } from '@pnpm/fetcher-base'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {
+  ImportIndexedPackage,
   ImportPackageFunction,
   PackageFileInfo,
 } from '@pnpm/store-controller-types'
@@ -14,7 +15,7 @@ import pathTemp from 'path-temp'
 
 function createPackageImporter (
   opts: {
-    importIndexedPackage?: Function
+    importIndexedPackage?: ImportIndexedPackage
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
     cafsDir: string
   }
@@ -66,7 +67,7 @@ export default function createCafsStore (
   storeDir: string,
   opts?: {
     ignoreFile?: (filename: string) => boolean
-    importPackage?: ImportPackageFunction
+    importPackage?: ImportIndexedPackage
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   }
 ) {

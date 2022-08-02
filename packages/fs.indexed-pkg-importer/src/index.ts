@@ -2,25 +2,16 @@ import { constants, promises as fs, Stats } from 'fs'
 import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
+import { FilesMap, ImportOptions, ImportIndexedPackage } from '@pnpm/store-controller-types'
 import pLimit from 'p-limit'
 import exists from 'path-exists'
 import importIndexedDir, { ImportFile } from './importIndexedDir'
 
 const limitLinking = pLimit(16)
 
-type FilesMap = Record<string, string>
-
-interface ImportOptions {
-  filesMap: FilesMap
-  force: boolean
-  fromStore: boolean
-}
-
-type ImportFunction = (to: string, opts: ImportOptions) => Promise<string | undefined>
-
 export function createIndexedPkgImporter (
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-): ImportFunction {
+): ImportIndexedPackage {
   const importPackage = createImportPackage(packageImportMethod)
   return async (to, opts) => limitLinking(async () => importPackage(to, opts))
 }
@@ -51,7 +42,7 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
   }
 }
 
-function createAutoImporter (): ImportFunction {
+function createAutoImporter (): ImportIndexedPackage {
   let auto = initialAuto
 
   return async (to, opts) => auto(to, opts)
@@ -89,7 +80,7 @@ function createAutoImporter (): ImportFunction {
   }
 }
 
-function createCloneOrCopyImporter (): ImportFunction {
+function createCloneOrCopyImporter (): ImportIndexedPackage {
   let auto = initialAuto
 
   return async (to, opts) => auto(to, opts)

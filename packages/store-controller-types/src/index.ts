@@ -136,3 +136,13 @@ export interface PackageResponse {
     }
   )
 }
+
+export type FilesMap = Record<string, string>
+
+export interface ImportOptions {
+  filesMap: FilesMap
+  force: boolean
+  fromStore: boolean
+}
+
+export type ImportIndexedPackage = (to: string, opts: ImportOptions) => Promise<string | undefined>
