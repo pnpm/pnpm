@@ -53,7 +53,7 @@ function compareWithPriority (priority: Record<string, number>, left: string, ri
   if (leftPriority && rightPriority) return leftPriority - rightPriority
   if (leftPriority) return -1
   if (rightPriority) return 1
-  return left.localeCompare(right)
+  return left < right ? -1 : (left > right ? 1 : 0)
 }
 
 export function sortLockfileKeys (lockfile: LockfileFile) {
