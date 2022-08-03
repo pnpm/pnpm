@@ -458,7 +458,7 @@ test('available packages are relinked during forced install', async () => {
   })).toBeTruthy()
 })
 
-test(`fail when ${WANTED_LOCKFILE} is not up-to-date with package.json`, async () => {
+test(`fail when ${WANTED_LOCKFILE} is not up to date with package.json`, async () => {
   const projectDir = tempDir()
 
   const simpleDir = f.find('simple')
@@ -471,7 +471,7 @@ test(`fail when ${WANTED_LOCKFILE} is not up-to-date with package.json`, async (
     await headless(await testDefaults({ lockfileDir: projectDir }))
     throw new Error()
   } catch (err: any) { // eslint-disable-line
-    expect(err.message).toBe(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
+    expect(err.message).toBe(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with package.json`)
   }
 })
 

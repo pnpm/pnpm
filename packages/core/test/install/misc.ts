@@ -926,7 +926,7 @@ test('do not update deps when lockfile is present', async () => {
   expect(initialLockfile).toStrictEqual(latestLockfile)
 })
 
-test('all the subdeps of dependencies are linked when a node_modules is partially up-to-date', async () => {
+test('all the subdeps of dependencies are linked when a node_modules is partially up to date', async () => {
   prepareEmpty()
 
   await mutateModules([

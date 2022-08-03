@@ -27,7 +27,7 @@ test(`frozen-lockfile: installation fails if specs in package.json don't match t
         'is-positive': '^3.1.0',
       },
     }, await testDefaults({ frozenLockfile: true }))
-  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
+  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with package.json`)
 })
 
 test(`frozen-lockfile+hoistPattern: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async () => {
@@ -45,7 +45,7 @@ test(`frozen-lockfile+hoistPattern: installation fails if specs in package.json 
         'is-positive': '^3.1.0',
       },
     }, await testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
-  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
+  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with package.json`)
 })
 
 test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy one of the package.json files`, async () => {
@@ -87,7 +87,7 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
 
   await expect(
     mutateModules(projects, await testDefaults({ frozenLockfile: true }))
-  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with p1${path.sep}package.json`)
+  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with p1${path.sep}package.json`)
 })
 
 test(`frozen-lockfile: should successfully install when ${WANTED_LOCKFILE} is available`, async () => {
@@ -134,7 +134,7 @@ test(`prefer-frozen-lockfile: should prefer headless installation when ${WANTED_
 
   expect(reporter.calledWithMatch({
     level: 'info',
-    message: 'Lockfile is up-to-date, resolution step is skipped',
+    message: 'Lockfile is up to date, resolution step is skipped',
     name: 'pnpm',
   })).toBeTruthy()
 
@@ -161,7 +161,7 @@ test(`prefer-frozen-lockfile: should not prefer headless installation when ${WAN
 
   expect(reporter.calledWithMatch({
     level: 'info',
-    message: 'Lockfile is up-to-date, resolution step is skipped',
+    message: 'Lockfile is up to date, resolution step is skipped',
     name: 'pnpm',
   })).toBeFalsy()
 
@@ -200,7 +200,7 @@ test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation w
 
   expect(reporter.calledWithMatch({
     level: 'info',
-    message: 'Lockfile is up-to-date, resolution step is skipped',
+    message: 'Lockfile is up to date, resolution step is skipped',
     name: 'pnpm',
   })).toBeTruthy()
 
@@ -262,7 +262,7 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
 
   expect(reporter.calledWithMatch({
     level: 'info',
-    message: 'Lockfile is up-to-date, resolution step is skipped',
+    message: 'Lockfile is up to date, resolution step is skipped',
     name: 'pnpm',
   })).toBeTruthy()
 

@@ -54,7 +54,7 @@ export function help () {
 
         list: [
           {
-            description: "Don't check if current branch is your publish branch, clean, and up-to-date",
+            description: "Don't check if current branch is your publish branch, clean, and up to date",
             name: '--no-git-checks',
           },
           {

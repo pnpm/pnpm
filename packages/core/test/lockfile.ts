@@ -1033,7 +1033,7 @@ test('lockfile is not getting broken if the used registry changes', async () => 
   ])
 })
 
-test('broken lockfile is fixed even if it seems like up-to-date at first. Unless frozenLockfile option is set to true', async () => {
+test('broken lockfile is fixed even if it seems like up to date at first. Unless frozenLockfile option is set to true', async () => {
   const project = prepareEmpty()
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 

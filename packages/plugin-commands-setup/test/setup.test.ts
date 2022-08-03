@@ -14,7 +14,7 @@ test('setup makes no changes', async () => {
     newSettings: 'PNPM_HOME=dir',
   }))
   const output = await setup.handler({ pnpmHomeDir: '' })
-  expect(output).toBe('No changes to the environment were made. Everything is already up-to-date.')
+  expect(output).toBe('No changes to the environment were made. Everything is already up to date.')
 })
 
 test('setup makes changes on POSIX', async () => {

@@ -398,7 +398,7 @@ test('headless install is used when package linked to another package in the wor
 
   expect(reporter.calledWithMatch({
     level: 'info',
-    message: 'Lockfile is up-to-date, resolution step is skipped',
+    message: 'Lockfile is up to date, resolution step is skipped',
     name: 'pnpm',
   })).toBeTruthy()
 
@@ -462,7 +462,7 @@ test('headless install is used with an up-to-date lockfile when package referenc
 
   expect(reporter.calledWithMatch({
     level: 'info',
-    message: 'Lockfile is up-to-date, resolution step is skipped',
+    message: 'Lockfile is up to date, resolution step is skipped',
     name: 'pnpm',
   })).toBeTruthy()
 
@@ -537,7 +537,7 @@ test('headless install is used when packages are not linked from the workspace (
 
   expect(reporter.calledWithMatch({
     level: 'info',
-    message: 'Lockfile is up-to-date, resolution step is skipped',
+    message: 'Lockfile is up to date, resolution step is skipped',
     name: 'pnpm',
   })).toBeTruthy()
 })

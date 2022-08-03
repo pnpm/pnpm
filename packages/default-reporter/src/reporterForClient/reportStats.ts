@@ -69,7 +69,7 @@ function statsForCurrentPackage (
         if (opts.cmd === 'link') {
           return Rx.NEVER
         }
-        return Rx.of({ msg: 'Already up-to-date' })
+        return Rx.of({ msg: 'Already up to date' })
       }
 
       let msg = 'Packages:'
