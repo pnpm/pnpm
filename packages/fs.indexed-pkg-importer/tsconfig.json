@@ -14,6 +14,9 @@
     },
     {
       "path": "../core-loggers"
+    },
+    {
+      "path": "../store-controller-types"
     }
   ]
 }

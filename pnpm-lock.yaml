@@ -1353,6 +1353,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../core-loggers
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../store-controller-types
       '@zkochan/rimraf':
         specifier: ^2.1.2
         version: 2.1.2
@@ -4383,6 +4386,9 @@ importers:
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../lockfile-types
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../store-controller-types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types

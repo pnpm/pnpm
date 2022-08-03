@@ -22,6 +22,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'nodeVersion'
 | 'fetchTimeout'
 | 'gitShallowHosts'
+| 'hooks'
 | 'httpProxy'
 | 'httpsProxy'
 | 'key'
@@ -81,6 +82,7 @@ export default async (
       nodeVersion: opts.nodeVersion,
       pnpmVersion: pnpm.version,
       ignoreFile: opts.ignoreFile,
+      importPackage: opts.hooks?.importPackage,
       networkConcurrency: opts.networkConcurrency,
       packageImportMethod: opts.packageImportMethod,
       storeDir: opts.storeDir,

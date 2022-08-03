@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "make-empty-dir": "^2.0.0",
     "p-limit": "^3.1.0",

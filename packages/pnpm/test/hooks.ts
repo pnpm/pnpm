@@ -99,3 +99,26 @@ test('filterLog hook filters peer dependency warning', async () => {
     expect.not.stringContaining('requires a peer of rollup')
   )
 })
+
+test('importPackage hooks', async () => {
+  prepare()
+  const pnpmfile = `
+const fs = require('fs')
+
+module.exports = { hooks: { importPackage } }
+
+function importPackage (to, opts) {
+  fs.writeFileSync('args.json', JSON.stringify([to, opts]), 'utf8')
+  return {}
+}`
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  await execPnpm(['add', 'is-positive@1.0.0'])
+  const [to, opts] = await loadJsonFile<any>('args.json') // eslint-disable-line
+  expect(typeof to).toBe('string')
+  expect(Object.keys(opts.filesMap).sort()).toStrictEqual([
+    'index.js',
+    'license',
+    'package.json',
+    'readme.md',
+  ])
+})

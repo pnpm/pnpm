@@ -19,6 +19,9 @@
       "path": "../lockfile-types"
     },
     {
+      "path": "../store-controller-types"
+    },
+    {
       "path": "../types"
     }
   ]

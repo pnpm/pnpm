@@ -6,6 +6,7 @@ import createCafs, {
 import { PackageFilesResponse } from '@pnpm/fetcher-base'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {
+  ImportIndexedPackage,
   ImportPackageFunction,
   PackageFileInfo,
 } from '@pnpm/store-controller-types'
@@ -14,11 +15,14 @@ import pathTemp from 'path-temp'
 
 function createPackageImporter (
   opts: {
+    importIndexedPackage?: ImportIndexedPackage
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
     cafsDir: string
   }
 ): ImportPackageFunction {
-  const cachedImporterCreator = memoize(createIndexedPkgImporter)
+  const cachedImporterCreator = opts.importIndexedPackage
+    ? () => opts.importIndexedPackage!
+    : memoize(createIndexedPkgImporter)
   const packageImportMethod = opts.packageImportMethod
   const gfm = getFlatMap.bind(null, opts.cafsDir)
   return async (to, opts) => {
@@ -63,12 +67,14 @@ export default function createCafsStore (
   storeDir: string,
   opts?: {
     ignoreFile?: (filename: string) => boolean
+    importPackage?: ImportIndexedPackage
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   }
 ) {
   const cafsDir = path.join(storeDir, 'files')
   const baseTempDir = path.join(storeDir, 'tmp')
   const importPackage = createPackageImporter({
+    importIndexedPackage: opts?.importPackage,
     packageImportMethod: opts?.packageImportMethod,
     cafsDir,
   })
