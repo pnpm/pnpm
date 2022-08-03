@@ -1,5 +1,15 @@
 # @pnpm/package-requester
 
+## 18.1.2
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [39c040127]
+- Updated dependencies [65c4260de]
+  - @pnpm/cafs@4.0.9
+  - @pnpm/store-controller-types@14.1.0
+
 ## 18.1.1
 
 ### Patch Changes

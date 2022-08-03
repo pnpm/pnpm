@@ -1,5 +1,11 @@
 # @pnpm/store-controller-types
 
+## 14.1.0
+
+### Minor Changes
+
+- 65c4260de: Support a new hook for passing a custom package importer to the store controller.
+
 ## 14.0.2
 
 ### Patch Changes

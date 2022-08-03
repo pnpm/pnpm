@@ -1,5 +1,16 @@
 # @pnpm/modules-cleaner
 
+## 12.0.18
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [8103f92bd]
+- Updated dependencies [65c4260de]
+  - @pnpm/filter-lockfile@6.0.16
+  - @pnpm/lockfile-utils@4.2.3
+  - @pnpm/store-controller-types@14.1.0
+
 ## 12.0.17
 
 ### Patch Changes

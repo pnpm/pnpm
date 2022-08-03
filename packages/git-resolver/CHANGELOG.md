@@ -1,5 +1,11 @@
 # @pnpm/git-resolver
 
+## 6.1.3
+
+### Patch Changes
+
+- 39c040127: upgrade various dependencies
+
 ## 6.1.2
 
 ### Patch Changes

@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-rebuild
 
+## 6.1.29
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [43cd6aaca]
+- Updated dependencies [8103f92bd]
+- Updated dependencies [65c4260de]
+- Updated dependencies [29a81598a]
+  - @pnpm/config@15.9.0
+  - @pnpm/get-context@6.2.8
+  - @pnpm/link-bins@7.2.4
+  - @pnpm/lockfile-utils@4.2.3
+  - @pnpm/lockfile-walker@5.0.13
+  - @pnpm/store-connection-manager@4.2.0
+  - @pnpm/store-controller-types@14.1.0
+  - @pnpm/cli-utils@0.7.26
+  - @pnpm/lifecycle@13.1.5
+  - @pnpm/find-workspace-packages@4.0.26
+
 ## 6.1.28
 
 ### Patch Changes

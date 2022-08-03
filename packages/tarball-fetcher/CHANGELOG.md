@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 10.0.10
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+
 ## 10.0.9
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/lifecycle
 
+## 13.1.5
+
+### Patch Changes
+
+- Updated dependencies [39c040127]
+- Updated dependencies [8103f92bd]
+- Updated dependencies [65c4260de]
+  - @pnpm/directory-fetcher@3.0.10
+  - @pnpm/store-controller-types@14.1.0
+
 ## 13.1.4
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/read-project-manifest
 
+## 3.0.9
+
+### Patch Changes
+
+- 39c040127: upgrade various dependencies
+- Updated dependencies [39c040127]
+  - @pnpm/write-project-manifest@3.0.7
+
 ## 3.0.8
 
 ### Patch Changes

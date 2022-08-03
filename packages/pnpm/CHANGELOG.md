@@ -1,5 +1,19 @@
 # pnpm
 
+## 7.9.0-0
+
+### Minor Changes
+
+- When `ignore-dep-scripts` is `true`, ignore scripts of dependencies but run the scripts of the project.
+- Support a new hook for passing a custom package importer to the store controller.
+- When `ignore-compatibility-db` is set to `true`, the [compatibility database](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-extensions/sources/index.ts) will not be used to patch dependencies [#5132](https://github.com/pnpm/pnpm/issues/5132).
+- Print the versions of packages in peer dependency warnings and errors.
+
+### Patch Changes
+
+- Don't print the same deprecation warning multiple times.
+- Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+
 ## 7.8.0
 
 ### Minor Changes

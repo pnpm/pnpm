@@ -1,5 +1,14 @@
 # @pnpm/get-context
 
+## 6.2.8
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [8103f92bd]
+  - @pnpm/lockfile-file@5.3.2
+  - @pnpm/read-projects-context@6.0.13
+
 ## 6.2.7
 
 ### Patch Changes

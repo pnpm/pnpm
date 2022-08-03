@@ -1,5 +1,23 @@
 # @pnpm/store-connection-manager
 
+## 4.2.0
+
+### Minor Changes
+
+- 65c4260de: Support a new hook for passing a custom package importer to the store controller.
+
+### Patch Changes
+
+- Updated dependencies [39c040127]
+- Updated dependencies [43cd6aaca]
+- Updated dependencies [8103f92bd]
+- Updated dependencies [65c4260de]
+- Updated dependencies [29a81598a]
+  - @pnpm/server@13.0.4
+  - @pnpm/config@15.9.0
+  - @pnpm/package-store@14.1.0
+  - @pnpm/client@7.1.13
+
 ## 4.1.26
 
 ### Patch Changes

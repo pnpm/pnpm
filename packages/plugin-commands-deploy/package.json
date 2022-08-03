@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-deploy",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Commands for deploy",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",

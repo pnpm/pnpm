@@ -1,5 +1,40 @@
 # @pnpm/core
 
+## 5.9.0
+
+### Minor Changes
+
+- 43cd6aaca: When `ignore-dep-scripts` is `true`, ignore scripts of dependencies but run the scripts of the project.
+- 65c4260de: Support a new hook for passing a custom package importer to the store controller.
+- 29a81598a: When `ignore-compatibility-db` is set to `true`, the [compatibility database](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-extensions/sources/index.ts) will not be used to patch dependencies [#5132](https://github.com/pnpm/pnpm/issues/5132).
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [0321ca32a]
+- Updated dependencies [39c040127]
+- Updated dependencies [43cd6aaca]
+- Updated dependencies [8103f92bd]
+- Updated dependencies [65c4260de]
+  - @pnpm/resolve-dependencies@28.3.3
+  - @pnpm/build-modules@9.3.4
+  - @pnpm/read-project-manifest@3.0.9
+  - @pnpm/headless@18.6.0
+  - @pnpm/filter-lockfile@6.0.16
+  - @pnpm/get-context@6.2.8
+  - @pnpm/hoist@6.2.6
+  - @pnpm/link-bins@7.2.4
+  - @pnpm/lockfile-file@5.3.2
+  - @pnpm/lockfile-to-pnp@0.5.26
+  - @pnpm/lockfile-utils@4.2.3
+  - @pnpm/lockfile-walker@5.0.13
+  - @pnpm/modules-cleaner@12.0.18
+  - @pnpm/package-requester@18.1.2
+  - @pnpm/prune-lockfile@4.0.14
+  - @pnpm/store-controller-types@14.1.0
+  - @pnpm/lifecycle@13.1.5
+  - @pnpm/crypto.base32-hash@1.0.1
+
 ## 5.8.4
 
 ### Patch Changes

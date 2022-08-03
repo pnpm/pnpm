@@ -1,5 +1,15 @@
 # @pnpm/hoist
 
+## 6.2.6
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [8103f92bd]
+  - @pnpm/link-bins@7.2.4
+  - @pnpm/lockfile-utils@4.2.3
+  - @pnpm/lockfile-walker@5.0.13
+
 ## 6.2.5
 
 ### Patch Changes

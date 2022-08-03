@@ -1,5 +1,19 @@
 # @pnpm/default-reporter
 
+## 9.1.15
+
+### Patch Changes
+
+- 39c040127: upgrade various dependencies
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [43cd6aaca]
+- Updated dependencies [8103f92bd]
+- Updated dependencies [65c4260de]
+- Updated dependencies [29a81598a]
+- Updated dependencies [c990a409f]
+  - @pnpm/config@15.9.0
+  - @pnpm/render-peer-issues@2.1.0
+
 ## 9.1.14
 
 ### Patch Changes

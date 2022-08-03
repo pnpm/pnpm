@@ -1,5 +1,31 @@
 # @pnpm/headless
 
+## 18.6.0
+
+### Minor Changes
+
+- 43cd6aaca: When `ignore-dep-scripts` is `true`, ignore scripts of dependencies but run the scripts of the project.
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [39c040127]
+- Updated dependencies [8103f92bd]
+- Updated dependencies [65c4260de]
+  - @pnpm/build-modules@9.3.4
+  - @pnpm/read-project-manifest@3.0.9
+  - @pnpm/filter-lockfile@6.0.16
+  - @pnpm/hoist@6.2.6
+  - @pnpm/link-bins@7.2.4
+  - @pnpm/lockfile-file@5.3.2
+  - @pnpm/lockfile-to-pnp@0.5.26
+  - @pnpm/lockfile-utils@4.2.3
+  - @pnpm/modules-cleaner@12.0.18
+  - @pnpm/package-requester@18.1.2
+  - @pnpm/store-controller-types@14.1.0
+  - @pnpm/lifecycle@13.1.5
+  - @pnpm/real-hoist@0.2.15
+
 ## 18.5.5
 
 ### Patch Changes

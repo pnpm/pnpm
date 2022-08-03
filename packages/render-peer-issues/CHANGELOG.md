@@ -1,5 +1,11 @@
 # @pnpm/render-peer-issues
 
+## 2.1.0
+
+### Minor Changes
+
+- c990a409f: Print the versions of packages in peer dependency warnings and errors.
+
 ## 2.0.6
 
 ### Patch Changes

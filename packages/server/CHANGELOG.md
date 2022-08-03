@@ -1,5 +1,13 @@
 # @pnpm/server
 
+## 13.0.4
+
+### Patch Changes
+
+- 39c040127: upgrade various dependencies
+- Updated dependencies [65c4260de]
+  - @pnpm/store-controller-types@14.1.0
+
 ## 13.0.3
 
 ### Patch Changes

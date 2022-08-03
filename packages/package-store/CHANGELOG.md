@@ -1,5 +1,22 @@
 # @pnpm/package-store
 
+## 14.1.0
+
+### Minor Changes
+
+- 65c4260de: Support a new hook for passing a custom package importer to the store controller.
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [39c040127]
+- Updated dependencies [8103f92bd]
+- Updated dependencies [65c4260de]
+  - @pnpm/cafs@4.0.9
+  - @pnpm/package-requester@18.1.2
+  - @pnpm/create-cafs-store@2.1.0
+  - @pnpm/store-controller-types@14.1.0
+
 ## 14.0.7
 
 ### Patch Changes

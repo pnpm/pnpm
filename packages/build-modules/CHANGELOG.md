@@ -1,5 +1,17 @@
 # @pnpm/build-modules
 
+## 9.3.4
+
+### Patch Changes
+
+- 39c040127: upgrade various dependencies
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [8103f92bd]
+- Updated dependencies [65c4260de]
+  - @pnpm/link-bins@7.2.4
+  - @pnpm/store-controller-types@14.1.0
+  - @pnpm/lifecycle@13.1.5
+
 ## 9.3.3
 
 ### Patch Changes

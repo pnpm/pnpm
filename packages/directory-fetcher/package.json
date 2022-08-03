@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/directory-fetcher",
-  "version": "3.0.9",
+  "version": "3.0.10",
   "description": "A fetcher for local directory packages",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",

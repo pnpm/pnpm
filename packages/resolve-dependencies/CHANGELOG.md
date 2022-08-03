@@ -1,5 +1,18 @@
 # @pnpm/resolve-dependencies
 
+## 28.3.3
+
+### Patch Changes
+
+- 0321ca32a: Don't print the same deprecation warning multiple times.
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [8103f92bd]
+- Updated dependencies [65c4260de]
+  - @pnpm/lockfile-utils@4.2.3
+  - @pnpm/prune-lockfile@4.0.14
+  - @pnpm/store-controller-types@14.1.0
+  - @pnpm/npm-resolver@13.1.0
+
 ## 28.3.2
 
 ### Patch Changes

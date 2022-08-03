@@ -1,5 +1,20 @@
 # @pnpm/lockfile-to-pnp
 
+## 0.5.26
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [39c040127]
+- Updated dependencies [43cd6aaca]
+- Updated dependencies [8103f92bd]
+- Updated dependencies [65c4260de]
+- Updated dependencies [29a81598a]
+  - @pnpm/read-project-manifest@3.0.9
+  - @pnpm/config@15.9.0
+  - @pnpm/lockfile-file@5.3.2
+  - @pnpm/lockfile-utils@4.2.3
+
 ## 0.5.25
 
 ### Patch Changes

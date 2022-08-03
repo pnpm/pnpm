@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-store
 
+## 5.1.29
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [39c040127]
+- Updated dependencies [43cd6aaca]
+- Updated dependencies [8103f92bd]
+- Updated dependencies [65c4260de]
+- Updated dependencies [29a81598a]
+  - @pnpm/cafs@4.0.9
+  - @pnpm/config@15.9.0
+  - @pnpm/get-context@6.2.8
+  - @pnpm/lockfile-utils@4.2.3
+  - @pnpm/store-connection-manager@4.2.0
+  - @pnpm/store-controller-types@14.1.0
+  - @pnpm/cli-utils@0.7.26
+
 ## 5.1.28
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/list
 
+## 7.0.18
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [39c040127]
+  - @pnpm/read-project-manifest@3.0.9
+  - dependencies-hierarchy@11.0.18
+
 ## 7.0.17
 
 ### Patch Changes

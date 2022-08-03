@@ -1,5 +1,11 @@
 # @pnpm/write-project-manifest
 
+## 3.0.7
+
+### Patch Changes
+
+- 39c040127: upgrade various dependencies
+
 ## 3.0.6
 
 ### Patch Changes

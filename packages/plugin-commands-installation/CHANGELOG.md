@@ -1,5 +1,28 @@
 # @pnpm/plugin-commands-installation
 
+## 10.5.3
+
+### Patch Changes
+
+- 39c040127: upgrade various dependencies
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [39c040127]
+- Updated dependencies [43cd6aaca]
+- Updated dependencies [8103f92bd]
+- Updated dependencies [65c4260de]
+- Updated dependencies [29a81598a]
+  - @pnpm/read-project-manifest@3.0.9
+  - @pnpm/config@15.9.0
+  - @pnpm/core@5.9.0
+  - @pnpm/filter-workspace-packages@5.0.26
+  - @pnpm/outdated@10.0.20
+  - @pnpm/package-store@14.1.0
+  - @pnpm/plugin-commands-rebuild@6.1.29
+  - @pnpm/pnpmfile@2.1.0
+  - @pnpm/store-connection-manager@4.2.0
+  - @pnpm/cli-utils@0.7.26
+  - @pnpm/find-workspace-packages@4.0.26
+
 ## 10.5.2
 
 ### Patch Changes
