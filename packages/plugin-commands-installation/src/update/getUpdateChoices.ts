@@ -2,8 +2,8 @@ import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
 import { getBorderCharacters, table } from '@zkochan/table'
-import isEmpty from 'ramda/src/isEmpty.js'
-import unnest from 'ramda/src/unnest.js'
+import isEmpty from 'ramda/src/isEmpty'
+import unnest from 'ramda/src/unnest'
 
 export default function (outdatedPkgsOfProjects: OutdatedPackage[]) {
   const allOutdatedPkgs = mergeOutdatedPkgs(outdatedPkgsOfProjects)

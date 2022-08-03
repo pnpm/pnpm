@@ -6,7 +6,7 @@ import {
   createOrConnectStoreController,
   CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import pick from 'ramda/src/pick.js'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import {
   rebuildProjects,

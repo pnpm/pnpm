@@ -44,7 +44,7 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "patch-package": "^6.4.7",
-    "ramda": "^0.28.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
     "run-groups": "^3.0.1"
   },
   "devDependencies": {

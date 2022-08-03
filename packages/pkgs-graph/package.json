@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/npm-package-arg": "^1.0.0",
     "@pnpm/resolve-workspace-range": "workspace:*",
-    "ramda": "^0.28.0"
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "keywords": [

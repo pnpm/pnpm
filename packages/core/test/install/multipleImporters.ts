@@ -13,7 +13,7 @@ import {
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
-import pick from 'ramda/src/pick.js'
+import pick from 'ramda/src/pick'
 import sinon from 'sinon'
 import writeYamlFile from 'write-yaml-file'
 import { testDefaults } from '../utils'

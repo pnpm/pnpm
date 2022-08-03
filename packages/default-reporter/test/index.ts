@@ -19,7 +19,7 @@ import logger, {
 import { map, skip, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
-import repeat from 'ramda/src/repeat.js'
+import repeat from 'ramda/src/repeat'
 import formatWarn from '../src/reporterForClient/utils/formatWarn'
 
 const formatErrorCode = (code: string) => chalk.bgRed.black(`\u2009${code}\u2009`)

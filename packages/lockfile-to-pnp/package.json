@@ -49,7 +49,7 @@
     "@yarnpkg/pnp": "^2.3.2",
     "dependency-path": "workspace:*",
     "normalize-path": "^3.0.0",
-    "ramda": "^0.28.0"
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

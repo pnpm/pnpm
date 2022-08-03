@@ -1,6 +1,6 @@
 import { PeerDependencyRules, ReadPackageHook } from '@pnpm/types'
 import matcher from '@pnpm/matcher'
-import isEmpty from 'ramda/src/isEmpty.js'
+import isEmpty from 'ramda/src/isEmpty'
 
 export default function (
   peerDependencyRules: PeerDependencyRules

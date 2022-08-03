@@ -45,7 +45,7 @@
     "is-subdir": "^1.2.0",
     "normalize-registry-url": "2.0.0",
     "path-name": "^1.0.0",
-    "ramda": "^0.28.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
     "realpath-missing": "^1.1.0",
     "which": "^2.0.2"
   },

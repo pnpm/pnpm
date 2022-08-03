@@ -2,8 +2,8 @@ import path from 'path'
 import PnpmError from '@pnpm/error'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
-import fromPairs from 'ramda/src/fromPairs.js'
-import omit from 'ramda/src/omit.js'
+import fromPairs from 'ramda/src/fromPairs'
+import omit from 'ramda/src/omit'
 import { overridePublishConfig } from './overridePublishConfig'
 
 const PREPUBLISH_SCRIPTS = [

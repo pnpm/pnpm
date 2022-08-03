@@ -3,8 +3,8 @@ import {
   DEPENDENCIES_FIELDS,
   ProjectManifest,
 } from '@pnpm/types'
-import equals from 'ramda/src/equals.js'
-import omit from 'ramda/src/omit.js'
+import equals from 'ramda/src/equals'
+import omit from 'ramda/src/omit'
 
 export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string, opts?: { autoInstallPeers?: boolean }) => {
   const importer = lockfile.importers[importerId]

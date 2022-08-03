@@ -13,7 +13,7 @@ import {
   ProjectManifest,
 } from '@pnpm/types'
 import pEvery from 'p-every'
-import any from 'ramda/src/any.js'
+import any from 'ramda/src/any'
 import semver from 'semver'
 
 export default async function allProjectsAreUpToDate (

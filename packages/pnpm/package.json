@@ -91,7 +91,7 @@
     "path-name": "^1.0.0",
     "pkgs-graph": "workspace:*",
     "ps-list": "^7.2.0",
-    "ramda": "^0.28.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
     "read-yaml-file": "^2.1.0",
     "render-help": "^1.0.2",
     "semver": "^7.3.7",

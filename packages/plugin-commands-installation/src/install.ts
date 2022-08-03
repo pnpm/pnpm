@@ -4,7 +4,7 @@ import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import isCI from 'is-ci'
-import pick from 'ramda/src/pick.js'
+import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import installDeps from './installDeps'
 

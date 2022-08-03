@@ -12,8 +12,8 @@ import {
 import { FetchFromRegistry } from '@pnpm/fetching-types'
 import preparePackage from '@pnpm/prepare-package'
 import * as retry from '@zkochan/retry'
-import fromPairs from 'ramda/src/fromPairs.js'
-import omit from 'ramda/src/omit.js'
+import fromPairs from 'ramda/src/fromPairs'
+import omit from 'ramda/src/omit'
 import ssri from 'ssri'
 import { BadTarballError } from './errorTypes'
 

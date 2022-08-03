@@ -23,7 +23,7 @@ import {
 } from '@pnpm/store-controller-types'
 import * as dp from 'dependency-path'
 import pathExists from 'path-exists'
-import equals from 'ramda/src/equals.js'
+import equals from 'ramda/src/equals'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 

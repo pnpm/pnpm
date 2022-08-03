@@ -1,7 +1,7 @@
 import PnpmError from '@pnpm/error'
 import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
 import { PeerDependencyIssuesByProjects } from '@pnpm/types'
-import isEmpty from 'ramda/src/isEmpty.js'
+import isEmpty from 'ramda/src/isEmpty'
 
 export default function (
   peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects,

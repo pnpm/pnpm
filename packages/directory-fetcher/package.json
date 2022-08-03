@@ -35,7 +35,7 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "npm-packlist": "^3.0.0",
-    "ramda": "^0.28.0"
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "devDependencies": {
     "@pnpm/directory-fetcher": "workspace:*",

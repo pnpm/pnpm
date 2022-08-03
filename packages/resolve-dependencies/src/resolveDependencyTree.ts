@@ -7,7 +7,7 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import partition from 'ramda/src/partition.js'
+import partition from 'ramda/src/partition'
 import { WantedDependency } from './getNonDevWantedDependencies'
 import {
   createNodeId,

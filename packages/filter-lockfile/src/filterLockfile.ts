@@ -1,6 +1,6 @@
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
-import fromPairs from 'ramda/src/fromPairs.js'
+import fromPairs from 'ramda/src/fromPairs'
 import filterImporter from './filterImporter'
 
 export default function filterLockfile (

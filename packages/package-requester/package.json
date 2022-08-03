@@ -55,7 +55,7 @@
     "p-queue": "^6.6.2",
     "path-temp": "^2.0.0",
     "promise-share": "^1.0.0",
-    "ramda": "^0.28.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
     "rename-overwrite": "^4.0.2",
     "safe-promise-defer": "^1.0.1",
     "semver": "^7.3.7",

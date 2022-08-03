@@ -52,7 +52,7 @@
     "is-subdir": "^1.2.0",
     "path-exists": "^4.0.0",
     "promise-share": "^1.0.0",
-    "ramda": "^0.28.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
     "rename-overwrite": "^4.0.2",
     "replace-string": "^3.1.0",
     "safe-promise-defer": "^1.0.1",

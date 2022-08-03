@@ -3,7 +3,7 @@ import path from 'path'
 import { Cafs, DeferredManifestPromise } from '@pnpm/fetcher-base'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DirectoryResolution } from '@pnpm/resolver-base'
-import fromPairs from 'ramda/src/fromPairs.js'
+import fromPairs from 'ramda/src/fromPairs'
 import packlist from 'npm-packlist'
 
 export interface DirectoryFetcherOptions {
