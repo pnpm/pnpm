@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 13.15.0
+
+### Minor Changes
+
+- 25ea501ae: When `ignore-compatibility-db` is set to `true`, the [compatibility database](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-extensions/sources/index.ts) will not be used to patch dependencies [#5132](https://github.com/pnpm/pnpm/issues/5132).
+
 ## 13.14.3
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/core
 
+## 2.11.0
+
+### Minor Changes
+
+- 25ea501ae: When `ignore-compatibility-db` is set to `true`, the [compatibility database](https://github.com/yarnpkg/berry/blob/master/packages/yarnpkg-extensions/sources/index.ts) will not be used to patch dependencies [#5132](https://github.com/pnpm/pnpm/issues/5132).
+
+### Patch Changes
+
+- @pnpm/lockfile-to-pnp@0.4.58
+- @pnpm/headless@17.3.19
+
 ## 2.10.1
 
 ### Patch Changes
