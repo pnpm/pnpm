@@ -280,7 +280,7 @@ test('moves fixed line to the end', (done) => {
   })
 })
 
-test('prints "Already up-to-date"', (done) => {
+test('prints "Already up to date"', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
@@ -297,7 +297,7 @@ test('prints "Already up-to-date"', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe('Already up-to-date')
+      expect(output).toBe('Already up to date')
     },
   })
 })

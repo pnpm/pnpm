@@ -168,7 +168,7 @@ test('automatically install root peer dependencies', async () => {
     })
   }
 
-  // Automatically install the peer dependency when the lockfile is up-to-date
+  // Automatically install the peer dependency when the lockfile is up to date
   await rimraf('node_modules')
 
   await install(manifest, await testDefaults({ autoInstallPeers: true, frozenLockfile: true }))

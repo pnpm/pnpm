@@ -202,9 +202,9 @@ async function interactiveUpdate (
   const choices = getUpdateChoices(unnest(outdatedPkgsOfProjects))
   if (choices.length === 0) {
     if (opts.latest) {
-      return 'All of your dependencies are already up-to-date'
+      return 'All of your dependencies are already up to date'
     }
-    return 'All of your dependencies are already up-to-date inside the specified ranges. Use the --latest option to update the ranges in package.json'
+    return 'All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json'
   }
   const { updateDependencies } = await prompt({
     choices,

@@ -301,7 +301,7 @@ export async function mutateModules (
         if (maybeOpts.ignorePackageManifest) {
           logger.info({ message: 'Importing packages to virtual store', prefix: opts.lockfileDir })
         } else {
-          logger.info({ message: 'Lockfile is up-to-date, resolution step is skipped', prefix: opts.lockfileDir })
+          logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
         }
         try {
           await headless({
@@ -760,7 +760,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     ctx.lockfileHadConflicts
 
   // Ignore some fields when fixing lockfile, so these fields can be regenerated
-  // and make sure it's up-to-date
+  // and make sure it's up to date
   if (
     opts.fixLockfile &&
     (ctx.wantedLockfile.packages != null) &&

@@ -94,7 +94,7 @@ export async function handler (
 
 function renderSetupOutput (report: PathExtenderReport) {
   if (report.oldSettings === report.newSettings) {
-    return 'No changes to the environment were made. Everything is already up-to-date.'
+    return 'No changes to the environment were made. Everything is already up to date.'
   }
   const output = []
   if (report.configFile) {
@@ -111,6 +111,6 @@ function reportConfigChange (configReport: ConfigReport): string {
   case 'created': return `Created ${configReport.path}`
   case 'appended': return `Appended new lines to ${configReport.path}`
   case 'modified': return `Replaced configuration in ${configReport.path}`
-  case 'skipped': return `Configuration already up-to-date in ${configReport.path}`
+  case 'skipped': return `Configuration already up to date in ${configReport.path}`
   }
 }
