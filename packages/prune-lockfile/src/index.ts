@@ -7,9 +7,9 @@ import {
 } from '@pnpm/lockfile-types'
 import { PackageManifest } from '@pnpm/types'
 import { refToRelative } from 'dependency-path'
-import difference from 'ramda/src/difference.js'
-import isEmpty from 'ramda/src/isEmpty.js'
-import unnest from 'ramda/src/unnest.js'
+import difference from 'ramda/src/difference'
+import isEmpty from 'ramda/src/isEmpty'
+import unnest from 'ramda/src/unnest'
 
 export * from '@pnpm/lockfile-types'
 

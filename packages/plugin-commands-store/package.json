@@ -67,7 +67,7 @@
     "dint": "^5.1.0",
     "load-json-file": "^6.2.0",
     "p-filter": "^2.1.0",
-    "ramda": "^0.28.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
     "render-help": "^1.0.2"
   },
   "peerDependencies": {

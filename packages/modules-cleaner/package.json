@@ -38,7 +38,7 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "dependency-path": "workspace:*",
-    "ramda": "^0.28.0"
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "devDependencies": {
     "@pnpm/logger": "^4.0.0",

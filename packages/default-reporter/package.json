@@ -44,7 +44,7 @@
     "normalize-path": "^3.0.0",
     "pretty-bytes": "^5.6.0",
     "pretty-ms": "^7.0.1",
-    "ramda": "^0.28.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
     "right-pad": "^1.0.1",
     "rxjs": "^7.5.6",
     "semver": "^7.3.7",

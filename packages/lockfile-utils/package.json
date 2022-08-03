@@ -44,7 +44,7 @@
     "@pnpm/types": "workspace:*",
     "dependency-path": "workspace:*",
     "get-npm-tarball-url": "^2.0.3",
-    "ramda": "^0.28.0"
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

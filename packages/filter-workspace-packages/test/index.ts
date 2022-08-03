@@ -7,7 +7,7 @@ import execa from 'execa'
 import isCI from 'is-ci'
 import isWindows from 'is-windows'
 import path from 'path'
-import omit from 'ramda/src/omit.js'
+import omit from 'ramda/src/omit'
 import tempy from 'tempy'
 import touchCB from 'touch'
 

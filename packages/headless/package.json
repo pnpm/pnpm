@@ -94,7 +94,7 @@
     "p-limit": "^3.1.0",
     "path-absolute": "^1.0.1",
     "path-exists": "^4.0.0",
-    "ramda": "^0.28.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
     "realpath-missing": "^1.1.0"
   },
   "funding": "https://opencollective.com/pnpm",

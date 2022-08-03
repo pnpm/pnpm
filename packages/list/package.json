@@ -44,7 +44,7 @@
     "cli-columns": "^4.0.0",
     "dependencies-hierarchy": "workspace:*",
     "p-limit": "^3.1.0",
-    "ramda": "^0.28.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
     "semver": "^7.3.7"
   },
   "devDependencies": {

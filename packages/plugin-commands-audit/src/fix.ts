@@ -1,6 +1,6 @@
 import { AuditReport, AuditAdvisory } from '@pnpm/audit'
 import readProjectManifest from '@pnpm/read-project-manifest'
-import fromPairs from 'ramda/src/fromPairs.js'
+import fromPairs from 'ramda/src/fromPairs'
 
 export default async function fix (dir: string, auditReport: AuditReport) {
   const { manifest, writeProjectManifest } = await readProjectManifest(dir)

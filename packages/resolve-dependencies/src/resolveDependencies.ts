@@ -40,7 +40,7 @@ import {
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import exists from 'path-exists'
-import isEmpty from 'ramda/src/isEmpty.js'
+import isEmpty from 'ramda/src/isEmpty'
 import semver from 'semver'
 import encodePkgId from './encodePkgId'
 import getNonDevWantedDependencies, { WantedDependency } from './getNonDevWantedDependencies'

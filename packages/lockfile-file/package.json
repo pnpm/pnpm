@@ -57,7 +57,7 @@
     "comver-to-semver": "^1.0.0",
     "js-yaml": "npm:@zkochan/js-yaml@^0.0.6",
     "normalize-path": "^3.0.0",
-    "ramda": "^0.28.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
     "semver": "^7.3.7",
     "sort-keys": "^4.2.0",
     "strip-bom": "^4.0.0",

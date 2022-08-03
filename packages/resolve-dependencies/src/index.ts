@@ -21,7 +21,7 @@ import {
   Registries,
 } from '@pnpm/types'
 import promiseShare from 'promise-share'
-import difference from 'ramda/src/difference.js'
+import difference from 'ramda/src/difference'
 import getWantedDependencies, { WantedDependency } from './getWantedDependencies'
 import depPathToRef from './depPathToRef'
 import resolveDependencyTree, {

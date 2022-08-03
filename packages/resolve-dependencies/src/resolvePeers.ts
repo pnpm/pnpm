@@ -8,10 +8,10 @@ import {
 } from '@pnpm/types'
 import { depPathToFilename, createPeersFolderSuffix } from 'dependency-path'
 import { KeyValuePair } from 'ramda'
-import fromPairs from 'ramda/src/fromPairs.js'
-import isEmpty from 'ramda/src/isEmpty.js'
-import pick from 'ramda/src/pick.js'
-import scan from 'ramda/src/scan.js'
+import fromPairs from 'ramda/src/fromPairs'
+import isEmpty from 'ramda/src/isEmpty'
+import pick from 'ramda/src/pick'
+import scan from 'ramda/src/scan'
 import {
   DependenciesTree,
   DependenciesTreeNode,

@@ -7,7 +7,7 @@ import { ResolveFunction } from '@pnpm/resolver-base'
 import sortPackages from '@pnpm/sort-packages'
 import { Registries } from '@pnpm/types'
 import pFilter from 'p-filter'
-import pick from 'ramda/src/pick.js'
+import pick from 'ramda/src/pick'
 import writeJsonFile from 'write-json-file'
 import { handler as publish } from './publish'
 

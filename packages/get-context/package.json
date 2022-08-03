@@ -48,7 +48,7 @@
     "@zkochan/rimraf": "^2.1.2",
     "is-ci": "^3.0.1",
     "path-absolute": "^1.0.1",
-    "ramda": "^0.28.0"
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

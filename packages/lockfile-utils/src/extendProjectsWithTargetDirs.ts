@@ -1,7 +1,7 @@
 import path from 'path'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { depPathToFilename } from 'dependency-path'
-import fromPairs from 'ramda/src/fromPairs.js'
+import fromPairs from 'ramda/src/fromPairs'
 
 export default function extendProjectsWithTargetDirs<T> (
   projects: Array<T & { id: string }>,

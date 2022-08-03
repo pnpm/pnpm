@@ -37,7 +37,7 @@
     "is-subdir": "^1.2.0",
     "micromatch": "^4.0.5",
     "pkgs-graph": "workspace:*",
-    "ramda": "^0.28.0"
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:*",

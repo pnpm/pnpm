@@ -9,7 +9,7 @@ import {
   IncludedDependencies,
   ProjectManifest,
 } from '@pnpm/types'
-import unnest from 'ramda/src/unnest.js'
+import unnest from 'ramda/src/unnest'
 import { createManifestGetter, ManifestGetterOptions } from './createManifestGetter'
 import outdated, { OutdatedPackage } from './outdated'
 
