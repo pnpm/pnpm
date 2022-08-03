@@ -909,6 +909,8 @@ async function resolveDependency (
       status: 'resolved',
     })
 
+    // WARN: It is very important to keep this sync
+    // Otherwise, deprecation messages for the same package might get written several times
     ctx.resolvedPackagesByDepPath[depPath] = getResolvedPackage({
       allowBuild: ctx.allowBuild,
       dependencyLockfile: currentPkg.dependencyLockfile,
@@ -1011,7 +1013,7 @@ function getResolvedPackage (
     prepare: boolean
     wantedDependency: WantedDependency
   }
-) {
+): ResolvedPackage {
   const peerDependencies = peerDependenciesWithoutOwn(options.pkg)
 
   const requiresBuild = (options.allowBuild == null || options.allowBuild(options.pkg.name))
