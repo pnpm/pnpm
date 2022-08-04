@@ -19,6 +19,8 @@ import getFilePathInCafs, {
 } from './getFilePathInCafs'
 import writeFile from './writeFile'
 
+export { parseJsonBuffer } from './parseJson'
+
 export {
   checkFilesIntegrity,
   FileType,

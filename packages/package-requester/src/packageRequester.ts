@@ -5,6 +5,7 @@ import {
   FileType,
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
   getFilePathInCafs as _getFilePathInCafs,
+  parseJsonBuffer as _parseJsonBuffer,
   PackageFileInfo,
   PackageFilesIndex,
 } from '@pnpm/cafs'
@@ -111,7 +112,22 @@ export default function (
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs)
   const fetchPackageToStore = fetchToStore.bind(null, {
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-boolean-literal-compare
-    checkFilesIntegrity: opts.verifyStoreIntegrity === false ? async () => true : _checkFilesIntegrity.bind(null, cafsDir),
+    checkFilesIntegrity: opts.verifyStoreIntegrity === false
+      ? async (pkgIndex, deferredManifest) => {
+        // If verifyStoreIntegrity is false we skip the integrity checks of all files
+        // and only read the package manifest.
+
+        const pkg = pkgIndex['package.json']
+
+        if (pkg && deferredManifest) {
+          const fileName = _getFilePathByModeInCafs(cafsDir, pkg.integrity, pkg.mode)
+
+          _parseJsonBuffer(await gfs.readFile(fileName), deferredManifest)
+        }
+
+        return true
+      }
+      : _checkFilesIntegrity.bind(null, cafsDir),
     fetch,
     fetchingLocker: new Map(),
     getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, cafsDir),
