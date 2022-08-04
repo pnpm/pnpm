@@ -163,8 +163,10 @@ export async function mutateModules (
     streamParser.on('data', reporter)
   }
 
+  // 一些配置项的 opts
   const opts = await extendOptions(maybeOpts)
 
+  // optionalDep 不能单独安装如果没有 dep
   if (!opts.include.dependencies && opts.include.optionalDependencies) {
     throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
   }
@@ -172,6 +174,7 @@ export async function mutateModules (
   const installsOnly = projects.every((project) => project.mutation === 'install')
   if (!installsOnly) opts.strictPeerDependencies = false
   opts['forceNewModules'] = installsOnly
+  // 读一波 pkg.json
   const rootProjectManifest = projects.find(({ rootDir }) => rootDir === opts.lockfileDir)?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
     // so reading its manifest explicitly here.
@@ -184,7 +187,11 @@ export async function mutateModules (
     packageExtensions: opts.packageExtensions,
     peerDependencyRules: opts.peerDependencyRules,
   })
+  // console.log('opts: ', opts);
+  // console.log('projects', projects);
+  // ctx 是个比较关键的上下文信息,存储一些新装依赖的信息
   const ctx = await getContext(projects, opts)
+  // console.log('ctx: ', ctx);
   const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
     ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
     : true
@@ -197,6 +204,7 @@ export async function mutateModules (
     }
   }
 
+  // 安装依赖在 _install 这个方法里面
   const result = await _install()
 
   if (global['verifiedFileIntegrity'] > 1000) {
@@ -236,6 +244,7 @@ export async function mutateModules (
         }
       )
     }
+    // undefined
     const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : createObjectChecksum(opts.packageExtensions!)
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
@@ -255,6 +264,7 @@ export async function mutateModules (
         patchedDependencies,
       }) ||
       opts.fixLockfile
+    // 不存在
     if (needsFullResolution) {
       ctx.wantedLockfile.overrides = opts.overrides
       ctx.wantedLockfile.neverBuiltDependencies = opts.neverBuiltDependencies
@@ -345,6 +355,7 @@ export async function mutateModules (
 
     // TODO: make it concurrent
     for (const project of ctx.projects) {
+      // 通过 project 的 mutation 来推断 add -> installSome
       switch (project.mutation) {
       case 'uninstallSome':
         projectsToInstall.push({

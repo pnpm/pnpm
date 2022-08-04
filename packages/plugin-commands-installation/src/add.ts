@@ -78,6 +78,7 @@ export function cliOptionsTypes () {
     recursive: Boolean,
     save: Boolean,
     workspace: Boolean,
+    types: Boolean,
   }
 }
 
@@ -135,6 +136,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: 'Only adds the new dependency if it is found in the workspace',
             name: '--workspace',
           },
+          {
+            description: 'Install both package and it\'s type package',
+            name: '--types'
+          },
           OPTIONS.ignoreScripts,
           OPTIONS.offline,
           OPTIONS.preferOffline,
@@ -174,6 +179,7 @@ export async function handler (
   opts: AddCommandOptions,
   params: string[]
 ) {
+  // console.log('opts', opts);
   if (opts.cliOptions['save'] === false) {
     throw new PnpmError('OPTION_NOT_SUPPORTED', 'The "add" command currently does not support the no-save option')
   }

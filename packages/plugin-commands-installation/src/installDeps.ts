@@ -96,6 +96,8 @@ export default async function handler (
   opts: InstallDepsOptions,
   params: string[]
 ) {
+  // npmrc 的值从 otps.rawLocalConfig 里面读
+  // cliOptions 里面的值，可以从 opts.xxx 里面直接读
   if (opts.workspace) {
     if (opts.latest) {
       throw new PnpmError('BAD_OPTIONS', 'Cannot use --latest with --workspace simultaneously')
@@ -115,6 +117,7 @@ when running add/update with the --workspace option')
     }
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
+  // includeDirect 会当参数传进来
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,
     devDependencies: true,
@@ -127,11 +130,13 @@ when running add/update with the --workspace option')
   const allProjects = opts.allProjects ?? (
     opts.workspaceDir ? await findWorkspacePackages(opts.workspaceDir, opts) : []
   )
+  // 判断是在 workspaceDir 的情况下
   if (opts.workspaceDir) {
     const selectedProjectsGraph = opts.selectedProjectsGraph ?? selectProjectByDir(allProjects, opts.dir)
     if (selectedProjectsGraph != null) {
       const sequencedGraph = sequenceGraph(selectedProjectsGraph)
       // Check and warn if there are cyclic dependencies
+      // 检查循环依赖
       if (!sequencedGraph.safe) {
         const cyclicDependenciesInfo = sequencedGraph.cycles.length > 0
           ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}` // eslint-disable-line
@@ -142,6 +147,7 @@ when running add/update with the --workspace option')
         })
       }
 
+      // 如果实在 workspace 下，递归执行一次
       await recursive(allProjects,
         params,
         {
@@ -151,6 +157,7 @@ when running add/update with the --workspace option')
           selectedProjectsGraph,
           workspaceDir: opts.workspaceDir,
         },
+        // 如果没 params 的话就走 add 的逻辑 否则走 install 
         opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
       )
       return
@@ -162,10 +169,12 @@ when running add/update with the --workspace option')
   const dir = opts.dir || process.cwd()
   let workspacePackages!: WorkspacePackages
 
+  // 判断是不是 pnpm workspace 项目
   if (opts.workspaceDir) {
     workspacePackages = arrayOfWorkspacePackagesToMap(allProjects)
   }
 
+  // mainfest 是项目的 pkg.json
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
   if (manifest === null) {
     if (opts.update === true || params.length === 0) {
@@ -174,6 +183,7 @@ when running add/update with the --workspace option')
     manifest = {}
   }
 
+  // store 的相关信息 store.dir 以及 store.ctrl
   const store = await createOrConnectStoreController(opts)
   const installOpts: MutateModulesOptions = {
     ...opts,
@@ -221,7 +231,10 @@ when running add/update with the --workspace option')
       params = createWorkspaceSpecs(params, workspacePackages)
     }
   }
+  // 如果是 pnpm add 的话ex: pnpm add lodash --types (loadash) 就是 params
   if (params?.length) {
+    console.log('params: ', params);
+    // pnpm 的依赖安装过程在 mutateModules 中
     const mutatedProject: MutatedProject = {
       allowNew: opts.allowNew,
       binsDir: opts.bin,
@@ -239,6 +252,7 @@ when running add/update with the --workspace option')
     }
     return
   }
+  // 上面逻辑中杀死 pnpm add xxx 逻辑, 下面我不必关注
 
   const updatedManifest = await install(manifest, installOpts)
   if (opts.update === true && opts.save !== false) {

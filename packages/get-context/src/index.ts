@@ -99,6 +99,7 @@ export default async function getContext<T> (
 ): Promise<PnpmContext<T>> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
   let importersContext = await readProjectsContext(projects, { lockfileDir: opts.lockfileDir, modulesDir })
+  console.log('importersContext: ', importersContext);
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), opts.lockfileDir)
 
   if (importersContext.modules != null) {
