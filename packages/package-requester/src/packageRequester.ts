@@ -119,10 +119,13 @@ export default function (
 
         const pkg = pkgIndex['package.json']
 
-        if (pkg && deferredManifest) {
-          const fileName = _getFilePathByModeInCafs(cafsDir, pkg.integrity, pkg.mode)
-
-          _parseJsonBuffer(await gfs.readFile(fileName), deferredManifest)
+        if (deferredManifest) {
+          if (pkg) {
+            const fileName = _getFilePathByModeInCafs(cafsDir, pkg.integrity, pkg.mode)
+            _parseJsonBuffer(await gfs.readFile(fileName), deferredManifest)
+          } else {
+            deferredManifest.resolve(undefined)
+          }
         }
 
         return true
