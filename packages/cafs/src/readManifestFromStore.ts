@@ -1,0 +1,23 @@
+import { DeferredManifestPromise, PackageFileInfo } from '@pnpm/fetcher-base'
+import gfs from '@pnpm/graceful-fs'
+import { getFilePathByModeInCafs } from './getFilePathInCafs'
+import { parseJsonBuffer } from './parseJson'
+
+export default async function readManifestFromStore (
+  cafsDir: string,
+  pkgIndex: Record<string, PackageFileInfo>,
+  deferredManifest?: DeferredManifestPromise
+) {
+  const pkg = pkgIndex['package.json']
+
+  if (deferredManifest) {
+    if (pkg) {
+      const fileName = getFilePathByModeInCafs(cafsDir, pkg.integrity, pkg.mode)
+      parseJsonBuffer(await gfs.readFile(fileName), deferredManifest)
+    } else {
+      deferredManifest.resolve(undefined)
+    }
+  }
+
+  return true
+}

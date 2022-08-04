@@ -11,6 +11,7 @@ import checkFilesIntegrity, {
   PackageFilesIndex,
   verifyFileIntegrity,
 } from './checkFilesIntegrity'
+import readManifestFromStore from './readManifestFromStore'
 import getFilePathInCafs, {
   contentPathFromHex,
   FileType,
@@ -21,6 +22,7 @@ import writeFile from './writeFile'
 
 export {
   checkFilesIntegrity,
+  readManifestFromStore,
   FileType,
   getFilePathByModeInCafs,
   getFilePathInCafs,

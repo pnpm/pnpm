@@ -1044,3 +1044,67 @@ test('the version in the bundled manifest should be normalized', async () => {
   }))
   await pkgResponse.finishing!()
 })
+
+test('should skip store integrity check and resolve manifest if fetchRawManifest is true', async () => {
+  const storeDir = tempy.directory()
+  const cafs = createCafsStore(storeDir)
+
+  let pkgResponse!: PackageResponse
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: false,
+    })
+
+    const projectDir = tempy.directory()
+
+    pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+      registry,
+    })
+
+    await pkgResponse.finishing!()
+  }
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: false,
+    })
+
+    const fetchResult = requestPackage.fetchPackageToStore({
+      force: false,
+      fetchRawManifest: true,
+      lockfileDir: tempy.directory(),
+      pkg: {
+        name: 'is-positive',
+        version: '1.0.0',
+        id: pkgResponse.body.id,
+        resolution: pkgResponse.body.resolution,
+      },
+      expectedPkg: {
+        name: 'is-positive',
+        version: '1.0.0',
+      },
+    })
+
+    await fetchResult.finishing()
+
+    await expect(fetchResult.bundledManifest!()).resolves.toStrictEqual(expect.objectContaining({
+      name: 'is-positive',
+      version: '1.0.0',
+    }))
+  }
+})
