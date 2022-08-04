@@ -53,7 +53,10 @@ function compareWithPriority (priority: Record<string, number>, left: string, ri
   if (leftPriority && rightPriority) return leftPriority - rightPriority
   if (leftPriority) return -1
   if (rightPriority) return 1
-  return left.localeCompare(right)
+  // We want deterministic sorting, so we can't use .localCompare here.
+  // comparing strings with < and > will produce the same result on each machine.
+  // An alternative solution could be to use a specific culture for compare, using Intl.Collator
+  return left < right ? -1 : (left > right ? 1 : 0)
 }
 
 export function sortLockfileKeys (lockfile: LockfileFile) {
