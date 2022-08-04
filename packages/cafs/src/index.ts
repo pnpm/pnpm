@@ -11,6 +11,7 @@ import checkFilesIntegrity, {
   PackageFilesIndex,
   verifyFileIntegrity,
 } from './checkFilesIntegrity'
+import readManifestFromStore from './readManifestFromStore'
 import getFilePathInCafs, {
   contentPathFromHex,
   FileType,
@@ -19,10 +20,9 @@ import getFilePathInCafs, {
 } from './getFilePathInCafs'
 import writeFile from './writeFile'
 
-export { parseJsonBuffer } from './parseJson'
-
 export {
   checkFilesIntegrity,
+  readManifestFromStore,
   FileType,
   getFilePathByModeInCafs,
   getFilePathInCafs,
