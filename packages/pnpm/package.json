@@ -146,8 +146,7 @@
   },
   "scripts": {
     "bundle:pnpm": "cross-var esbuild lib/pnpm.js --bundle --platform=node --outfile=dist/pnpm.cjs --external:node-gyp --define:process.env.npm_package_name=\\\"$npm_package_name\\\" --define:process.env.npm_package_version=\\\"$npm_package_version\\\"",
-    "bundle:pnpx": "esbuild lib/pnpx.js --bundle --platform=node --outfile=dist/pnpx.cjs",
-    "bundle": "pnpm bundle:pnpm && pnpm bundle:pnpx",
+    "bundle": "pnpm bundle:pnpm",
     "start": "tsc --watch",
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",

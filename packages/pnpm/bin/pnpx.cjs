@@ -14,4 +14,6 @@ ${COMPATIBILITY_PAGE}`)
   process.exit(1)
 }
 
-require('../dist/pnpx.cjs')
+process.argv = [...process.argv.slice(0, 2), 'dlx', ...process.argv.slice(2)]
+
+require('../dist/pnpm.cjs')
