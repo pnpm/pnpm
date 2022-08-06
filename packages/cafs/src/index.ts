@@ -57,6 +57,9 @@ async function addBufferToCafs (
   buffer: Buffer,
   mode: number
 ): Promise<FileWriteResult> {
+  // Calculating the integrity of the file is surprisingly fast.
+  // 30K files are calculated in 1 second.
+  // Hence, from a performance perspective, there is no win in fetching the package index file from the registry.
   const integrity = ssri.fromData(buffer)
   const isExecutable = modeIsExecutable(mode)
   const fileDest = contentPathFromHex(isExecutable ? 'exec' : 'nonexec', integrity.hexDigest())
