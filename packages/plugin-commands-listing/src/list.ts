@@ -165,7 +165,6 @@ export async function render (
     include: opts.include,
     lockfileDir: opts.lockfileDir,
     long: opts.long,
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
     showExtraneous: false,
   }

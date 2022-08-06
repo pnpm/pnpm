@@ -242,7 +242,6 @@ function getPkgsDepPathsOwnedOnlyByImporters (
       include,
       skipped,
     })
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
   const packagesOfSelectedOnly = pickAll(difference(Object.keys(selected.packages!), Object.keys(other.packages!)), selected.packages!) as PackageSnapshots
   return getPkgsDepPaths(registries, packagesOfSelectedOnly, skipped)
 }

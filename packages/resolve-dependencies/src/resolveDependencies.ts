@@ -547,7 +547,7 @@ function getDepsToResolve (
         // So for example, if foo@1.0.0 had bar@1.0.0 as a dependency
         // and foo was updated to 1.1.0 which depends on bar ^1.0.0
         // then bar@1.0.0 can be reused for foo@1.1.0
-        semver.validRange(wantedDependency.pref) !== null && // eslint-disable-line
+        semver.validRange(wantedDependency.pref) !== null &&
         preferredDependencies[wantedDependency.alias] &&
         satisfiesWanted(preferredDependencies[wantedDependency.alias])
       ) {
@@ -794,7 +794,7 @@ async function resolveDependency (
   }
 
   if (pkgResponse.body.isLocal) {
-    const manifest = pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!() // eslint-disable-line @typescript-eslint/dot-notation
+    const manifest = pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
     if (!manifest) {
       // This should actually never happen because the local-resolver returns a manifest
       // even if no real manifest exists in the filesystem.
@@ -872,7 +872,6 @@ async function resolveDependency (
       ...pkg,
     }
   } else {
-    /* eslint-disable @typescript-eslint/dot-notation */
     prepare = Boolean(
       pkgResponse.body.resolvedVia === 'git-repository' &&
       typeof pkg.scripts?.prepare === 'string'

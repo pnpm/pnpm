@@ -105,7 +105,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     }
     if ((s != null) && !s.isDirectory()) {
       const err = new Error(`"${projectDir}" is not a directory`)
-      err['code'] = 'ENOTDIR' // eslint-disable-line
+      err['code'] = 'ENOTDIR'
       throw err
     }
   }

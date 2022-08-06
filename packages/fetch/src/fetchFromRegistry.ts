@@ -90,7 +90,7 @@ function getHeaders (
     accept: opts.fullMetadata === true ? JSON_DOC : CORGI_DOC,
   }
   if (opts.auth) {
-    headers['authorization'] = opts.auth // eslint-disable-line
+    headers['authorization'] = opts.auth
   }
   if (opts.userAgent) {
     headers['user-agent'] = opts.userAgent

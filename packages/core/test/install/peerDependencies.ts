@@ -497,7 +497,6 @@ test('peer dependencies are linked when running two separate named installations
   expect(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version).toBe('1.0.0')
 })
 
-// eslint-disable-next-line @typescript-eslint/dot-notation
 test.skip('peer dependencies are linked', async () => {
   const project = prepareEmpty()
   await install({
@@ -620,7 +619,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 
   const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
 
-  expect(lockfile.importers.project).toStrictEqual({ // eslint-disable-line
+  expect(lockfile.importers.project).toStrictEqual({
     dependencies: {
       ajv: '4.10.4',
       'ajv-keywords': '1.5.0_ajv@4.10.4',

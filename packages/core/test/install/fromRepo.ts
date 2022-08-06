@@ -142,7 +142,6 @@ test('from a git repo', async () => {
 })
 
 // This test is unstable due to dependency on third party registry
-// eslint-disable-next-line @typescript-eslint/dot-notation
 test.skip('from a non-github git repo', async () => {
   const project = prepareEmpty()
 

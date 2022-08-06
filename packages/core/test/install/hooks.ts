@@ -27,7 +27,7 @@ test('readPackage, afterAllResolved hooks', async () => {
   }
 
   const afterAllResolved = jest.fn((lockfile: Lockfile) => {
-    lockfile['foo'] = 'foo' // eslint-disable-line
+    lockfile['foo'] = 'foo'
     return lockfile
   })
 
@@ -43,7 +43,7 @@ test('readPackage, afterAllResolved hooks', async () => {
   expect(afterAllResolved.mock.calls[0][0].lockfileVersion).toEqual(LOCKFILE_VERSION)
 
   const wantedLockfile = await project.readLockfile()
-  expect(wantedLockfile['foo']).toEqual('foo') // eslint-disable-line @typescript-eslint/dot-notation
+  expect(wantedLockfile['foo']).toEqual('foo')
 })
 
 test('readPackage, afterAllResolved async hooks', async () => {
@@ -65,7 +65,7 @@ test('readPackage, afterAllResolved async hooks', async () => {
   }
 
   const afterAllResolved = jest.fn(async (lockfile: Lockfile) => {
-    lockfile['foo'] = 'foo' // eslint-disable-line
+    lockfile['foo'] = 'foo'
     return lockfile
   })
 
@@ -81,5 +81,5 @@ test('readPackage, afterAllResolved async hooks', async () => {
   expect(afterAllResolved.mock.calls[0][0].lockfileVersion).toEqual(LOCKFILE_VERSION)
 
   const wantedLockfile = await project.readLockfile()
-  expect(wantedLockfile['foo']).toEqual('foo') // eslint-disable-line @typescript-eslint/dot-notation
+  expect(wantedLockfile['foo']).toEqual('foo')
 })

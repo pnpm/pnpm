@@ -19,7 +19,7 @@ test.skip('subsequent installation uses same lockfile directory by default', asy
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
 
-  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/is-negative/1.0.0', '/is-positive/1.0.0']) // eslint-disable-line @typescript-eslint/dot-notation
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/is-negative/1.0.0', '/is-positive/1.0.0'])
 })
 
 test.skip('subsequent installation fails if a different lockfile directory is specified', async () => {

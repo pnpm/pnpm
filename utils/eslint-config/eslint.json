@@ -4,6 +4,7 @@
     "project": "./tsconfig.lint.json",
     "sourceType": "module"
   },
+  "reportUnusedDisableDirectives": true,
   "rules": {
     "import/no-extraneous-dependencies": [
       "error",

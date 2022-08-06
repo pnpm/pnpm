@@ -221,6 +221,6 @@ export default async (
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
-  extendedOpts.rawConfig['registry'] = extendedOpts.registries.default // eslint-disable-line @typescript-eslint/dot-notation
+  extendedOpts.rawConfig['registry'] = extendedOpts.registries.default
   return extendedOpts
 }

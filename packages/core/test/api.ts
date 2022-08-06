@@ -10,7 +10,6 @@ test('API', () => {
 // maybe a new property should be introduced
 // this seems illogical as even though all save types are false,
 // the dependency will be saved
-// eslint-disable-next-line @typescript-eslint/dot-notation
 test.skip('install fails when all saving types are false', async () => {
   try {
     await pnpm.install({}, await testDefaults({ save: false, saveDev: false, saveOptional: false }))

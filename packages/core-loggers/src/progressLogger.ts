@@ -3,7 +3,7 @@ import baseLogger, {
   Logger,
 } from '@pnpm/logger'
 
-export const progressLogger = baseLogger('progress') as Logger<ProgressMessage> // eslint-disable-line
+export const progressLogger = baseLogger('progress') as Logger<ProgressMessage>
 
 export type ProgressMessage = {
   packageId: string

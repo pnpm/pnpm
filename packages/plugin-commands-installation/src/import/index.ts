@@ -120,7 +120,7 @@ export async function handler (
       // Check and warn if there are cyclic dependencies
       if (!sequencedGraph.safe) {
         const cyclicDependenciesInfo = sequencedGraph.cycles.length > 0
-          ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}` // eslint-disable-line
+          ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
           : ''
         logger.warn({
           message: `There are cyclic workspace dependencies${cyclicDependenciesInfo}`,
@@ -175,7 +175,7 @@ async function readYarnLockFile (dir: string) {
       }
     }
   } catch (err: any) { // eslint-disable-line
-    if (err['code'] !== 'ENOENT') throw err // eslint-disable-line @typescript-eslint/dot-notation
+    if (err['code'] !== 'ENOENT') throw err
   }
   throw new PnpmError('YARN_LOCKFILE_NOT_FOUND', 'No yarn.lock found')
 }
@@ -212,12 +212,12 @@ async function readNpmLockfile (dir: string) {
   try {
     return await loadJsonFile<LockedPackage>(path.join(dir, 'package-lock.json'))
   } catch (err: any) { // eslint-disable-line
-    if (err['code'] !== 'ENOENT') throw err // eslint-disable-line @typescript-eslint/dot-notation
+    if (err['code'] !== 'ENOENT') throw err
   }
   try {
     return await loadJsonFile<LockedPackage>(path.join(dir, 'npm-shrinkwrap.json'))
   } catch (err: any) { // eslint-disable-line
-    if (err['code'] !== 'ENOENT') throw err // eslint-disable-line @typescript-eslint/dot-notation
+    if (err['code'] !== 'ENOENT') throw err
   }
   throw new PnpmError('NPM_LOCKFILE_NOT_FOUND', 'No package-lock.json or npm-shrinkwrap.json found')
 }

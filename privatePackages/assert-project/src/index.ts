@@ -136,7 +136,7 @@ export default (projectPath: string, encodedRegistryName?: string): Project => {
     },
     async readCurrentLockfile () {
       try {
-        return await readYamlFile(path.join(await getVirtualStoreDir(), 'lock.yaml')) // eslint-disable-line
+        return await readYamlFile(path.join(await getVirtualStoreDir(), 'lock.yaml'))
       } catch (err: any) { // eslint-disable-line
         if (err.code === 'ENOENT') return null!
         throw err
@@ -145,7 +145,7 @@ export default (projectPath: string, encodedRegistryName?: string): Project => {
     readModulesManifest: async () => readModules(modules),
     async readLockfile (lockfileName: string = WANTED_LOCKFILE) {
       try {
-        return await readYamlFile(path.join(projectPath, lockfileName)) // eslint-disable-line
+        return await readYamlFile(path.join(projectPath, lockfileName))
       } catch (err: any) { // eslint-disable-line
         if (err.code === 'ENOENT') return null!
         throw err

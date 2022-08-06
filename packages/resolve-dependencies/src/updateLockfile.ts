@@ -92,7 +92,6 @@ function toLockfileDependency (
   const result = {
     resolution: lockfileResolution,
   }
-  /* eslint-disable @typescript-eslint/dot-notation */
   if (dp.isAbsolute(opts.depPath)) {
     result['name'] = pkg.name
 
@@ -235,7 +234,6 @@ function toLockfileResolution (
   registry: string,
   lockfileIncludeTarballUrl?: boolean
 ): LockfileResolution {
-  /* eslint-disable @typescript-eslint/dot-notation */
   if (dp.isAbsolute(depPath) || resolution.type !== undefined || !resolution['integrity']) {
     return resolution as LockfileResolution
   }

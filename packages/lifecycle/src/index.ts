@@ -54,6 +54,6 @@ async function checkBindingGyp (
   scripts: {}
 ) {
   if (await exists(path.join(root, 'binding.gyp'))) {
-    scripts['install'] = 'node-gyp rebuild' // eslint-disable-line @typescript-eslint/dot-notation
+    scripts['install'] = 'node-gyp rebuild'
   }
 }

@@ -437,9 +437,9 @@ test('scoped module from different registry', async () => {
   const project = prepareEmpty()
 
   const opts = await testDefaults()
-  opts.registries!.default = 'https://registry.npmjs.org/' // eslint-disable-line
-  opts.registries!['@zkochan'] = `http://localhost:${REGISTRY_MOCK_PORT}` // eslint-disable-line
-  opts.registries!['@foo'] = `http://localhost:${REGISTRY_MOCK_PORT}` // eslint-disable-line
+  opts.registries!.default = 'https://registry.npmjs.org/'
+  opts.registries!['@zkochan'] = `http://localhost:${REGISTRY_MOCK_PORT}`
+  opts.registries!['@foo'] = `http://localhost:${REGISTRY_MOCK_PORT}`
   await addDependenciesToPackage({}, ['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'], opts)
 
   await project.has('@zkochan/foo')
@@ -810,7 +810,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   const modules = await readYamlFile<object>(path.resolve('node_modules', '.modules.yaml'))
   expect(modules).toBeTruthy()
-  expect(modules['pendingBuilds'].length).toBe(0) // eslint-disable-line @typescript-eslint/dot-notation
+  expect(modules['pendingBuilds'].length).toBe(0)
 
   {
     const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
@@ -862,8 +862,8 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.packages).toHaveProperty([id])
     expect(lockfile.packages![id].dependencies).toBeTruthy()
     expect(lockfile.packages![id].dependencies).toHaveProperty(['dep-of-pkg-with-1-dep'])
-    expect(lockfile.packages![id].resolution).toHaveProperty(['integrity']) // eslint-disable-line
-    expect(lockfile.packages![id].resolution).not.toHaveProperty(['tarball']) // eslint-disable-line
+    expect(lockfile.packages![id].resolution).toHaveProperty(['integrity'])
+    expect(lockfile.packages![id].resolution).not.toHaveProperty(['tarball'])
 
     const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
     expect(lockfile.packages).toHaveProperty([absDepPath])

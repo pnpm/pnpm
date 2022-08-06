@@ -84,7 +84,7 @@ test('relative link is not rewritten by argumentless install', async () => {
       dir: process.cwd(),
       manifest: {},
       reporter,
-    }) // eslint-disable-line @typescript-eslint/no-explicit-any
+    })
 
   expect(reporter.calledWithMatch({
     added: {

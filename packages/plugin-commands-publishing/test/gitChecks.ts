@@ -5,10 +5,8 @@ import PnpmError from '@pnpm/error'
 import execa from 'execa'
 import tempy from 'tempy'
 
-// eslint-disable-next-line
 import * as enquirer from 'enquirer'
 
-// eslint-disable-next-line
 import { publish } from '@pnpm/plugin-commands-publishing'
 import { DEFAULT_OPTS } from './utils'
 
