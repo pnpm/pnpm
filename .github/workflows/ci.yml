@@ -25,13 +25,13 @@ jobs:
         git config --global user.name "xyz"
         git config --global user.email "x@y.z"
     - name: Checkout Commit
-      uses: actions/checkout@v1
+      uses: actions/checkout@v3
     - name: Install pnpm
       uses: pnpm/action-setup@v2.2.2
       with:
         version: next-7
     - name: Setup Node
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v3
       with:
         node-version: ${{ matrix.node }}
         cache: 'pnpm'
@@ -42,7 +42,7 @@ jobs:
     - name: Audit
       run: pnpm audit
     - name: Cache TypeScript and Jest
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: |
           packages/*/lib
