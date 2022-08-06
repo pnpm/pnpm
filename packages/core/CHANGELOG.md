@@ -1,5 +1,23 @@
 # @pnpm/core
 
+## 5.9.1
+
+### Patch Changes
+
+- Updated dependencies [238a165a5]
+- Updated dependencies [c191ca7bf]
+- Updated dependencies [1e5482da4]
+  - @pnpm/parse-wanted-dependency@3.0.2
+  - @pnpm/package-requester@18.1.3
+  - @pnpm/lockfile-file@5.3.3
+  - @pnpm/resolve-dependencies@28.3.4
+  - @pnpm/parse-overrides@2.0.3
+  - @pnpm/headless@18.6.1
+  - @pnpm/get-context@6.2.9
+  - @pnpm/lockfile-to-pnp@0.5.27
+  - @pnpm/crypto.base32-hash@1.0.1
+  - @pnpm/link-bins@7.2.4
+
 ## 5.9.0
 
 ### Minor Changes

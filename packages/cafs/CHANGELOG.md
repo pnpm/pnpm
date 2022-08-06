@@ -1,5 +1,11 @@
 # @pnpm/cafs
 
+## 4.1.0
+
+### Minor Changes
+
+- c191ca7bf: Fix bug where the package manifest was not resolved if `verifyStoreIntegrity` is set to `false`.
+
 ## 4.0.9
 
 ### Patch Changes

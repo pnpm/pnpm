@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-rebuild
 
+## 6.1.30
+
+### Patch Changes
+
+- @pnpm/get-context@6.2.9
+- @pnpm/store-connection-manager@4.2.1
+- @pnpm/config@15.9.0
+- @pnpm/link-bins@7.2.4
+
 ## 6.1.29
 
 ### Patch Changes

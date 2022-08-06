@@ -1,5 +1,13 @@
 # @pnpm/package-requester
 
+## 18.1.3
+
+### Patch Changes
+
+- c191ca7bf: Fix bug where the package manifest was not resolved if `verifyStoreIntegrity` is set to `false`.
+- Updated dependencies [c191ca7bf]
+  - @pnpm/cafs@4.1.0
+
 ## 18.1.2
 
 ### Patch Changes

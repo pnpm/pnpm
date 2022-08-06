@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-store
 
+## 5.1.30
+
+### Patch Changes
+
+- Updated dependencies [238a165a5]
+- Updated dependencies [c191ca7bf]
+  - @pnpm/parse-wanted-dependency@3.0.2
+  - @pnpm/cafs@4.1.0
+  - @pnpm/get-context@6.2.9
+  - @pnpm/store-connection-manager@4.2.1
+  - @pnpm/config@15.9.0
+
 ## 5.1.29
 
 ### Patch Changes

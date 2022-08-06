@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-setup
 
+## 2.0.28
+
+### Patch Changes
+
+- fe53c2986: On POSIX `pnpm setup` should suggest users to source the config instead of restarting the terminal.
+
 ## 2.0.27
 
 ### Patch Changes

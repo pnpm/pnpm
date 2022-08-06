@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.9.0-0
+## 7.9.0
 
 ### Minor Changes
 
@@ -12,7 +12,11 @@
 ### Patch Changes
 
 - Don't print the same deprecation warning multiple times.
-- Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- On POSIX `pnpm setup` should suggest users to source the config instead of restarting the terminal.
+- Installing a package with `bin` that points to an `.exe` file on Windows [#5159](https://github.com/pnpm/pnpm/issues/5159).
+- Fix bug where the package manifest was not resolved if `verify-store-integrity` is set to `false`.
+- Fix sorting of keys in lockfile to make it more deterministic and prevent unnecessary churn in the lockfile [#5151](https://github.com/pnpm/pnpm/pull/5151).
+- Don't create a separate bundle for pnpx.
 
 ## 7.8.0
 

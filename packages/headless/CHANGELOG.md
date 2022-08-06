@@ -1,5 +1,17 @@
 # @pnpm/headless
 
+## 18.6.1
+
+### Patch Changes
+
+- Updated dependencies [c191ca7bf]
+- Updated dependencies [1e5482da4]
+  - @pnpm/package-requester@18.1.3
+  - @pnpm/lockfile-file@5.3.3
+  - @pnpm/lockfile-to-pnp@0.5.27
+  - @pnpm/real-hoist@0.2.15
+  - @pnpm/link-bins@7.2.4
+
 ## 18.6.0
 
 ### Minor Changes

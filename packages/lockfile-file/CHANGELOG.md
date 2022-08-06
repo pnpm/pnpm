@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 5.3.3
+
+### Patch Changes
+
+- 1e5482da4: Fix sorting of keys in lockfile to make it more deterministic and prevent unnecessary churn in the lockfile [#5151](https://github.com/pnpm/pnpm/pull/5151).
+
 ## 5.3.2
 
 ### Patch Changes

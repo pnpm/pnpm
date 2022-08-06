@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 28.3.4
+
+### Patch Changes
+
+- Updated dependencies [238a165a5]
+  - @pnpm/npm-resolver@13.1.1
+
 ## 28.3.3
 
 ### Patch Changes

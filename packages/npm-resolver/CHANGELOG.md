@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 13.1.1
+
+### Patch Changes
+
+- 238a165a5: dependencies maintenance
+
 ## 13.1.0
 
 ### Minor Changes

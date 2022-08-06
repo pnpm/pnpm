@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 7.0.19
+
+### Patch Changes
+
+- dependencies-hierarchy@11.0.19
+
 ## 7.0.18
 
 ### Patch Changes

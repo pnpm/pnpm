@@ -1,5 +1,12 @@
 # dependencies-hierarchy
 
+## 11.0.19
+
+### Patch Changes
+
+- Updated dependencies [1e5482da4]
+  - @pnpm/lockfile-file@5.3.3
+
 ## 11.0.18
 
 ### Patch Changes
