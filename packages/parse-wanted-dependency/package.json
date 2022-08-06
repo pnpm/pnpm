@@ -13,7 +13,7 @@
   ],
   "devDependencies": {
     "@pnpm/parse-wanted-dependency": "workspace:*",
-    "@types/validate-npm-package-name": "^3.0.3"
+    "@types/validate-npm-package-name": "^4.0.0"
   },
   "keywords": [
     "pnpm7"
