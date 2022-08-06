@@ -70,7 +70,7 @@ export default function createResolver (
   getCredentials: GetCredentials,
   opts: ResolverFactoryOptions
 ) {
-  if (typeof opts.cacheDir !== 'string') { // eslint-disable-line
+  if (typeof opts.cacheDir !== 'string') {
     throw new TypeError('`opts.cacheDir` is required and needs to be a string')
   }
   const fetchOpts = {
@@ -84,8 +84,8 @@ export default function createResolver (
   const getAuthHeaderValueByURI = (registry: string) => getCredentials(registry).authHeaderValue
   const metaCache = new LRU({
     max: 10000,
-    maxAge: 120 * 1000, // 2 minutes
-  }) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    ttl: 120 * 1000, // 2 minutes
+  })
   return resolveNpm.bind(null, {
     getAuthHeaderValueByURI,
     pickPackage: pickPackage.bind(null, {

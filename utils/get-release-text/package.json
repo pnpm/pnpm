@@ -8,10 +8,10 @@
     "lint": "eslint src/**/*.ts"
   },
   "dependencies": {
-    "mdast-util-to-string": "^1.1.0",
-    "remark-parse": "^7.0.2",
-    "remark-stringify": "^7.0.4",
-    "unified": "^8.4.2"
+    "mdast-util-to-string": "^2.0.0",
+    "remark-parse": "^9.0.0",
+    "remark-stringify": "^9.0.1",
+    "unified": "^9.2.2"
   },
   "devDependencies": {
     "@pnpm/get-release-text": "workspace:*"

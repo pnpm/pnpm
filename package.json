@@ -65,26 +65,11 @@
   "packageManager": "pnpm@7.7.1",
   "pnpm": {
     "overrides": {
-      "ansi-regex@<5": "^5.0.1",
-      "clipanion": "3.2.0-rc.6",
-      "glob-parent@3": "^5.1.2",
-      "hosted-git-info@<3.0.8": "^3.0.8",
+      "glob-parent@<5.1.2": ">=5.1.2",
       "hosted-git-info@4": "npm:@zkochan/hosted-git-info@^4.0.2",
-      "http-errors": "^1.7.3",
       "istanbul-reports": "npm:@zkochan/istanbul-reports",
       "js-yaml@^4.0.0": "npm:@zkochan/js-yaml@0.0.6",
-      "lodash@<4.17.19": "^4.17.9",
-      "nopt@5": "npm:@pnpm/nopt@^0.2.1",
-      "pkg-fetch": "3.4.1",
-      "rimraf@<3": "3",
-      "table@^6.0.3": "6.0.4",
-      "trim-newlines@1": "^3.0.1",
-      "trim@<0.0.3": ">=0.0.3",
-      "set-value@<4.0.1": "^4.0.1",
-      "validator@<13.7.0": ">=13.7.0",
-      "json-schema@<0.4.0": ">=0.4.0",
-      "jsdom@<=16.4.0": ">=16.5.0",
-      "glob-parent@<6.0.1": ">=6.0.1"
+      "nopt@5": "npm:@pnpm/nopt@^0.2.1"
     },
     "packageExtensions": {
       "@babel/parser": {
