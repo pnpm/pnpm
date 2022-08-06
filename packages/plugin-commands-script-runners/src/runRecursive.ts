@@ -113,7 +113,6 @@ export default async (
             return
           }
 
-          /* eslint-disable @typescript-eslint/dot-notation */
           err['code'] = 'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL'
           err['prefix'] = prefix
           /* eslint-enable @typescript-eslint/dot-notation */

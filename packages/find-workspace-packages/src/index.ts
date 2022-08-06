@@ -45,7 +45,7 @@ async function requirePackagesManifest (dir: string): Promise<{packages?: string
   try {
     return await readYamlFile<{ packages?: string[] }>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
   } catch (err: any) { // eslint-disable-line
-    if (err['code'] === 'ENOENT') { // eslint-disable-line
+    if (err['code'] === 'ENOENT') {
       return null
     }
     throw err

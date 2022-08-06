@@ -64,7 +64,7 @@ export async function createOrConnectStoreController (
       prefix: opts.dir,
     })
     return {
-      ctrl: await connectStoreController(serverJson.connectionOptions), // eslint-disable-line
+      ctrl: await connectStoreController(serverJson.connectionOptions),
       dir: storeDir,
     }
   }
@@ -79,7 +79,7 @@ export async function createOrConnectStoreController (
       prefix: opts.dir,
     })
     return {
-      ctrl: await connectStoreController(serverJson!.connectionOptions), // eslint-disable-line
+      ctrl: await connectStoreController(serverJson!.connectionOptions),
       dir: storeDir,
     }
   }

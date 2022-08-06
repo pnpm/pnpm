@@ -425,7 +425,6 @@ test('refetch package to store if it has been modified', async () => {
 })
 
 // TODO: decide what to do with this case
-// eslint-disable-next-line @typescript-eslint/dot-notation
 test.skip('relink package to project if the dependency is not linked from store', async () => {
   prepareEmpty()
   const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ save: true, pinnedVersion: 'patch' }))

@@ -166,7 +166,6 @@ export async function handler (
             return
           }
 
-          /* eslint-disable @typescript-eslint/dot-notation */
           err['code'] = 'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL'
           err['prefix'] = prefix
           /* eslint-enable @typescript-eslint/dot-notation */

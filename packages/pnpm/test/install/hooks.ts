@@ -247,7 +247,6 @@ test('readPackage hook from pnpmfile at root of workspace', async () => {
   process.chdir('..')
 
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
-  /* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
   expect(lockfile.packages!['/is-positive/1.0.0'].dependencies).toStrictEqual({
     'dep-of-pkg-with-1-dep': '100.1.0',
   })

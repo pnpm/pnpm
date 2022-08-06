@@ -62,7 +62,6 @@ test('always install latest when doing global installation without spec', async 
 
   process.chdir(globalPrefix)
 
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   expect((await import(path.resolve('node_modules', 'peer-c', 'package.json'))).default.version).toBe('2.0.0')
 })
 

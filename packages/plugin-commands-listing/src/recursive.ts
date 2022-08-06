@@ -34,7 +34,7 @@ export default async (
       outputs.push(output)
     } catch (err: any) { // eslint-disable-line
       logger.info(err)
-      err['prefix'] = dir // eslint-disable-line @typescript-eslint/dot-notation
+      err['prefix'] = dir
       throw err
     }
   }

@@ -11,7 +11,6 @@ export default (
   pkgSnapshot: PackageSnapshot,
   registries: Registries
 ): Resolution => {
-  /* eslint-disable @typescript-eslint/dot-notation */
   if (pkgSnapshot.resolution['type'] || pkgSnapshot.resolution['tarball']?.startsWith('file:')) {
     return pkgSnapshot.resolution as Resolution
   }

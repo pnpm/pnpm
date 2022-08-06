@@ -21,7 +21,6 @@ export default function parseWantedDependencies (
   return rawWantedDependencies
     .map((rawWantedDependency) => {
       const parsed = parseWantedDependency(rawWantedDependency)
-      /* eslint-disable @typescript-eslint/dot-notation */
       const alias = parsed['alias']
       let pref = parsed['pref']
       let pinnedVersion!: PinnedVersion | undefined

@@ -406,7 +406,7 @@ export async function mutateModules (
               continue
             }
           } catch (err: any) { // eslint-disable-line
-            if (err['code'] !== 'ENOENT') throw err // eslint-disable-line @typescript-eslint/dot-notation
+            if (err['code'] !== 'ENOENT') throw err
           }
           await rimraf(path.join(project.modulesDir, depName))
           if (allDeps[depName]) {

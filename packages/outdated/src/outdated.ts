@@ -93,7 +93,7 @@ export default async function outdated (
 
           // It might be not the best solution to check for pkgSnapshot.name
           // TODO: add some other field to distinct packages not from the registry
-          if (pkgSnapshot.resolution && (pkgSnapshot.resolution['type'] || pkgSnapshot.name)) { // eslint-disable-line @typescript-eslint/dot-notation
+          if (pkgSnapshot.resolution && (pkgSnapshot.resolution['type'] || pkgSnapshot.name)) {
             if (current !== wanted) {
               outdated.push({
                 alias,

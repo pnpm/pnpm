@@ -49,7 +49,7 @@ function getAuthHeaders (
 ) {
   const headers: { authorization?: string } = {}
   if (credentials.alwaysAuth && credentials.authHeaderValue) {
-    headers['authorization'] = credentials.authHeaderValue // eslint-disable-line
+    headers['authorization'] = credentials.authHeaderValue
   }
   return headers
 }

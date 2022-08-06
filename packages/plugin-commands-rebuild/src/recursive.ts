@@ -154,7 +154,7 @@ export default async function recursive (
             return
           }
 
-          err['prefix'] = rootDir // eslint-disable-line @typescript-eslint/dot-notation
+          err['prefix'] = rootDir
           throw err
         }
       })

@@ -21,7 +21,7 @@ export default async function testDefaults<T> (
     fastUnpack?: boolean
     storeDir?: string
     prefix?: string
-  }, // eslint-disable-line
+  },
   resolveOpts?: any, // eslint-disable-line
   fetchOpts?: any, // eslint-disable-line
   storeOpts?: any // eslint-disable-line

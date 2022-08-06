@@ -98,7 +98,6 @@ export default async function (
       }
     })()
   )
-  // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
   const files = await Promise.all<Lockfile | null | undefined>(fileReads)
   const sopts = { lockfileVersion: LOCKFILE_VERSION }
   const importerIds = opts.projects.map((importer) => importer.id)
