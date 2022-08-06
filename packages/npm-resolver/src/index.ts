@@ -84,7 +84,7 @@ export default function createResolver (
   const getAuthHeaderValueByURI = (registry: string) => getCredentials(registry).authHeaderValue
   const metaCache = new LRU({
     max: 10000,
-    maxAge: 120 * 1000, // 2 minutes
+    ttl: 120 * 1000, // 2 minutes
   })
   return resolveNpm.bind(null, {
     getAuthHeaderValueByURI,
