@@ -32,7 +32,9 @@ test('setup makes changes on POSIX', async () => {
 Next configuration changes were made:
 export PNPM_HOME=dir2
 
-Setup complete. Open a new terminal to start using pnpm.`)
+To start using pnpm, run:
+source ~/.bashrc
+`)
 })
 
 test('setup makes changes on Windows', async () => {

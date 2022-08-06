@@ -102,7 +102,13 @@ function renderSetupOutput (report: PathExtenderReport) {
   }
   output.push(`Next configuration changes were made:
 ${report.newSettings}`)
-  output.push('Setup complete. Open a new terminal to start using pnpm.')
+  if (report.configFile == null) {
+    output.push('Setup complete. Open a new terminal to start using pnpm.')
+  } else if (report.configFile.changeType !== 'skipped') {
+    output.push(`To start using pnpm, run:
+source ${report.configFile.path}
+`)
+  }
   return output.join('\n\n')
 }
 
