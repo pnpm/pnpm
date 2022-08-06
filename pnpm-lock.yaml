@@ -1795,8 +1795,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@zkochan/cmd-shim':
-        specifier: ^5.3.0
-        version: 5.3.0
+        specifier: ^5.3.1
+        version: 5.3.1
       bin-links:
         specifier: ^2.3.0
         version: 2.3.0
@@ -3042,8 +3042,8 @@ importers:
         specifier: workspace:*
         version: link:../store-path
       '@zkochan/cmd-shim':
-        specifier: ^5.3.0
-        version: 5.3.0
+        specifier: ^5.3.1
+        version: 5.3.1
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -7697,8 +7697,8 @@ packages:
       stream-buffers: 3.0.2
       tslib: 1.14.1
 
-  /@zkochan/cmd-shim/5.3.0:
-    resolution: {integrity: sha512-hWY9wIl0fGbYk6W0/qkm+DIhXXn5xOPuI7DXH8v9IfD9ftXPqHY41839Sa5Xz35Hm+a6Amdf4spG4/1jpvjVrQ==}
+  /@zkochan/cmd-shim/5.3.1:
+    resolution: {integrity: sha512-xoSqbd1iuV/dSID+OjTjQc/0wId/vhEqYBXbFu9SzpXGxhuzK6QN6CaF8i8v86q0FXX4n3/qD9ewUT6N5ngFQg==}
     engines: {node: '>=10.13'}
     dependencies:
       cmd-extension: 1.0.2

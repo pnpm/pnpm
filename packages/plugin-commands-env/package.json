@@ -37,7 +37,7 @@
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
     "@pnpm/store-path": "workspace:*",
-    "@zkochan/cmd-shim": "^5.3.0",
+    "@zkochan/cmd-shim": "^5.3.1",
     "load-json-file": "^6.2.0",
     "render-help": "^1.0.2",
     "write-json-file": "^4.3.0"
