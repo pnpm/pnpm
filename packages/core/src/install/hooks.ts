@@ -1,14 +1,17 @@
 import type { Lockfile } from '@pnpm/lockfile-file'
-import { Logger } from '@pnpm/logger'
 
-export interface PreResolveHookContext {
+export interface PreResolutionHookContext {
   wantedLockfile: Lockfile
   currentLockfile: Lockfile
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
   lockfileDir: string
   storeDir: string
-  logger: Logger<unknown>
 }
 
-export type PreResolveHook = (ctx: PreResolveHookContext) => Promise<void>
+export interface PreResolutionHookLogger {
+  info: (message: string) => void
+  warn: (message: string) => void
+}
+
+export type PreResolutioneHook = (ctx: PreResolutionHookContext, logger: PreResolutionHookLogger) => Promise<void>

@@ -1,5 +1,5 @@
 import path from 'path'
-import type { PreResolveHook } from '@pnpm/core'
+import type { PreResolutioneHook, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/core'
 import { hookLogger } from '@pnpm/core-loggers'
 import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
@@ -14,7 +14,7 @@ interface HookContext {
 interface Hooks {
   // eslint-disable-next-line
   readPackage?: (pkg: any, context: HookContext) => any
-  preResolution?: PreResolveHook
+  preResolution?: PreResolutioneHook
   afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile | Promise<Lockfile>
   filterLog?: (log: Log) => boolean
   importPackage?: ImportIndexedPackage
@@ -81,8 +81,17 @@ export default function requireHooks (
   } else {
     cookedHooks.filterLog = globalFilterLog ?? filterLog
   }
-  cookedHooks.importPackage = hooks.importPackage ?? globalHooks.importPackage
-  cookedHooks.preResolution = hooks.preResolution ?? globalHooks.preResolution
+
+  // `importPackage` and `preResolution` can only be defined via a global pnpmfile
+
+  cookedHooks.importPackage = globalHooks.importPackage
+
+  const preResolutionHook = globalHooks.preResolution
+
+  cookedHooks.preResolution = preResolutionHook
+    ? (ctx: PreResolutionHookContext) => preResolutionHook(ctx, createPreResolutionHookLogger(prefix))
+    : undefined
+
   return cookedHooks
 }
 
@@ -94,5 +103,14 @@ function createReadPackageHookContext (calledFrom: string, prefix: string, hook:
       message,
       prefix,
     }),
+  }
+}
+
+function createPreResolutionHookLogger (prefix: string): PreResolutionHookLogger {
+  const hook = 'preResolution'
+
+  return {
+    info: (message: string) => hookLogger.info({ message, prefix, hook } as any), // eslint-disable-line
+    warn: (message: string) => hookLogger.warn({ message, prefix, hook } as any), // eslint-disable-line
   }
 }

@@ -7,7 +7,6 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
-  hookLogger,
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
@@ -196,7 +195,6 @@ export async function mutateModules (
       existsWantedLockfile: ctx.existsWantedLockfile,
       lockfileDir: ctx.lockfileDir,
       storeDir: ctx.storeDir,
-      logger: hookLogger,
     })
   }
 
