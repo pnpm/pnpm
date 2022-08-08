@@ -44,6 +44,7 @@
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
+    "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",

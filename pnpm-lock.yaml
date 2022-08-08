@@ -2350,6 +2350,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../fetching-types
+      '@pnpm/pick-fetcher':
+        specifier: workspace:*
+        version: link:../pick-fetcher
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../tarball-fetcher
@@ -2642,6 +2645,9 @@ importers:
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../package-is-installable
+      '@pnpm/pick-fetcher':
+        specifier: workspace:*
+        version: link:../pick-fetcher
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../read-package-json
@@ -2842,6 +2848,18 @@ importers:
       '@types/validate-npm-package-name':
         specifier: ^4.0.0
         version: 4.0.0
+
+  packages/pick-fetcher:
+    devDependencies:
+      '@pnpm/fetcher-base':
+        specifier: workspace:*
+        version: link:../fetcher-base
+      '@pnpm/pick-fetcher':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../resolver-base
 
   packages/pick-registry-for-package:
     dependencies:

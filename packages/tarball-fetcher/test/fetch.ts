@@ -51,7 +51,7 @@ test('fail when tarball size does not match content-length', async () => {
   }
 
   await expect(
-    fetch.tarball(cafs, resolution, {
+    fetch.remoteTarball(cafs, resolution, {
       lockfileDir: process.cwd(),
     })
   ).rejects.toThrow(
@@ -81,7 +81,7 @@ test('retry when tarball size does not match content-length', async () => {
 
   const resolution = { tarball: 'http://example.com/foo.tgz' }
 
-  const result = await fetch.tarball(cafs, resolution, {
+  const result = await fetch.remoteTarball(cafs, resolution, {
     lockfileDir: process.cwd(),
   })
 
@@ -105,7 +105,7 @@ test('fail when integrity check fails two times in a row', async () => {
   }
 
   await expect(
-    fetch.tarball(cafs, resolution, {
+    fetch.remoteTarball(cafs, resolution, {
       lockfileDir: process.cwd(),
     })
   ).rejects.toThrow(
@@ -139,7 +139,7 @@ test('retry when integrity check fails', async () => {
   }
 
   const params: Array<[number | null, number]> = []
-  await fetch.tarball(cafs, resolution, {
+  await fetch.remoteTarball(cafs, resolution, {
     lockfileDir: process.cwd(),
     onStart (size, attempts) {
       params.push([size, attempts])
@@ -163,7 +163,7 @@ test('fail when integrity check of local file fails', async () => {
   }
 
   await expect(
-    fetch.tarball(cafs, resolution, {
+    fetch.localTarball(cafs, resolution, {
       lockfileDir: process.cwd(),
     })
   ).rejects.toThrow(
@@ -187,7 +187,7 @@ test("don't fail when integrity check of local file succeeds", async () => {
     tarball: 'file:tar.tgz',
   }
 
-  const { filesIndex } = await fetch.tarball(cafs, resolution, {
+  const { filesIndex } = await fetch.localTarball(cafs, resolution, {
     lockfileDir: process.cwd(),
   })
 
@@ -211,7 +211,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
       retries: 1,
     },
   })
-  const { filesIndex } = await fetch.tarball(cafs, resolution, {
+  const { filesIndex } = await fetch.localTarball(cafs, resolution, {
     lockfileDir: process.cwd(),
   })
 
@@ -236,7 +236,7 @@ test('fail when trying to fetch a non-local tarball in offline mode', async () =
     },
   })
   await expect(
-    fetch.tarball(cafs, resolution, {
+    fetch.remoteTarball(cafs, resolution, {
       lockfileDir: process.cwd(),
     })
   ).rejects.toThrow(
@@ -262,7 +262,7 @@ test('retry on server error', async () => {
     tarball: 'http://example.com/foo.tgz',
   }
 
-  const index = await fetch.tarball(cafs, resolution, {
+  const index = await fetch.remoteTarball(cafs, resolution, {
     lockfileDir: process.cwd(),
   })
 
@@ -284,7 +284,7 @@ test('throw error when accessing private package w/o authorization', async () =>
   }
 
   await expect(
-    fetch.tarball(cafs, resolution, {
+    fetch.remoteTarball(cafs, resolution, {
       lockfileDir: process.cwd(),
     })
   ).rejects.toThrow(
@@ -336,7 +336,7 @@ test('accessing private packages', async () => {
     tarball: 'http://example.com/foo.tgz',
   }
 
-  const index = await fetch.tarball(cafs, resolution, {
+  const index = await fetch.remoteTarball(cafs, resolution, {
     lockfileDir: process.cwd(),
   })
 
@@ -355,7 +355,7 @@ test('fetch a big repository', async () => {
 
   const resolution = { tarball: 'https://codeload.github.com/sveltejs/action-deploy-docs/tar.gz/a65fbf5a90f53c9d72fed4daaca59da50f074355' }
 
-  const result = await fetch.tarball(cafs, resolution, {
+  const result = await fetch.gitHostedTarball(cafs, resolution, {
     lockfileDir: process.cwd(),
   })
 

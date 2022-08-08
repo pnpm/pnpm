@@ -40,6 +40,9 @@
       "path": "../package-is-installable"
     },
     {
+      "path": "../pick-fetcher"
+    },
+    {
       "path": "../read-package-json"
     },
     {

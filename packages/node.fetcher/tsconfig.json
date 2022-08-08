@@ -25,6 +25,9 @@
       "path": "../fetching-types"
     },
     {
+      "path": "../pick-fetcher"
+    },
+    {
       "path": "../tarball-fetcher"
     }
   ]

@@ -6,6 +6,7 @@ import {
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { FilesIndex } from '@pnpm/fetcher-base'
+import { pickFetcher } from '@pnpm/pick-fetcher'
 import createCafsStore from '@pnpm/create-cafs-store'
 import createFetcher, { waitForFilesIndex } from '@pnpm/tarball-fetcher'
 import AdmZip from 'adm-zip'
@@ -32,11 +33,12 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     return
   }
   const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
-  const { tarball: fetchTarball } = createFetcher(fetch, getCredentials, {
+  const fetchers = createFetcher(fetch, getCredentials, {
     retry: opts.retry,
     timeout: opts.fetchTimeout,
   })
   const cafs = createCafsStore(opts.cafsDir)
+  const fetchTarball = pickFetcher(fetchers, { tarball })
   const { filesIndex } = await fetchTarball(cafs, { tarball }, {
     lockfileDir: process.cwd(),
   })
