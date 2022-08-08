@@ -3,6 +3,7 @@ import path from 'path'
 import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import readYamlFile from 'read-yaml-file'
+import loadJsonFile from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
 import {
   addDistTag,
@@ -612,4 +613,34 @@ test('readPackage hook is used during removal inside a workspace', async () => {
   process.chdir('..')
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
   expect(lockfile.packages!['/abc/1.0.0_vt2fli7reel7pfbmpdhs3d7fya'].peerDependencies!['is-negative']).toBe('1.0.0')
+})
+
+test('preResolution hook', async () => {
+  prepare()
+  const pnpmfile = `
+    const fs = require('fs')
+
+    module.exports = { hooks: { preResolution } }
+
+    function preResolution (ctx) {
+      fs.writeFileSync('args.json', JSON.stringify(ctx), 'utf8')
+    }
+  `
+
+  const npmrc = `
+    global-pnpmfile=.pnpmfile.cjs
+  `
+
+  await fs.writeFile('.npmrc', npmrc, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+
+  await execPnpm(['add', 'is-positive@1.0.0'])
+  const ctx = await loadJsonFile<any>('args.json') // eslint-disable-line
+
+  expect(ctx.currentLockfile).toBeDefined()
+  expect(ctx.wantedLockfile).toBeDefined()
+  expect(ctx.lockfileDir).toBeDefined()
+  expect(ctx.storeDir).toBeDefined()
+  expect(ctx.existsCurrentLockfile).toBe(false)
+  expect(ctx.existsWantedLockfile).toBe(false)
 })

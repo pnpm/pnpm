@@ -103,17 +103,27 @@ test('filterLog hook filters peer dependency warning', async () => {
 test('importPackage hooks', async () => {
   prepare()
   const pnpmfile = `
-const fs = require('fs')
+    const fs = require('fs')
 
-module.exports = { hooks: { importPackage } }
+    module.exports = { hooks: { importPackage } }
 
-function importPackage (to, opts) {
-  fs.writeFileSync('args.json', JSON.stringify([to, opts]), 'utf8')
-  return {}
-}`
+    function importPackage (to, opts) {
+      fs.writeFileSync('args.json', JSON.stringify([to, opts]), 'utf8')
+      return {}
+    }
+  `
+
+  const npmrc = `
+    global-pnpmfile=.pnpmfile.cjs
+  `
+
+  await fs.writeFile('.npmrc', npmrc, 'utf8')
   await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+
   await execPnpm(['add', 'is-positive@1.0.0'])
+
   const [to, opts] = await loadJsonFile<any>('args.json') // eslint-disable-line
+
   expect(typeof to).toBe('string')
   expect(Object.keys(opts.filesMap).sort()).toStrictEqual([
     'index.js',

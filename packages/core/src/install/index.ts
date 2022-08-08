@@ -184,7 +184,20 @@ export async function mutateModules (
     packageExtensions: opts.packageExtensions,
     peerDependencyRules: opts.peerDependencyRules,
   })
+
   const ctx = await getContext(projects, opts)
+
+  if (opts.hooks.preResolution) {
+    await opts.hooks.preResolution({
+      currentLockfile: ctx.currentLockfile,
+      wantedLockfile: ctx.wantedLockfile,
+      existsCurrentLockfile: ctx.existsCurrentLockfile,
+      existsWantedLockfile: ctx.existsWantedLockfile,
+      lockfileDir: ctx.lockfileDir,
+      storeDir: ctx.storeDir,
+    })
+  }
+
   const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
     ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
     : true

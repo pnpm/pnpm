@@ -2005,18 +2005,12 @@ importers:
 
   packages/lockfile-to-pnp:
     dependencies:
-      '@pnpm/config':
-        specifier: workspace:*
-        version: link:../config
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../lockfile-file
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../lockfile-utils
-      '@pnpm/read-project-manifest':
-        specifier: workspace:*
-        version: link:../read-project-manifest
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -4356,6 +4350,9 @@ importers:
 
   packages/pnpmfile:
     dependencies:
+      '@pnpm/core':
+        specifier: workspace:*
+        version: link:../core
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../core-loggers

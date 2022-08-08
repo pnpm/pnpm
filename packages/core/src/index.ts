@@ -8,6 +8,7 @@ export {
 } from '@pnpm/types'
 export { HoistingLimits } from '@pnpm/headless'
 export * from './api'
+export * from './install/hooks'
 
 export { ProjectOptions, UnexpectedStoreError, UnexpectedVirtualStoreDirError } from '@pnpm/get-context'
 export { InstallOptions } from './install/extendInstallOptions'

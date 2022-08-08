@@ -1,4 +1,5 @@
 import path from 'path'
+import type { PreResolutioneHook, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/core'
 import { hookLogger } from '@pnpm/core-loggers'
 import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
@@ -13,6 +14,7 @@ interface HookContext {
 interface Hooks {
   // eslint-disable-next-line
   readPackage?: (pkg: any, context: HookContext) => any
+  preResolution?: PreResolutioneHook
   afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile | Promise<Lockfile>
   filterLog?: (log: Log) => boolean
   importPackage?: ImportIndexedPackage
@@ -27,6 +29,7 @@ type Cook<T extends (...args: any[]) => any> = (
 
 export interface CookedHooks {
   readPackage?: Cook<Required<Hooks>['readPackage']>
+  preResolution?: Cook<Required<Hooks>['preResolution']>
   afterAllResolved?: Cook<Required<Hooks>['afterAllResolved']>
   filterLog?: Cook<Required<Hooks>['filterLog']>
   importPackage?: ImportIndexedPackage
@@ -78,7 +81,17 @@ export default function requireHooks (
   } else {
     cookedHooks.filterLog = globalFilterLog ?? filterLog
   }
-  cookedHooks.importPackage = hooks.importPackage ?? globalHooks.importPackage
+
+  // `importPackage` and `preResolution` can only be defined via a global pnpmfile
+
+  cookedHooks.importPackage = globalHooks.importPackage
+
+  const preResolutionHook = globalHooks.preResolution
+
+  cookedHooks.preResolution = preResolutionHook
+    ? (ctx: PreResolutionHookContext) => preResolutionHook(ctx, createPreResolutionHookLogger(prefix))
+    : undefined
+
   return cookedHooks
 }
 
@@ -90,5 +103,14 @@ function createReadPackageHookContext (calledFrom: string, prefix: string, hook:
       message,
       prefix,
     }),
+  }
+}
+
+function createPreResolutionHookLogger (prefix: string): PreResolutionHookLogger {
+  const hook = 'preResolution'
+
+  return {
+    info: (message: string) => hookLogger.info({ message, prefix, hook } as any), // eslint-disable-line
+    warn: (message: string) => hookLogger.warn({ message, prefix, hook } as any), // eslint-disable-line
   }
 }

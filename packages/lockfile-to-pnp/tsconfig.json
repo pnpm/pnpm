@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../config"
-    },
-    {
       "path": "../dependency-path"
     },
     {
@@ -20,9 +17,6 @@
     },
     {
       "path": "../lockfile-utils"
-    },
-    {
-      "path": "../read-project-manifest"
     },
     {
       "path": "../types"

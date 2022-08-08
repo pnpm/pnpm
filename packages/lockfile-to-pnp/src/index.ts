@@ -1,39 +1,13 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import getConfigs from '@pnpm/config'
-import { Lockfile, readWantedLockfile } from '@pnpm/lockfile-file'
+import { Lockfile } from '@pnpm/lockfile-file'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
-import readImporterManifest from '@pnpm/read-project-manifest'
 import { Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from 'dependency-path'
 import { generateInlinedScript, PackageRegistry } from '@yarnpkg/pnp'
 import normalizePath from 'normalize-path'
-
-export async function lockfileToPnp (lockfileDir: string) {
-  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
-  if (lockfile == null) throw new Error('Cannot generate a .pnp.cjs without a lockfile')
-  const importerNames: { [importerId: string]: string } = {}
-  await Promise.all(
-    Object.keys(lockfile.importers)
-      .map(async (importerId) => {
-        const importerDirectory = path.join(lockfileDir, importerId)
-        const { manifest } = await readImporterManifest(importerDirectory)
-        importerNames[importerId] = manifest.name as string
-      })
-  )
-  const { config: { registries, virtualStoreDir } } = await getConfigs({
-    cliOptions: {},
-    packageManager: { name: 'pnpm', version: '*' },
-  })
-  await writePnpFile(lockfile, {
-    importerNames,
-    lockfileDir,
-    registries,
-    virtualStoreDir: virtualStoreDir ?? path.join(lockfileDir, 'node_modules/.pnpm'),
-  })
-}
 
 export async function writePnpFile (
   lockfile: Lockfile,
