@@ -662,10 +662,7 @@ async function fetcher (
   resolution: Resolution,
   opts: FetchOptions
 ): Promise<FetchResult> {
-  const fetch = fetcherByHostingType[resolution.type ?? 'tarball']
-  if (!fetch) {
-    throw new Error(`Fetching for dependency type "${resolution.type ?? 'undefined'}" is not supported`)
-  }
+  const fetch = getFetcher(fetcherByHostingType, resolution)
   try {
     return await fetch(cafs, resolution, opts)
   } catch (err: any) { // eslint-disable-line
@@ -675,4 +672,34 @@ async function fetcher (
     })
     throw err
   }
+}
+
+function getFetcher (fetcherByHostingType: {[hostingType: string]: FetchFunction}, resolution: Resolution) {
+  let fetcherType = resolution.type
+
+  if (resolution.type == null) {
+    if (resolution.tarball.startsWith('file:')) {
+      fetcherType = 'localTarball'
+    } else if (isGitHostedPkgUrl(resolution.tarball)) {
+      fetcherType = 'gitHostedTarball'
+    } else {
+      fetcherType = 'remoteTarball'
+    }
+  }
+
+  const fetch = fetcherByHostingType[fetcherType!]
+
+  if (!fetch) {
+    throw new Error(`Fetching for dependency type "${resolution.type ?? 'undefined'}" is not supported`)
+  }
+
+  return fetch
+}
+
+function isGitHostedPkgUrl (url: string) {
+  return (
+    url.startsWith('https://codeload.github.com/') ||
+    url.startsWith('https://bitbucket.org/') ||
+    url.startsWith('https://gitlab.com/')
+  ) && url.includes('tar.gz')
 }

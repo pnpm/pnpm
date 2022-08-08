@@ -6,14 +6,9 @@ import {
   Cafs,
   DeferredManifestPromise,
   FetchResult,
-  FilesIndex,
-  PackageFileInfo,
 } from '@pnpm/fetcher-base'
 import { FetchFromRegistry } from '@pnpm/fetching-types'
-import preparePackage from '@pnpm/prepare-package'
 import * as retry from '@zkochan/retry'
-import fromPairs from 'ramda/src/fromPairs'
-import omit from 'ramda/src/omit'
 import ssri from 'ssri'
 import { BadTarballError } from './errorTypes'
 
@@ -192,11 +187,8 @@ export default (
               // eslint-disable-next-line
               throw integrityCheckResult
             }
-            if (!isGitHostedPkgUrl(url)) {
-              resolve({ filesIndex })
-              return
-            }
-            resolve({ filesIndex: await prepareGitHostedPkg(filesIndex, opts.cafs) })
+
+            resolve({ filesIndex })
           } catch (err: any) { // eslint-disable-line
             reject(err)
           }
@@ -208,49 +200,6 @@ export default (
       }
     }
   }
-}
-
-function isGitHostedPkgUrl (url: string) {
-  return (
-    url.startsWith('https://codeload.github.com/') ||
-    url.startsWith('https://bitbucket.org/') ||
-    url.startsWith('https://gitlab.com/')
-  ) && url.includes('tar.gz')
-}
-
-export async function waitForFilesIndex (filesIndex: FilesIndex): Promise<Record<string, PackageFileInfo>> {
-  return fromPairs(
-    await Promise.all(
-      Object.entries(filesIndex).map(async ([fileName, fileInfo]): Promise<[string, PackageFileInfo]> => {
-        const { integrity, checkedAt } = await fileInfo.writeResult
-        return [
-          fileName,
-          {
-            ...omit(['writeResult'], fileInfo),
-            checkedAt,
-            integrity: integrity.toString(),
-          },
-        ]
-      })
-    )
-  )
-}
-
-async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
-  const tempLocation = await cafs.tempDir()
-  await cafs.importPackage(tempLocation, {
-    filesResponse: {
-      filesIndex: await waitForFilesIndex(filesIndex),
-      fromStore: false,
-    },
-    force: true,
-  })
-  await preparePackage(tempLocation)
-  const newFilesIndex = await cafs.addFilesFromDir(tempLocation)
-  // Important! We cannot remove the temp location at this stage.
-  // Even though we have the index of the package,
-  // the linking of files to the store is in progress.
-  return newFilesIndex
 }
 
 async function safeCheckStream (stream: any, integrity: string, url: string): Promise<true | Error> { // eslint-disable-line @typescript-eslint/no-explicit-any
