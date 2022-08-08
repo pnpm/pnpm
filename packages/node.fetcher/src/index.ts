@@ -6,7 +6,7 @@ import {
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { FilesIndex } from '@pnpm/fetcher-base'
-import { getFetcher } from '@pnpm/package-requester'
+import { getFetcher } from '@pnpm/pick-fetcher'
 import createCafsStore from '@pnpm/create-cafs-store'
 import createFetcher, { waitForFilesIndex } from '@pnpm/tarball-fetcher'
 import AdmZip from 'adm-zip'
