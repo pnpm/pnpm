@@ -3961,8 +3961,8 @@ importers:
         specifier: workspace:*
         version: link:../cli-utils
       '@pnpm/os.env.path-extender':
-        specifier: ^0.2.5
-        version: 0.2.5
+        specifier: ^0.2.6
+        version: 0.2.6
       render-help:
         specifier: ^1.0.2
         version: 1.0.2
@@ -6772,8 +6772,8 @@ packages:
       '@pnpm/error': 2.1.0
     dev: false
 
-  /@pnpm/os.env.path-extender-windows/0.2.1:
-    resolution: {integrity: sha512-KUNyrpl9pcE8keNsjaByd9cCberpIGU+qZAEyk2dP3QNjG+1A6CO9tuRCR4RySjYjWy5+KqOILRLDjhGbd9zbA==}
+  /@pnpm/os.env.path-extender-windows/0.2.2:
+    resolution: {integrity: sha512-Wx3z2a/4uBvNCqONfq4d8+18OxlCI7kwqKE9hFR2PK8bk483Ds4scO3QyuPMp4erk+sO8iKea4DG5sVEml60ag==}
     engines: {node: '>=12.22.0'}
     dependencies:
       '@pnpm/error': 2.1.0
@@ -6781,12 +6781,12 @@ packages:
       string.prototype.matchall: 4.0.7
     dev: false
 
-  /@pnpm/os.env.path-extender/0.2.5:
-    resolution: {integrity: sha512-D2UfTWkNaNNeeW1i0k6+eouEQ1KDkCe+eGsigXiISQwCCV/uMlhZUQ8X/kM5jgHsTaGhIowY+Yf5YilYB6nT4Q==}
+  /@pnpm/os.env.path-extender/0.2.6:
+    resolution: {integrity: sha512-4Iw6cMRetpf7p4Nrq/BD+xvZrz7nclMlyMXueTWfmIysDraR2BQjXZwOE6IYxvaPcyRwcE3f+S5ofnQfbKwZ7g==}
     engines: {node: '>=12.22.0'}
     dependencies:
       '@pnpm/os.env.path-extender-posix': 0.2.4
-      '@pnpm/os.env.path-extender-windows': 0.2.1
+      '@pnpm/os.env.path-extender-windows': 0.2.2
     dev: false
 
   /@pnpm/package-is-installable/5.0.14_@pnpm+logger@4.0.0:
@@ -8776,8 +8776,8 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
     dependencies:
-      is-text-path: 1.0.1
       JSONStream: 1.3.5
+      is-text-path: 1.0.1
       lodash: 4.17.21
       meow: 8.1.2
       split2: 3.2.2
@@ -9358,7 +9358,7 @@ packages:
       is-weakref: 1.0.2
       object-inspect: 1.12.2
       object-keys: 1.1.1
-      object.assign: 4.1.2
+      object.assign: 4.1.3
       regexp.prototype.flags: 1.4.3
       string.prototype.trimend: 1.0.5
       string.prototype.trimstart: 1.0.5
@@ -12922,6 +12922,15 @@ packages:
       has-symbols: 1.0.3
       object-keys: 1.1.1
 
+  /object.assign/4.1.3:
+    resolution: {integrity: sha512-ZFJnX3zltyjcYJL0RoCJuzb+11zWGyaDbjgxZbdV7rFEcHQuYxrZqhow67aA7xpes6LhojyFDaBKAFfogQrikA==}
+    engines: {node: '>= 0.4'}
+    dependencies:
+      call-bind: 1.0.2
+      define-properties: 1.1.4
+      has-symbols: 1.0.3
+      object-keys: 1.1.1
+
   /object.values/1.1.5:
     resolution: {integrity: sha512-QUZRW0ilQ3PnPpbNtgdNV1PDbEqLIiSFB3l+EnGtBQ/8SUTLj1PZwtQHABZtLgwpJZTSZhuGLOGk57Drx2IvYg==}
     engines: {node: '>= 0.4'}
@@ -15443,6 +15452,7 @@ packages:
       '@verdaccio/readme': 10.4.1
       '@verdaccio/streams': 10.2.0
       '@verdaccio/ui-theme': 6.0.0-6-next.25
+      JSONStream: 1.3.5
       async: 3.2.4
       body-parser: 1.20.0
       clipanion: 3.1.0
@@ -15459,7 +15469,6 @@ packages:
       handlebars: 4.7.7
       http-errors: 2.0.0
       js-yaml: /@zkochan/js-yaml/0.0.6
-      JSONStream: 1.3.5
       jsonwebtoken: 8.5.1
       kleur: 4.1.5
       lodash: 4.17.21
