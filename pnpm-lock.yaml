@@ -2350,6 +2350,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../fetching-types
+      '@pnpm/package-requester':
+        specifier: workspace:*
+        version: link:../package-requester
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../tarball-fetcher

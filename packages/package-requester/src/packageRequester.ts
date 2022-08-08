@@ -674,7 +674,7 @@ async function fetcher (
   }
 }
 
-function getFetcher (fetcherByHostingType: {[hostingType: string]: FetchFunction}, resolution: Resolution) {
+export function getFetcher (fetcherByHostingType: {[hostingType: string]: FetchFunction}, resolution: Resolution) {
   let fetcherType = resolution.type
 
   if (resolution.type == null) {

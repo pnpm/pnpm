@@ -25,6 +25,9 @@
       "path": "../fetching-types"
     },
     {
+      "path": "../package-requester"
+    },
+    {
       "path": "../tarball-fetcher"
     }
   ]
