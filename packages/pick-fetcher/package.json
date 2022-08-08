@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/pick-fetcher",
   "version": "0.0.0",
-  "description": "Pick a tarball fetcher by type",
+  "description": "Pick a package fetcher by type",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [

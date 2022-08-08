@@ -10,7 +10,7 @@ import {
   PackageFilesIndex,
 } from '@pnpm/cafs'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
-import { getFetcher } from '@pnpm/pick-fetcher'
+import { pickFetcher } from '@pnpm/pick-fetcher'
 import PnpmError from '@pnpm/error'
 import {
   Cafs,
@@ -663,7 +663,7 @@ async function fetcher (
   resolution: Resolution,
   opts: FetchOptions
 ): Promise<FetchResult> {
-  const fetch = getFetcher(fetcherByHostingType, resolution)
+  const fetch = pickFetcher(fetcherByHostingType, resolution)
   try {
     return await fetch(cafs, resolution, opts)
   } catch (err: any) { // eslint-disable-line

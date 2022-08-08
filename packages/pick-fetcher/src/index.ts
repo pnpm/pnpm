@@ -1,7 +1,7 @@
 import type { Resolution } from '@pnpm/resolver-base'
 import type { FetchFunction } from '@pnpm/fetcher-base'
 
-export function getFetcher (fetcherByHostingType: {[hostingType: string]: FetchFunction}, resolution: Resolution) {
+export function pickFetcher (fetcherByHostingType: {[hostingType: string]: FetchFunction}, resolution: Resolution) {
   let fetcherType = resolution.type
 
   if (resolution.type == null) {

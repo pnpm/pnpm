@@ -1,14 +1,14 @@
-import { getFetcher } from '@pnpm/pick-fetcher'
+import { pickFetcher } from '@pnpm/pick-fetcher'
 
 test('should pick localTarball fetcher', () => {
   const localTarball = jest.fn()
-  const fetcher = getFetcher({ localTarball }, { tarball: 'file:is-positive-1.0.0.tgz' })
+  const fetcher = pickFetcher({ localTarball }, { tarball: 'file:is-positive-1.0.0.tgz' })
   expect(fetcher).toBe(localTarball)
 })
 
 test('should pick remoteTarball fetcher', () => {
   const remoteTarball = jest.fn()
-  const fetcher = getFetcher({ remoteTarball }, { tarball: 'is-positive-1.0.0.tgz' })
+  const fetcher = pickFetcher({ remoteTarball }, { tarball: 'is-positive-1.0.0.tgz' })
   expect(fetcher).toBe(remoteTarball)
 })
 
@@ -18,12 +18,12 @@ test.each([
   'https://gitlab.com/api/v4/projects/pnpm%2Fgit-resolver/repository/archive.tar.gz',
 ])('should pick gitHostedTarball fetcher', (tarball) => {
   const gitHostedTarball = jest.fn()
-  const fetcher = getFetcher({ gitHostedTarball }, { tarball })
+  const fetcher = pickFetcher({ gitHostedTarball }, { tarball })
   expect(fetcher).toBe(gitHostedTarball)
 })
 
 test('should fail to pick fetcher if the type is not defined', () => {
   expect(() => {
-    getFetcher({}, { type: 'directory' })
+    pickFetcher({}, { type: 'directory' })
   }).toThrow('Fetching for dependency type "directory" is not supported')
 })
