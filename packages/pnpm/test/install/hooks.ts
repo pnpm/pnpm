@@ -618,15 +618,22 @@ test('readPackage hook is used during removal inside a workspace', async () => {
 test('preResolution hook', async () => {
   prepare()
   const pnpmfile = `
-      const fs = require('fs')
+    const fs = require('fs')
 
-      module.exports = { hooks: { preResolution } }
+    module.exports = { hooks: { preResolution } }
 
-      function preResolution (ctx) {
-        fs.writeFileSync('args.json', JSON.stringify(ctx), 'utf8')
-      }
-    `
+    function preResolution (ctx) {
+      fs.writeFileSync('args.json', JSON.stringify(ctx), 'utf8')
+    }
+  `
+
+  const npmrc = `
+    global-pnpmfile=.pnpmfile.cjs
+  `
+
+  await fs.writeFile('.npmrc', npmrc, 'utf8')
   await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+
   await execPnpm(['add', 'is-positive@1.0.0'])
   const ctx = await loadJsonFile<any>('args.json') // eslint-disable-line
 
