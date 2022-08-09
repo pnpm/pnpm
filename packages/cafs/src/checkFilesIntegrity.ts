@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs'
-import { DeferredManifestPromise, PackageFileInfo } from '@pnpm/fetcher-base'
+import type { DeferredManifestPromise, PackageFileInfo } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import rimraf from '@zkochan/rimraf'
 import pLimit from 'p-limit'

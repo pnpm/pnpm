@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../cafs-types"
+    },
+    {
       "path": "../fetcher-base"
     },
     {

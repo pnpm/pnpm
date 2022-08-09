@@ -16,6 +16,9 @@
       "path": "../cafs"
     },
     {
+      "path": "../cafs-types"
+    },
+    {
       "path": "../fetcher-base"
     },
     {

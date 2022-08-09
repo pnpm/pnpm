@@ -2,11 +2,8 @@ import { IncomingMessage } from 'http'
 import urlLib from 'url'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import PnpmError, { FetchError } from '@pnpm/error'
-import {
-  Cafs,
-  DeferredManifestPromise,
-  FetchResult,
-} from '@pnpm/fetcher-base'
+import { FetchResult } from '@pnpm/fetcher-base'
+import type { Cafs, DeferredManifestPromise } from '@pnpm/cafs-types'
 import { FetchFromRegistry } from '@pnpm/fetching-types'
 import * as retry from '@zkochan/retry'
 import ssri from 'ssri'

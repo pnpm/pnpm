@@ -47,6 +47,7 @@
     "tempy": "^1.0.1"
   },
   "devDependencies": {
+    "@pnpm/cafs-types": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "^0.4.34",

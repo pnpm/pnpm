@@ -1,4 +1,4 @@
-import { DeferredManifestPromise, PackageFileInfo } from '@pnpm/fetcher-base'
+import type { DeferredManifestPromise, PackageFileInfo } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { getFilePathByModeInCafs } from './getFilePathInCafs'
 import { parseJsonBuffer } from './parseJson'

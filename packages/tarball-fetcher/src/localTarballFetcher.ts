@@ -1,5 +1,6 @@
 import path from 'path'
-import { Cafs, DeferredManifestPromise, FetchFunction, FetchOptions, FetchResult } from '@pnpm/fetcher-base'
+import { FetchFunction, FetchOptions, FetchResult } from '@pnpm/fetcher-base'
+import type { Cafs, DeferredManifestPromise } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import ssri from 'ssri'
 import { TarballIntegrityError } from './remoteTarballFetcher'

@@ -5,7 +5,7 @@ import {
   FetchFromRegistry,
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
-import { FilesIndex } from '@pnpm/fetcher-base'
+import type { FilesIndex } from '@pnpm/cafs-types'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import createCafsStore from '@pnpm/create-cafs-store'
 import createFetcher, { waitForFilesIndex } from '@pnpm/tarball-fetcher'

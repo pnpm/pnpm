@@ -305,6 +305,9 @@ importers:
       '@pnpm/cafs':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/cafs-types':
+        specifier: workspace:*
+        version: link:../cafs-types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -326,6 +329,18 @@ importers:
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
+
+  packages/cafs-types:
+    devDependencies:
+      '@pnpm/cafs-types':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../types
+      '@types/ssri':
+        specifier: ^7.1.1
+        version: 7.1.1
 
   packages/calc-dep-state:
     dependencies:
@@ -811,6 +826,9 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
     devDependencies:
+      '@pnpm/cafs-types':
+        specifier: workspace:*
+        version: link:../cafs-types
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: 'link:'
@@ -1152,6 +1170,9 @@ importers:
         specifier: ^7.1.1
         version: 7.1.1
     devDependencies:
+      '@pnpm/cafs-types':
+        specifier: workspace:*
+        version: link:../cafs-types
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: 'link:'
@@ -2372,6 +2393,9 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
     devDependencies:
+      '@pnpm/cafs-types':
+        specifier: workspace:*
+        version: link:../cafs-types
       '@pnpm/node.fetcher':
         specifier: workspace:*
         version: 'link:'
@@ -2700,6 +2724,9 @@ importers:
         specifier: ^8.0.1
         version: 8.0.1
     devDependencies:
+      '@pnpm/cafs-types':
+        specifier: workspace:*
+        version: link:../cafs-types
       '@pnpm/client':
         specifier: workspace:*
         version: link:../client
@@ -4926,6 +4953,9 @@ importers:
         specifier: workspace:*
         version: link:../types
     devDependencies:
+      '@pnpm/cafs-types':
+        specifier: workspace:*
+        version: link:../cafs-types
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: 'link:'
@@ -5022,6 +5052,9 @@ importers:
         specifier: ^8.0.1
         version: 8.0.1
     devDependencies:
+      '@pnpm/cafs-types':
+        specifier: workspace:*
+        version: link:../cafs-types
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../create-cafs-store
@@ -7203,7 +7236,6 @@ packages:
 
   /@types/node/18.6.3:
     resolution: {integrity: sha512-6qKpDtoaYLM+5+AFChLhHermMQxc3TOEFIDzrZLPRGHPrLEwqFkkT5Kx3ju05g6X7uDPazz3jHbKPX0KzCjntg==}
-    dev: true
 
   /@types/normalize-package-data/2.4.1:
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
@@ -7273,7 +7305,7 @@ packages:
   /@types/ssri/7.1.1:
     resolution: {integrity: sha512-DPP/jkDaqGiyU75MyMURxLWyYLwKSjnAuGe9ZCsLp9QZOpXmDfuevk769F0BS86TmRuD5krnp06qw9nSoNO+0g==}
     dependencies:
-      '@types/node': 18.6.2
+      '@types/node': 18.6.3
 
   /@types/stack-utils/2.0.1:
     resolution: {integrity: sha512-Hl219/BT5fLAaz6NDkSuhzasy49dwQS/DSdu4MdggFB8zcXv7vflBI3xp7FEmkmdDkBUI2bPUNeMttp2knYdxw==}

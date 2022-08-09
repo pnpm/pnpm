@@ -1,9 +1,9 @@
 import PnpmError from '@pnpm/error'
 import {
-  Cafs,
   FetchFunction,
   FetchOptions,
 } from '@pnpm/fetcher-base'
+import type { Cafs } from '@pnpm/cafs-types'
 import {
   FetchFromRegistry,
   GetCredentials,

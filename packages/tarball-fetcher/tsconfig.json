@@ -13,6 +13,9 @@
       "path": "../../privatePackages/test-fixtures"
     },
     {
+      "path": "../cafs-types"
+    },
+    {
       "path": "../core-loggers"
     },
     {

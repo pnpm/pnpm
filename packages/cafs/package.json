@@ -32,6 +32,7 @@
   },
   "devDependencies": {
     "@pnpm/cafs": "workspace:*",
+    "@pnpm/cafs-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/concat-stream": "^2.0.0",
     "@types/node": "^14.18.22",
