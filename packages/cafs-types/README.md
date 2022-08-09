@@ -1,4 +1,4 @@
-# @pnpm/types
+# @pnpm/cafs-types
 
 > Types for the cafs
 
