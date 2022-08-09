@@ -78,3 +78,13 @@ export interface FilesIndex {
     writeResult: Promise<FileWriteResult>
   }
 }
+
+export type CustomFetcherFactory = (defaultFetcher: FetchFunction) => FetchFunction
+
+export interface CustomFetchers {
+  localTarball?: CustomFetcherFactory
+  remoteTarball?: CustomFetcherFactory
+  gitHostedTarball?: CustomFetcherFactory
+  directory?: CustomFetcherFactory
+  git?: CustomFetcherFactory
+}

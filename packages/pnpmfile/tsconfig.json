@@ -19,6 +19,9 @@
       "path": "../error"
     },
     {
+      "path": "../fetcher-base"
+    },
+    {
       "path": "../lockfile-types"
     },
     {

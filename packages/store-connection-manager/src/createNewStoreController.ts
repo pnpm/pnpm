@@ -45,6 +45,7 @@ export default async (
   opts: CreateNewStoreControllerOptions
 ) => {
   const { resolve, fetchers } = createClient({
+    customFetchers: opts.hooks?.fetchers,
     userConfig: opts.userConfig,
     authConfig: opts.rawConfig,
     ca: opts.ca,
