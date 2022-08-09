@@ -15,7 +15,7 @@ import PnpmError from '@pnpm/error'
 import {
   Cafs,
   DeferredManifestPromise,
-  FetchFunction,
+  Fetchers,
   FetchOptions,
   FetchResult,
   PackageFilesResponse,
@@ -88,7 +88,7 @@ export default function (
     nodeVersion?: string
     pnpmVersion?: string
     resolve: ResolveFunction
-    fetchers: {[type: string]: FetchFunction}
+    fetchers: Fetchers
     cafs: Cafs
     ignoreFile?: (filename: string) => boolean
     networkConcurrency?: number
@@ -657,7 +657,7 @@ async function tarballIsUpToDate (
 }
 
 async function fetcher (
-  fetcherByHostingType: {[hostingType: string]: FetchFunction},
+  fetcherByHostingType: Fetchers,
   cafs: Cafs,
   packageId: string,
   resolution: Resolution,

@@ -2,7 +2,7 @@ import {
   PackageFilesIndex,
 } from '@pnpm/cafs'
 import createCafsStore from '@pnpm/create-cafs-store'
-import { FetchFunction } from '@pnpm/fetcher-base'
+import { Fetchers } from '@pnpm/fetcher-base'
 import createPackageRequester from '@pnpm/package-requester'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import {
@@ -16,7 +16,7 @@ import prune from './prune'
 
 export default async function (
   resolve: ResolveFunction,
-  fetchers: {[type: string]: FetchFunction},
+  fetchers: Fetchers,
   initOpts: {
     engineStrict?: boolean
     force?: boolean

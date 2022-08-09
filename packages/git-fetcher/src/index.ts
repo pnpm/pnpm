@@ -1,5 +1,5 @@
 import path from 'path'
-import { Cafs, DeferredManifestPromise } from '@pnpm/fetcher-base'
+import type { GitFetcher } from '@pnpm/fetcher-base'
 import preparePackage from '@pnpm/prepare-package'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
@@ -7,36 +7,29 @@ import { URL } from 'url'
 
 export default (createOpts?: { gitShallowHosts?: string[] }) => {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
+
+  const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
+    const tempLocation = await cafs.tempDir()
+    if (allowedHosts.size > 0 && shouldUseShallow(resolution.repo, allowedHosts)) {
+      await execGit(['init'], { cwd: tempLocation })
+      await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation })
+      await execGit(['fetch', '--depth', '1', 'origin', resolution.commit], { cwd: tempLocation })
+    } else {
+      await execGit(['clone', resolution.repo, tempLocation])
+    }
+    await execGit(['checkout', resolution.commit], { cwd: tempLocation })
+    await preparePackage(tempLocation)
+    // removing /.git to make directory integrity calculation faster
+    await rimraf(path.join(tempLocation, '.git'))
+    const filesIndex = await cafs.addFilesFromDir(tempLocation, opts.manifest)
+    // Important! We cannot remove the temp location at this stage.
+    // Even though we have the index of the package,
+    // the linking of files to the store is in progress.
+    return { filesIndex }
+  }
+
   return {
-    git: async function fetchFromGit (
-      cafs: Cafs,
-      resolution: {
-        commit: string
-        repo: string
-        type: 'git'
-      },
-      opts: {
-        manifest?: DeferredManifestPromise
-      }
-    ) {
-      const tempLocation = await cafs.tempDir()
-      if (allowedHosts.size > 0 && shouldUseShallow(resolution.repo, allowedHosts)) {
-        await execGit(['init'], { cwd: tempLocation })
-        await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation })
-        await execGit(['fetch', '--depth', '1', 'origin', resolution.commit], { cwd: tempLocation })
-      } else {
-        await execGit(['clone', resolution.repo, tempLocation])
-      }
-      await execGit(['checkout', resolution.commit], { cwd: tempLocation })
-      await preparePackage(tempLocation)
-      // removing /.git to make directory integrity calculation faster
-      await rimraf(path.join(tempLocation, '.git'))
-      const filesIndex = await cafs.addFilesFromDir(tempLocation, opts.manifest)
-      // Important! We cannot remove the temp location at this stage.
-      // Even though we have the index of the package,
-      // the linking of files to the store is in progress.
-      return { filesIndex }
-    },
+    git: gitFetcher,
   }
 }
 

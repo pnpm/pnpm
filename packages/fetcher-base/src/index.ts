@@ -1,4 +1,4 @@
-import { Resolution } from '@pnpm/resolver-base'
+import { Resolution, GitResolution, DirectoryResolution } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
 import { IntegrityLike } from 'ssri'
 
@@ -52,11 +52,11 @@ export interface DeferredManifestPromise {
   reject: (err: Error) => void
 }
 
-export type FetchFunction = (
+export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions, Result = FetchResult> = (
   cafs: Cafs,
-  resolution: Resolution,
-  opts: FetchOptions
-) => Promise<FetchResult>
+  resolution: FetcherResolution,
+  opts: Options
+) => Promise<Result>
 
 export type FetchResult = {
   local?: false
@@ -77,4 +77,45 @@ export interface FilesIndex {
     size: number
     writeResult: Promise<FileWriteResult>
   }
+}
+
+export interface GitFetcherOptions {
+  manifest?: DeferredManifestPromise
+}
+
+export type GitFetcher = FetchFunction<GitResolution, GitFetcherOptions, { filesIndex: FilesIndex }>
+
+export interface DirectoryFetcherOptions {
+  lockfileDir: string
+  manifest?: DeferredManifestPromise
+}
+
+export interface DirectoryFetcherResult {
+  local: true
+  filesIndex: Record<string, string>
+  packageImportMethod: 'hardlink'
+}
+
+export type DirectoryFetcher = FetchFunction<DirectoryResolution, DirectoryFetcherOptions, DirectoryFetcherResult>
+
+export interface Fetchers {
+  localTarball: FetchFunction
+  remoteTarball: FetchFunction
+  gitHostedTarball: FetchFunction
+  directory: DirectoryFetcher
+  git: GitFetcher
+}
+
+interface CustomFetcherFactoryOptions {
+  defaultFetchers: Fetchers
+}
+
+export type CustomFetcherFactory<Fetcher> = (opts: CustomFetcherFactoryOptions) => Fetcher
+
+export interface CustomFetchers {
+  localTarball?: CustomFetcherFactory<FetchFunction>
+  remoteTarball?: CustomFetcherFactory<FetchFunction>
+  gitHostedTarball?: CustomFetcherFactory<FetchFunction>
+  directory?: CustomFetcherFactory<DirectoryFetcher>
+  git?: CustomFetcherFactory<GitFetcher>
 }

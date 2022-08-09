@@ -4,6 +4,7 @@ import { hookLogger } from '@pnpm/core-loggers'
 import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
 import type { Log } from '@pnpm/core-loggers'
+import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { ImportIndexedPackage } from '@pnpm/store-controller-types'
 import requirePnpmfile from './requirePnpmfile'
 
@@ -18,6 +19,7 @@ interface Hooks {
   afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile | Promise<Lockfile>
   filterLog?: (log: Log) => boolean
   importPackage?: ImportIndexedPackage
+  fetchers?: CustomFetchers
 }
 
 // eslint-disable-next-line
@@ -33,6 +35,7 @@ export interface CookedHooks {
   afterAllResolved?: Cook<Required<Hooks>['afterAllResolved']>
   filterLog?: Cook<Required<Hooks>['filterLog']>
   importPackage?: ImportIndexedPackage
+  fetchers?: CustomFetchers
 }
 
 export default function requireHooks (
@@ -82,7 +85,7 @@ export default function requireHooks (
     cookedHooks.filterLog = globalFilterLog ?? filterLog
   }
 
-  // `importPackage` and `preResolution` can only be defined via a global pnpmfile
+  // `importPackage`, `preResolution` and `fetchers` can only be defined via a global pnpmfile
 
   cookedHooks.importPackage = globalHooks.importPackage
 
@@ -91,6 +94,8 @@ export default function requireHooks (
   cookedHooks.preResolution = preResolutionHook
     ? (ctx: PreResolutionHookContext) => preResolutionHook(ctx, createPreResolutionHookLogger(prefix))
     : undefined
+
+  cookedHooks.fetchers = globalHooks.fetchers
 
   return cookedHooks
 }

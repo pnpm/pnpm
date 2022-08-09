@@ -19,6 +19,9 @@
       "path": "../fetch"
     },
     {
+      "path": "../fetcher-base"
+    },
+    {
       "path": "../fetching-types"
     },
     {

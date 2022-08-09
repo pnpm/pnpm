@@ -1,15 +1,9 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { Cafs, DeferredManifestPromise } from '@pnpm/fetcher-base'
+import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { DirectoryResolution } from '@pnpm/resolver-base'
 import fromPairs from 'ramda/src/fromPairs'
 import packlist from 'npm-packlist'
-
-export interface DirectoryFetcherOptions {
-  lockfileDir: string
-  manifest?: DeferredManifestPromise
-}
 
 export interface CreateDirectoryFetcherOptions {
   includeOnlyPackageFiles?: boolean
@@ -19,15 +13,14 @@ export default (
   opts?: CreateDirectoryFetcherOptions
 ) => {
   const fetchFromDir = opts?.includeOnlyPackageFiles ? fetchPackageFilesFromDir : fetchAllFilesFromDir
+
+  const directoryFetcher: DirectoryFetcher = (cafs, resolution, opts) => {
+    const dir = path.join(opts.lockfileDir, resolution.directory)
+    return fetchFromDir(dir, opts)
+  }
+
   return {
-    directory: (
-      cafs: Cafs,
-      resolution: DirectoryResolution,
-      opts: DirectoryFetcherOptions
-    ) => {
-      const dir = path.join(opts.lockfileDir, resolution.directory)
-      return fetchFromDir(dir, opts)
-    },
+    directory: directoryFetcher,
   }
 }
 
