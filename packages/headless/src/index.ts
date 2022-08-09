@@ -349,7 +349,7 @@ export default async (opts: HeadlessOptions) => {
 
     if (opts.ignorePackageManifest !== true && (opts.hoistPattern != null || opts.publicHoistPattern != null)) {
       // It is important to keep the skipped packages in the lockfile which will be saved as the "current lockfile".
-      // pnpm is comparing the current lockfile to the wanted one and they should much.
+      // pnpm is comparing the current lockfile to the wanted one and they should match.
       // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
       const hoistLockfile = {
         ...filteredLockfile,
