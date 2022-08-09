@@ -85,7 +85,7 @@ export default function requireHooks (
     cookedHooks.filterLog = globalFilterLog ?? filterLog
   }
 
-  // `importPackage` and `preResolution` can only be defined via a global pnpmfile
+  // `importPackage`, `preResolution` and `fetchers` can only be defined via a global pnpmfile
 
   cookedHooks.importPackage = globalHooks.importPackage
 
@@ -94,6 +94,8 @@ export default function requireHooks (
   cookedHooks.preResolution = preResolutionHook
     ? (ctx: PreResolutionHookContext) => preResolutionHook(ctx, createPreResolutionHookLogger(prefix))
     : undefined
+
+  cookedHooks.fetchers = globalHooks.fetchers
 
   return cookedHooks
 }

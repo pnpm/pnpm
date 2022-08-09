@@ -52,7 +52,7 @@ function createFetchers (
 
   const overwrites = Object.entries(customFetchers ?? {})
     .reduce((acc, [fetcherName, factory]) => {
-      acc[fetcherName] = factory(defaultFetchers[fetcherName])
+      acc[fetcherName] = factory({ defaultFetchers })
       return acc
     }, {})
 

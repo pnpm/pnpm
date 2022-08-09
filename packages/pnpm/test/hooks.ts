@@ -132,3 +132,70 @@ test('importPackage hooks', async () => {
     'readme.md',
   ])
 })
+
+test('should use default fetchers if no custom fetchers are defined', async () => {
+  const project = prepare()
+
+  const pnpmfile = `
+    const fs = require('fs')
+
+    module.exports = {
+      hooks: {
+        fetchers: {}
+      }
+    }
+  `
+
+  const npmrc = `
+    global-pnpmfile=.pnpmfile.cjs
+  `
+
+  await fs.writeFile('.npmrc', npmrc, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+
+  await execPnpm(['add', 'is-positive@1.0.0'])
+
+  await project.cafsHas('is-positive', '1.0.0')
+})
+
+test('custom fetcher can call default fetcher', async () => {
+  const project = prepare()
+
+  const pnpmfile = `
+    const fs = require('fs')
+
+    module.exports = {
+      hooks: {
+        fetchers: {
+          remoteTarball: ({ defaultFetchers }) => {
+            return (cafs, resolution, opts) => {
+              fs.writeFileSync('args.json', JSON.stringify({ resolution, opts }), 'utf8')
+              return defaultFetchers.remoteTarball(cafs, resolution, opts)
+            }
+          }
+        }
+      }
+    }
+  `
+
+  const npmrc = `
+    global-pnpmfile=.pnpmfile.cjs
+  `
+
+  await fs.writeFile('.npmrc', npmrc, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+
+  await execPnpm(['add', 'is-positive@1.0.0'])
+
+  await project.cafsHas('is-positive', '1.0.0')
+
+  const args = await loadJsonFile<any>('args.json') // eslint-disable-line
+
+  expect(args.resolution).toEqual({
+    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+    registry: 'http://localhost:7782/',
+    tarball: 'http://localhost:7782/is-positive/-/is-positive-1.0.0.tgz',
+  })
+
+  expect(args.opts).toBeDefined()
+})

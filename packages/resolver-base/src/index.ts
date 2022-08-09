@@ -21,9 +21,16 @@ export interface DirectoryResolution {
   directory: string
 }
 
+export interface GitResolution {
+  commit: string
+  repo: string
+  type: 'git'
+}
+
 export type Resolution =
   TarballResolution |
   DirectoryResolution |
+  GitResolution |
   ({ type: string } & object)
 
 export interface ResolveResult {
