@@ -51,13 +51,8 @@ function createFetchers (
   }
 
   const overwrites = Object.entries(customFetchers ?? {})
-    .map(([fetcherName, factory]) => {
-      return {
-        [fetcherName]: factory(defaultFetchers[fetcherName]),
-      }
-    })
-    .reduce((acc, curr) => {
-      acc = { ...acc, ...curr }
+    .reduce((acc, [fetcherName, factory]) => {
+      acc[fetcherName] = factory(defaultFetchers[fetcherName])
       return acc
     }, {})
 
