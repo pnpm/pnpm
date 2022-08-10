@@ -4,10 +4,13 @@ import semver from 'semver'
 import { RegistryPackageSpec } from './parsePref'
 import { PackageInRegistry, PackageMeta } from './pickPackage'
 
+export type PickVersionForRange = (versions: string[], range: string, latest: string | null) => string | null
+
 export default function (
   spec: RegistryPackageSpec,
   preferredVersionSelectors: VersionSelectors | undefined,
-  meta: PackageMeta
+  meta: PackageMeta,
+  pickVersionForRange: PickVersionForRange
 ): PackageInRegistry {
   try {
     let version!: string
@@ -19,7 +22,7 @@ export default function (
       version = meta['dist-tags'][spec.fetchSpec]
       break
     case 'range':
-      version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelectors)
+      version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelectors, pickVersionForRange)
       break
     }
     const manifest = meta.versions[version]
@@ -43,7 +46,8 @@ export default function (
 function pickVersionByVersionRange (
   meta: PackageMeta,
   versionRange: string,
-  preferredVerSels?: VersionSelectors
+  preferredVerSels: VersionSelectors | undefined,
+  pickVersionForRange: PickVersionForRange
 ) {
   let versions: string[] | undefined
   const latest = meta['dist-tags'].latest
@@ -79,10 +83,7 @@ function pickVersionByVersionRange (
       }
     }
 
-    if (preferredVersions.includes(latest) && semver.satisfies(latest, versionRange, true)) {
-      return latest
-    }
-    const preferredVersion = semver.maxSatisfying(preferredVersions, versionRange, true)
+    const preferredVersion = pickVersionForRange(preferredVersions, versionRange, preferredVersions.includes(latest) ? latest : null)
     if (preferredVersion) {
       return preferredVersion
     }
@@ -90,12 +91,12 @@ function pickVersionByVersionRange (
 
   // Not using semver.satisfies in case of * because it does not select beta versions.
   // E.g.: 1.0.0-beta.1. See issue: https://github.com/pnpm/pnpm/issues/865
-  if (versionRange === '*' || semver.satisfies(latest, versionRange, true)) {
+  if (versionRange === '*') {
     return latest
   }
   versions = versions ?? Object.keys(meta.versions)
 
-  const maxVersion = semver.maxSatisfying(versions, versionRange, true)
+  const maxVersion = pickVersionForRange(versions, versionRange, latest)
 
   // if the selected version is deprecated, try to find a non-deprecated one that satisfies the range
   if (maxVersion && meta.versions[maxVersion].deprecated && versions.length > 1) {
@@ -103,7 +104,7 @@ function pickVersionByVersionRange (
       .filter((versionMeta) => !versionMeta.deprecated)
       .map((versionMeta) => versionMeta.version)
 
-    const maxNonDeprecatedVersion = semver.maxSatisfying(nonDeprecatedVersions, versionRange, true)
+    const maxNonDeprecatedVersion = pickVersionForRange(nonDeprecatedVersions, versionRange, null)
     if (maxNonDeprecatedVersion) return maxNonDeprecatedVersion
   }
   return maxVersion

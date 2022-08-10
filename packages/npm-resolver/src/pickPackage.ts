@@ -12,7 +12,7 @@ import pLimit from 'p-limit'
 import pathTemp from 'path-temp'
 import renameOverwrite from 'rename-overwrite'
 import toRaw from './toRaw'
-import pickPackageFromMeta from './pickPackageFromMeta'
+import pickPackageFromMeta, { PickVersionForRange } from './pickPackageFromMeta'
 import { RegistryPackageSpec } from './parsePref'
 
 export interface PackageMeta {
@@ -55,6 +55,7 @@ export interface PickPackageOptions {
 export default async (
   ctx: {
     fetch: (pkgName: string, registry: string, authHeaderValue?: string) => Promise<PackageMeta>
+    pickVersionForRange: PickVersionForRange
     metaDir: string
     metaCache: PackageMetaCache
     cacheDir: string
@@ -72,7 +73,7 @@ export default async (
   if (cachedMeta != null) {
     return {
       meta: cachedMeta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, cachedMeta),
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, cachedMeta, ctx.pickVersionForRange),
     }
   }
 
@@ -87,14 +88,14 @@ export default async (
     if (ctx.offline) {
       if (metaCachedInStore != null) return {
         meta: metaCachedInStore,
-        pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore),
+        pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, ctx.pickVersionForRange),
       }
 
       throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
     }
 
     if (metaCachedInStore != null) {
-      const pickedPackage = pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore)
+      const pickedPackage = pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, ctx.pickVersionForRange)
       if (pickedPackage) {
         return {
           meta: metaCachedInStore,
@@ -133,7 +134,7 @@ export default async (
     }
     return {
       meta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta),
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, ctx.pickVersionForRange),
     }
   } catch (err: any) { // eslint-disable-line
     err.spec = spec
@@ -143,7 +144,7 @@ export default async (
     logger.debug({ message: `Using cached meta from ${pkgMirror}` })
     return {
       meta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta),
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, ctx.pickVersionForRange),
     }
   }
 }

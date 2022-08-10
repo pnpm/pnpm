@@ -63,6 +63,7 @@ export interface ResolverFactoryOptions {
   preferOffline?: boolean
   retry?: RetryTimeoutOptions
   timeout?: number
+  resolutionMode?: 'highest' | 'stable'
 }
 
 export default function createResolver (
@@ -90,6 +91,7 @@ export default function createResolver (
     getAuthHeaderValueByURI,
     pickPackage: pickPackage.bind(null, {
       fetch,
+      pickVersionForRange: opts.resolutionMode === 'stable' ? pickStableVersionForRange : pickHighestVersionForRange,
       metaCache,
       metaDir: opts.fullMetadata ? FULL_META_DIR : META_DIR,
       offline: opts.offline,
@@ -97,6 +99,15 @@ export default function createResolver (
       cacheDir: opts.cacheDir,
     }),
   })
+}
+
+function pickHighestVersionForRange (versions: string[], range: string, latest: string | null): string | null {
+  if (latest && semver.satisfies(latest, range, true)) return latest
+  return semver.maxSatisfying(versions, range, true)
+}
+
+function pickStableVersionForRange (versions: string[], range: string, latest: string | null): string | null {
+  return semver.minSatisfying(versions, range, true)
 }
 
 export type ResolveFromNpmOptions = {
