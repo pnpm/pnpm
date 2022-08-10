@@ -36,6 +36,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
+    "@pnpm/cafs-types": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*"
   },
   "exports": {

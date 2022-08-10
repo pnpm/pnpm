@@ -1,10 +1,10 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import {
+import type {
   DeferredManifestPromise,
   FilesIndex,
   FileWriteResult,
-} from '@pnpm/fetcher-base'
+} from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import pLimit from 'p-limit'
 import { parseJsonBuffer } from './parseJson'

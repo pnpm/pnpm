@@ -3,7 +3,7 @@ import path from 'path'
 import createCafs, {
   getFilePathByModeInCafs,
 } from '@pnpm/cafs'
-import { PackageFilesResponse } from '@pnpm/fetcher-base'
+import type { Cafs, PackageFilesResponse } from '@pnpm/cafs-types'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {
   ImportIndexedPackage,
@@ -70,7 +70,7 @@ export default function createCafsStore (
     importPackage?: ImportIndexedPackage
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   }
-) {
+): Cafs {
   const cafsDir = path.join(storeDir, 'files')
   const baseTempDir = path.join(storeDir, 'tmp')
   const importPackage = createPackageImporter({
@@ -80,6 +80,7 @@ export default function createCafsStore (
   })
   return {
     ...createCafs(cafsDir, opts?.ignoreFile),
+    cafsDir,
     importPackage,
     tempDir: async () => {
       const tmpDir = pathTemp(baseTempDir)

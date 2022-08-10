@@ -45,6 +45,7 @@
     "ssri": "^8.0.1"
   },
   "devDependencies": {
+    "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/fetch": "workspace:*",
     "@pnpm/logger": "^4.0.0",

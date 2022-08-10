@@ -1,5 +1,5 @@
 import { PassThrough } from 'stream'
-import { DeferredManifestPromise } from '@pnpm/fetcher-base'
+import type { DeferredManifestPromise } from '@pnpm/cafs-types'
 import concatStream from 'concat-stream'
 import stripBom from 'strip-bom'
 

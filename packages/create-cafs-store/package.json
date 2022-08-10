@@ -23,6 +23,7 @@
     "path-temp": "^2.0.0"
   },
   "devDependencies": {
+    "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/logger": "^4.0.0",
     "@pnpm/prepare": "workspace:*"

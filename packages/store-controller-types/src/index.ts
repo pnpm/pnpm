@@ -5,11 +5,11 @@ import {
   WantedDependency,
   WorkspacePackages,
 } from '@pnpm/resolver-base'
-import {
+import type {
   ImportPackageFunction,
   PackageFileInfo,
   PackageFilesResponse,
-} from '@pnpm/fetcher-base'
+} from '@pnpm/cafs-types'
 import {
   DependencyManifest,
   PackageManifest,

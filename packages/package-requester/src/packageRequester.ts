@@ -13,13 +13,11 @@ import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import PnpmError from '@pnpm/error'
 import {
-  Cafs,
-  DeferredManifestPromise,
   Fetchers,
   FetchOptions,
   FetchResult,
-  PackageFilesResponse,
 } from '@pnpm/fetcher-base'
+import type { Cafs, DeferredManifestPromise, PackageFilesResponse } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import logger from '@pnpm/logger'
 import packageIsInstallable from '@pnpm/package-is-installable'

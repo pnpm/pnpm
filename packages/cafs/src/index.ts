@@ -1,6 +1,6 @@
 import { promises as fs, Stats } from 'fs'
 import path from 'path'
-import { FileWriteResult, PackageFileInfo } from '@pnpm/fetcher-base'
+import type { FileWriteResult, PackageFileInfo } from '@pnpm/cafs-types'
 import getStream from 'get-stream'
 import pathTemp from 'path-temp'
 import renameOverwrite from 'rename-overwrite'
@@ -20,6 +20,8 @@ import getFilePathInCafs, {
 } from './getFilePathInCafs'
 import writeFile from './writeFile'
 
+export { IntegrityLike } from 'ssri'
+
 export {
   checkFilesIntegrity,
   readManifestFromStore,
@@ -38,6 +40,7 @@ export default function createCafs (cafsDir: string, ignore?: ((filename: string
   return {
     addFilesFromDir: addFilesFromDir.bind(null, { addBuffer, addStream }),
     addFilesFromTarball: addFilesFromTarball.bind(null, addStream, ignore ?? null),
+    getFilePathInCafs: getFilePathInCafs.bind(null, cafsDir),
   }
 }
 

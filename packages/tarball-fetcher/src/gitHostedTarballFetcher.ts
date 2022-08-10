@@ -1,4 +1,5 @@
-import { Cafs, FetchFunction, FetchOptions, FilesIndex, PackageFileInfo } from '@pnpm/fetcher-base'
+import { FetchFunction, FetchOptions } from '@pnpm/fetcher-base'
+import type { Cafs, FilesIndex, PackageFileInfo } from '@pnpm/cafs-types'
 import preparePackage from '@pnpm/prepare-package'
 import fromPairs from 'ramda/src/fromPairs'
 import omit from 'ramda/src/omit'

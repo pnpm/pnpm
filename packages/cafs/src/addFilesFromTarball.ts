@@ -1,5 +1,5 @@
 import { Duplex, PassThrough } from 'stream'
-import { DeferredManifestPromise, FilesIndex, FileWriteResult } from '@pnpm/fetcher-base'
+import type { DeferredManifestPromise, FilesIndex, FileWriteResult } from '@pnpm/cafs-types'
 import decompress from 'decompress-maybe'
 import tar from 'tar-stream'
 import { parseJsonStream } from './parseJson'

@@ -10,18 +10,6 @@
   ],
   "references": [
     {
-      "path": "../cafs-types"
-    },
-    {
-      "path": "../fetcher-base"
-    },
-    {
-      "path": "../graceful-fs"
-    },
-    {
-      "path": "../store-controller-types"
-    },
-    {
       "path": "../types"
     }
   ]
