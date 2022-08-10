@@ -41,7 +41,7 @@
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/npm-packlist": "^3.0.0",
-    "@types/ramda": "0.28.14"
+    "@types/ramda": "0.28.15"
   },
   "exports": {
     ".": "./lib/index.js"
