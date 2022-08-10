@@ -1,0 +1,7 @@
+# @pnpm/cafs-types
+
+## 1.0.0
+
+### Major Changes
+
+- 32915f0e4: Refactor cafs types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.

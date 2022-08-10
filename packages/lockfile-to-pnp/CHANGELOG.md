@@ -1,5 +1,15 @@
 # @pnpm/lockfile-to-pnp
 
+## 1.0.0
+
+### Major Changes
+
+- 5035fdae1: Remove lockfileToPnp function.
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@4.2.4
+
 ## 0.5.27
 
 ### Patch Changes

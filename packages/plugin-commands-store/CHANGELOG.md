@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-store
 
+## 5.1.31
+
+### Patch Changes
+
+- Updated dependencies [32915f0e4]
+- Updated dependencies [23984abd1]
+  - @pnpm/cafs@4.2.0
+  - @pnpm/store-controller-types@14.1.1
+  - @pnpm/store-connection-manager@4.3.0
+  - @pnpm/config@15.9.1
+  - @pnpm/lockfile-utils@4.2.4
+  - @pnpm/cli-utils@0.7.27
+
 ## 5.1.30
 
 ### Patch Changes

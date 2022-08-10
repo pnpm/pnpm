@@ -1,5 +1,16 @@
 # @pnpm/resolve-dependencies
 
+## 28.3.5
+
+### Patch Changes
+
+- Updated dependencies [32915f0e4]
+- Updated dependencies [23984abd1]
+  - @pnpm/store-controller-types@14.1.1
+  - @pnpm/resolver-base@9.1.0
+  - @pnpm/lockfile-utils@4.2.4
+  - @pnpm/npm-resolver@13.1.2
+
 ## 28.3.4
 
 ### Patch Changes

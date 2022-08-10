@@ -1,5 +1,11 @@
 # @pnpm/filter-lockfile
 
+## 6.0.17
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@4.2.4
+
 ## 6.0.16
 
 ### Patch Changes

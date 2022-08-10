@@ -1,5 +1,13 @@
 # @pnpm/outdated
 
+## 10.0.22
+
+### Patch Changes
+
+- Updated dependencies [23984abd1]
+  - @pnpm/client@7.2.0
+  - @pnpm/lockfile-utils@4.2.4
+
 ## 10.0.21
 
 ### Patch Changes

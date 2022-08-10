@@ -1,5 +1,20 @@
 # @pnpm/create-cafs-store
 
+## 2.2.0
+
+### Minor Changes
+
+- 32915f0e4: Refactor cafs types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.
+
+### Patch Changes
+
+- Updated dependencies [32915f0e4]
+- Updated dependencies [23984abd1]
+  - @pnpm/cafs@4.2.0
+  - @pnpm/fetcher-base@13.1.0
+  - @pnpm/store-controller-types@14.1.1
+  - @pnpm/fs.indexed-pkg-importer@1.1.1
+
 ## 2.1.1
 
 ### Patch Changes

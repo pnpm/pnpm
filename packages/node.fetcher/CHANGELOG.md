@@ -1,5 +1,19 @@
 # @pnpm/node.fetcher
 
+## 1.0.8
+
+### Patch Changes
+
+- 32915f0e4: Refactor cafs types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.
+- 7a17f99ab: Refactor `tarball-fetcher` and separate it into more specific fetchers, such as `localTarball`, `remoteTarball` and `gitHostedTarball`.
+- Updated dependencies [32915f0e4]
+- Updated dependencies [23984abd1]
+- Updated dependencies [7a17f99ab]
+  - @pnpm/create-cafs-store@2.2.0
+  - @pnpm/fetcher-base@13.1.0
+  - @pnpm/tarball-fetcher@11.0.0
+  - @pnpm/pick-fetcher@1.0.0
+
 ## 1.0.7
 
 ### Patch Changes

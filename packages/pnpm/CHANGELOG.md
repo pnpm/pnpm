@@ -1,5 +1,11 @@
 # pnpm
 
+## 7.9.1
+
+### Patch Changes
+
+- `pnpm setup`: don't use `setx` to set env variables on Windows.
+
 ## 7.9.0
 
 ### Minor Changes

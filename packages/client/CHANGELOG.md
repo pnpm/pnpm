@@ -1,5 +1,22 @@
 # @pnpm/client
 
+## 7.2.0
+
+### Minor Changes
+
+- 23984abd1: Add hook for adding custom fetchers.
+
+### Patch Changes
+
+- Updated dependencies [32915f0e4]
+- Updated dependencies [23984abd1]
+- Updated dependencies [7a17f99ab]
+  - @pnpm/tarball-fetcher@11.0.0
+  - @pnpm/directory-fetcher@3.1.0
+  - @pnpm/git-fetcher@5.2.0
+  - @pnpm/resolver-base@9.1.0
+  - @pnpm/default-resolver@15.0.14
+
 ## 7.1.14
 
 ### Patch Changes

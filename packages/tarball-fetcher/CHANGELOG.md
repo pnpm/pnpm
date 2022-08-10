@@ -1,5 +1,18 @@
 # @pnpm/tarball-fetcher
 
+## 11.0.0
+
+### Major Changes
+
+- 7a17f99ab: Refactor `tarball-fetcher` and separate it into more specific fetchers, such as `localTarball`, `remoteTarball` and `gitHostedTarball`.
+
+### Patch Changes
+
+- 32915f0e4: Refactor cafs types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.
+- Updated dependencies [32915f0e4]
+- Updated dependencies [23984abd1]
+  - @pnpm/fetcher-base@13.1.0
+
 ## 10.0.10
 
 ### Patch Changes

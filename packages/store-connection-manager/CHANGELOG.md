@@ -1,5 +1,19 @@
 # @pnpm/store-connection-manager
 
+## 4.3.0
+
+### Minor Changes
+
+- 23984abd1: Add hook for adding custom fetchers.
+
+### Patch Changes
+
+- Updated dependencies [23984abd1]
+  - @pnpm/client@7.2.0
+  - @pnpm/package-store@14.2.0
+  - @pnpm/server@13.0.5
+  - @pnpm/config@15.9.1
+
 ## 4.2.1
 
 ### Patch Changes

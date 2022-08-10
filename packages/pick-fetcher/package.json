@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pick-fetcher",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Pick a package fetcher by type",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

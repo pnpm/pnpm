@@ -1,5 +1,25 @@
 # @pnpm/headless
 
+## 18.6.2
+
+### Patch Changes
+
+- Updated dependencies [32915f0e4]
+- Updated dependencies [5035fdae1]
+- Updated dependencies [23984abd1]
+- Updated dependencies [7a17f99ab]
+  - @pnpm/package-requester@19.0.0
+  - @pnpm/store-controller-types@14.1.1
+  - @pnpm/lockfile-to-pnp@1.0.0
+  - @pnpm/build-modules@9.3.5
+  - @pnpm/lifecycle@13.1.6
+  - @pnpm/modules-cleaner@12.0.19
+  - @pnpm/lockfile-utils@4.2.4
+  - @pnpm/filter-lockfile@6.0.17
+  - @pnpm/hoist@6.2.7
+  - @pnpm/real-hoist@0.2.16
+  - @pnpm/link-bins@7.2.4
+
 ## 18.6.1
 
 ### Patch Changes

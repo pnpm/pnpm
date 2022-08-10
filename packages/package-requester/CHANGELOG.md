@@ -1,5 +1,27 @@
 # @pnpm/package-requester
 
+## 19.0.0
+
+### Major Changes
+
+- 7a17f99ab: Refactor `tarball-fetcher` and separate it into more specific fetchers, such as `localTarball`, `remoteTarball` and `gitHostedTarball`.
+
+### Minor Changes
+
+- 23984abd1: Add hook for adding custom fetchers.
+
+### Patch Changes
+
+- 32915f0e4: Refactor cafs types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.
+- Updated dependencies [32915f0e4]
+- Updated dependencies [23984abd1]
+- Updated dependencies [7a17f99ab]
+  - @pnpm/cafs@4.2.0
+  - @pnpm/fetcher-base@13.1.0
+  - @pnpm/store-controller-types@14.1.1
+  - @pnpm/pick-fetcher@1.0.0
+  - @pnpm/resolver-base@9.1.0
+
 ## 18.1.3
 
 ### Patch Changes

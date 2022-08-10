@@ -1,5 +1,11 @@
 # @pnpm/real-hoist
 
+## 0.2.16
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@4.2.4
+
 ## 0.2.15
 
 ### Patch Changes

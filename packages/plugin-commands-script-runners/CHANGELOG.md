@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-script-runners
 
+## 5.0.36
+
+### Patch Changes
+
+- @pnpm/lifecycle@13.1.6
+- @pnpm/plugin-commands-installation@10.5.5
+- @pnpm/config@15.9.1
+- @pnpm/cli-utils@0.7.27
+
 ## 5.0.35
 
 ### Patch Changes

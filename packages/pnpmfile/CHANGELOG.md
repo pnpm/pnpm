@@ -1,5 +1,19 @@
 # @pnpm/pnpmfile
 
+## 2.2.0
+
+### Minor Changes
+
+- 5035fdae1: Add new `preResolution` hook.
+- 23984abd1: Add hook for adding custom fetchers.
+
+### Patch Changes
+
+- Updated dependencies [32915f0e4]
+- Updated dependencies [5035fdae1]
+  - @pnpm/store-controller-types@14.1.1
+  - @pnpm/core@5.10.0
+
 ## 2.1.0
 
 ### Minor Changes

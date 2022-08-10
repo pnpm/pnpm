@@ -1,5 +1,17 @@
 # @pnpm/fetcher-base
 
+## 13.1.0
+
+### Minor Changes
+
+- 23984abd1: Add hook for adding custom fetchers.
+
+### Patch Changes
+
+- 32915f0e4: Refactor cafs types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.
+- Updated dependencies [23984abd1]
+  - @pnpm/resolver-base@9.1.0
+
 ## 13.0.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-setup
 
+## 2.0.29
+
+### Patch Changes
+
+- 8cb47ac9d: `pnpm setup`: don't use `setx` to set env variables on Windows.
+  - @pnpm/cli-utils@0.7.27
+
 ## 2.0.28
 
 ### Patch Changes

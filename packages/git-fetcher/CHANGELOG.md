@@ -1,5 +1,17 @@
 # @pnpm/git-fetcher
 
+## 5.2.0
+
+### Minor Changes
+
+- 23984abd1: Add hook for adding custom fetchers.
+
+### Patch Changes
+
+- Updated dependencies [32915f0e4]
+- Updated dependencies [23984abd1]
+  - @pnpm/fetcher-base@13.1.0
+
 ## 5.1.7
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-publishing
 
+## 5.1.16
+
+### Patch Changes
+
+- Updated dependencies [23984abd1]
+  - @pnpm/client@7.2.0
+  - @pnpm/resolver-base@9.1.0
+  - @pnpm/lifecycle@13.1.6
+  - @pnpm/config@15.9.1
+  - @pnpm/cli-utils@0.7.27
+
 ## 5.1.15
 
 ### Patch Changes

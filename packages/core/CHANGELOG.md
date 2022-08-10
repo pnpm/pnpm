@@ -1,5 +1,32 @@
 # @pnpm/core
 
+## 5.10.0
+
+### Minor Changes
+
+- 5035fdae1: Add new `preResolution` hook.
+
+### Patch Changes
+
+- Updated dependencies [32915f0e4]
+- Updated dependencies [5035fdae1]
+- Updated dependencies [23984abd1]
+- Updated dependencies [7a17f99ab]
+  - @pnpm/package-requester@19.0.0
+  - @pnpm/store-controller-types@14.1.1
+  - @pnpm/lockfile-to-pnp@1.0.0
+  - @pnpm/resolver-base@9.1.0
+  - @pnpm/headless@18.6.2
+  - @pnpm/build-modules@9.3.5
+  - @pnpm/lifecycle@13.1.6
+  - @pnpm/modules-cleaner@12.0.19
+  - @pnpm/resolve-dependencies@28.3.5
+  - @pnpm/lockfile-utils@4.2.4
+  - @pnpm/filter-lockfile@6.0.17
+  - @pnpm/hoist@6.2.7
+  - @pnpm/crypto.base32-hash@1.0.1
+  - @pnpm/link-bins@7.2.4
+
 ## 5.9.1
 
 ### Patch Changes

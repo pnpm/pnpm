@@ -288,6 +288,9 @@ test('satisfiesPackageManifest()', () => {
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
+        dependencies: {
+          qar: '1.0.0',
+        },
         optionalDependencies: {
           bar: '1.0.0',
         },
@@ -297,11 +300,15 @@ test('satisfiesPackageManifest()', () => {
         specifiers: {
           foo: '1.0.0',
           bar: '1.0.0',
+          qar: '1.0.0',
         },
       },
     },
   }, {
     ...DEFAULT_PKG_FIELDS,
+    dependencies: {
+      qar: '1.0.0',
+    },
     optionalDependencies: {
       bar: '1.0.0',
     },
@@ -311,6 +318,7 @@ test('satisfiesPackageManifest()', () => {
     peerDependencies: {
       foo: '^1.0.0',
       bar: '^1.0.0',
+      qar: '^1.0.0',
     },
   }, '.', { autoInstallPeers: true })).toBe(true)
 

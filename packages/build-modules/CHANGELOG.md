@@ -1,5 +1,14 @@
 # @pnpm/build-modules
 
+## 9.3.5
+
+### Patch Changes
+
+- Updated dependencies [32915f0e4]
+  - @pnpm/store-controller-types@14.1.1
+  - @pnpm/lifecycle@13.1.6
+  - @pnpm/link-bins@7.2.4
+
 ## 9.3.4
 
 ### Patch Changes

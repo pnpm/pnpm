@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-installation
 
+## 10.5.5
+
+### Patch Changes
+
+- Updated dependencies [5035fdae1]
+- Updated dependencies [23984abd1]
+  - @pnpm/core@5.10.0
+  - @pnpm/pnpmfile@2.2.0
+  - @pnpm/package-store@14.2.0
+  - @pnpm/resolver-base@9.1.0
+  - @pnpm/store-connection-manager@4.3.0
+  - @pnpm/plugin-commands-rebuild@6.1.31
+  - @pnpm/config@15.9.1
+  - @pnpm/outdated@10.0.22
+  - @pnpm/cli-utils@0.7.27
+  - @pnpm/find-workspace-packages@4.0.27
+  - @pnpm/filter-workspace-packages@5.0.27
+
 ## 10.5.4
 
 ### Patch Changes

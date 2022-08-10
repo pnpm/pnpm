@@ -1,5 +1,11 @@
 # @pnpm/resolver-base
 
+## 9.1.0
+
+### Minor Changes
+
+- 23984abd1: Add hook for adding custom fetchers.
+
 ## 9.0.6
 
 ### Patch Changes

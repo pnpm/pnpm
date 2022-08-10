@@ -1,5 +1,18 @@
 # @pnpm/directory-fetcher
 
+## 3.1.0
+
+### Minor Changes
+
+- 23984abd1: Add hook for adding custom fetchers.
+
+### Patch Changes
+
+- Updated dependencies [32915f0e4]
+- Updated dependencies [23984abd1]
+  - @pnpm/fetcher-base@13.1.0
+  - @pnpm/resolver-base@9.1.0
+
 ## 3.0.10
 
 ### Patch Changes
