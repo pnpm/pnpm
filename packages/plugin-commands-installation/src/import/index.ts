@@ -98,8 +98,8 @@ export async function handler (
   const versionsByPackageNames = {}
   let preferredVersions = {}
   if (await exists(path.join(opts.dir, 'yarn.lock'))) {
-    const yarnPackgeLockFile = await readYarnLockFile(opts.dir)
-    getAllVersionsFromYarnLockFile(yarnPackgeLockFile, versionsByPackageNames)
+    const yarnPackageLockFile = await readYarnLockFile(opts.dir)
+    getAllVersionsFromYarnLockFile(yarnPackageLockFile, versionsByPackageNames)
   } else if (
     await exists(path.join(opts.dir, 'package-lock.json')) ||
     await exists(path.join(opts.dir, 'npm-shrinkwrap.json'))
