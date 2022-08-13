@@ -61,7 +61,7 @@
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.0",
-    "@types/semver": "^7.3.11",
+    "@types/semver": "7.3.10",
     "@types/ssri": "^7.1.1",
     "nock": "13.2.9",
     "path-exists": "^4.0.0",

@@ -85,7 +85,7 @@
     "@types/is-windows": "^1.0.0",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.15",
-    "@types/semver": "^7.3.11",
+    "@types/semver": "7.3.10",
     "@types/sinon": "^10.0.13",
     "@yarnpkg/core": "3.2.0",
     "deep-require-cwd": "1.0.0",
