@@ -4760,9 +4760,6 @@ importers:
       rename-overwrite:
         specifier: ^4.0.2
         version: 4.0.2
-      replace-string:
-        specifier: ^3.1.0
-        version: 3.1.0
       safe-promise-defer:
         specifier: ^1.0.1
         version: 1.0.1
@@ -4772,6 +4769,9 @@ importers:
       semver-range-intersect:
         specifier: ^0.3.1
         version: 0.3.1
+      string.prototype.replaceall:
+        specifier: 1.0.6
+        version: 1.0.6
       version-selector-type:
         specifier: ^3.0.0
         version: 3.0.0
@@ -14070,11 +14070,6 @@ packages:
     engines: {node: '>= 0.10'}
     dev: true
 
-  /replace-string/3.1.0:
-    resolution: {integrity: sha512-yPpxc4ZR2makceA9hy/jHNqc7QVkd4Je/N0WRHm6bs3PtivPuPynxE5ejU/mp5EhnCv8+uZL7vhz8rkluSlx+Q==}
-    engines: {node: '>=8'}
-    dev: false
-
   /request/2.88.0:
     resolution: {integrity: sha512-NAqBSrijGLZdM0WZNsInLJpkJokL72XYjUpnB0iwsRgxh7dB6COrHnTBNwN0E+lHDAJzu7kLAkDeY08z2/A0hg==}
     engines: {node: '>= 4'}
@@ -14778,6 +14773,17 @@ packages:
       define-properties: 1.1.4
       es-abstract: 1.20.1
     dev: true
+
+  /string.prototype.replaceall/1.0.6:
+    resolution: {integrity: sha512-OA8VDhE7ssNFlyoDXUHxw6V5cjgPrtosyJKqJX5i1P5tV9eUynsbhx1yz0g+Ye4fjFwAxhKLxt8GSRx2Aqc+Sw==}
+    dependencies:
+      call-bind: 1.0.2
+      define-properties: 1.1.4
+      es-abstract: 1.20.1
+      get-intrinsic: 1.1.2
+      has-symbols: 1.0.3
+      is-regex: 1.1.4
+    dev: false
 
   /string.prototype.trimend/1.0.5:
     resolution: {integrity: sha512-I7RGvmjV4pJ7O3kdf+LXFpVfdNOxtCW/2C8f6jNiW4+PQchwxkCDzlk1/7p+Wl4bqFIZeF47qAHXLuHHWKAxog==}

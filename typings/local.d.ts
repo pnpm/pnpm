@@ -140,3 +140,8 @@ declare module 'decompress-maybe' {
 declare module 'patch-package/dist/applyPatches' {
   export function applyPatch (opts: any): boolean
 }
+
+declare module 'string.prototype.replaceall' {
+  const anything: any
+  export = anything
+}
