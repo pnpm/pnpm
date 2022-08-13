@@ -42,7 +42,7 @@
     "@pnpm/git-resolver": "workspace:*",
     "@types/hosted-git-info": "^3.0.2",
     "@types/is-windows": "^1.0.0",
-    "@types/semver": "^7.3.10",
+    "@types/semver": "7.3.10",
     "is-windows": "^1.0.2"
   },
   "funding": "https://opencollective.com/pnpm",

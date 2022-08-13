@@ -33,7 +33,7 @@
     "@pnpm/audit": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
-    "nock": "13.2.8"
+    "nock": "13.2.9"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",

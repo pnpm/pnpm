@@ -42,7 +42,7 @@
     "@pnpm/prepare-package": "workspace:*",
     "@zkochan/retry": "^0.2.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "ssri": "^8.0.1"
+    "ssri": "^9.0.1"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
@@ -51,10 +51,10 @@
     "@pnpm/logger": "^4.0.0",
     "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/ramda": "0.28.14",
+    "@types/ramda": "0.28.15",
     "@types/retry": "^0.12.2",
     "@types/ssri": "^7.1.1",
-    "nock": "13.2.8",
+    "nock": "13.2.9",
     "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",

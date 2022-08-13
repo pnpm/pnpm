@@ -26,7 +26,7 @@
     "@pnpm/store-path": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.13",
-    "@types/ramda": "0.28.14",
+    "@types/ramda": "0.28.15",
     "@types/rimraf": "^3.0.2",
     "@types/sinon": "^10.0.13",
     "isexe": "2.0.0",

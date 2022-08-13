@@ -60,7 +60,7 @@
     "rename-overwrite": "^4.0.2",
     "safe-promise-defer": "^1.0.1",
     "semver": "^7.3.7",
-    "ssri": "^8.0.1"
+    "ssri": "^9.0.1"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
@@ -71,11 +71,11 @@
     "@pnpm/registry-mock": "2.20.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "0.28.14",
-    "@types/semver": "^7.3.10",
+    "@types/ramda": "0.28.15",
+    "@types/semver": "7.3.10",
     "@types/ssri": "^7.1.1",
     "delay": "^5.0.0",
-    "nock": "13.2.8",
+    "nock": "13.2.9",
     "normalize-path": "^3.0.0",
     "tempy": "^1.0.1"
   },

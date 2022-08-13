@@ -48,7 +48,7 @@
   "devDependencies": {
     "@pnpm/make-dedicated-lockfile": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/ramda": "0.28.14"
+    "@types/ramda": "0.28.15"
   },
   "exports": {
     ".": "./lib/index.js"

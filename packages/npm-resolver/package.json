@@ -52,7 +52,7 @@
     "path-temp": "^2.0.0",
     "rename-overwrite": "^4.0.2",
     "semver": "^7.3.7",
-    "ssri": "^8.0.1",
+    "ssri": "^9.0.1",
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
@@ -61,9 +61,9 @@
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.0",
-    "@types/semver": "^7.3.10",
+    "@types/semver": "7.3.10",
     "@types/ssri": "^7.1.1",
-    "nock": "13.2.8",
+    "nock": "13.2.9",
     "path-exists": "^4.0.0",
     "tempy": "^1.0.1"
   },

@@ -32,7 +32,7 @@
     "@pnpm/get-context": "workspace:*",
     "@pnpm/logger": "^4.0.0",
     "@types/is-ci": "^3.0.0",
-    "@types/ramda": "0.28.14"
+    "@types/ramda": "0.28.15"
   },
   "peerDependencies": {
     "@pnpm/logger": "^4.0.0"

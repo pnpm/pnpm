@@ -49,7 +49,7 @@
     "@types/adm-zip": "^0.4.34",
     "adm-zip": "^0.5.9",
     "execa": "npm:safe-execa@^0.1.2",
-    "nock": "13.2.8",
+    "nock": "13.2.9",
     "node-fetch": "3.0.0-beta.9",
     "path-name": "^1.0.0"
   },
