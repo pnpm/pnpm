@@ -76,7 +76,7 @@
     "enquirer": "^2.3.6",
     "execa": "npm:safe-execa@^0.1.2",
     "fast-glob": "^3.2.11",
-    "npm-packlist": "^3.0.0",
+    "npm-packlist": "^5.1.1",
     "p-filter": "^2.1.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "realpath-missing": "^1.1.0",

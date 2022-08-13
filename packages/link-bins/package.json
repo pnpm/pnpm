@@ -39,7 +39,7 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/cmd-shim": "^5.3.1",
-    "bin-links": "^2.3.0",
+    "bin-links": "^3.0.2",
     "is-subdir": "^1.2.0",
     "is-windows": "^1.0.2",
     "normalize-path": "^3.0.0",
