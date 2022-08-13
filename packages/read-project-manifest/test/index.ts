@@ -118,8 +118,8 @@ test('fail on invalid JSON', async () => {
 
   expect(err).toBeTruthy()
   expect(err['code']).toBe('ERR_PNPM_JSON_PARSE')
-  // eslint-disable-next-line
-  expect(err.message).toMatch(/^Unexpected string in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in /)
+
+  expect(err.message).toContain('Unexpected string in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in ')
 })
 
 test('fail on invalid JSON5', async () => {
