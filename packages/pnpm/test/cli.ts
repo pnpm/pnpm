@@ -18,7 +18,7 @@ test('some commands pass through to npm', () => {
   const result = execPnpmSync(['dist-tag', 'ls', 'is-positive'])
 
   expect(result.status).toBe(0)
-  expect(result.stdout.toString()).not.toMatch(/Usage: pnpm [command] [flags]/)
+  expect(result.stdout.toString()).not.toContain('Usage: pnpm [command] [flags]')
 })
 
 test('installs in the folder where the package.json file is', async () => {
