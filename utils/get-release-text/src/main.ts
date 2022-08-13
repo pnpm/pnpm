@@ -94,16 +94,31 @@ function getChangelogEntry (changelog: string, version: string) {
   <tbody>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma.svg" width="180"></a>
+        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/prisma.svg" width="180">
+        </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://leniolabs.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/leniolabs.jpg" width="80"></a>
+        <a href="https://leniolabs.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/leniolabs.jpg" width="80">
+        </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://vercel.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/vercel.svg" width="180"></a>
+        <a href="https://vercel.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/vercel.svg" width="180">
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://www.takeshape.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/takeshape.svg" width="280">
+        </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://www.takeshape.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/takeshape.svg" width="280"></a>
+        <a href="https://doppler.com/?utm_source=pnpm&utm_medium=readme#gh-light-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/doppler.svg" width="280">
+        </a>
       </td>
     </tr>
   </tbody>

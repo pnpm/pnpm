@@ -84,9 +84,19 @@ To quote the [Rush](https://rushjs.io/) team:
           <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/vercel_light.svg" width="180">
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://www.takeshape.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/takeshape.svg" width="280">
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://doppler.com/?utm_source=pnpm&utm_medium=readme#gh-light-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/doppler.svg" width="280">
+        </a>
+        <a href="https://doppler.com/?utm_source=pnpm&utm_medium=readme#gh-dark-mode-only" target="_blank">
+          <img src="https://raw.githubusercontent.com/pnpm/pnpm.github.io/main/static/img/users/doppler_light.svg" width="280">
         </a>
       </td>
     </tr>
