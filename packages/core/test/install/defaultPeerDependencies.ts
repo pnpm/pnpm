@@ -29,7 +29,7 @@ test('install the default peer dependency when it cannot be resolved from parent
 
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
-    '/dep-of-pkg-with-1-dep/100.0.0', // TODO: this should be actually something like /dep-of-pkg-with-1-dep/100.0.0_<hash of /has-default-peer/1.0.0>
-    '/has-default-peer/1.0.0',
+    '/dep-of-pkg-with-1-dep/100.0.0',
+    '/has-default-peer/1.0.0_zoa4n3e4gklatv43gdjet6532m',
   ])
 })

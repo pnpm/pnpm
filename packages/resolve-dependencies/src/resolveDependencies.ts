@@ -258,7 +258,7 @@ export async function resolveRootDependencies (
       parentPkgAliases,
     })
     pkgAddresses.push(...result.pkgAddresses)
-    if (!ctx.autoInstallPeers) break
+    if (isEmpty(result.missingPeers)) break
     for (const pkgAddress of result.pkgAddresses) {
       parentPkgAliases[pkgAddress.alias] = true
     }
@@ -327,13 +327,6 @@ export async function resolveDependencies (
     newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
   }
   const childrenResults = await Promise.all(postponedResolutionsQueue.map(async (postponedResolution) => postponedResolution(newPreferredVersions, newParentPkgAliases)))
-  if (!ctx.autoInstallPeers) {
-    return {
-      missingPeers: {},
-      pkgAddresses,
-      resolvedPeers: {},
-    }
-  }
   const allMissingPeers = mergePkgsDeps(
     [
       ...pkgAddresses,
@@ -820,6 +813,7 @@ async function resolveDependency (
   if (ctx.readPackageHook != null) {
     pkg = await ctx.readPackageHook(pkg)
   }
+  const missingPeers: Record<string, string> = {}
   if (pkg.peerDependencies && pkg.dependencies) {
     if (ctx.autoInstallPeers) {
       for (const peerDep of Object.keys(pkg.peerDependencies)) {
@@ -827,9 +821,10 @@ async function resolveDependency (
       }
     } else {
       for (const peerDep of Object.keys(pkg.peerDependencies)) {
-        if (options.parentPkgAliases[peerDep]) {
-          delete pkg.dependencies[peerDep]
+        if (!options.parentPkgAliases[peerDep]) {
+          missingPeers[peerDep] = pkg.dependencies[peerDep]
         }
+        delete pkg.dependencies[peerDep]
       }
     }
   }
@@ -987,7 +982,7 @@ async function resolveDependency (
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
     pkgId: pkgResponse.body.id,
     rootDir,
-    ...getMissingPeers(pkg, options.parentPkgAliases),
+    ...(ctx.autoInstallPeers ? getMissingPeers(pkg, options.parentPkgAliases) : { missingPeers, resolvedPeers: {} }),
 
     // Next fields are actually only needed when isNew = true
     installable,
