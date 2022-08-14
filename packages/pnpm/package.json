@@ -56,7 +56,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/registry-mock": "2.20.0",
+    "@pnpm/registry-mock": "3.0.0-0",
     "@pnpm/run-npm": "workspace:*",
     "@pnpm/tabtab": "^0.1.2",
     "@pnpm/types": "workspace:*",
