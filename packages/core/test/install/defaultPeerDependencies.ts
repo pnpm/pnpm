@@ -35,3 +35,14 @@ test('don\'t install the default peer dependency when it may be resolved from pa
     '/has-default-peer/1.0.0_ptp3ffmxbab2qqs6nxppnituqi',
   ])
 })
+
+test('install the default peer dependency when it cannot be resolved from parent packages', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['has-default-peer'], await testDefaults())
+
+  const lockfile = await project.readLockfile()
+  expect(Object.keys(lockfile.packages)).toStrictEqual([
+    '/dep-of-pkg-with-1-dep/100.0.0', // TODO: this should be actually something like /dep-of-pkg-with-1-dep/100.0.0_<hash of /has-default-peer/1.0.0>
+    '/has-default-peer/1.0.0',
+  ])
+})
