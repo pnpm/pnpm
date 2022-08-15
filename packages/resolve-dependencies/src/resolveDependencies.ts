@@ -820,6 +820,19 @@ async function resolveDependency (
   if (ctx.readPackageHook != null) {
     pkg = await ctx.readPackageHook(pkg)
   }
+  if (pkg.peerDependencies && pkg.dependencies) {
+    if (ctx.autoInstallPeers) {
+      for (const peerDep of Object.keys(pkg.peerDependencies)) {
+        delete pkg.dependencies[peerDep]
+      }
+    } else {
+      for (const peerDep of Object.keys(pkg.peerDependencies)) {
+        if (options.parentPkgAliases[peerDep]) {
+          delete pkg.dependencies[peerDep]
+        }
+      }
+    }
+  }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
