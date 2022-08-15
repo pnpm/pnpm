@@ -7,6 +7,7 @@ import exists from 'path-exists'
 import { testDefaults } from '../utils'
 
 test('package with default peer dependency, when auto install peers is on', async () => {
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['has-default-peer'], await testDefaults({ autoInstallPeers: true }))
 
