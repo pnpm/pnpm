@@ -57,8 +57,8 @@ importers:
         specifier: 0.0.6
         version: 0.0.6
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       '@pnpm/tsconfig':
         specifier: workspace:*
         version: link:utils/tsconfig
@@ -721,8 +721,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
@@ -1653,8 +1653,8 @@ importers:
         specifier: workspace:*
         version: link:../read-projects-context
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
@@ -2741,8 +2741,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../privatePackages/test-fixtures
@@ -3040,8 +3040,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
 
   packages/plugin-commands-env:
     dependencies:
@@ -3298,8 +3298,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../privatePackages/test-fixtures
@@ -3398,8 +3398,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -3495,8 +3495,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -3559,8 +3559,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -3659,8 +3659,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       '@types/cross-spawn':
         specifier: ^6.0.2
         version: 6.0.2
@@ -3813,8 +3813,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../privatePackages/test-fixtures
@@ -3919,8 +3919,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       '@types/is-windows':
         specifier: ^1.0.0
         version: 1.0.0
@@ -4108,8 +4108,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       '@types/archy':
         specifier: 0.0.32
         version: 0.0.32
@@ -4253,8 +4253,8 @@ importers:
         specifier: workspace:*
         version: link:../read-project-manifest
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../run-npm
@@ -5153,8 +5153,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/modules-yaml
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5193,8 +5193,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/cafs
       '@pnpm/registry-mock':
-        specifier: 2.20.0
-        version: 2.20.0
+        specifier: 3.0.0-0
+        version: 3.0.0-0
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -5561,7 +5561,7 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
     dependencies:
-      '@babel/types': 7.18.10
+      '@babel/types': 7.17.10
     dev: true
 
   /@babel/parser/7.18.11:
@@ -6928,8 +6928,8 @@ packages:
       strip-bom: 4.0.0
     dev: true
 
-  /@pnpm/registry-mock/2.20.0:
-    resolution: {integrity: sha512-ADVI/RsdN+l4GHD9gKJvXpNd/UBX5W0Nfv/PEuc4kf++aBzDvEHd2n0QAnk5LZTidCHXvYCagFgcCy/oFkkIJg==}
+  /@pnpm/registry-mock/3.0.0-0:
+    resolution: {integrity: sha512-BcvgJU9hAqFnSBN4Q1Xj0858KVy+Yzymex8tHB+YYuSXiHwQh3/g9o9zMY7Qp/0AKyLx0KtwVWn/20/YcnDTKg==}
     engines: {node: '>=10.13'}
     hasBin: true
     dependencies:
@@ -15746,7 +15746,7 @@ packages:
   /wide-align/1.1.5:
     resolution: {integrity: sha512-eDMORYaPNZ4sQIuuYPDHdQvf4gyCF9rEEV/yPxGfwPkRodwEgiMUUXTx/dex+Me0wxx53S+NgUHaP7y3MGlDmg==}
     dependencies:
-      string-width: 4.2.3
+      string-width: 1.0.2
 
   /widest-line/3.1.0:
     resolution: {integrity: sha512-NsmoXalsWVDMGupxZ5R08ka9flZjjiLvHVAWYOKtiKM8ujtZWr9cRffak+uSE48+Ob8ObalXpwyeUiyDD6QFgg==}

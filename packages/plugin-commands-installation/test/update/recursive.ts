@@ -130,7 +130,7 @@ test('recursive update with pattern', async () => {
 
       dependencies: {
         'dep-of-pkg-with-1-dep': '100.0.0',
-        'pnpm-foo': '1.0.0',
+        '@pnpm.e2e/foo': '1.0.0',
       },
     },
     {
@@ -155,7 +155,7 @@ test('recursive update with pattern', async () => {
 
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'pnpm-foo', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
 
   await update.handler({
     ...DEFAULT_OPTS,
@@ -168,14 +168,14 @@ test('recursive update with pattern', async () => {
   }, ['peer-*', 'dep-of-pkg-*'])
 
   expect(projects['project-1'].requireModule('dep-of-pkg-with-1-dep/package.json').version).toBe('100.1.0')
-  expect(projects['project-1'].requireModule('pnpm-foo/package.json').version).toBe('1.0.0')
+  expect(projects['project-1'].requireModule('@pnpm.e2e/foo/package.json').version).toBe('1.0.0')
   expect(projects['project-2'].requireModule('peer-c/package.json').version).toBe('2.0.0')
 })
 
 test('recursive update with pattern and name in project', async () => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'pnpm-foo', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
   await addDistTag({ package: 'print-version', version: '2.0.0', distTag: 'latest' })
 
   const projects = preparePackages([
@@ -185,7 +185,7 @@ test('recursive update with pattern and name in project', async () => {
 
       dependencies: {
         'dep-of-pkg-with-1-dep': '100.0.0',
-        'pnpm-foo': '1.0.0',
+        '@pnpm.e2e/foo': '1.0.0',
       },
     },
     {
@@ -255,7 +255,7 @@ test('recursive update with pattern and name in project', async () => {
   }, ['peer-*', 'dep-of-pkg-*', 'print-version'])
 
   expect(projects['project-1'].requireModule('dep-of-pkg-with-1-dep/package.json').version).toBe('100.1.0')
-  expect(projects['project-1'].requireModule('pnpm-foo/package.json').version).toBe('1.0.0')
+  expect(projects['project-1'].requireModule('@pnpm.e2e/foo/package.json').version).toBe('1.0.0')
   expect(projects['project-2'].requireModule('peer-c/package.json').version).toBe('2.0.0')
   expect(projects['project-2'].requireModule('print-version/package.json').version).toBe('2.0.0')
 })

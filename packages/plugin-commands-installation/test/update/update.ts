@@ -10,13 +10,13 @@ import { DEFAULT_OPTS } from '../utils'
 test('update with "*" pattern', async () => {
   await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'pnpm-foo', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
 
   const project = prepare({
     dependencies: {
       'peer-a': '1.0.0',
       'peer-c': '1.0.0',
-      'pnpm-foo': '1.0.0',
+      '@pnpm.e2e/foo': '1.0.0',
     },
   })
 
@@ -37,7 +37,7 @@ test('update with "*" pattern', async () => {
 
   expect(lockfile.packages['/peer-a/1.0.1']).toBeTruthy()
   expect(lockfile.packages['/peer-c/2.0.0']).toBeTruthy()
-  expect(lockfile.packages['/pnpm-foo/1.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/foo/1.0.0']).toBeTruthy()
 })
 
 test('update: fail when both "latest" and "workspace" are true', async () => {
@@ -158,14 +158,14 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
 test('update should work normal when set empty string version', async () => {
   await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'pnpm-foo', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
 
   const project = prepare({
     dependencies: {
       'peer-a': '1.0.0',
     },
     devDependencies: {
-      'pnpm-foo': '',
+      '@pnpm.e2e/foo': '',
       'peer-c': '',
     },
   })
@@ -186,8 +186,8 @@ test('update should work normal when set empty string version', async () => {
   const lockfile = await project.readLockfile()
   expect(lockfile.packages['/peer-a/1.0.1']).toBeTruthy()
   expect(lockfile.packages['/peer-c/2.0.0']).toBeTruthy()
-  expect(lockfile.packages['/pnpm-foo/2.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/foo/2.0.0']).toBeTruthy()
   expect(lockfile.dependencies['peer-a']).toEqual('1.0.1')
-  expect(lockfile.devDependencies['pnpm-foo']).toEqual('2.0.0')
+  expect(lockfile.devDependencies['@pnpm.e2e/foo']).toEqual('2.0.0')
   expect(lockfile.devDependencies['peer-c']).toEqual('2.0.0')
 })

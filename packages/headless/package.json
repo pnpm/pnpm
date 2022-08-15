@@ -22,7 +22,7 @@
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",
-    "@pnpm/registry-mock": "2.20.0",
+    "@pnpm/registry-mock": "3.0.0-0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.13",
