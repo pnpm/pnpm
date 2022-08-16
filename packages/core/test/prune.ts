@@ -24,7 +24,7 @@ test('prune removes extraneous packages', async () => {
   manifest = await addDependenciesToPackage(manifest, ['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)
   manifest = await link([linkedPkg], path.resolve('node_modules'), { ...opts, manifest, dir: process.cwd() })
 
-  await project.has('hello-world-js-bin') // external link added
+  await project.has('@pnpm.e2e/hello-world-js-bin') // external link added
 
   delete manifest.dependencies!['is-positive']
   delete manifest.dependencies!['@zkochan/logger']
@@ -53,12 +53,12 @@ test('prune removes extraneous packages', async () => {
     name: 'pnpm:root',
     removed: {
       dependencyType: undefined,
-      name: 'hello-world-js-bin',
+      name: '@pnpm.e2e/hello-world-js-bin',
       version: '1.0.0',
     },
   } as RootLog)).toBeTruthy()
 
-  await project.hasNot('hello-world-js-bin') // external link pruned
+  await project.hasNot('@pnpm.e2e/hello-world-js-bin') // external link pruned
 
   await project.storeHasNot('is-positive', '2.0.0')
   await project.hasNot('is-positive')

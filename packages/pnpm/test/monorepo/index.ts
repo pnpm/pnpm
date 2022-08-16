@@ -710,21 +710,21 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   const { default: outputs } = await import(path.resolve('output.json'))
   expect(outputs).toStrictEqual(['is-positive', 'project-1'])
 
-  await execPnpm(['recursive', 'install', 'pkg-with-1-dep', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store'])
+  await execPnpm(['recursive', 'install', '@pnpm.e2e/pkg-with-1-dep', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store'])
 
   {
     const pkg = await readPackageJsonFromDir(path.resolve('is-positive'))
-    expect(pkg.dependencies!['pkg-with-1-dep']).toBe('100.0.0')
+    expect(pkg.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBe('100.0.0')
   }
 
   {
     const pkg = await readPackageJsonFromDir(path.resolve('project-1'))
-    expect(pkg.dependencies!['pkg-with-1-dep']).toBe('~100.0.0')
+    expect(pkg.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBe('~100.0.0')
   }
 
   {
     const pkg = await readPackageJsonFromDir(path.resolve('is-positive2'))
-    expect(pkg.dependencies!['pkg-with-1-dep']).toBe('^100.0.0')
+    expect(pkg.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBe('^100.0.0')
   }
 })
 
@@ -857,7 +857,7 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
     module.exports = { hooks: { readPackage } }
     function readPackage (pkg) {
       pkg.dependencies = pkg.dependencies || {}
-      pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
+      pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.1.0'
       return pkg
     }
   `
@@ -867,7 +867,7 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
   await execPnpm(['recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store'])
 
   const lockfile = await readYamlFile<Lockfile>(`./${WANTED_LOCKFILE}`)
-  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
 
   await execPnpm(['recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store', '--filter', 'project-1'])
 
@@ -1261,7 +1261,7 @@ test('dependencies of workspace projects are built during headless installation'
       version: '1.0.0',
 
       dependencies: {
-        'pre-and-postinstall-scripts-example': '1.0.0',
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
       },
     },
   ])
@@ -1273,10 +1273,10 @@ test('dependencies of workspace projects are built during headless installation'
   await execPnpm(['recursive', 'install', '--frozen-lockfile'])
 
   {
-    const generatedByPreinstall = projects['project-1'].requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
+    const generatedByPreinstall = projects['project-1'].requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
     expect(typeof generatedByPreinstall).toBe('function')
 
-    const generatedByPostinstall = projects['project-1'].requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
+    const generatedByPostinstall = projects['project-1'].requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
     expect(typeof generatedByPostinstall).toBe('function')
   }
 })
@@ -1321,7 +1321,7 @@ test('pnpm sees the bins from the root of the workspace', async () => {
       location: '.',
       package: {
         dependencies: {
-          'print-version': '2',
+          '@pnpm.e2e/print-version': '2',
         },
       },
     },
@@ -1334,7 +1334,7 @@ test('pnpm sees the bins from the root of the workspace', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'print-version': '1',
+        '@pnpm.e2e/print-version': '1',
       },
     },
   ])

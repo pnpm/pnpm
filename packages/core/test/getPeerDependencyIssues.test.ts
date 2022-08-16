@@ -26,8 +26,8 @@ test('a conflict is detected when the same peer is required with ranges that do 
     {
       manifest: {
         dependencies: {
-          'has-foo100-peer': '1.0.0',
-          'has-foo101-peer': '1.0.0',
+          '@pnpm.e2e/has-foo100-peer': '1.0.0',
+          '@pnpm.e2e/has-foo101-peer': '1.0.0',
         },
       },
       rootDir: process.cwd(),

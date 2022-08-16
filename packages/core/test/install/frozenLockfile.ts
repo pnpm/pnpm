@@ -185,11 +185,11 @@ test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation w
 
   const manifest = await install({
     dependencies: {
-      'pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
     },
   }, await testDefaults({ lockfileOnly: true }))
 
-  await project.hasNot('pkg-with-1-dep')
+  await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
   const reporter = sinon.spy()
   await install(manifest, await testDefaults({
@@ -204,8 +204,8 @@ test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation w
     name: 'pnpm',
   })).toBeTruthy()
 
-  await project.has('pkg-with-1-dep')
-  await project.has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
+  await project.has('@pnpm.e2e/pkg-with-1-dep')
+  await project.has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
 })
 
 test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has linked dependency', async () => {

@@ -37,12 +37,12 @@ test('uninstall global package with its bin files', async () => {
     XDG_DATA_HOME: global,
   }
 
-  await execPnpm(['add', '-g', 'sh-hello-world@1.0.1'], { env })
+  await execPnpm(['add', '-g', '@pnpm.e2e/sh-hello-world@1.0.1'], { env })
 
   let stat = await exists(path.resolve(globalBin, 'sh-hello-world'))
   expect(stat).toBeTruthy() // sh-hello-world is in .bin
 
-  await execPnpm(['uninstall', '-g', 'sh-hello-world'], { env })
+  await execPnpm(['uninstall', '-g', '@pnpm.e2e/sh-hello-world'], { env })
 
   stat = await exists(path.resolve(globalBin, 'sh-hello-world'))
   expect(stat).toBeFalsy() // sh-hello-world is removed from .bin

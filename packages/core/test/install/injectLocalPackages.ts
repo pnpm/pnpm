@@ -16,7 +16,7 @@ test('inject local packages', async () => {
       'is-negative': '1.0.0',
     },
     devDependencies: {
-      'dep-of-pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
     },
     peerDependencies: {
       'is-positive': '>=1.0.0',
@@ -112,7 +112,7 @@ test('inject local packages', async () => {
   }))
 
   await projects['project-1'].has('is-negative')
-  await projects['project-1'].has('dep-of-pkg-with-1-dep')
+  await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await projects['project-1'].hasNot('is-positive')
 
   await projects['project-2'].has('is-positive')
@@ -180,7 +180,7 @@ test('inject local packages', async () => {
   }))
 
   await projects['project-1'].has('is-negative')
-  await projects['project-1'].has('dep-of-pkg-with-1-dep')
+  await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await projects['project-1'].hasNot('is-positive')
 
   await projects['project-2'].has('is-positive')
@@ -233,7 +233,7 @@ test('inject local packages declared via file protocol', async () => {
       'is-negative': '1.0.0',
     },
     devDependencies: {
-      'dep-of-pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
     },
     peerDependencies: {
       'is-positive': '>=1.0.0',
@@ -329,7 +329,7 @@ test('inject local packages declared via file protocol', async () => {
   }))
 
   await projects['project-1'].has('is-negative')
-  await projects['project-1'].has('dep-of-pkg-with-1-dep')
+  await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await projects['project-1'].hasNot('is-positive')
 
   await projects['project-2'].has('is-positive')
@@ -397,7 +397,7 @@ test('inject local packages declared via file protocol', async () => {
   }))
 
   await projects['project-1'].has('is-negative')
-  await projects['project-1'].has('dep-of-pkg-with-1-dep')
+  await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await projects['project-1'].hasNot('is-positive')
 
   await projects['project-2'].has('is-positive')
@@ -451,7 +451,7 @@ test('inject local packages when the file protocol is used', async () => {
       'is-negative': '1.0.0',
     },
     devDependencies: {
-      'dep-of-pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
     },
     peerDependencies: {
       'is-positive': '>=1.0.0',
@@ -537,7 +537,7 @@ test('inject local packages when the file protocol is used', async () => {
   }))
 
   await projects['project-1'].has('is-negative')
-  await projects['project-1'].has('dep-of-pkg-with-1-dep')
+  await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await projects['project-1'].hasNot('is-positive')
 
   await projects['project-2'].has('is-positive')
@@ -600,7 +600,7 @@ test('inject local packages when the file protocol is used', async () => {
   }))
 
   await projects['project-1'].has('is-negative')
-  await projects['project-1'].has('dep-of-pkg-with-1-dep')
+  await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await projects['project-1'].hasNot('is-positive')
 
   await projects['project-2'].has('is-positive')
@@ -649,7 +649,7 @@ test('inject local packages and relink them after build', async () => {
       'is-negative': '1.0.0',
     },
     devDependencies: {
-      'dep-of-pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
     },
     peerDependencies: {
       'is-positive': '1.0.0',
@@ -715,7 +715,7 @@ test('inject local packages and relink them after build', async () => {
   }))
 
   await projects['project-1'].has('is-negative')
-  await projects['project-1'].has('dep-of-pkg-with-1-dep')
+  await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await projects['project-1'].hasNot('is-positive')
 
   await projects['project-2'].has('is-positive')
@@ -759,7 +759,7 @@ test('inject local packages and relink them after build', async () => {
   }))
 
   await projects['project-1'].has('is-negative')
-  await projects['project-1'].has('dep-of-pkg-with-1-dep')
+  await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await projects['project-1'].hasNot('is-positive')
 
   await projects['project-2'].has('is-positive')
@@ -776,7 +776,7 @@ test('inject local packages and relink them after build (file protocol is used)'
       'is-negative': '1.0.0',
     },
     devDependencies: {
-      'dep-of-pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
     },
     peerDependencies: {
       'is-positive': '1.0.0',
@@ -821,7 +821,7 @@ test('inject local packages and relink them after build (file protocol is used)'
   await mutateModules(importers, await testDefaults())
 
   await projects['project-1'].has('is-negative')
-  await projects['project-1'].has('dep-of-pkg-with-1-dep')
+  await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await projects['project-1'].hasNot('is-positive')
 
   await projects['project-2'].has('is-positive')
@@ -859,7 +859,7 @@ test('inject local packages and relink them after build (file protocol is used)'
   }))
 
   await projects['project-1'].has('is-negative')
-  await projects['project-1'].has('dep-of-pkg-with-1-dep')
+  await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await projects['project-1'].hasNot('is-positive')
 
   await projects['project-2'].has('is-positive')
@@ -874,7 +874,7 @@ test('inject local packages when node-linker is hoisted', async () => {
     version: '1.0.0',
     dependencies: {
       'is-negative': '1.0.0',
-      'dep-of-pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
     },
     peerDependencies: {
       'is-positive': '>=1.0.0',
@@ -885,7 +885,7 @@ test('inject local packages when node-linker is hoisted', async () => {
     version: '1.0.0',
     dependencies: {
       'project-1': 'workspace:1.0.0',
-      'dep-of-pkg-with-1-dep': '101.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
     },
     devDependencies: {
       'is-positive': '1.0.0',
@@ -973,11 +973,11 @@ test('inject local packages when node-linker is hoisted', async () => {
 
   const rootModules = assertProject(process.cwd())
   await rootModules.has('is-negative')
-  await rootModules.has('dep-of-pkg-with-1-dep')
+  await rootModules.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await rootModules.has('is-positive')
 
   await projects['project-2'].has('project-1')
-  await projects['project-2'].has('project-1/node_modules/dep-of-pkg-with-1-dep')
+  await projects['project-2'].has('project-1/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   await projects['project-3'].has('project-1')
   await projects['project-3'].has('project-2')
@@ -1002,7 +1002,7 @@ test('inject local packages when node-linker is hoisted', async () => {
         'is-positive': '>=1.0.0',
       },
       dependencies: {
-        'dep-of-pkg-with-1-dep': '100.0.0',
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         'is-negative': '1.0.0',
         'is-positive': '1.0.0',
       },
@@ -1017,7 +1017,7 @@ test('inject local packages when node-linker is hoisted', async () => {
       name: 'project-2',
       version: '1.0.0',
       dependencies: {
-        'dep-of-pkg-with-1-dep': '101.0.0',
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
         'project-1': 'file:project-1_is-positive@2.0.0',
       },
       transitivePeerDependencies: ['is-positive'],
@@ -1037,7 +1037,7 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
     version: '1.0.0',
     dependencies: {
       'is-negative': '1.0.0',
-      'dep-of-pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
     },
     peerDependencies: {
       'is-positive': '>=1.0.0',
@@ -1048,7 +1048,7 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
     version: '1.0.0',
     dependencies: {
       'project-1': 'workspace:1.0.0',
-      'dep-of-pkg-with-1-dep': '101.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
     },
     devDependencies: {
       'is-positive': '1.0.0',
@@ -1145,11 +1145,11 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
 
   const rootModules = assertProject(process.cwd())
   await rootModules.has('is-negative')
-  await rootModules.has('dep-of-pkg-with-1-dep')
+  await rootModules.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await rootModules.has('is-positive')
 
   await projects['project-2'].has('project-1')
-  await projects['project-2'].has('project-1/node_modules/dep-of-pkg-with-1-dep')
+  await projects['project-2'].has('project-1/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   await projects['project-3'].has('project-1')
   await projects['project-3'].has('project-2')
@@ -1174,7 +1174,7 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
         'is-positive': '>=1.0.0',
       },
       dependencies: {
-        'dep-of-pkg-with-1-dep': '100.0.0',
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         'is-negative': '1.0.0',
         'is-positive': '1.0.0',
       },
@@ -1189,7 +1189,7 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
       name: 'project-2',
       version: '1.0.0',
       dependencies: {
-        'dep-of-pkg-with-1-dep': '101.0.0',
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
         'project-1': 'file:project-1_is-positive@2.0.0',
       },
       transitivePeerDependencies: ['is-positive'],

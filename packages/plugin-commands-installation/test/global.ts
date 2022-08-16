@@ -44,12 +44,12 @@ test('globally installed package is linked with active version of Node.js', asyn
     global: true,
     linkWorkspacePackages: false,
     pnpmHomeDir: path.dirname(nodeExecPath),
-  }, ['hello-world-js-bin'])
+  }, ['@pnpm.e2e/hello-world-js-bin'])
 
   const manifest = (await import(path.resolve('package.json')))
 
   expect(
-    manifest.dependenciesMeta['hello-world-js-bin']?.node
+    manifest.dependenciesMeta['@pnpm.e2e/hello-world-js-bin']?.node
   ).toBeTruthy()
 
   const shimContent = await fs.readFile('node_modules/.bin/hello-world-js-bin', 'utf-8')
@@ -64,7 +64,7 @@ test('globally installed package isn not linked with active version of Node.js i
     global: true,
     linkWorkspacePackages: false,
     pnpmHomeDir: path.resolve('pnpm-home'),
-  }, ['hello-world-js-bin'])
+  }, ['@pnpm.e2e/hello-world-js-bin'])
 
   const manifest = (await import(path.resolve('package.json')))
 

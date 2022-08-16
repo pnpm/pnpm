@@ -1,29 +1,29 @@
-lockfileVersion: 5.3
+lockfileVersion: 5.4
 
 specifiers:
-  pkg-with-optional: 1.0.0
+  '@pnpm.e2e/pkg-with-optional': 1.0.0
 
 dependencies:
-  pkg-with-optional: 1.0.0
+  '@pnpm.e2e/pkg-with-optional': 1.0.0
 
 packages:
 
-  /dep-of-optional-pkg/1.0.0:
-    resolution: {integrity: sha512-fsFDBo/KrUZ9ljybu85d3mkr17LoTh3zV9TLncEddZkJ9GD9ql0ZVdftdAlsS46LdfeNKgte/2erZ8euekhWKQ==}
+  /@pnpm.e2e/dep-of-optional-pkg/1.0.0:
+    resolution: {integrity: sha512-ouCWx8q98JzIJ/Ef2Ny6uvHYWxe+T2irzTBhntx/31Jd+1QxbGVETO8yJXrDZyuD3rBGaZULj78gIcwa068fAA==}
     dev: false
     optional: true
 
-  /not-compatible-with-any-os/1.0.0:
-    resolution: {integrity: sha512-vTrzbhOeYAAhfduz8iCEmTC+512IDxBAaDLl3C6d3S+KOIKhSInhQbaTO3di+h7NND/2YpGUG4WmgGvAhzAcrA==}
+  /@pnpm.e2e/not-compatible-with-any-os/1.0.0:
+    resolution: {integrity: sha512-8sAm2PvHtibzjUYOXrmvmHXhthl7mD582GNDjhQ7CrQblo084OiAjNGaLka4vXXWF93LVaJ91btIRCECJPFLXw==}
     os: [this-os-does-not-exist]
     requiresBuild: true
     dependencies:
-      dep-of-optional-pkg: 1.0.0
+      '@pnpm.e2e/dep-of-optional-pkg': 1.0.0
     dev: false
     optional: true
 
-  /pkg-with-optional/1.0.0:
-    resolution: {integrity: sha512-gGOtjrYcYG9FHYHHzaerrVwi5bRmPwrjYlm89lqr4j4HgtYNPXUN8skpzHjKvntregnF3K9dn0z2XxMQrLtydA==}
+  /@pnpm.e2e/pkg-with-optional/1.0.0:
+    resolution: {integrity: sha512-Er5ld8foGmtV7tEzjy8NPYoA9MkUfAe7iU4dx/5wpPYhX32+SUqML8iG2RmjqrVdCDFzRepG3zSP6RcCTVaMPQ==}
     optionalDependencies:
-      not-compatible-with-any-os: 1.0.0
+      '@pnpm.e2e/not-compatible-with-any-os': 1.0.0
     dev: false

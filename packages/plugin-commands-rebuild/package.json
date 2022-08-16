@@ -37,7 +37,7 @@
     "@pnpm/logger": "^4.0.0",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.0.0-0",
+    "@pnpm/registry-mock": "3.0.0-2",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.15",
     "@types/semver": "7.3.10",

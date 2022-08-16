@@ -73,25 +73,25 @@ test('unlink 1 package that exists in package.json', async () => {
 test("don't update package when unlinking", async () => {
   const project = prepareEmpty()
 
-  await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
   const opts = await testDefaults({ dir: process.cwd() })
-  let manifest = await addDependenciesToPackage({}, ['foo'], opts)
+  let manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/foo'], opts)
 
   process.chdir('..')
 
   await writeJsonFile('foo/package.json', {
-    name: 'foo',
+    name: '@pnpm.e2e/foo',
     version: '100.0.0',
   })
 
   manifest = await link(['foo'], path.join('project', 'node_modules'), { ...opts, manifest })
-  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
 
   process.chdir('project')
   await mutateModules(
     [
       {
-        dependencyNames: ['foo'],
+        dependencyNames: ['@pnpm.e2e/foo'],
         manifest,
         mutation: 'unlinkSome',
         rootDir: process.cwd(),
@@ -100,7 +100,7 @@ test("don't update package when unlinking", async () => {
     opts
   )
 
-  expect(project.requireModule('foo/package.json').version).toBe('100.0.0')
+  expect(project.requireModule('@pnpm.e2e/foo/package.json').version).toBe('100.0.0')
 })
 
 test(`don't update package when unlinking. Initial link is done on a package w/o ${WANTED_LOCKFILE}`, async () => {
@@ -110,7 +110,7 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
   process.chdir('..')
 
   await writeJsonFile('foo/package.json', {
-    name: 'foo',
+    name: '@pnpm.e2e/foo',
     version: '100.0.0',
   })
 
@@ -118,17 +118,17 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
     ...opts,
     manifest: {
       dependencies: {
-        foo: '^100.0.0',
+        '@pnpm.e2e/foo': '^100.0.0',
       },
     },
   })
-  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
 
   process.chdir('project')
   const unlinkResult = await mutateModules(
     [
       {
-        dependencyNames: ['foo'],
+        dependencyNames: ['@pnpm.e2e/foo'],
         manifest,
         mutation: 'unlinkSome',
         rootDir: process.cwd(),
@@ -137,8 +137,8 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
     opts
   )
 
-  expect(project.requireModule('foo/package.json').version).toBe('100.1.0')
-  expect(unlinkResult[0].manifest.dependencies).toStrictEqual({ foo: '^100.0.0' })
+  expect(project.requireModule('@pnpm.e2e/foo/package.json').version).toBe('100.1.0')
+  expect(unlinkResult[0].manifest.dependencies).toStrictEqual({ '@pnpm.e2e/foo': '^100.0.0' })
 })
 
 test('unlink 2 packages. One of them exists in package.json', async () => {

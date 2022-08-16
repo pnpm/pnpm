@@ -38,7 +38,7 @@
     "@pnpm/logger": "^4.0.0",
     "@pnpm/plugin-commands-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.0.0-0",
+    "@pnpm/registry-mock": "3.0.0-2",
     "@types/archy": "0.0.32",
     "@types/ramda": "0.28.15",
     "@types/ssri": "^7.1.1",

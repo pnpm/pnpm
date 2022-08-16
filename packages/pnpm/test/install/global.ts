@@ -47,7 +47,7 @@ test('global installation to custom directory with --global-dir', async () => {
 
 test('always install latest when doing global installation without spec', async () => {
   prepare()
-  await addDistTag('peer-c', '2.0.0', 'latest')
+  await addDistTag('@pnpm.e2e/peer-c', '2.0.0', 'latest')
 
   const global = path.resolve('..', 'global')
   const pnpmHome = path.join(global, 'pnpm')
@@ -55,14 +55,14 @@ test('always install latest when doing global installation without spec', async 
 
   const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
 
-  await execPnpm(['install', '-g', 'peer-c@1'], { env })
-  await execPnpm(['install', '-g', 'peer-c'], { env })
+  await execPnpm(['install', '-g', '@pnpm.e2e/peer-c@1'], { env })
+  await execPnpm(['install', '-g', '@pnpm.e2e/peer-c'], { env })
 
   const globalPrefix = path.join(global, `pnpm/global/${LAYOUT_VERSION}`)
 
   process.chdir(globalPrefix)
 
-  expect((await import(path.resolve('node_modules', 'peer-c', 'package.json'))).default.version).toBe('2.0.0')
+  expect((await import(path.resolve('node_modules', '@pnpm.e2e/peer-c', 'package.json'))).default.version).toBe('2.0.0')
 })
 
 test('run lifecycle events of global packages in correct working directory', async () => {
@@ -82,7 +82,7 @@ test('run lifecycle events of global packages in correct working directory', asy
     XDG_DATA_HOME: global,
   }
 
-  await execPnpm(['install', '-g', 'postinstall-calls-pnpm@1.0.0'], { env })
+  await execPnpm(['install', '-g', '@pnpm.e2e/postinstall-calls-pnpm@1.0.0'], { env })
 
-  expect(await exists(path.join(global, `pnpm/global/${LAYOUT_VERSION}/node_modules/postinstall-calls-pnpm/created-by-postinstall`))).toBeTruthy()
+  expect(await exists(path.join(global, `pnpm/global/${LAYOUT_VERSION}/node_modules/@pnpm.e2e/postinstall-calls-pnpm/created-by-postinstall`))).toBeTruthy()
 })

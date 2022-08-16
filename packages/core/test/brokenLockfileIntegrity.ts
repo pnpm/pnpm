@@ -11,12 +11,12 @@ import writeYamlFile from 'write-yaml-file'
 import { testDefaults } from './utils'
 
 test('installation breaks if the lockfile contains the wrong checksum', async () => {
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({},
     [
-      'pkg-with-1-dep@100.0.0',
+      '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     ],
     await testDefaults({ lockfileOnly: true })
   )
@@ -24,7 +24,7 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
   const corruptedLockfile = await project.readLockfile()
   const correctLockfile = clone(corruptedLockfile)
   // breaking the lockfile
-  corruptedLockfile.packages['/pkg-with-1-dep/100.0.0'].resolution['integrity'] = corruptedLockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'].resolution['integrity']
+  corruptedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution['integrity'] = corruptedLockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'].resolution['integrity']
   await writeYamlFile(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
 
   await expect(mutateModules([
@@ -65,20 +65,20 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
 })
 
 test('installation breaks if the lockfile contains the wrong checksum and the store is clean', async () => {
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({},
     [
-      'pkg-with-1-dep@100.0.0',
+      '@pnpm.e2e/pkg-with-1-dep@100.0.0',
     ],
     await testDefaults({ lockfileOnly: true })
   )
 
   const corruptedLockfile = await project.readLockfile()
-  const correctIntegrity = corruptedLockfile.packages['/pkg-with-1-dep/100.0.0'].resolution['integrity']
+  const correctIntegrity = corruptedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution['integrity']
   // breaking the lockfile
-  corruptedLockfile.packages['/pkg-with-1-dep/100.0.0'].resolution['integrity'] = 'sha512-pl8WtlGAnoIQ7gPxT187/YwhKRnsFBR4h0YY+v0FPQjT5WPuZbI9dPRaKWgKBFOqWHylJ8EyPy34V5u9YArfng=='
+  corruptedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution['integrity'] = 'sha512-pl8WtlGAnoIQ7gPxT187/YwhKRnsFBR4h0YY+v0FPQjT5WPuZbI9dPRaKWgKBFOqWHylJ8EyPy34V5u9YArfng=='
   await writeYamlFile(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
 
   await expect(
@@ -104,7 +104,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/pkg-with-1-dep/100.0.0'].resolution['integrity']).toBe(correctIntegrity)
+    expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution['integrity']).toBe(correctIntegrity)
   }
 
   // Breaking the lockfile again
@@ -130,6 +130,6 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
   }))
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/pkg-with-1-dep/100.0.0'].resolution['integrity']).toBe(correctIntegrity)
+    expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution['integrity']).toBe(correctIntegrity)
   }
 })

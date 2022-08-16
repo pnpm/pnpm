@@ -12,25 +12,25 @@ import sinon from 'sinon'
 import { testDefaults } from '../utils'
 
 test('install with lockfileOnly = true', async () => {
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' as const })
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], opts)
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
   const { cafsHas } = assertStore(opts.storeDir)
 
-  await cafsHas('pkg-with-1-dep', '100.0.0')
-  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`))).toBeTruthy()
-  await cafsHas('dep-of-pkg-with-1-dep', '100.1.0')
-  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
-  await project.hasNot('pkg-with-1-dep')
+  await cafsHas('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
+  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep.json`))).toBeTruthy()
+  await cafsHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
+  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
+  await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
-  expect(manifest.dependencies!['pkg-with-1-dep']).toBeTruthy()
+  expect(manifest.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.dependencies['pkg-with-1-dep']).toBeTruthy()
-  expect(lockfile.packages['/pkg-with-1-dep/100.0.0']).toBeTruthy()
-  expect(lockfile.specifiers['pkg-with-1-dep']).toBeTruthy()
+  expect(lockfile.dependencies['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0']).toBeTruthy()
+  expect(lockfile.specifiers['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
 
   const currentLockfile = await project.readCurrentLockfile()
   expect(currentLockfile).toBeFalsy()
@@ -38,11 +38,11 @@ test('install with lockfileOnly = true', async () => {
   console.log(`doing repeat install when ${WANTED_LOCKFILE} is available already`)
   await install(manifest, opts)
 
-  await cafsHas('pkg-with-1-dep', '100.0.0')
-  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`))).toBeTruthy()
-  await cafsHas('dep-of-pkg-with-1-dep', '100.1.0')
-  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
-  await project.hasNot('pkg-with-1-dep')
+  await cafsHas('@pnpm.e2e/pkg-with-1-dep', '100.0.0')
+  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep.json`))).toBeTruthy()
+  await cafsHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
+  expect(await exists(path.join(opts.cacheDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep.json`))).toBeTruthy()
+  await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 
   expect(await project.readCurrentLockfile()).toBeFalsy()
 })

@@ -284,7 +284,7 @@ test('recursive installation fails when installation in one of the packages fail
       version: '1.0.0',
 
       dependencies: {
-        'this-pkg-does-not-exist': '100.100.100',
+        '@pnpm.e2e/this-pkg-does-not-exist': '100.100.100',
       },
     },
     {
@@ -651,7 +651,7 @@ test('recursive install in a monorepo with different modules directories', async
 test('prefer-workspace-package', async () => {
   await addDistTag({
     distTag: 'latest',
-    package: 'foo',
+    package: '@pnpm.e2e/foo',
     version: '100.1.0',
   })
   preparePackages([
@@ -660,12 +660,15 @@ test('prefer-workspace-package', async () => {
       version: '1.0.0',
 
       dependencies: {
-        foo: '^100.0.0',
+        '@pnpm.e2e/foo': '^100.0.0',
       },
     },
     {
-      name: 'foo',
-      version: '100.0.0',
+      location: 'foo',
+      package: {
+        name: '@pnpm.e2e/foo',
+        version: '100.0.0',
+      },
     },
   ])
 
@@ -683,7 +686,7 @@ test('prefer-workspace-package', async () => {
   })
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve('pnpm-lock.yaml'))
-  expect(lockfile.importers['project-1'].dependencies?.foo).toBe('link:../foo')
+  expect(lockfile.importers['project-1'].dependencies?.['@pnpm.e2e/foo']).toBe('link:../foo')
 })
 
 test('installing in monorepo with shared lockfile should work on virtual drives', async () => {

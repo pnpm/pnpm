@@ -22,6 +22,9 @@
       "path": "../build-modules"
     },
     {
+      "path": "../cafs"
+    },
+    {
       "path": "../calc-dep-state"
     },
     {

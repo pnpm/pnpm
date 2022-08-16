@@ -12,7 +12,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
   const packageExtensions = {
     'is-positive': {
       dependencies: {
-        bar: '100.1.0',
+        '@pnpm.e2e/bar': '100.1.0',
       },
     },
   }
@@ -24,11 +24,11 @@ test('manifests are extended with fields specified by packageExtensions', async 
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/is-positive/1.0.0'].dependencies?.['bar']).toBe('100.1.0')
+    expect(lockfile.packages['/is-positive/1.0.0'].dependencies?.['@pnpm.e2e/bar']).toBe('100.1.0')
     expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
       'is-positive': {
         dependencies: {
-          bar: '100.1.0',
+          '@pnpm.e2e/bar': '100.1.0',
         },
       },
     }))
@@ -37,7 +37,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
   }
 
   // The lockfile is updated if the overrides are changed
-  packageExtensions['is-positive'].dependencies!['foobar'] = '100.0.0'
+  packageExtensions['is-positive'].dependencies!['@pnpm.e2e/foobar'] = '100.0.0'
   await mutateModules([
     {
       buildIndex: 0,
@@ -49,12 +49,12 @@ test('manifests are extended with fields specified by packageExtensions', async 
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/is-positive/1.0.0'].dependencies?.['foobar']).toBe('100.0.0')
+    expect(lockfile.packages['/is-positive/1.0.0'].dependencies?.['@pnpm.e2e/foobar']).toBe('100.0.0')
     expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
       'is-positive': {
         dependencies: {
-          bar: '100.1.0',
-          foobar: '100.0.0',
+          '@pnpm.e2e/bar': '100.1.0',
+          '@pnpm.e2e/foobar': '100.0.0',
         },
       },
     }))
@@ -76,8 +76,8 @@ test('manifests are extended with fields specified by packageExtensions', async 
     expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
       'is-positive': {
         dependencies: {
-          bar: '100.1.0',
-          foobar: '100.0.0',
+          '@pnpm.e2e/bar': '100.1.0',
+          '@pnpm.e2e/foobar': '100.0.0',
         },
       },
     }))
@@ -85,7 +85,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
     expect(lockfile.packageExtensionsChecksum).toStrictEqual(currentLockfile.packageExtensionsChecksum)
   }
 
-  packageExtensions['is-positive'].dependencies!['bar'] = '100.0.1'
+  packageExtensions['is-positive'].dependencies!['@pnpm.e2e/bar'] = '100.0.1'
   await expect(
     mutateModules([
       {

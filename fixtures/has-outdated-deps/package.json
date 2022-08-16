@@ -2,7 +2,7 @@
   "name": "wanted-shrinkwrap",
   "version": "1.0.0",
   "dependencies": {
-    "deprecated": "1.0.0",
+    "@pnpm.e2e/deprecated": "1.0.0",
     "is-negative": "^2.1.0"
   },
   "devDependencies": {

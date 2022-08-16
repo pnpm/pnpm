@@ -1,14 +1,26 @@
-lockfileVersion: 5.3
+lockfileVersion: 5.4
 
 specifiers:
+  '@pnpm.e2e/pre-and-postinstall-scripts-example': '*'
   json-append: 1.1.1
-  pre-and-postinstall-scripts-example: '*'
 
 dependencies:
+  '@pnpm.e2e/pre-and-postinstall-scripts-example': 1.0.0
   json-append: 1.1.1
-  pre-and-postinstall-scripts-example: 1.0.0
 
 packages:
+
+  /@pnpm.e2e/hello-world-js-bin/1.0.0:
+    resolution: {integrity: sha512-3f6ugQfqFW9GR36OSeTfsSNlup7hIslT23haX3dvT/e5GyU3iInat3+0GI+MqvRcwcNzsBrTJq7yDWp3wk7O/Q==}
+    hasBin: true
+    dev: false
+
+  /@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0:
+    resolution: {integrity: sha512-RWys6ZQfGRl4enR2IZv+Ear9h5v0p1LjwY36bxkBgJCEAV9lP1DksvXa3hATKgG9r3/FrkESKSwlMwZ8vLNgAg==}
+    requiresBuild: true
+    dependencies:
+      '@pnpm.e2e/hello-world-js-bin': 1.0.0
+    dev: false
 
   /buffer-from/1.1.2:
     resolution: {integrity: sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==}
@@ -28,11 +40,6 @@ packages:
     resolution: {integrity: sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ==}
     dev: false
 
-  /hello-world-js-bin/1.0.0:
-    resolution: {integrity: sha512-0wmzOwltlD4Vy3XHbJlASP2OOZOOk39jbxWVQdohHQPiSPq7UDKUMkykrl+09FjPhanu2c3DuCmRA0Jy9Hf8rQ==}
-    hasBin: true
-    dev: false
-
   /inherits/2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
     dev: false
@@ -46,13 +53,6 @@ packages:
     hasBin: true
     dependencies:
       concat-stream: 1.6.2
-    dev: false
-
-  /pre-and-postinstall-scripts-example/1.0.0:
-    resolution: {integrity: sha512-LiigIO18SIBX0gjNcFRC4nU1L8+Ioysy0NMSZoMIy4fbOm35FxzpDVAcPeFisqbdXPYu166MdlMvla36ySS5qA==}
-    requiresBuild: true
-    dependencies:
-      hello-world-js-bin: 1.0.0
     dev: false
 
   /process-nextick-args/2.0.1:

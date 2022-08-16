@@ -24,8 +24,8 @@ test('`pnpm why` should fail if no package name was provided', async () => {
 test('"why" should find non-direct dependency', async () => {
   prepare({
     dependencies: {
-      'dep-of-pkg-with-1-dep': '100.0.0',
-      'pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
     },
   })
 
@@ -35,14 +35,14 @@ test('"why" should find non-direct dependency', async () => {
     dev: false,
     dir: process.cwd(),
     optional: false,
-  }, ['dep-of-pkg-with-1-dep'])
+  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep'])
 
   expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
 
 project@0.0.0 ${process.cwd()}
 
 dependencies:
-dep-of-pkg-with-1-dep 100.0.0
-pkg-with-1-dep 100.0.0
-└── dep-of-pkg-with-1-dep 100.0.0`)
+@pnpm.e2e/dep-of-pkg-with-1-dep 100.0.0
+@pnpm.e2e/pkg-with-1-dep 100.0.0
+└── @pnpm.e2e/dep-of-pkg-with-1-dep 100.0.0`)
 })

@@ -69,14 +69,14 @@ is-negative 1.0.0`)
 })
 
 test('recursive list with shared-workspace-lockfile', async () => {
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
 
       dependencies: {
-        'pkg-with-1-dep': '100.0.0',
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
       },
     },
     {
@@ -121,8 +121,8 @@ test('recursive list with shared-workspace-lockfile', async () => {
 project-1@1.0.0 ${path.resolve('project-1')}
 
 dependencies:
-pkg-with-1-dep 100.0.0
-└── dep-of-pkg-with-1-dep 100.1.0
+@pnpm.e2e/pkg-with-1-dep 100.0.0
+└── @pnpm.e2e/dep-of-pkg-with-1-dep 100.1.0
 
 Legend: production dependency, optional only, dev only
 

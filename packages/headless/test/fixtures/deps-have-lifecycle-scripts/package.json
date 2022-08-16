@@ -5,6 +5,6 @@
   },
   "dependencies": {
     "json-append": "1.1.1",
-    "pre-and-postinstall-scripts-example": "*"
+    "@pnpm.e2e/pre-and-postinstall-scripts-example": "*"
   }
 }

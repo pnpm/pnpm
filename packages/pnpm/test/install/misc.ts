@@ -23,7 +23,7 @@ const skipOnWindows = isWindows() ? test.skip : test
 test('bin files are found by lifecycle scripts', () => {
   prepare({
     dependencies: {
-      'hello-world-js-bin': '*',
+      '@pnpm.e2e/hello-world-js-bin': '*',
     },
     scripts: {
       postinstall: 'hello-world-js-bin',
@@ -148,15 +148,15 @@ test('install save new dep with the specified spec', async () => {
 test("don't fail on case insensitive filesystems when package has 2 files with same name", async () => {
   const project = prepare()
 
-  await execPnpm(['install', 'with-same-file-in-different-cases'])
+  await execPnpm(['install', '@pnpm.e2e/with-same-file-in-different-cases'])
 
-  await project.has('with-same-file-in-different-cases')
+  await project.has('@pnpm.e2e/with-same-file-in-different-cases')
 
-  const { files: integrityFile } = await loadJsonFile<{ files: object }>(await project.getPkgIndexFilePath('with-same-file-in-different-cases', '1.0.0'))
+  const { files: integrityFile } = await loadJsonFile<{ files: object }>(await project.getPkgIndexFilePath('@pnpm.e2e/with-same-file-in-different-cases', '1.0.0'))
   const packageFiles = Object.keys(integrityFile).sort()
 
   expect(packageFiles).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
-  const files = await fs.readdir('node_modules/with-same-file-in-different-cases')
+  const files = await fs.readdir('node_modules/@pnpm.e2e/with-same-file-in-different-cases')
   const storeDir = await project.getStorePath()
   if (await dirIsCaseSensitive(storeDir)) {
     expect([...files]).toStrictEqual(['Foo.js', 'foo.js', 'package.json'])
@@ -172,10 +172,10 @@ test('top-level packages should find the plugins they use', async () => {
     },
   })
 
-  await execPnpm(['install', 'pkg-that-uses-plugins', 'plugin-example'])
+  await execPnpm(['install', '@pnpm.e2e/pkg-that-uses-plugins', '@pnpm.e2e/plugin-example'])
 
   const result = crossSpawn.sync('npm', ['test'])
-  expect(result.stdout.toString()).toContain('My plugin is plugin-example')
+  expect(result.stdout.toString()).toContain('My plugin is @pnpm.e2e/plugin-example')
   expect(result.status).toBe(0)
 })
 
@@ -200,7 +200,7 @@ test('run js bin file', async () => {
     },
   })
 
-  await execPnpm(['install', 'hello-world-js-bin'])
+  await execPnpm(['install', '@pnpm.e2e/hello-world-js-bin'])
 
   const result = crossSpawn.sync('npm', ['test'])
   expect(result.stdout.toString()).toContain('Hello world!')
@@ -210,11 +210,11 @@ test('run js bin file', async () => {
 test('create a package.json if there is none', async () => {
   prepareEmpty()
 
-  await execPnpm(['install', 'dep-of-pkg-with-1-dep@100.1.0'])
+  await execPnpm(['install', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   expect((await import(path.resolve('package.json'))).default).toStrictEqual({
     dependencies: {
-      'dep-of-pkg-with-1-dep': '100.1.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
     },
   })
 })

@@ -43,7 +43,7 @@ const DEFAULT_OPTS = {
 }
 
 test('import from package-lock.json', async () => {
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   f.prepare('has-package-lock-json')
 
   await importCommand.handler({
@@ -53,16 +53,16 @@ test('import from package-lock.json', async () => {
 
   const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
 
   // node_modules is not created
-  await project.hasNot('dep-of-pkg-with-1-dep')
-  await project.hasNot('pkg-with-1-dep')
+  await project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 })
 
 test('import from yarn.lock', async () => {
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   f.prepare('has-yarn-lock')
 
@@ -73,12 +73,12 @@ test('import from yarn.lock', async () => {
 
   const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.1.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
 
   // node_modules is not created
-  await project.hasNot('dep-of-pkg-with-1-dep')
-  await project.hasNot('pkg-with-1-dep')
+  await project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 })
 
 test('import from yarn2 lock file', async () => {
@@ -101,7 +101,7 @@ test('import from yarn2 lock file', async () => {
 })
 
 test('import from npm-shrinkwrap.json', async () => {
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   f.prepare('has-npm-shrinkwrap-json')
 
@@ -112,12 +112,12 @@ test('import from npm-shrinkwrap.json', async () => {
 
   const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
 
   // node_modules is not created
-  await project.hasNot('dep-of-pkg-with-1-dep')
-  await project.hasNot('pkg-with-1-dep')
+  await project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 })
 
 test('import fails when no lockfiles are found', async () => {

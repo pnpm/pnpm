@@ -20,18 +20,18 @@ const testOnNonWindows = isWindows() ? test.skip : test
 test('run pre/postinstall scripts', async () => {
   const project = prepareEmpty()
   const manifest = await addDependenciesToPackage({},
-    ['pre-and-postinstall-scripts-example'],
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
     await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' })
   )
 
   {
-    expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-prepare.js')).toBeFalsy()
-    expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+    expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-prepare.js')).toBeFalsy()
+    expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
 
-    const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
+    const generatedByPreinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
     expect(typeof generatedByPreinstall).toBe('function')
 
-    const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
+    const generatedByPostinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
     expect(typeof generatedByPostinstall).toBe('function')
   }
 
@@ -43,21 +43,21 @@ test('run pre/postinstall scripts', async () => {
   await install(manifest, await testDefaults({ fastUnpack: false, production: true }))
 
   {
-    const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
+    const generatedByPreinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
     expect(typeof generatedByPreinstall).toBe('function')
 
-    const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
+    const generatedByPostinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
     expect(typeof generatedByPostinstall).toBe('function')
   }
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild)
+  expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild)
 })
 
 test('run pre/postinstall scripts, when PnP is used and no symlinks', async () => {
   prepareEmpty()
   await addDependenciesToPackage({},
-    ['pre-and-postinstall-scripts-example'],
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
     await testDefaults({
       fastUnpack: false,
       enablePnp: true,
@@ -66,7 +66,7 @@ test('run pre/postinstall scripts, when PnP is used and no symlinks', async () =
     })
   )
 
-  const pkgDir = 'node_modules/.pnpm/pre-and-postinstall-scripts-example@1.0.0/node_modules/pre-and-postinstall-scripts-example'
+  const pkgDir = 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example'
   expect(await exists(path.resolve(pkgDir, 'generated-by-prepare.js'))).toBeFalsy()
   expect(await exists(path.resolve(pkgDir, 'generated-by-preinstall.js'))).toBeTruthy()
   expect(await exists(path.resolve(pkgDir, 'generated-by-postinstall.js'))).toBeTruthy()
@@ -75,21 +75,21 @@ test('run pre/postinstall scripts, when PnP is used and no symlinks', async () =
 test('testing that the bins are linked when the package with the bins was already in node_modules', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['hello-world-js-bin'], await testDefaults({ fastUnpack: false }))
-  await addDependenciesToPackage(manifest, ['pre-and-postinstall-scripts-example'], await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/pre-and-postinstall-scripts-example'], await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' }))
 
-  const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
+  const generatedByPreinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
   expect(typeof generatedByPreinstall).toBe('function')
 
-  const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
+  const generatedByPostinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
   expect(typeof generatedByPostinstall).toBe('function')
 })
 
 test('run install scripts', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['install-script-example'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/install-script-example'], await testDefaults({ fastUnpack: false }))
 
-  const generatedByInstall = project.requireModule('install-script-example/generated-by-install')
+  const generatedByInstall = project.requireModule('@pnpm.e2e/install-script-example/generated-by-install')
   expect(typeof generatedByInstall).toBe('function')
 })
 
@@ -152,7 +152,7 @@ test('INIT_CWD is always set to lockfile directory', async () => {
       manifest: {
         dependencies: {
           'json-append': '1.1.1',
-          'write-lifecycle-env': '1.0.0',
+          '@pnpm.e2e/write-lifecycle-env': '1.0.0',
         },
         scripts: {
           install: 'node -e "process.stdout.write(process.env.INIT_CWD)" | json-append output.json',
@@ -165,7 +165,7 @@ test('INIT_CWD is always set to lockfile directory', async () => {
     lockfileDir: rootDir,
   }))
 
-  const childEnv = await loadJsonFile<{ INIT_CWD: string }>(path.join(rootDir, 'node_modules/write-lifecycle-env/env.json'))
+  const childEnv = await loadJsonFile<{ INIT_CWD: string }>(path.join(rootDir, 'node_modules/@pnpm.e2e/write-lifecycle-env/env.json'))
   expect(childEnv.INIT_CWD).toBe(rootDir)
 
   const output = await loadJsonFile(path.join(rootDir, 'output.json'))
@@ -178,17 +178,17 @@ test("reports child's output", async () => {
 
   const reporter = sinon.spy()
 
-  await addDependenciesToPackage({}, ['count-to-10'], await testDefaults({ fastUnpack: false, reporter }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/count-to-10'], await testDefaults({ fastUnpack: false, reporter }))
 
   expect(reporter.calledWithMatch({
-    depPath: '/count-to-10/1.0.0',
+    depPath: '/@pnpm.e2e/count-to-10/1.0.0',
     level: 'debug',
     name: 'pnpm:lifecycle',
     script: 'node postinstall',
     stage: 'postinstall',
   } as LifecycleLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
-    depPath: '/count-to-10/1.0.0',
+    depPath: '/@pnpm.e2e/count-to-10/1.0.0',
     level: 'debug',
     line: '1',
     name: 'pnpm:lifecycle',
@@ -196,7 +196,7 @@ test("reports child's output", async () => {
     stdio: 'stdout',
   } as LifecycleLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
-    depPath: '/count-to-10/1.0.0',
+    depPath: '/@pnpm.e2e/count-to-10/1.0.0',
     level: 'debug',
     line: '2',
     name: 'pnpm:lifecycle',
@@ -204,7 +204,7 @@ test("reports child's output", async () => {
     stdio: 'stdout',
   } as LifecycleLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
-    depPath: '/count-to-10/1.0.0',
+    depPath: '/@pnpm.e2e/count-to-10/1.0.0',
     level: 'debug',
     line: '6',
     name: 'pnpm:lifecycle',
@@ -212,7 +212,7 @@ test("reports child's output", async () => {
     stdio: 'stderr',
   } as LifecycleLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
-    depPath: '/count-to-10/1.0.0',
+    depPath: '/@pnpm.e2e/count-to-10/1.0.0',
     exitCode: 0,
     level: 'debug',
     name: 'pnpm:lifecycle',
@@ -226,11 +226,11 @@ test("reports child's close event", async () => {
   const reporter = sinon.spy()
 
   await expect(
-    addDependenciesToPackage({}, ['failing-postinstall'], await testDefaults({ reporter }))
+    addDependenciesToPackage({}, ['@pnpm.e2e/failing-postinstall'], await testDefaults({ reporter }))
   ).rejects.toThrow()
 
   expect(reporter.calledWithMatch({
-    depPath: '/failing-postinstall/1.0.0',
+    depPath: '/@pnpm.e2e/failing-postinstall/1.0.0',
     exitCode: 1,
     level: 'debug',
     name: 'pnpm:lifecycle',
@@ -262,9 +262,9 @@ testOnNonWindows('lifecycle scripts have access to node-gyp', async () => {
 test('run lifecycle scripts of dependent packages after running scripts of their deps', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/with-postinstall-a'], await testDefaults({ fastUnpack: false }))
 
-  expect(+project.requireModule('.pnpm/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0]).toBeTruthy()
+  expect(+project.requireModule('.pnpm/@pnpm.e2e+with-postinstall-b@1.0.0/node_modules/@pnpm.e2e/with-postinstall-b/output.json')[0] < +project.requireModule('@pnpm.e2e/with-postinstall-a/output.json')[0]).toBeTruthy()
 })
 
 test('run prepare script for git-hosted dependencies', async () => {
@@ -290,7 +290,7 @@ test('run prepare script for git-hosted dependencies', async () => {
 test('lifecycle scripts run before linking bins', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['generated-bins'], await testDefaults({ fastUnpack: false }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/generated-bins'], await testDefaults({ fastUnpack: false }))
 
   await project.isExecutable('.bin/cmd1')
   await project.isExecutable('.bin/cmd2')
@@ -316,7 +316,7 @@ test('lifecycle scripts run before linking bins', async () => {
 test('hoisting does not fail on commands that will be created by lifecycle scripts on a later stage', async () => {
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['has-generated-bins-as-dep'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-generated-bins-as-dep'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   // await project.isExecutable('.pnpm/node_modules/.bin/cmd1')
   // await project.isExecutable('.pnpm/node_modules/.bin/cmd2')
@@ -346,19 +346,19 @@ test('bins are linked even if lifecycle scripts are ignored', async () => {
   const manifest = await addDependenciesToPackage(
     {},
     [
-      'pkg-with-peer-having-bin',
-      'peer-with-bin',
-      'pre-and-postinstall-scripts-example',
+      '@pnpm.e2e/pkg-with-peer-having-bin',
+      '@pnpm.e2e/peer-with-bin',
+      '@pnpm.e2e/pre-and-postinstall-scripts-example',
     ],
     await testDefaults({ fastUnpack: false, ignoreScripts: true })
   )
 
   await project.isExecutable('.bin/peer-with-bin')
-  await project.isExecutable('pkg-with-peer-having-bin/node_modules/.bin/hello-world-js-bin')
+  await project.isExecutable('@pnpm.e2e/pkg-with-peer-having-bin/node_modules/.bin/hello-world-js-bin')
 
   // Verifying that the scripts were ignored
-  expect(await exists('node_modules/pre-and-postinstall-scripts-example/package.json')).toBeTruthy()
-  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/package.json')).toBeTruthy()
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
 
   await rimraf('node_modules')
 
@@ -375,11 +375,11 @@ test('bins are linked even if lifecycle scripts are ignored', async () => {
   )
 
   await project.isExecutable('.bin/peer-with-bin')
-  await project.isExecutable('pkg-with-peer-having-bin/node_modules/.bin/hello-world-js-bin')
+  await project.isExecutable('@pnpm.e2e/pkg-with-peer-having-bin/node_modules/.bin/hello-world-js-bin')
 
   // Verifying that the scripts were ignored
-  expect(await exists('node_modules/pre-and-postinstall-scripts-example/package.json')).toBeTruthy()
-  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/package.json')).toBeTruthy()
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
 })
 
 test('dependency should not be added to current lockfile if it was not built successfully during headless install', async () => {
@@ -388,7 +388,7 @@ test('dependency should not be added to current lockfile if it was not built suc
   const manifest = await addDependenciesToPackage(
     {},
     [
-      'package-that-cannot-be-installed@0.0.0',
+      'package-that-cannot-be-installed@0.0.0', // TODO: this package should be replaced
     ],
     await testDefaults({
       ignoreScripts: true,
@@ -418,37 +418,37 @@ test('scripts have access to unlisted bins when hoisting is used', async () => {
 
   await addDependenciesToPackage(
     {},
-    ['pkg-that-calls-unlisted-dep-in-hooks'],
+    ['@pnpm.e2e/pkg-that-calls-unlisted-dep-in-hooks'],
     await testDefaults({ fastUnpack: false, hoistPattern: '*' })
   )
 
-  expect(project.requireModule('pkg-that-calls-unlisted-dep-in-hooks/output.json')).toStrictEqual(['Hello world!'])
+  expect(project.requireModule('@pnpm.e2e/pkg-that-calls-unlisted-dep-in-hooks/output.json')).toStrictEqual(['Hello world!'])
 })
 
 test('selectively ignore scripts in some dependencies by neverBuiltDependencies', async () => {
   const project = prepareEmpty()
-  const neverBuiltDependencies = ['pre-and-postinstall-scripts-example']
+  const neverBuiltDependencies = ['@pnpm.e2e/pre-and-postinstall-scripts-example']
   const manifest = await addDependenciesToPackage({},
-    ['pre-and-postinstall-scripts-example', 'install-script-example'],
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/install-script-example'],
     await testDefaults({ fastUnpack: false, neverBuiltDependencies })
   )
 
-  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
-  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
-  expect(await exists('node_modules/install-script-example/generated-by-install.js')).toBeTruthy()
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
   const lockfile = await project.readLockfile()
   expect(lockfile.neverBuiltDependencies).toStrictEqual(neverBuiltDependencies)
-  expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
-  expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
+  expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
 
   await rimraf('node_modules')
 
   await install(manifest, await testDefaults({ fastUnpack: false, frozenLockfile: true, neverBuiltDependencies }))
 
-  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
-  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
-  expect(await exists('node_modules/install-script-example/generated-by-install.js')).toBeTruthy()
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
 
 test('throw an exception when both neverBuiltDependencies and onlyBuiltDependencies are used', async () => {
@@ -457,53 +457,53 @@ test('throw an exception when both neverBuiltDependencies and onlyBuiltDependenc
   await expect(
     addDependenciesToPackage(
       {},
-      ['pre-and-postinstall-scripts-example'],
-      await testDefaults({ onlyBuiltDependencies: ['foo'], neverBuiltDependencies: ['bar'] })
+      ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+      await testDefaults({ onlyBuiltDependencies: ['@pnpm.e2e/foo'], neverBuiltDependencies: ['@pnpm.e2e/bar'] })
     )
   ).rejects.toThrow(/Cannot have both/)
 })
 
 test('selectively allow scripts in some dependencies by onlyBuiltDependencies', async () => {
   const project = prepareEmpty()
-  const onlyBuiltDependencies = ['install-script-example']
+  const onlyBuiltDependencies = ['@pnpm.e2e/install-script-example']
   const manifest = await addDependenciesToPackage({},
-    ['pre-and-postinstall-scripts-example', 'install-script-example'],
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/install-script-example'],
     await testDefaults({ fastUnpack: false, onlyBuiltDependencies })
   )
 
-  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
-  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
-  expect(await exists('node_modules/install-script-example/generated-by-install.js')).toBeTruthy()
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 
   const lockfile = await project.readLockfile()
   expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
-  expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
-  expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBe(true)
+  expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
+  expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBe(true)
 
   await rimraf('node_modules')
 
   await install(manifest, await testDefaults({ fastUnpack: false, frozenLockfile: true, onlyBuiltDependencies }))
 
-  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
-  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
-  expect(await exists('node_modules/install-script-example/generated-by-install.js')).toBeTruthy()
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeFalsy()
+  expect(await exists('node_modules/@pnpm.e2e/install-script-example/generated-by-install.js')).toBeTruthy()
 })
 
 test('lockfile is updated if neverBuiltDependencies is changed', async () => {
   const project = prepareEmpty()
   const manifest = await addDependenciesToPackage({},
-    ['pre-and-postinstall-scripts-example', 'install-script-example'],
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/install-script-example'],
     await testDefaults({ fastUnpack: false })
   )
 
   {
     const lockfile = await project.readLockfile()
     expect(lockfile.neverBuiltDependencies).toBeFalsy()
-    expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBeTruthy()
-    expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
   }
 
-  const neverBuiltDependencies = ['pre-and-postinstall-scripts-example']
+  const neverBuiltDependencies = ['@pnpm.e2e/pre-and-postinstall-scripts-example']
   await mutateModules([
     {
       buildIndex: 0,
@@ -516,23 +516,23 @@ test('lockfile is updated if neverBuiltDependencies is changed', async () => {
   {
     const lockfile = await project.readLockfile()
     expect(lockfile.neverBuiltDependencies).toStrictEqual(neverBuiltDependencies)
-    expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
-    expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
+    expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
   }
 })
 
 test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
   const project = prepareEmpty()
   const manifest = await addDependenciesToPackage({},
-    ['pre-and-postinstall-scripts-example', 'install-script-example'],
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/install-script-example'],
     await testDefaults({ fastUnpack: false })
   )
 
   {
     const lockfile = await project.readLockfile()
     expect(lockfile.onlyBuiltDependencies).toBeFalsy()
-    expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBeTruthy()
-    expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
   }
 
   const onlyBuiltDependencies: string[] = []
@@ -548,11 +548,11 @@ test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
   {
     const lockfile = await project.readLockfile()
     expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
-    expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
-    expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBe(undefined)
+    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
+    expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBe(undefined)
   }
 
-  onlyBuiltDependencies.push('pre-and-postinstall-scripts-example')
+  onlyBuiltDependencies.push('@pnpm.e2e/pre-and-postinstall-scripts-example')
   await mutateModules([
     {
       buildIndex: 0,
@@ -565,19 +565,19 @@ test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
   {
     const lockfile = await project.readLockfile()
     expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
-    expect(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(true)
-    expect(lockfile.packages['/install-script-example/1.0.0'].requiresBuild).toBe(undefined)
+    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(true)
+    expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBe(undefined)
   }
 })
 
 test('lifecycle scripts have access to package\'s own binary by binary name', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({},
-    ['runs-own-bin'],
+    ['@pnpm.e2e/runs-own-bin'],
     await testDefaults({ fastUnpack: false })
   )
 
-  await project.isExecutable('.pnpm/runs-own-bin@1.0.0/node_modules/runs-own-bin/node_modules/.bin/runs-own-bin')
+  await project.isExecutable('.pnpm/@pnpm.e2e+runs-own-bin@1.0.0/node_modules/@pnpm.e2e/runs-own-bin/node_modules/.bin/runs-own-bin')
 })
 
 test('lifecycle scripts run after linking root dependencies', async () => {
@@ -586,7 +586,7 @@ test('lifecycle scripts run after linking root dependencies', async () => {
   const manifest = {
     dependencies: {
       'is-positive': '1.0.0',
-      'postinstall-requires-is-positive': '1.0.0',
+      '@pnpm.e2e/postinstall-requires-is-positive': '1.0.0',
     },
   }
 
@@ -630,7 +630,7 @@ test('ignore-dep-scripts', async () => {
     },
     dependencies: {
       'json-append': '1.1.1',
-      'pre-and-postinstall-scripts-example': '1.0.0',
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
     },
   }
   await install(manifest, await testDefaults({ fastUnpack: false, ignoreDepScripts: true }))
@@ -641,7 +641,7 @@ test('ignore-dep-scripts', async () => {
     expect(output).toStrictEqual(['preinstall', 'install', 'postinstall'])
     expect(await exists('test.txt')).toBeTruthy()
 
-    expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+    expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   }
 
   await rimraf('node_modules')
@@ -653,6 +653,6 @@ test('ignore-dep-scripts', async () => {
     expect(output).toStrictEqual(['preinstall', 'install', 'postinstall'])
     expect(await exists('test.txt')).toBeTruthy()
 
-    expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
+    expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   }
 })

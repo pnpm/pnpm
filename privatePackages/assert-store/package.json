@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:*",
-    "@pnpm/registry-mock": "3.0.0-0",
+    "@pnpm/registry-mock": "3.0.0-2",
     "path-exists": "^4.0.0"
   },
   "devDependencies": {

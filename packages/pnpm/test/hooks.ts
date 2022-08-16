@@ -14,7 +14,7 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
         if (pkg.name === 'project') {
           context.log('good')
           pkg.dependencies = pkg.dependencies || {}
-          pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
+          pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.1.0'
         }
       return pkg
       }
@@ -55,7 +55,7 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
       function readPackage (pkg) {
         if (pkg.name === 'project-a') {
           pkg.dependencies = pkg.dependencies || {}
-          pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
+          pkg.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.1.0'
         }
         return pkg
       }

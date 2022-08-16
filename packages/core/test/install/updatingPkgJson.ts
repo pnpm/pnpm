@@ -50,100 +50,100 @@ test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async () => {
 })
 
 test('dependency should not be added to package.json if it is already there', async () => {
-  await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
 
   const project = prepareEmpty()
   const manifest = await addDependenciesToPackage({
     devDependencies: {
-      foo: '^100.0.0',
+      '@pnpm.e2e/foo': '^100.0.0',
     },
     optionalDependencies: {
-      bar: '^100.0.0',
+      '@pnpm.e2e/bar': '^100.0.0',
     },
-  }, ['foo', 'bar'], await testDefaults())
+  }, ['@pnpm.e2e/foo', '@pnpm.e2e/bar'], await testDefaults())
 
   expect(manifest).toStrictEqual({
     devDependencies: {
-      foo: '^100.0.0',
+      '@pnpm.e2e/foo': '^100.0.0',
     },
     optionalDependencies: {
-      bar: '^100.0.0',
+      '@pnpm.e2e/bar': '^100.0.0',
     },
   })
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.devDependencies.foo).toBe('100.0.0')
-  expect(lockfile.packages['/foo/100.0.0'].dev).toBeTruthy()
+  expect(lockfile.devDependencies['@pnpm.e2e/foo']).toBe('100.0.0')
+  expect(lockfile.packages['/@pnpm.e2e/foo/100.0.0'].dev).toBeTruthy()
 
-  expect(lockfile.optionalDependencies.bar).toBe('100.0.0')
-  expect(lockfile.packages['/bar/100.0.0'].optional).toBeTruthy()
+  expect(lockfile.optionalDependencies['@pnpm.e2e/bar']).toBe('100.0.0')
+  expect(lockfile.packages['/@pnpm.e2e/bar/100.0.0'].optional).toBeTruthy()
 })
 
 test('dependencies should be updated in the fields where they already are', async () => {
-  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
 
   prepareEmpty()
   const manifest = await addDependenciesToPackage({
     devDependencies: {
-      foo: '^100.0.0',
+      '@pnpm.e2e/foo': '^100.0.0',
     },
     optionalDependencies: {
-      bar: '^100.0.0',
+      '@pnpm.e2e/bar': '^100.0.0',
     },
-  }, ['foo@latest', 'bar@latest'], await testDefaults())
+  }, ['@pnpm.e2e/foo@latest', '@pnpm.e2e/bar@latest'], await testDefaults())
 
   expect(manifest).toStrictEqual({
     devDependencies: {
-      foo: '^100.1.0',
+      '@pnpm.e2e/foo': '^100.1.0',
     },
     optionalDependencies: {
-      bar: '^100.1.0',
+      '@pnpm.e2e/bar': '^100.1.0',
     },
   })
 })
 
 test('dependency should be removed from the old field when installing it as a different type of dependency', async () => {
-  await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'qar', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/qar', version: '100.0.0', distTag: 'latest' })
 
   const project = prepareEmpty()
   let manifest = await addDependenciesToPackage({
     dependencies: {
-      foo: '^100.0.0',
+      '@pnpm.e2e/foo': '^100.0.0',
     },
     devDependencies: {
-      bar: '^100.0.0',
+      '@pnpm.e2e/bar': '^100.0.0',
     },
     optionalDependencies: {
-      qar: '^100.0.0',
+      '@pnpm.e2e/qar': '^100.0.0',
     },
-  }, ['foo'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
-  manifest = await addDependenciesToPackage(manifest, ['bar'], await testDefaults({ targetDependenciesField: 'dependencies' }))
-  manifest = await addDependenciesToPackage(manifest, ['qar'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  }, ['@pnpm.e2e/foo'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['@pnpm.e2e/bar'], await testDefaults({ targetDependenciesField: 'dependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['@pnpm.e2e/qar'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
 
   expect(manifest).toStrictEqual({
     dependencies: {
-      bar: '^100.0.0',
+      '@pnpm.e2e/bar': '^100.0.0',
     },
     devDependencies: {
-      qar: '^100.0.0',
+      '@pnpm.e2e/qar': '^100.0.0',
     },
     optionalDependencies: {
-      foo: '^100.0.0',
+      '@pnpm.e2e/foo': '^100.0.0',
     },
   })
 
-  manifest = await addDependenciesToPackage(manifest, ['bar', 'foo', 'qar'], await testDefaults({ targetDependenciesField: 'dependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['@pnpm.e2e/bar', '@pnpm.e2e/foo', '@pnpm.e2e/qar'], await testDefaults({ targetDependenciesField: 'dependencies' }))
 
   expect(manifest).toStrictEqual({
     dependencies: {
-      bar: '^100.0.0',
-      foo: '^100.0.0',
-      qar: '^100.0.0',
+      '@pnpm.e2e/bar': '^100.0.0',
+      '@pnpm.e2e/foo': '^100.0.0',
+      '@pnpm.e2e/qar': '^100.0.0',
     },
     devDependencies: {},
     optionalDependencies: {},
@@ -151,10 +151,10 @@ test('dependency should be removed from the old field when installing it as a di
 
   {
     const lockfile = await project.readCurrentLockfile()
-    expect(Object.keys(lockfile.dependencies)).toStrictEqual(['bar', 'foo', 'qar'])
+    expect(Object.keys(lockfile.dependencies)).toStrictEqual(['@pnpm.e2e/bar', '@pnpm.e2e/foo', '@pnpm.e2e/qar'])
   }
 
-  console.log('manually editing package.json. Converting all prod deps to dev deps')
+  // manually editing package.json. Converting all prod deps to dev deps
 
   manifest.devDependencies = manifest.dependencies
   delete manifest.dependencies
@@ -163,7 +163,7 @@ test('dependency should be removed from the old field when installing it as a di
 
   {
     const lockfile = await project.readCurrentLockfile()
-    expect(Object.keys(lockfile.devDependencies)).toStrictEqual(['bar', 'foo', 'qar'])
+    expect(Object.keys(lockfile.devDependencies)).toStrictEqual(['@pnpm.e2e/bar', '@pnpm.e2e/foo', '@pnpm.e2e/qar'])
     expect(lockfile.dependencies).toBeFalsy()
   }
 })
@@ -185,15 +185,15 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
 
 test('save to package.json with save prefix ~', async () => {
   prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ pinnedVersion: 'minor' }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ pinnedVersion: 'minor' }))
 
-  expect(manifest.dependencies).toStrictEqual({ 'pkg-with-1-dep': '~100.0.0' })
+  expect(manifest.dependencies).toStrictEqual({ '@pnpm.e2e/pkg-with-1-dep': '~100.0.0' })
 })
 
 test('an update bumps the versions in the manifest', async () => {
-  await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
-  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'latest' })
 
   prepareEmpty()
 
@@ -202,13 +202,13 @@ test('an update bumps the versions in the manifest', async () => {
       buildIndex: 0,
       manifest: {
         dependencies: {
-          'peer-a': '~1.0.0',
+          '@pnpm.e2e/peer-a': '~1.0.0',
         },
         devDependencies: {
-          foo: '^100.0.0',
+          '@pnpm.e2e/foo': '^100.0.0',
         },
         optionalDependencies: {
-          'peer-c': '^1.0.1',
+          '@pnpm.e2e/peer-c': '^1.0.1',
         },
       },
       mutation: 'install',
@@ -221,13 +221,13 @@ test('an update bumps the versions in the manifest', async () => {
 
   expect(manifest).toStrictEqual({
     dependencies: {
-      'peer-a': '~1.0.1',
+      '@pnpm.e2e/peer-a': '~1.0.1',
     },
     devDependencies: {
-      foo: '^100.1.0',
+      '@pnpm.e2e/foo': '^100.1.0',
     },
     optionalDependencies: {
-      'peer-c': '^1.0.1',
+      '@pnpm.e2e/peer-c': '^1.0.1',
     },
   })
 })
