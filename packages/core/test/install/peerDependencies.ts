@@ -566,26 +566,6 @@ test('run pre/postinstall scripts of each variations of packages with peer depen
   await okFile(path.join(pkgVariation2, 'pkg-with-events-and-peers', 'generated-by-postinstall.js'))
 })
 
-test('package that resolves its own peer dependency', async () => {
-  // TODO: investigate how npm behaves in such situations
-  // should there be a warning printed?
-  // does it currently print a warning that peer dependency is not resolved?
-
-  await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
-  const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['pkg-with-resolved-peer', 'peer-c@2.0.0'], await testDefaults())
-
-  expect(deepRequireCwd(['pkg-with-resolved-peer', 'peer-c', './package.json']).version).toBe('1.0.0')
-
-  expect(await exists(path.resolve('node_modules/.pnpm/pkg-with-resolved-peer@1.0.0/node_modules/pkg-with-resolved-peer'))).toBeTruthy()
-
-  const lockfile = await project.readLockfile()
-
-  expect(lockfile.packages['/pkg-with-resolved-peer/1.0.0']).not.toHaveProperty(['peerDependencies'])
-  expect(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].dependencies).toHaveProperty(['peer-c'])
-  expect(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].optionalDependencies).toHaveProperty(['peer-b'])
-})
-
 test('package that has parent as peer dependency', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['has-alpha', 'alpha'], await testDefaults())
