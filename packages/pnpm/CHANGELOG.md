@@ -1,5 +1,11 @@
 # pnpm
 
+## 7.9.3
+
+### Patch Changes
+
+- Remove legacy signal handlers [#5224](https://github.com/pnpm/pnpm/pull/5224)
+
 ## 7.9.2
 
 ### Patch Changes
