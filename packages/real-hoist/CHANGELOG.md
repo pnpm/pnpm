@@ -1,5 +1,11 @@
 # @pnpm/real-hoist
 
+## 0.2.17
+
+### Patch Changes
+
+- 9faf0221d: Update Yarn dependencies.
+
 ## 0.2.16
 
 ### Patch Changes

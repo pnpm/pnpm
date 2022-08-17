@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 13.1.3
+
+### Patch Changes
+
+- dbac0ca01: Update ssri to v9.
+
 ## 13.1.2
 
 ### Patch Changes

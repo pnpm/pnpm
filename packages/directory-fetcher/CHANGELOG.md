@@ -1,5 +1,11 @@
 # @pnpm/directory-fetcher
 
+## 3.1.1
+
+### Patch Changes
+
+- 07bc24ad1: Update npm-packlist.
+
 ## 3.1.0
 
 ### Minor Changes

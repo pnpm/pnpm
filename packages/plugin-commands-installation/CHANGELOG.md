@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-installation
 
+## 10.5.6
+
+### Patch Changes
+
+- 9faf0221d: Update Yarn dependencies.
+- Updated dependencies [dbac0ca01]
+- Updated dependencies [9faf0221d]
+  - @pnpm/package-store@14.2.1
+  - @pnpm/core@5.10.1
+  - @pnpm/store-connection-manager@4.3.1
+  - @pnpm/plugin-commands-rebuild@6.1.32
+  - @pnpm/pnpmfile@2.2.1
+  - @pnpm/outdated@10.0.23
+  - @pnpm/config@15.9.2
+  - @pnpm/cli-utils@0.7.28
+  - @pnpm/find-workspace-packages@4.0.28
+  - @pnpm/filter-workspace-packages@5.0.28
+
 ## 10.5.5
 
 ### Patch Changes

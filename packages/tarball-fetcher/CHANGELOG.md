@@ -1,5 +1,12 @@
 # @pnpm/tarball-fetcher
 
+## 11.0.1
+
+### Patch Changes
+
+- dbac0ca01: Update ssri to v9.
+  - @pnpm/prepare-package@2.0.8
+
 ## 11.0.0
 
 ### Major Changes

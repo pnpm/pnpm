@@ -1,5 +1,18 @@
 # @pnpm/resolve-dependencies
 
+## 28.3.6
+
+### Patch Changes
+
+- dbac0ca01: Update @yarnpkg/core.
+- 9faf0221d: Update Yarn dependencies.
+- 054b4e062: Replace replace-string with string.prototype.replaceall.
+- 071aa1842: When the same package is both in "peerDependencies" and in "dependencies", treat this dependency as a peer dependency if it may be resolved from the dependencies of parent packages [#5210](https://github.com/pnpm/pnpm/pull/5210).
+- Updated dependencies [dbac0ca01]
+- Updated dependencies [07bc24ad1]
+  - @pnpm/npm-resolver@13.1.3
+  - @pnpm/read-package-json@6.0.8
+
 ## 28.3.5
 
 ### Patch Changes

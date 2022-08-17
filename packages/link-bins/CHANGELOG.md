@@ -1,5 +1,13 @@
 # @pnpm/link-bins
 
+## 7.2.5
+
+### Patch Changes
+
+- 07bc24ad1: Update bin-links.
+- Updated dependencies [07bc24ad1]
+  - @pnpm/read-package-json@6.0.8
+
 ## 7.2.4
 
 ### Patch Changes

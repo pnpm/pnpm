@@ -1,5 +1,29 @@
 # @pnpm/core
 
+## 5.10.1
+
+### Patch Changes
+
+- 9faf0221d: Update Yarn dependencies.
+- Updated dependencies [dbac0ca01]
+- Updated dependencies [07bc24ad1]
+- Updated dependencies [dbac0ca01]
+- Updated dependencies [07bc24ad1]
+- Updated dependencies [9faf0221d]
+- Updated dependencies [054b4e062]
+- Updated dependencies [071aa1842]
+  - @pnpm/package-requester@19.0.1
+  - @pnpm/link-bins@7.2.5
+  - @pnpm/resolve-dependencies@28.3.6
+  - @pnpm/read-package-json@6.0.8
+  - @pnpm/headless@18.6.3
+  - @pnpm/build-modules@9.3.6
+  - @pnpm/hoist@6.2.8
+  - @pnpm/lifecycle@13.1.7
+  - @pnpm/remove-bins@3.0.9
+  - @pnpm/modules-cleaner@12.0.20
+  - @pnpm/crypto.base32-hash@1.0.1
+
 ## 5.10.0
 
 ### Minor Changes

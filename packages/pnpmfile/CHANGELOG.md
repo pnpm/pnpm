@@ -1,5 +1,12 @@
 # @pnpm/pnpmfile
 
+## 2.2.1
+
+### Patch Changes
+
+- Updated dependencies [9faf0221d]
+  - @pnpm/core@5.10.1
+
 ## 2.2.0
 
 ### Minor Changes

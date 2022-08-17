@@ -1,5 +1,11 @@
 # @pnpm/git-fetcher
 
+## 5.2.1
+
+### Patch Changes
+
+- @pnpm/prepare-package@2.0.8
+
 ## 5.2.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/local-resolver
 
+## 8.0.11
+
+### Patch Changes
+
+- dbac0ca01: Update ssri to v9.
+
 ## 8.0.10
 
 ### Patch Changes

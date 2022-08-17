@@ -1,5 +1,22 @@
 # @pnpm/headless
 
+## 18.6.3
+
+### Patch Changes
+
+- Updated dependencies [dbac0ca01]
+- Updated dependencies [07bc24ad1]
+- Updated dependencies [07bc24ad1]
+- Updated dependencies [9faf0221d]
+  - @pnpm/package-requester@19.0.1
+  - @pnpm/link-bins@7.2.5
+  - @pnpm/read-package-json@6.0.8
+  - @pnpm/real-hoist@0.2.17
+  - @pnpm/build-modules@9.3.6
+  - @pnpm/hoist@6.2.8
+  - @pnpm/lifecycle@13.1.7
+  - @pnpm/modules-cleaner@12.0.20
+
 ## 18.6.2
 
 ### Patch Changes

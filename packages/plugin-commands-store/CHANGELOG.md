@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-store
 
+## 5.1.32
+
+### Patch Changes
+
+- Updated dependencies [dbac0ca01]
+  - @pnpm/cafs@4.2.1
+  - @pnpm/store-connection-manager@4.3.1
+  - @pnpm/config@15.9.2
+  - @pnpm/cli-utils@0.7.28
+
 ## 5.1.31
 
 ### Patch Changes

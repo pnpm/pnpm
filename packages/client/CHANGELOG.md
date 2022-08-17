@@ -1,5 +1,16 @@
 # @pnpm/client
 
+## 7.2.1
+
+### Patch Changes
+
+- Updated dependencies [dbac0ca01]
+- Updated dependencies [07bc24ad1]
+  - @pnpm/tarball-fetcher@11.0.1
+  - @pnpm/directory-fetcher@3.1.1
+  - @pnpm/git-fetcher@5.2.1
+  - @pnpm/default-resolver@15.0.15
+
 ## 7.2.0
 
 ### Minor Changes

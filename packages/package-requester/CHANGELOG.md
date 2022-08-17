@@ -1,5 +1,15 @@
 # @pnpm/package-requester
 
+## 19.0.1
+
+### Patch Changes
+
+- dbac0ca01: Update ssri to v9.
+- Updated dependencies [dbac0ca01]
+- Updated dependencies [07bc24ad1]
+  - @pnpm/cafs@4.2.1
+  - @pnpm/read-package-json@6.0.8
+
 ## 19.0.0
 
 ### Major Changes

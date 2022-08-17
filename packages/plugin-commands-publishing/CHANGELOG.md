@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-publishing
 
+## 5.1.17
+
+### Patch Changes
+
+- 07bc24ad1: Update npm-packlist.
+  - @pnpm/client@7.2.1
+  - @pnpm/lifecycle@13.1.7
+  - @pnpm/config@15.9.2
+  - @pnpm/cli-utils@0.7.28
+
 ## 5.1.16
 
 ### Patch Changes

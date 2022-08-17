@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "10.5.5",
+  "version": "10.5.6",
   "description": "Commands for installation",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

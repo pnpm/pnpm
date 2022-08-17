@@ -1,5 +1,15 @@
 # @pnpm/build-modules
 
+## 9.3.6
+
+### Patch Changes
+
+- Updated dependencies [07bc24ad1]
+- Updated dependencies [07bc24ad1]
+  - @pnpm/link-bins@7.2.5
+  - @pnpm/read-package-json@6.0.8
+  - @pnpm/lifecycle@13.1.7
+
 ## 9.3.5
 
 ### Patch Changes

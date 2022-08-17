@@ -1,5 +1,13 @@
 # pnpm
 
+## 7.9.2
+
+### Patch Changes
+
+- When the same package is both in "peerDependencies" and in "dependencies", treat this dependency as a peer dependency if it may be resolved from the dependencies of parent packages [#5210](https://github.com/pnpm/pnpm/pull/5210).
+- Update node-gyp to v9.
+- Update the [compatibility database](https://www.npmjs.com/package/@yarnpkg/extensions).
+
 ## 7.9.1
 
 ### Patch Changes

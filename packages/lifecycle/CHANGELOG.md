@@ -1,5 +1,14 @@
 # @pnpm/lifecycle
 
+## 13.1.7
+
+### Patch Changes
+
+- Updated dependencies [07bc24ad1]
+- Updated dependencies [07bc24ad1]
+  - @pnpm/read-package-json@6.0.8
+  - @pnpm/directory-fetcher@3.1.1
+
 ## 13.1.6
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-workspace-packages",
-  "version": "5.0.27",
+  "version": "5.0.28",
   "description": "Filters packages in a workspace",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-patching",
-  "version": "1.1.11",
+  "version": "1.1.12",
   "description": "Commands for creating patches",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

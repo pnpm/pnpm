@@ -1,5 +1,11 @@
 # @pnpm/cafs
 
+## 4.2.1
+
+### Patch Changes
+
+- dbac0ca01: Update ssri to v9.
+
 ## 4.2.0
 
 ### Minor Changes

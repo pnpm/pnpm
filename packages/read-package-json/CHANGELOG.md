@@ -1,5 +1,11 @@
 # @pnpm/read-package-json
 
+## 6.0.8
+
+### Patch Changes
+
+- 07bc24ad1: Update normalize-package-data.
+
 ## 6.0.7
 
 ### Patch Changes

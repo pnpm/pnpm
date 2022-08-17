@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "7.2.4",
+  "version": "7.2.5",
   "description": "Link bins to node_modules/.bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

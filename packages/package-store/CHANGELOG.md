@@ -1,5 +1,15 @@
 # @pnpm/package-store
 
+## 14.2.1
+
+### Patch Changes
+
+- dbac0ca01: Update ssri to v9.
+- Updated dependencies [dbac0ca01]
+  - @pnpm/cafs@4.2.1
+  - @pnpm/package-requester@19.0.1
+  - @pnpm/create-cafs-store@2.2.1
+
 ## 14.2.0
 
 ### Minor Changes
