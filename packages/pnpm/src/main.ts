@@ -1,5 +1,3 @@
-// Map SIGINT & SIGTERM to process exit
-// so that lockfiles are removed automatically
 import loudRejection from 'loud-rejection'
 import packageManager from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
@@ -23,10 +21,6 @@ import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
 import stripAnsi from 'strip-ansi'
 import which from 'which'
-
-process
-  .once('SIGINT', () => process.exit(0))
-  .once('SIGTERM', () => process.exit(0))
 
 loudRejection()
 
