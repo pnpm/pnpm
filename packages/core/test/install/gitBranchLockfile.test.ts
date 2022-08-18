@@ -206,6 +206,7 @@ test('install with --merge-git-branch-lockfiles when merged lockfile is up to da
   const opts = await testDefaults({
     useGitBranchLockfile: true,
     mergeGitBranchLockfiles: true,
+    frozenLockfile: true,
   })
   await install(projectManifest, opts)
 
