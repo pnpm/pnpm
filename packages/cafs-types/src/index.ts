@@ -57,6 +57,7 @@ export interface Cafs {
   addFilesFromDir: (dir: string, manifest?: DeferredManifestPromise) => Promise<FilesIndex>
   addFilesFromTarball: (stream: NodeJS.ReadableStream, manifest?: DeferredManifestPromise) => Promise<FilesIndex>
   getFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
+  getFilePathByModeInCafs: (integrity: string | IntegrityLike, mode: number) => string
   importPackage: ImportPackageFunction
   tempDir: () => Promise<string>
 }

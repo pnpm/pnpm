@@ -41,6 +41,7 @@ export default function createCafs (cafsDir: string, ignore?: ((filename: string
     addFilesFromDir: addFilesFromDir.bind(null, { addBuffer, addStream }),
     addFilesFromTarball: addFilesFromTarball.bind(null, addStream, ignore ?? null),
     getFilePathInCafs: getFilePathInCafs.bind(null, cafsDir),
+    getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, cafsDir),
   }
 }
 
