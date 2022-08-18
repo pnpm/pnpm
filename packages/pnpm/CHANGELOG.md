@@ -263,7 +263,7 @@
   }
   ```
 
-- **Experimental.** New settings added: `use-git-branch-lockfile`, `merge-git-branch-lockfiles`, `merge-git-branch-lockfiles-branch-pattern` [#4475](https://github.com/pnpm/pnpm/pull/4475).
+- **Experimental.** New settings added: `git-branch-lockfile`, `merge-git-branch-lockfiles`, `merge-git-branch-lockfiles-branch-pattern` [#4475](https://github.com/pnpm/pnpm/pull/4475).
 
 ### Patch Changes
 
