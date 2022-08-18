@@ -330,6 +330,18 @@ export async function mutateModules (
             pruneVirtualStore,
             wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
           })
+          if (opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles) {
+            await writeLockfiles({
+              currentLockfile: ctx.currentLockfile,
+              currentLockfileDir: ctx.virtualStoreDir,
+              wantedLockfile: ctx.wantedLockfile,
+              wantedLockfileDir: ctx.lockfileDir,
+              forceSharedFormat: opts.forceSharedLockfile,
+              useInlineSpecifiersFormat: opts.useInlineSpecifiersLockfileFormat,
+              useGitBranchLockfile: opts.useGitBranchLockfile,
+              mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+            })
+          }
           return projects
         } catch (error: any) { // eslint-disable-line
           if (
