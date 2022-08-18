@@ -1,5 +1,12 @@
 # @pnpm/pnpmfile
 
+## 2.2.2
+
+### Patch Changes
+
+- @pnpm/core@5.10.2
+- @pnpm/store-controller-types@14.1.1
+
 ## 2.2.1
 
 ### Patch Changes

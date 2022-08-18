@@ -1,5 +1,12 @@
 # @pnpm/assert-store
 
+## 1.0.46
+
+### Patch Changes
+
+- Updated dependencies [745143e79]
+  - @pnpm/cafs@4.3.0
+
 ## 1.0.45
 
 ### Patch Changes

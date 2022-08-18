@@ -1,5 +1,11 @@
 # pnpm
 
+## 7.9.4-0
+
+### Patch Changes
+
+- extend cafs with getFilePathByModeInCafs [#5232](https://github.com/pnpm/pnpm/pull/5232).
+
 ## 7.9.3
 
 ### Patch Changes

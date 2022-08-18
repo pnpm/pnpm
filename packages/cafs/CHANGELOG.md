@@ -1,5 +1,16 @@
 # @pnpm/cafs
 
+## 4.3.0
+
+### Minor Changes
+
+- 745143e79: Extend cafs with `getFilePathByModeInCafs`.
+
+### Patch Changes
+
+- @pnpm/fetcher-base@13.1.0
+- @pnpm/store-controller-types@14.1.1
+
 ## 4.2.1
 
 ### Patch Changes

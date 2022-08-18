@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 18.6.4
+
+### Patch Changes
+
+- @pnpm/package-requester@19.0.2
+- @pnpm/store-controller-types@14.1.1
+- @pnpm/link-bins@7.2.5
+
 ## 18.6.3
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/core
 
+## 5.10.2
+
+### Patch Changes
+
+- @pnpm/package-requester@19.0.2
+- @pnpm/store-controller-types@14.1.1
+- @pnpm/headless@18.6.4
+- @pnpm/crypto.base32-hash@1.0.1
+- @pnpm/link-bins@7.2.5
+
 ## 5.10.1
 
 ### Patch Changes
