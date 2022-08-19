@@ -55,10 +55,12 @@ export {
 // of one package/version
 const META_DIR = 'metadata'
 const FULL_META_DIR = 'metadata-full'
+const FULL_FILTERED_META_DIR = 'metadata-full-filtered'
 
 export interface ResolverFactoryOptions {
   cacheDir: string
   fullMetadata?: boolean
+  filterMetadata?: boolean
   offline?: boolean
   preferOffline?: boolean
   retry?: RetryTimeoutOptions
@@ -90,8 +92,9 @@ export default function createResolver (
     getAuthHeaderValueByURI,
     pickPackage: pickPackage.bind(null, {
       fetch,
+      filterMetadata: opts.filterMetadata,
       metaCache,
-      metaDir: opts.fullMetadata ? FULL_META_DIR : META_DIR,
+      metaDir: opts.fullMetadata ? (opts.filterMetadata ? FULL_FILTERED_META_DIR : FULL_META_DIR) : META_DIR,
       offline: opts.offline,
       preferOffline: opts.preferOffline,
       cacheDir: opts.cacheDir,
@@ -102,6 +105,7 @@ export default function createResolver (
 export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
+  publishedBy?: Date
   dryRun?: boolean
   lockfileDir?: string
   registry: string
@@ -147,6 +151,7 @@ async function resolveNpm (
   let pickResult!: {meta: PackageMeta, pickedPackage: PackageInRegistry | null}
   try {
     pickResult = await ctx.pickPackage(spec, {
+      publishedBy: opts.publishedBy,
       authHeaderValue,
       dryRun: opts.dryRun === true,
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
@@ -214,6 +219,7 @@ async function resolveNpm (
     normalizedPref: spec.normalizedPref,
     resolution,
     resolvedVia: 'npm-registry',
+    timeString: meta.time?.[pickedPackage.version],
   }
 }
 

@@ -7,7 +7,8 @@ import { PackageInRegistry, PackageMeta } from './pickPackage'
 export default function (
   spec: RegistryPackageSpec,
   preferredVersionSelectors: VersionSelectors | undefined,
-  meta: PackageMeta
+  meta: PackageMeta,
+  publishedBy?: Date
 ): PackageInRegistry | null {
   try {
     let version!: string | null
@@ -19,7 +20,7 @@ export default function (
       version = meta['dist-tags'][spec.fetchSpec]
       break
     case 'range':
-      version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelectors)
+      version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelectors, publishedBy)
       break
     }
     if (!version) return null
@@ -44,10 +45,11 @@ export default function (
 function pickVersionByVersionRange (
   meta: PackageMeta,
   versionRange: string,
-  preferredVerSels?: VersionSelectors
-): string | null {
+  preferredVerSels?: VersionSelectors,
+  publishedBy?: Date
+) {
   let versions: string[] | undefined
-  const latest = meta['dist-tags'].latest
+  let latest: string | undefined = meta['dist-tags'].latest
 
   const preferredVerSelsArr = Object.entries(preferredVerSels ?? {})
   if (preferredVerSelsArr.length > 0) {
@@ -89,12 +91,18 @@ function pickVersionByVersionRange (
     }
   }
 
-  // Not using semver.satisfies in case of * because it does not select beta versions.
-  // E.g.: 1.0.0-beta.1. See issue: https://github.com/pnpm/pnpm/issues/865
-  if (versionRange === '*' || semver.satisfies(latest, versionRange, true)) {
+  versions = versions ?? Object.keys(meta.versions)
+  if (publishedBy) {
+    versions = versions.filter(version => new Date(meta.time![version]) <= publishedBy)
+    if (!versions.includes(latest)) {
+      latest = undefined
+    }
+  }
+  if (latest && (versionRange === '*' || semver.satisfies(latest, versionRange, true))) {
+    // Not using semver.satisfies in case of * because it does not select beta versions.
+    // E.g.: 1.0.0-beta.1. See issue: https://github.com/pnpm/pnpm/issues/865
     return latest
   }
-  versions = versions ?? Object.keys(meta.versions)
 
   const maxVersion = semver.maxSatisfying(versions, versionRange, true)
 

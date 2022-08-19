@@ -57,8 +57,8 @@ importers:
         specifier: 0.0.6
         version: 0.0.6
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       '@pnpm/tsconfig':
         specifier: workspace:*
         version: link:utils/tsconfig
@@ -730,8 +730,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
@@ -1665,8 +1665,8 @@ importers:
         specifier: workspace:*
         version: link:../read-projects-context
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
@@ -2483,6 +2483,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
       '@zkochan/retry':
         specifier: ^0.2.0
         version: 0.2.0
@@ -2510,6 +2513,9 @@ importers:
       path-temp:
         specifier: ^2.0.0
         version: 2.0.0
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
       rename-overwrite:
         specifier: ^4.0.2
         version: 4.0.2
@@ -2753,8 +2759,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../privatePackages/test-fixtures
@@ -3052,8 +3058,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
 
   packages/plugin-commands-env:
     dependencies:
@@ -3319,8 +3325,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../privatePackages/test-fixtures
@@ -3419,8 +3425,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -3516,8 +3522,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -3580,8 +3586,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -3680,8 +3686,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       '@types/cross-spawn':
         specifier: ^6.0.2
         version: 6.0.2
@@ -3834,8 +3840,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../privatePackages/test-fixtures
@@ -3940,8 +3946,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       '@types/is-windows':
         specifier: ^1.0.0
         version: 1.0.0
@@ -4129,8 +4135,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       '@types/archy':
         specifier: 0.0.32
         version: 0.0.32
@@ -4274,8 +4280,8 @@ importers:
         specifier: workspace:*
         version: link:../read-project-manifest
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../run-npm
@@ -5180,8 +5186,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/modules-yaml
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5220,8 +5226,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/cafs
       '@pnpm/registry-mock':
-        specifier: 3.0.0-2
-        version: 3.0.0-2
+        specifier: 3.0.0-3
+        version: 3.0.0-3
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -6960,8 +6966,8 @@ packages:
       strip-bom: 4.0.0
     dev: true
 
-  /@pnpm/registry-mock/3.0.0-2:
-    resolution: {integrity: sha512-3VRguPTpLr2rJd6N30RFKMyOP0oU5DFs3tWRHAdrBLZOqNz8HNpDSfturuwLbTasSZtwHQiAAa0RlhwFaM+KvQ==}
+  /@pnpm/registry-mock/3.0.0-3:
+    resolution: {integrity: sha512-Go58qv+MvnuQR5OnHHFj8E76NSfoLq8XmW22roVOXSJWeN20g3+vmW+IRcmYKHB5eNfdKK45TRLtLOhVEbKFAw==}
     engines: {node: '>=10.13'}
     hasBin: true
     dependencies:
@@ -7319,7 +7325,6 @@ packages:
     resolution: {integrity: sha512-FCaLNVZry65jW8x/FDnKgjgkCNQxgc5AYMQwdNn6yW5M+62R+0nt2Y36U43dTNora9hcquemfrY5gxhE5pcilQ==}
     dependencies:
       ts-toolbelt: 6.15.5
-    dev: true
 
   /@types/responselike/1.0.0:
     resolution: {integrity: sha512-85Y2BjiufFzaMIlvJDvTTB8Fxl2xfLo4HgmHzVBz08w4wDePCTjYw66PdrolO0kzli3yam/YCgRufyo1DdQVTA==}
@@ -15214,7 +15219,6 @@ packages:
 
   /ts-toolbelt/6.15.5:
     resolution: {integrity: sha512-FZIXf1ksVyLcfr7M317jbB67XFJhOO1YqdTcuGaq9q5jLUoTikukZ+98TPjKiP2jC5CgmYdWWYs0s2nLSU0/1A==}
-    dev: true
 
   /tsconfig-paths/3.14.1:
     resolution: {integrity: sha512-fxDhWnFSLt3VuTwtvJt5fpwxBHg5AdKWMsgcPOOIilyjymcYVZoCQF8fvFRezCNfblEXmi+PcM1eYHeOAgXCOQ==}
@@ -15819,7 +15823,7 @@ packages:
   /wide-align/1.1.5:
     resolution: {integrity: sha512-eDMORYaPNZ4sQIuuYPDHdQvf4gyCF9rEEV/yPxGfwPkRodwEgiMUUXTx/dex+Me0wxx53S+NgUHaP7y3MGlDmg==}
     dependencies:
-      string-width: 4.2.3
+      string-width: 1.0.2
 
   /widest-line/3.1.0:
     resolution: {integrity: sha512-NsmoXalsWVDMGupxZ5R08ka9flZjjiLvHVAWYOKtiKM8ujtZWr9cRffak+uSE48+Ob8ObalXpwyeUiyDD6QFgg==}

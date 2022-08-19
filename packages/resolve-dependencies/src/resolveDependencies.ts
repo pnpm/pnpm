@@ -149,6 +149,7 @@ export interface ResolutionContext {
   nodeVersion: string
   pnpmVersion: string
   registries: Registries
+  resolutionMode?: 'highest' | 'time-based'
   virtualStoreDir: string
   updateMatching?: (pkgName: string) => boolean
   workspacePackages?: WorkspacePackages
@@ -174,6 +175,7 @@ export type PkgAddress = {
   rootDir: string
   missingPeers: MissingPeers
   resolvedPeers: ResolvedPeers
+  timeString?: string
 } & ({
   isLinkedDependency: true
   version: string
@@ -229,6 +231,7 @@ interface ResolvedDependenciesOptions {
   // via this option
   preferredDependencies?: ResolvedDependencies
   proceed: boolean
+  publishedBy?: Date
   resolvedDependencies?: ResolvedDependencies
   updateDepth: number
   prefix: string
@@ -237,6 +240,7 @@ interface ResolvedDependenciesOptions {
 interface PostponedResolutionOpts {
   preferredVersions: PreferredVersions
   parentPkgAliases: ParentPkgAliases
+  publishedBy?: Date
 }
 
 type PostponedResolutionFunction = (opts: PostponedResolutionOpts) => Promise<{
@@ -244,12 +248,17 @@ type PostponedResolutionFunction = (opts: PostponedResolutionOpts) => Promise<{
   resolvedPeers: ResolvedPeers
 }>
 
+interface ResolvedRootDependenciesResult {
+  pkgAddressesByImporters: Array<Array<PkgAddress | LinkedDependency>>
+  time?: Record<string, string>
+}
+
 export async function resolveRootDependencies (
   ctx: ResolutionContext,
   importers: ImporterToResolve[]
-): Promise<Array<Array<PkgAddress | LinkedDependency>>> {
-  const pkgAddressesByImportersWithoutPeers = await resolveDependenciesOfImporters(ctx, importers)
-  return Promise.all(zipWith(async (importerResolutionResult, { parentPkgAliases, preferredVersions, options }) => {
+): Promise<ResolvedRootDependenciesResult> {
+  const { pkgAddressesByImportersWithoutPeers, publishedBy, time } = await resolveDependenciesOfImporters(ctx, importers)
+  const pkgAddressesByImporters = await Promise.all(zipWith(async (importerResolutionResult, { parentPkgAliases, preferredVersions, options }) => {
     const pkgAddresses = importerResolutionResult.pkgAddresses
     if (!ctx.autoInstallPeers) return pkgAddresses
     while (true) {
@@ -273,11 +282,13 @@ export async function resolveRootDependencies (
       importerResolutionResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
         ...options,
         parentPkgAliases,
+        publishedBy,
       })
       pkgAddresses.push(...importerResolutionResult.pkgAddresses)
     }
     return pkgAddresses
   }, pkgAddressesByImportersWithoutPeers, importers))
+  return { pkgAddressesByImporters, time }
 }
 
 interface ResolvedDependenciesResult {
@@ -290,13 +301,19 @@ export interface ImporterToResolve {
   preferredVersions: PreferredVersions
   parentPkgAliases: ParentPkgAliases
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>
-  options: Omit<ResolvedDependenciesOptions, 'parentPkgAliases'>
+  options: Omit<ResolvedDependenciesOptions, 'parentPkgAliases' | 'publishedBy'>
+}
+
+interface ResolveDependenciesOfImportersResult {
+  pkgAddressesByImportersWithoutPeers: ResolvedDependenciesResult[]
+  publishedBy?: Date
+  time?: Record<string, string>
 }
 
 async function resolveDependenciesOfImporters (
   ctx: ResolutionContext,
   importers: ImporterToResolve[]
-): Promise<ResolvedDependenciesResult[]> {
+): Promise<ResolveDependenciesOfImportersResult> {
   const extendedWantedDepsByImporters = importers.map(({ wantedDependencies, options }) => getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
     preferredDependencies: options.preferredDependencies,
     prefix: options.prefix,
@@ -326,7 +343,14 @@ async function resolveDependenciesOfImporters (
       return { pkgAddresses, postponedResolutionsQueue }
     }, extendedWantedDepsByImporters, importers)
   )
-  return Promise.all(zipWith(async (importer, { pkgAddresses, postponedResolutionsQueue }) => {
+  let publishedBy: Date | undefined
+  let time: Record<string, string> | undefined
+  if (ctx.resolutionMode === 'time-based') {
+    const result = getPublishedByDate(resolveResults.map(({ pkgAddresses }) => pkgAddresses).flat(), ctx.wantedLockfile.time)
+    publishedBy = result.publishedBy
+    time = result.newTime
+  }
+  const pkgAddressesByImportersWithoutPeers = await Promise.all(zipWith(async (importer, { pkgAddresses, postponedResolutionsQueue }) => {
     const newPreferredVersions = { ...importer.preferredVersions }
     const newParentPkgAliases = { ...importer.parentPkgAliases }
     for (const pkgAddress of pkgAddresses) {
@@ -346,6 +370,7 @@ async function resolveDependenciesOfImporters (
     const postponedResolutionOpts = {
       preferredVersions: newPreferredVersions,
       parentPkgAliases: newParentPkgAliases,
+      publishedBy,
     }
     const childrenResults = await Promise.all(
       postponedResolutionsQueue.map((postponedResolution) => postponedResolution(postponedResolutionOpts))
@@ -369,6 +394,26 @@ async function resolveDependenciesOfImporters (
       resolvedPeers: [...pkgAddresses, ...childrenResults].reduce((acc, { resolvedPeers }) => Object.assign(acc, resolvedPeers), {}),
     }
   }, importers, resolveResults))
+  return {
+    pkgAddressesByImportersWithoutPeers,
+    publishedBy,
+    time,
+  }
+}
+
+function getPublishedByDate (pkgAddresses: PkgAddress[], timeFromLockfile: Record<string, string> = {}): { publishedBy: Date, newTime: Record<string, string> } {
+  const newTime: Record<string, string> = {}
+  for (const pkgAddress of pkgAddresses) {
+    if (pkgAddress.timeString) {
+      newTime[pkgAddress.depPath] = pkgAddress.timeString
+    } else if (timeFromLockfile[pkgAddress.depPath]) {
+      newTime[pkgAddress.depPath] = timeFromLockfile[pkgAddress.depPath]
+    }
+  }
+  const sortedDates = Object.values(newTime)
+    .map((timeString: string) => new Date(timeString))
+    .sort((d1, d2) => d1.getTime() - d2.getTime())
+  return { publishedBy: sortedDates[sortedDates.length - 1], newTime }
 }
 
 export async function resolveDependencies (
@@ -420,6 +465,7 @@ export async function resolveDependencies (
   const postponedResolutionOpts = {
     preferredVersions: newPreferredVersions,
     parentPkgAliases: newParentPkgAliases,
+    publishedBy: options.publishedBy,
   }
   const childrenResults = await Promise.all(
     postponedResolutionsQueue.map((postponedResolution) => postponedResolution(postponedResolutionOpts))
@@ -509,6 +555,7 @@ async function resolveDependenciesOfDependency (
     currentPkg: extendedWantedDep.infoFromLockfile ?? undefined,
     prefix: options.prefix,
     proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
+    publishedBy: options.publishedBy,
     update,
     updateDepth,
   }
@@ -560,9 +607,11 @@ async function resolveChildren (
   {
     parentPkgAliases,
     preferredVersions,
+    publishedBy,
   }: {
     parentPkgAliases: ParentPkgAliases
     preferredVersions: PreferredVersions
+    publishedBy?: Date
   }
 ) {
   const currentResolvedDependencies = (dependencyLockfile != null)
@@ -596,6 +645,7 @@ async function resolveChildren (
       // If the package is not linked, we should also gather information about its dependencies.
       // After linking the package we'll need to symlink its dependencies.
       proceed: !parentPkg.depIsLinked || parentDependsOnPeer,
+      publishedBy,
       resolvedDependencies,
       updateDepth,
     }
@@ -796,6 +846,7 @@ interface ResolveDependencyOptions {
   preferredVersions: PreferredVersions
   prefix: string
   proceed: boolean
+  publishedBy?: Date
   update: boolean
   updateDepth: number
 }
@@ -851,6 +902,7 @@ async function resolveDependency (
         : undefined,
       expectedPkg: currentPkg,
       defaultTag: ctx.defaultTag,
+      publishedBy: options.publishedBy,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
       preferredVersions: options.preferredVersions,
@@ -1107,6 +1159,7 @@ async function resolveDependency (
     isLinkedDependency: undefined,
     pkg,
     updated: pkgResponse.body.updated,
+    timeString: pkgResponse.body.timeString,
   }
 }
 

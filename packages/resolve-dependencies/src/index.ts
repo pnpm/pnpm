@@ -101,6 +101,7 @@ export default async function (
     resolvedPackagesByDepPath,
     wantedToBeSkippedPackageIds,
     appliedPatches,
+    time,
   } = await resolveDependencyTree(projectsToResolve, opts)
 
   // We only check whether patches were applied in cases when the whole lockfile was reanalyzed.
@@ -221,6 +222,9 @@ export default async function (
     registries: opts.registries,
     lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
   })
+  if (time) {
+    newLockfile.time = time
+  }
 
   if (opts.forceFullResolution && opts.wantedLockfile != null) {
     for (const [depPath, pkg] of Object.entries(dependenciesGraph)) {

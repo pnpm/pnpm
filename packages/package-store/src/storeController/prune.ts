@@ -18,6 +18,7 @@ export default async function prune ({ cacheDir, storeDir }: PruneOptions) {
   await Promise.all([
     rimraf(path.join(cacheDir, 'metadata')),
     rimraf(path.join(cacheDir, 'metadata-full')),
+    rimraf(path.join(cacheDir, 'metadata-full-filtered')),
   ])
   await rimraf(path.join(storeDir, 'tmp'))
   globalInfo('Removed all cached metadata files')
