@@ -44,7 +44,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
-    "@pnpm/registry-mock": "3.0.0-0",
+    "@pnpm/registry-mock": "3.0.0-2",
     "@pnpm/types": "workspace:*",
     "is-windows": "^1.0.2",
     "isexe": "2.0.0",

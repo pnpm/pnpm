@@ -11,7 +11,7 @@ test('pnpm recursive run finds bins from the root of the workspace', async () =>
       package: {
         dependencies: {
           'json-append': '1',
-          'print-version': '2',
+          '@pnpm.e2e/print-version': '2',
         },
       },
     },
@@ -20,7 +20,7 @@ test('pnpm recursive run finds bins from the root of the workspace', async () =>
       version: '1.0.0',
 
       dependencies: {
-        'print-version': '1',
+        '@pnpm.e2e/print-version': '1',
       },
       scripts: {
         build: 'node -e "process.stdout.write(\'project-build\')" | json-append ../build-output.json',
@@ -32,7 +32,7 @@ test('pnpm recursive run finds bins from the root of the workspace', async () =>
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm(['recursive', 'install'])
+  await execPnpm(['-r', 'install'])
 
   expect(
     JSON.parse(await fs.readFile(path.resolve('postinstall-output.json'), 'utf8'))
@@ -40,7 +40,7 @@ test('pnpm recursive run finds bins from the root of the workspace', async () =>
     ['project-postinstall']
   )
 
-  await execPnpm(['recursive', 'run', 'build'])
+  await execPnpm(['-r', 'run', 'build'])
 
   expect(
     JSON.parse(await fs.readFile(path.resolve('build-output.json'), 'utf8'))

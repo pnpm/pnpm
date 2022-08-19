@@ -51,18 +51,18 @@ test('pnpm outdated: show details', async () => {
 
   expect(exitCode).toBe(1)
   expect(stripAnsi(output)).toBe(`\
-┌───────────────────┬─────────┬────────────┬─────────────────────────────────────────────┐
-│ Package           │ Current │ Latest     │ Details                                     │
-├───────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
-│ deprecated        │ 1.0.0   │ Deprecated │ This package is deprecated. Lorem ipsum     │
-│                   │         │            │ dolor sit amet, consectetur adipiscing      │
-│                   │         │            │ elit.                                       │
-│                   │         │            │ https://foo.bar/qar                         │
-├───────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
-│ is-negative       │ 1.0.0   │ 2.1.0      │ https://github.com/kevva/is-negative#readme │
-├───────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
-│ is-positive (dev) │ 1.0.0   │ 3.1.0      │ https://github.com/kevva/is-positive#readme │
-└───────────────────┴─────────┴────────────┴─────────────────────────────────────────────┘
+┌──────────────────────┬─────────┬────────────┬─────────────────────────────────────────────┐
+│ Package              │ Current │ Latest     │ Details                                     │
+├──────────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
+│ @pnpm.e2e/deprecated │ 1.0.0   │ Deprecated │ This package is deprecated. Lorem ipsum     │
+│                      │         │            │ dolor sit amet, consectetur adipiscing      │
+│                      │         │            │ elit.                                       │
+│                      │         │            │ https://foo.bar/qar                         │
+├──────────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
+│ is-negative          │ 1.0.0   │ 2.1.0      │ https://github.com/kevva/is-negative#readme │
+├──────────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
+│ is-positive (dev)    │ 1.0.0   │ 3.1.0      │ https://github.com/kevva/is-positive#readme │
+└──────────────────────┴─────────┴────────────┴─────────────────────────────────────────────┘
 `)
 })
 
@@ -126,13 +126,13 @@ test('pnpm outdated: showing only prod or dev dependencies', async () => {
 
     expect(exitCode).toBe(1)
     expect(stripAnsi(output)).toBe(`\
-┌─────────────┬─────────┬────────────┐
-│ Package     │ Current │ Latest     │
-├─────────────┼─────────┼────────────┤
-│ deprecated  │ 1.0.0   │ Deprecated │
-├─────────────┼─────────┼────────────┤
-│ is-negative │ 1.0.0   │ 2.1.0      │
-└─────────────┴─────────┴────────────┘
+┌──────────────────────┬─────────┬────────────┐
+│ Package              │ Current │ Latest     │
+├──────────────────────┼─────────┼────────────┤
+│ @pnpm.e2e/deprecated │ 1.0.0   │ Deprecated │
+├──────────────────────┼─────────┼────────────┤
+│ is-negative          │ 1.0.0   │ 2.1.0      │
+└──────────────────────┴─────────┴────────────┘
 `)
   }
 })
@@ -152,7 +152,7 @@ test('pnpm outdated: no table', async () => {
     })
 
     expect(exitCode).toBe(1)
-    expect(stripAnsi(output)).toBe(`deprecated
+    expect(stripAnsi(output)).toBe(`@pnpm.e2e/deprecated
 1.0.0 => Deprecated
 
 is-negative
@@ -172,7 +172,7 @@ is-positive (dev)
     })
 
     expect(exitCode).toBe(1)
-    expect(stripAnsi(output)).toBe(`deprecated
+    expect(stripAnsi(output)).toBe(`@pnpm.e2e/deprecated
 1.0.0 => Deprecated
 This package is deprecated. Lorem ipsum
 dolor sit amet, consectetur adipiscing
@@ -204,15 +204,15 @@ test('pnpm outdated: only current lockfile is available', async () => {
 
   expect(exitCode).toBe(1)
   expect(stripAnsi(output)).toBe(`\
-┌───────────────────┬─────────┬────────────┐
-│ Package           │ Current │ Latest     │
-├───────────────────┼─────────┼────────────┤
-│ deprecated        │ 1.0.0   │ Deprecated │
-├───────────────────┼─────────┼────────────┤
-│ is-negative       │ 1.0.0   │ 2.1.0      │
-├───────────────────┼─────────┼────────────┤
-│ is-positive (dev) │ 1.0.0   │ 3.1.0      │
-└───────────────────┴─────────┴────────────┘
+┌──────────────────────┬─────────┬────────────┐
+│ Package              │ Current │ Latest     │
+├──────────────────────┼─────────┼────────────┤
+│ @pnpm.e2e/deprecated │ 1.0.0   │ Deprecated │
+├──────────────────────┼─────────┼────────────┤
+│ is-negative          │ 1.0.0   │ 2.1.0      │
+├──────────────────────┼─────────┼────────────┤
+│ is-positive (dev)    │ 1.0.0   │ 3.1.0      │
+└──────────────────────┴─────────┴────────────┘
 `)
 })
 
@@ -229,15 +229,15 @@ test('pnpm outdated: only wanted lockfile is available', async () => {
 
   expect(exitCode).toBe(1)
   expect(stripAnsi(output)).toBe(`\
-┌───────────────────┬────────────────────────┬────────────┐
-│ Package           │ Current                │ Latest     │
-├───────────────────┼────────────────────────┼────────────┤
-│ deprecated        │ missing (wanted 1.0.0) │ Deprecated │
-├───────────────────┼────────────────────────┼────────────┤
-│ is-positive (dev) │ missing (wanted 3.1.0) │ 3.1.0      │
-├───────────────────┼────────────────────────┼────────────┤
-│ is-negative       │ missing (wanted 1.1.0) │ 2.1.0      │
-└───────────────────┴────────────────────────┴────────────┘
+┌──────────────────────┬────────────────────────┬────────────┐
+│ Package              │ Current                │ Latest     │
+├──────────────────────┼────────────────────────┼────────────┤
+│ @pnpm.e2e/deprecated │ missing (wanted 1.0.0) │ Deprecated │
+├──────────────────────┼────────────────────────┼────────────┤
+│ is-negative          │ missing (wanted 2.1.0) │ 2.1.0      │
+├──────────────────────┼────────────────────────┼────────────┤
+│ is-positive (dev)    │ missing (wanted 3.1.0) │ 3.1.0      │
+└──────────────────────┴────────────────────────┴────────────┘
 `)
 })
 

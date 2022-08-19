@@ -34,7 +34,7 @@ test('dlx should work when the package name differs from the bin name', async ()
     ...DEFAULT_OPTS,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
-  }, ['touch-file-one-bin'])
+  }, ['@pnpm.e2e/touch-file-one-bin'])
 
   expect(fs.existsSync('touch.txt')).toBeTruthy()
 })
@@ -47,8 +47,8 @@ test('dlx should fail when the installed package has many commands and none equa
       ...DEFAULT_OPTS,
       dir: path.resolve('project'),
       storeDir: path.resolve('store'),
-    }, ['touch-file-many-bins'])
-  ).rejects.toThrow('Could not determine executable to run. touch-file-many-bins has multiple binaries: t, tt')
+    }, ['@pnpm.e2e/touch-file-many-bins'])
+  ).rejects.toThrow('Could not determine executable to run. @pnpm.e2e/touch-file-many-bins has multiple binaries: t, tt')
 })
 
 test('dlx should not fail when the installed package has many commands and one equals the package name', async () => {
@@ -58,7 +58,7 @@ test('dlx should not fail when the installed package has many commands and one e
     ...DEFAULT_OPTS,
     dir: path.resolve('project'),
     storeDir: path.resolve('store'),
-  }, ['touch-file-good-bin-name'])
+  }, ['@pnpm.e2e/touch-file-good-bin-name'])
 
   expect(fs.existsSync('touch.txt')).toBeTruthy()
 })

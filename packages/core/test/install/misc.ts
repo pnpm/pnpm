@@ -173,26 +173,26 @@ test('modules without version spec, with custom tag config', async () => {
 
   const tag = 'beta'
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: tag })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: tag })
 
-  await addDependenciesToPackage({}, ['dep-of-pkg-with-1-dep'], await testDefaults({ tag }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/dep-of-pkg-with-1-dep'], await testDefaults({ tag }))
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })
 
 test('modules without version spec but with a trailing @', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['dep-of-pkg-with-1-dep@'], await testDefaults())
+  await addDependenciesToPackage({}, ['@pnpm.e2e/dep-of-pkg-with-1-dep@'], await testDefaults())
 
-  await project.has('dep-of-pkg-with-1-dep')
+  await project.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
 })
 
 test('aliased modules without version spec but with a trailing @', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['foo@npm:dep-of-pkg-with-1-dep@'], await testDefaults())
+  await addDependenciesToPackage({}, ['foo@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@'], await testDefaults())
 
   await project.has('foo')
 })
@@ -200,32 +200,32 @@ test('aliased modules without version spec but with a trailing @', async () => {
 test('installing a package by specifying a specific dist-tag', async () => {
   const project = prepareEmpty()
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'beta' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'beta' })
 
-  await addDependenciesToPackage({}, ['dep-of-pkg-with-1-dep@beta'], await testDefaults())
+  await addDependenciesToPackage({}, ['@pnpm.e2e/dep-of-pkg-with-1-dep@beta'], await testDefaults())
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })
 
 test('update a package when installing with a dist-tag', async () => {
   const project = prepareEmpty()
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'beta' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'beta' })
 
-  const manifest = await addDependenciesToPackage({}, ['dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
 
   const reporter = sinon.spy()
 
-  await addDependenciesToPackage(manifest, ['dep-of-pkg-with-1-dep@beta'], await testDefaults({ targetDependenciesField: 'devDependencies', reporter }))
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/dep-of-pkg-with-1-dep@beta'], await testDefaults({ targetDependenciesField: 'devDependencies', reporter }))
 
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:root',
     removed: {
       dependencyType: 'dev',
-      name: 'dep-of-pkg-with-1-dep',
+      name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
       version: '100.0.0',
     },
   } as RootLog)).toBeTruthy()
@@ -233,17 +233,17 @@ test('update a package when installing with a dist-tag', async () => {
   expect(reporter.calledWithMatch({
     added: {
       dependencyType: 'dev',
-      name: 'dep-of-pkg-with-1-dep',
+      name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
       version: '100.1.0',
     },
     level: 'debug',
     name: 'pnpm:root',
   } as RootLog)).toBeTruthy()
 
-  await project.has('dep-of-pkg-with-1-dep')
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
+  await project.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
 
-  expect(manifest.devDependencies!['dep-of-pkg-with-1-dep']).toBe('^100.1.0')
+  expect(manifest.devDependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^100.1.0')
 })
 
 test('scoped modules with versions', async () => {
@@ -263,16 +263,16 @@ test('multiple scoped modules (@rstacruz/...)', async () => {
 
 test('installing a beta version of a package', async () => {
   prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['beta-version'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/beta-version'], await testDefaults())
 
-  expect(manifest.dependencies?.['beta-version']).toBe('1.0.0-beta.0')
+  expect(manifest.dependencies?.['@pnpm.e2e/beta-version']).toBe('1.0.0-beta.0')
 })
 
 test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['test-pnpm-issue219@1.0.2'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/test-pnpm-issue219@1.0.3'], await testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('test-pnpm-issue219')
+  const m = project.requireModule('@pnpm.e2e/test-pnpm-issue219')
   expect(m).toBe('test-pnpm-issue219,@zkochan/test-pnpm-issue219')
 })
 
@@ -281,12 +281,12 @@ test('idempotency', async () => {
   const reporter = sinon.spy()
   const opts = await testDefaults({ reporter })
 
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], opts)
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
 
   expect(reporter.calledWithMatch({
     added: {
       dependencyType: 'prod',
-      name: 'pkg-with-1-dep',
+      name: '@pnpm.e2e/pkg-with-1-dep',
       version: '100.0.0',
     },
     level: 'debug',
@@ -295,19 +295,19 @@ test('idempotency', async () => {
 
   reporter.resetHistory()
 
-  await addDependenciesToPackage(manifest, ['pkg-with-1-dep@100.0.0'], opts)
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
 
   expect(reporter.calledWithMatch({
     added: {
       dependencyType: 'prod',
-      name: 'pkg-with-1-dep',
+      name: '@pnpm.e2e/pkg-with-1-dep',
       version: '100.0.0',
     },
     level: 'debug',
     name: 'pnpm:root',
   } as RootLog)).toBeFalsy()
 
-  await project.has('pkg-with-1-dep')
+  await project.has('@pnpm.e2e/pkg-with-1-dep')
 })
 
 test('reporting adding root package', async () => {
@@ -363,11 +363,11 @@ test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
 test('keeping existing specs untouched when adding new dependency', async () => {
   prepareEmpty()
 
-  await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
 
-  const manifest = await addDependenciesToPackage({ dependencies: { bar: '^100.0.0' } }, ['foo@100.1.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage({ dependencies: { '@pnpm.e2e/bar': '^100.0.0' } }, ['@pnpm.e2e/foo@100.1.0'], await testDefaults())
 
-  expect(manifest.dependencies).toStrictEqual({ bar: '^100.0.0', foo: '100.1.0' })
+  expect(manifest.dependencies).toStrictEqual({ '@pnpm.e2e/bar': '^100.0.0', '@pnpm.e2e/foo': '100.1.0' })
 })
 
 test('forcing', async () => {
@@ -451,13 +451,13 @@ test.skip('relink package to project if the dependency is not linked from store'
 
 test('circular deps', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['circular-deps-1-of-2'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/circular-deps-1-of-2'], await testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('circular-deps-1-of-2/mirror')
+  const m = project.requireModule('@pnpm.e2e/circular-deps-1-of-2/mirror')
 
-  expect(m()).toEqual('circular-deps-1-of-2')
+  expect(m()).toEqual('@pnpm.e2e/circular-deps-1-of-2')
 
-  expect(await exists(path.join('node_modules', 'circular-deps-1-of-2', 'node_modules', 'circular-deps-2-of-2', 'node_modules', 'circular-deps-1-of-2'))).toBeFalsy()
+  expect(await exists(path.join('node_modules', '@pnpm.e2e/circular-deps-1-of-2', 'node_modules', '@pnpm.e2e/circular-deps-2-of-2', 'node_modules', '@pnpm.e2e/circular-deps-1-of-2'))).toBeFalsy()
 })
 
 test('concurrent circular deps', async () => {
@@ -501,41 +501,41 @@ test('big with dependencies and circular deps (babel-preset-2015)', async () => 
 test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['pkg-with-bundled-dependencies@1.0.0'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0'], await testDefaults({ fastUnpack: false }))
 
-  await project.isExecutable('pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin')
+  await project.isExecutable('@pnpm.e2e/pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin')
 
   const lockfile = await project.readLockfile()
   expect(
-    lockfile.packages['/pkg-with-bundled-dependencies/1.0.0'].bundledDependencies
+    lockfile.packages['/@pnpm.e2e/pkg-with-bundled-dependencies/1.0.0'].bundledDependencies
   ).toStrictEqual(
-    ['hello-world-js-bin']
+    ['@pnpm.e2e/hello-world-js-bin']
   )
 })
 
 test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['pkg-with-bundle-dependencies@1.0.0'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0'], await testDefaults({ fastUnpack: false }))
 
-  await project.isExecutable('pkg-with-bundle-dependencies/node_modules/.bin/hello-world-js-bin')
+  await project.isExecutable('@pnpm.e2e/pkg-with-bundle-dependencies/node_modules/.bin/hello-world-js-bin')
 
   const lockfile = await project.readLockfile()
   expect(
-    lockfile.packages['/pkg-with-bundle-dependencies/1.0.0'].bundledDependencies
+    lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies/1.0.0'].bundledDependencies
   ).toStrictEqual(
-    ['hello-world-js-bin']
+    ['@pnpm.e2e/hello-world-js-bin']
   )
 })
 
 test('installing a package with bundleDependencies set to false (pkg-with-bundle-dependencies-false)', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['pkg-with-bundle-dependencies-false'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundle-dependencies-false'], await testDefaults({ fastUnpack: false }))
 
   const lockfile = await project.readLockfile()
   expect(
-    typeof lockfile.packages['/pkg-with-bundle-dependencies-false/1.0.0'].bundledDependencies
+    typeof lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies-false/1.0.0'].bundledDependencies
   ).toEqual('undefined')
 })
 
@@ -556,7 +556,7 @@ test('compiled modules (ursa@0.9.1)', async () => {
 test('bin specified in the directories property linked to .bin folder', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['pkg-with-directories-bin'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-directories-bin'], await testDefaults({ fastUnpack: false }))
 
   await project.isExecutable('.bin/pkg-with-directories-bin')
 })
@@ -565,7 +565,7 @@ test('bin specified in the directories property symlinked to .bin folder when pr
   const project = prepareEmpty()
 
   const opts = await testDefaults({ fastUnpack: false, preferSymlinkedExecutables: true })
-  await addDependenciesToPackage({}, ['pkg-with-directories-bin'], opts)
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-directories-bin'], opts)
 
   await project.isExecutable('.bin/pkg-with-directories-bin')
 
@@ -589,17 +589,17 @@ testOnNonWindows('building native addons', async () => {
 test('should update subdep on second install', async () => {
   const project = prepareEmpty()
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ save: true }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ save: true }))
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 
   let lockfile = await project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   const reporter = sinon.spy()
 
@@ -612,54 +612,54 @@ test('should update subdep on second install', async () => {
     prefix: process.cwd(),
   } as StatsLog)).toBeTruthy()
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
+  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
 
   lockfile = await project.readLockfile()
 
-  expect(lockfile.packages).not.toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
-  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
 
-  expect(deepRequireCwd(['pkg-with-1-dep', 'dep-of-pkg-with-1-dep', './package.json']).version).toEqual('100.1.0')
+  expect(deepRequireCwd(['@pnpm.e2e/pkg-with-1-dep', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json']).version).toEqual('100.1.0')
 })
 
 test('should not update subdep when depth is smaller than depth of package', async () => {
   const project = prepareEmpty()
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ save: true }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ save: true }))
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 
   let lockfile = await project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   await install(manifest, await testDefaults({ depth: 0, update: true }))
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 
   lockfile = await project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
 
-  expect(deepRequireCwd(['pkg-with-1-dep', 'dep-of-pkg-with-1-dep', './package.json']).version).toEqual('100.0.0')
+  expect(deepRequireCwd(['@pnpm.e2e/pkg-with-1-dep', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json']).version).toEqual('100.0.0')
 })
 
 test('should install dependency in second project', async () => {
   const project1 = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ fastUnpack: false, save: true, store: '../store' }))
-  expect(project1.requireModule('pkg-with-1-dep')().name).toEqual('dep-of-pkg-with-1-dep')
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ fastUnpack: false, save: true, store: '../store' }))
+  expect(project1.requireModule('@pnpm.e2e/pkg-with-1-dep')().name).toEqual('@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   const project2 = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ fastUnpack: false, save: true, store: '../store' }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ fastUnpack: false, save: true, store: '../store' }))
 
-  expect(project2.requireModule('pkg-with-1-dep')().name).toEqual('dep-of-pkg-with-1-dep')
+  expect(project2.requireModule('@pnpm.e2e/pkg-with-1-dep')().name).toEqual('@pnpm.e2e/dep-of-pkg-with-1-dep')
 })
 
 test('should throw error when trying to install using a different store then the previous one', async () => {
@@ -715,27 +715,27 @@ test('lockfile locks npm dependencies', async () => {
   const project = prepareEmpty()
   const reporter = sinon.spy()
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ save: true, reporter }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ save: true, reporter }))
 
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:progress',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep/100.0.0`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/100.0.0`,
     requester: process.cwd(),
     status: 'resolved',
   } as ProgressLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep/100.0.0`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/100.0.0`,
     requester: process.cwd(),
     status: 'fetched',
   } as ProgressLog)).toBeTruthy()
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   await rimraf('node_modules')
 
@@ -744,27 +744,28 @@ test('lockfile locks npm dependencies', async () => {
 
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep/100.0.0`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/100.0.0`,
     requester: process.cwd(),
     status: 'resolved',
   } as ProgressLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep/100.0.0`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/100.0.0`,
     requester: process.cwd(),
     status: 'found_in_store',
   } as ProgressLog)).toBeTruthy()
 
-  const m = project.requireModule('.pnpm/pkg-with-1-dep@100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
+  const m = project.requireModule('.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json')
 
   expect(m.version).toEqual('100.0.0')
 })
+
 test('self-require should work', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['uses-pkg-with-self-usage'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/uses-pkg-with-self-usage'], await testDefaults({ fastUnpack: false }))
 
-  expect(project.requireModule('uses-pkg-with-self-usage')).toBeTruthy()
+  expect(project.requireModule('@pnpm.e2e/uses-pkg-with-self-usage')).toBeTruthy()
 })
 
 test('install on project with lockfile and no node_modules', async () => {
@@ -788,18 +789,18 @@ test('install a dependency with * range', async () => {
 
   await install({
     dependencies: {
-      'has-beta-only': '*',
+      '@pnpm.e2e/has-beta-only': '*',
     },
   }, await testDefaults({ reporter }))
 
-  await project.has('has-beta-only')
+  await project.has('@pnpm.e2e/has-beta-only')
 
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:package-manifest',
     updated: {
       dependencies: {
-        'has-beta-only': '*',
+        '@pnpm.e2e/has-beta-only': '*',
       },
     } as ProjectManifest,
   } as PackageManifestLog)).toBeTruthy()
@@ -837,9 +838,9 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   const reporter = sinon.spy()
 
   const opts = await testDefaults({ reporter })
-  await addDependenciesToPackage({}, ['with-same-file-in-different-cases'], opts)
+  await addDependenciesToPackage({}, ['@pnpm.e2e/with-same-file-in-different-cases'], opts)
 
-  await project.has('with-same-file-in-different-cases')
+  await project.has('@pnpm.e2e/with-same-file-in-different-cases')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1134
@@ -902,14 +903,14 @@ test('reinstalls missing packages to node_modules during headless install', asyn
 })
 
 test('do not update deps when lockfile is present', async () => {
-  await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['peer-a'], await testDefaults({ lockfileOnly: true }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/peer-a'], await testDefaults({ lockfileOnly: true }))
 
   const initialLockfile = await project.readLockfile()
 
-  await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
 
   await mutateModules([
     {
@@ -933,7 +934,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
       buildIndex: 0,
       manifest: {
         dependencies: {
-          foobarqar: '1.0.0',
+          '@pnpm.e2e/foobarqar': '1.0.0',
         },
       },
       mutation: 'install',
@@ -943,31 +944,31 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
 
   await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     dependencies: {
-      foobarqar: '1.0.1',
+      '@pnpm.e2e/foobarqar': '1.0.1',
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/bar/100.0.0': {
+      '/@pnpm.e2e/bar/100.0.0': {
         dev: false,
         resolution: {
-          integrity: getIntegrity('bar', '100.0.0'),
+          integrity: getIntegrity('@pnpm.e2e/bar', '100.0.0'),
         },
       },
-      '/foo/100.1.0': {
+      '/@pnpm.e2e/foo/100.1.0': {
         dev: false,
         resolution: {
-          integrity: getIntegrity('foo', '100.1.0'),
+          integrity: getIntegrity('@pnpm.e2e/foo', '100.1.0'),
         },
       },
-      '/foobarqar/1.0.1': {
+      '/@pnpm.e2e/foobarqar/1.0.1': {
         dependencies: {
-          bar: '100.0.0',
-          foo: '100.1.0',
+          '@pnpm.e2e/bar': '100.0.0',
+          '@pnpm.e2e/foo': '100.1.0',
           'is-positive': '3.1.0',
         },
         dev: false,
         resolution: {
-          integrity: getIntegrity('foobarqar', '1.0.1'),
+          integrity: getIntegrity('@pnpm.e2e/foobarqar', '1.0.1'),
         },
       },
       '/is-positive/3.1.0': {
@@ -981,7 +982,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
       },
     },
     specifiers: {
-      foobarqar: '1.0.1',
+      '@pnpm.e2e/foobarqar': '1.0.1',
     },
   }, { lineWidth: 1000 })
 
@@ -990,7 +991,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
       buildIndex: 0,
       manifest: {
         dependencies: {
-          foobarqar: '1.0.1',
+          '@pnpm.e2e/foobarqar': '1.0.1',
         },
       },
       mutation: 'install',
@@ -999,19 +1000,19 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
   ], await testDefaults({ preferFrozenLockfile: false }))
 
   expect(
-    [...await fs.readdir(path.resolve('node_modules/.pnpm/foobarqar@1.0.1/node_modules'))]
+    [...await fs.readdir(path.resolve('node_modules/.pnpm/@pnpm.e2e+foobarqar@1.0.1/node_modules/@pnpm.e2e'))].sort()
   ).toStrictEqual(
     [
       'bar',
       'foo',
       'foobarqar',
       'qar',
-    ]
+    ].sort()
   )
 })
 
 test('subdep symlinks are updated if the lockfile has new subdep versions specified', async () => {
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   await mutateModules([
@@ -1019,7 +1020,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
       buildIndex: 0,
       manifest: {
         dependencies: {
-          'parent-of-pkg-with-1-dep': '1.0.0',
+          '@pnpm.e2e/parent-of-pkg-with-1-dep': '1.0.0',
         },
       },
       mutation: 'install',
@@ -1033,45 +1034,45 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     Object.keys(lockfile.packages)
   ).toStrictEqual(
     [
-      '/dep-of-pkg-with-1-dep/100.0.0',
-      '/parent-of-pkg-with-1-dep/1.0.0',
-      '/pkg-with-1-dep/100.0.0',
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0',
+      '/@pnpm.e2e/parent-of-pkg-with-1-dep/1.0.0',
+      '/@pnpm.e2e/pkg-with-1-dep/100.0.0',
     ]
   )
 
   await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     dependencies: {
-      'parent-of-pkg-with-1-dep': '1.0.0',
+      '@pnpm.e2e/parent-of-pkg-with-1-dep': '1.0.0',
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/dep-of-pkg-with-1-dep/100.1.0': {
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0': {
         dev: false,
         resolution: {
-          integrity: getIntegrity('dep-of-pkg-with-1-dep', '100.1.0'),
+          integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'),
         },
       },
-      '/parent-of-pkg-with-1-dep/1.0.0': {
+      '/@pnpm.e2e/parent-of-pkg-with-1-dep/1.0.0': {
         dependencies: {
-          'pkg-with-1-dep': '100.0.0',
+          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
         },
         dev: false,
         resolution: {
-          integrity: getIntegrity('parent-of-pkg-with-1-dep', '1.0.0'),
+          integrity: getIntegrity('@pnpm.e2e/parent-of-pkg-with-1-dep', '1.0.0'),
         },
       },
-      '/pkg-with-1-dep/100.0.0': {
+      '/@pnpm.e2e/pkg-with-1-dep/100.0.0': {
         dependencies: {
-          'dep-of-pkg-with-1-dep': '100.1.0',
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
         },
         dev: false,
         resolution: {
-          integrity: getIntegrity('pkg-with-1-dep', '100.0.0'),
+          integrity: getIntegrity('@pnpm.e2e/pkg-with-1-dep', '100.0.0'),
         },
       },
     },
     specifiers: {
-      'parent-of-pkg-with-1-dep': '1.0.0',
+      '@pnpm.e2e/parent-of-pkg-with-1-dep': '1.0.0',
     },
   }, { lineWidth: 1000 })
 
@@ -1080,7 +1081,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
       buildIndex: 0,
       manifest: {
         dependencies: {
-          'parent-of-pkg-with-1-dep': '1.0.0',
+          '@pnpm.e2e/parent-of-pkg-with-1-dep': '1.0.0',
         },
       },
       mutation: 'install',
@@ -1088,7 +1089,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     },
   ], await testDefaults({ preferFrozenLockfile: false }))
 
-  expect(await exists(path.resolve('node_modules/.pnpm/pkg-with-1-dep@100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
 })
 
 test('fail if none of the available resolvers support a version spec', async () => {
@@ -1312,9 +1313,9 @@ test('two dependencies have the same version and name. The only difference is th
 test('installing a package with broken bin', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['broken-bin@1.0.0'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/broken-bin@1.0.0'], await testDefaults({ fastUnpack: false }))
 
-  await project.has('broken-bin')
+  await project.has('@pnpm.e2e/broken-bin')
 })
 
 test('a package should be able to be a dependency of itself', async () => {

@@ -202,15 +202,15 @@ test('update tarball local package when its integrity changes', async () => {
 
 // Covers https://github.com/pnpm/pnpm/issues/1878
 test('do not update deps when installing in a project that has local tarball dep', async () => {
-  await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   f.copy('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
-  const manifest = await addDependenciesToPackage({}, ['../tar.tgz', 'peer-a'], await testDefaults({ lockfileOnly: true }))
+  const manifest = await addDependenciesToPackage({}, ['../tar.tgz', '@pnpm.e2e/peer-a'], await testDefaults({ lockfileOnly: true }))
 
   const initialLockfile = await project.readLockfile()
 
-  await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
 
   await mutateModules([
     {

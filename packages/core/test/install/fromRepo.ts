@@ -112,22 +112,22 @@ test('from a github repo with different name', async () => {
 test('a subdependency is from a github repo with different name', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['has-aliased-git-dependency'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/has-aliased-git-dependency'], await testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('has-aliased-git-dependency')
+  const m = project.requireModule('@pnpm.e2e/has-aliased-git-dependency')
 
   expect(m).toEqual('Hi')
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/has-aliased-git-dependency/1.0.0'].dependencies).toStrictEqual({
-    'has-say-hi-peer': '1.0.0_hi@1.0.0',
+  expect(lockfile.packages['/@pnpm.e2e/has-aliased-git-dependency/1.0.0'].dependencies).toStrictEqual({
+    '@pnpm.e2e/has-say-hi-peer': '1.0.0_hi@1.0.0',
     'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
   })
 
-  await project.isExecutable('has-aliased-git-dependency/node_modules/.bin/hi')
-  await project.isExecutable('has-aliased-git-dependency/node_modules/.bin/szia')
+  await project.isExecutable('@pnpm.e2e/has-aliased-git-dependency/node_modules/.bin/hi')
+  await project.isExecutable('@pnpm.e2e/has-aliased-git-dependency/node_modules/.bin/szia')
 
-  expect(await exists(path.resolve('node_modules/.pnpm/has-say-hi-peer@1.0.0_hi@1.0.0/node_modules/has-say-hi-peer'))).toBeTruthy()
+  expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+has-say-hi-peer@1.0.0_hi@1.0.0/node_modules/@pnpm.e2e/has-say-hi-peer'))).toBeTruthy()
 })
 
 test('from a git repo', async () => {

@@ -179,10 +179,10 @@ test('uninstall package with dependencies and do not touch other deps', async ()
 
 test('uninstall package with its bin files', async () => {
   prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['sh-hello-world@1.0.1'], await testDefaults({ fastUnpack: false, save: true }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/sh-hello-world@1.0.1'], await testDefaults({ fastUnpack: false, save: true }))
   await mutateModules([
     {
-      dependencyNames: ['sh-hello-world'],
+      dependencyNames: ['@pnpm.e2e/sh-hello-world'],
       manifest,
       mutation: 'uninstallSome',
       rootDir: process.cwd(),
@@ -223,7 +223,7 @@ test('pendingBuilds gets updated after uninstall', async () => {
   const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({},
-    ['pre-and-postinstall-scripts-example', 'with-postinstall-b'],
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/with-postinstall-b'],
     await testDefaults({ fastUnpack: false, save: true, ignoreScripts: true })
   )
 
@@ -233,7 +233,7 @@ test('pendingBuilds gets updated after uninstall', async () => {
 
   await mutateModules([
     {
-      dependencyNames: ['with-postinstall-b'],
+      dependencyNames: ['@pnpm.e2e/with-postinstall-b'],
       manifest,
       mutation: 'uninstallSome',
       rootDir: process.cwd(),

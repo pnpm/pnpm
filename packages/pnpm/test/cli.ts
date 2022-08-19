@@ -133,7 +133,7 @@ test('pnpx works', () => {
     XDG_DATA_HOME: global,
   }
 
-  const result = execPnpxSync(['hello-world-js-bin'], { env })
+  const result = execPnpxSync(['@pnpm.e2e/hello-world-js-bin'], { env })
 
   expect(result.stdout.toString()).toEqual('Hello world!\n')
   expect(result.status).toBe(0)

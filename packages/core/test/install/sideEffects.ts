@@ -80,12 +80,13 @@ test('using side effects cache', async () => {
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
   }, {}, {}, { packageImportMethod: 'copy' })
-  const manifest = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example@1.0.0'], opts)
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
 
-  const filesIndexFile = path.join(opts.storeDir, 'files/2e/28a020ed7c488057d208cd705442e275352fcf88a32b32d0d312668308cb87db3a6df9171ce90d501c3de162b2a6dd5cf62ed7ae8c76532f95adfac924b9a8-index.json')
+  const cafsDir = path.join(opts.storeDir, 'files')
+  const filesIndexFile = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
   const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
-  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/hello-world-js-bin/1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin/1.0.0': {} })}`
   expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'generated-by-preinstall.js'])
   expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'generated-by-postinstall.js'])
   delete filesIndex.sideEffects![sideEffectsKey]['generated-by-postinstall.js']
@@ -100,10 +101,10 @@ test('using side effects cache', async () => {
     storeDir: opts.storeDir,
     verifyStoreIntegrity: false,
   }, {}, {}, { packageImportMethod: 'copy' })
-  await addDependenciesToPackage(manifest, ['pre-and-postinstall-scripts-example@1.0.0'], opts2)
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts2)
 
-  expect(await exists(path.resolve('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeTruthy() // side effects cache correctly used
-  expect(await exists(path.resolve('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeFalsy() // side effects cache correctly used
+  expect(await exists(path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeTruthy() // side effects cache correctly used
+  expect(await exists(path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeFalsy() // side effects cache correctly used
 })
 
 test.skip('readonly side effects cache', async () => {
@@ -151,11 +152,12 @@ test('uploading errors do not interrupt installation', async () => {
   opts.storeController.upload = async () => {
     throw new Error('an unexpected error')
   }
-  await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example@1.0.0'], opts)
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
 
-  expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')).toBeTruthy()
 
-  const filesIndexFile = path.join(opts.storeDir, 'files/2e/28a020ed7c488057d208cd705442e275352fcf88a32b32d0d312668308cb87db3a6df9171ce90d501c3de162b2a6dd5cf62ed7ae8c76532f95adfac924b9a8-index.json')
+  const cafsDir = path.join(opts.storeDir, 'files')
+  const filesIndexFile = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
   const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeFalsy()
 })

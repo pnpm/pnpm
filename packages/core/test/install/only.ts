@@ -9,7 +9,7 @@ test('production install (with --production flag)', async () => {
 
   await install({
     dependencies: {
-      'pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
       'write-yaml': '1.0.0',
     },
     devDependencies: {
@@ -30,7 +30,7 @@ test('production install (with --production flag)', async () => {
 
   expect(await exists(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0'))).toBeFalsy()
   expect(await exists(path.resolve('node_modules/.pnpm/js-yaml@3.14.0'))).toBeTruthy()
-  await project.has('pkg-with-1-dep')
+  await project.has('@pnpm.e2e/pkg-with-1-dep')
   await project.has('write-yaml')
   await project.hasNot('@zkochan/foo')
   await project.hasNot('js-yaml')
@@ -41,7 +41,7 @@ test('production install with --no-optional', async () => {
 
   await install({
     dependencies: {
-      'pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
       'write-yaml': '1.0.0',
     },
     optionalDependencies: {
@@ -62,7 +62,7 @@ test('production install with --no-optional', async () => {
 
   expect(await exists(path.resolve('node_modules/.pnpm/@zkochan/foo@1.0.0'))).toBeFalsy()
   expect(await exists(path.resolve('node_modules/.pnpm/js-yaml@3.14.0'))).toBeTruthy()
-  await project.has('pkg-with-1-dep')
+  await project.has('@pnpm.e2e/pkg-with-1-dep')
   await project.has('write-yaml')
   await project.hasNot('@zkochan/foo')
   await project.hasNot('js-yaml')

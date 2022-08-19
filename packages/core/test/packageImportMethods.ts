@@ -14,11 +14,11 @@ test('packageImportMethod can be set to copy', async () => {
 test('copy does not fail on package that self-requires itself', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['requires-itself'], await testDefaults({}, {}, {}, { packageImportMethod: 'copy' }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/requires-itself'], await testDefaults({}, {}, {}, { packageImportMethod: 'copy' }))
 
-  const m = project.requireModule('requires-itself/package.json')
+  const m = project.requireModule('@pnpm.e2e/requires-itself/package.json')
   expect(m).toBeTruthy() // requires-itself is available with packageImportMethod = copy
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/requires-itself/1.0.0'].dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
+  expect(lockfile.packages['/@pnpm.e2e/requires-itself/1.0.0'].dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
 })

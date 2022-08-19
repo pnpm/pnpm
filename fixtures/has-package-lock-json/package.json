@@ -2,8 +2,8 @@
   "name": "has-package-lock-json",
   "version": "0.0.0",
   "dependencies": {
-    "dep-of-pkg-with-1-dep": "^101.0.0",
-    "pkg-with-1-dep": "*"
+    "@pnpm.e2e/dep-of-pkg-with-1-dep": "^101.0.0",
+    "@pnpm.e2e/pkg-with-1-dep": "*"
   },
   "scripts": {
     "prepare": "exit 1"

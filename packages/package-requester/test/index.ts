@@ -786,7 +786,7 @@ test('do not fetch an optional package that is not installable', async () => {
   expect(typeof requestPackage).toBe('function')
 
   const projectDir = tempy.directory()
-  const pkgResponse = await requestPackage({ alias: 'not-compatible-with-any-os', optional: true, pref: '*' }, {
+  const pkgResponse = await requestPackage({ alias: '@pnpm.e2e/not-compatible-with-any-os', optional: true, pref: '*' }, {
     downloadPriority: 0,
     lockfileDir: projectDir,
     preferredVersions: {},
@@ -798,7 +798,7 @@ test('do not fetch an optional package that is not installable', async () => {
   expect(pkgResponse.body).toBeTruthy()
 
   expect(pkgResponse.body.isInstallable).toBe(false)
-  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/not-compatible-with-any-os/1.0.0`)
+  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/not-compatible-with-any-os/1.0.0`)
 
   expect(pkgResponse.files).toBeFalsy()
   expect(pkgResponse.finishing).toBeFalsy()

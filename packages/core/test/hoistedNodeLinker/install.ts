@@ -83,23 +83,23 @@ test('overwriting existing files in node_modules', async () => {
 test('preserve subdeps on update', async () => {
   prepareEmpty()
 
-  await addDistTag({ package: 'foobarqar', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foobarqar', version: '1.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage(
     {},
-    ['foobarqar@1.0.0', 'bar@100.1.0'],
+    ['@pnpm.e2e/foobarqar@1.0.0', '@pnpm.e2e/bar@100.1.0'],
     await testDefaults({ nodeLinker: 'hoisted' })
   )
 
   await addDependenciesToPackage(
     manifest,
-    ['foobarqar@1.0.1'],
+    ['@pnpm.e2e/foobarqar@1.0.1'],
     await testDefaults({ nodeLinker: 'hoisted' })
   )
 
-  expect(loadJsonFile<{ version: string }>('node_modules/bar/package.json').version).toBe('100.1.0')
-  expect(loadJsonFile<{ version: string }>('node_modules/foobarqar/package.json').version).toBe('1.0.1')
-  expect(loadJsonFile<{ version: string }>('node_modules/foobarqar/node_modules/bar/package.json').version).toBe('100.0.0')
+  expect(loadJsonFile<{ version: string }>('node_modules/@pnpm.e2e/bar/package.json').version).toBe('100.1.0')
+  expect(loadJsonFile<{ version: string }>('node_modules/@pnpm.e2e/foobarqar/package.json').version).toBe('1.0.1')
+  expect(loadJsonFile<{ version: string }>('node_modules/@pnpm.e2e/foobarqar/node_modules/@pnpm.e2e/bar/package.json').version).toBe('100.0.0')
 })
 
 test('adding a new dependency to one of the workspace projects', async () => {
@@ -113,7 +113,7 @@ test('adding a new dependency to one of the workspace projects', async () => {
         version: '1.0.0',
 
         dependencies: {
-          bar: '100.0.0',
+          '@pnpm.e2e/bar': '100.0.0',
         },
       },
       mutation: 'install',
@@ -126,7 +126,7 @@ test('adding a new dependency to one of the workspace projects', async () => {
         version: '1.0.0',
 
         dependencies: {
-          foobarqar: '1.0.0',
+          '@pnpm.e2e/foobarqar': '1.0.0',
         },
       },
       mutation: 'install',
@@ -139,41 +139,41 @@ test('adding a new dependency to one of the workspace projects', async () => {
     await testDefaults({ nodeLinker: 'hoisted', prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' })
   )
 
-  expect(manifest.dependencies).toStrictEqual({ bar: '100.0.0' })
+  expect(manifest.dependencies).toStrictEqual({ '@pnpm.e2e/bar': '100.0.0' })
   expect(manifest.devDependencies).toStrictEqual({ 'is-negative': '1.0.0' })
-  expect(loadJsonFile<{ version: string }>('node_modules/bar/package.json').version).toBe('100.0.0')
+  expect(loadJsonFile<{ version: string }>('node_modules/@pnpm.e2e/bar/package.json').version).toBe('100.0.0')
   expect(loadJsonFile<{ version: string }>('node_modules/is-negative/package.json').version).toBe('1.0.0')
 })
 
 test('installing the same package with alias and no alias', async () => {
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   prepareEmpty()
 
   await addDependenciesToPackage(
     {},
-    ['pkg-with-1-aliased-dep@100.0.0', 'dep-of-pkg-with-1-dep@^100.0.0'],
+    ['@pnpm.e2e/pkg-with-1-aliased-dep@100.0.0', '@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0'],
     await testDefaults({ nodeLinker: 'hoisted' })
   )
 
-  expect(loadJsonFile<{ version: string }>('node_modules/pkg-with-1-aliased-dep/package.json').version).toBe('100.0.0')
-  expect(loadJsonFile<{ version: string }>('node_modules/dep-of-pkg-with-1-dep/package.json').version).toBe('100.0.0')
+  expect(loadJsonFile<{ version: string }>('node_modules/@pnpm.e2e/pkg-with-1-aliased-dep/package.json').version).toBe('100.0.0')
+  expect(loadJsonFile<{ version: string }>('node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json').version).toBe('100.0.0')
   expect(loadJsonFile<{ version: string }>('node_modules/dep/package.json').version).toBe('100.0.0')
 })
 
 test('run pre/postinstall scripts. bin files should be linked in a hoisted node_modules', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({},
-    ['pre-and-postinstall-scripts-example'],
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
     await testDefaults({ fastUnpack: false, nodeLinker: 'hoisted', targetDependenciesField: 'devDependencies' })
   )
 
-  expect(fs.existsSync('node_modules/pre-and-postinstall-scripts-example/generated-by-prepare.js')).toBeFalsy()
-  expect(fs.existsSync('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-prepare.js')).toBeFalsy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
 
-  const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
+  const generatedByPreinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
   expect(typeof generatedByPreinstall).toBe('function')
 
-  const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
+  const generatedByPostinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
   expect(typeof generatedByPostinstall).toBe('function')
 })
 
@@ -189,7 +189,7 @@ test('running install scripts in a workspace that has no root project', async ()
         version: '1.0.0',
 
         dependencies: {
-          'pre-and-postinstall-scripts-example': '1.0.0',
+          '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
         },
       },
       mutation: 'install',
@@ -197,7 +197,7 @@ test('running install scripts in a workspace that has no root project', async ()
     },
   ], await testDefaults({ fastUnpack: false, nodeLinker: 'hoisted' }))
 
-  expect(fs.existsSync('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
 })
 
 test('hoistingLimits should prevent packages to be hoisted', async () => {

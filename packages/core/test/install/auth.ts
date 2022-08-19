@@ -20,13 +20,13 @@ test('a package that need authentication', async () => {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
   }
-  const manifest = await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], await testDefaults({}, {
     authConfig,
   }, {
     authConfig,
   }))
 
-  await project.has('needs-auth')
+  await project.has('@pnpm.e2e/needs-auth')
 
   // should work when a lockfile is available
   // and the registry in .npmrc is not the same as the one in lockfile
@@ -37,14 +37,14 @@ test('a package that need authentication', async () => {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
     registry: 'https://registry.npmjs.org/',
   }
-  await addDependenciesToPackage(manifest, ['needs-auth'], await testDefaults({}, {
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/needs-auth'], await testDefaults({}, {
     authConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
     authConfig,
   }))
 
-  await project.has('needs-auth')
+  await project.has('@pnpm.e2e/needs-auth')
 })
 
 test('installing a package that need authentication, using password', async () => {
@@ -62,13 +62,13 @@ test('installing a package that need authentication, using password', async () =
     [`//localhost:${REGISTRY_MOCK_PORT}/:username`]: 'foo',
     registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
   }
-  await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
+  await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], await testDefaults({}, {
     authConfig,
   }, {
     authConfig,
   }))
 
-  await project.has('needs-auth')
+  await project.has('@pnpm.e2e/needs-auth')
 })
 
 test('a package that need authentication, legacy way', async () => {
@@ -85,13 +85,13 @@ test('a package that need authentication, legacy way', async () => {
     'always-auth': true,
     registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
   }
-  await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
+  await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], await testDefaults({}, {
     authConfig,
   }, {
     authConfig,
   }))
 
-  await project.has('needs-auth')
+  await project.has('@pnpm.e2e/needs-auth')
 })
 
 test('a scoped package that need authentication specific to scope', async () => {
@@ -189,7 +189,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:always-auth`]: true,
     registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }
-  await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({
+  await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], await testDefaults({
     registries: {
       default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
     },
@@ -200,7 +200,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     authConfig,
   }))
 
-  await project.has('needs-auth')
+  await project.has('@pnpm.e2e/needs-auth')
 })
 
 skipOnNode17('a package that need authentication reuses authorization tokens for tarball fetching when meta info is cached', async () => {
@@ -228,7 +228,7 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
     authConfig,
   })
 
-  const manifest = await addDependenciesToPackage({}, ['needs-auth'], opts)
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], opts)
 
   await rimraf('node_modules')
   await rimraf(path.join('..', '.registry'))
@@ -247,5 +247,5 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
   })
   await install(manifest, opts)
 
-  await project.has('needs-auth')
+  await project.has('@pnpm.e2e/needs-auth')
 })

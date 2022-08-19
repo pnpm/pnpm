@@ -52,8 +52,8 @@ test('recursive update', async () => {
 })
 
 test('recursive update prod dependencies only', async () => {
-  await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
 
   preparePackages([
     {
@@ -61,7 +61,7 @@ test('recursive update prod dependencies only', async () => {
       version: '1.0.0',
 
       dependencies: {
-        foo: '^100.0.0',
+        '@pnpm.e2e/foo': '^100.0.0',
       },
     },
     {
@@ -69,7 +69,7 @@ test('recursive update prod dependencies only', async () => {
       version: '1.0.0',
 
       devDependencies: {
-        bar: '^100.0.0',
+        '@pnpm.e2e/bar': '^100.0.0',
       },
     },
   ])
@@ -86,8 +86,8 @@ test('recursive update prod dependencies only', async () => {
     workspaceDir: process.cwd(),
   })
 
-  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
 
   await update.handler({
     ...DEFAULT_OPTS,
@@ -112,7 +112,7 @@ test('recursive update prod dependencies only', async () => {
   expect(
     Object.keys(lockfile.packages ?? {})
   ).toStrictEqual(
-    ['/bar/100.0.0', '/foo/100.1.0']
+    ['/@pnpm.e2e/bar/100.0.0', '/@pnpm.e2e/foo/100.1.0']
   )
   const modules = await modulesYaml.read('./node_modules')
   expect(modules?.included).toStrictEqual({
@@ -129,7 +129,7 @@ test('recursive update with pattern', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'dep-of-pkg-with-1-dep': '100.0.0',
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         '@pnpm.e2e/foo': '1.0.0',
       },
     },
@@ -138,7 +138,7 @@ test('recursive update with pattern', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'peer-c': '1.0.0',
+        '@pnpm.e2e/peer-c': '1.0.0',
       },
     },
   ])
@@ -153,8 +153,8 @@ test('recursive update with pattern', async () => {
     workspaceDir: process.cwd(),
   })
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
 
   await update.handler({
@@ -165,18 +165,18 @@ test('recursive update with pattern', async () => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, ['peer-*', 'dep-of-pkg-*'])
+  }, ['@pnpm.e2e/peer-*', '@pnpm.e2e/dep-of-pkg-*'])
 
-  expect(projects['project-1'].requireModule('dep-of-pkg-with-1-dep/package.json').version).toBe('100.1.0')
+  expect(projects['project-1'].requireModule('@pnpm.e2e/dep-of-pkg-with-1-dep/package.json').version).toBe('100.1.0')
   expect(projects['project-1'].requireModule('@pnpm.e2e/foo/package.json').version).toBe('1.0.0')
-  expect(projects['project-2'].requireModule('peer-c/package.json').version).toBe('2.0.0')
+  expect(projects['project-2'].requireModule('@pnpm.e2e/peer-c/package.json').version).toBe('2.0.0')
 })
 
 test('recursive update with pattern and name in project', async () => {
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'print-version', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/print-version', version: '2.0.0', distTag: 'latest' })
 
   const projects = preparePackages([
     {
@@ -184,7 +184,7 @@ test('recursive update with pattern and name in project', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'dep-of-pkg-with-1-dep': '100.0.0',
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         '@pnpm.e2e/foo': '1.0.0',
       },
     },
@@ -193,8 +193,8 @@ test('recursive update with pattern and name in project', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'peer-c': '1.0.0',
-        'print-version': '1.0.0',
+        '@pnpm.e2e/peer-c': '1.0.0',
+        '@pnpm.e2e/print-version': '1.0.0',
       },
     },
   ])
@@ -224,7 +224,7 @@ test('recursive update with pattern and name in project', async () => {
       recursive: true,
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
-    }, ['this-does-not-exist'])
+    }, ['@pnpm.e2e/this-does-not-exist'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -241,7 +241,7 @@ test('recursive update with pattern and name in project', async () => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, ['this-does-not-exist'])
+  }, ['@pnpm.e2e/this-does-not-exist'])
 
   await update.handler({
     ...DEFAULT_OPTS,
@@ -252,18 +252,18 @@ test('recursive update with pattern and name in project', async () => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, ['peer-*', 'dep-of-pkg-*', 'print-version'])
+  }, ['@pnpm.e2e/peer-*', '@pnpm.e2e/dep-of-pkg-*', '@pnpm.e2e/print-version'])
 
-  expect(projects['project-1'].requireModule('dep-of-pkg-with-1-dep/package.json').version).toBe('100.1.0')
+  expect(projects['project-1'].requireModule('@pnpm.e2e/dep-of-pkg-with-1-dep/package.json').version).toBe('100.1.0')
   expect(projects['project-1'].requireModule('@pnpm.e2e/foo/package.json').version).toBe('1.0.0')
-  expect(projects['project-2'].requireModule('peer-c/package.json').version).toBe('2.0.0')
-  expect(projects['project-2'].requireModule('print-version/package.json').version).toBe('2.0.0')
+  expect(projects['project-2'].requireModule('@pnpm.e2e/peer-c/package.json').version).toBe('2.0.0')
+  expect(projects['project-2'].requireModule('@pnpm.e2e/print-version/package.json').version).toBe('2.0.0')
 })
 
 test('recursive update --latest foo should only update projects that have foo', async () => {
-  await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'qar', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/qar', version: '100.0.0', distTag: 'latest' })
 
   preparePackages([
     {
@@ -271,8 +271,8 @@ test('recursive update --latest foo should only update projects that have foo', 
       version: '1.0.0',
 
       dependencies: {
-        foo: '100.0.0',
-        qar: '100.0.0',
+        '@pnpm.e2e/foo': '100.0.0',
+        '@pnpm.e2e/qar': '100.0.0',
       },
     },
     {
@@ -281,7 +281,7 @@ test('recursive update --latest foo should only update projects that have foo', 
 
       dependencies: {
         '@zkochan/async-regex-replace': '0.1.0',
-        bar: '^100.0.0',
+        '@pnpm.e2e/bar': '^100.0.0',
       },
     },
   ])
@@ -299,8 +299,8 @@ test('recursive update --latest foo should only update projects that have foo', 
     workspaceDir: process.cwd(),
   })
 
-  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
 
   await update.handler({
     ...DEFAULT_OPTS,
@@ -311,22 +311,22 @@ test('recursive update --latest foo should only update projects that have foo', 
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, ['@zkochan/async-regex-replace', 'foo', 'qar@100.1.0'])
+  }, ['@zkochan/async-regex-replace', '@pnpm.e2e/foo', '@pnpm.e2e/qar@100.1.0'])
 
   const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
 
-  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
+  expect(Object.keys(lockfile.packages ?? {}).sort()).toStrictEqual([
     '/@zkochan/async-regex-replace/0.2.0',
-    '/bar/100.0.0',
-    '/foo/100.1.0',
-    '/qar/100.1.0',
-  ])
+    '/@pnpm.e2e/bar/100.0.0',
+    '/@pnpm.e2e/foo/100.1.0',
+    '/@pnpm.e2e/qar/100.1.0',
+  ].sort())
 })
 
 test('recursive update --latest foo should only update packages that have foo', async () => {
-  await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
-  await addDistTag({ package: 'qar', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/qar', version: '100.0.0', distTag: 'latest' })
 
   const projects = preparePackages([
     {
@@ -334,8 +334,8 @@ test('recursive update --latest foo should only update packages that have foo', 
       version: '1.0.0',
 
       dependencies: {
-        foo: '100.0.0',
-        qar: '100.0.0',
+        '@pnpm.e2e/foo': '100.0.0',
+        '@pnpm.e2e/qar': '100.0.0',
       },
     },
     {
@@ -343,7 +343,7 @@ test('recursive update --latest foo should only update packages that have foo', 
       version: '1.0.0',
 
       dependencies: {
-        bar: '^100.0.0',
+        '@pnpm.e2e/bar': '^100.0.0',
       },
     },
   ])
@@ -358,8 +358,8 @@ test('recursive update --latest foo should only update packages that have foo', 
     workspaceDir: process.cwd(),
   })
 
-  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
 
   await update.handler({
     ...DEFAULT_OPTS,
@@ -369,18 +369,18 @@ test('recursive update --latest foo should only update packages that have foo', 
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, ['foo', 'qar@100.1.0'])
+  }, ['@pnpm.e2e/foo', '@pnpm.e2e/qar@100.1.0'])
 
   {
     const lockfile = await projects['project-1'].readLockfile()
 
-    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/foo/100.1.0', '/qar/100.1.0'])
+    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/@pnpm.e2e/foo/100.1.0', '/@pnpm.e2e/qar/100.1.0'])
   }
 
   {
     const lockfile = await projects['project-2'].readLockfile()
 
-    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/bar/100.0.0'])
+    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/@pnpm.e2e/bar/100.0.0'])
   }
 })
 

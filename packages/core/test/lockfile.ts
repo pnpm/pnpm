@@ -33,7 +33,7 @@ test('lockfile has correct format', async () => {
 
   await addDependenciesToPackage({},
     [
-      'pkg-with-1-dep',
+      '@pnpm.e2e/pkg-with-1-dep',
       '@rstacruz/tap-spec@4.1.1',
       'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c',
     ], await testDefaults({ fastUnpack: false, save: true }))
@@ -43,20 +43,20 @@ test('lockfile has correct format', async () => {
   expect(modules!.pendingBuilds.length).toBe(0)
 
   const lockfile = await project.readLockfile()
-  const id = '/pkg-with-1-dep/100.0.0'
+  const id = '/@pnpm.e2e/pkg-with-1-dep/100.0.0'
 
   expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
 
   expect(lockfile.specifiers).toBeTruthy()
   expect(lockfile.dependencies).toBeTruthy()
-  expect(lockfile.dependencies['pkg-with-1-dep']).toBe('100.0.0')
+  expect(lockfile.dependencies['@pnpm.e2e/pkg-with-1-dep']).toBe('100.0.0')
   expect(lockfile.dependencies).toHaveProperty(['@rstacruz/tap-spec'])
   expect(lockfile.dependencies['is-negative']).toContain('/') // has not shortened tarball from the non-standard registry
 
   expect(lockfile.packages).toBeTruthy() // has packages field
   expect(lockfile.packages).toHaveProperty([id])
   expect(lockfile.packages[id].dependencies).toBeTruthy()
-  expect(lockfile.packages[id].dependencies).toHaveProperty(['dep-of-pkg-with-1-dep'])
+  expect(lockfile.packages[id].dependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
   expect(lockfile.packages[id].resolution).toBeTruthy()
   expect((lockfile.packages[id].resolution as {integrity: string}).integrity).toBeTruthy()
   expect((lockfile.packages[id].resolution as TarballResolution).tarball).toBeFalsy()
@@ -283,20 +283,20 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
   //   },
   // })
 
-  const pkgs = ['foo', 'bar', 'qar']
+  const pkgs = ['@pnpm.e2e/foo', '@pnpm.e2e/bar', '@pnpm.e2e/qar']
   await Promise.all(pkgs.map(async (pkgName) => addDistTag({ package: pkgName, version: '100.0.0', distTag: 'latest' })))
 
-  let manifest = await addDependenciesToPackage({}, ['foo'], await testDefaults({ save: true, reporter }))
+  let manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/foo'], await testDefaults({ save: true, reporter }))
   // t.equal(reporter.withArgs(fooProgress).callCount, 1, 'reported foo once')
-  manifest = await addDependenciesToPackage(manifest, ['bar'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
-  manifest = await addDependenciesToPackage(manifest, ['qar'], await testDefaults({ addDependenciesToPackage: 'devDependencies' }))
-  manifest = await addDependenciesToPackage(manifest, ['foobar'], await testDefaults({ save: true }))
+  manifest = await addDependenciesToPackage(manifest, ['@pnpm.e2e/bar'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['@pnpm.e2e/qar'], await testDefaults({ addDependenciesToPackage: 'devDependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['@pnpm.e2e/foobar'], await testDefaults({ save: true }))
 
-  expect((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version).toBe('100.0.0')
-  expect((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version).toBe('100.0.0')
-  expect((await readPackageJsonFromDir(path.resolve('node_modules', 'qar'))).version).toBe('100.0.0')
-  expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/foo'))).version).toBe('100.0.0')
-  expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/bar'))).version).toBe('100.0.0')
+  expect((await readPackageJsonFromDir(path.resolve('node_modules', '@pnpm.e2e/foo'))).version).toBe('100.0.0')
+  expect((await readPackageJsonFromDir(path.resolve('node_modules', '@pnpm.e2e/bar'))).version).toBe('100.0.0')
+  expect((await readPackageJsonFromDir(path.resolve('node_modules', '@pnpm.e2e/qar'))).version).toBe('100.0.0')
+  expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/@pnpm.e2e+foobar@100.0.0/node_modules/@pnpm.e2e/foo'))).version).toBe('100.0.0')
+  expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/@pnpm.e2e+foobar@100.0.0/node_modules/@pnpm.e2e/bar'))).version).toBe('100.0.0')
 
   await Promise.all(pkgs.map(async (pkgName) => addDistTag({ package: pkgName, version: '100.1.0', distTag: 'latest' })))
 
@@ -317,42 +317,42 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
 
   // t.equal(reporter.withArgs(fooProgress).callCount, 0, 'not reported foo')
 
-  await project.storeHasNot('foo', '100.1.0')
-  expect((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version).toBe('100.0.0')
-  expect((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version).toBe('100.0.0')
-  expect((await readPackageJsonFromDir(path.resolve('node_modules', 'qar'))).version).toBe('100.0.0')
-  expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/foo'))).version).toBe('100.0.0')
-  expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/foobar@100.0.0/node_modules/bar'))).version).toBe('100.0.0')
+  await project.storeHasNot('@pnpm.e2e/foo', '100.1.0')
+  expect((await readPackageJsonFromDir(path.resolve('node_modules', '@pnpm.e2e/foo'))).version).toBe('100.0.0')
+  expect((await readPackageJsonFromDir(path.resolve('node_modules', '@pnpm.e2e/bar'))).version).toBe('100.0.0')
+  expect((await readPackageJsonFromDir(path.resolve('node_modules', '@pnpm.e2e/qar'))).version).toBe('100.0.0')
+  expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/@pnpm.e2e+foobar@100.0.0/node_modules/@pnpm.e2e/foo'))).version).toBe('100.0.0')
+  expect((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/@pnpm.e2e+foobar@100.0.0/node_modules/@pnpm.e2e/bar'))).version).toBe('100.0.0')
 })
 
 test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not match the inner one`, async () => {
   const project = prepareEmpty()
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults())
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
 
-  delete lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0']
+  delete lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0']
 
-  lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'] = {
+  lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'] = {
     resolution: {
-      integrity: getIntegrity('dep-of-pkg-with-1-dep', '100.1.0'),
+      integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'),
     },
   }
 
-  lockfile.packages['/pkg-with-1-dep/100.0.0'].dependencies!['dep-of-pkg-with-1-dep'] = '100.1.0'
+  lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].dependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.1.0'
 
   await writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
 
   await install(manifest, await testDefaults())
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
+  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
 })
 
 test("recreates lockfile if it doesn't match the dependencies in package.json", async () => {
@@ -405,32 +405,32 @@ test('repeat install with lockfile should not mutate lockfile when dependency ha
 test('package is not marked dev if it is also a subdep of a regular dependency', async () => {
   const project = prepareEmpty()
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults())
 
-  console.log('installed pkg-with-1-dep')
+  console.log('installed @pnpm.e2e/pkg-with-1-dep')
 
-  await addDependenciesToPackage(manifest, ['dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
 
-  console.log('installed optional dependency which is also a dependency of pkg-with-1-dep')
+  console.log('installed optional dependency which is also a dependency of @pnpm.e2e/pkg-with-1-dep')
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'].dev).toBeFalsy()
+  expect(lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'].dev).toBeFalsy()
 })
 
 test('package is not marked optional if it is also a subdep of a regular dependency', async () => {
   const project = prepareEmpty()
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
-  await addDependenciesToPackage(manifest, ['dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'].optional).toBeFalsy()
+  expect(lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'].optional).toBeFalsy()
 })
 
 test('scoped module from different registry', async () => {
@@ -518,25 +518,25 @@ test('repeat install with no inner lockfile should not rewrite packages in node_
 test('packages are placed in devDependencies even if they are present as non-dev as well', async () => {
   const project = prepareEmpty()
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   const reporter = sinon.spy()
   await install({
     devDependencies: {
-      'dep-of-pkg-with-1-dep': '^100.1.0',
-      'pkg-with-1-dep': '^100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '^100.1.0',
+      '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
     },
   }, await testDefaults({ reporter }))
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.devDependencies).toHaveProperty(['dep-of-pkg-with-1-dep'])
-  expect(lockfile.devDependencies).toHaveProperty(['pkg-with-1-dep'])
+  expect(lockfile.devDependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
+  expect(lockfile.devDependencies).toHaveProperty(['@pnpm.e2e/pkg-with-1-dep'])
 
   expect(reporter.calledWithMatch({
     added: {
       dependencyType: 'dev',
-      name: 'dep-of-pkg-with-1-dep',
+      name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
       version: '100.1.0',
     },
     level: 'debug',
@@ -545,7 +545,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
   expect(reporter.calledWithMatch({
     added: {
       dependencyType: 'dev',
-      name: 'pkg-with-1-dep',
+      name: '@pnpm.e2e/pkg-with-1-dep',
       version: '100.0.0',
     },
     level: 'debug',
@@ -558,15 +558,15 @@ test('packages are placed in devDependencies even if they are present as non-dev
 test('updating package that has a github-hosted dependency', async () => {
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['has-github-dep@1'], await testDefaults())
-  await addDependenciesToPackage(manifest, ['has-github-dep@latest'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-github-dep@1'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/has-github-dep@latest'], await testDefaults())
 })
 
 test('updating package that has deps with peers', async () => {
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent-with-c@0'], await testDefaults())
-  await addDependenciesToPackage(manifest, ['abc-grand-parent-with-c@1'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/abc-grand-parent-with-c@0'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/abc-grand-parent-with-c@1'], await testDefaults())
 })
 
 test('pendingBuilds gets updated if install removes packages', async () => {
@@ -574,15 +574,15 @@ test('pendingBuilds gets updated if install removes packages', async () => {
 
   await install({
     dependencies: {
-      'pre-and-postinstall-scripts-example': '*',
-      'with-postinstall-b': '*',
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '*',
+      '@pnpm.e2e/with-postinstall-b': '*',
     },
   }, await testDefaults({ fastUnpack: false, ignoreScripts: true }))
   const modules1 = await project.readModulesManifest()
 
   await install({
     dependencies: {
-      'pre-and-postinstall-scripts-example': '*',
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '*',
     },
   }, await testDefaults({ fastUnpack: false, ignoreScripts: true }))
   const modules2 = await project.readModulesManifest()
@@ -744,7 +744,7 @@ test('packages installed via tarball URL from the default registry are normalize
   const project = prepareEmpty()
 
   await addDependenciesToPackage({}, [
-    `http://localhost:${REGISTRY_MOCK_PORT}/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
+    `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
     'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   ], await testDefaults())
 
@@ -753,23 +753,23 @@ test('packages installed via tarball URL from the default registry are normalize
   expect(lockfile).toStrictEqual({
     dependencies: {
       'is-positive': '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-      'pkg-with-tarball-dep-from-registry': '1.0.0',
+      '@pnpm.e2e/pkg-with-tarball-dep-from-registry': '1.0.0',
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/dep-of-pkg-with-1-dep/100.0.0': {
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0': {
         dev: false,
         resolution: {
-          integrity: getIntegrity('dep-of-pkg-with-1-dep', '100.0.0'),
+          integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0'),
         },
       },
-      '/pkg-with-tarball-dep-from-registry/1.0.0': {
+      '/@pnpm.e2e/pkg-with-tarball-dep-from-registry/1.0.0': {
         dependencies: {
-          'dep-of-pkg-with-1-dep': '100.0.0',
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         },
         dev: false,
         resolution: {
-          integrity: getIntegrity('pkg-with-tarball-dep-from-registry', '1.0.0'),
+          integrity: getIntegrity('@pnpm.e2e/pkg-with-tarball-dep-from-registry', '1.0.0'),
         },
       },
       '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
@@ -784,7 +784,7 @@ test('packages installed via tarball URL from the default registry are normalize
     },
     specifiers: {
       'is-positive': 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-      'pkg-with-tarball-dep-from-registry': `http://localhost:${REGISTRY_MOCK_PORT}/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
+      '@pnpm.e2e/pkg-with-tarball-dep-from-registry': `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
     },
   })
 })
@@ -797,7 +797,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
   const manifest = await addDependenciesToPackage(
     {},
     [
-      'pkg-with-1-dep',
+      '@pnpm.e2e/pkg-with-1-dep',
       '@zkochan/foo@1.0.0',
       'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c',
     ],
@@ -814,7 +814,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   {
     const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
-    const id = '/pkg-with-1-dep/100.0.0'
+    const id = '/@pnpm.e2e/pkg-with-1-dep/100.0.0'
 
     expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
 
@@ -822,11 +822,11 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.importers.project).toBeTruthy()
     expect(lockfile.importers.project.specifiers).toBeTruthy()
     expect(lockfile.importers.project.dependencies).toBeTruthy()
-    expect(lockfile.importers.project.dependencies!['pkg-with-1-dep']).toBe('100.0.0')
+    expect(lockfile.importers.project.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBe('100.0.0')
     expect(lockfile.importers.project.dependencies!['@zkochan/foo']).toBeTruthy()
     expect(lockfile.importers.project.dependencies!['is-negative']).toContain('/')
 
-    expect(lockfile.packages![id].dependencies).toHaveProperty(['dep-of-pkg-with-1-dep'])
+    expect(lockfile.packages![id].dependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
     expect(lockfile.packages![id].resolution).toHaveProperty(['integrity'])
     expect(lockfile.packages![id].resolution).not.toHaveProperty(['tarball'])
 
@@ -852,16 +852,16 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.importers).toHaveProperty(['project-2'])
 
     // previous entries are not removed
-    const id = '/pkg-with-1-dep/100.0.0'
+    const id = '/@pnpm.e2e/pkg-with-1-dep/100.0.0'
 
     expect(lockfile.importers.project.specifiers).toBeTruthy()
-    expect(lockfile.importers.project.dependencies!['pkg-with-1-dep']).toBe('100.0.0')
+    expect(lockfile.importers.project.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBe('100.0.0')
     expect(lockfile.importers.project.dependencies).toHaveProperty(['@zkochan/foo'])
     expect(lockfile.importers.project.dependencies!['is-negative']).toContain('/')
 
     expect(lockfile.packages).toHaveProperty([id])
     expect(lockfile.packages![id].dependencies).toBeTruthy()
-    expect(lockfile.packages![id].dependencies).toHaveProperty(['dep-of-pkg-with-1-dep'])
+    expect(lockfile.packages![id].dependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
     expect(lockfile.packages![id].resolution).toHaveProperty(['integrity'])
     expect(lockfile.packages![id].resolution).not.toHaveProperty(['tarball'])
 
@@ -980,14 +980,14 @@ test(`use current ${WANTED_LOCKFILE} as initial wanted one, when wanted was remo
 test('existing dependencies are preserved when updating a lockfile to a newer format', async () => {
   const project = prepareEmpty()
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults())
 
   const initialLockfile = await project.readLockfile()
   await writeYamlFile(WANTED_LOCKFILE, { ...initialLockfile, lockfileVersion: 5.01 }, { lineWidth: 1000 })
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   await mutateModules([
     {
@@ -1035,13 +1035,13 @@ test('lockfile is not getting broken if the used registry changes', async () => 
 
 test('broken lockfile is fixed even if it seems like up to date at first. Unless frozenLockfile option is set to true', async () => {
   const project = prepareEmpty()
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ lockfileOnly: true }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ lockfileOnly: true }))
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
-    delete lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0']
+    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
+    delete lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0']
     await writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
   }
 
@@ -1069,9 +1069,9 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
     },
   ], await testDefaults({ preferFrozenLockfile: true }))
 
-  await project.has('pkg-with-1-dep')
+  await project.has('@pnpm.e2e/pkg-with-1-dep')
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
 })
 
 const REGISTRY_MIRROR_DIR = path.join(__dirname, '../../../registry-mirror')
@@ -1181,34 +1181,34 @@ importers:
   .:
     dependencies:
 <<<<<<< HEAD
-      dep-of-pkg-with-1-dep: 100.0.0
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.0.0
 =======
-      dep-of-pkg-with-1-dep: 100.1.0
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.1.0
 >>>>>>> next
     specifiers:
-      dep-of-pkg-with-1-dep: '>100.0.0'
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '>100.0.0'
 lockfileVersion: ${LOCKFILE_VERSION}
 packages:
 <<<<<<< HEAD
-  /dep-of-pkg-with-1-dep/100.0.0:
+  /@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0:
     dev: false
     resolution:
-      integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}
+      integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}
 =======
-  /dep-of-pkg-with-1-dep/100.1.0:
+  /@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0:
     dev: false
     resolution:
-      integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.1.0')}
+      integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')}
 >>>>>>> next`, 'utf8')
 
   await install({
     dependencies: {
-      'dep-of-pkg-with-1-dep': '>100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '>100.0.0',
     },
   }, await testDefaults())
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.dependencies['dep-of-pkg-with-1-dep']).toBe('100.1.0')
+  expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
 })
 
 test('a lockfile with duplicate keys is fixed', async () => {
@@ -1218,26 +1218,26 @@ test('a lockfile with duplicate keys is fixed', async () => {
 importers:
   .:
     dependencies:
-      dep-of-pkg-with-1-dep: 100.0.0
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.0.0
     specifiers:
-      dep-of-pkg-with-1-dep: '100.0.0'
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0'
 lockfileVersion: ${LOCKFILE_VERSION}
 packages:
-  /dep-of-pkg-with-1-dep/100.0.0:
-    resolution: {integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}}
+  /@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0:
+    resolution: {integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}}
     dev: false
-    resolution: {integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}}
+    resolution: {integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}}
 `, 'utf8')
 
   const reporter = jest.fn()
   await install({
     dependencies: {
-      'dep-of-pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
     },
   }, await testDefaults({ reporter }))
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.dependencies['dep-of-pkg-with-1-dep']).toBe('100.0.0')
+  expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
 
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'warn',
@@ -1254,21 +1254,21 @@ test('a lockfile with duplicate keys is causes an exception, when frozenLockfile
 importers:
   .:
     dependencies:
-      dep-of-pkg-with-1-dep: 100.0.0
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.0.0
     specifiers:
-      dep-of-pkg-with-1-dep: '100.0.0'
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0'
 lockfileVersion: ${LOCKFILE_VERSION}
 packages:
-  /dep-of-pkg-with-1-dep/100.0.0:
-    resolution: {integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}}
+  /@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0:
+    resolution: {integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}}
     dev: false
-    resolution: {integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}}
+    resolution: {integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}}
 `, 'utf8')
 
   await expect(
     install({
       dependencies: {
-        'dep-of-pkg-with-1-dep': '100.0.0',
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
       },
     }, await testDefaults({ frozenLockfile: true }))
   ).rejects.toThrow(/^The lockfile at .* is broken: duplicated mapping key/)
@@ -1279,7 +1279,7 @@ test('a broken private lockfile is ignored', async () => {
 
   const manifest = await install({
     dependencies: {
-      'dep-of-pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
     },
   }, await testDefaults())
 
@@ -1287,15 +1287,15 @@ test('a broken private lockfile is ignored', async () => {
 importers:
   .:
     dependencies:
-      dep-of-pkg-with-1-dep: 100.0.0
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.0.0
     specifiers:
-      dep-of-pkg-with-1-dep: '100.0.0'
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0'
 lockfileVersion: ${LOCKFILE_VERSION}
 packages:
-  /dep-of-pkg-with-1-dep/100.0.0:
-    resolution: {integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}}
+  /@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0:
+    resolution: {integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}}
     dev: false
-    resolution: {integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}}
+    resolution: {integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}}
 `, 'utf8')
 
   const reporter = jest.fn()
@@ -1381,9 +1381,9 @@ test('include tarball URL', async () => {
   const project = prepareEmpty()
 
   const opts = await testDefaults({ fastUnpack: false, lockfileIncludeTarballUrl: true })
-  await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], opts)
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
 
   const lockfile = await project.readLockfile()
-  expect((lockfile.packages['/pkg-with-1-dep/100.0.0'].resolution as TarballResolution).tarball)
-    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
+  expect((lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution as TarballResolution).tarball)
+    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e%2fpkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
 })

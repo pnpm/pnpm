@@ -2,6 +2,7 @@
 import { promises as fs, existsSync, realpathSync, writeFileSync } from 'fs'
 import path from 'path'
 import assertProject from '@pnpm/assert-project'
+import { getFilePathInCafs } from '@pnpm/cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   PackageManifestLog,
@@ -15,7 +16,7 @@ import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import { tempDir } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readprojectsContext from '@pnpm/read-projects-context'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import fixtures from '@pnpm/test-fixtures'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
@@ -296,7 +297,7 @@ test('not installing optional deps', async () => {
 
   const project = assertProject(prefix)
   await project.hasNot('is-positive')
-  await project.has('pkg-with-good-optional')
+  await project.has('@pnpm.e2e/pkg-with-good-optional')
 })
 
 test('skipping optional dependency if it cannot be fetched', async () => {
@@ -327,10 +328,10 @@ test('run pre/postinstall scripts', async () => {
   await headless(await testDefaults({ lockfileDir: prefix }))
 
   const project = assertProject(prefix)
-  const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
+  const generatedByPreinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
   expect(typeof generatedByPreinstall).toBe('function')
 
-  const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
+  const generatedByPostinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
   expect(typeof generatedByPostinstall).toBe('function')
 
   expect(require(path.join(prefix, 'output.json'))).toStrictEqual(['install', 'postinstall']) // eslint-disable-line
@@ -344,7 +345,7 @@ test('run pre/postinstall scripts', async () => {
   const nmPath = path.join(prefix, 'node_modules')
   const modulesYaml = await readModulesYaml(nmPath)
   expect(modulesYaml).toBeTruthy()
-  expect(modulesYaml!.pendingBuilds).toStrictEqual(['.', '/pre-and-postinstall-scripts-example/1.0.0'])
+  expect(modulesYaml!.pendingBuilds).toStrictEqual(['.', '/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'])
 })
 
 test('orphan packages are removed', async () => {
@@ -685,10 +686,11 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   }, {}, {}, { packageImportMethod: 'copy' })
   await headless(opts)
 
-  const cacheIntegrityPath = path.join(opts.storeDir, 'files/2e/28a020ed7c488057d208cd705442e275352fcf88a32b32d0d312668308cb87db3a6df9171ce90d501c3de162b2a6dd5cf62ed7ae8c76532f95adfac924b9a8-index.json')
+  const cafsDir = path.join(opts.storeDir, 'files')
+  const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
   const cacheIntegrity = await loadJsonFile(cacheIntegrityPath)
   expect(cacheIntegrity!['sideEffects']).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/hello-world-js-bin/1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin/1.0.0': {} })}`
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
   delete cacheIntegrity!['sideEffects'][sideEffectsKey]['generated-by-postinstall.js']
 
@@ -706,8 +708,8 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   }, {}, {}, { packageImportMethod: 'copy' })
   await headless(opts2)
 
-  expect(await exists(path.join(prefix, 'node_modules/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeFalsy()
-  expect(await exists(path.join(prefix, 'node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeTruthy()
+  expect(await exists(path.join(prefix, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeFalsy()
+  expect(await exists(path.join(prefix, 'node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeTruthy()
 })
 
 test.skip('using side effects cache and hoistPattern=*', async () => {

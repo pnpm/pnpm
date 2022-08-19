@@ -1,21 +1,21 @@
-lockfileVersion: 5.3
+lockfileVersion: 5.4
 
 specifiers:
-  pre-and-postinstall-scripts-example: 1.0.0
+  '@pnpm.e2e/pre-and-postinstall-scripts-example': 1.0.0
 
 dependencies:
-  pre-and-postinstall-scripts-example: 1.0.0
+  '@pnpm.e2e/pre-and-postinstall-scripts-example': 1.0.0
 
 packages:
 
-  /hello-world-js-bin/1.0.0:
-    resolution: {integrity: sha512-0wmzOwltlD4Vy3XHbJlASP2OOZOOk39jbxWVQdohHQPiSPq7UDKUMkykrl+09FjPhanu2c3DuCmRA0Jy9Hf8rQ==}
+  /@pnpm.e2e/hello-world-js-bin/1.0.0:
+    resolution: {integrity: sha512-3f6ugQfqFW9GR36OSeTfsSNlup7hIslT23haX3dvT/e5GyU3iInat3+0GI+MqvRcwcNzsBrTJq7yDWp3wk7O/Q==}
     hasBin: true
     dev: false
 
-  /pre-and-postinstall-scripts-example/1.0.0:
-    resolution: {integrity: sha512-LiigIO18SIBX0gjNcFRC4nU1L8+Ioysy0NMSZoMIy4fbOm35FxzpDVAcPeFisqbdXPYu166MdlMvla36ySS5qA==}
+  /@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0:
+    resolution: {integrity: sha512-RWys6ZQfGRl4enR2IZv+Ear9h5v0p1LjwY36bxkBgJCEAV9lP1DksvXa3hATKgG9r3/FrkESKSwlMwZ8vLNgAg==}
     requiresBuild: true
     dependencies:
-      hello-world-js-bin: 1.0.0
+      '@pnpm.e2e/hello-world-js-bin': 1.0.0
     dev: false

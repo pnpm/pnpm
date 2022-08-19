@@ -2,7 +2,7 @@ import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../lib/updat
 
 const MANIFEST = {
   dependencies: {
-    'dep-of-pkg-with-1-dep': 'npm:pkg-with-1-dep@1.0.0',
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': 'npm:@pnpm.e2e/pkg-with-1-dep@1.0.0',
   },
   devDependencies: {
     foo: 'github:pnpm/foo',
@@ -19,7 +19,7 @@ test('updateToLatestSpecsFromManifest()', () => {
     devDependencies: true,
   }))
   updateResult1.toHaveLength(2)
-  updateResult1.toContain('dep-of-pkg-with-1-dep@npm:pkg-with-1-dep@latest')
+  updateResult1.toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@npm:@pnpm.e2e/pkg-with-1-dep@latest')
   updateResult1.toContain('is-positive@latest')
 
   const updateResult2 = expect(updateToLatestSpecsFromManifest(MANIFEST, {
@@ -28,15 +28,15 @@ test('updateToLatestSpecsFromManifest()', () => {
     devDependencies: false,
   }))
   updateResult2.toHaveLength(1)
-  updateResult2.toStrictEqual(['dep-of-pkg-with-1-dep@npm:pkg-with-1-dep@latest'])
+  updateResult2.toStrictEqual(['@pnpm.e2e/dep-of-pkg-with-1-dep@npm:@pnpm.e2e/pkg-with-1-dep@latest'])
 })
 
 test('createLatestSpecs()', () => {
   expect(
-    createLatestSpecs(['dep-of-pkg-with-1-dep', 'is-positive@2.0.0', 'foo'], MANIFEST)
-  ).toStrictEqual(['dep-of-pkg-with-1-dep@npm:pkg-with-1-dep@latest', 'is-positive@2.0.0', 'foo'])
+    createLatestSpecs(['@pnpm.e2e/dep-of-pkg-with-1-dep', 'is-positive@2.0.0', 'foo'], MANIFEST)
+  ).toStrictEqual(['@pnpm.e2e/dep-of-pkg-with-1-dep@npm:@pnpm.e2e/pkg-with-1-dep@latest', 'is-positive@2.0.0', 'foo'])
 
   expect(
-    createLatestSpecs(['dep-of-pkg-with-1-dep', 'is-positive', 'foo', 'bar'], MANIFEST)
-  ).toStrictEqual(['dep-of-pkg-with-1-dep@npm:pkg-with-1-dep@latest', 'is-positive@latest', 'foo'])
+    createLatestSpecs(['@pnpm.e2e/dep-of-pkg-with-1-dep', 'is-positive', 'foo', 'bar'], MANIFEST)
+  ).toStrictEqual(['@pnpm.e2e/dep-of-pkg-with-1-dep@npm:@pnpm.e2e/pkg-with-1-dep@latest', 'is-positive@latest', 'foo'])
 })

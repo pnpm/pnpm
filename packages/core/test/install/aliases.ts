@@ -50,47 +50,47 @@ test('aliased dependency w/o version spec, with custom tag config', async () => 
 
   const tag = 'beta'
 
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: tag })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: tag })
 
-  await addDependenciesToPackage({}, ['foo@npm:dep-of-pkg-with-1-dep'], await testDefaults({ tag }))
+  await addDependenciesToPackage({}, ['foo@npm:@pnpm.e2e/dep-of-pkg-with-1-dep'], await testDefaults({ tag }))
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })
 
 test('a dependency has an aliased subdependency', async () => {
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-aliased-dep'], await testDefaults({ fastUnpack: false }))
 
-  expect(project.requireModule('pkg-with-1-aliased-dep')().name).toEqual('dep-of-pkg-with-1-dep')
+  expect(project.requireModule('@pnpm.e2e/pkg-with-1-aliased-dep')().name).toEqual('@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   expect(await project.readLockfile()).toStrictEqual({
     dependencies: {
-      'pkg-with-1-aliased-dep': '100.0.0',
+      '@pnpm.e2e/pkg-with-1-aliased-dep': '100.0.0',
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/dep-of-pkg-with-1-dep/100.1.0': {
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0': {
         dev: false,
         resolution: {
-          integrity: getIntegrity('dep-of-pkg-with-1-dep', '100.1.0'),
+          integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'),
         },
       },
-      '/pkg-with-1-aliased-dep/100.0.0': {
+      '/@pnpm.e2e/pkg-with-1-aliased-dep/100.0.0': {
         dependencies: {
-          dep: '/dep-of-pkg-with-1-dep/100.1.0',
+          dep: '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0',
         },
         dev: false,
         resolution: {
-          integrity: getIntegrity('pkg-with-1-aliased-dep', '100.0.0'),
+          integrity: getIntegrity('@pnpm.e2e/pkg-with-1-aliased-dep', '100.0.0'),
         },
       },
     },
     specifiers: {
-      'pkg-with-1-aliased-dep': '^100.0.0',
+      '@pnpm.e2e/pkg-with-1-aliased-dep': '^100.0.0',
     },
   })
 })

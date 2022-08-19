@@ -1,15 +1,15 @@
-lockfileVersion: 5.3
+lockfileVersion: 5.4
 
 specifiers:
+  '@pnpm.e2e/pkg-with-peer-having-bin': 1.0.0
   colors: 1.2.0
   is-negative: ^2.1.0
   is-positive: ^1.0.0
-  pkg-with-peer-having-bin: 1.0.0
   rimraf: ^2.6.2
 
 dependencies:
+  '@pnpm.e2e/pkg-with-peer-having-bin': 1.0.0
   is-positive: 1.0.0
-  pkg-with-peer-having-bin: 1.0.0
   rimraf: 2.7.1
 
 optionalDependencies:
@@ -19,6 +19,19 @@ devDependencies:
   is-negative: 2.1.0
 
 packages:
+
+  /@pnpm.e2e/hello-world-js-bin/1.0.0:
+    resolution: {integrity: sha512-3f6ugQfqFW9GR36OSeTfsSNlup7hIslT23haX3dvT/e5GyU3iInat3+0GI+MqvRcwcNzsBrTJq7yDWp3wk7O/Q==}
+    hasBin: true
+    dev: false
+
+  /@pnpm.e2e/pkg-with-peer-having-bin/1.0.0:
+    resolution: {integrity: sha512-bbL3oe5SBIz54k276vb4pR5T0ZrKZ2p2+OObfMMtkG43nCfwRBca3+WAqKjs9pIu2c4vUFhnU4rcqdbeuJkIbg==}
+    peerDependencies:
+      '@pnpm.e2e/peer-with-bin': ^1.0.0
+    dependencies:
+      '@pnpm.e2e/hello-world-js-bin': 1.0.0
+    dev: false
 
   /balanced-match/1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
@@ -57,11 +70,6 @@ packages:
       path-is-absolute: 1.0.1
     dev: false
 
-  /hello-world-js-bin/1.0.0:
-    resolution: {integrity: sha512-0wmzOwltlD4Vy3XHbJlASP2OOZOOk39jbxWVQdohHQPiSPq7UDKUMkykrl+09FjPhanu2c3DuCmRA0Jy9Hf8rQ==}
-    hasBin: true
-    dev: false
-
   /inflight/1.0.6:
     resolution: {integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=}
     dependencies:
@@ -98,14 +106,6 @@ packages:
   /path-is-absolute/1.0.1:
     resolution: {integrity: sha1-F0uSaHNVNP+8es5r9TpanhtcX18=}
     engines: {node: '>=0.10.0'}
-    dev: false
-
-  /pkg-with-peer-having-bin/1.0.0:
-    resolution: {integrity: sha512-nkUSkBlH/EOCd3WhpWCeDLsl5In3oXLLQ83miHtqDzg7VG9ODhMcz/vYIUhSy9b7d8csEYS/0O30zjA/evqvrA==}
-    peerDependencies:
-      peer-with-bin: ^1.0.0
-    dependencies:
-      hello-world-js-bin: 1.0.0
     dev: false
 
   /rimraf/2.7.1:

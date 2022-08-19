@@ -207,36 +207,36 @@ test('hoistPattern=undefined throws exception when executed on node_modules inst
 })
 
 test('hoist by alias', async () => {
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
 
-  // pkg-with-1-aliased-dep aliases dep-of-pkg-with-1-dep as just "dep"
-  await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ hoistPattern: '*' }))
+  // pkg-with-1-aliased-dep aliases @pnpm.e2e/dep-of-pkg-with-1-dep as just "dep"
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-aliased-dep'], await testDefaults({ hoistPattern: '*' }))
 
-  await project.has('pkg-with-1-aliased-dep')
+  await project.has('@pnpm.e2e/pkg-with-1-aliased-dep')
   await project.has('.pnpm/node_modules/dep')
-  await project.hasNot('.pnpm/node_modules/dep-of-pkg-with-1-dep')
+  await project.hasNot('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   const modules = await project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.hoistedDependencies).toStrictEqual({ '/dep-of-pkg-with-1-dep/100.1.0': { dep: 'private' } })
+  expect(modules!.hoistedDependencies).toStrictEqual({ '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0': { dep: 'private' } })
 })
 
 test('should remove aliased hoisted dependencies', async () => {
   const project = prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ hoistPattern: '*' }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-aliased-dep'], await testDefaults({ hoistPattern: '*' }))
   await mutateModules([
     {
-      dependencyNames: ['pkg-with-1-aliased-dep'],
+      dependencyNames: ['@pnpm.e2e/pkg-with-1-aliased-dep'],
       manifest,
       mutation: 'uninstallSome',
       rootDir: process.cwd(),
     },
   ], await testDefaults({ hoistPattern: '*' }))
 
-  await project.hasNot('pkg-with-1-aliased-dep')
-  await project.hasNot('dep-of-pkg-with-1-dep')
+  await project.hasNot('@pnpm.e2e/pkg-with-1-aliased-dep')
+  await project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
   try {
     await resolveLinkTarget('./node_modules/dep')
     throw new Error('should have failed')
@@ -252,7 +252,7 @@ test('should update .modules.yaml when pruning if we are flattening', async () =
 
   await install({
     dependencies: {
-      'pkg-with-1-aliased-dep': '*',
+      '@pnpm.e2e/pkg-with-1-aliased-dep': '*',
     },
   }, await testDefaults({ hoistPattern: '*' }))
 
@@ -297,17 +297,17 @@ test('should rehoist after pruning', async () => {
 
 test('should hoist correctly peer dependencies', async () => {
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['using-ajv'], await testDefaults({ hoistPattern: '*' }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/using-ajv'], await testDefaults({ hoistPattern: '*' }))
 
   await project.has('.pnpm/node_modules/ajv-keywords')
 })
 
 test('should uninstall correctly peer dependencies', async () => {
   prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['using-ajv'], await testDefaults({ hoistPattern: '*' }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/using-ajv'], await testDefaults({ hoistPattern: '*' }))
   await mutateModules([
     {
-      dependencyNames: ['using-ajv'],
+      dependencyNames: ['@pnpm.e2e/using-ajv'],
       manifest,
       mutation: 'uninstallSome',
       rootDir: process.cwd(),
@@ -323,14 +323,14 @@ test('hoist-pattern: hoist all dependencies to the virtual store node_modules', 
     name: 'root',
 
     dependencies: {
-      'pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
     },
   }
   const workspacePackageManifest = {
     name: 'package',
 
     dependencies: {
-      foobar: '100.0.0',
+      '@pnpm.e2e/foobar': '100.0.0',
     },
   }
   const projects = preparePackages([
@@ -360,53 +360,53 @@ test('hoist-pattern: hoist all dependencies to the virtual store node_modules', 
   ]
   await mutateModules(mutatedProjects, await testDefaults({ hoistPattern: '*' }))
 
-  await projects['root'].has('pkg-with-1-dep')
-  await projects['root'].has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
-  await projects['root'].has('.pnpm/node_modules/foobar')
-  await projects['root'].has('.pnpm/node_modules/foo')
-  await projects['root'].has('.pnpm/node_modules/bar')
-  await projects['root'].hasNot('foobar')
-  await projects['root'].hasNot('foo')
-  await projects['root'].hasNot('bar')
+  await projects['root'].has('@pnpm.e2e/pkg-with-1-dep')
+  await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/foobar')
+  await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/foo')
+  await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/bar')
+  await projects['root'].hasNot('@pnpm.e2e/foobar')
+  await projects['root'].hasNot('@pnpm.e2e/foo')
+  await projects['root'].hasNot('@pnpm.e2e/bar')
 
-  await projects['package'].has('foobar')
-  await projects['package'].hasNot('foo')
-  await projects['package'].hasNot('bar')
+  await projects['package'].has('@pnpm.e2e/foobar')
+  await projects['package'].hasNot('@pnpm.e2e/foo')
+  await projects['package'].hasNot('@pnpm.e2e/bar')
 
   await rimraf('node_modules')
   await rimraf('package/node_modules')
 
   await mutateModules(mutatedProjects, await testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
 
-  await projects['root'].has('pkg-with-1-dep')
-  await projects['root'].has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
-  await projects['root'].has('.pnpm/node_modules/foobar')
-  await projects['root'].has('.pnpm/node_modules/foo')
-  await projects['root'].has('.pnpm/node_modules/bar')
-  await projects['root'].hasNot('foobar')
-  await projects['root'].hasNot('foo')
-  await projects['root'].hasNot('bar')
+  await projects['root'].has('@pnpm.e2e/pkg-with-1-dep')
+  await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/foobar')
+  await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/foo')
+  await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/bar')
+  await projects['root'].hasNot('@pnpm.e2e/foobar')
+  await projects['root'].hasNot('@pnpm.e2e/foo')
+  await projects['root'].hasNot('@pnpm.e2e/bar')
 
-  await projects['package'].has('foobar')
-  await projects['package'].hasNot('foo')
-  await projects['package'].hasNot('bar')
+  await projects['package'].has('@pnpm.e2e/foobar')
+  await projects['package'].hasNot('@pnpm.e2e/foo')
+  await projects['package'].hasNot('@pnpm.e2e/bar')
 })
 
 test('hoist when updating in one of the workspace projects', async () => {
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const workspaceRootManifest = {
     name: 'root',
 
     dependencies: {
-      'pkg-with-1-dep': '100.0.0',
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
     },
   }
   const workspacePackageManifest = {
     name: 'package',
 
     dependencies: {
-      foo: '100.0.0',
+      '@pnpm.e2e/foo': '100.0.0',
     },
   }
   preparePackages([
@@ -440,15 +440,15 @@ test('hoist when updating in one of the workspace projects', async () => {
   {
     const modulesManifest = await rootModules.readModulesManifest()
     expect(modulesManifest?.hoistedDependencies).toStrictEqual({
-      '/dep-of-pkg-with-1-dep/100.0.0': { 'dep-of-pkg-with-1-dep': 'private' },
-      '/foo/100.0.0': { foo: 'private' },
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0': { '@pnpm.e2e/dep-of-pkg-with-1-dep': 'private' },
+      '/@pnpm.e2e/foo/100.0.0': { '@pnpm.e2e/foo': 'private' },
     })
   }
 
   await mutateModules([
     {
       ...mutatedProjects[0],
-      dependencySelectors: ['foo@100.1.0'],
+      dependencySelectors: ['@pnpm.e2e/foo@100.1.0'],
       mutation: 'installSome',
     },
   ], await testDefaults({ hoistPattern: '*', pruneLockfileImporters: false }))
@@ -459,26 +459,26 @@ test('hoist when updating in one of the workspace projects', async () => {
     Object.keys(lockfile.packages)
   ).toStrictEqual(
     [
-      '/dep-of-pkg-with-1-dep/100.0.0',
-      '/foo/100.0.0',
-      '/foo/100.1.0',
-      '/pkg-with-1-dep/100.0.0',
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0',
+      '/@pnpm.e2e/foo/100.0.0',
+      '/@pnpm.e2e/foo/100.1.0',
+      '/@pnpm.e2e/pkg-with-1-dep/100.0.0',
     ]
   )
 
   {
     const modulesManifest = await rootModules.readModulesManifest()
     expect(modulesManifest?.hoistedDependencies).toStrictEqual({
-      '/dep-of-pkg-with-1-dep/100.0.0': { 'dep-of-pkg-with-1-dep': 'private' },
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0': { '@pnpm.e2e/dep-of-pkg-with-1-dep': 'private' },
     })
   }
 })
 
 test('should recreate node_modules with hoisting', async () => {
   const project = prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ hoistPattern: undefined }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ hoistPattern: undefined }))
 
-  await project.hasNot('.pnpm/node_modules/dep-of-pkg-with-1-dep')
+  await project.hasNot('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
   {
     const modulesManifest = await project.readModulesManifest()
     expect(modulesManifest?.hoistPattern).toBeFalsy()
@@ -494,8 +494,8 @@ test('should recreate node_modules with hoisting', async () => {
     },
   ], await testDefaults({ hoistPattern: '*' }))
 
-  await project.has('pkg-with-1-dep')
-  await project.has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
+  await project.has('@pnpm.e2e/pkg-with-1-dep')
+  await project.has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
   {
     const modulesManifest = await project.readModulesManifest()
     expect(modulesManifest?.hoistPattern).toBeTruthy()
@@ -512,13 +512,13 @@ test('hoisting should not create a broken symlink to a skipped optional dependen
       'is-positive': '1.0.0',
     },
     optionalDependencies: {
-      'not-compatible-with-any-os': '*',
+      '@pnpm.e2e/not-compatible-with-any-os': '*',
     },
   }
 
   await install(manifest, await testDefaults({ publicHoistPattern: '*' }))
 
-  await project.hasNot('dep-of-optional-pkg')
+  await project.hasNot('@pnpm.e2e/dep-of-optional-pkg')
   expect(await rootModules.readCurrentLockfile()).toStrictEqual(await rootModules.readLockfile())
 
   // Verifying the same with headless installation
@@ -526,14 +526,14 @@ test('hoisting should not create a broken symlink to a skipped optional dependen
 
   await install(manifest, await testDefaults({ publicHoistPattern: '*' }))
 
-  await project.hasNot('dep-of-optional-pkg')
+  await project.hasNot('@pnpm.e2e/dep-of-optional-pkg')
   expect(await rootModules.readCurrentLockfile()).toStrictEqual(await rootModules.readLockfile())
 })
 
 test('the hoisted packages should not override the bin files of the direct dependencies', async () => {
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['hello-world-js-bin-parent'], await testDefaults({ fastUnpack: false, publicHoistPattern: '*' }))
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin-parent'], await testDefaults({ fastUnpack: false, publicHoistPattern: '*' }))
 
   {
     const cmd = await fs.promises.readFile('node_modules/.bin/hello-world-js-bin', 'utf-8')

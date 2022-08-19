@@ -12,15 +12,15 @@ test('readPackage, afterAllResolved hooks', async () => {
   const project = prepareEmpty()
 
   // w/o the hook, 100.1.0 would be installed
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   function readPackageHook (manifest: PackageManifest) {
     switch (manifest.name) {
-    case 'pkg-with-1-dep':
+    case '@pnpm.e2e/pkg-with-1-dep':
       if (manifest.dependencies == null) {
-        throw new Error('pkg-with-1-dep expected to have a dependencies field')
+        throw new Error('@pnpm.e2e/pkg-with-1-dep expected to have a dependencies field')
       }
-      manifest.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
+      manifest.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0'
       break
     }
     return manifest
@@ -31,14 +31,14 @@ test('readPackage, afterAllResolved hooks', async () => {
     return lockfile
   })
 
-  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({
     hooks: {
       afterAllResolved,
       readPackage: readPackageHook,
     },
   }))
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
   expect(afterAllResolved).toHaveBeenCalledTimes(1)
   expect(afterAllResolved.mock.calls[0][0].lockfileVersion).toEqual(LOCKFILE_VERSION)
 
@@ -50,15 +50,15 @@ test('readPackage, afterAllResolved async hooks', async () => {
   const project = prepareEmpty()
 
   // w/o the hook, 100.1.0 would be installed
-  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   async function readPackageHook (manifest: PackageManifest) {
     switch (manifest.name) {
-    case 'pkg-with-1-dep':
+    case '@pnpm.e2e/pkg-with-1-dep':
       if (manifest.dependencies == null) {
-        throw new Error('pkg-with-1-dep expected to have a dependencies field')
+        throw new Error('@pnpm.e2e/pkg-with-1-dep expected to have a dependencies field')
       }
-      manifest.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
+      manifest.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0'
       break
     }
     return manifest
@@ -69,14 +69,14 @@ test('readPackage, afterAllResolved async hooks', async () => {
     return lockfile
   })
 
-  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({
     hooks: {
       afterAllResolved,
       readPackage: readPackageHook,
     },
   }))
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
   expect(afterAllResolved).toHaveBeenCalledTimes(1)
   expect(afterAllResolved.mock.calls[0][0].lockfileVersion).toEqual(LOCKFILE_VERSION)
 

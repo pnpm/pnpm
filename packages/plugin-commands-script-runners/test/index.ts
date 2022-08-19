@@ -429,7 +429,7 @@ test('pnpm run with custom shell', async () => {
       build: 'foo bar',
     },
     dependencies: {
-      'shell-mock': '0.0.0',
+      '@pnpm.e2e/shell-mock': '0.0.0',
     },
   })
 

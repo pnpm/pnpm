@@ -324,7 +324,7 @@ test('pnpm add automatically installs missing peer dependencies', async () => {
     autoInstallPeers: true,
     dir: process.cwd(),
     linkWorkspacePackages: false,
-  }, ['abc@1.0.0'])
+  }, ['@pnpm.e2e/abc@1.0.0'])
 
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages).length).toBe(5)

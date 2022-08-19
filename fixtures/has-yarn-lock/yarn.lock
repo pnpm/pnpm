@@ -2,14 +2,14 @@
 # yarn lockfile v1
 
 
-dep-of-pkg-with-1-dep@^1.0.0, dep-of-pkg-with-1-dep@^101.0.0:
-  version "1.1.0"
-  resolved "https://registry.nlark.com/dep-of-pkg-with-1-dep/download/dep-of-pkg-with-1-dep-1.1.0.tgz#67d3ac196cb08162e543b87b3b1829c76072c927"
-  integrity sha1-Z9OsGWywgWLlQ7h7Oxgpx2ByySc=
+"@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0":
+  version "100.0.0"
+  resolved "http://localhost:4873/@pnpm.e2e%2fdep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz#a95f834b4a4d9661623a0cf2bd76acbc213192fc"
+  integrity sha512-KUmwlEiE3pzpmPCfrLkoOO7fmL4Tft+dcm6YQlUfOUJvHO73xlcKVoA/xOHP/ayUO8GiPlIqWRbKHrsxvXGE8g==
 
-pkg-with-1-dep@*:
-  version "1.0.0"
-  resolved "https://registry.nlark.com/pkg-with-1-dep/download/pkg-with-1-dep-1.0.0.tgz#0d4ed129376f707bac0bf5f6a58410f663e27c80"
-  integrity sha1-DU7RKTdvcHusC/X2pYQQ9mPifIA=
+"@pnpm.e2e/pkg-with-1-dep@*":
+  version "100.0.0"
+  resolved "http://localhost:4873/@pnpm.e2e%2fpkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz#2845d276feb3153c4abc107728ddbe0f7ce75a45"
+  integrity sha512-tZBohBD7WeOtm0hBUQl0FlPvuTwyrdSn2V45P4jd2arjwKxM5YULEAtD1J42bKuEOJls4vS4/1v3lgS8qTfA2Q==
   dependencies:
-    dep-of-pkg-with-1-dep "^1.0.0"
+    "@pnpm.e2e/dep-of-pkg-with-1-dep" "^100.0.0"

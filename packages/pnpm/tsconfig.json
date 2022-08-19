@@ -46,6 +46,9 @@
       "path": "../default-reporter"
     },
     {
+      "path": "../dependency-path"
+    },
+    {
       "path": "../filter-workspace-packages"
     },
     {

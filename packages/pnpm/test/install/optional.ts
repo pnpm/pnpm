@@ -5,7 +5,7 @@ import { execPnpm } from '../utils'
 test('installing optional dependencies when --no-optional is not used', async () => {
   const project = prepare({
     dependencies: {
-      'pkg-with-good-optional': '*',
+      '@pnpm.e2e/pkg-with-good-optional': '*',
     },
     optionalDependencies: {
       'is-positive': '1.0.0',
@@ -15,16 +15,16 @@ test('installing optional dependencies when --no-optional is not used', async ()
   await execPnpm(['install'])
 
   await project.has('is-positive')
-  await project.has('pkg-with-good-optional')
+  await project.has('@pnpm.e2e/pkg-with-good-optional')
 
-  expect(deepRequireCwd(['pkg-with-good-optional', 'dep-of-pkg-with-1-dep', './package.json'])).toBeTruthy()
-  expect(deepRequireCwd(['pkg-with-good-optional', 'is-positive', './package.json'])).toBeTruthy()
+  expect(deepRequireCwd(['@pnpm.e2e/pkg-with-good-optional', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json'])).toBeTruthy()
+  expect(deepRequireCwd(['@pnpm.e2e/pkg-with-good-optional', 'is-positive', './package.json'])).toBeTruthy()
 })
 
 test('not installing optional dependencies when --no-optional is used', async () => {
   const project = prepare({
     dependencies: {
-      'pkg-with-good-optional': '*',
+      '@pnpm.e2e/pkg-with-good-optional': '*',
     },
     optionalDependencies: {
       'is-positive': '1.0.0',
@@ -34,8 +34,8 @@ test('not installing optional dependencies when --no-optional is used', async ()
   await execPnpm(['install', '--no-optional'])
 
   await project.hasNot('is-positive')
-  await project.has('pkg-with-good-optional')
+  await project.has('@pnpm.e2e/pkg-with-good-optional')
 
-  expect(deepRequireCwd(['pkg-with-good-optional', 'dep-of-pkg-with-1-dep', './package.json'])).toBeTruthy()
-  expect(deepRequireCwd.silent(['pkg-with-good-optional', 'is-positive', './package.json'])).toBeFalsy()
+  expect(deepRequireCwd(['@pnpm.e2e/pkg-with-good-optional', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json'])).toBeTruthy()
+  expect(deepRequireCwd.silent(['@pnpm.e2e/pkg-with-good-optional', 'is-positive', './package.json'])).toBeFalsy()
 })

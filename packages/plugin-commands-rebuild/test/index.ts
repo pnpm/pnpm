@@ -23,7 +23,7 @@ test('rebuilds dependencies', async () => {
     pnpmBin,
     'add',
     '--save-dev',
-    'pre-and-postinstall-scripts-example',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example',
     'pnpm/test-git-fetch#299c6d89507571462b992b92407a8a07663e32ee',
     `--registry=${REGISTRY}`,
     `--store-dir=${storeDir}`,
@@ -33,7 +33,7 @@ test('rebuilds dependencies', async () => {
 
   let modules = await project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
-    '/pre-and-postinstall-scripts-example/1.0.0',
+    '/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0',
     'github.com/pnpm/test-git-fetch/299c6d89507571462b992b92407a8a07663e32ee',
   ])
 
@@ -52,13 +52,13 @@ test('rebuilds dependencies', async () => {
   expect(modules!.pendingBuilds.length).toBe(0)
 
   {
-    expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-prepare.js')).toBeFalsy()
-    expect(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+    expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-prepare.js')).toBeFalsy()
+    expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
 
-    const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
+    const generatedByPreinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
     expect(typeof generatedByPreinstall).toBe('function')
 
-    const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
+    const generatedByPostinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
     expect(typeof generatedByPostinstall).toBe('function')
   }
 
@@ -109,8 +109,8 @@ test('rebuilds specific dependencies', async () => {
     pnpmBin,
     'add',
     '--save-dev',
-    'pre-and-postinstall-scripts-example',
-    'zkochan/install-scripts-example',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example',
+    'pnpm-e2e/install-scripts-example#b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b',
     `--registry=${REGISTRY}`,
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
@@ -127,8 +127,8 @@ test('rebuilds specific dependencies', async () => {
     storeDir,
   }, ['install-scripts-example-for-pnpm'])
 
-  await project.hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall')
-  await project.hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall')
+  await project.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
+  await project.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
 
   const generatedByPreinstall = project.requireModule('install-scripts-example-for-pnpm/generated-by-preinstall')
   expect(typeof generatedByPreinstall).toBe('function')
@@ -144,7 +144,7 @@ test('rebuild with pending option', async () => {
   await execa('node', [
     pnpmBin,
     'add',
-    'pre-and-postinstall-scripts-example',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example',
     `--registry=${REGISTRY}`,
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
@@ -153,7 +153,7 @@ test('rebuild with pending option', async () => {
   await execa('node', [
     pnpmBin,
     'add',
-    'zkochan/install-scripts-example',
+    'pnpm-e2e/install-scripts-example#b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b',
     `--registry=${REGISTRY}`,
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
@@ -162,12 +162,12 @@ test('rebuild with pending option', async () => {
 
   let modules = await project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
-    '/pre-and-postinstall-scripts-example/1.0.0',
-    'github.com/zkochan/install-scripts-example/6d879afcee10ece4d3f0e8c09de2993232f3430a',
+    '/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0',
+    'github.com/pnpm-e2e/install-scripts-example/b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b',
   ])
 
-  await project.hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall')
-  await project.hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall')
+  await project.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
+  await project.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
 
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-preinstall')
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-postinstall')
@@ -186,10 +186,10 @@ test('rebuild with pending option', async () => {
   expect(modules!.pendingBuilds.length).toBe(0)
 
   {
-    const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
+    const generatedByPreinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
     expect(typeof generatedByPreinstall).toBe('function')
 
-    const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
+    const generatedByPostinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
     expect(typeof generatedByPostinstall).toBe('function')
   }
 
@@ -210,7 +210,7 @@ test('rebuild dependencies in correct order', async () => {
   await execa('node', [
     pnpmBin,
     'add',
-    'with-postinstall-a',
+    '@pnpm.e2e/with-postinstall-a',
     `--registry=${REGISTRY}`,
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
@@ -221,8 +221,8 @@ test('rebuild dependencies in correct order', async () => {
   expect(modules).toBeTruthy()
   expect(modules!.pendingBuilds.length).not.toBe(0)
 
-  await project.hasNot('.pnpm/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json')
-  await project.hasNot('with-postinstall-a/output.json')
+  await project.hasNot('.pnpm/@pnpm.e2e+with-postinstall-b@1.0.0/node_modules/@pnpm.e2e/with-postinstall-b/output.json')
+  await project.hasNot('@pnpm.e2e/with-postinstall-a/output.json')
 
   await rebuild.handler({
     ...DEFAULT_OPTS,
@@ -237,7 +237,7 @@ test('rebuild dependencies in correct order', async () => {
   expect(modules).toBeTruthy()
   expect(modules!.pendingBuilds.length).toBe(0)
 
-  expect(+project.requireModule('.pnpm/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0]).toBeTruthy()
+  expect(+project.requireModule('.pnpm/@pnpm.e2e+with-postinstall-b@1.0.0/node_modules/@pnpm.e2e/with-postinstall-b/output.json')[0] < +project.requireModule('@pnpm.e2e/with-postinstall-a/output.json')[0]).toBeTruthy()
 })
 
 test('rebuild links bins', async () => {
@@ -248,8 +248,8 @@ test('rebuild links bins', async () => {
   await execa('node', [
     pnpmBin,
     'add',
-    'has-generated-bins-as-dep',
-    'generated-bins',
+    '@pnpm.e2e/has-generated-bins-as-dep',
+    '@pnpm.e2e/generated-bins',
     `--registry=${REGISTRY}`,
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
@@ -259,9 +259,9 @@ test('rebuild links bins', async () => {
   expect(await exists(path.resolve('node_modules/.bin/cmd1'))).toBeFalsy()
   expect(await exists(path.resolve('node_modules/.bin/cmd2'))).toBeFalsy()
 
-  expect(await exists(path.resolve('node_modules/has-generated-bins-as-dep/package.json'))).toBeTruthy()
-  expect(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd1'))).toBeFalsy()
-  expect(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd2'))).toBeFalsy()
+  expect(await exists(path.resolve('node_modules/@pnpm.e2e/has-generated-bins-as-dep/package.json'))).toBeTruthy()
+  expect(await exists(path.resolve('node_modules/@pnpm.e2e/has-generated-bins-as-dep/node_modules/.bin/cmd1'))).toBeFalsy()
+  expect(await exists(path.resolve('node_modules/@pnpm.e2e/has-generated-bins-as-dep/node_modules/.bin/cmd2'))).toBeFalsy()
 
   const modules = await project.readModulesManifest()
   await rebuild.handler({
@@ -275,17 +275,17 @@ test('rebuild links bins', async () => {
 
   await project.isExecutable('.bin/cmd1')
   await project.isExecutable('.bin/cmd2')
-  await project.isExecutable('has-generated-bins-as-dep/node_modules/.bin/cmd1')
-  await project.isExecutable('has-generated-bins-as-dep/node_modules/.bin/cmd2')
+  await project.isExecutable('@pnpm.e2e/has-generated-bins-as-dep/node_modules/.bin/cmd1')
+  await project.isExecutable('@pnpm.e2e/has-generated-bins-as-dep/node_modules/.bin/cmd2')
 })
 
 test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async () => {
   const project = prepare({
     dependencies: {
-      'pre-and-postinstall-scripts-example': '1.0.0',
+      '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
     },
     optionalDependencies: {
-      'not-compatible-with-any-os': '1.0.0',
+      '@pnpm.e2e/not-compatible-with-any-os': '1.0.0',
     },
   })
   const cacheDir = path.resolve('cache')

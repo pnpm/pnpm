@@ -67,7 +67,7 @@ test('prune keeps hoisted dependencies', async () => {
     cacheDir,
     dir: process.cwd(),
     storeDir,
-  }, ['pkg-with-1-dep@100.0.0'])
+  }, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'])
 
   await prune.handler({
     ...DEFAULT_OPTIONS,
@@ -76,7 +76,7 @@ test('prune keeps hoisted dependencies', async () => {
     storeDir,
   })
 
-  await project.hasNot('dep-of-pkg-with-1-dep')
+  await project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
 })
 
 test('prune removes dev dependencies', async () => {

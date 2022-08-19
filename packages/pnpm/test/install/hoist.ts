@@ -43,7 +43,7 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
         name: 'root',
 
         dependencies: {
-          'pkg-with-1-dep': '100.0.0',
+          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
         },
       },
     },
@@ -52,7 +52,7 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
       version: '1.0.0',
 
       dependencies: {
-        foobar: '100.0.0',
+        '@pnpm.e2e/foobar': '100.0.0',
       },
     },
   ])
@@ -62,8 +62,8 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
 
   await execPnpm(['recursive', 'install'])
 
-  await projects.root.has('dep-of-pkg-with-1-dep')
-  await projects.root.has('foo')
-  await projects.project.hasNot('foo')
-  await projects.project.has('foobar')
+  await projects.root.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await projects.root.has('@pnpm.e2e/foo')
+  await projects.project.hasNot('@pnpm.e2e/foo')
+  await projects.project.has('@pnpm.e2e/foobar')
 })
