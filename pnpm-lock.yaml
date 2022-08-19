@@ -640,6 +640,9 @@ importers:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../read-project-manifest
+      '@pnpm/read-projects-context':
+        specifier: workspace:*
+        version: link:../read-projects-context
       '@pnpm/remove-bins':
         specifier: workspace:*
         version: link:../remove-bins

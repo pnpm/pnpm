@@ -75,7 +75,7 @@ export default async function testDefaults (
       version: '1.0.0',
     },
     pendingBuilds,
-    selectedProjectDirs: projects.map((project) => project.rootDir),
+    selectedProjectDirs: opts.selectedProjectDirs ?? projects.map((project) => project.rootDir),
     allProjects: fromPairs(
       await Promise.all(projects.map(async (project) => [project.rootDir, { ...project, manifest: await safeReadPackageFromDir(project.rootDir) }]))
     ),

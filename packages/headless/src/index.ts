@@ -240,10 +240,10 @@ export async function headlessInstall (opts: HeadlessOptions) {
     registries: opts.registries,
     skipped,
   }
-  const importerIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
+  const initialImporterIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
     ? Object.keys(wantedLockfile.importers)
     : selectedProjects.map(({ id }) => id)
-  const filteredLockfile = filterLockfileByImportersAndEngine(wantedLockfile, importerIds, {
+  const { lockfile: filteredLockfile, importerIds } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, {
     ...filterOpts,
     currentEngine: opts.currentEngine,
     engineStrict: opts.engineStrict,
@@ -251,6 +251,22 @@ export async function headlessInstall (opts: HeadlessOptions) {
     includeIncompatiblePackages: opts.force,
     lockfileDir,
   })
+
+  // Update selectedProjects to add missing projects. importerIds will have the updated ids, found from deeply linked workspace projects
+  const missingIds = [] as string[]
+  const initialImporterIdSet = new Set(initialImporterIds)
+  for (const id of importerIds) {
+    if (!initialImporterIdSet.has(id)) {
+      missingIds.push(id)
+    }
+  }
+  for (const id of missingIds) {
+    const additionalProject = Object.values(opts.allProjects).find((project) => project.id === id)
+    if (additionalProject) {
+      selectedProjects.push(additionalProject)
+    }
+  }
+
   const lockfileToDepGraphOpts = {
     ...opts,
     importerIds,
