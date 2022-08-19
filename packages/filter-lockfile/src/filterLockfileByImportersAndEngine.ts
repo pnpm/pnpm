@@ -14,6 +14,31 @@ import filterImporter from './filterImporter'
 
 const logger = pnpmLogger('lockfile')
 
+function toImporterDepPaths (
+  lockfile: Lockfile,
+  importerIds: string[],
+  opts: {
+    include: { [dependenciesField in DependenciesField]: boolean }
+  }
+) {
+  const importerDeps = importerIds
+    .map(importerId => lockfile.importers[importerId])
+    .map(importer => ({
+      ...(opts.include.dependencies ? importer.dependencies : {}),
+      ...(opts.include.devDependencies ? importer.devDependencies : {}),
+      ...(opts.include.optionalDependencies
+        ? importer.optionalDependencies
+        : {}),
+    }))
+    .map(Object.entries)
+
+  const importerDepsPaths = unnest(importerDeps)
+    .map(([pkgName, ref]) => dp.refToRelative(ref, pkgName))
+    .filter(nodeId => nodeId !== null) as string[]
+
+  return importerDepsPaths
+}
+
 export default function filterByImportersAndEngine (
   lockfile: Lockfile,
   importerIds: string[],
@@ -29,30 +54,26 @@ export default function filterByImportersAndEngine (
     lockfileDir: string
     skipped: Set<string>
   }
-): Lockfile {
-  const importerDeps = importerIds
-    .map((importerId) => lockfile.importers[importerId])
-    .map((importer) => ({
-      ...(opts.include.dependencies ? importer.dependencies : {}),
-      ...(opts.include.devDependencies ? importer.devDependencies : {}),
-      ...(opts.include.optionalDependencies ? importer.optionalDependencies : {}),
-    }))
-    .map(Object.entries)
-  const directDepPaths = unnest(importerDeps)
-    .map(([pkgName, ref]) => dp.refToRelative(ref, pkgName))
-    .filter((nodeId) => nodeId !== null) as string[]
+): { lockfile: Lockfile, importerIds: string[] } {
+  const importerIdSet = new Set(importerIds) as Set<string>
 
-  const packages = (lockfile.packages != null)
-    ? pickPkgsWithAllDeps(lockfile.packages, directDepPaths, {
-      currentEngine: opts.currentEngine,
-      engineStrict: opts.engineStrict,
-      failOnMissingDependencies: opts.failOnMissingDependencies,
-      include: opts.include,
-      includeIncompatiblePackages: opts.includeIncompatiblePackages === true,
-      lockfileDir: opts.lockfileDir,
-      skipped: opts.skipped,
-    })
-    : {}
+  const directDepPaths = toImporterDepPaths(lockfile, importerIds, {
+    include: opts.include,
+  })
+
+  const packages =
+    lockfile.packages != null
+      ? pickPkgsWithAllDeps(lockfile, directDepPaths, importerIdSet, {
+        currentEngine: opts.currentEngine,
+        engineStrict: opts.engineStrict,
+        failOnMissingDependencies: opts.failOnMissingDependencies,
+        include: opts.include,
+        includeIncompatiblePackages:
+            opts.includeIncompatiblePackages === true,
+        lockfileDir: opts.lockfileDir,
+        skipped: opts.skipped,
+      })
+      : {}
 
   const importers = importerIds.reduce((acc, importerId) => {
     acc[importerId] = filterImporter(lockfile.importers[importerId], opts.include)
@@ -68,15 +89,19 @@ export default function filterByImportersAndEngine (
   }, { ...lockfile.importers })
 
   return {
-    ...lockfile,
-    importers,
-    packages,
+    lockfile: {
+      ...lockfile,
+      importers,
+      packages,
+    },
+    importerIds: Array.from(importerIdSet),
   }
 }
 
 function pickPkgsWithAllDeps (
-  pkgSnapshots: PackageSnapshots,
+  lockfile: Lockfile,
   depPaths: string[],
+  importerIdSet: Set<string>,
   opts: {
     currentEngine: {
       nodeVersion: string
@@ -91,14 +116,15 @@ function pickPkgsWithAllDeps (
   }
 ) {
   const pickedPackages = {} as PackageSnapshots
-  pkgAllDeps({ pkgSnapshots, pickedPackages }, depPaths, true, opts)
+  pkgAllDeps({ lockfile, pickedPackages, importerIdSet }, depPaths, true, opts)
   return pickedPackages
 }
 
 function pkgAllDeps (
   ctx: {
-    pkgSnapshots: PackageSnapshots
+    lockfile: Lockfile
     pickedPackages: PackageSnapshots
+    importerIdSet: Set<string>
   },
   depPaths: string[],
   parentIsInstallable: boolean,
@@ -117,7 +143,7 @@ function pkgAllDeps (
 ) {
   for (const depPath of depPaths) {
     if (ctx.pickedPackages[depPath]) continue
-    const pkgSnapshot = ctx.pkgSnapshots[depPath]
+    const pkgSnapshot = ctx.lockfile.packages![depPath]
     if (!pkgSnapshot && !depPath.startsWith('link:')) {
       if (opts.failOnMissingDependencies) {
         throw new LockfileMissingDependencyError(depPath)
@@ -140,13 +166,15 @@ function pkgAllDeps (
         libc: pkgSnapshot.libc,
       }
       // TODO: depPath is not the package ID. Should be fixed
-      installable = opts.includeIncompatiblePackages || packageIsInstallable(pkgSnapshot.id ?? depPath, pkg, {
-        engineStrict: opts.engineStrict,
-        lockfileDir: opts.lockfileDir,
-        nodeVersion: opts.currentEngine.nodeVersion,
-        optional: pkgSnapshot.optional === true,
-        pnpmVersion: opts.currentEngine.pnpmVersion,
-      }) !== false
+      installable =
+        opts.includeIncompatiblePackages ||
+        packageIsInstallable(pkgSnapshot.id ?? depPath, pkg, {
+          engineStrict: opts.engineStrict,
+          lockfileDir: opts.lockfileDir,
+          nodeVersion: opts.currentEngine.nodeVersion,
+          optional: pkgSnapshot.optional === true,
+          pnpmVersion: opts.currentEngine.pnpmVersion,
+        }) !== false
       if (!installable) {
         if (!ctx.pickedPackages[depPath] && pkgSnapshot.optional === true) {
           opts.skipped.add(depPath)
@@ -156,14 +184,39 @@ function pkgAllDeps (
       }
     }
     ctx.pickedPackages[depPath] = pkgSnapshot
-    const nextRelDepPaths = Object.entries(
-      {
-        ...pkgSnapshot.dependencies,
-        ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
+    const nextRelDepPaths = Object.entries({
+      ...pkgSnapshot.dependencies,
+      ...(opts.include.optionalDependencies
+        ? pkgSnapshot.optionalDependencies
+        : {}),
+    })
+      .map(([pkgName, ref]) => {
+        if (ref.startsWith('link:')) {
+          return ref
+        }
+        return dp.refToRelative(ref, pkgName)
       })
-      .map(([pkgName, ref]) => dp.refToRelative(ref, pkgName))
-      .filter((nodeId) => nodeId !== null) as string[]
+      .filter(nodeId => nodeId !== null) as string[]
 
-    pkgAllDeps(ctx, nextRelDepPaths, installable, opts)
+    // Also include missing deeply linked workspace project
+    const actualNextRelDepPaths = []
+    const additionalImporterIds = []
+    for (const nextDepPath of nextRelDepPaths) {
+      if (nextDepPath.startsWith('link:')) {
+        const ref = nextDepPath.slice(5)
+        additionalImporterIds.push(ref)
+        ctx.importerIdSet.add(ref)
+      } else {
+        actualNextRelDepPaths.push(nextDepPath)
+      }
+    }
+
+    actualNextRelDepPaths.push(
+      ...toImporterDepPaths(ctx.lockfile, additionalImporterIds, {
+        include: opts.include,
+      })
+    )
+
+    pkgAllDeps(ctx, actualNextRelDepPaths, installable, opts)
   }
 }

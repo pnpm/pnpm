@@ -2,11 +2,11 @@ import path from 'path'
 import createClient from '@pnpm/client'
 import { HeadlessOptions } from '@pnpm/headless'
 import createStore from '@pnpm/package-store'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readProjectsContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import storePath from '@pnpm/store-path'
 import tempy from 'tempy'
+import { toAllProjects, toAllProjectsMap } from './projects'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
@@ -35,6 +35,9 @@ export default async function testDefaults (
     ],
     { lockfileDir }
   )
+  const allProjects = opts.projects ? [] : await toAllProjects(projects)
+  const allProjectsMap = opts.allProjectsMap ? opts.allProjectsMap : toAllProjectsMap(allProjects)
+
   storeDir = await storePath({
     pkgRoot: lockfileDir,
     storePath: storeDir,
@@ -74,9 +77,8 @@ export default async function testDefaults (
     pendingBuilds,
     projects: opts.projects
       ? opts.projects
-      : await Promise.all(
-        projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
-      ),
+      : allProjects,
+    allProjectsMap,
     rawConfig: {},
     registries: registries ?? {
       default: registry,

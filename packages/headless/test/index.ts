@@ -14,7 +14,6 @@ import headless from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import { tempDir } from '@pnpm/prepare'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readprojectsContext from '@pnpm/read-projects-context'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import fixtures from '@pnpm/test-fixtures'
@@ -24,6 +23,7 @@ import exists from 'path-exists'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import testDefaults from './utils/testDefaults'
+import { toAllProjects, toAllProjectsMap } from './utils/projects'
 
 const f = fixtures(__dirname)
 
@@ -657,7 +657,7 @@ test('installing with publicHoistPattern=* in a project with external lockfile',
   const lockfileDir = f.prepare('pkg-with-external-lockfile')
   const prefix = path.join(lockfileDir, 'pkg')
 
-  let { projects } = await readprojectsContext(
+  const { projects } = await readprojectsContext(
     [
       {
         rootDir: prefix,
@@ -666,14 +666,14 @@ test('installing with publicHoistPattern=* in a project with external lockfile',
     { lockfileDir }
   )
 
-  projects = await Promise.all(
-    projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
-  )
+  const allProjects = await toAllProjects(projects)
+  const allProjectsMap = toAllProjectsMap(allProjects)
 
   await headless(await testDefaults({
     lockfileDir,
-    projects,
+    projects: allProjects,
     publicHoistPattern: '*',
+    allProjectsMap,
   }))
 
   const project = assertProject(lockfileDir)
@@ -733,15 +733,16 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
     ],
     { lockfileDir }
   )
+  const allProjects = await toAllProjects(projects)
+  const allProjectsMap = toAllProjectsMap(allProjects)
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
     hoistPattern: '*',
     lockfileDir,
-    projects: await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
-    ),
+    projects: allProjects,
+    allProjectsMap,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
@@ -765,7 +766,7 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
 test('installing in a workspace', async () => {
   const workspaceFixture = f.prepare('workspace')
 
-  let { projects } = await readprojectsContext(
+  const { projects } = await readprojectsContext(
     [
       {
         rootDir: path.join(workspaceFixture, 'foo'),
@@ -777,13 +778,13 @@ test('installing in a workspace', async () => {
     { lockfileDir: workspaceFixture }
   )
 
-  projects = await Promise.all(
-    projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
-  )
+  const allProjects = await toAllProjects(projects)
+  const allProjectsMap = toAllProjectsMap(allProjects)
 
   await headless(await testDefaults({
     lockfileDir: workspaceFixture,
-    projects,
+    projects: allProjects,
+    allProjectsMap,
   }))
 
   const projectBar = assertProject(path.join(workspaceFixture, 'bar'))
@@ -792,7 +793,8 @@ test('installing in a workspace', async () => {
 
   await headless(await testDefaults({
     lockfileDir: workspaceFixture,
-    projects: [projects[0]],
+    projects: [allProjects[0]],
+    allProjectsMap,
   }))
 
   const rootModules = assertProject(workspaceFixture)
@@ -849,7 +851,7 @@ test('installing with node-linker=hoisted', async () => {
 test('installing in a workspace with node-linker=hoisted', async () => {
   const prefix = f.prepare('workspace2')
 
-  let { projects } = await readprojectsContext(
+  const { projects } = await readprojectsContext(
     [
       {
         rootDir: path.join(prefix, 'foo'),
@@ -861,13 +863,14 @@ test('installing in a workspace with node-linker=hoisted', async () => {
     { lockfileDir: prefix }
   )
 
-  projects = await Promise.all(
-    projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
-  )
+  const allProjects = await toAllProjects(projects)
+  const allProjectsMap = toAllProjectsMap(allProjects)
+
   await headless(await testDefaults({
     lockfileDir: prefix,
     nodeLinker: 'hoisted',
-    projects,
+    projects: allProjects,
+    allProjectsMap,
   }))
 
   expect(realpathSync('bar/node_modules/foo')).toBe(path.resolve('foo'))
@@ -881,3 +884,45 @@ test('installing in a workspace with node-linker=hoisted', async () => {
 function readPkgVersion (dir: string): string {
   return loadJsonFile.sync<{ version: string }>(path.join(dir, 'package.json')).version
 }
+
+test('Installing a package deeply installs all required dependencies', async () => {
+  const workspaceFixture = f.prepare('workspace-external-depends-deep')
+  const { projects } = await readprojectsContext(
+    [
+      {
+        rootDir: path.join(workspaceFixture),
+      },
+      {
+        rootDir: path.join(workspaceFixture, 'packages/f'),
+      },
+      {
+        rootDir: path.join(workspaceFixture, 'packages/g'),
+      },
+    ],
+    { lockfileDir: workspaceFixture }
+  )
+
+  const allProjects = await toAllProjects(projects)
+  const allProjectsMap = toAllProjectsMap(allProjects)
+
+  const projectG = allProjects.find(
+    project =>
+      project.manifest.name === '@kenrick95/internal-g'
+  )
+
+  await headless(
+    await testDefaults({
+      lockfileDir: workspaceFixture,
+      projects: [projectG],
+      allProjectsMap,
+    })
+  )
+
+  for (const project of projects) {
+    if (project.rootDir === workspaceFixture) {
+      continue
+    }
+    const projectAssertion = assertProject(project.rootDir)
+    expect(projectAssertion.requireModule('is-positive')).toBeTruthy()
+  }
+})

@@ -119,7 +119,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
     }
   )
 
-  expect(filteredLockfile).toStrictEqual({
+  expect(filteredLockfile.lockfile).toStrictEqual({
     importers: {
       'project-1': {
         dependencies: {
@@ -298,7 +298,7 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
     }
   )
 
-  expect(filteredLockfile).toStrictEqual({
+  expect(filteredLockfile.lockfile).toStrictEqual({
     importers: {
       'project-1': {
         dependencies: {
@@ -466,7 +466,7 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
     }
   )
 
-  expect(filteredLockfile).toStrictEqual({
+  expect(filteredLockfile.lockfile).toStrictEqual({
     importers: {
       'project-1': {
         dependencies: {

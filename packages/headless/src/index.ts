@@ -109,6 +109,7 @@ export interface HeadlessOptions {
   ignorePackageManifest?: boolean
   include: IncludedDependencies
   projects: Project[]
+  allProjectsMap?: Map<string, Omit<Project, 'buildIndex'>>
   prunedAt?: string
   hoistedDependencies: HoistedDependencies
   hoistPattern?: string[]
@@ -237,10 +238,10 @@ export default async (opts: HeadlessOptions) => {
     registries: opts.registries,
     skipped,
   }
-  const importerIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
+  const initialImporterIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
     ? Object.keys(wantedLockfile.importers)
     : opts.projects.map(({ id }) => id)
-  const filteredLockfile = filterLockfileByImportersAndEngine(wantedLockfile, importerIds, {
+  const { lockfile: filteredLockfile, importerIds } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, {
     ...filterOpts,
     currentEngine: opts.currentEngine,
     engineStrict: opts.engineStrict,
@@ -248,6 +249,33 @@ export default async (opts: HeadlessOptions) => {
     includeIncompatiblePackages: opts.force,
     lockfileDir,
   })
+
+  // Update opts.projects to add missing projects. importerIds will have the updated ids, found from deeply linked workspace projects
+  if (opts.allProjectsMap) {
+    const missingIds = [] as string[]
+    const initialImporterIdSet = new Set(initialImporterIds)
+    let highestBuildIndex = 0
+    for (const { buildIndex } of opts.projects) {
+      highestBuildIndex = Math.max(highestBuildIndex, buildIndex)
+    }
+    for (const id of importerIds) {
+      if (!initialImporterIdSet.has(id)) {
+        missingIds.push(id)
+      }
+    }
+
+    for (const id of missingIds) {
+      const additionalProject = opts.allProjectsMap.get(id)
+      if (additionalProject) {
+        opts.projects.push({
+          ...additionalProject,
+          buildIndex: highestBuildIndex,
+        })
+        highestBuildIndex++
+      }
+    }
+  }
+
   const lockfileToDepGraphOpts = {
     ...opts,
     importerIds,

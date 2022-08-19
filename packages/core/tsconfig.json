@@ -121,6 +121,9 @@
       "path": "../read-project-manifest"
     },
     {
+      "path": "../read-projects-context"
+    },
+    {
       "path": "../remove-bins"
     },
     {

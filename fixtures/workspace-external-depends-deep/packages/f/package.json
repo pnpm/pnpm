@@ -1,0 +1,9 @@
+{
+  "name": "@kenrick95/internal-f",
+  "version": "1.0.0",
+  "dependencies": {
+    "is-positive": "1.0.0",
+    "is-negative": "1.0.0"
+  }
+}
+

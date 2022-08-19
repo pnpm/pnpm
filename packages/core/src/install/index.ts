@@ -55,7 +55,9 @@ import {
   PeerDependencyRules,
   ProjectManifest,
   ReadPackageHook,
+  Project as BaseProject,
 } from '@pnpm/types'
+import readProjectsContext from '@pnpm/read-projects-context'
 import { packageExtensions as compatPackageExtensions } from '@yarnpkg/extensions'
 import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
@@ -327,6 +329,9 @@ export async function mutateModules (
             },
             patchedDependencies: patchedDependenciesWithResolvedPath,
             projects: ctx.projects as Project[],
+            allProjectsMap: opts.allProjects
+              ? await toAllProjectsMap({ allProjects: opts.allProjects, lockfileDir: opts.lockfileDir, modulesDir: opts.modulesDir })
+              : undefined,
             prunedAt: ctx.modulesFile?.prunedAt,
             pruneVirtualStore,
             wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
@@ -1190,6 +1195,9 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
           pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
         },
         projects: ctx.projects as Project[],
+        allProjectsMap: opts.allProjects
+          ? await toAllProjectsMap({ allProjects: opts.allProjects, lockfileDir: opts.lockfileDir, modulesDir: opts.modulesDir })
+          : undefined,
         prunedAt: ctx.modulesFile?.prunedAt,
         wantedLockfile: result.newLockfile,
       })
@@ -1226,4 +1234,25 @@ async function linkAllBins (
   return unnest(await Promise.all(
     depNodes.map(async depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))
   ))
+}
+
+async function toAllProjectsMap (opts: {
+  allProjects: BaseProject[]
+  lockfileDir: string
+  modulesDir: string
+}): Promise<Map<string, Omit<Project, 'buildIndex'>>> {
+  const projectsContext = await readProjectsContext(
+    opts.allProjects.map(p => ({ ...p, rootDir: p.dir })),
+    {
+      lockfileDir: opts.lockfileDir,
+      modulesDir: opts.modulesDir,
+    }
+  )
+
+  const allProjectsMap: Map<string, Omit<Project, 'buildIndex'>> = new Map()
+  for (const p of projectsContext.projects) {
+    allProjectsMap.set(p.id, p)
+  }
+
+  return allProjectsMap
 }

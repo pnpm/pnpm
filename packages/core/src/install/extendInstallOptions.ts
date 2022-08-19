@@ -12,6 +12,7 @@ import {
   PeerDependencyRules,
   ReadPackageHook,
   Registries,
+  Project,
 } from '@pnpm/types'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
@@ -110,6 +111,8 @@ export interface StrictInstallOptions {
   global: boolean
   globalBin?: string
   patchedDependencies?: Record<string, string>
+
+  allProjects?: Project[]
 }
 
 export type InstallOptions =
