@@ -7,11 +7,9 @@ export function getNodeTarball (
   processArch: string
 ) {
   const platform = processPlatform === 'win32' ? 'win' : processPlatform
-  const arch = normalizeArch(processPlatform, processArch)
-  const nodeMajorVersion = +nodeVersion.split('.')[0]
-  const nodeBinaryArch = (platform === 'darwin' && arch === 'arm64' && (nodeMajorVersion < 16)) ? 'x64' : arch
+  const arch = normalizeArch(processPlatform, processArch, nodeVersion)
   const extension = platform === 'win' ? 'zip' : 'tar.gz'
-  const pkgName = `node-v${nodeVersion}-${platform}-${nodeBinaryArch}`
+  const pkgName = `node-v${nodeVersion}-${platform}-${arch}`
   return {
     pkgName,
     tarball: `${nodeMirror}v${nodeVersion}/${pkgName}.${extension}`,
