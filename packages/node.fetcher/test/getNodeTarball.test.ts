@@ -31,6 +31,26 @@ test.each([
       tarball: 'https://nodejs.org/download/release/v16.0.0/node-v16.0.0-linux-x64.tar.gz',
     },
   ],
+  [
+    '15.14.0',
+    'https://nodejs.org/download/release/',
+    'darwin',
+    'arm64',
+    {
+      pkgName: 'node-v15.14.0-darwin-x64',
+      tarball: 'https://nodejs.org/download/release/v15.14.0/node-v15.14.0-darwin-x64.tar.gz',
+    },
+  ],
+  [
+    '16.0.0',
+    'https://nodejs.org/download/release/',
+    'darwin',
+    'arm64',
+    {
+      pkgName: 'node-v16.0.0-darwin-arm64',
+      tarball: 'https://nodejs.org/download/release/v16.0.0/node-v16.0.0-darwin-arm64.tar.gz',
+    },
+  ],
 ])('getNodeTarball', (version, nodeMirrorBaseUrl, platform, arch, tarball) => {
   expect(getNodeTarball(version, nodeMirrorBaseUrl, platform, arch)).toStrictEqual(tarball)
 })
