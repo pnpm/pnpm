@@ -162,7 +162,7 @@ function pkgAllDeps (
         ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
       })
       .map(([pkgName, ref]) => {
-        if (pkgSnapshot.peerDependencies?.[pkgName]) return null
+        if (pkgSnapshot.peerDependenciesMeta?.[pkgName]?.optional) return null
         return dp.refToRelative(ref, pkgName)
       })
       .filter((nodeId) => nodeId !== null) as string[]
