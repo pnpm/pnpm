@@ -71,6 +71,7 @@ export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommand
       pnpmHomeDir: opts.pnpmHomeDir,
     })
     const cafsDir = path.join(storeDir, 'files')
+    console.log(`Fetching Node.js ${opts.useNodeVersion} ...`)
     await fetchNode(fetch, opts.useNodeVersion, versionDir, {
       ...opts,
       cafsDir,
