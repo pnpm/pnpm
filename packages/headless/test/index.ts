@@ -528,6 +528,16 @@ test('installation of a dependency that has a resolved peer in subdeps', async (
   expect(project.requireModule('pnpm-default-reporter')).toBeTruthy()
 })
 
+test('install peer dependencies which is not optional correctly', async () => {
+  const prefix = f.prepare('reinstall-peer-deps')
+
+  await headless(await testDefaults({ lockfileDir: prefix }))
+
+  const project = assertProject(prefix)
+
+  await project.has('.pnpm/node_modules/eslint-plugin-es')
+})
+
 test('installing with hoistPattern=*', async () => {
   const prefix = f.prepare('simple-shamefully-flatten')
   const reporter = jest.fn()
