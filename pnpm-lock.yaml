@@ -3060,6 +3060,9 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../fetch
+      '@pnpm/logger':
+        specifier: ^4.0.0
+        version: 4.0.0
       '@pnpm/node.fetcher':
         specifier: workspace:*
         version: link:../node.fetcher
