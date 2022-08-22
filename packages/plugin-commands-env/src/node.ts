@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { Config } from '@pnpm/config'
 import { createFetchFromRegistry, FetchFromRegistry } from '@pnpm/fetch'
+import { globalInfo } from '@pnpm/logger'
 import { fetchNode } from '@pnpm/node.fetcher'
 import storePath from '@pnpm/store-path'
 import loadJsonFile from 'load-json-file'
@@ -71,6 +72,7 @@ export async function getNodeDir (fetch: FetchFromRegistry, opts: NvmNodeCommand
       pnpmHomeDir: opts.pnpmHomeDir,
     })
     const cafsDir = path.join(storeDir, 'files')
+    globalInfo(`Fetching Node.js ${opts.useNodeVersion} ...`)
     await fetchNode(fetch, opts.useNodeVersion, versionDir, {
       ...opts,
       cafsDir,
