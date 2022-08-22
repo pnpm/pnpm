@@ -171,6 +171,14 @@ export async function handler (
         output: err.message,
       }
     }
+
+    // Handling bad response from audit API request
+    if(err.code ==='AUDIT_BAD_RESPONSE'){
+      return {
+        exitCode: 1,
+        output: err.message,
+      }
+    }
   }
   if (opts.fix) {
     const newOverrides = await fix(opts.dir, auditReport)
