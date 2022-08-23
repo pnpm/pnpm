@@ -14,6 +14,7 @@ const DEFAULT_OPTIONS = {
   bail: false,
   bin: 'node_modules/.bin',
   cacheDir: path.join(TMP, 'cache'),
+  extraEnv: {},
   cliOptions: {},
   include: {
     dependencies: true,
