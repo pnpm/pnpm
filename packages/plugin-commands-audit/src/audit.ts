@@ -171,6 +171,8 @@ export async function handler (
         output: err.message,
       }
     }
+
+    throw err
   }
   if (opts.fix) {
     const newOverrides = await fix(opts.dir, auditReport)

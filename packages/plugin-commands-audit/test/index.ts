@@ -1,5 +1,6 @@
 import path from 'path'
 import { audit } from '@pnpm/plugin-commands-audit'
+import { AuditEndpointNotExistsError } from '@pnpm/audit'
 import nock from 'nock'
 import stripAnsi from 'strip-ansi'
 import * as responses from './utils/responses'
@@ -153,4 +154,21 @@ test('audit sends authToken if alwaysAuth is true', async () => {
 
   expect(stripAnsi(output)).toBe('No known vulnerabilities found\n')
   expect(exitCode).toBe(0)
+})
+
+test('audit endpoint does not exist', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(404, {})
+
+  await expect(audit.handler({
+    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
+    dev: true,
+    fetchRetries: 0,
+    ignoreRegistryErrors: false,
+    production: false,
+    userConfig: {},
+    rawConfig,
+    registries,
+  })).rejects.toThrow(AuditEndpointNotExistsError)
 })

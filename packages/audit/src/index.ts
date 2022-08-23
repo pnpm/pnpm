@@ -35,6 +35,11 @@ export default async function audit (
     retry: opts.retry,
     timeout: opts.timeout,
   })
+
+  if (res.status === 404) {
+    throw new AuditEndpointNotExistsError(auditUrl)
+  }
+
   if (res.status !== 200) {
     throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
   }
@@ -52,4 +57,17 @@ function getAuthHeaders (
     headers['authorization'] = credentials.authHeaderValue
   }
   return headers
+}
+
+export class AuditEndpointNotExistsError extends PnpmError {
+  constructor (endpoint: string) {
+    const message = `The audit endpoint (at ${endpoint}) is doesn't exist.`
+    super(
+      'AUDIT_ENDPOINT_NOT_EXISTS',
+      message,
+      {
+        hint: 'This issue is probably because you are using a private npm registry and that endpoint doesn\'t have an implementation of audit.',
+      }
+    )
+  }
 }
