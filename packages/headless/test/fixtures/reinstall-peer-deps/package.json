@@ -2,6 +2,6 @@
   "name": "reinstall-peer-deps",
   "version": "1.0.0",
   "devDependencies": {
-    "eslint-config-standard": "17.0.0"
+    "@pnpm.e2e/abc": "1.0.0"
   }
 }

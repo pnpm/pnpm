@@ -528,14 +528,14 @@ test('installation of a dependency that has a resolved peer in subdeps', async (
   expect(project.requireModule('pnpm-default-reporter')).toBeTruthy()
 })
 
-test('install peer dependencies which is not optional correctly', async () => {
+test('install peer dependencies that are in prod dependencies', async () => {
   const prefix = f.prepare('reinstall-peer-deps')
 
   await headless(await testDefaults({ lockfileDir: prefix }))
 
   const project = assertProject(prefix)
 
-  await project.has('.pnpm/node_modules/eslint-plugin-es')
+  await project.has('.pnpm/@pnpm.e2e+peer-a@1.0.1/node_modules/@pnpm.e2e/peer-a')
 })
 
 test('installing with hoistPattern=*', async () => {
