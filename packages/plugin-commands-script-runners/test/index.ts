@@ -481,7 +481,7 @@ test('pnpm run with preferSymlinkedExecutables true', async () => {
 
   const result = await execa(pnpmBin, ['run', 'build'])
 
-  expect(result.stdout).toContain('project/node_modules/.pnpm/node_modules')
+  expect(result.stdout).toContain(`project${path.sep}node_modules${path.sep}.pnpm${path.sep}node_modules`)
 })
 
 test('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir', async () => {
@@ -500,5 +500,5 @@ test('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir', asyn
 
   const result = await execa(pnpmBin, ['run', 'build'])
 
-  expect(result.stdout).toContain('/foo/bar/node_modules')
+  expect(result.stdout).toContain(`${path.sep}foo${path.sep}bar${path.sep}node_modules`)
 })
