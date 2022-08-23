@@ -1,5 +1,15 @@
 # @pnpm/core
 
+## 5.10.3
+
+### Patch Changes
+
+- f4cc2d7b4: fix mergeGitBranchLockfiles when merged lockfile is up-to-date
+- Updated dependencies [1beb1b4bd]
+  - @pnpm/filter-lockfile@6.0.18
+  - @pnpm/headless@18.6.5
+  - @pnpm/modules-cleaner@12.0.21
+
 ## 5.10.2
 
 ### Patch Changes

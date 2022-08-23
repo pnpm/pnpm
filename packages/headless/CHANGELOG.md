@@ -1,5 +1,14 @@
 # @pnpm/headless
 
+## 18.6.5
+
+### Patch Changes
+
+- 1beb1b4bd: Auto install peer dependencies when auto-install-peers is set to true and the lockfile is up to date [#5213](https://github.com/pnpm/pnpm/issues/5213).
+- Updated dependencies [1beb1b4bd]
+  - @pnpm/filter-lockfile@6.0.18
+  - @pnpm/modules-cleaner@12.0.21
+
 ## 18.6.4
 
 ### Patch Changes

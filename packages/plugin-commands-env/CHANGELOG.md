@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-env
 
+## 2.2.0
+
+### Minor Changes
+
+- c242672f5: Add an immediate response when fetching Node.js on version switching, preventing pnpm looks like just hanging there.
+
+### Patch Changes
+
+- Updated dependencies [1c7b439bb]
+  - @pnpm/node.fetcher@1.0.11
+  - @pnpm/node.resolver@1.0.11
+  - @pnpm/config@15.9.4
+  - @pnpm/cli-utils@0.7.30
+
 ## 2.1.30
 
 ### Patch Changes

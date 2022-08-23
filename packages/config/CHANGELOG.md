@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 15.9.4
+
+### Patch Changes
+
+- @pnpm/pnpmfile@2.2.3
+
 ## 15.9.3
 
 ### Patch Changes

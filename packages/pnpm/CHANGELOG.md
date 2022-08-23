@@ -1,5 +1,14 @@
 # pnpm
 
+## 7.9.4
+
+### Patch Changes
+
+- Auto install peer dependencies when auto-install-peers is set to true and the lockfile is up to date [#5213](https://github.com/pnpm/pnpm/issues/5213).
+- `pnpm env`: for Node.js<16 install the x64 build on Darwin ARM as ARM build is not available [#5239](https://github.com/pnpm/pnpm/pull/5239).
+- `pnpm env`: log a message when the node.js tarball starts the download [#5241](https://github.com/pnpm/pnpm/pull/5241).
+- Fix `pnpm install --merge-git-branch-lockfile` when the lockfile is up to date [#5212](https://github.com/pnpm/pnpm/issues/5212).
+
 ## 7.9.4-0
 
 ### Patch Changes

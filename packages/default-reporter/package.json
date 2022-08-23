@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "9.1.18",
+  "version": "9.1.19",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

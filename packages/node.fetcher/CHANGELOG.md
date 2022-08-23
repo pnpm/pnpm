@@ -1,5 +1,11 @@
 # @pnpm/node.fetcher
 
+## 1.0.11
+
+### Patch Changes
+
+- 1c7b439bb: For node version < 16, install x64 build on darwin arm as arm build is not available.
+
 ## 1.0.10
 
 ### Patch Changes

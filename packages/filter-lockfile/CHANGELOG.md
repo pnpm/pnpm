@@ -1,5 +1,11 @@
 # @pnpm/filter-lockfile
 
+## 6.0.18
+
+### Patch Changes
+
+- 1beb1b4bd: Auto install peer dependencies when auto-install-peers is set to true and the lockfile is up to date [#5213](https://github.com/pnpm/pnpm/issues/5213).
+
 ## 6.0.17
 
 ### Patch Changes
