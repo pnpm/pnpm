@@ -50,7 +50,7 @@ export default async function symlinkDirectRootDependency (
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
     globalWarn(`Local dependency not found at ${dependencyLocation}`)
-    return
+    dependencyRealLocation = dependencyLocation
   }
 
   const dest = path.join(destModulesDirReal, importAs)
