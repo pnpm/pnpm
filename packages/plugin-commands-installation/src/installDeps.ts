@@ -75,6 +75,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'optional'
 | 'workspaceConcurrency'
 | 'workspaceDir'
+| 'extraEnv'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]

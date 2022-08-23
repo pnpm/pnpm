@@ -100,6 +100,7 @@ export interface HeadlessOptions {
   enablePnp?: boolean
   engineStrict: boolean
   extraBinPaths?: string[]
+  extraEnv?: Record<string, string>
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
   hoistingLimits?: HoistingLimits
@@ -186,6 +187,7 @@ export default async (opts: HeadlessOptions) => {
   const scriptsOpts = {
     optional: false,
     extraBinPaths: opts.extraBinPaths,
+    extraEnv: opts.extraEnv,
     rawConfig: opts.rawConfig,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
@@ -427,9 +429,12 @@ export default async (opts: HeadlessOptions) => {
     if (opts.hoistPattern != null) {
       extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
     }
-    let extraEnv: Record<string, string> | undefined
+    let extraEnv: Record<string, string> | undefined = opts.extraEnv
     if (opts.enablePnp) {
-      extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
+      extraEnv = {
+        ...extraEnv,
+        ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
+      }
     }
     await buildModules(graph, Array.from(directNodes), {
       childConcurrency: opts.childConcurrency,

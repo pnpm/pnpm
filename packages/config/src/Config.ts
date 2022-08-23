@@ -19,6 +19,7 @@ export interface Config {
   cliOptions: Record<string, any>, // eslint-disable-line
   useBetaCli: boolean
   extraBinPaths: string[]
+  extraEnv: Record<string, string>
   filter: string[]
   filterProd: string[]
   rawLocalConfig: Record<string, any>, // eslint-disable-line

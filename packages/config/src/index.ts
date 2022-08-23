@@ -402,6 +402,18 @@ export default async (
   } else {
     pnpmConfig.extraBinPaths = []
   }
+
+  if (pnpmConfig.preferSymlinkedExecutables && pnpmConfig.virtualStoreDir) {
+    pnpmConfig.extraEnv = {
+      NODE_PATH: path.join(
+        pnpmConfig.lockfileDir ?? pnpmConfig.dir,
+        'node_modules',
+        pnpmConfig.virtualStoreDir,
+        'node_modules'
+      ),
+    }
+  }
+
   if (pnpmConfig['shamefullyFlatten']) {
     warnings.push('The "shamefully-flatten" setting has been renamed to "shamefully-hoist". Also, in most cases you won\'t need "shamefully-hoist". Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).')
     pnpmConfig.shamefullyHoist = true

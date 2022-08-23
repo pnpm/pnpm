@@ -279,6 +279,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'virtualStoreDir'
 | 'workspaceConcurrency'
 | 'workspaceDir'
+| 'extraEnv'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]

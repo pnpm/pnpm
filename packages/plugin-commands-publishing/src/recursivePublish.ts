@@ -27,6 +27,7 @@ Partial<Pick<Config,
 | 'force'
 | 'dryRun'
 | 'extraBinPaths'
+| 'extraEnv'
 | 'fetchRetries'
 | 'fetchRetryFactor'
 | 'fetchRetryMaxtimeout'
