@@ -134,8 +134,6 @@ export async function handler (
   opts: RunOpts,
   params: string[]
 ) {
-  console.log(opts.extraEnv)
-
   let dir: string
   const [scriptName, ...passedThruArgs] = params
   if (opts.recursive) {
