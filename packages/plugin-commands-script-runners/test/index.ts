@@ -27,6 +27,7 @@ test('pnpm run: returns correct exit code', async () => {
   await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
+    extraEnv: {},
     rawConfig: {},
   }, ['exit0'])
 
@@ -35,6 +36,7 @@ test('pnpm run: returns correct exit code', async () => {
     await run.handler({
       dir: process.cwd(),
       extraBinPaths: [],
+      extraEnv: {},
       rawConfig: {},
     }, ['exit1'])
   } catch (_err: any) { // eslint-disable-line
@@ -56,6 +58,7 @@ test('pnpm run --no-bail never fails', async () => {
     bail: false,
     dir: process.cwd(),
     extraBinPaths: [],
+    extraEnv: {},
     rawConfig: {},
   }, ['exit1'])
 
@@ -79,6 +82,7 @@ test('run: pass the args to the command that is specified in the build script', 
   await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
+    extraEnv: {},
     rawConfig: {},
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
@@ -100,6 +104,7 @@ test('run: pass the args to the command that is specified in the build script of
   await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
+    extraEnv: {},
     rawConfig: {},
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
@@ -121,6 +126,7 @@ test('test: pass the args to the command that is specified in the build script o
   await testCommand.handler({
     dir: process.cwd(),
     extraBinPaths: [],
+    extraEnv: {},
     rawConfig: {},
   }, ['arg', '--flag=true', '--help', '-h'])
 
@@ -142,6 +148,7 @@ test('run start: pass the args to the command that is specified in the build scr
   await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
+    extraEnv: {},
     rawConfig: {},
   }, ['start', 'arg', '--flag=true', '--help', '-h'])
 
@@ -163,6 +170,7 @@ test('run stop: pass the args to the command that is specified in the build scri
   await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
+    extraEnv: {},
     rawConfig: {},
   }, ['stop', 'arg', '--flag=true', '--help', '-h'])
 
@@ -191,6 +199,7 @@ test('restart: run stop, restart and start', async () => {
   await restart.handler({
     dir: process.cwd(),
     extraBinPaths: [],
+    extraEnv: {},
     rawConfig: {},
   }, [])
 
@@ -224,6 +233,7 @@ test('restart: run stop, restart and start and all the pre/post scripts', async 
     dir: process.cwd(),
     enablePrePostScripts: true,
     extraBinPaths: [],
+    extraEnv: {},
     rawConfig: {},
   }, [])
 
@@ -252,6 +262,7 @@ test('"pnpm run" prints the list of available commands', async () => {
   const output = await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
+    extraEnv: {},
     rawConfig: {},
   }, [])
 
@@ -300,6 +311,7 @@ test('"pnpm run" prints the list of available commands, including commands of th
       allProjects,
       dir: process.cwd(),
       extraBinPaths: [],
+      extraEnv: {},
       rawConfig: {},
       selectedProjectsGraph,
       workspaceDir,
@@ -326,6 +338,7 @@ Commands of the root workspace project (to run them, use "pnpm -w run"):
       allProjects,
       dir: process.cwd(),
       extraBinPaths: [],
+      extraEnv: {},
       rawConfig: {},
       selectedProjectsGraph,
       workspaceDir,
@@ -348,6 +361,7 @@ test('pnpm run does not fail with --if-present even if the wanted script is not 
   await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
+    extraEnv: {},
     ifPresent: true,
     rawConfig: {},
   }, ['build'])
@@ -416,6 +430,7 @@ test('scripts work with PnP', async () => {
   await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
+    extraEnv: {},
     rawConfig: {},
   }, ['foo'])
 
@@ -443,9 +458,47 @@ test('pnpm run with custom shell', async () => {
   await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
+    extraEnv: {},
     rawConfig: {},
     scriptShell: path.resolve(`node_modules/.bin/shell-mock${isWindows() ? '.cmd' : ''}`),
   }, ['build'])
 
   expect((await import(path.resolve('shell-input.json'))).default).toStrictEqual(['-c', 'foo bar'])
+})
+
+test('pnpm run with preferSymlinkedExecutables true', async () => {
+  prepare({
+    scripts: {
+      build: 'node -e "console.log(process.env.NODE_PATH)"',
+    },
+  })
+
+  const npmrc = `
+    prefer-symlinked-executables=true=true
+  `
+
+  await fs.writeFile('.npmrc', npmrc, 'utf8')
+
+  const result = await execa(pnpmBin, ['run', 'build'])
+
+  expect(result.stdout).toContain(`project${path.sep}node_modules${path.sep}.pnpm${path.sep}node_modules`)
+})
+
+test('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir', async () => {
+  prepare({
+    scripts: {
+      build: 'node -e "console.log(process.env.NODE_PATH)"',
+    },
+  })
+
+  const npmrc = `
+    virtual-store-dir=/foo/bar
+    prefer-symlinked-executables=true=true
+  `
+
+  await fs.writeFile('.npmrc', npmrc, 'utf8')
+
+  const result = await execa(pnpmBin, ['run', 'build'])
+
+  expect(result.stdout).toContain(`${path.sep}foo${path.sep}bar${path.sep}node_modules`)
 })

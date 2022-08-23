@@ -11,6 +11,7 @@ export const DEFAULT_OPTS = {
   bin: 'node_modules/.bin',
   ca: undefined,
   cert: undefined,
+  extraEnv: {},
   cliOptions: {},
   fetchRetries: 2,
   fetchRetryFactor: 90,

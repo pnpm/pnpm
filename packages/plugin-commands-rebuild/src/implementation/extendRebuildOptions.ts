@@ -9,6 +9,7 @@ export interface StrictRebuildOptions {
   cacheDir: string
   childConcurrency: number
   extraBinPaths: string[]
+  extraEnv: Record<string, string>
   lockfileDir: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   scriptShell?: string

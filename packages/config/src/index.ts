@@ -12,6 +12,7 @@ import camelcase from 'camelcase'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import fromPairs from 'ramda/src/fromPairs'
 import realpathMissing from 'realpath-missing'
+import pathAbsolute from 'path-absolute'
 import whichcb from 'which'
 import { checkGlobalBinDir } from './checkGlobalBinDir'
 import getScopeRegistries from './getScopeRegistries'
@@ -402,6 +403,21 @@ export default async (
   } else {
     pnpmConfig.extraBinPaths = []
   }
+
+  if (pnpmConfig.preferSymlinkedExecutables) {
+    const cwd = pnpmConfig.lockfileDir ?? pnpmConfig.dir
+
+    const virtualStoreDir = pnpmConfig.virtualStoreDir
+      ? pnpmConfig.virtualStoreDir
+      : pnpmConfig.modulesDir
+        ? path.join(pnpmConfig.modulesDir, '.pnpm')
+        : 'node_modules/.pnpm'
+
+    pnpmConfig.extraEnv = {
+      NODE_PATH: pathAbsolute(path.join(virtualStoreDir, 'node_modules'), cwd),
+    }
+  }
+
   if (pnpmConfig['shamefullyFlatten']) {
     warnings.push('The "shamefully-flatten" setting has been renamed to "shamefully-hoist". Also, in most cases you won\'t need "shamefully-hoist". Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).')
     pnpmConfig.shamefullyHoist = true

@@ -171,6 +171,7 @@ Do you want to continue?`,
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: dir,
     extraBinPaths: opts.extraBinPaths,
+    extraEnv: opts.extraEnv,
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),

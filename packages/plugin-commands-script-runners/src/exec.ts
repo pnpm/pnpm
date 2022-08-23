@@ -83,7 +83,7 @@ export async function handler (
     sort?: boolean
     workspaceConcurrency?: number
     shellMode?: boolean
-  } & Pick<Config, 'extraBinPaths' | 'lockfileDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
+  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
   params: string[]
 ) {
   // For backward compatibility
@@ -129,9 +129,10 @@ export async function handler (
       limitRun(async () => {
         try {
           const pnpPath = workspacePnpPath ?? await existsPnp(prefix)
-          const extraEnv = pnpPath
-            ? makeNodeRequireOption(pnpPath)
-            : {}
+          const extraEnv = {
+            ...opts.extraEnv,
+            ...(pnpPath ? makeNodeRequireOption(pnpPath) : {}),
+          }
           const env = makeEnv({
             extraEnv: {
               ...extraEnv,

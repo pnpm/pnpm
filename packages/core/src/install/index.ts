@@ -228,6 +228,7 @@ export async function mutateModules (
   async function _install (): Promise<UpdatedProject[]> {
     const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
+      extraEnv: opts.extraEnv,
       rawConfig: opts.rawConfig,
       scriptsPrependNodePath: opts.scriptsPrependNodePath,
       scriptShell: opts.scriptShell,
@@ -961,9 +962,12 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         const depPaths = Object.keys(dependenciesGraph)
         const rootNodes = depPaths.filter((depPath) => dependenciesGraph[depPath].depth === 0)
 
-        let extraEnv: Record<string, string> | undefined
+        let extraEnv: Record<string, string> | undefined = opts.scriptsOpts.extraEnv
         if (opts.enablePnp) {
-          extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
+          extraEnv = {
+            ...extraEnv,
+            ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
+          }
         }
         await buildModules(dependenciesGraph, rootNodes, {
           childConcurrency: opts.childConcurrency,
@@ -1107,7 +1111,10 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     ])
     if (!opts.ignoreScripts) {
       if (opts.enablePnp) {
-        opts.scriptsOpts.extraEnv = makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs'))
+        opts.scriptsOpts.extraEnv = {
+          ...opts.scriptsOpts.extraEnv,
+          ...makeNodeRequireOption(path.join(opts.lockfileDir, '.pnp.cjs')),
+        }
       }
       const projectsToBeBuilt = projectsWithTargetDirs.filter(({ mutation }) => mutation === 'install') as ProjectToBeInstalled[]
       await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'prepare'],

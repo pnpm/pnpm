@@ -21,7 +21,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'shellEmulator'
 | 'stream'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>> &
-Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
+Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
 }
@@ -72,6 +72,7 @@ export default async (
           const lifecycleOpts: RunLifecycleHookOptions = {
             depPath: prefix,
             extraBinPaths: opts.extraBinPaths,
+            extraEnv: opts.extraEnv,
             pkgRoot: prefix,
             rawConfig: opts.rawConfig,
             rootModulesDir: await realpathMissing(path.join(prefix, 'node_modules')),
@@ -83,7 +84,10 @@ export default async (
           }
           const pnpPath = workspacePnpPath ?? await existsPnp(prefix)
           if (pnpPath) {
-            lifecycleOpts.extraEnv = makeNodeRequireOption(pnpPath)
+            lifecycleOpts.extraEnv = {
+              ...lifecycleOpts.extraEnv,
+              ...makeNodeRequireOption(pnpPath),
+            }
           }
           if (
             opts.enablePrePostScripts &&

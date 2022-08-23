@@ -116,7 +116,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
   & { recursive?: boolean }
-  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent'>
+  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent' | 'extraEnv'>
   & (
     & { recursive?: false }
     & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
@@ -174,6 +174,7 @@ so you may run "pnpm -w run ${scriptName}"`,
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
     extraBinPaths: opts.extraBinPaths,
+    extraEnv: opts.extraEnv,
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
@@ -188,7 +189,10 @@ so you may run "pnpm -w run ${scriptName}"`,
   const pnpPath = (opts.workspaceDir && await existsPnp(opts.workspaceDir)) ??
     await existsPnp(dir)
   if (pnpPath) {
-    lifecycleOpts.extraEnv = makeNodeRequireOption(pnpPath)
+    lifecycleOpts.extraEnv = {
+      ...lifecycleOpts.extraEnv,
+      ...makeNodeRequireOption(pnpPath),
+    }
   }
   try {
     if (

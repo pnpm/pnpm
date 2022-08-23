@@ -25,6 +25,7 @@ const DEFAULT_OPTIONS = {
   },
   bail: false,
   bin: 'node_modules/.bin',
+  extraEnv: {},
   cliOptions: {},
   include: {
     dependencies: true,

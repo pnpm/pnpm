@@ -502,6 +502,9 @@ importers:
       normalize-registry-url:
         specifier: 2.0.0
         version: 2.0.0
+      path-absolute:
+        specifier: ^1.0.1
+        version: 1.0.1
       path-name:
         specifier: ^1.0.0
         version: 1.0.0

@@ -24,6 +24,7 @@ export interface StrictInstallOptions {
   frozenLockfileIfExists: boolean
   enablePnp: boolean
   extraBinPaths: string[]
+  extraEnv: Record<string, string>
   hoistingLimits?: HoistingLimits
   useLockfile: boolean
   saveLockfile: boolean

@@ -154,6 +154,7 @@ export async function rebuildProjects (
   const store = await createOrConnectStoreController(opts)
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
+    extraEnv: opts.extraEnv,
     rawConfig: opts.rawConfig,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
@@ -278,6 +279,7 @@ async function _rebuild (
         await runPostinstallHooks({
           depPath,
           extraBinPaths: ctx.extraBinPaths,
+          extraEnv: opts.extraEnv,
           optional: pkgSnapshot.optional === true,
           pkgRoot,
           rawConfig: opts.rawConfig,

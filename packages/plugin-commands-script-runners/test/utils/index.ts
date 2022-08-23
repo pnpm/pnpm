@@ -14,6 +14,7 @@ export const DEFAULT_OPTS = {
   ca: undefined,
   cacheDir: '../cache',
   cert: undefined,
+  extraEnv: {},
   cliOptions: {},
   extraBinPaths: [],
   fetchRetries: 2,
@@ -58,6 +59,7 @@ export const DLX_DEFAULT_OPTS = {
   bail: false,
   bin: 'node_modules/.bin',
   cacheDir: path.join(tmp, 'cache'),
+  extraEnv: {},
   cliOptions: {},
   include: {
     dependencies: true,
