@@ -154,3 +154,23 @@ test('audit sends authToken if alwaysAuth is true', async () => {
   expect(stripAnsi(output)).toBe('No known vulnerabilities found\n')
   expect(exitCode).toBe(0)
 })
+
+test('audit endpoint not exists', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(404, {})
+
+  const { output, exitCode } = await audit.handler({
+    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
+    dev: true,
+    fetchRetries: 0,
+    ignoreRegistryErrors: false,
+    production: false,
+    userConfig: {},
+    rawConfig,
+    registries,
+  })
+
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`The audit endpoint (at ${registries.default}-/npm/v1/security/audits) is not exist.\nThis issue is probbby because you are using a private npm registry and that endpoint doesn't have an implementation of audit.`)
+})

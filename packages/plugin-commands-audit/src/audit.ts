@@ -2,7 +2,7 @@ import audit, { AuditReport, AuditVulnerabilityCounts } from '@pnpm/audit'
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { Config, types as allTypes, UniversalOptions } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import PnpmError from '@pnpm/error'
+import PnpmError, { AuditEndpointNotExistsError } from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
@@ -172,11 +172,15 @@ export async function handler (
       }
     }
 
-    // Handling bad response from audit API request
-    if(err.code ==='AUDIT_BAD_RESPONSE'){
+    // Handling 404 response from audit API request
+    if (err instanceof AuditEndpointNotExistsError) {
+      let outputMessage = err.message
+      if (err.hint) {
+        outputMessage += `\n${err.hint}`
+      }
       return {
         exitCode: 1,
-        output: err.message,
+        output: outputMessage,
       }
     }
   }

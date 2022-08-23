@@ -1,4 +1,4 @@
-import PnpmError from '@pnpm/error'
+import PnpmError, { AuditEndpointNotExistsError } from '@pnpm/error'
 import { AgentOptions, fetchWithAgent, RetryTimeoutOptions } from '@pnpm/fetch'
 import { GetCredentials } from '@pnpm/fetching-types'
 import { Lockfile } from '@pnpm/lockfile-types'
@@ -35,6 +35,11 @@ export default async function audit (
     retry: opts.retry,
     timeout: opts.timeout,
   })
+
+  if (res.status === 404) {
+    throw new AuditEndpointNotExistsError(auditUrl)
+  }
+
   if (res.status !== 200) {
     throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
   }
