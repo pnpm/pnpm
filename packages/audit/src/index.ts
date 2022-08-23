@@ -1,4 +1,4 @@
-import PnpmError, { AuditEndpointNotExistsError } from '@pnpm/error'
+import PnpmError from '@pnpm/error'
 import { AgentOptions, fetchWithAgent, RetryTimeoutOptions } from '@pnpm/fetch'
 import { GetCredentials } from '@pnpm/fetching-types'
 import { Lockfile } from '@pnpm/lockfile-types'
@@ -57,4 +57,17 @@ function getAuthHeaders (
     headers['authorization'] = credentials.authHeaderValue
   }
   return headers
+}
+
+export class AuditEndpointNotExistsError extends PnpmError {
+  constructor (endpoint: string) {
+    const message = `The audit endpoint (at ${endpoint}) is doesn't exist.`
+    super(
+      'AUDIT_ENDPOINT_NOT_EXISTS',
+      message,
+      {
+        hint: 'This issue is probably because you are using a private npm registry and that endpoint doesn\'t have an implementation of audit.',
+      }
+    )
+  }
 }

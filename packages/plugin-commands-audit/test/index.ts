@@ -1,6 +1,6 @@
 import path from 'path'
 import { audit } from '@pnpm/plugin-commands-audit'
-import { AuditEndpointNotExistsError } from '@pnpm/error'
+import { AuditEndpointNotExistsError } from '@pnpm/audit'
 import nock from 'nock'
 import stripAnsi from 'strip-ansi'
 import * as responses from './utils/responses'
@@ -156,7 +156,7 @@ test('audit sends authToken if alwaysAuth is true', async () => {
   expect(exitCode).toBe(0)
 })
 
-test('audit endpoint not exists', async () => {
+test('audit endpoint does not exist', async () => {
   nock(registries.default)
     .post('/-/npm/v1/security/audits')
     .reply(404, {})

@@ -1,6 +1,5 @@
 ---
 "@pnpm/audit": patch
-"@pnpm/error": patch
 "@pnpm/plugin-commands-audit": patch
 ---
 
