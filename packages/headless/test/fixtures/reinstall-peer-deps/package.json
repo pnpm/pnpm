@@ -1,0 +1,7 @@
+{
+  "name": "reinstall-peer-deps",
+  "version": "1.0.0",
+  "devDependencies": {
+    "@pnpm.e2e/abc": "1.0.0"
+  }
+}

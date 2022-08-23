@@ -1,0 +1,37 @@
+lockfileVersion: 5.4
+
+specifiers:
+  '@pnpm.e2e/abc': 1.0.0
+devDependencies:
+  '@pnpm.e2e/abc': 1.0.0_glqo5zmflraj4jc2fza4v4hjou
+
+packages:
+
+  /@pnpm.e2e/abc/1.0.0_glqo5zmflraj4jc2fza4v4hjou:
+    resolution: {integrity: sha512-/BCMmCRQ58DLWtF5iU97Lbf0s+llpWHvvZvQfFnCYFBpa1pfYnlJW1k6+Z4UzcUdYrUvyDmYPwxGVvPStAUw1w==}
+    peerDependencies:
+      '@pnpm.e2e/peer-a': ^1.0.0
+      '@pnpm.e2e/peer-b': ^1.0.0
+      '@pnpm.e2e/peer-c': ^1.0.0
+    dependencies:
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.0.0
+      '@pnpm.e2e/peer-a': 1.0.1
+      '@pnpm.e2e/peer-b': 1.0.0
+      '@pnpm.e2e/peer-c': 1.0.1
+    dev: true
+
+  /@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0:
+    resolution: {integrity: sha512-KUmwlEiE3pzpmPCfrLkoOO7fmL4Tft+dcm6YQlUfOUJvHO73xlcKVoA/xOHP/ayUO8GiPlIqWRbKHrsxvXGE8g==}
+    dev: true
+
+  /@pnpm.e2e/peer-a/1.0.1:
+    resolution: {integrity: sha512-eKxesosmflSp5xnW1gyRhMZ75RLI7SupTZNe1SK6EPDDgNmswNxbwdpyUDFUDWa3yHd5WSQbRDH2IysqMWIs2g==}
+    dev: true
+
+  /@pnpm.e2e/peer-b/1.0.0:
+    resolution: {integrity: sha512-jvRKPPRU2qx/AxfcpyO/aSX8TQclpXUXOnUbSLxgBi+P4+InCRkK2u+jFQbcc+b8rIFzR0jr7YCIYLIjRDPPcw==}
+    dev: true
+
+  /@pnpm.e2e/peer-c/1.0.1:
+    resolution: {integrity: sha512-6ag+AQOLJgsioiG8aInnOJGautKz7lNf3zKQ8FJHOb4b3yIclmUofTaDwth9ydp9W56qzwbHWXjkdrqfW5JViQ==}
+    dev: true
