@@ -172,17 +172,7 @@ export async function handler (
       }
     }
 
-    // Handling 404 response from audit API request
-    if (err instanceof AuditEndpointNotExistsError) {
-      let outputMessage = err.message
-      if (err.hint) {
-        outputMessage += `\n${err.hint}`
-      }
-      return {
-        exitCode: 1,
-        output: outputMessage,
-      }
-    }
+    throw err
   }
   if (opts.fix) {
     const newOverrides = await fix(opts.dir, auditReport)
