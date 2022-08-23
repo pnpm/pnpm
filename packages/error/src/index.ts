@@ -70,7 +70,7 @@ export class LockfileMissingDependencyError extends PnpmError {
 
 export class AuditEndpointNotExistsError extends PnpmError {
   constructor (endpoint: string) {
-    const message = `The audit endpoint (at ${endpoint}) is not exist.`;
+    const message = `The audit endpoint (at ${endpoint}) is not exist.`
     super(
       'AUDIT_ENDPOINT_NOT_EXISTS',
       message,
