@@ -12,6 +12,7 @@ import camelcase from 'camelcase'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import fromPairs from 'ramda/src/fromPairs'
 import realpathMissing from 'realpath-missing'
+import pathAbsolute from 'path-absolute'
 import whichcb from 'which'
 import { checkGlobalBinDir } from './checkGlobalBinDir'
 import getScopeRegistries from './getScopeRegistries'
@@ -403,14 +404,17 @@ export default async (
     pnpmConfig.extraBinPaths = []
   }
 
-  if (pnpmConfig.preferSymlinkedExecutables && pnpmConfig.virtualStoreDir) {
+  if (pnpmConfig.preferSymlinkedExecutables) {
+    const cwd = pnpmConfig.lockfileDir ?? pnpmConfig.dir
+
+    const virtualStoreDir = pnpmConfig.virtualStoreDir
+      ? pnpmConfig.virtualStoreDir
+      : pnpmConfig.modulesDir
+        ? path.join(pnpmConfig.modulesDir, '.pnpm')
+        : 'node_modules/.pnpm'
+
     pnpmConfig.extraEnv = {
-      NODE_PATH: path.join(
-        pnpmConfig.lockfileDir ?? pnpmConfig.dir,
-        'node_modules',
-        pnpmConfig.virtualStoreDir,
-        'node_modules'
-      ),
+      NODE_PATH: pathAbsolute(path.join(virtualStoreDir, 'node_modules'), cwd),
     }
   }
 
