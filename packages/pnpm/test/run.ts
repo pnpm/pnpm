@@ -2,9 +2,11 @@ import { promises as fs, mkdirSync } from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
 import prepare, { preparePackages } from '@pnpm/prepare'
+import isWindows from 'is-windows'
 import { execPnpm, execPnpmSync } from './utils'
 
 const RECORD_ARGS_FILE = 'require(\'fs\').writeFileSync(\'args.json\', JSON.stringify(require(\'./args.json\').concat([process.argv.slice(2)])), \'utf8\')'
+const testOnPosix = isWindows() ? test.skip : test
 
 test('run -r: pass the args to the command that is specified in the build script', async () => {
   preparePackages([{
@@ -137,4 +139,41 @@ test('silent dlx prints the output of the child process only', async () => {
   const result = execPnpmSync(['--silent', 'dlx', 'shx', 'echo', 'hi'], { env })
 
   expect(result.stdout.toString().trim()).toBe('hi')
+})
+
+testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
+  prepare({
+    scripts: {
+      build: 'node -e "console.log(process.env.NODE_PATH)"',
+    },
+  })
+
+  const npmrc = `
+    prefer-symlinked-executables=true=true
+  `
+
+  await fs.writeFile('.npmrc', npmrc, 'utf8')
+
+  const result = execPnpmSync(['run', 'build'])
+
+  expect(result.stdout).toContain(`project${path.sep}node_modules${path.sep}.pnpm${path.sep}node_modules`)
+})
+
+testOnPosix('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir', async () => {
+  prepare({
+    scripts: {
+      build: 'node -e "console.log(process.env.NODE_PATH)"',
+    },
+  })
+
+  const npmrc = `
+    virtual-store-dir=/foo/bar
+    prefer-symlinked-executables=true=true
+  `
+
+  await fs.writeFile('.npmrc', npmrc, 'utf8')
+
+  const result = execPnpmSync(['run', 'build'])
+
+  expect(result.stdout).toContain(`${path.sep}foo${path.sep}bar${path.sep}node_modules`)
 })
