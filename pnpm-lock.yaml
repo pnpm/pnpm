@@ -499,6 +499,9 @@ importers:
       is-subdir:
         specifier: ^1.2.0
         version: 1.2.0
+      is-windows:
+        specifier: ^1.0.2
+        version: 1.0.2
       normalize-registry-url:
         specifier: 2.0.0
         version: 2.0.0
@@ -524,6 +527,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../privatePackages/prepare
+      '@types/is-windows':
+        specifier: ^1.0.0
+        version: 1.0.0
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15

@@ -9,6 +9,7 @@ import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import matcher from '@pnpm/matcher'
 import camelcase from 'camelcase'
+import isWindows from 'is-windows'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import fromPairs from 'ramda/src/fromPairs'
 import realpathMissing from 'realpath-missing'
@@ -404,7 +405,7 @@ export default async (
     pnpmConfig.extraBinPaths = []
   }
 
-  if (pnpmConfig.preferSymlinkedExecutables) {
+  if (pnpmConfig.preferSymlinkedExecutables && !isWindows()) {
     const cwd = pnpmConfig.lockfileDir ?? pnpmConfig.dir
 
     const virtualStoreDir = pnpmConfig.virtualStoreDir
