@@ -156,7 +156,7 @@ testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
 
   const result = execPnpmSync(['run', 'build'])
 
-  expect(result.stdout).toContain(`project${path.sep}node_modules${path.sep}.pnpm${path.sep}node_modules`)
+  expect(result.stdout.toString()).toContain(`project${path.sep}node_modules${path.sep}.pnpm${path.sep}node_modules`)
 })
 
 testOnPosix('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir', async () => {
@@ -175,5 +175,5 @@ testOnPosix('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir
 
   const result = execPnpmSync(['run', 'build'])
 
-  expect(result.stdout).toContain(`${path.sep}foo${path.sep}bar${path.sep}node_modules`)
+  expect(result.stdout.toString()).toContain(`${path.sep}foo${path.sep}bar${path.sep}node_modules`)
 })
