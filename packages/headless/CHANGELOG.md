@@ -1,5 +1,17 @@
 # @pnpm/headless
 
+## 18.7.0
+
+### Minor Changes
+
+- 2aa22e4b1: Set `NODE_PATH` when `preferSymlinkedExecutables` is enabled.
+
+### Patch Changes
+
+- Updated dependencies [e3b5137d1]
+  - @pnpm/symlink-dependency@5.0.7
+  - @pnpm/hoist@6.2.9
+
 ## 18.6.5
 
 ### Patch Changes

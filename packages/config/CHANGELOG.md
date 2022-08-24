@@ -1,5 +1,15 @@
 # @pnpm/config
 
+## 15.10.0
+
+### Minor Changes
+
+- 2aa22e4b1: Set `NODE_PATH` when `preferSymlinkedExecutables` is enabled.
+
+### Patch Changes
+
+- @pnpm/pnpmfile@2.2.4
+
 ## 15.9.4
 
 ### Patch Changes

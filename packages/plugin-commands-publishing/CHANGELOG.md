@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-publishing
 
+## 5.2.0
+
+### Minor Changes
+
+- 2aa22e4b1: Set `NODE_PATH` when `preferSymlinkedExecutables` is enabled.
+
+### Patch Changes
+
+- Updated dependencies [2aa22e4b1]
+  - @pnpm/config@15.10.0
+  - @pnpm/cli-utils@0.7.31
+
 ## 5.1.19
 
 ### Patch Changes

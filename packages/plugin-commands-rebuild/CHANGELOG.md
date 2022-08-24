@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-rebuild
 
+## 6.2.0
+
+### Minor Changes
+
+- 2aa22e4b1: Set `NODE_PATH` when `preferSymlinkedExecutables` is enabled.
+
+### Patch Changes
+
+- Updated dependencies [2aa22e4b1]
+  - @pnpm/config@15.10.0
+  - @pnpm/cli-utils@0.7.31
+  - @pnpm/store-connection-manager@4.3.4
+  - @pnpm/find-workspace-packages@4.0.31
+
 ## 6.1.34
 
 ### Patch Changes

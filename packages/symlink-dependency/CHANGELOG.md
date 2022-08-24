@@ -1,5 +1,11 @@
 # @pnpm/symlink-dependency
 
+## 5.0.7
+
+### Patch Changes
+
+- e3b5137d1: Symlink a local dependency to `node_modules`, even if the target directory doesn't exist [#5219](https://github.com/pnpm/pnpm/issues/5219).
+
 ## 5.0.6
 
 ### Patch Changes

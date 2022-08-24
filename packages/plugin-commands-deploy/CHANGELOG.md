@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-deploy
 
+## 1.1.0
+
+### Minor Changes
+
+- 2aa22e4b1: Set `NODE_PATH` when `preferSymlinkedExecutables` is enabled.
+
+### Patch Changes
+
+- Updated dependencies [2aa22e4b1]
+  - @pnpm/plugin-commands-installation@10.6.0
+  - @pnpm/cli-utils@0.7.31
+
 ## 1.0.19
 
 ### Patch Changes

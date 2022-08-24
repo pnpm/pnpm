@@ -1,5 +1,13 @@
 # @pnpm/audit
 
+## 3.1.7
+
+### Patch Changes
+
+- a12d1a011: - Add new Error type: AuditEndpointNotExistsError
+  - On AuditUrl returns 404, AuditEndpointNotExistsError will throw
+  - When audit handler catches AuditEndpointNotExistsError, the command will return to avoid execute further codes
+
 ## 3.1.6
 
 ### Patch Changes

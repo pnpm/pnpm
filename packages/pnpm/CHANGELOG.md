@@ -1,5 +1,13 @@
 # pnpm
 
+## 7.9.5
+
+### Patch Changes
+
+- Set `NODE_PATH` when `prefer-symlinked-executables` is enabled [#5251](https://github.com/pnpm/pnpm/pull/5251).
+- Fail with a meaningful error when the audit endpoint doesn't exist [#5200](https://github.com/pnpm/pnpm/issues/5200).
+- Symlink a local dependency to `node_modules`, even if the target directory doesn't exist [#5219](https://github.com/pnpm/pnpm/issues/5219).
+
 ## 7.9.4
 
 ### Patch Changes

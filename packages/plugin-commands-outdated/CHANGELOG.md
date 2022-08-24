@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-outdated
 
+## 6.1.0
+
+### Minor Changes
+
+- 2aa22e4b1: Set `NODE_PATH` when `preferSymlinkedExecutables` is enabled.
+
+### Patch Changes
+
+- Updated dependencies [2aa22e4b1]
+  - @pnpm/config@15.10.0
+  - @pnpm/cli-utils@0.7.31
+
 ## 6.0.34
 
 ### Patch Changes
