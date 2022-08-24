@@ -44,7 +44,7 @@
     "@zkochan/retry": "^0.2.0",
     "encode-registry": "^3.0.0",
     "load-json-file": "^6.2.0",
-    "lru-cache": "^7.13.2",
+    "lru-cache": "^7.14.0",
     "normalize-path": "^3.0.0",
     "p-limit": "^3.1.0",
     "p-memoize": "4.0.1",

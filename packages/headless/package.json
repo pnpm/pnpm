@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@pnpm/cafs": "4.3.0",
+    "@pnpm/cafs": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/headless": "workspace:*",
     "@pnpm/logger": "^4.0.0",
