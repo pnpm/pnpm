@@ -43,6 +43,7 @@
     "camelcase": "^6.3.0",
     "can-write-to-dir": "^1.1.1",
     "is-subdir": "^1.2.0",
+    "is-windows": "^1.0.2",
     "normalize-registry-url": "2.0.0",
     "path-absolute": "^1.0.1",
     "path-name": "^1.0.0",
@@ -53,6 +54,7 @@
   "devDependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
+    "@types/is-windows": "^1.0.0",
     "@types/ramda": "0.28.15",
     "@types/which": "^2.0.1",
     "symlink-dir": "^5.0.1"
