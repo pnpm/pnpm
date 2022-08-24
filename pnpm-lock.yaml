@@ -5031,6 +5031,9 @@ importers:
       '@pnpm/logger':
         specifier: ^4.0.0
         version: 4.0.0
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../privatePackages/prepare
       '@pnpm/symlink-dependency':
         specifier: workspace:*
         version: 'link:'

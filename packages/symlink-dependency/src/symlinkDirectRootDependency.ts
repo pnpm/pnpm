@@ -50,7 +50,10 @@ export default async function symlinkDirectRootDependency (
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
     globalWarn(`Local dependency not found at ${dependencyLocation}`)
-    return
+    // Sometimes the linked in local package does not exist during installation
+    // and is created later via a build script.
+    // That is why we create the symlink even if the target directory does not exist.
+    dependencyRealLocation = dependencyLocation
   }
 
   const dest = path.join(destModulesDirReal, importAs)
