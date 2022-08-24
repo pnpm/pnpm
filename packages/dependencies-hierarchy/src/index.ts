@@ -57,7 +57,7 @@ export default async function dependenciesHierarchy (
     lockfileDir: string
   }
 ): Promise<{ [projectDir: string]: DependenciesHierarchy }> {
-  if (!maybeOpts || !maybeOpts.lockfileDir) {
+  if (!maybeOpts?.lockfileDir) {
     throw new TypeError('opts.lockfileDir is required')
   }
   const modulesDir = await realpathMissing(path.join(maybeOpts.lockfileDir, 'node_modules'))
