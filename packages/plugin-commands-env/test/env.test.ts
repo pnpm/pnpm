@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import PnpmError from '@pnpm/error'
 import { tempDir } from '@pnpm/prepare'
-import { env } from '@pnpm/plugin-commands-env'
+import { env, node } from '@pnpm/plugin-commands-env'
 import * as execa from 'execa'
 import nock from 'nock'
 import PATH from 'path-name'
@@ -132,4 +132,82 @@ test('it re-attempts failed downloads', async () => {
   } finally {
     nock.cleanAll()
   }
+})
+
+describe('env uninstall', () => {
+  test('fail if --global is missing', async () => {
+    tempDir()
+
+    await expect(
+      env.handler({
+        bin: process.cwd(),
+        global: false,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      }, ['uninstall', 'lts'])
+    ).rejects.toEqual(new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently'))
+  })
+
+  test('fail if can not resolve Node.js version', async () => {
+    tempDir()
+
+    await expect(
+      env.handler({
+        bin: process.cwd(),
+        global: true,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      }, ['uninstall', 'non-existing-version'])
+    ).rejects.toEqual(new PnpmError('COULD_NOT_RESOLVE_NODEJS', 'Couldn\'t find Node.js version matching non-existing-version'))
+  })
+
+  test('fail if trying to uninstall version that is not installed', async () => {
+    tempDir()
+
+    const nodeDir = node.getNodeVersionsBaseDir(process.cwd())
+
+    await expect(
+      env.handler({
+        bin: process.cwd(),
+        global: true,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      }, ['uninstall', '16.4.0'])
+    ).rejects.toEqual(new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${nodeDir as string}/16.4.0`))
+  })
+
+  test('install and uninstall Node.js by exact version', async () => {
+    tempDir()
+
+    const configDir = path.resolve('config')
+
+    await env.handler({
+      bin: process.cwd(),
+      configDir,
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, ['use', '16.4.0'])
+
+    const opts = {
+      env: {
+        [PATH]: `${process.cwd()}${path.delimiter}${process.env[PATH] as string}`,
+      },
+      extendEnv: false,
+    }
+
+    {
+      const { stdout } = execa.sync('node', ['-v'], opts)
+      expect(stdout.toString()).toBe('v16.4.0')
+    }
+
+    await env.handler({
+      bin: process.cwd(),
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, ['uninstall', '16.4.0'])
+
+    expect(() => execa.sync('node', ['-v'], opts)).toThrowError()
+  })
 })
