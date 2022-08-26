@@ -314,14 +314,14 @@ export async function resolveDependenciesOfImporters (
     resolvedDependencies: options.resolvedDependencies,
   }))
   const resolveResults = await Promise.all(
-    extendedWantedDepsByImporters.map(async (extendedWantedDeps, index) => {
+    zipWith(async (extendedWantedDeps, importer) => {
       const postponedResolutionsQueue: PostponedResolutionFunction[] = []
       const pkgAddresses: PkgAddress[] = []
       ;(await Promise.all(
         extendedWantedDeps.map((extendedWantedDep) => resolveDependenciesOfDependency(
-          importers[index].ctx,
-          importers[index].preferredVersions,
-          { ...importers[index].options, parentPkgAliases: importers[index].parentPkgAliases },
+          importer.ctx,
+          importer.preferredVersions,
+          { ...importer.options, parentPkgAliases: importer.parentPkgAliases },
           extendedWantedDep
         ))
       )).forEach(({ resolveDependencyResult, postponedResolution }) => {
@@ -333,7 +333,7 @@ export async function resolveDependenciesOfImporters (
         }
       })
       return { pkgAddresses, postponedResolutionsQueue }
-    })
+    }, extendedWantedDepsByImporters, importers)
   )
   return Promise.all(zipWith(async (importer, { pkgAddresses, postponedResolutionsQueue }) => {
     const newPreferredVersions = { ...importer.preferredVersions }
