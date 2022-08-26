@@ -4,6 +4,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import PnpmError from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { resolveNodeVersion } from '@pnpm/node.resolver'
+import { globalInfo } from '@pnpm/logger'
 import cmdShim from '@zkochan/cmd-shim'
 import renderHelp from 'render-help'
 import { getNodeDir, NvmNodeCommandOptions, getNodeVersionsBaseDir } from './node'
@@ -123,21 +124,34 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
       throw new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${versionDir}`)
     }
 
-    const nodePath = path.resolve(opts.pnpmHomeDir, 'node')
+    const nodePath = path.resolve(opts.pnpmHomeDir, process.platform === 'win32' ? 'node.exe' : 'node')
     const nodeLink = await fs.readlink(nodePath).catch(() => '')
 
     if (nodeLink.includes(versionDir)) {
+      globalInfo(`Node.JS version ${nodeVersion} was detected as the default one, uninstalling ...`)
+
       const npmPath = path.resolve(opts.pnpmHomeDir, 'npm')
       const npxPath = path.resolve(opts.pnpmHomeDir, 'npx')
 
       await Promise.all([
-        await fs.unlink(nodePath),
-        await fs.unlink(npmPath),
-        await fs.unlink(npxPath),
-      ]).catch(() => {})
+        fs.unlink(nodePath),
+        fs.unlink(npmPath),
+        fs.unlink(npxPath),
+      ])
     }
 
-    await fs.rm(versionDir, { recursive: true })
+    const [processMajorVersion, processMinorVersion] = process.versions.node.split('.')
+
+    /**
+     * Support for earlier Node.JS versions
+     * `fs.rmdir` is deprecated and `fs.rm` was added in v14.14.0
+     * @see https://nodejs.org/dist/latest-v16.x/docs/api/fs.html#fsrmpath-options-callback
+     */
+    if (Number(processMajorVersion) === 14 && Number(processMinorVersion) <= 13) {
+      await fs.rmdir(versionDir, { recursive: true })
+    } else {
+      await fs.rm(versionDir, { recursive: true })
+    }
 
     return `Node.js ${nodeVersion} is uninstalled
   ${versionDir}`
