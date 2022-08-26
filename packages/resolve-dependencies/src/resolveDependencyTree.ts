@@ -7,7 +7,9 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
+import fromPairs from 'ramda/src/fromPairs'
 import partition from 'ramda/src/partition'
+import zipObj from 'ramda/src/zipObj'
 import { WantedDependency } from './getNonDevWantedDependencies'
 import {
   createNodeId,
@@ -17,6 +19,8 @@ import {
   ChildrenByParentDepPath,
   DependenciesTree,
   LinkedDependency,
+  ImporterToResolve,
+  ParentPkgAliases,
   PendingNode,
   PkgAddress,
   resolveRootDependencies,
@@ -85,8 +89,6 @@ export default async function<T> (
   importers: Array<ImporterToResolveGeneric<T>>,
   opts: ResolveDependenciesOptions
 ) {
-  const directDepsByImporterId = {} as {[id: string]: Array<PkgAddress | LinkedDependency>}
-
   const wantedToBeSkippedPackageIds = new Set<string>()
   const ctx = {
     autoInstallPeers: opts.autoInstallPeers === true,
@@ -119,7 +121,7 @@ export default async function<T> (
     appliedPatches: new Set<string>(),
   }
 
-  await Promise.all(importers.map(async (importer) => {
+  const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
     const projectSnapshot = opts.wantedLockfile.importers[importer.id]
     // This array will only contain the dependencies that should be linked in.
     // The already linked-in dependencies will not be added.
@@ -144,7 +146,6 @@ export default async function<T> (
         depPath: importer.id,
         rootDir: importer.rootDir,
       },
-      parentPkgAliases: {},
       proceed,
       resolvedDependencies: {
         ...projectSnapshot.dependencies,
@@ -154,13 +155,18 @@ export default async function<T> (
       updateDepth: -1,
       workspacePackages: opts.workspacePackages,
     }
-    directDepsByImporterId[importer.id] = await resolveRootDependencies(
-      resolveCtx,
-      importer.preferredVersions ?? {},
-      importer.wantedDependencies,
-      resolveOpts
-    )
-  }))
+    return {
+      ctx: resolveCtx,
+      parentPkgAliases: fromPairs(
+        importer.wantedDependencies.filter(({ alias }) => alias).map(({ alias }) => [alias, true])
+      ) as ParentPkgAliases,
+      preferredVersions: importer.preferredVersions ?? {},
+      wantedDependencies: importer.wantedDependencies,
+      options: resolveOpts,
+    }
+  })
+  const pkgAddressesByImporters = await resolveRootDependencies(resolveArgs)
+  const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
 
   ctx.pendingNodes.forEach((pendingNode) => {
     ctx.dependenciesTree[pendingNode.nodeId] = {
