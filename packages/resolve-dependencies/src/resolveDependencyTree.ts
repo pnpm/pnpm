@@ -85,8 +85,6 @@ export default async function<T> (
   importers: Array<ImporterToResolveGeneric<T>>,
   opts: ResolveDependenciesOptions
 ) {
-  const directDepsByImporterId = {} as {[id: string]: Array<PkgAddress | LinkedDependency>}
-
   const wantedToBeSkippedPackageIds = new Set<string>()
   const ctx = {
     autoInstallPeers: opts.autoInstallPeers === true,
@@ -119,7 +117,8 @@ export default async function<T> (
     appliedPatches: new Set<string>(),
   }
 
-  await Promise.all(importers.map(async (importer) => {
+  const resolveArgs = {}
+  importers.map(async (importer) => {
     const projectSnapshot = opts.wantedLockfile.importers[importer.id]
     // This array will only contain the dependencies that should be linked in.
     // The already linked-in dependencies will not be added.
@@ -144,7 +143,6 @@ export default async function<T> (
         depPath: importer.id,
         rootDir: importer.rootDir,
       },
-      parentPkgAliases: {},
       proceed,
       resolvedDependencies: {
         ...projectSnapshot.dependencies,
@@ -154,13 +152,14 @@ export default async function<T> (
       updateDepth: -1,
       workspacePackages: opts.workspacePackages,
     }
-    directDepsByImporterId[importer.id] = await resolveRootDependencies(
-      resolveCtx,
-      importer.preferredVersions ?? {},
-      importer.wantedDependencies,
-      resolveOpts
-    )
-  }))
+    resolveArgs[importer.id] = {
+      ctx: resolveCtx,
+      preferredVersions: importer.preferredVersions ?? {},
+      wantedDependencies: importer.wantedDependencies,
+      options: resolveOpts,
+    }
+  })
+  const directDepsByImporterId: {[id: string]: Array<PkgAddress | LinkedDependency>} = await resolveRootDependencies(resolveArgs)
 
   ctx.pendingNodes.forEach((pendingNode) => {
     ctx.dependenciesTree[pendingNode.nodeId] = {
