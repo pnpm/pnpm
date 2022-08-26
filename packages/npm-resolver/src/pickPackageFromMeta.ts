@@ -8,9 +8,9 @@ export default function (
   spec: RegistryPackageSpec,
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta
-): PackageInRegistry {
+): PackageInRegistry | null {
   try {
-    let version!: string
+    let version!: string | null
     switch (spec.type) {
     case 'version':
       version = spec.fetchSpec
@@ -22,6 +22,7 @@ export default function (
       version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelectors)
       break
     }
+    if (!version) return null
     const manifest = meta.versions[version]
     if (manifest && meta['name']) {
       // Packages that are published to the GitHub registry are always published with a scope.
@@ -44,7 +45,7 @@ function pickVersionByVersionRange (
   meta: PackageMeta,
   versionRange: string,
   preferredVerSels?: VersionSelectors
-) {
+): string | null {
   let versions: string[] | undefined
   const latest = meta['dist-tags'].latest
 

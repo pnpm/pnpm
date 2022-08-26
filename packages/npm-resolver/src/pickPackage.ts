@@ -16,10 +16,8 @@ import pickPackageFromMeta from './pickPackageFromMeta'
 import { RegistryPackageSpec } from './parsePref'
 
 export interface PackageMeta {
-  'dist-tag': { [name: string]: string }
-  versions: {
-    [name: string]: PackageInRegistry
-  }
+  'dist-tags': Record<string, string>
+  versions: Record<string, PackageInRegistry>
   cachedAt?: number
 }
 
