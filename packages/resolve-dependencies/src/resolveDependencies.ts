@@ -40,7 +40,9 @@ import {
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import exists from 'path-exists'
+import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
+import zipObj from 'ramda/src/zipObj'
 import zipWith from 'ramda/src/zipWith'
 import semver from 'semver'
 import encodePkgId from './encodePkgId'
@@ -248,22 +250,17 @@ export async function resolveRootDependencies (
     options: Omit<ResolvedDependenciesOptions, 'parentPkgAliases'>
   }>
 ): Promise<Record<string, Array<PkgAddress | LinkedDependency>>> {
-  const importersToResolve: ImporterToResolve[] = []
-  for (const { ctx, options, wantedDependencies, preferredVersions } of Object.values(importers)) {
-    const parentPkgAliases: ParentPkgAliases = {}
-    for (const wantedDep of wantedDependencies) {
-      if (wantedDep.alias) {
-        parentPkgAliases[wantedDep.alias] = true
-      }
-    }
-    importersToResolve.push({ ctx, options, parentPkgAliases, preferredVersions, wantedDependencies })
-  }
-  const result = await resolveDependenciesOfImporters(importersToResolve)
-  const results = await Promise.all(zipWith(async (importerResolutionResult, importerToResolve) => {
-    const pkgAddresses: Array<PkgAddress | LinkedDependency> = importerResolutionResult.pkgAddresses
-    const parentPkgAliases = importerToResolve.parentPkgAliases
+  const importersToResolve = Object.values(importers).map((importer) => ({
+    parentPkgAliases: fromPairs(
+      importer.wantedDependencies.filter(({ alias }) => alias).map(({ alias }) => [alias, true])
+    ) as ParentPkgAliases,
+    ...importer,
+  }))
+  const pkgAddressesByImportersWithoutPeers = await resolveDependenciesOfImporters(importersToResolve)
+  const pkgAddressesByImporters = await Promise.all(zipWith(async (importerResolutionResult, { ctx, parentPkgAliases, preferredVersions, options }) => {
+    const pkgAddresses = importerResolutionResult.pkgAddresses
+    if (!ctx.autoInstallPeers) return pkgAddresses
     while (true) {
-      if (!importerToResolve.ctx.autoInstallPeers) break
       for (const pkgAddress of importerResolutionResult.pkgAddresses) {
         parentPkgAliases[pkgAddress.alias] = true
       }
@@ -281,19 +278,15 @@ export async function resolveRootDependencies (
       if (!Object.keys(importerResolutionResult.missingPeers).length) break
       const wantedDependencies = getNonDevWantedDependencies({ dependencies: importerResolutionResult.missingPeers })
 
-      importerResolutionResult = await resolveDependencies(importerToResolve.ctx, importerToResolve.preferredVersions, wantedDependencies, {
-        ...importerToResolve.options,
+      importerResolutionResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
+        ...options,
         parentPkgAliases,
       })
       pkgAddresses.push(...importerResolutionResult.pkgAddresses)
     }
     return pkgAddresses
-  }, result, importersToResolve))
-  const pkgAddressesByImporterId = {}
-  Object.keys(importers).forEach((importerId, index) => {
-    pkgAddressesByImporterId[importerId] = results[index]
-  })
-  return pkgAddressesByImporterId
+  }, pkgAddressesByImportersWithoutPeers, importersToResolve))
+  return zipObj(Object.keys(importers), pkgAddressesByImporters)
 }
 
 interface ResolvedDependenciesResult {
