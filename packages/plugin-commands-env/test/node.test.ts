@@ -77,5 +77,5 @@ test('install and rc version of Node.js', async () => {
 test('get node version base dir', async () => {
   expect(typeof node.getNodeVersionsBaseDir).toBe('function')
   const versionDir = node.getNodeVersionsBaseDir(process.cwd())
-  expect(versionDir).toBe(`${process.cwd()}/nodejs`)
+  expect(versionDir).toBe(path.resolve(process.cwd(), 'nodejs'))
 })

@@ -173,7 +173,7 @@ describe('env uninstall', () => {
         pnpmHomeDir: process.cwd(),
         rawConfig: {},
       }, ['uninstall', '16.4.0'])
-    ).rejects.toEqual(new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${nodeDir as string}/16.4.0`))
+    ).rejects.toEqual(new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${path.resolve(nodeDir, '16.4.0')}`))
   })
 
   test('install and uninstall Node.js by exact version', async () => {
