@@ -25,13 +25,27 @@ export const commandNames = ['env']
 
 export function help () {
   return renderHelp({
-    description: 'Install and use the specified version of Node.js. The npm CLI bundled with the given Node.js version gets installed as well.',
+    description: 'Manage Node.js versions.',
     descriptionLists: [
+      {
+        title: 'Commands',
+        list: [
+          {
+            description: 'Installs the specified version of Node.JS. The npm CLI bundled with the given Node.js version gets installed as well.',
+            name: 'use',
+          },
+          {
+            description: 'Uninstalls the specified version of Node.JS.',
+            name: 'remove\nuninstall',
+            shortAlias: 'rm,\nun',
+          },
+        ],
+      },
       {
         title: 'Options',
         list: [
           {
-            description: 'Installs and uninstalls Node.js globally',
+            description: 'Manages Node.js versions globally',
             name: '--global',
             shortAlias: '-g',
           },
@@ -46,11 +60,11 @@ export function help () {
       'pnpm env use --global argon',
       'pnpm env use --global latest',
       'pnpm env use --global rc/16',
-      'pnpm env uninstall --global 16',
-      'pnpm env uninstall --global lts',
-      'pnpm env uninstall --global argon',
-      'pnpm env uninstall --global latest',
-      'pnpm env uninstall --global rc/16',
+      'pnpm env remove --global 16',
+      'pnpm env remove --global lts',
+      'pnpm env remove --global argon',
+      'pnpm env remove --global latest',
+      'pnpm env remove --global rc/16',
     ],
   })
 }
@@ -103,7 +117,10 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     return `Node.js ${nodeVersion as string} is activated
   ${dest} -> ${src}`
   }
-  case 'uninstall': {
+  case 'remove':
+  case 'rm':
+  case 'uninstall':
+  case 'un': {
     if (!opts.global) {
       throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
     }
@@ -137,7 +154,13 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
         fs.unlink(nodePath),
         fs.unlink(npmPath),
         fs.unlink(npxPath),
-      ])
+      ]).catch(err => {
+        const { code = '' } = err
+
+        if (code.toLowerCase() !== 'enoent') {
+          throw err
+        }
+      })
     }
 
     const [processMajorVersion, processMinorVersion] = process.versions.node.split('.')
