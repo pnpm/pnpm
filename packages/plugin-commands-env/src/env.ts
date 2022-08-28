@@ -5,6 +5,7 @@ import PnpmError from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { resolveNodeVersion } from '@pnpm/node.resolver'
 import { globalInfo } from '@pnpm/logger'
+import { removeBin } from '@pnpm/remove-bins'
 import cmdShim from '@zkochan/cmd-shim'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
@@ -119,7 +120,9 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
   ${dest} -> ${src}`
   }
   case 'remove':
-  case 'rm': {
+  case 'rm':
+  case 'uninstall':
+  case 'un': {
     if (!opts.global) {
       throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
     }
@@ -141,9 +144,14 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     }
 
     const nodePath = path.resolve(opts.pnpmHomeDir, process.platform === 'win32' ? 'node.exe' : 'node')
-    const nodeLink = await fs.readlink(nodePath).catch(() => '')
+    let nodeLink: string | undefined
+    try {
+      nodeLink = await fs.readlink(nodePath)
+    } catch (err) {
+      nodeLink = undefined
+    }
 
-    if (nodeLink.includes(versionDir)) {
+    if (nodeLink?.includes(versionDir)) {
       globalInfo(`Node.JS version ${nodeVersion} was detected as the default one, removing ...`)
 
       const npmPath = path.resolve(opts.pnpmHomeDir, 'npm')
@@ -151,9 +159,9 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
 
       try {
         await Promise.all([
-          fs.unlink(nodePath),
-          fs.unlink(npmPath),
-          fs.unlink(npxPath),
+          removeBin(nodePath),
+          removeBin(npmPath),
+          removeBin(npxPath),
         ])
       } catch (err: any) { // eslint-disable-line
         if (err.code !== 'ENOENT') throw err

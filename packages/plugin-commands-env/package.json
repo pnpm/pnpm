@@ -37,6 +37,7 @@
     "@pnpm/logger": "^4.0.0",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
+    "@pnpm/remove-bins": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "@zkochan/cmd-shim": "^5.3.1",
     "@zkochan/rimraf": "^2.1.2",

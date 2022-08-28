@@ -31,6 +31,9 @@
       "path": "../node.resolver"
     },
     {
+      "path": "../remove-bins"
+    },
+    {
       "path": "../store-path"
     }
   ]

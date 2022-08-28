@@ -3078,6 +3078,9 @@ importers:
       '@pnpm/node.resolver':
         specifier: workspace:*
         version: link:../node.resolver
+      '@pnpm/remove-bins':
+        specifier: workspace:*
+        version: link:../remove-bins
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
