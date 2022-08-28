@@ -155,12 +155,8 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
           fs.unlink(npmPath),
           fs.unlink(npxPath),
         ])
-      } catch (err) {
-        const { code = '' } = err as NodeJS.ErrnoException
-
-        if (code !== 'ENOENT') {
-          throw err
-        }
+      } catch (err: any) { // eslint-disable-line
+        if (err.code !== 'ENOENT') throw err
       }
     }
 
