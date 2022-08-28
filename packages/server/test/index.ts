@@ -19,12 +19,14 @@ async function createStoreController (storeDir?: string) {
     storeDir = path.join(tmp, 'store')
   }
   const authConfig = { registry }
+  const cacheDir = path.join(tmp, 'cache')
   const { resolve, fetchers } = createClient({
     authConfig,
-    cacheDir: path.join(tmp, 'cache'),
+    cacheDir,
   })
   return createStore(resolve, fetchers, {
     networkConcurrency: 1,
+    cacheDir,
     storeDir,
     verifyStoreIntegrity: true,
   })

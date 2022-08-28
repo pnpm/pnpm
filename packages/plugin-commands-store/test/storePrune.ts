@@ -19,8 +19,21 @@ test('remove unreferenced packages', async () => {
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
-  await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
-  await execa('node', [pnpmBin, 'remove', 'is-negative', '--store-dir', storeDir, '--config.modules-cache-max-age=0'], { env: { npm_config_registry: REGISTRY } })
+  await execa('node', [
+    pnpmBin,
+    'add',
+    'is-negative@^2.1.0',
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
+    `--registry=${REGISTRY}`])
+  await execa('node', [
+    pnpmBin,
+    'remove',
+    'is-negative',
+    `--store-dir=${storeDir}`,
+    `--cache-dir=${cacheDir}`,
+    '--config.modules-cache-max-age=0',
+  ], { env: { npm_config_registry: REGISTRY } })
 
   await project.storeHas('is-negative', '2.1.0')
 
@@ -67,6 +80,7 @@ test('remove unreferenced packages', async () => {
       message: 'Removed 1 package',
     })
   )
+  expect(fs.readdirSync(cacheDir).length).toEqual(0)
 })
 
 test.skip('remove packages that are used by project that no longer exist', async () => {

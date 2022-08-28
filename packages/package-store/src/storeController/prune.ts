@@ -8,10 +8,18 @@ import ssri from 'ssri'
 
 const BIG_ONE = BigInt(1) as unknown
 
-export default async function prune (storeDir: string) {
+export interface PruneOptions {
+  cacheDir: string
+  storeDir: string
+}
+
+export default async function prune ({ cacheDir, storeDir }: PruneOptions) {
   const cafsDir = path.join(storeDir, 'files')
-  await rimraf(path.join(storeDir, 'metadata'))
-  await rimraf(path.join(storeDir, 'metadata-full'))
+  await Promise.all([
+    rimraf(path.join(cacheDir, 'metadata')),
+    rimraf(path.join(cacheDir, 'metadata-full')),
+    rimraf(path.join(cacheDir, 'metadata-full-filtered')),
+  ])
   await rimraf(path.join(storeDir, 'tmp'))
   globalInfo('Removed all cached metadata files')
   const pkgIndexFiles = [] as string[]

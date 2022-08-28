@@ -8,6 +8,7 @@ describe('store.importPackage()', () => {
   it('selects import method automatically', async () => {
     const tmp = tempy.directory()
     const storeDir = path.join(tmp, 'store')
+    const cacheDir = path.join(tmp, 'cache')
     const registry = 'https://registry.npmjs.org/'
     const authConfig = { registry }
     const { resolve, fetchers } = createClient({
@@ -16,6 +17,7 @@ describe('store.importPackage()', () => {
     })
     const storeController = await createStore(resolve, fetchers, {
       storeDir,
+      cacheDir,
       verifyStoreIntegrity: true,
     })
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
@@ -43,6 +45,7 @@ describe('store.importPackage()', () => {
   it('uses copying', async () => {
     const tmp = tempy.directory()
     const storeDir = path.join(tmp, 'store')
+    const cacheDir = path.join(tmp, 'cache')
     const registry = 'https://registry.npmjs.org/'
     const authConfig = { registry }
     const { resolve, fetchers } = createClient({
@@ -52,6 +55,7 @@ describe('store.importPackage()', () => {
     const storeController = await createStore(resolve, fetchers, {
       packageImportMethod: 'copy',
       storeDir,
+      cacheDir,
       verifyStoreIntegrity: true,
     })
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
