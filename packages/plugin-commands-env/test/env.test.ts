@@ -134,7 +134,7 @@ test('it re-attempts failed downloads', async () => {
   }
 })
 
-describe('env uninstall', () => {
+describe('env remove', () => {
   test('fail if --global is missing', async () => {
     tempDir()
 
@@ -144,7 +144,7 @@ describe('env uninstall', () => {
         global: false,
         pnpmHomeDir: process.cwd(),
         rawConfig: {},
-      }, ['uninstall', 'lts'])
+      }, ['remove', 'lts'])
     ).rejects.toEqual(new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently'))
   })
 
@@ -157,11 +157,11 @@ describe('env uninstall', () => {
         global: true,
         pnpmHomeDir: process.cwd(),
         rawConfig: {},
-      }, ['uninstall', 'non-existing-version'])
+      }, ['rm', 'non-existing-version'])
     ).rejects.toEqual(new PnpmError('COULD_NOT_RESOLVE_NODEJS', 'Couldn\'t find Node.js version matching non-existing-version'))
   })
 
-  test('fail if trying to uninstall version that is not installed', async () => {
+  test('fail if trying to remove version that is not installed', async () => {
     tempDir()
 
     const nodeDir = node.getNodeVersionsBaseDir(process.cwd())
@@ -172,11 +172,11 @@ describe('env uninstall', () => {
         global: true,
         pnpmHomeDir: process.cwd(),
         rawConfig: {},
-      }, ['uninstall', '16.4.0'])
+      }, ['remove', '16.4.0'])
     ).rejects.toEqual(new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${path.resolve(nodeDir, '16.4.0')}`))
   })
 
-  test('install and uninstall Node.js by exact version', async () => {
+  test('install and remove Node.js by exact version', async () => {
     tempDir()
 
     const configDir = path.resolve('config')
@@ -206,7 +206,7 @@ describe('env uninstall', () => {
       global: true,
       pnpmHomeDir: process.cwd(),
       rawConfig: {},
-    }, ['uninstall', '16.4.0'])
+    }, ['rm', '16.4.0'])
 
     expect(() => execa.sync('node', ['-v'], opts)).toThrowError()
   })

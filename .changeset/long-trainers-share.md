@@ -2,4 +2,4 @@
 "@pnpm/plugin-commands-env": minor
 ---
 
-Enhance `pnpm env` with the `uninstall` command.
+Enhance `pnpm env` with the `remove` command.

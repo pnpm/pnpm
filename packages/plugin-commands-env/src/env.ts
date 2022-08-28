@@ -6,6 +6,7 @@ import { createFetchFromRegistry } from '@pnpm/fetch'
 import { resolveNodeVersion } from '@pnpm/node.resolver'
 import { globalInfo } from '@pnpm/logger'
 import cmdShim from '@zkochan/cmd-shim'
+import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 import { getNodeDir, NvmNodeCommandOptions, getNodeVersionsBaseDir } from './node'
 import getNodeMirror from './getNodeMirror'
@@ -35,9 +36,9 @@ export function help () {
             name: 'use',
           },
           {
-            description: 'Uninstalls the specified version of Node.JS.',
-            name: 'remove\nuninstall',
-            shortAlias: 'rm,\nun',
+            description: 'Removes the specified version of Node.JS.',
+            name: 'remove',
+            shortAlias: 'rm',
           },
         ],
       },
@@ -118,9 +119,7 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
   ${dest} -> ${src}`
   }
   case 'remove':
-  case 'rm':
-  case 'uninstall':
-  case 'un': {
+  case 'rm': {
     if (!opts.global) {
       throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
     }
@@ -145,38 +144,29 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     const nodeLink = await fs.readlink(nodePath).catch(() => '')
 
     if (nodeLink.includes(versionDir)) {
-      globalInfo(`Node.JS version ${nodeVersion} was detected as the default one, uninstalling ...`)
+      globalInfo(`Node.JS version ${nodeVersion} was detected as the default one, removing ...`)
 
       const npmPath = path.resolve(opts.pnpmHomeDir, 'npm')
       const npxPath = path.resolve(opts.pnpmHomeDir, 'npx')
 
-      await Promise.all([
-        fs.unlink(nodePath),
-        fs.unlink(npmPath),
-        fs.unlink(npxPath),
-      ]).catch(err => {
-        const { code = '' } = err
+      try {
+        await Promise.all([
+          fs.unlink(nodePath),
+          fs.unlink(npmPath),
+          fs.unlink(npxPath),
+        ])
+      } catch (err) {
+        const { code = '' } = err as NodeJS.ErrnoException
 
-        if (code.toLowerCase() !== 'enoent') {
+        if (code !== 'ENOENT') {
           throw err
         }
-      })
+      }
     }
 
-    const [processMajorVersion, processMinorVersion] = process.versions.node.split('.')
+    await rimraf(versionDir)
 
-    /**
-     * Support for earlier Node.JS versions
-     * `fs.rmdir` is deprecated and `fs.rm` was added in v14.14.0
-     * @see https://nodejs.org/dist/latest-v16.x/docs/api/fs.html#fsrmpath-options-callback
-     */
-    if (Number(processMajorVersion) === 14 && Number(processMinorVersion) <= 13) {
-      await fs.rmdir(versionDir, { recursive: true })
-    } else {
-      await fs.rm(versionDir, { recursive: true })
-    }
-
-    return `Node.js ${nodeVersion} is uninstalled
+    return `Node.js ${nodeVersion} is removed
   ${versionDir}`
   }
   default: {
