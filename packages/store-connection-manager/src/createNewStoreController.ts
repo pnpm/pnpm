@@ -86,6 +86,7 @@ export default async (
       importPackage: opts.hooks?.importPackage,
       networkConcurrency: opts.networkConcurrency,
       packageImportMethod: opts.packageImportMethod,
+      cacheDir: opts.cacheDir,
       storeDir: opts.storeDir,
       verifyStoreIntegrity: typeof opts.verifyStoreIntegrity === 'boolean'
         ? opts.verifyStoreIntegrity

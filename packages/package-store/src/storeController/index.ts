@@ -24,6 +24,7 @@ export default async function (
     importPackage?: ImportIndexedPackage
     pnpmVersion?: string
     ignoreFile?: (filename: string) => boolean
+    cacheDir: string
     storeDir: string
     networkConcurrency?: number
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
@@ -50,7 +51,7 @@ export default async function (
     close: async () => {}, // eslint-disable-line:no-empty
     fetchPackage: packageRequester.fetchPackageToStore,
     importPackage: cafs.importPackage,
-    prune: prune.bind(null, storeDir),
+    prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir }),
     requestPackage: packageRequester.requestPackage,
     upload,
   }
