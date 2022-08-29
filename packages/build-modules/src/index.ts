@@ -9,6 +9,7 @@ import { fromDir as readPackageFromDir, safeReadPackageFromDir } from '@pnpm/rea
 import { StoreController } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
 import { applyPatch } from 'patch-package/dist/applyPatches'
+import { getPackageDetailsFromPatchFilename } from 'patch-package/dist/PackageDetails'
 import runGroups from 'run-groups'
 import buildSequence, { DependenciesGraph, DependenciesGraphNode } from './buildSequence'
 
@@ -156,7 +157,9 @@ function applyPatchToDep (patchDir: string, patchFilePath: string) {
   process.chdir(patchDir)
   const success = applyPatch({
     patchFilePath,
+    packageDetails: getPackageDetailsFromPatchFilename(path.basename(patchFilePath)),
     patchDir,
+    reverse: false,
   })
   process.chdir(cwd)
   if (!success) {
