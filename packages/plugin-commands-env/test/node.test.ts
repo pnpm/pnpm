@@ -73,3 +73,9 @@ test('install and rc version of Node.js', async () => {
   const extension = process.platform === 'win32' ? 'zip' : 'tar.gz'
   expect(fetchMock.mock.calls[0][0]).toBe(`https://nodejs.org/download/rc/v18.0.0-rc.3/node-v18.0.0-rc.3-${platform}-x64.${extension}`)
 })
+
+test('get node version base dir', async () => {
+  expect(typeof node.getNodeVersionsBaseDir).toBe('function')
+  const versionDir = node.getNodeVersionsBaseDir(process.cwd())
+  expect(versionDir).toBe(path.resolve(process.cwd(), 'nodejs'))
+})

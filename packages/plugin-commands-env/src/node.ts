@@ -57,7 +57,7 @@ export async function getNodeBinDir (opts: NvmNodeCommandOptions) {
   return process.platform === 'win32' ? nodeDir : path.join(nodeDir, 'bin')
 }
 
-function getNodeVersionsBaseDir (pnpmHomeDir: string) {
+export function getNodeVersionsBaseDir (pnpmHomeDir: string) {
   return path.join(pnpmHomeDir, 'nodejs')
 }
 

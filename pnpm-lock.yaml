@@ -3078,12 +3078,18 @@ importers:
       '@pnpm/node.resolver':
         specifier: workspace:*
         version: link:../node.resolver
+      '@pnpm/remove-bins':
+        specifier: workspace:*
+        version: link:../remove-bins
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
       '@zkochan/cmd-shim':
         specifier: ^5.3.1
         version: 5.3.1
+      '@zkochan/rimraf':
+        specifier: ^2.1.2
+        version: 2.1.2
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
