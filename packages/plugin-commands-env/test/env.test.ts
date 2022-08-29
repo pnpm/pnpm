@@ -191,7 +191,7 @@ describe('env remove', () => {
 
     const opts = {
       env: {
-        [PATH]: `${process.cwd()}${path.delimiter}${process.env[PATH] as string}`,
+        [PATH]: process.cwd(),
       },
       extendEnv: false,
     }
