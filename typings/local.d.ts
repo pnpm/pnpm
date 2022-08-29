@@ -145,3 +145,7 @@ declare module 'string.prototype.replaceall' {
   const anything: any
   export = anything
 }
+
+declare module 'patch-package/dist/PackageDetails' {
+  export function getPackageDetailsFromPatchFilename (patchFileName: string): any
+}
