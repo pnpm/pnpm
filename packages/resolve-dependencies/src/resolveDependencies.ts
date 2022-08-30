@@ -143,16 +143,15 @@ export interface ResolutionContext {
   skipped: Set<string>
   dependenciesTree: DependenciesTree<ResolvedPackage>
   force: boolean
-  prefix: string
   preferWorkspacePackages?: boolean
   readPackageHook?: ReadPackageHook
   engineStrict: boolean
-  modulesDir: string
   nodeVersion: string
   pnpmVersion: string
   registries: Registries
   virtualStoreDir: string
   updateMatching?: (pkgName: string) => boolean
+  workspacePackages?: WorkspacePackages
 }
 
 export type MissingPeers = Record<string, string>
@@ -232,7 +231,7 @@ interface ResolvedDependenciesOptions {
   proceed: boolean
   resolvedDependencies?: ResolvedDependencies
   updateDepth: number
-  workspacePackages?: WorkspacePackages
+  prefix: string
 }
 
 type PostponedResolutionFunction = (preferredVersions: PreferredVersions, parentPkgAliases: ParentPkgAliases) => Promise<{
@@ -240,9 +239,12 @@ type PostponedResolutionFunction = (preferredVersions: PreferredVersions, parent
   resolvedPeers: ResolvedPeers
 }>
 
-export async function resolveRootDependencies (importers: ImporterToResolve[]): Promise<Array<Array<PkgAddress | LinkedDependency>>> {
-  const pkgAddressesByImportersWithoutPeers = await resolveDependenciesOfImporters(importers)
-  return Promise.all(zipWith(async (importerResolutionResult, { ctx, parentPkgAliases, preferredVersions, options }) => {
+export async function resolveRootDependencies (
+  ctx: ResolutionContext,
+  importers: ImporterToResolve[]
+): Promise<Array<Array<PkgAddress | LinkedDependency>>> {
+  const pkgAddressesByImportersWithoutPeers = await resolveDependenciesOfImporters(ctx, importers)
+  return Promise.all(zipWith(async (importerResolutionResult, { parentPkgAliases, preferredVersions, options }) => {
     const pkgAddresses = importerResolutionResult.pkgAddresses
     if (!ctx.autoInstallPeers) return pkgAddresses
     while (true) {
@@ -280,19 +282,19 @@ interface ResolvedDependenciesResult {
 }
 
 export interface ImporterToResolve {
-  ctx: ResolutionContext
   preferredVersions: PreferredVersions
   parentPkgAliases: ParentPkgAliases
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>
   options: Omit<ResolvedDependenciesOptions, 'parentPkgAliases'>
 }
 
-export async function resolveDependenciesOfImporters (
+async function resolveDependenciesOfImporters (
+  ctx: ResolutionContext,
   importers: ImporterToResolve[]
 ): Promise<ResolvedDependenciesResult[]> {
-  const extendedWantedDepsByImporters = importers.map(({ ctx, wantedDependencies, options }) => getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
+  const extendedWantedDepsByImporters = importers.map(({ wantedDependencies, options }) => getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
     preferredDependencies: options.preferredDependencies,
-    prefix: ctx.prefix,
+    prefix: options.prefix,
     proceed: options.proceed || ctx.forceFullResolution,
     registries: ctx.registries,
     resolvedDependencies: options.resolvedDependencies,
@@ -303,7 +305,7 @@ export async function resolveDependenciesOfImporters (
       const pkgAddresses: PkgAddress[] = []
       ;(await Promise.all(
         extendedWantedDeps.map((extendedWantedDep) => resolveDependenciesOfDependency(
-          importer.ctx,
+          ctx,
           importer.preferredVersions,
           { ...importer.options, parentPkgAliases: importer.parentPkgAliases },
           extendedWantedDep
@@ -327,9 +329,9 @@ export async function resolveDependenciesOfImporters (
         newParentPkgAliases[pkgAddress.alias] = pkgAddress
       }
       if (pkgAddress.updated) {
-        importer.ctx.updatedSet.add(pkgAddress.alias)
+        ctx.updatedSet.add(pkgAddress.alias)
       }
-      const resolvedPackage = importer.ctx.resolvedPackagesByDepPath[pkgAddress.depPath]
+      const resolvedPackage = ctx.resolvedPackagesByDepPath[pkgAddress.depPath]
       if (!resolvedPackage) continue // This will happen only with linked dependencies
       if (!newPreferredVersions[resolvedPackage.name]) {
         newPreferredVersions[resolvedPackage.name] = {}
@@ -341,7 +343,7 @@ export async function resolveDependenciesOfImporters (
         async (postponedResolution) => postponedResolution(newPreferredVersions, newParentPkgAliases)
       )
     )
-    if (!importer.ctx.autoInstallPeers) {
+    if (!ctx.autoInstallPeers) {
       return {
         missingPeers: {},
         pkgAddresses,
@@ -370,7 +372,7 @@ export async function resolveDependencies (
 ): Promise<ResolvedDependenciesResult> {
   const extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
     preferredDependencies: options.preferredDependencies,
-    prefix: ctx.prefix,
+    prefix: options.prefix,
     proceed: options.proceed || ctx.forceFullResolution,
     registries: ctx.registries,
     resolvedDependencies: options.resolvedDependencies,
@@ -477,10 +479,10 @@ async function resolveDependenciesOfDependency (
       ctx.updateMatching(extendedWantedDep.infoFromLockfile.name!)
     )
   ) || Boolean(
-    (options.workspacePackages != null) &&
+    (ctx.workspacePackages != null) &&
     ctx.linkWorkspacePackagesDepth !== -1 &&
     wantedDepIsLocallyAvailable(
-      options.workspacePackages,
+      ctx.workspacePackages,
       extendedWantedDep.wantedDependency,
       { defaultTag: ctx.defaultTag, registry: ctx.registries.default }
     )
@@ -491,8 +493,8 @@ async function resolveDependenciesOfDependency (
     parentPkg: options.parentPkg,
     parentPkgAliases: options.parentPkgAliases,
     preferredVersions,
-    workspacePackages: options.workspacePackages,
     currentPkg: extendedWantedDep.infoFromLockfile ?? undefined,
+    prefix: options.prefix,
     proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
     update,
     updateDepth,
@@ -519,26 +521,38 @@ async function resolveDependenciesOfDependency (
     postponedResolution: async (preferredVersions, parentPkgAliases) =>
       resolveChildren(
         ctx,
-        resolveDependencyResult,
-        parentPkgAliases,
-        extendedWantedDep.infoFromLockfile?.dependencyLockfile,
-        options.workspacePackages,
-        options.currentDepth,
-        updateDepth,
-        preferredVersions
+        {
+          parentPkg: resolveDependencyResult,
+          parentPkgAliases,
+          dependencyLockfile: extendedWantedDep.infoFromLockfile?.dependencyLockfile,
+          parentDepth: options.currentDepth,
+          updateDepth,
+          preferredVersions,
+          prefix: options.prefix,
+        }
       ),
   }
 }
 
 async function resolveChildren (
   ctx: ResolutionContext,
-  parentPkg: PkgAddress,
-  parentPkgAliases: ParentPkgAliases,
-  dependencyLockfile: PackageSnapshot | undefined,
-  workspacePackages: WorkspacePackages | undefined,
-  parentDepth: number,
-  updateDepth: number,
-  preferredVersions: PreferredVersions
+  {
+    parentPkg,
+    parentPkgAliases,
+    dependencyLockfile,
+    parentDepth,
+    updateDepth,
+    preferredVersions,
+    prefix,
+  }: {
+    parentPkg: PkgAddress
+    parentPkgAliases: ParentPkgAliases
+    dependencyLockfile: PackageSnapshot | undefined
+    parentDepth: number
+    updateDepth: number
+    preferredVersions: PreferredVersions
+    prefix: string
+  }
 ) {
   const currentResolvedDependencies = (dependencyLockfile != null)
     ? {
@@ -567,12 +581,12 @@ async function resolveChildren (
       parentPkg,
       parentPkgAliases,
       preferredDependencies: currentResolvedDependencies,
+      prefix,
       // If the package is not linked, we should also gather information about its dependencies.
       // After linking the package we'll need to symlink its dependencies.
       proceed: !parentPkg.depIsLinked || parentDependsOnPeer,
       resolvedDependencies,
       updateDepth,
-      workspacePackages,
     }
   )
   ctx.childrenByParentDepPath[parentPkg.depPath] = pkgAddresses.map((child) => ({
@@ -769,10 +783,10 @@ interface ResolveDependencyOptions {
   parentPkg: ParentPkg
   parentPkgAliases: ParentPkgAliases
   preferredVersions: PreferredVersions
+  prefix: string
   proceed: boolean
   update: boolean
   updateDepth: number
-  workspacePackages?: WorkspacePackages
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null
@@ -841,7 +855,7 @@ async function resolveDependency (
       // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
       skipFetch: false,
       update: options.update,
-      workspacePackages: options.workspacePackages,
+      workspacePackages: ctx.workspacePackages,
     })
   } catch (err: any) { // eslint-disable-line
     if (wantedDependency.optional) {
@@ -853,7 +867,7 @@ async function resolveDependency (
           version: wantedDependency.alias ? wantedDependency.pref : undefined,
         },
         parents: nodeIdToParents(options.parentPkg.nodeId, ctx.resolvedPackagesByDepPath),
-        prefix: ctx.prefix,
+        prefix: options.prefix,
         reason: 'resolution_failure',
       })
       return null
@@ -1013,7 +1027,7 @@ async function resolveDependency (
         pkgId: pkgResponse.body.id,
         pkgName: pkg.name,
         pkgVersion: pkg.version,
-        prefix: ctx.prefix,
+        prefix: options.prefix,
       })
     }
     if (pkgResponse.body.isInstallable === false || !parentIsInstallable) {
@@ -1065,7 +1079,7 @@ async function resolveDependency (
 
   const rootDir = pkgResponse.body.resolution.type === 'directory'
     ? path.resolve(ctx.lockfileDir, pkgResponse.body.resolution['directory'])
-    : ctx.prefix
+    : options.prefix
   return {
     alias: wantedDependency.alias || pkg.name,
     depIsLinked,

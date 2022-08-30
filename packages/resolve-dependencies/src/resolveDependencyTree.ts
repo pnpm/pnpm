@@ -119,20 +119,12 @@ export default async function<T> (
     virtualStoreDir: opts.virtualStoreDir,
     wantedLockfile: opts.wantedLockfile,
     appliedPatches: new Set<string>(),
+    updatedSet: new Set<string>(),
+    workspacePackages: opts.workspacePackages,
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
     const projectSnapshot = opts.wantedLockfile.importers[importer.id]
-    // This array will only contain the dependencies that should be linked in.
-    // The already linked-in dependencies will not be added.
-    const linkedDependencies = [] as LinkedDependency[]
-    const resolveCtx = {
-      ...ctx,
-      updatedSet: new Set<string>(),
-      linkedDependencies,
-      modulesDir: importer.modulesDir,
-      prefix: importer.rootDir,
-    }
     // This may be optimized.
     // We only need to proceed resolving every dependency
     // if the newly added dependency has peer dependencies.
@@ -153,10 +145,9 @@ export default async function<T> (
         ...projectSnapshot.optionalDependencies,
       },
       updateDepth: -1,
-      workspacePackages: opts.workspacePackages,
+      prefix: importer.rootDir,
     }
     return {
-      ctx: resolveCtx,
       parentPkgAliases: fromPairs(
         importer.wantedDependencies.filter(({ alias }) => alias).map(({ alias }) => [alias, true])
       ) as ParentPkgAliases,
@@ -165,7 +156,7 @@ export default async function<T> (
       options: resolveOpts,
     }
   })
-  const pkgAddressesByImporters = await resolveRootDependencies(resolveArgs)
+  const pkgAddressesByImporters = await resolveRootDependencies(ctx, resolveArgs)
   const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
 
   ctx.pendingNodes.forEach((pendingNode) => {
