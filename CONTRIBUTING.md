@@ -19,8 +19,9 @@
 
 1. Run `pnpm install` in the root of the repository to install all dependencies.
 1. Run `cd packages/pnpm/dev && pnpm link -g` to make pnpm from the repository available in the command line via the `pd` command.
-1. Change any source code file and run `pd [command] [flags]` to run `pnpm` directly from the source code by compiling all the files without typechecking in memory.
-1. Alternatively, for compiling all the projects with typechecking, run `pnpm run compile` in the root of the repository. To run a task that will recompile the projects on change, run `pnpm run watch`.
+1. Return to the root of the repository and run `pnpm run compile` to create an initial build of pnpm from the source in the repository.
+1. Now you can change any source code file and run `pd [command] [flags]` to run `pnpm` directly from the source code by compiling all the files without typechecking in memory.
+1. Alternatively, for recompiling all the projects with typechecking after your changes, again run `pnpm run compile` in the root of the repository. To run a task that will recompile the projects on change, run `pnpm run watch`.
 1. In order to run all the tests in the repository, run `pnpm run test-main`. You may also run tests of specific projects by running `pnpm test` inside a project's directory or using `pnpm --filter <project name> test`.
 
 Some of the e2e tests run node-gyp, so you might need to install some build-essentials on your system for those tests to pass. On Fedora, install these:
