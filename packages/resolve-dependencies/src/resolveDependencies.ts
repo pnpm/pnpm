@@ -175,7 +175,7 @@ export type PkgAddress = {
   rootDir: string
   missingPeers: MissingPeers
   resolvedPeers: ResolvedPeers
-  timeString?: string
+  publishedAt?: string
 } & ({
   isLinkedDependency: true
   version: string
@@ -404,14 +404,14 @@ async function resolveDependenciesOfImporters (
 function getPublishedByDate (pkgAddresses: PkgAddress[], timeFromLockfile: Record<string, string> = {}): { publishedBy: Date, newTime: Record<string, string> } {
   const newTime: Record<string, string> = {}
   for (const pkgAddress of pkgAddresses) {
-    if (pkgAddress.timeString) {
-      newTime[pkgAddress.depPath] = pkgAddress.timeString
+    if (pkgAddress.publishedAt) {
+      newTime[pkgAddress.depPath] = pkgAddress.publishedAt
     } else if (timeFromLockfile[pkgAddress.depPath]) {
       newTime[pkgAddress.depPath] = timeFromLockfile[pkgAddress.depPath]
     }
   }
   const sortedDates = Object.values(newTime)
-    .map((timeString: string) => new Date(timeString))
+    .map((publishedAt: string) => new Date(publishedAt))
     .sort((d1, d2) => d1.getTime() - d2.getTime())
   return { publishedBy: sortedDates[sortedDates.length - 1], newTime }
 }
@@ -1159,7 +1159,7 @@ async function resolveDependency (
     isLinkedDependency: undefined,
     pkg,
     updated: pkgResponse.body.updated,
-    timeString: pkgResponse.body.timeString,
+    publishedAt: pkgResponse.body.publishedAt,
   }
 }
 

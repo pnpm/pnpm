@@ -160,7 +160,7 @@ async function resolveAndFetch (
   let forceFetch = false
   let updated = false
   let resolvedVia: string | undefined
-  let timeString: string | undefined
+  let publishedAt: string | undefined
 
   // When fetching is skipped, resolution cannot be skipped.
   // We need the package's manifest when doing `lockfile-only` installs.
@@ -183,7 +183,7 @@ async function resolveAndFetch (
     manifest = resolveResult.manifest
     latest = resolveResult.latest
     resolvedVia = resolveResult.resolvedVia
-    timeString = resolveResult.timeString
+    publishedAt = resolveResult.publishedAt
 
     // If the integrity of a local tarball dependency has changed,
     // the local tarball should be unpacked, so a fetch to the store should be forced
@@ -246,7 +246,7 @@ async function resolveAndFetch (
         resolution,
         resolvedVia,
         updated,
-        timeString,
+        publishedAt,
       },
     }
   }
@@ -277,7 +277,7 @@ async function resolveAndFetch (
       resolution,
       resolvedVia,
       updated,
-      timeString,
+      publishedAt,
     },
     bundledManifest: fetchResult.bundledManifest,
     files: fetchResult.files,

@@ -36,7 +36,7 @@ export type Resolution =
 export interface ResolveResult {
   id: string
   latest?: string
-  timeString?: string
+  publishedAt?: string
   manifest?: DependencyManifest
   normalizedPref?: string // is null for npm-hosted dependencies
   resolution: Resolution

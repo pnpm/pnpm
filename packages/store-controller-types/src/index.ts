@@ -124,7 +124,7 @@ export interface PackageResponse {
     id: string
     normalizedPref?: string
     updated: boolean
-    timeString?: string
+    publishedAt?: string
     resolvedVia?: string
     // This is useful for recommending updates.
     // If latest does not equal the version of the

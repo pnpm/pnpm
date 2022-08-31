@@ -219,7 +219,7 @@ async function resolveNpm (
     normalizedPref: spec.normalizedPref,
     resolution,
     resolvedVia: 'npm-registry',
-    timeString: meta.time?.[pickedPackage.version],
+    publishedAt: meta.time?.[pickedPackage.version],
   }
 }
 
