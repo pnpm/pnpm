@@ -234,7 +234,12 @@ interface ResolvedDependenciesOptions {
   prefix: string
 }
 
-type PostponedResolutionFunction = (preferredVersions: PreferredVersions, parentPkgAliases: ParentPkgAliases) => Promise<{
+interface PostponedResolutionOpts {
+  preferredVersions: PreferredVersions
+  parentPkgAliases: ParentPkgAliases
+}
+
+type PostponedResolutionFunction = (opts: PostponedResolutionOpts) => Promise<{
   missingPeers: MissingPeers
   resolvedPeers: ResolvedPeers
 }>
@@ -338,10 +343,12 @@ async function resolveDependenciesOfImporters (
       }
       newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
     }
+    const postponedResolutionOpts = {
+      preferredVersions: newPreferredVersions,
+      parentPkgAliases: newParentPkgAliases,
+    }
     const childrenResults = await Promise.all(
-      postponedResolutionsQueue.map(
-        async (postponedResolution) => postponedResolution(newPreferredVersions, newParentPkgAliases)
-      )
+      postponedResolutionsQueue.map((postponedResolution) => postponedResolution(postponedResolutionOpts))
     )
     if (!ctx.autoInstallPeers) {
       return {
@@ -410,7 +417,13 @@ export async function resolveDependencies (
     }
     newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
   }
-  const childrenResults = await Promise.all(postponedResolutionsQueue.map(async (postponedResolution) => postponedResolution(newPreferredVersions, newParentPkgAliases)))
+  const postponedResolutionOpts = {
+    preferredVersions: newPreferredVersions,
+    parentPkgAliases: newParentPkgAliases,
+  }
+  const childrenResults = await Promise.all(
+    postponedResolutionsQueue.map((postponedResolution) => postponedResolution(postponedResolutionOpts))
+  )
   if (!ctx.autoInstallPeers) {
     return {
       missingPeers: {},
@@ -516,21 +529,16 @@ async function resolveDependenciesOfDependency (
   }
   if (!resolveDependencyResult.isNew) return { resolveDependencyResult }
 
+  const postponedResolution = resolveChildren.bind(null, ctx, {
+    parentPkg: resolveDependencyResult,
+    dependencyLockfile: extendedWantedDep.infoFromLockfile?.dependencyLockfile,
+    parentDepth: options.currentDepth,
+    updateDepth,
+    prefix: options.prefix,
+  })
   return {
     resolveDependencyResult,
-    postponedResolution: async (preferredVersions, parentPkgAliases) =>
-      resolveChildren(
-        ctx,
-        {
-          parentPkg: resolveDependencyResult,
-          parentPkgAliases,
-          dependencyLockfile: extendedWantedDep.infoFromLockfile?.dependencyLockfile,
-          parentDepth: options.currentDepth,
-          updateDepth,
-          preferredVersions,
-          prefix: options.prefix,
-        }
-      ),
+    postponedResolution,
   }
 }
 
@@ -538,20 +546,23 @@ async function resolveChildren (
   ctx: ResolutionContext,
   {
     parentPkg,
-    parentPkgAliases,
     dependencyLockfile,
     parentDepth,
     updateDepth,
-    preferredVersions,
     prefix,
   }: {
     parentPkg: PkgAddress
-    parentPkgAliases: ParentPkgAliases
     dependencyLockfile: PackageSnapshot | undefined
     parentDepth: number
     updateDepth: number
-    preferredVersions: PreferredVersions
     prefix: string
+  },
+  {
+    parentPkgAliases,
+    preferredVersions,
+  }: {
+    parentPkgAliases: ParentPkgAliases
+    preferredVersions: PreferredVersions
   }
 ) {
   const currentResolvedDependencies = (dependencyLockfile != null)
