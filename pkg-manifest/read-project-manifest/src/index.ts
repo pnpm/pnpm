@@ -2,10 +2,11 @@ import { promises as fs, Stats } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { ProjectManifest } from '@pnpm/types'
-import { writeProjectManifest } from '@pnpm/write-project-manifest'
+import { writeProjectManifest, CommentSpecifier } from '@pnpm/write-project-manifest'
 import readYamlFile from 'read-yaml-file'
 
 import detectIndent from '@gwhitney/detect-indent'
+import { parseString, stripComments } from 'strip-comments-strings'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
 import sortKeys from 'sort-keys'
@@ -118,9 +119,55 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
 }
 
 function detectFileFormatting (text: string) {
+  const finalNewline = text.endsWith('\n')
+  if (!finalNewline) {
+    /* For the sake of the comment parser, which otherwise loses the
+     * final character of a final comment
+     */
+    text += '\n'
+  }
+  const { comments } = parseString(text)
+  let stripped = stripComments(text)
+  if (!finalNewline) {
+    stripped = stripped.slice(0, -1)
+  }
+  let offset = 0 // accumulates difference of indices from text to stripped
+  for (const comment of comments) {
+    // Unfortunately, JavaScript lastIndexOf does not have an end parameter:
+    const preamble: string = stripped.slice(0, comment.index - offset)
+    const lineStart = Math.max(preamble.lastIndexOf('\n'), 0)
+    const priorLines = preamble.split('\n')
+    comment.lineNumber = priorLines.length
+    if (comment.lineNumber === 1) {
+      if (preamble.trim().length === 0) {
+        comment.lineNumber = 0
+      }
+    } else {
+      comment.after = priorLines[comment.lineNumber - 2]
+      if (priorLines[0].trim().length === 0) {
+        /* JSON5.stringify will not have a whitespace-only line at the start */
+        comment.lineNumber -= 1
+      }
+    }
+    let lineEnd: number = stripped.indexOf(
+      '\n', (lineStart === 0) ? 0 : lineStart + 1)
+    if (lineEnd < 0) {
+      lineEnd = stripped.length
+    }
+    comment.on = stripped.slice(lineStart, lineEnd)
+    comment.whitespace = stripped
+      .slice(lineStart, comment.index - offset)
+      .match(/^\s*/)[0]
+    const nextLineEnd = stripped.indexOf('\n', lineEnd + 1)
+    if (nextLineEnd >= 0) {
+      comment.before = stripped.slice(lineEnd, nextLineEnd)
+    }
+    offset += comment.indexEnd - comment.index
+  }
   return {
+    comments,
     indent: detectIndent(text).indent,
-    insertFinalNewline: text.endsWith('\n'),
+    insertFinalNewline: finalNewline,
   }
 }
 
@@ -174,6 +221,7 @@ async function readPackageYaml (filePath: string) {
 function createManifestWriter (
   opts: {
     initialManifest: ProjectManifest
+    comments?: CommentSpecifier[]
     indent?: string | number | undefined
     insertFinalNewline?: boolean
     manifestPath: string
@@ -184,6 +232,7 @@ function createManifestWriter (
     updatedManifest = normalize(updatedManifest)
     if (force === true || !equal(initialManifest, updatedManifest)) {
       await writeProjectManifest(opts.manifestPath, updatedManifest, {
+        comments: opts.comments,
         indent: opts.indent,
         insertFinalNewline: opts.insertFinalNewline,
       })

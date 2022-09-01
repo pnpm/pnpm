@@ -40,7 +40,8 @@
     "parse-json": "^5.2.0",
     "read-yaml-file": "^2.1.0",
     "sort-keys": "^4.2.0",
-    "strip-bom": "^4.0.0"
+    "strip-bom": "^4.0.0",
+    "strip-comments-strings": "1.2.0"
   },
   "devDependencies": {
     "@pnpm/read-project-manifest": "workspace:*",
