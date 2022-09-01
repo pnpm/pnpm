@@ -2510,6 +2510,9 @@ importers:
       path-temp:
         specifier: ^2.0.0
         version: 2.0.0
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
       rename-overwrite:
         specifier: ^4.0.2
         version: 4.0.2
@@ -2538,6 +2541,9 @@ importers:
       '@types/normalize-path':
         specifier: ^3.0.0
         version: 3.0.0
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
       '@types/semver':
         specifier: 7.3.10
         version: 7.3.10
@@ -5588,7 +5594,7 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
     dependencies:
-      '@babel/types': 7.17.10
+      '@babel/types': 7.18.13
     dev: true
 
   /@babel/parser/7.18.13_@babel+types@7.18.13:

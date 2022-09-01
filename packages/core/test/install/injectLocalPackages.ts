@@ -1296,3 +1296,84 @@ test('peer dependency of injected project should be resolved correctly', async (
   const lockfile = await rootModules.readLockfile()
   expect(lockfile.packages?.['file:project-2_project-1@project-1'].dependencies?.['project-1']).toEqual('link:project-1')
 })
+
+// There was a bug related to this. The manifests in the workspacePackages object were modified
+test('do not modify the manifest of the injected workpspace project', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    peerDependencies: {
+      'is-positive': '>=1.0.0',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'project-1': 'workspace:1.0.0',
+    },
+    devDependencies: {
+      'is-positive': '1.0.0',
+    },
+    dependenciesMeta: {
+      'project-1': {
+        injected: true,
+      },
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const workspacePackages = {
+    'project-1': {
+      '1.0.0': {
+        dir: path.resolve('project-1'),
+        manifest: project1Manifest,
+      },
+    },
+    'project-2': {
+      '1.0.0': {
+        dir: path.resolve('project-2'),
+        manifest: project2Manifest,
+      },
+    },
+  }
+  const [project1] = await mutateModules(importers, await testDefaults({
+    workspacePackages,
+  }))
+  expect(project1.manifest).toStrictEqual({
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    peerDependencies: {
+      'is-positive': '>=1.0.0',
+    },
+  })
+})
