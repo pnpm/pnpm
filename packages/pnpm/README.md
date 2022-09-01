@@ -1,10 +1,10 @@
 [![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner-direct.svg)](https://stand-with-ukraine.pp.ua)
 
-[中文](https://pnpm.io/zh/) |
+[简体中文](https://pnpm.io/zh/) |
 [日本語](https://pnpm.io/ja/) |
 [한국어](https://pnpm.io/ko/) |
 [Italiano](https://pnpm.io/it/) |
-[Français](https://pnpm.io/fr/)
+[Português Brasileiro](https://pnpm.io/pt/)
 
 ![](https://i.imgur.com/qlW1eEG.png)
 
