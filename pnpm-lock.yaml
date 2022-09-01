@@ -5591,7 +5591,7 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
     dependencies:
-      '@babel/types': 7.18.10
+      '@babel/types': 7.18.13
     dev: true
 
   /@babel/parser/7.18.13_@babel+types@7.18.13:
