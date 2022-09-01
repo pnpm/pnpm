@@ -16,6 +16,7 @@ import { DependencyManifest } from '@pnpm/types'
 import LRU from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
+import clone from 'ramda/src/clone'
 import semver from 'semver'
 import ssri from 'ssri'
 import pickPackage, {
@@ -317,7 +318,7 @@ function resolveFromLocalPackage (
   }
   return {
     id,
-    manifest: localPackage.manifest,
+    manifest: clone(localPackage.manifest),
     normalizedPref,
     resolution: {
       directory,

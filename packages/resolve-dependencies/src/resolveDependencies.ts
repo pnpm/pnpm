@@ -41,6 +41,7 @@ import {
 import * as dp from 'dependency-path'
 import exists from 'path-exists'
 import isEmpty from 'ramda/src/isEmpty'
+import omit from 'ramda/src/omit'
 import zipWith from 'ramda/src/zipWith'
 import semver from 'semver'
 import encodePkgId from './encodePkgId'
@@ -935,14 +936,17 @@ async function resolveDependency (
   }
   if (pkg.peerDependencies && pkg.dependencies) {
     if (ctx.autoInstallPeers) {
-      for (const peerDep of Object.keys(pkg.peerDependencies)) {
-        delete pkg.dependencies[peerDep]
+      pkg = {
+        ...pkg,
+        dependencies: omit(Object.keys(pkg.peerDependencies), pkg.dependencies),
       }
     } else {
-      for (const peerDep of Object.keys(pkg.peerDependencies)) {
-        if (options.parentPkgAliases[peerDep]) {
-          delete pkg.dependencies[peerDep]
-        }
+      pkg = {
+        ...pkg,
+        dependencies: omit(
+          Object.keys(pkg.peerDependencies).filter((peerDep) => options.parentPkgAliases[peerDep]),
+          pkg.dependencies
+        ),
       }
     }
   }
