@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 9.1.21
+
+### Patch Changes
+
+- @pnpm/config@15.10.1
+
 ## 9.1.20
 
 ### Patch Changes

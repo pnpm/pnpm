@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-env
 
+## 2.3.0
+
+### Minor Changes
+
+- ba270a967: Enhance `pnpm env` with the `remove` command.
+
+### Patch Changes
+
+- @pnpm/config@15.10.1
+- @pnpm/cli-utils@0.7.32
+
 ## 2.2.1
 
 ### Patch Changes

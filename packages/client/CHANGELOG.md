@@ -1,5 +1,11 @@
 # @pnpm/client
 
+## 7.2.2
+
+### Patch Changes
+
+- @pnpm/default-resolver@15.0.16
+
 ## 7.2.1
 
 ### Patch Changes

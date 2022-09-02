@@ -1,5 +1,27 @@
 # pnpm
 
+## 7.10.0-0
+
+### Minor Changes
+
+- New time-based resolution strategy supported.
+
+  When `resolution-mode` is set to `time-based`, pnpm will resolve dependencies the following way:
+
+  1. direct dependencies will be resolved to their lowest versions. So if there is `foo@^1.1.0` in the dependencies, then `1.1.0` will be installed.
+  2. subdependencies will be resolved from versions that were published before the last direct dependency was installed.
+
+  With this resolution mode installations with hot cache are faster. It also reduces the chance of subdependency hijacking as subdependencies will be updated only if direct dependencies are updated.
+
+  Related [RFC](https://github.com/pnpm/rfcs/pull/2).
+
+- Enhance `pnpm env` with the `remove` command.
+
+### Patch Changes
+
+- `pnpm store prune` should remove all cached metadata.
+- Don't modify the manifest of the injected workspace project, when it has the same dependency in prod and peer dependencies.
+
 ## 7.9.5
 
 ### Patch Changes

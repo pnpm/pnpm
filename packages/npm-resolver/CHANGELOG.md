@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 13.1.4
+
+### Patch Changes
+
+- 53506c7ae: Don't modify the manifest of the injected workspace project, when it has the same dependency in prod and peer dependencies.
+
 ## 13.1.3
 
 ### Patch Changes

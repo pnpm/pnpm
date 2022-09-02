@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-patching
 
+## 1.2.1
+
+### Patch Changes
+
+- Updated dependencies [17e69e18b]
+  - @pnpm/store-connection-manager@4.3.5
+  - @pnpm/plugin-commands-installation@10.6.1
+  - @pnpm/config@15.10.1
+  - @pnpm/cli-utils@0.7.32
+
 ## 1.2.0
 
 ### Minor Changes

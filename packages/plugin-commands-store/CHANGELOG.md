@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-store
 
+## 5.1.36
+
+### Patch Changes
+
+- 17e69e18b: `pnpm store prune` should remove all cached metadata.
+- Updated dependencies [17e69e18b]
+  - @pnpm/store-connection-manager@4.3.5
+  - @pnpm/config@15.10.1
+  - @pnpm/cli-utils@0.7.32
+
 ## 5.1.35
 
 ### Patch Changes

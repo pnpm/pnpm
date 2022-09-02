@@ -1,5 +1,16 @@
 # @pnpm/store-connection-manager
 
+## 4.3.5
+
+### Patch Changes
+
+- 17e69e18b: `pnpm store prune` should remove all cached metadata.
+- Updated dependencies [17e69e18b]
+  - @pnpm/package-store@14.2.3
+  - @pnpm/server@13.0.5
+  - @pnpm/client@7.2.2
+  - @pnpm/config@15.10.1
+
 ## 4.3.4
 
 ### Patch Changes

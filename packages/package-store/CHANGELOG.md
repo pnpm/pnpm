@@ -1,5 +1,12 @@
 # @pnpm/package-store
 
+## 14.2.3
+
+### Patch Changes
+
+- 17e69e18b: `pnpm store prune` should remove all cached metadata.
+  - @pnpm/package-requester@19.0.2
+
 ## 14.2.2
 
 ### Patch Changes
