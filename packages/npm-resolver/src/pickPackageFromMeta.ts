@@ -4,7 +4,15 @@ import semver from 'semver'
 import { RegistryPackageSpec } from './parsePref'
 import { PackageInRegistry, PackageMeta } from './pickPackage'
 
-export default function (
+export type PickVersionByVersionRange = (
+  meta: PackageMeta,
+  versionRange: string,
+  preferredVerSels?: VersionSelectors,
+  publishedBy?: Date
+) => string | null
+
+export function pickPackageFromMeta (
+  pickVersionByVersionRangeFn: PickVersionByVersionRange,
   spec: RegistryPackageSpec,
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
@@ -20,7 +28,7 @@ export default function (
       version = meta['dist-tags'][spec.fetchSpec]
       break
     case 'range':
-      version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelectors, publishedBy)
+      version = pickVersionByVersionRangeFn(meta, spec.fetchSpec, preferredVersionSelectors, publishedBy)
       break
     }
     if (!version) return null
@@ -42,7 +50,14 @@ export default function (
   }
 }
 
-function pickVersionByVersionRange (
+export function pickLowestVersionByVersionRange (
+  meta: PackageMeta,
+  versionRange: string
+) {
+  return semver.minSatisfying(Object.keys(meta.versions), versionRange, true)
+}
+
+export function pickVersionByVersionRange (
   meta: PackageMeta,
   versionRange: string,
   preferredVerSels?: VersionSelectors,

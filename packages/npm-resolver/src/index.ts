@@ -107,6 +107,7 @@ export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
   publishedBy?: Date
+  pickLowestVersion?: boolean
   dryRun?: boolean
   lockfileDir?: string
   registry: string
@@ -152,6 +153,7 @@ async function resolveNpm (
   let pickResult!: {meta: PackageMeta, pickedPackage: PackageInRegistry | null}
   try {
     pickResult = await ctx.pickPackage(spec, {
+      pickLowestVersion: opts.pickLowestVersion,
       publishedBy: opts.publishedBy,
       authHeaderValue,
       dryRun: opts.dryRun === true,

@@ -52,6 +52,7 @@ export interface Importer<T> {
 }
 
 export interface ImporterToResolveGeneric<T> extends Importer<T> {
+  updatePackageManifest: boolean
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
   wantedDependencies: Array<T & WantedDependency & { updateDepth: number }>
@@ -150,6 +151,7 @@ export default async function<T> (
       prefix: importer.rootDir,
     }
     return {
+      updatePackageManifest: importer.updatePackageManifest,
       parentPkgAliases: fromPairs(
         importer.wantedDependencies.filter(({ alias }) => alias).map(({ alias }) => [alias, true])
       ) as ParentPkgAliases,

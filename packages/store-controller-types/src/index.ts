@@ -95,6 +95,7 @@ export interface RequestPackageOptions {
    */
   expectedPkg?: PkgNameVersion
   defaultTag?: string
+  pickLowestVersion?: boolean
   publishedBy?: Date
   downloadPriority: number
   projectDir: string

@@ -233,6 +233,7 @@ interface ResolvedDependenciesOptions {
   preferredDependencies?: ResolvedDependencies
   proceed: boolean
   publishedBy?: Date
+  pickLowestVersion?: boolean
   resolvedDependencies?: ResolvedDependencies
   updateDepth: number
   prefix: string
@@ -299,6 +300,7 @@ interface ResolvedDependenciesResult {
 }
 
 export interface ImporterToResolve {
+  updatePackageManifest: boolean
   preferredVersions: PreferredVersions
   parentPkgAliases: ParentPkgAliases
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>
@@ -322,6 +324,7 @@ async function resolveDependenciesOfImporters (
     registries: ctx.registries,
     resolvedDependencies: options.resolvedDependencies,
   }))
+  const pickLowestVersion = ctx.resolutionMode === 'time-based'
   const resolveResults = await Promise.all(
     zipWith(async (extendedWantedDeps, importer) => {
       const postponedResolutionsQueue: PostponedResolutionFunction[] = []
@@ -330,7 +333,11 @@ async function resolveDependenciesOfImporters (
         extendedWantedDeps.map((extendedWantedDep) => resolveDependenciesOfDependency(
           ctx,
           importer.preferredVersions,
-          { ...importer.options, parentPkgAliases: importer.parentPkgAliases },
+          {
+            ...importer.options,
+            parentPkgAliases: importer.parentPkgAliases,
+            pickLowestVersion: pickLowestVersion && !importer.updatePackageManifest,
+          },
           extendedWantedDep
         ))
       )).forEach(({ resolveDependencyResult, postponedResolution }) => {
@@ -554,6 +561,7 @@ async function resolveDependenciesOfDependency (
     parentPkgAliases: options.parentPkgAliases,
     preferredVersions,
     currentPkg: extendedWantedDep.infoFromLockfile ?? undefined,
+    pickLowestVersion: options.pickLowestVersion,
     prefix: options.prefix,
     proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
     publishedBy: options.publishedBy,
@@ -848,6 +856,7 @@ interface ResolveDependencyOptions {
   prefix: string
   proceed: boolean
   publishedBy?: Date
+  pickLowestVersion?: boolean
   update: boolean
   updateDepth: number
 }
@@ -904,6 +913,7 @@ async function resolveDependency (
       expectedPkg: currentPkg,
       defaultTag: ctx.defaultTag,
       publishedBy: options.publishedBy,
+      pickLowestVersion: options.pickLowestVersion,
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
       preferredVersions: options.preferredVersions,
