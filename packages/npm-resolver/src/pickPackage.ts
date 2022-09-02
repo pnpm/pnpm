@@ -13,7 +13,7 @@ import pathTemp from 'path-temp'
 import pick from 'ramda/src/pick'
 import renameOverwrite from 'rename-overwrite'
 import toRaw from './toRaw'
-import { pickPackageFromMeta, PickVersionByVersionRange } from './pickPackageFromMeta'
+import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta'
 import { RegistryPackageSpec } from './parsePref'
 
 export interface PackageMeta {
@@ -51,7 +51,6 @@ export interface PickPackageOptions {
   publishedBy?: Date
   preferredVersionSelectors: VersionSelectors | undefined
   pickLowestVersion?: boolean
-  pickVersionByRange: PickVersionByVersionRange
   registry: string
   dryRun: boolean
 }
@@ -70,7 +69,7 @@ export default async (
   opts: PickPackageOptions
 ): Promise<{meta: PackageMeta, pickedPackage: PackageInRegistry | null}> => {
   opts = opts || {}
-  const _pickPackageFromMeta = pickPackageFromMeta.bind(null, opts.pickVersionByRange)
+  const _pickPackageFromMeta = pickPackageFromMeta.bind(null, opts.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange)
 
   validatePackageName(spec.name)
 

@@ -52,9 +52,7 @@ export function pickPackageFromMeta (
 
 export function pickLowestVersionByVersionRange (
   meta: PackageMeta,
-  versionRange: string,
-  preferredVerSels?: VersionSelectors,
-  publishedBy?: Date
+  versionRange: string
 ) {
   return semver.minSatisfying(Object.keys(meta.versions), versionRange, true)
 }

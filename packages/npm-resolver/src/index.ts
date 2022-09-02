@@ -25,7 +25,6 @@ import pickPackage, {
   PackageMetaCache,
   PickPackageOptions,
 } from './pickPackage'
-import { pickLowestVersionByVersionRange, pickVersionByVersionRange } from './pickPackageFromMeta'
 import parsePref, {
   RegistryPackageSpec,
 } from './parsePref'
@@ -154,7 +153,6 @@ async function resolveNpm (
   let pickResult!: {meta: PackageMeta, pickedPackage: PackageInRegistry | null}
   try {
     pickResult = await ctx.pickPackage(spec, {
-      pickVersionByRange: opts.pickLowestVersion === true ? pickLowestVersionByVersionRange : pickVersionByVersionRange,
       pickLowestVersion: opts.pickLowestVersion,
       publishedBy: opts.publishedBy,
       authHeaderValue,
