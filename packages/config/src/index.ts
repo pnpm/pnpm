@@ -96,6 +96,7 @@ export const types = Object.assign({
   'publish-branch': String,
   'recursive-install': Boolean,
   reporter: String,
+  'resolution-mode': ['highest', 'time-based'],
   'aggregate-output': Boolean,
   'save-peer': Boolean,
   'save-workspace-protocol': Boolean,
@@ -127,6 +128,7 @@ export const types = Object.assign({
   'changed-files-ignore-pattern': [String, Array],
   'embed-readme': Boolean,
   'update-notifier': Boolean,
+  'registry-supports-time-field': Boolean,
 }, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string }
@@ -215,6 +217,7 @@ export default async (
     ],
     'recursive-install': true,
     registry: npmDefaults.registry,
+    'resolution-mode': 'highest',
     'save-peer': false,
     'save-workspace-protocol': true,
     'scripts-prepend-node-path': false,
@@ -234,6 +237,7 @@ export default async (
     'workspace-concurrency': 4,
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,
+    'registry-supports-time-field': false,
   })
 
   npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')

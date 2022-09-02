@@ -79,7 +79,7 @@ export function sortLockfileKeys (lockfile: LockfileFile) {
       })
     }
   }
-  for (const key of ['specifiers', 'dependencies', 'devDependencies', 'optionalDependencies']) {
+  for (const key of ['specifiers', 'dependencies', 'devDependencies', 'optionalDependencies', 'time']) {
     if (!lockfile[key]) continue
     lockfile[key] = sortKeys(lockfile[key])
   }

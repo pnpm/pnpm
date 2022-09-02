@@ -38,7 +38,7 @@
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/plugin-commands-outdated": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.0.0-2",
+    "@pnpm/registry-mock": "3.0.0-3",
     "@types/ramda": "0.28.15",
     "@types/wrap-ansi": "^3.0.0",
     "@types/zkochan__table": "npm:@types/table@6.0.0"

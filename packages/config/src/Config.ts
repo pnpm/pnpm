@@ -83,6 +83,8 @@ export interface Config {
   useStderr?: boolean
   nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   preferSymlinkedExecutables?: boolean
+  resolutionMode?: 'highest' | 'time-based'
+  registrySupportsTimeField?: boolean
 
   // proxy
   httpProxy?: string

@@ -160,6 +160,7 @@ async function resolveAndFetch (
   let forceFetch = false
   let updated = false
   let resolvedVia: string | undefined
+  let publishedAt: string | undefined
 
   // When fetching is skipped, resolution cannot be skipped.
   // We need the package's manifest when doing `lockfile-only` installs.
@@ -170,6 +171,7 @@ async function resolveAndFetch (
     const resolveResult = await ctx.requestsQueue.add<ResolveResult>(async () => ctx.resolve(wantedDependency, {
       alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       defaultTag: options.defaultTag,
+      publishedBy: options.publishedBy,
       lockfileDir: options.lockfileDir,
       preferredVersions: options.preferredVersions,
       preferWorkspacePackages: options.preferWorkspacePackages,
@@ -181,6 +183,7 @@ async function resolveAndFetch (
     manifest = resolveResult.manifest
     latest = resolveResult.latest
     resolvedVia = resolveResult.resolvedVia
+    publishedAt = resolveResult.publishedAt
 
     // If the integrity of a local tarball dependency has changed,
     // the local tarball should be unpacked, so a fetch to the store should be forced
@@ -243,6 +246,7 @@ async function resolveAndFetch (
         resolution,
         resolvedVia,
         updated,
+        publishedAt,
       },
     }
   }
@@ -273,6 +277,7 @@ async function resolveAndFetch (
       resolution,
       resolvedVia,
       updated,
+      publishedAt,
     },
     bundledManifest: fetchResult.bundledManifest,
     files: fetchResult.files,

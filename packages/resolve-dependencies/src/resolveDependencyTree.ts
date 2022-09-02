@@ -75,6 +75,7 @@ export interface ResolveDependenciesOptions {
   pnpmVersion: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
+  resolutionMode?: 'highest' | 'time-based'
   updateMatching?: (pkgName: string) => boolean
   linkWorkspacePackagesDepth?: number
   lockfileDir: string
@@ -113,6 +114,7 @@ export default async function<T> (
     readPackageHook: opts.hooks.readPackage,
     registries: opts.registries,
     resolvedPackagesByDepPath: {} as ResolvedPackagesByDepPath,
+    resolutionMode: opts.resolutionMode,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
     updateMatching: opts.updateMatching,
@@ -156,7 +158,7 @@ export default async function<T> (
       options: resolveOpts,
     }
   })
-  const pkgAddressesByImporters = await resolveRootDependencies(ctx, resolveArgs)
+  const { pkgAddressesByImporters, time } = await resolveRootDependencies(ctx, resolveArgs)
   const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
 
   ctx.pendingNodes.forEach((pendingNode) => {
@@ -217,6 +219,7 @@ export default async function<T> (
     resolvedPackagesByDepPath: ctx.resolvedPackagesByDepPath,
     wantedToBeSkippedPackageIds,
     appliedPatches: ctx.appliedPatches,
+    time,
   }
 }
 

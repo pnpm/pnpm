@@ -43,7 +43,7 @@
     "@pnpm/logger": "^4.0.0",
     "@pnpm/plugin-commands-deploy": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.0.0-2"
+    "@pnpm/registry-mock": "3.0.0-3"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",

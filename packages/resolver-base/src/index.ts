@@ -36,6 +36,7 @@ export type Resolution =
 export interface ResolveResult {
   id: string
   latest?: string
+  publishedAt?: string
   manifest?: DependencyManifest
   normalizedPref?: string // is null for npm-hosted dependencies
   resolution: Resolution
@@ -62,6 +63,7 @@ export interface PreferredVersions {
 export interface ResolveOptions {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
+  publishedBy?: Date
   projectDir: string
   lockfileDir: string
   preferredVersions: PreferredVersions

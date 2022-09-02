@@ -95,6 +95,7 @@ export interface RequestPackageOptions {
    */
   expectedPkg?: PkgNameVersion
   defaultTag?: string
+  publishedBy?: Date
   downloadPriority: number
   projectDir: string
   lockfileDir: string
@@ -105,6 +106,7 @@ export interface RequestPackageOptions {
   skipFetch?: boolean
   update?: boolean
   workspacePackages?: WorkspacePackages
+  forceResolve?: boolean
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
@@ -122,6 +124,7 @@ export interface PackageResponse {
     id: string
     normalizedPref?: string
     updated: boolean
+    publishedAt?: string
     resolvedVia?: string
     // This is useful for recommending updates.
     // If latest does not equal the version of the

@@ -77,7 +77,7 @@
     "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.0.0-2",
+    "@pnpm/registry-mock": "3.0.0-3",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.13",

@@ -10,14 +10,17 @@ import getRegistryName from 'encode-registry'
 import loadJsonFile from 'load-json-file'
 import pLimit from 'p-limit'
 import pathTemp from 'path-temp'
+import pick from 'ramda/src/pick'
 import renameOverwrite from 'rename-overwrite'
 import toRaw from './toRaw'
 import pickPackageFromMeta from './pickPackageFromMeta'
 import { RegistryPackageSpec } from './parsePref'
 
 export interface PackageMeta {
+  name: string
   'dist-tags': Record<string, string>
   versions: Record<string, PackageInRegistry>
+  time?: Record<string, string>
   cachedAt?: number
 }
 
@@ -45,6 +48,7 @@ const metafileOperationLimits = {} as {
 
 export interface PickPackageOptions {
   authHeaderValue?: string
+  publishedBy?: Date
   preferredVersionSelectors: VersionSelectors | undefined
   registry: string
   dryRun: boolean
@@ -58,6 +62,7 @@ export default async (
     cacheDir: string
     offline?: boolean
     preferOffline?: boolean
+    filterMetadata?: boolean
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
@@ -70,7 +75,7 @@ export default async (
   if (cachedMeta != null) {
     return {
       meta: cachedMeta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, cachedMeta),
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, cachedMeta, opts.publishedBy),
     }
   }
 
@@ -85,14 +90,14 @@ export default async (
     if (ctx.offline) {
       if (metaCachedInStore != null) return {
         meta: metaCachedInStore,
-        pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore),
+        pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy),
       }
 
       throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
     }
 
     if (metaCachedInStore != null) {
-      const pickedPackage = pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore)
+      const pickedPackage = pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
       if (pickedPackage) {
         return {
           meta: metaCachedInStore,
@@ -113,9 +118,21 @@ export default async (
       }
     }
   }
+  if (opts.publishedBy) {
+    metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
+    if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
+      return {
+        meta: metaCachedInStore,
+        pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy),
+      }
+    }
+  }
 
   try {
-    const meta = await ctx.fetch(spec.name, opts.registry, opts.authHeaderValue)
+    let meta = await ctx.fetch(spec.name, opts.registry, opts.authHeaderValue)
+    if (ctx.filterMetadata) {
+      meta = clearMeta(meta)
+    }
     meta.cachedAt = Date.now()
     // only save meta to cache, when it is fresh
     ctx.metaCache.set(spec.name, meta)
@@ -131,7 +148,7 @@ export default async (
     }
     return {
       meta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta),
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy),
     }
   } catch (err: any) { // eslint-disable-line
     err.spec = spec
@@ -141,8 +158,40 @@ export default async (
     logger.debug({ message: `Using cached meta from ${pkgMirror}` })
     return {
       meta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta),
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy),
     }
+  }
+}
+
+function clearMeta (pkg: PackageMeta): PackageMeta {
+  const versions = {}
+  for (const [version, info] of Object.entries(pkg.versions)) {
+    versions[version] = pick([
+      'name',
+      'version',
+      'bin',
+      'directories',
+      'devDependencies',
+      'optionalDependencies',
+      'dependencies',
+      'peerDependencies',
+      'dist',
+      'engines',
+      'peerDependenciesMeta',
+      'cpu',
+      'os',
+      'deprecated',
+      'bundleDependencies',
+      'bundledDependencies',
+    ], info)
+  }
+
+  return {
+    name: pkg.name,
+    'dist-tags': pkg['dist-tags'],
+    versions,
+    time: pkg.time,
+    cachedAt: pkg.cachedAt,
   }
 }
 

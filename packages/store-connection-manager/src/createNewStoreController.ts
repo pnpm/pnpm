@@ -34,6 +34,8 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'packageImportMethod'
 | 'preferOffline'
 | 'registry'
+| 'registrySupportsTimeField'
+| 'resolutionMode'
 | 'strictSsl'
 | 'userAgent'
 | 'verifyStoreIntegrity'
@@ -44,6 +46,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 export default async (
   opts: CreateNewStoreControllerOptions
 ) => {
+  const fullMetadata = opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField
   const { resolve, fetchers } = createClient({
     customFetchers: opts.hooks?.fetchers,
     userConfig: opts.userConfig,
@@ -51,7 +54,8 @@ export default async (
     ca: opts.ca,
     cacheDir: opts.cacheDir,
     cert: opts.cert,
-    fullMetadata: false,
+    fullMetadata,
+    filterMetadata: fullMetadata,
     httpProxy: opts.httpProxy,
     httpsProxy: opts.httpsProxy,
     key: opts.key,

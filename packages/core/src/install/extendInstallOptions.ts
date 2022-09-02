@@ -99,6 +99,7 @@ export interface StrictInstallOptions {
   peerDependencyRules: PeerDependencyRules
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   preferSymlinkedExecutables: boolean
+  resolutionMode: 'highest' | 'time-based'
 
   publicHoistPattern: string[] | undefined
   hoistPattern: string[] | undefined
@@ -164,6 +165,7 @@ const defaults = async (opts: InstallOptions) => {
     pruneStore: false,
     rawConfig: {},
     registries: DEFAULT_REGISTRIES,
+    resolutionMode: 'highest',
     saveWorkspaceProtocol: true,
     lockfileIncludeTarballUrl: false,
     scriptsPrependNodePath: false,
