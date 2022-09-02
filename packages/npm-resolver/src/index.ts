@@ -25,6 +25,7 @@ import pickPackage, {
   PackageMetaCache,
   PickPackageOptions,
 } from './pickPackage'
+import { pickLowestVersionByVersionRange, pickVersionByVersionRange } from './pickPackageFromMeta'
 import parsePref, {
   RegistryPackageSpec,
 } from './parsePref'
@@ -107,6 +108,7 @@ export type ResolveFromNpmOptions = {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
   publishedBy?: Date
+  pickLowestVersion?: boolean
   dryRun?: boolean
   lockfileDir?: string
   registry: string
@@ -152,6 +154,8 @@ async function resolveNpm (
   let pickResult!: {meta: PackageMeta, pickedPackage: PackageInRegistry | null}
   try {
     pickResult = await ctx.pickPackage(spec, {
+      pickVersionByRange: opts.pickLowestVersion === true ? pickLowestVersionByVersionRange : pickVersionByVersionRange,
+      pickLowestVersion: opts.pickLowestVersion,
       publishedBy: opts.publishedBy,
       authHeaderValue,
       dryRun: opts.dryRun === true,

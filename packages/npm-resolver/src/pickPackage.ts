@@ -13,7 +13,7 @@ import pathTemp from 'path-temp'
 import pick from 'ramda/src/pick'
 import renameOverwrite from 'rename-overwrite'
 import toRaw from './toRaw'
-import pickPackageFromMeta from './pickPackageFromMeta'
+import { pickPackageFromMeta, PickVersionByVersionRange } from './pickPackageFromMeta'
 import { RegistryPackageSpec } from './parsePref'
 
 export interface PackageMeta {
@@ -50,6 +50,8 @@ export interface PickPackageOptions {
   authHeaderValue?: string
   publishedBy?: Date
   preferredVersionSelectors: VersionSelectors | undefined
+  pickLowestVersion?: boolean
+  pickVersionByRange: PickVersionByVersionRange
   registry: string
   dryRun: boolean
 }
@@ -68,6 +70,7 @@ export default async (
   opts: PickPackageOptions
 ): Promise<{meta: PackageMeta, pickedPackage: PackageInRegistry | null}> => {
   opts = opts || {}
+  const _pickPackageFromMeta = pickPackageFromMeta.bind(null, opts.pickVersionByRange)
 
   validatePackageName(spec.name)
 
@@ -75,7 +78,7 @@ export default async (
   if (cachedMeta != null) {
     return {
       meta: cachedMeta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, cachedMeta, opts.publishedBy),
+      pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, cachedMeta, opts.publishedBy),
     }
   }
 
@@ -84,20 +87,20 @@ export default async (
   const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
 
   let metaCachedInStore: PackageMeta | null | undefined
-  if (ctx.offline === true || ctx.preferOffline) {
+  if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
     metaCachedInStore = await limit(async () => loadMeta(pkgMirror))
 
     if (ctx.offline) {
       if (metaCachedInStore != null) return {
         meta: metaCachedInStore,
-        pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy),
+        pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy),
       }
 
       throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
     }
 
     if (metaCachedInStore != null) {
-      const pickedPackage = pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
+      const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
       if (pickedPackage) {
         return {
           meta: metaCachedInStore,
@@ -123,7 +126,7 @@ export default async (
     if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
       return {
         meta: metaCachedInStore,
-        pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy),
+        pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy),
       }
     }
   }
@@ -148,7 +151,7 @@ export default async (
     }
     return {
       meta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy),
+      pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy),
     }
   } catch (err: any) { // eslint-disable-line
     err.spec = spec
@@ -158,7 +161,7 @@ export default async (
     logger.debug({ message: `Using cached meta from ${pkgMirror}` })
     return {
       meta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy),
+      pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy),
     }
   }
 }

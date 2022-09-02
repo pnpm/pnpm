@@ -63,6 +63,7 @@ export interface PreferredVersions {
 export interface ResolveOptions {
   alwaysTryWorkspacePackages?: boolean
   defaultTag?: string
+  pickLowestVersion?: boolean
   publishedBy?: Date
   projectDir: string
   lockfileDir: string
