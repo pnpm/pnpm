@@ -42,3 +42,8 @@ test('the lowest version of a direct dependency is installed when resolution mod
     '@pnpm.e2e/foo': '^100.1.0',
   })
 })
+
+test('time-based resolution mode should not fail when publishedBy date cannot be calculated', async () => {
+  prepareEmpty()
+  await install({}, await testDefaults({ resolutionMode: 'time-based' }))
+})

@@ -355,8 +355,10 @@ async function resolveDependenciesOfImporters (
   let time: Record<string, string> | undefined
   if (ctx.resolutionMode === 'time-based') {
     const result = getPublishedByDate(resolveResults.map(({ pkgAddresses }) => pkgAddresses).flat(), ctx.wantedLockfile.time)
-    publishedBy = new Date(result.publishedBy.getTime() + 60 * 60 * 1000) // adding 1 hour delta
-    time = result.newTime
+    if (result.publishedBy) {
+      publishedBy = new Date(result.publishedBy.getTime() + 60 * 60 * 1000) // adding 1 hour delta
+      time = result.newTime
+    }
   }
   const pkgAddressesByImportersWithoutPeers = await Promise.all(zipWith(async (importer, { pkgAddresses, postponedResolutionsQueue }) => {
     const newPreferredVersions = { ...importer.preferredVersions }
