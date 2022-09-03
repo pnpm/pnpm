@@ -1987,6 +1987,9 @@ importers:
       comver-to-semver:
         specifier: ^1.0.0
         version: 1.0.0
+      dependency-path:
+        specifier: workspace:*
+        version: link:../dependency-path
       js-yaml:
         specifier: npm:@zkochan/js-yaml@^0.0.6
         version: /@zkochan/js-yaml/0.0.6
