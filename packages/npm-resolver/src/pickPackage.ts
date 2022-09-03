@@ -55,6 +55,17 @@ export interface PickPackageOptions {
   dryRun: boolean
 }
 
+function pickPackageFromMetaUsingTime (
+  spec: RegistryPackageSpec,
+  preferredVersionSelectors: VersionSelectors | undefined,
+  meta: PackageMeta,
+  publishedBy?: Date
+) {
+  const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
+  if (pickedPackage) return pickedPackage
+  return pickPackageFromMeta(pickLowestVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
+}
+
 export default async (
   ctx: {
     fetch: (pkgName: string, registry: string, authHeaderValue?: string) => Promise<PackageMeta>
@@ -69,7 +80,10 @@ export default async (
   opts: PickPackageOptions
 ): Promise<{meta: PackageMeta, pickedPackage: PackageInRegistry | null}> => {
   opts = opts || {}
-  const _pickPackageFromMeta = pickPackageFromMeta.bind(null, opts.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange)
+  const _pickPackageFromMeta =
+    opts.publishedBy
+      ? pickPackageFromMetaUsingTime
+      : (pickPackageFromMeta.bind(null, opts.pickLowestVersion ? pickLowestVersionByVersionRange : pickVersionByVersionRange))
 
   validatePackageName(spec.name)
 
@@ -123,13 +137,9 @@ export default async (
   if (opts.publishedBy) {
     metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
     if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
-      let pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
-      if (!pickedPackage) {
-        pickedPackage = pickPackageFromMeta(pickLowestVersionByVersionRange, spec, opts.preferredVersionSelectors, metaCachedInStore)
-      }
       return {
         meta: metaCachedInStore,
-        pickedPackage,
+        pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy),
       }
     }
   }
