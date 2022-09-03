@@ -25,6 +25,7 @@ test('patch and commit', async () => {
     registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
     storeDir,
     userConfig: {},
+    path: './temp/user/is-positive',
   }, ['is-positive@1.0.0'])
 
   const userPatchDir = output.substring(output.indexOf(':') + 1).trim()
