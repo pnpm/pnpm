@@ -223,7 +223,10 @@ export default async function (
     lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
   })
   if (time) {
-    newLockfile.time = time
+    newLockfile.time = {
+      ...opts.wantedLockfile.time,
+      ...time,
+    }
   }
 
   if (opts.forceFullResolution && opts.wantedLockfile != null) {

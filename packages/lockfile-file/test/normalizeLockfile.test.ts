@@ -80,3 +80,62 @@ test('empty specifiers field is removed', () => {
     },
   })
 })
+
+test('redundant fields are removed from "time"', () => {
+  expect(normalizeLockfile({
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {},
+    importers: {
+      foo: {
+        dependencies: {
+          bar: '1.0.0',
+        },
+        devDependencies: {
+          foo: '1.0.0_react@18.0.0',
+        },
+        optionalDependencies: {
+          qar: '1.0.0',
+        },
+        specifiers: {
+          bar: '1.0.0',
+          foo: '1.0.0',
+          qar: '1.0.0',
+        },
+      },
+    },
+    time: {
+      '/bar/1.0.0': '2021-02-11T22:54:29.120Z',
+      '/foo/1.0.0': '2021-02-11T22:54:29.120Z',
+      '/qar/1.0.0': '2021-02-11T22:54:29.120Z',
+      '/zoo/1.0.0': '2021-02-11T22:54:29.120Z',
+    },
+  }, {
+    forceSharedFormat: false,
+    includeEmptySpecifiersField: false,
+  })).toStrictEqual({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      foo: {
+        dependencies: {
+          bar: '1.0.0',
+        },
+        devDependencies: {
+          foo: '1.0.0_react@18.0.0',
+        },
+        optionalDependencies: {
+          qar: '1.0.0',
+        },
+        specifiers: {
+          bar: '1.0.0',
+          foo: '1.0.0',
+          qar: '1.0.0',
+        },
+      },
+    },
+    time: {
+      '/bar/1.0.0': '2021-02-11T22:54:29.120Z',
+      '/foo/1.0.0': '2021-02-11T22:54:29.120Z',
+      '/qar/1.0.0': '2021-02-11T22:54:29.120Z',
+    },
+  })
+})

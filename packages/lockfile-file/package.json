@@ -55,6 +55,7 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "comver-to-semver": "^1.0.0",
+    "dependency-path": "workspace:*",
     "js-yaml": "npm:@zkochan/js-yaml@^0.0.6",
     "normalize-path": "^3.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",

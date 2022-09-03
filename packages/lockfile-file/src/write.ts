@@ -4,8 +4,10 @@ import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
+import * as dp from 'dependency-path'
 import yaml from 'js-yaml'
 import equals from 'ramda/src/equals'
+import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
 import writeFileAtomicCB from 'write-file-atomic'
 import logger from './logger'
@@ -141,6 +143,9 @@ export function normalizeLockfile (lockfile: Lockfile, opts: NormalizeLockfileOp
       delete lockfileToSave.packages
     }
   }
+  if (lockfileToSave.time) {
+    lockfileToSave.time = pruneTime(lockfileToSave.time, lockfile.importers)
+  }
   if ((lockfileToSave.overrides != null) && isEmpty(lockfileToSave.overrides)) {
     delete lockfileToSave.overrides
   }
@@ -161,6 +166,25 @@ export function normalizeLockfile (lockfile: Lockfile, opts: NormalizeLockfileOp
     delete lockfileToSave.packageExtensionsChecksum
   }
   return lockfileToSave
+}
+
+function pruneTime (time: Record<string, string>, importers: Record<string, ProjectSnapshot>) {
+  const rootDepPaths = new Set<string>()
+  for (const importer of Object.values(importers)) {
+    for (const depType of DEPENDENCIES_FIELDS) {
+      for (let [depName, ref] of Object.entries(importer[depType] ?? {})) {
+        if (ref['version']) {
+          ref = ref['version']
+        }
+        const suffixStart = ref.indexOf('_')
+        const refWithoutPeerSuffix = suffixStart === -1 ? ref : ref.slice(0, suffixStart)
+        const depPath = dp.refToRelative(refWithoutPeerSuffix, depName)
+        if (!depPath) continue
+        rootDepPaths.add(depPath)
+      }
+    }
+  }
+  return fromPairs(Object.entries(time).filter(([depPath]) => rootDepPaths.has(depPath)))
 }
 
 export default async function writeLockfiles (
