@@ -137,9 +137,12 @@ export default async (
   if (opts.publishedBy) {
     metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
     if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
-      return {
-        meta: metaCachedInStore,
-        pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy),
+      const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
+      if (pickedPackage) {
+        return {
+          meta: metaCachedInStore,
+          pickedPackage,
+        }
       }
     }
   }
