@@ -5,7 +5,7 @@ import fetch, { isRedirect, Response, RequestInfo, RequestInit } from './fetch'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
-const CORGI_DOC = 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*'
+const ABBREVIATED_DOC = 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*'
 const JSON_DOC = 'application/json'
 const MAX_FOLLOWED_REDIRECTS = 20
 
@@ -87,7 +87,7 @@ function getHeaders (
   }
 ) {
   const headers: { accept: string, authorization?: string, 'user-agent'?: string } = {
-    accept: opts.fullMetadata === true ? JSON_DOC : CORGI_DOC,
+    accept: opts.fullMetadata === true ? JSON_DOC : ABBREVIATED_DOC,
   }
   if (opts.auth) {
     headers['authorization'] = opts.auth
