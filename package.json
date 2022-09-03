@@ -60,9 +60,9 @@
     "verdaccio": "^5.14.0"
   },
   "engines": {
-    "pnpm": ">=7.10.0-0"
+    "pnpm": ">=7.10.0-1"
   },
-  "packageManager": "pnpm@7.10.0-0",
+  "packageManager": "pnpm@7.10.0-1",
   "pnpm": {
     "overrides": {
       "glob-parent@<5.1.2": ">=5.1.2",
