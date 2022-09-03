@@ -60,7 +60,6 @@ test('CLI does not fail when store status does not find modified packages', asyn
     `--store-dir=${storeDir}`,
     `--registry=${REGISTRY}`,
     '--verify-store-integrity',
-    '--config.resolution-mode=highest',
     'add',
     'eslint@3.4.0',
     'gulp@4.0.2',
@@ -79,7 +78,6 @@ test('CLI does not fail when store status does not find modified packages', asyn
     `--store-dir=${storeDir}`,
     `--registry=${REGISTRY}`,
     '--verify-store-integrity',
-    '--config.resolution-mode=highest',
   ])
 
   const modulesState = await project.readModulesManifest()

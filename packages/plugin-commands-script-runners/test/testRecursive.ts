@@ -5,6 +5,8 @@ import { preparePackages } from '@pnpm/prepare'
 import execa from 'execa'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
+const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
+
 test('pnpm recursive test', async () => {
   preparePackages([
     {
@@ -51,7 +53,8 @@ test('pnpm recursive test', async () => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await execa('pnpm', [
+  await execa('node', [
+    pnpmBin,
     'install',
     '-r',
     '--registry',
@@ -106,7 +109,8 @@ test('`pnpm recursive test` does not fail if none of the packages has a test com
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await execa('pnpm', [
+  await execa('node', [
+    pnpmBin,
     'install',
     '-r',
     '--registry',
@@ -158,7 +162,8 @@ test('pnpm recursive test with filtering', async () => {
     [{ namePattern: 'project-1' }],
     { workspaceDir: process.cwd() }
   )
-  await execa('pnpm', [
+  await execa('node', [
+    pnpmBin,
     'install',
     '-r',
     '--registry',
