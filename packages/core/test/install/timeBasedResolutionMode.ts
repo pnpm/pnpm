@@ -17,6 +17,23 @@ test('time-based resolution mode', async () => {
   ])
 })
 
+test('time-based resolution mode with a registry that supports the time field in abbreviated metadata', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/bravo', '@pnpm.e2e/romeo'], await testDefaults({
+    registrySupportsTimeField: true,
+    resolutionMode: 'time-based',
+  }))
+
+  const lockfile = await project.readLockfile()
+  expect(Object.keys(lockfile.packages)).toStrictEqual([
+    '/@pnpm.e2e/bravo-dep/1.0.1',
+    '/@pnpm.e2e/bravo/1.0.0',
+    '/@pnpm.e2e/romeo-dep/1.0.0',
+    '/@pnpm.e2e/romeo/1.0.0',
+  ])
+})
+
 test('the lowest version of a direct dependency is installed when resolution mode is time-based', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
   const project = prepareEmpty()
