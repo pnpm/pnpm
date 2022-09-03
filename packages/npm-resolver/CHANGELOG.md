@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 13.1.5
+
+### Patch Changes
+
+- 7fac3b446: Pick a version even if it was published after the given date (if there is no better match).
+
 ## 13.1.4
 
 ### Patch Changes

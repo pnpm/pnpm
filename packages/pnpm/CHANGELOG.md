@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.10.0-0
+## 7.10.0-1
 
 ### Minor Changes
 
@@ -9,13 +9,17 @@
   When `resolution-mode` is set to `time-based`, pnpm will resolve dependencies the following way:
 
   1. direct dependencies will be resolved to their lowest versions. So if there is `foo@^1.1.0` in the dependencies, then `1.1.0` will be installed.
-  2. subdependencies will be resolved from versions that were published before the last direct dependency was installed.
+  2. subdependencies will be resolved from versions that were published before the last direct dependency was published.
 
   With this resolution mode installations with hot cache are faster. It also reduces the chance of subdependency hijacking as subdependencies will be updated only if direct dependencies are updated.
 
   Related [RFC](https://github.com/pnpm/rfcs/pull/2).
 
-- Enhance `pnpm env` with the `remove` command.
+- Enhance `pnpm env` with the `remove` command. To remove a Node.js version installed by pnpm, run:
+
+  ```
+  pnpm env remove --global <node.js version>
+  ```
 
 ### Patch Changes
 

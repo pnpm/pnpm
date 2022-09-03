@@ -1,5 +1,13 @@
 # @pnpm/resolve-dependencies
 
+## 28.3.8
+
+### Patch Changes
+
+- 829b4d924: Don't fail when publishedBy date cannot be calculated.
+- Updated dependencies [7fac3b446]
+  - @pnpm/npm-resolver@13.1.5
+
 ## 28.3.7
 
 ### Patch Changes

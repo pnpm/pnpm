@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 5.11.2
+
+### Patch Changes
+
+- Updated dependencies [829b4d924]
+  - @pnpm/resolve-dependencies@28.3.8
+  - @pnpm/headless@18.7.0
+  - @pnpm/package-requester@19.0.2
+
 ## 5.11.1
 
 ### Patch Changes
