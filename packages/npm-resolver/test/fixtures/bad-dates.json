@@ -1,0 +1,23 @@
+{
+  "versions": {
+      "1.0.0": {
+          "name": "bad-dates",
+          "version": "1.0.0",
+          "_hasShrinkwrap": false,
+          "directories": {},
+          "dist": {
+              "integrity": "sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==",
+              "shasum": "88009856b64a2f1eb7d8bb0179418424ae0452cb",
+              "tarball": "https://registry.npmjs.org/bad-dates/-/bad-dates-1.0.0.tgz"
+          }
+      }
+  },
+  "time": {
+    "1.0.0": "2017-08-17T19:26:00.508Z"
+  },
+  "name": "bad-dates",
+  "dist-tags": {
+      "latest": "1.0.0"
+  },
+  "modified": "2017-08-17T19:26:00.508Z"
+}
