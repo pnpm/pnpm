@@ -185,6 +185,7 @@ export default async (
 function clearMeta (pkg: PackageMeta): PackageMeta {
   const versions = {}
   for (const [version, info] of Object.entries(pkg.versions)) {
+    // The list taken from https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object
     versions[version] = pick([
       'name',
       'version',
@@ -202,6 +203,7 @@ function clearMeta (pkg: PackageMeta): PackageMeta {
       'deprecated',
       'bundleDependencies',
       'bundledDependencies',
+      'hasInstallScript',
     ], info)
   }
 
