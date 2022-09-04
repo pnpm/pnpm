@@ -20,6 +20,9 @@ const colorPath = chalk.gray
 export default function reportError (logObj: Log, config?: Config) {
   const errorInfo = getErrorInfo(logObj, config)
   let output = formatErrorSummary(errorInfo.title, logObj['err']['code'])
+  if (logObj['pkgsStack']?.length) {
+    output += `\n\n${formatPkgsStack(logObj['pkgsStack'])}`
+  }
   if (errorInfo.body) {
     output += `\n\n${errorInfo.body}`
   }
@@ -67,16 +70,9 @@ function getErrorInfo (logObj: Log, config?: Config): {
       if (!err.code?.startsWith?.('ERR_PNPM_')) {
         return formatGenericError(err.message ?? logObj['message'], err.stack)
       }
-      const errorOutput = []
-      if (logObj['pkgsStack']?.length) {
-        errorOutput.push(formatPkgsStack(logObj['pkgsStack']))
-      }
-      if (logObj['hint']) {
-        errorOutput.push(logObj['hint'] as string)
-      }
       return {
         title: err.message ?? '',
-        body: errorOutput.join(EOL),
+        body: logObj['hint'],
       }
     }
     }
