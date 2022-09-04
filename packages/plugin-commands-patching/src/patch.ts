@@ -19,11 +19,11 @@ export function rcOptionsTypes () {
 }
 
 export function cliOptionsTypes () {
-  return { ...rcOptionsTypes(), 'user-dir': String }
+  return { ...rcOptionsTypes(), 'edit-dir': String }
 }
 
 export const shorthands = {
-  d: '--user-dir',
+  d: '--edit-dir',
 }
 
 export const commandNames = ['patch']
@@ -36,13 +36,13 @@ export function help () {
       list: [
         {
           description: 'Directory path that patch files will be stored. If not set, the files is stored in temporary directory.',
-          name: '--user-dir',
+          name: '--edit-dir',
           shortAlias: '-d',
         },
       ],
     }],
     url: docsUrl('patch'),
-    usages: ['pnpm patch [--user-dir <user directory path for patch>]'],
+    usages: ['pnpm patch [--edit-dir <user directory path for patch>]'],
   })
 }
 
@@ -51,7 +51,7 @@ Config,
 'dir' | 'registries' | 'tag' | 'storeDir'
 > &
 CreateStoreControllerOptions & {
-  userDir?: string
+  editDir?: string
   reporter?: (logObj: LogBase) => void
 }
 
@@ -73,7 +73,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
   const filesResponse = await pkgResponse.files!()
 
   const tempDir = tempy.directory()
-  const patchPackageDir = createPackageDirectory(opts.userDir) ?? tempDir
+  const patchPackageDir = createPackageDirectory(opts.editDir) ?? tempDir
   const userChangesDir = path.join(patchPackageDir, 'user')
   await Promise.all([
     store.ctrl.importPackage(path.join(tempDir, 'source'), {
@@ -88,15 +88,15 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
   return `You can now edit the following folder: ${userChangesDir}`
 }
 
-function createPackageDirectory (userDir?: string) {
-  if (!userDir) {
+function createPackageDirectory (editDir?: string) {
+  if (!editDir) {
     return
   }
 
-  if (fs.existsSync(userDir)) {
-    throw new PnpmError('DIR_ALREADY_EXISTS', `The package directory already exists: '${userDir}'`)
+  if (fs.existsSync(editDir)) {
+    throw new PnpmError('DIR_ALREADY_EXISTS', `The package directory already exists: '${editDir}'`)
   }
 
-  fs.mkdirSync(userDir, { recursive: true })
-  return userDir
+  fs.mkdirSync(editDir, { recursive: true })
+  return editDir
 }

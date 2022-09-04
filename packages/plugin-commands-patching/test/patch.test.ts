@@ -40,7 +40,7 @@ describe('patch and commit', () => {
     const userPatchDir = output.substring(output.indexOf(':') + 1).trim()
     const tempDir = os.tmpdir() // temp dir depends on the operating system (@see tempy)
 
-    // store patch files(user, source) in temporary directory when not given userDir option
+    // store patch files(user, source) in temporary directory when not given editDir option
     expect(userPatchDir).toContain(tempDir)
     expect(fs.existsSync(userPatchDir)).toBe(true)
     expect(fs.existsSync(userPatchDir.replace('/user', '/source'))).toBe(true)
@@ -69,18 +69,18 @@ describe('patch and commit', () => {
     expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
   })
 
-  test('store source files in temporary directory and user files in user directory, when given userDir option', async () => {
-    const userDir = 'test/user/is-positive'
+  test('store source files in temporary directory and user files in user directory, when given editDir option', async () => {
+    const editDir = 'test/user/is-positive'
 
-    const patchFn = async () => patch.handler({ ...defaultPatchOption, userDir }, ['is-positive@1.0.0'])
+    const patchFn = async () => patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0'])
     const output = await patchFn()
     const userPatchDir = output.substring(output.indexOf(':') + 1).trim()
 
-    expect(userPatchDir).toBe(path.join(userDir, '/user'))
+    expect(userPatchDir).toBe(path.join(editDir, '/user'))
     expect(fs.existsSync(userPatchDir)).toBe(true)
     expect(fs.existsSync(path.join(tempySpy.mock.results[0].value, '/source'))).toBe(true)
 
-    // If userDir already exists, it should throw an error
-    await expect(patchFn()).rejects.toThrow(`The package directory already exists: '${userDir}'`)
+    // If editDir already exists, it should throw an error
+    await expect(patchFn()).rejects.toThrow(`The package directory already exists: '${editDir}'`)
   })
 })
