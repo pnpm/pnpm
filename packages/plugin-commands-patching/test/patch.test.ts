@@ -1,4 +1,5 @@
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import prepare from '@pnpm/prepare'
 import tempy from 'tempy'
@@ -9,6 +10,8 @@ import { DEFAULT_OPTS } from './utils/index'
 
 describe('patch and commit', () => {
   let defaultPatchOption: patch.PatchCommandOptions
+  const tempySpy = jest.spyOn(tempy, 'directory')
+
   beforeEach(() => {
     prepare({
       dependencies: {
@@ -35,9 +38,10 @@ describe('patch and commit', () => {
   test('patch and commit', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const userPatchDir = output.substring(output.indexOf(':') + 1).trim()
+    const tempDir = os.tmpdir() // temp dir depends on the operating system (@see tempy)
 
     // store patch files(user, source) in temporary directory when not given userDir option
-    expect(userPatchDir.startsWith('/private/var/folders')).toBe(true)
+    expect(userPatchDir).toContain(tempDir)
     expect(fs.existsSync(userPatchDir)).toBe(true)
     expect(fs.existsSync(userPatchDir.replace('/user', '/source'))).toBe(true)
 
@@ -66,7 +70,6 @@ describe('patch and commit', () => {
   })
 
   test('store source files in temporary directory and user files in user directory, when given userDir option', async () => {
-    const tempySpy = jest.spyOn(tempy, 'directory')
     const userDir = 'test/user/is-positive'
 
     const patchFn = async () => patch.handler({ ...defaultPatchOption, userDir }, ['is-positive@1.0.0'])
