@@ -19,6 +19,9 @@
       "path": "../config"
     },
     {
+      "path": "../error"
+    },
+    {
       "path": "../parse-wanted-dependency"
     },
     {

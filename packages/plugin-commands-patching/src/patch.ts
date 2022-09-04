@@ -1,18 +1,29 @@
+import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
 import { LogBase } from '@pnpm/logger'
-import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import {
+  createOrConnectStoreController,
+  CreateStoreControllerOptions,
+} from '@pnpm/store-connection-manager'
 import parseWantedDependency from '@pnpm/parse-wanted-dependency'
 import pick from 'ramda/src/pick'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
+import PnpmError from '@pnpm/error'
 
-export const rcOptionsTypes = cliOptionsTypes
+export function rcOptionsTypes () {
+  return pick([], allTypes)
+}
 
 export function cliOptionsTypes () {
-  return pick([], allTypes)
+  return { ...rcOptionsTypes(), 'edit-dir': String }
+}
+
+export const shorthands = {
+  d: '--edit-dir',
 }
 
 export const commandNames = ['patch']
@@ -20,13 +31,22 @@ export const commandNames = ['patch']
 export function help () {
   return renderHelp({
     description: 'Prepare a package for patching',
-    descriptionLists: [],
+    descriptionLists: [{
+      title: 'Options',
+      list: [
+        {
+          description: 'The package that needs to be modified will be extracted to this directory',
+          name: '--edit-dir',
+        },
+      ],
+    }],
     url: docsUrl('patch'),
-    usages: ['pnpm patch'],
+    usages: ['pnpm patch <pkg name>@<version>'],
   })
 }
 
 export type PatchCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir'> & CreateStoreControllerOptions & {
+  editDir?: string
   reporter?: (logObj: LogBase) => void
 }
 
@@ -45,7 +65,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
   })
   const filesResponse = await pkgResponse.files!()
   const tempDir = tempy.directory()
-  const userChangesDir = path.join(tempDir, 'user')
+  const userChangesDir = opts.editDir ? createPackageDirectory(opts.editDir) : path.join(tempDir, 'user')
   await Promise.all([
     store.ctrl.importPackage(path.join(tempDir, 'source'), {
       filesResponse,
@@ -57,4 +77,12 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
     }),
   ])
   return `You can now edit the following folder: ${userChangesDir}`
+}
+
+function createPackageDirectory (editDir: string) {
+  if (fs.existsSync(editDir)) {
+    throw new PnpmError('PATCH_EDIT_DIR_EXISTS', `The target directory already exists: '${editDir}'`)
+  }
+  fs.mkdirSync(editDir, { recursive: true })
+  return editDir
 }
