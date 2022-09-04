@@ -76,11 +76,11 @@ describe('patch and commit', () => {
     const output = await patchFn()
     const userPatchDir = output.substring(output.indexOf(':') + 1).trim()
 
-    expect(userPatchDir).toBe(path.join(editDir, '/user'))
+    expect(userPatchDir).toBe(editDir)
     expect(fs.existsSync(userPatchDir)).toBe(true)
     expect(fs.existsSync(path.join(tempySpy.mock.results[0].value, '/source'))).toBe(true)
 
     // If editDir already exists, it should throw an error
-    await expect(patchFn()).rejects.toThrow(`The package directory already exists: '${editDir}'`)
+    await expect(patchFn()).rejects.toThrow(`The target directory already exists: '${editDir}'`)
   })
 })

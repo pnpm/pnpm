@@ -35,22 +35,17 @@ export function help () {
       title: 'Options',
       list: [
         {
-          description: 'Directory path that patch files will be stored. If not set, the files is stored in temporary directory.',
+          description: 'The package that needs to be modified will be extracted to this directory',
           name: '--edit-dir',
-          shortAlias: '-d',
         },
       ],
     }],
     url: docsUrl('patch'),
-    usages: ['pnpm patch [--edit-dir <user directory path for patch>]'],
+    usages: ['pnpm patch <pkg name>@<version>'],
   })
 }
 
-export type PatchCommandOptions = Pick<
-Config,
-'dir' | 'registries' | 'tag' | 'storeDir'
-> &
-CreateStoreControllerOptions & {
+export type PatchCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir'> & CreateStoreControllerOptions & {
   editDir?: string
   reporter?: (logObj: LogBase) => void
 }
@@ -66,15 +61,11 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
     lockfileDir: opts.dir,
     preferredVersions: {},
     projectDir: opts.dir,
-    registry:
-      (dep.alias && pickRegistryForPackage(opts.registries, dep.alias)) ??
-      opts.registries.default,
+    registry: (dep.alias && pickRegistryForPackage(opts.registries, dep.alias)) ?? opts.registries.default,
   })
   const filesResponse = await pkgResponse.files!()
-
   const tempDir = tempy.directory()
-  const patchPackageDir = createPackageDirectory(opts.editDir) ?? tempDir
-  const userChangesDir = path.join(patchPackageDir, 'user')
+  const userChangesDir = opts.editDir ? createPackageDirectory(opts.editDir) : path.join(tempDir, 'user')
   await Promise.all([
     store.ctrl.importPackage(path.join(tempDir, 'source'), {
       filesResponse,
@@ -88,15 +79,10 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
   return `You can now edit the following folder: ${userChangesDir}`
 }
 
-function createPackageDirectory (editDir?: string) {
-  if (!editDir) {
-    return
-  }
-
+function createPackageDirectory (editDir: string) {
   if (fs.existsSync(editDir)) {
-    throw new PnpmError('DIR_ALREADY_EXISTS', `The package directory already exists: '${editDir}'`)
+    throw new PnpmError('PATCH_EDIT_DIR_EXISTS', `The target directory already exists: '${editDir}'`)
   }
-
   fs.mkdirSync(editDir, { recursive: true })
   return editDir
 }
