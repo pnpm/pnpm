@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 13.1.6
+
+### Patch Changes
+
+- d7fc07cc7: Include `hasInstallScript` in the abbreviated metadata.
+
 ## 13.1.5
 
 ### Patch Changes

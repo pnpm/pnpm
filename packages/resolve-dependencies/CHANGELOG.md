@@ -1,5 +1,13 @@
 # @pnpm/resolve-dependencies
 
+## 28.3.9
+
+### Patch Changes
+
+- 0373af22e: Always correctly update the "time" field in "pnpm-lock.yaml".
+- Updated dependencies [d7fc07cc7]
+  - @pnpm/npm-resolver@13.1.6
+
 ## 28.3.8
 
 ### Patch Changes

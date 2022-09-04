@@ -1,5 +1,17 @@
 # @pnpm/core
 
+## 5.11.3
+
+### Patch Changes
+
+- Updated dependencies [0373af22e]
+  - @pnpm/lockfile-file@5.3.4
+  - @pnpm/resolve-dependencies@28.3.9
+  - @pnpm/get-context@6.2.10
+  - @pnpm/headless@18.7.1
+  - @pnpm/lockfile-to-pnp@1.0.1
+  - @pnpm/package-requester@19.0.2
+
 ## 5.11.2
 
 ### Patch Changes

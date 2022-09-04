@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 5.3.4
+
+### Patch Changes
+
+- 0373af22e: Always correctly update the "time" field in "pnpm-lock.yaml".
+
 ## 5.3.3
 
 ### Patch Changes

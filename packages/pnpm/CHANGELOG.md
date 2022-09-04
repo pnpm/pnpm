@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.10.0-1
+## 7.10.0
 
 ### Minor Changes
 
@@ -8,10 +8,12 @@
 
   When `resolution-mode` is set to `time-based`, pnpm will resolve dependencies the following way:
 
-  1. direct dependencies will be resolved to their lowest versions. So if there is `foo@^1.1.0` in the dependencies, then `1.1.0` will be installed.
-  2. subdependencies will be resolved from versions that were published before the last direct dependency was published.
+  1. Direct dependencies will be resolved to their lowest versions. So if there is `foo@^1.1.0` in the dependencies, then `1.1.0` will be installed.
+  2. Subdependencies will be resolved from versions that were published before the last direct dependency was published.
 
   With this resolution mode installations with hot cache are faster. It also reduces the chance of subdependency hijacking as subdependencies will be updated only if direct dependencies are updated.
+
+  This resolution mode works only with npm's [full metadata](https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#full-metadata-format). So it is slower in some scenarios. However, if you use [Verdaccio](https://verdaccio.org/) v5.15.1 or newer, you may set the `registry-supports-time-field` setting to `true`, and it will be really fast.
 
   Related [RFC](https://github.com/pnpm/rfcs/pull/2).
 
