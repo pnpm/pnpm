@@ -19,11 +19,11 @@ export function rcOptionsTypes () {
 }
 
 export function cliOptionsTypes () {
-  return { ...rcOptionsTypes(), path: String }
+  return { ...rcOptionsTypes(), 'user-dir': String }
 }
 
 export const shorthands = {
-  p: '--path',
+  d: '--user-dir',
 }
 
 export const commandNames = ['patch']
@@ -35,14 +35,14 @@ export function help () {
       title: 'Options',
       list: [
         {
-          description: 'set a package directory path for patching',
-          name: '--path',
-          shortAlias: '-p',
+          description: 'Directory path that patch files will be stored. If not set, the files is stored in temporary directory.',
+          name: '--user-dir',
+          shortAlias: '-d',
         },
       ],
     }],
     url: docsUrl('patch'),
-    usages: ['pnpm patch [--path <patch directory path>]'],
+    usages: ['pnpm patch [--user-dir <user directory path for patch>]'],
   })
 }
 
@@ -51,7 +51,7 @@ Config,
 'dir' | 'registries' | 'tag' | 'storeDir'
 > &
 CreateStoreControllerOptions & {
-  path?: string
+  userDir?: string
   reporter?: (logObj: LogBase) => void
 }
 
@@ -73,8 +73,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
   const filesResponse = await pkgResponse.files!()
 
   const tempDir = tempy.directory()
-  const patchPackageDir = createPackageDirectory(opts.path) ?? tempDir
-
+  const patchPackageDir = createPackageDirectory(opts.userDir) ?? tempDir
   const userChangesDir = path.join(patchPackageDir, 'user')
   await Promise.all([
     store.ctrl.importPackage(path.join(tempDir, 'source'), {
