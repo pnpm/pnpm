@@ -130,6 +130,8 @@ test('prints suggestions when an internet-connection related error happens', (do
     next: output => {
       expect(output).toBe(`${formatError('ERR_PNPM_BAD_TARBALL_SIZE', 'Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')}
 ${ERROR_PAD}
+${ERROR_PAD}This error happened while installing the dependencies of foo@1.0.0
+${ERROR_PAD}
 ${ERROR_PAD}Seems like you have internet connection issues.
 ${ERROR_PAD}Try running the same command again.
 ${ERROR_PAD}If that doesn't help, try one of the following:
@@ -148,6 +150,13 @@ ${ERROR_PAD}For instance, \`pnpm install --fetch-retries 5 --network-concurrency
   })
 
   const err = new PnpmError('BAD_TARBALL_SIZE', 'Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')
+  err.pkgsStack = [
+    {
+      id: 'registry.npmjs.org/foo/1.0.0',
+      name: 'foo',
+      version: '1.0.0',
+    },
+  ]
   err['expectedSize'] = 100
   err['receivedSize'] = 99
   logger.error(err, err)
