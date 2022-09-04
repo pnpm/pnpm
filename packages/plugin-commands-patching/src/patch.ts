@@ -72,10 +72,12 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
   })
   const filesResponse = await pkgResponse.files!()
 
-  const patchPackageDir = createPackageDirectory(opts.path)
+  const tempDir = tempy.directory()
+  const patchPackageDir = createPackageDirectory(opts.path) ?? tempDir
+
   const userChangesDir = path.join(patchPackageDir, 'user')
   await Promise.all([
-    store.ctrl.importPackage(path.join(patchPackageDir, 'source'), {
+    store.ctrl.importPackage(path.join(tempDir, 'source'), {
       filesResponse,
       force: true,
     }),
@@ -89,7 +91,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
 
 function createPackageDirectory (userDir?: string) {
   if (!userDir) {
-    return tempy.directory()
+    return
   }
 
   if (fs.existsSync(userDir)) {
