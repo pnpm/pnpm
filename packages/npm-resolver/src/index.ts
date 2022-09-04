@@ -56,7 +56,7 @@ export {
 // of one package/version
 const META_DIR = 'metadata'
 const FULL_META_DIR = 'metadata-full'
-const FULL_FILTERED_META_DIR = 'metadata-full-filtered'
+const FULL_FILTERED_META_DIR = 'metadata-v1.1'
 
 export interface ResolverFactoryOptions {
   cacheDir: string

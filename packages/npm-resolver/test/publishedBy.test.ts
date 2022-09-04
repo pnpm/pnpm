@@ -46,8 +46,8 @@ test('request metadata when the one in cache does not have a version satisfiyng 
     time: {},
     cachedAt: '2016-08-17T19:26:00.508Z',
   }
-  fs.mkdirSync(path.join(cacheDir, 'metadata-full-filtered/registry.npmjs.org'), { recursive: true })
-  fs.writeFileSync(path.join(cacheDir, 'metadata-full-filtered/registry.npmjs.org/bad-dates.json'), JSON.stringify(cachedMeta), 'utf8')
+  fs.mkdirSync(path.join(cacheDir, 'metadata-v1.1/registry.npmjs.org'), { recursive: true })
+  fs.writeFileSync(path.join(cacheDir, 'metadata-v1.1/registry.npmjs.org/bad-dates.json'), JSON.stringify(cachedMeta), 'utf8')
 
   nock(registry)
     .get('/bad-dates')
