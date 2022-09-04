@@ -3545,6 +3545,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../config
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../error
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../parse-wanted-dependency
@@ -5597,7 +5600,7 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
     dependencies:
-      '@babel/types': 7.17.10
+      '@babel/types': 7.18.13
     dev: true
 
   /@babel/parser/7.18.13_@babel+types@7.18.13:

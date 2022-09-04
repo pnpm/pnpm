@@ -12,6 +12,7 @@ import pick from 'ramda/src/pick'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
+import PnpmError from '@pnpm/error'
 
 export function rcOptionsTypes () {
   return pick([], allTypes)
@@ -54,10 +55,6 @@ CreateStoreControllerOptions & {
   reporter?: (logObj: LogBase) => void
 }
 
-/**
- * @TODO
- * 3. document 업데이트
- */
 export async function handler (opts: PatchCommandOptions, params: string[]) {
   const store = await createOrConnectStoreController({
     ...opts,
@@ -96,7 +93,7 @@ function createPackageDirectory (userDir?: string) {
   }
 
   if (fs.existsSync(userDir)) {
-    throw new Error(`The package directory already exists: '${userDir}'`)
+    throw new PnpmError('DIR_ALREADY_EXISTS', `The package directory already exists: '${userDir}'`)
   }
 
   fs.mkdirSync(userDir, { recursive: true })
