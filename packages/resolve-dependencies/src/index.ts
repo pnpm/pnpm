@@ -133,6 +133,14 @@ export default async function (
         updated: project.manifest,
       })
     }
+    if (opts.autoInstallPeers) {
+      if (updatedManifest?.peerDependencies) {
+        updatedManifest.dependencies = {
+          ...updatedManifest.peerDependencies,
+          ...updatedManifest.dependencies,
+        }
+      }
+    }
 
     if (updatedManifest != null) {
       const projectSnapshot = opts.wantedLockfile.importers[project.id]
