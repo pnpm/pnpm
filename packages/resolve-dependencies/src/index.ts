@@ -135,9 +135,11 @@ export default async function (
     }
     if (opts.autoInstallPeers) {
       if (updatedManifest?.peerDependencies) {
-        updatedManifest.dependencies = {
-          ...updatedManifest.peerDependencies,
-          ...updatedManifest.dependencies,
+        const allDeps = getAllDependenciesFromManifest(updatedManifest)
+        for (const [peerName, peerRange] of Object.entries(updatedManifest.peerDependencies)) {
+          if (allDeps[peerName]) continue
+          updatedManifest.dependencies ??= {}
+          updatedManifest.dependencies[peerName] = peerRange
         }
       }
     }
