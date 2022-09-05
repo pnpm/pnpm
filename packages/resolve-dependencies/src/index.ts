@@ -135,6 +135,16 @@ export default async function (
     }
 
     if (updatedManifest != null) {
+      if (opts.autoInstallPeers) {
+        if (updatedManifest.peerDependencies) {
+          const allDeps = getAllDependenciesFromManifest(updatedManifest)
+          for (const [peerName, peerRange] of Object.entries(updatedManifest.peerDependencies)) {
+            if (allDeps[peerName]) continue
+            updatedManifest.dependencies ??= {}
+            updatedManifest.dependencies[peerName] = peerRange
+          }
+        }
+      }
       const projectSnapshot = opts.wantedLockfile.importers[project.id]
       opts.wantedLockfile.importers[project.id] = addDirectDependenciesToLockfile(
         updatedManifest,
@@ -334,14 +344,7 @@ function addDirectDependenciesToLockfile (
     return acc
   }, {})
 
-  let allDepsObj = getAllDependenciesFromManifest(newManifest)
-  if (autoInstallPeers) {
-    allDepsObj = {
-      ...newManifest.peerDependencies,
-      ...allDepsObj,
-    }
-  }
-  const allDeps = Array.from(new Set(Object.keys(allDepsObj)))
+  const allDeps = Array.from(new Set(Object.keys(getAllDependenciesFromManifest(newManifest))))
 
   for (const alias of allDeps) {
     if (directDependenciesByAlias[alias]) {

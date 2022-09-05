@@ -1,3 +1,5 @@
+import path from 'path'
+import assertProject from '@pnpm/assert-project'
 import { addDependenciesToPackage, install, mutateModules } from '@pnpm/core'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -225,4 +227,42 @@ test('automatically install root peer dependencies', async () => {
       'is-negative': '1.0.1',
     })
   }
+})
+
+test('automatically install peer dependency when it is a dev dependency in another workspace project', async () => {
+  prepareEmpty()
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        devDependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        peerDependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ], await testDefaults({ autoInstallPeers: true }))
+
+  const project = assertProject(process.cwd())
+  const lockfile = await project.readLockfile()
+  expect(lockfile.importers['project-1'].devDependencies).toStrictEqual({
+    'is-positive': '1.0.0',
+  })
+  expect(lockfile.importers['project-2'].dependencies).toStrictEqual({
+    'is-positive': '1.0.0',
+  })
 })
