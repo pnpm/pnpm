@@ -3,5 +3,5 @@ module.exports = {
 }
 
 function filterLog(log) {
-  return log.level === 'error'
+  return log.level === 'error' || log.level === 'warn'
 }

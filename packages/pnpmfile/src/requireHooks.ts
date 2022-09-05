@@ -43,6 +43,7 @@ export default function requireHooks (
   opts: {
     globalPnpmfile?: string
     pnpmfile?: string
+    hooks?: Hooks
   }
 ): CookedHooks {
   const globalPnpmfile = opts.globalPnpmfile && requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
@@ -51,38 +52,69 @@ export default function requireHooks (
   const pnpmFile = opts.pnpmfile && requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix) ||
     requirePnpmfile(path.join(prefix, '.pnpmfile.cjs'), prefix)
   let hooks: Hooks = pnpmFile?.hooks
+  let optsHooks = opts?.hooks as Hooks
 
-  if (!globalHooks && !hooks) return {}
+  if (!globalHooks && !hooks && !optsHooks) return {}
   globalHooks = globalHooks || {}
   hooks = hooks || {}
+  optsHooks = optsHooks || {}
   const cookedHooks: CookedHooks = {}
   for (const hookName of ['readPackage', 'afterAllResolved']) {
-    if (globalHooks[hookName] && hooks[hookName]) {
+    // eslint-disable-next-line
+    const hookStack: Array<(arg: object) => Promise<any>> = []
+    if (globalHooks[hookName]) {
       const globalHookContext = createReadPackageHookContext(globalPnpmfile.filename, prefix, hookName)
-      const localHookContext = createReadPackageHookContext(pnpmFile.filename, prefix, hookName)
       // the `arg` is a package manifest in case of readPackage() and a lockfile object in case of afterAllResolved()
+      hookStack.push(async (arg: object) => {
+        return globalHooks[hookName](arg, globalHookContext)
+      })
+    }
+    if (hooks[hookName]) {
+      const localHookContext = createReadPackageHookContext(pnpmFile.filename, prefix, hookName)
+      hookStack.push(async (arg: object) => {
+        return hooks[hookName](arg, localHookContext)
+      })
+    }
+    if (optsHooks[hookName]) {
+      const optsHookContext = createReadPackageHookContext('opts', prefix, hookName)
+      hookStack.push(async (arg: object) => {
+        return optsHooks[hookName](arg, optsHookContext)
+      })
+    }
+    if (hookStack.length === 3) {
       cookedHooks[hookName] = async (arg: object) => {
-        return hooks[hookName](
-          await globalHooks[hookName](arg, globalHookContext),
-          localHookContext
+        return hookStack[2](
+          await hookStack[1](
+            await hookStack[0](arg)
+          )
         )
       }
-    } else if (globalHooks[hookName]) {
-      const globalHook = globalHooks[hookName]
-      const context = createReadPackageHookContext(globalPnpmfile.filename, prefix, hookName)
-      cookedHooks[hookName] = (pkg: object) => globalHook(pkg, context)
-    } else if (hooks[hookName]) {
-      const hook = hooks[hookName]
-      const context = createReadPackageHookContext(pnpmFile.filename, prefix, hookName)
-      cookedHooks[hookName] = (pkg: object) => hook(pkg, context)
+    } else if (hookStack.length === 2) {
+      cookedHooks[hookName] = async (arg: object) => {
+        return hookStack[1](
+          await hookStack[0](arg)
+        )
+      }
+    } else if (hookStack.length === 1) {
+      cookedHooks[hookName] = hookStack[0]
     }
   }
-  const globalFilterLog = globalHooks.filterLog
-  const filterLog = hooks.filterLog
-  if (globalFilterLog != null && filterLog != null) {
-    cookedHooks.filterLog = (log: Log) => globalFilterLog(log) && filterLog(log)
-  } else {
-    cookedHooks.filterLog = globalFilterLog ?? filterLog
+  const filterLogStack: Array<(log: Log) => boolean> = []
+  if (globalHooks.filterLog) {
+    filterLogStack.push(globalHooks.filterLog)
+  }
+  if (hooks.filterLog) {
+    filterLogStack.push(hooks.filterLog)
+  }
+  if (optsHooks.filterLog) {
+    filterLogStack.push(optsHooks.filterLog)
+  }
+  if (filterLogStack.length === 3) {
+    cookedHooks.filterLog = (log: Log) => filterLogStack[0](log) && filterLogStack[1](log) && filterLogStack[2](log)
+  } if (filterLogStack.length === 2) {
+    cookedHooks.filterLog = (log: Log) => filterLogStack[0](log) && filterLogStack[1](log)
+  } if (filterLogStack.length === 1) {
+    cookedHooks.filterLog = filterLogStack[0]
   }
 
   // `importPackage`, `preResolution` and `fetchers` can only be defined via a global pnpmfile
