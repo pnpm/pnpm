@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 9.1.24
+
+### Patch Changes
+
+- 728c0cdf6: When an error happens during installation of a subdependency, print some context information in order to be able to locate that subdependency. Print the exact chain of packages that led to the problematic dependency.
+  - @pnpm/config@15.10.4
+
 ## 9.1.23
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 28.3.10
+
+### Patch Changes
+
+- 2acf38be3: Auto installing a peer dependency in a workspace that also has it as a dev dependency in another project [#5144](https://github.com/pnpm/pnpm/issues/5144).
+
 ## 28.3.9
 
 ### Patch Changes

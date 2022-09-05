@@ -1,5 +1,16 @@
 # pnpm
 
+## 7.11.0
+
+### Minor Changes
+
+- `pnpm patch`: edit the patched package in a directory specified by the `--edit-dir` option. E.g., `pnpm patch express@3.1.0 --edit-dir=/home/xxx/src/patched-express` [#5304](https://github.com/pnpm/pnpm/pull/5304)
+
+### Patch Changes
+
+- Auto installing a peer dependency in a workspace that also has it as a dev dependency in another project [#5144](https://github.com/pnpm/pnpm/issues/5144).
+- When an error happens during installation of a subdependency, print some context information in order to be able to locate that subdependency. Print the exact chain of packages that led to the problematic dependency.
+
 ## 7.10.0
 
 ### Minor Changes

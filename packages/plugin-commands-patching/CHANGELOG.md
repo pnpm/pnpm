@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-patching
 
+## 1.3.0
+
+### Minor Changes
+
+- b6f788cff: `pnpm patch`: edit the patched package in a directory specified by the `--edit-dir` option. E.g., `pnpm patch express@3.1.0 --edit-dir=/home/xxx/src/patched-express`
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@10.6.4
+- @pnpm/cli-utils@0.7.35
+- @pnpm/config@15.10.4
+- @pnpm/store-connection-manager@4.3.8
+
 ## 1.2.3
 
 ### Patch Changes
