@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 13.1.7
+
+### Patch Changes
+
+- a3ccd27a3: `@types/ramda` should be a dev dependency.
+
 ## 13.1.6
 
 ### Patch Changes

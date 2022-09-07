@@ -1,5 +1,11 @@
 # @pnpm/pnpmfile
 
+## 2.2.9
+
+### Patch Changes
+
+- @pnpm/core@5.11.5
+
 ## 2.2.8
 
 ### Patch Changes

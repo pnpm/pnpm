@@ -1,5 +1,12 @@
 # @pnpm/cli-utils
 
+## 0.7.36
+
+### Patch Changes
+
+- @pnpm/config@15.10.5
+- @pnpm/default-reporter@9.1.25
+
 ## 0.7.35
 
 ### Patch Changes
