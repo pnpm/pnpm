@@ -222,6 +222,14 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       files.push('bin')
     }
   }
+  if (manifest.dependencies?.['@types/ramda']) {
+    // We should never release @types/ramda as a prod dependency as it breaks the bit repository.
+    manifest.devDependencies = {
+      ...manifest.devDependencies,
+      '@types/ramda': manifest.dependencies['@types/ramda'],
+    }
+    delete manifest.dependencies['@types/ramda']
+  }
   return {
     ...manifest,
     bugs: {
