@@ -9,6 +9,7 @@ test('does not print update if latest is less than current', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
+      env: {},
     },
     streamParser: createStreamParser(),
   })
@@ -37,6 +38,7 @@ test('print update notification if the latest version is greater than the curren
     context: {
       argv: ['install'],
       config: { recursive: true } as Config,
+      env: {},
     },
     streamParser: createStreamParser(),
   })
