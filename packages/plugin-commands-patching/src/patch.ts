@@ -48,7 +48,7 @@ export type PatchCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 's
 }
 
 export async function handler (opts: PatchCommandOptions, params: string[]) {
-  if (opts.editDir && fs.existsSync(opts.editDir)) {
+  if (opts.editDir && fs.existsSync(opts.editDir) && fs.readdirSync(opts.editDir).length > 0) {
     throw new PnpmError('PATCH_EDIT_DIR_EXISTS', `The target directory already exists: '${opts.editDir}'`)
   }
   const editDir = opts.editDir ?? tempy.directory()
