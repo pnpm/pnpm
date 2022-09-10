@@ -75,13 +75,21 @@ describe('patch and commit', () => {
 
     expect(patchDir).toBe(editDir)
     expect(fs.existsSync(patchDir)).toBe(true)
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, [patchDir])
+
+    expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
   })
 
   test('patch throws an error if the edit-dir already exists and is not empty', async () => {
     const editDir = tempy.directory()
     fs.writeFileSync(path.join(editDir, 'test.txt'), '', 'utf8')
 
-    // If editDir already exists, it should throw an error
     await expect(() => patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0']))
       .rejects.toThrow(`The target directory already exists: '${editDir}'`)
   })
