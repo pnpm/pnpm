@@ -9,6 +9,8 @@ import pick from 'ramda/src/pick'
 import execa from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
 import renderHelp from 'render-help'
+import tempy from 'tempy'
+import { writePackage } from './writePackage'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -29,13 +31,14 @@ export function help () {
 
 export async function handler (opts: install.InstallCommandOptions, params: string[]) {
   const userDir = params[0]
-  const srcDir = path.join(userDir, '../source')
-  const patchContent = await diffFolders(srcDir, userDir)
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
   const patchesDir = path.join(lockfileDir, 'patches')
   await fs.promises.mkdir(patchesDir, { recursive: true })
-  const patchedPkgManifest = await readPackageJsonFromDir(srcDir)
+  const patchedPkgManifest = await readPackageJsonFromDir(userDir)
   const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
+  const srcDir = tempy.directory()
+  await writePackage(pkgNameAndVersion, srcDir, opts)
+  const patchContent = await diffFolders(srcDir, userDir)
   const patchFileName = pkgNameAndVersion.replace('/', '__')
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(lockfileDir)
