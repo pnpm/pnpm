@@ -10,7 +10,6 @@ import { DEFAULT_OPTS } from './utils/index'
 
 describe('patch and commit', () => {
   let defaultPatchOption: patch.PatchCommandOptions
-  const tempySpy = jest.spyOn(tempy, 'directory')
 
   beforeEach(() => {
     prepare({
@@ -37,24 +36,23 @@ describe('patch and commit', () => {
 
   test('patch and commit', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
-    const userPatchDir = output.substring(output.indexOf(':') + 1).trim()
+    const patchDir = output.substring(output.indexOf(':') + 1).trim()
     const tempDir = os.tmpdir() // temp dir depends on the operating system (@see tempy)
 
-    // store patch files(user, source) in temporary directory when not given editDir option
-    expect(userPatchDir).toContain(tempDir)
-    expect(fs.existsSync(userPatchDir)).toBe(true)
-    expect(fs.existsSync(userPatchDir.replace('/user', '/source'))).toBe(true)
+    // store patch files in a temporary directory when not given editDir option
+    expect(patchDir).toContain(tempDir)
+    expect(fs.existsSync(patchDir)).toBe(true)
 
     // sanity check to ensure that the license file contains the expected string
-    expect(fs.readFileSync(path.join(userPatchDir, 'license'), 'utf8')).toContain('The MIT License (MIT)')
+    expect(fs.readFileSync(path.join(patchDir, 'license'), 'utf8')).toContain('The MIT License (MIT)')
 
-    fs.appendFileSync(path.join(userPatchDir, 'index.js'), '// test patching', 'utf8')
-    fs.unlinkSync(path.join(userPatchDir, 'license'))
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+    fs.unlinkSync(path.join(patchDir, 'license'))
 
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-    }, [userPatchDir])
+    }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
     expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
@@ -69,18 +67,30 @@ describe('patch and commit', () => {
     expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
   })
 
-  test('store source files in temporary directory and user files in user directory, when given editDir option', async () => {
-    const editDir = 'test/user/is-positive'
+  test('patch and commit with a custom edit dir', async () => {
+    const editDir = path.join(tempy.directory())
 
-    const patchFn = async () => patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0'])
-    const output = await patchFn()
-    const userPatchDir = output.substring(output.indexOf(':') + 1).trim()
+    const output = await patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0'])
+    const patchDir = output.substring(output.indexOf(':') + 1).trim()
 
-    expect(userPatchDir).toBe(editDir)
-    expect(fs.existsSync(userPatchDir)).toBe(true)
-    expect(fs.existsSync(path.join(tempySpy.mock.results[0].value, '/source'))).toBe(true)
+    expect(patchDir).toBe(editDir)
+    expect(fs.existsSync(patchDir)).toBe(true)
 
-    // If editDir already exists, it should throw an error
-    await expect(patchFn()).rejects.toThrow(`The target directory already exists: '${editDir}'`)
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, [patchDir])
+
+    expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
+  })
+
+  test('patch throws an error if the edit-dir already exists and is not empty', async () => {
+    const editDir = tempy.directory()
+    fs.writeFileSync(path.join(editDir, 'test.txt'), '', 'utf8')
+
+    await expect(() => patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0']))
+      .rejects.toThrow(`The target directory already exists: '${editDir}'`)
   })
 })
