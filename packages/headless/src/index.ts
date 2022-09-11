@@ -63,6 +63,7 @@ import equals from 'ramda/src/equals'
 import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
 import omit from 'ramda/src/omit'
+import pick from 'ramda/src/pick'
 import props from 'ramda/src/props'
 import union from 'ramda/src/union'
 import realpathMissing from 'realpath-missing'
@@ -108,8 +109,8 @@ export interface HeadlessOptions {
   ignoreScripts: boolean
   ignorePackageManifest?: boolean
   include: IncludedDependencies
-  projects: Project[]
-  allProjectsMap?: Map<string, Omit<Project, 'buildIndex'>>
+  selectedProjectDirs: string[]
+  allProjects: Record<string, Project>
   prunedAt?: string
   hoistedDependencies: HoistedDependencies
   hoistPattern?: string[]
@@ -172,9 +173,10 @@ export default async (opts: HeadlessOptions) => {
   const currentLockfile = opts.currentLockfile ?? await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
   const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
   const publicHoistedModulesDir = rootModulesDir
+  const selectedProjects = Object.values(pick(opts.selectedProjectDirs, opts.allProjects))
 
   if (!opts.ignorePackageManifest) {
-    for (const { id, manifest, rootDir } of opts.projects) {
+    for (const { id, manifest, rootDir } of selectedProjects) {
       if (!satisfiesPackageManifest(wantedLockfile, manifest, id, { autoInstallPeers: opts.autoInstallPeers })) {
         throw new PnpmError('OUTDATED_LOCKFILE',
           `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ` +
@@ -202,7 +204,7 @@ export default async (opts: HeadlessOptions) => {
   if (opts.nodeLinker !== 'hoisted') {
     if (currentLockfile != null && !opts.ignorePackageManifest) {
       await prune(
-        opts.projects,
+        selectedProjects,
         {
           currentLockfile,
           dryRun: false,
@@ -240,7 +242,7 @@ export default async (opts: HeadlessOptions) => {
   }
   const initialImporterIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
     ? Object.keys(wantedLockfile.importers)
-    : opts.projects.map(({ id }) => id)
+    : selectedProjects.map(({ id }) => id)
   const { lockfile: filteredLockfile, importerIds } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, {
     ...filterOpts,
     currentEngine: opts.currentEngine,
@@ -251,28 +253,26 @@ export default async (opts: HeadlessOptions) => {
   })
 
   // Update opts.projects to add missing projects. importerIds will have the updated ids, found from deeply linked workspace projects
-  if (opts.allProjectsMap) {
-    const missingIds = [] as string[]
-    const initialImporterIdSet = new Set(initialImporterIds)
-    let highestBuildIndex = 0
-    for (const { buildIndex } of opts.projects) {
-      highestBuildIndex = Math.max(highestBuildIndex, buildIndex)
+  const missingIds = [] as string[]
+  const initialImporterIdSet = new Set(initialImporterIds)
+  let highestBuildIndex = 0
+  for (const { buildIndex } of selectedProjects) {
+    highestBuildIndex = Math.max(highestBuildIndex, buildIndex)
+  }
+  for (const id of importerIds) {
+    if (!initialImporterIdSet.has(id)) {
+      missingIds.push(id)
     }
-    for (const id of importerIds) {
-      if (!initialImporterIdSet.has(id)) {
-        missingIds.push(id)
-      }
-    }
+  }
 
-    for (const id of missingIds) {
-      const additionalProject = opts.allProjectsMap.get(id)
-      if (additionalProject) {
-        opts.projects.push({
-          ...additionalProject,
-          buildIndex: highestBuildIndex,
-        })
-        highestBuildIndex++
-      }
+  for (const id of missingIds) {
+    const additionalProject = Object.values(opts.allProjects).find((project) => project.id === id)
+    if (additionalProject) {
+      selectedProjects.push({
+        ...additionalProject,
+        buildIndex: highestBuildIndex,
+      })
+      highestBuildIndex++
     }
   }
 
@@ -307,7 +307,7 @@ export default async (opts: HeadlessOptions) => {
   )
   if (opts.enablePnp) {
     const importerNames = fromPairs(
-      opts.projects.map(({ manifest, id }) => [id, manifest.name ?? id])
+      selectedProjects.map(({ manifest, id }) => [id, manifest.name ?? id])
     )
     await writePnpFile(filteredLockfile, {
       importerNames,
@@ -349,7 +349,7 @@ export default async (opts: HeadlessOptions) => {
       directDependenciesByImporterId: symlinkedDirectDependenciesByImporterId!,
       filteredLockfile,
       lockfileDir,
-      projects: opts.projects,
+      projects: selectedProjects,
       registries: opts.registries,
       symlink: opts.symlink,
     })
@@ -417,7 +417,7 @@ export default async (opts: HeadlessOptions) => {
         directDependenciesByImporterId,
         filteredLockfile,
         lockfileDir,
-        projects: opts.projects,
+        projects: selectedProjects,
         registries: opts.registries,
         symlink: opts.symlink,
       })
@@ -425,7 +425,7 @@ export default async (opts: HeadlessOptions) => {
   }
 
   if (opts.ignoreScripts) {
-    for (const { id, manifest } of opts.projects) {
+    for (const { id, manifest } of selectedProjects) {
       if (opts.ignoreScripts && ((manifest?.scripts) != null) &&
         (manifest.scripts.preinstall ?? manifest.scripts.prepublish ??
           manifest.scripts.install ??
@@ -485,7 +485,7 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  const projectsToBeBuilt = extendProjectsWithTargetDirs(opts.projects, wantedLockfile, {
+  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, wantedLockfile, {
     pkgLocationByDepPath,
     virtualStoreDir,
   })
@@ -493,7 +493,7 @@ export default async (opts: HeadlessOptions) => {
   if (opts.enableModulesDir !== false) {
     /** Skip linking and due to no project manifest */
     if (!opts.ignorePackageManifest) {
-      await Promise.all(opts.projects.map(async (project) => {
+      await Promise.all(selectedProjects.map(async (project) => {
         if (opts.publicHoistPattern?.length && path.relative(opts.lockfileDir, project.rootDir) === '') {
           await linkBinsOfImporter(project, {
             extraNodePaths: opts.extraNodePaths,
@@ -568,9 +568,10 @@ export default async (opts: HeadlessOptions) => {
   }
 }
 
-type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'projects' | 'registries' | 'symlink' | 'lockfileDir'> & {
+type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'registries' | 'symlink' | 'lockfileDir'> & {
   filteredLockfile: Lockfile
   directDependenciesByImporterId: DirectDependenciesByImporterId
+  projects: Project[]
 }
 
 async function symlinkDirectDependencies (

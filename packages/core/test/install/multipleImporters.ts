@@ -33,6 +33,16 @@ test('install only the dependencies of the specified importer', async () => {
 
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: {
         name: 'project-1',
@@ -42,7 +52,6 @@ test('install only the dependencies of the specified importer', async () => {
           'is-positive': '1.0.0',
         },
       },
-      mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
@@ -55,13 +64,12 @@ test('install only the dependencies of the specified importer', async () => {
           'is-negative': '1.0.0',
         },
       },
-      mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ lockfileOnly: true }))
+  await mutateModules(importers, await testDefaults({ allProjects, lockfileOnly: true }))
 
-  await mutateModules(importers.slice(0, 1), await testDefaults())
+  await mutateModules(importers.slice(0, 1), await testDefaults({ allProjects }))
 
   await projects['project-1'].has('is-positive')
   await projects['project-2'].hasNot('is-negative')
@@ -1679,3 +1687,4 @@ test('do not symlink local package from the location described in its publishCon
   const linkedManifest = await loadJsonFile<{ name: string }>('project-2/node_modules/project-1/package.json')
   expect(linkedManifest.name).toBe('project-1')
 })
+

@@ -1,5 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
+import { ProjectOptions } from '@pnpm/get-context'
 import { HoistingLimits } from '@pnpm/headless'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
@@ -12,7 +13,6 @@ import {
   PeerDependencyRules,
   ReadPackageHook,
   Registries,
-  Project,
 } from '@pnpm/types'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
@@ -112,7 +112,7 @@ export interface StrictInstallOptions {
   globalBin?: string
   patchedDependencies?: Record<string, string>
 
-  allProjects?: Project[]
+  allProjects: ProjectOptions[]
 }
 
 export type InstallOptions =
