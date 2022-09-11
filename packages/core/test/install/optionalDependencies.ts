@@ -8,6 +8,7 @@ import {
   install,
   MutatedProject,
   mutateModules,
+  mutateModulesInSingleProject,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import exists from 'path-exists'
@@ -115,17 +116,11 @@ test('skip optional dependency that does not support the current OS', async () =
 
   await rimraf('node_modules')
 
-  await mutateModules(
-    [
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults({ frozenLockfile: true })
-  )
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ frozenLockfile: true }))
 
   await project.hasNot('@pnpm.e2e/not-compatible-with-any-os')
   await project.has('@pnpm.e2e/dep-of-optional-pkg')
@@ -218,6 +213,16 @@ test('optional subdependency is not removed from current lockfile when new depen
 
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: {
         name: 'project-1',
@@ -227,7 +232,6 @@ test('optional subdependency is not removed from current lockfile when new depen
           '@pnpm.e2e/pkg-with-optional': '1.0.0',
         },
       },
-      mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
@@ -236,12 +240,11 @@ test('optional subdependency is not removed from current lockfile when new depen
         name: 'project-2',
         version: '1.0.0',
       },
-      mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
   ]
   await mutateModules(importers,
-    await testDefaults({ hoistPattern: ['*'] })
+    await testDefaults({ allProjects, hoistPattern: ['*'] })
   )
 
   {
@@ -258,7 +261,7 @@ test('optional subdependency is not removed from current lockfile when new depen
       dependencySelectors: ['is-positive@1.0.0'],
       mutation: 'installSome',
     },
-  ], await testDefaults({ fastUnpack: false, hoistPattern: ['*'] }))
+  ], await testDefaults({ allProjects, fastUnpack: false, hoistPattern: ['*'] }))
 
   {
     const currentLockfile = await readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
@@ -296,16 +299,11 @@ test('optional subdependency is skipped', async () => {
   expect(await exists('pnpm-lock.yaml')).toBeTruthy()
   await rimraf('pnpm-lock.yaml')
 
-  await mutateModules(
-    [
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults()
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults()
   )
 
   const lockfile = await project.readLockfile()
@@ -316,17 +314,11 @@ test('optional subdependency is skipped', async () => {
   // forced headless install should install non-compatible optional deps
 
   // TODO: move next case to @pnpm/headless tests
-  await mutateModules(
-    [
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults({ force: true, frozenLockfile: true })
-  )
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ force: true, frozenLockfile: true }))
 
   expect(await exists('node_modules/.pnpm/@pnpm.e2e+not-compatible-with-any-os@1.0.0')).toBeTruthy()
 
@@ -372,19 +364,11 @@ test('only that package is skipped which is an optional dependency only and not 
 
   await rimraf('node_modules')
 
-  await mutateModules(
-    [
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults({
-      frozenLockfile: true,
-    })
-  )
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ frozenLockfile: true }))
 
   {
     const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
@@ -484,53 +468,55 @@ test('skip optional dependency that does not support the current OS, when doing 
   const [{ manifest }] = await mutateModules(
     [
       {
-        buildIndex: 0,
-        manifest: {
-          name: 'project1',
-          version: '1.0.0',
-
-          optionalDependencies: {
-            '@pnpm.e2e/not-compatible-with-any-os': '*',
-          },
-        },
         mutation: 'install',
         rootDir: path.resolve('project1'),
       },
       {
-        buildIndex: 0,
-        manifest: {
-          name: 'project2',
-          version: '1.0.0',
-
-          dependencies: {
-            '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
-          },
-        },
         mutation: 'install',
         rootDir: path.resolve('project2'),
       },
     ],
     await testDefaults({
+      allProjects: [
+        {
+          buildIndex: 0,
+          manifest: {
+            name: 'project1',
+            version: '1.0.0',
+
+            optionalDependencies: {
+              '@pnpm.e2e/not-compatible-with-any-os': '*',
+            },
+          },
+          rootDir: path.resolve('project1'),
+        },
+        {
+          buildIndex: 0,
+          manifest: {
+            name: 'project2',
+            version: '1.0.0',
+
+            dependencies: {
+              '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+            },
+          },
+          rootDir: path.resolve('project2'),
+        },
+      ],
       lockfileDir: process.cwd(),
       lockfileOnly: true,
     })
   )
 
-  await mutateModules(
-    [
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: path.resolve('project1'),
-      },
-    ],
-    await testDefaults({
-      frozenLockfile: false,
-      lockfileDir: process.cwd(),
-      preferFrozenLockfile: false,
-    })
-  )
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: path.resolve('project1'),
+  }, await testDefaults({
+    frozenLockfile: false,
+    lockfileDir: process.cwd(),
+    preferFrozenLockfile: false,
+  }))
 
   const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
   expect(modulesInfo.skipped).toStrictEqual([

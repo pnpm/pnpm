@@ -11,6 +11,7 @@ import {
   install,
   MutatedProject,
   mutateModules,
+  mutateModulesInSingleProject,
   PeerDependencyIssuesError,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
@@ -65,14 +66,12 @@ test('nothing is needlessly removed from node_modules', async () => {
   expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0/node_modules/ajv-keywords'))).toBeTruthy()
   expect(deepRequireCwd(['@pnpm.e2e/using-ajv', 'ajv-keywords', 'ajv', './package.json']).version).toBe('4.10.4')
 
-  await mutateModules([
-    {
-      dependencyNames: ['ajv-keywords'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], opts)
+  await mutateModulesInSingleProject({
+    dependencyNames: ['ajv-keywords'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, opts)
 
   expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv'))).toBeTruthy()
   expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0/node_modules/ajv-keywords'))).toBeFalsy()
@@ -91,14 +90,11 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 
   expect(await exists(path.resolve('node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords'))).toBeTruthy()
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ preferFrozenLockfile: false }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ preferFrozenLockfile: false }))
 
   const lockfile = await project.readLockfile()
   expect(lockfile.packages['/ajv-keywords/1.5.0_ajv@4.10.4'].dependencies).toHaveProperty(['ajv'])
@@ -133,19 +129,27 @@ test('the right peer dependency is used in every workspace package', async () =>
 
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: manifest1,
-      mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: manifest2,
-      mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ lockfileOnly: true, strictPeerDependencies: false }))
+  await mutateModules(importers, await testDefaults({ allProjects, lockfileOnly: true, strictPeerDependencies: false }))
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
 
@@ -403,14 +407,11 @@ test('the list of transitive peer dependencies is kept up to date', async () => 
     expect(lockfile.packages['/@pnpm.e2e/abc-grand-parent/1.0.0_@pnpm.e2e+peer-c@1.0.0'].transitivePeerDependencies).toStrictEqual(['@pnpm.e2e/peer-c'])
   }
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ update: true, depth: Infinity }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ update: true, depth: Infinity }))
 
   expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-grand-parent@1.0.0/node_modules/@pnpm.e2e/abc-grand-parent'))).toBeTruthy()
 
@@ -669,19 +670,15 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   }
 
   // Covers https://github.com/pnpm/pnpm/issues/1506
-  await mutateModules(
-    [
-      {
-        dependencyNames: ['ajv'],
-        manifest,
-        mutation: 'uninstallSome',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults({
-      lockfileDir,
-      strictPeerDependencies: false,
-    })
+  await mutateModulesInSingleProject({
+    dependencyNames: ['ajv'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({
+    lockfileDir,
+    strictPeerDependencies: false,
+  })
   )
 
   {
@@ -799,14 +796,12 @@ test('peer dependency is resolved from parent package', async () => {
       name: 'pkg',
     },
   ])
-  await mutateModules([
-    {
-      dependencySelectors: ['@pnpm.e2e/tango@1.0.0'],
-      manifest: {},
-      mutation: 'installSome',
-      rootDir: path.resolve('pkg'),
-    },
-  ], await testDefaults())
+  await mutateModulesInSingleProject({
+    dependencySelectors: ['@pnpm.e2e/tango@1.0.0'],
+    manifest: {},
+    mutation: 'installSome',
+    rootDir: path.resolve('pkg'),
+  }, await testDefaults())
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
@@ -821,23 +816,19 @@ test('transitive peerDependencies field does not break the lockfile on subsequen
       name: 'pkg',
     },
   ])
-  const [{ manifest }] = await mutateModules([
-    {
-      dependencySelectors: ['most@1.7.3'],
-      manifest: {},
-      mutation: 'installSome',
-      rootDir: path.resolve('pkg'),
-    },
-  ], await testDefaults())
+  const { manifest } = await mutateModulesInSingleProject({
+    dependencySelectors: ['most@1.7.3'],
+    manifest: {},
+    mutation: 'installSome',
+    rootDir: path.resolve('pkg'),
+  }, await testDefaults())
 
-  await mutateModules([
-    {
-      dependencySelectors: ['is-positive'],
-      manifest,
-      mutation: 'installSome',
-      rootDir: path.resolve('pkg'),
-    },
-  ], await testDefaults())
+  await mutateModulesInSingleProject({
+    dependencySelectors: ['is-positive'],
+    manifest,
+    mutation: 'installSome',
+    rootDir: path.resolve('pkg'),
+  }, await testDefaults())
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
@@ -854,14 +845,12 @@ test('peer dependency is resolved from parent package via its alias', async () =
       name: 'pkg',
     },
   ])
-  await mutateModules([
-    {
-      dependencySelectors: ['@pnpm.e2e/tango@npm:@pnpm.e2e/tango-tango@1.0.0'],
-      manifest: {},
-      mutation: 'installSome',
-      rootDir: path.resolve('pkg'),
-    },
-  ], await testDefaults())
+  await mutateModulesInSingleProject({
+    dependencySelectors: ['@pnpm.e2e/tango@npm:@pnpm.e2e/tango-tango@1.0.0'],
+    manifest: {},
+    mutation: 'installSome',
+    rootDir: path.resolve('pkg'),
+  }, await testDefaults())
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
   const suffix = createPeersFolderSuffix([{ name: '@pnpm.e2e/tango-tango', version: '1.0.0' }])
@@ -890,14 +879,12 @@ test('peer dependency is saved', async () => {
     }
   )
 
-  const [mutatedImporter] = await mutateModules([
-    {
-      dependencyNames: ['is-positive'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults())
+  const mutatedImporter = await mutateModulesInSingleProject({
+    dependencyNames: ['is-positive'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults())
 
   expect(mutatedImporter.manifest).toStrictEqual(
     {
@@ -1061,14 +1048,11 @@ test('local tarball dependency with peer dependency', async () => {
 
   await rimraf('node_modules')
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults())
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults())
 
   {
     const updatedLocalPkgDirs = (await fs.readdir('node_modules/.pnpm'))
@@ -1088,26 +1072,20 @@ test('peer dependency that is resolved by a dev dependency', async () => {
     },
   }
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ fastUnpack: false, lockfileOnly: true, strictPeerDependencies: false }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ fastUnpack: false, lockfileOnly: true, strictPeerDependencies: false }))
 
   const lockfile = await project.readLockfile()
   expect(lockfile.packages['/@types/mongoose/5.7.32'].dev).toBeUndefined()
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({
     frozenLockfile: true,
     include: {
       dependencies: true,
@@ -1145,19 +1123,27 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   ])
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('ajv'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: project1Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      mutation: 'install',
       rootDir: path.resolve('ajv'),
     },
   ]
-  await mutateModules(importers, await testDefaults({}))
+  await mutateModules(importers, await testDefaults({ allProjects }))
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
   expect(lockfile.packages?.['/ajv-keywords/1.5.0_ajv@ajv'].dependencies?.['ajv']).toBe('link:ajv')

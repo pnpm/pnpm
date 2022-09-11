@@ -27,7 +27,7 @@ export async function getPeerDependencyIssues (
   opts: ListMissingPeersOptions
 ): Promise<PeerDependencyIssuesByProjects> {
   const lockfileDir = opts.lockfileDir ?? process.cwd()
-  const ctx = await getContext(projects, {
+  const ctx = await getContext({
     force: false,
     forceSharedLockfile: false,
     extraBinPaths: [],
@@ -35,9 +35,10 @@ export async function getPeerDependencyIssues (
     nodeLinker: opts.nodeLinker ?? 'isolated',
     registries: DEFAULT_REGISTRIES,
     useLockfile: true,
+    allProjects: projects,
     ...opts,
   })
-  const projectsToResolve = ctx.projects.map((project) => ({
+  const projectsToResolve = Object.values(ctx.projects).map((project) => ({
     ...project,
     updatePackageManifest: false,
     wantedDependencies: getWantedDependencies(project.manifest),

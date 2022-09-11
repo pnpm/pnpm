@@ -84,6 +84,7 @@ export const commandNames = ['import']
 
 export type ImportCommandOptions = Pick<Config,
 | 'allProjects'
+| 'allProjectsGraph'
 | 'selectedProjectsGraph'
 | 'workspaceDir'
 > & CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>

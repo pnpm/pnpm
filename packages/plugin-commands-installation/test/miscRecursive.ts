@@ -34,10 +34,11 @@ test('recursive add/remove', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
@@ -51,6 +52,7 @@ test('recursive add/remove', async () => {
   await add.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
@@ -63,6 +65,7 @@ test('recursive add/remove', async () => {
   await remove.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
@@ -92,10 +95,11 @@ test('recursive add/remove in workspace with many lockfiles', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
@@ -110,6 +114,7 @@ test('recursive add/remove in workspace with many lockfiles', async () => {
   await add.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
@@ -122,6 +127,7 @@ test('recursive add/remove in workspace with many lockfiles', async () => {
   await remove.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
@@ -328,10 +334,11 @@ test('second run of `recursive install` after package.json has been edited manua
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
@@ -350,6 +357,7 @@ test('second run of `recursive install` after package.json has been edited manua
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
@@ -597,10 +605,11 @@ test('recursive install on workspace with custom lockfile-dir', async () => {
   ])
 
   const lockfileDir = path.resolve('_')
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     lockfileDir,
     recursive: true,
@@ -634,10 +643,11 @@ test('recursive install in a monorepo with different modules directories', async
   await fs.writeFile('project-1/.npmrc', 'modules-dir=modules_1', 'utf8')
   await fs.writeFile('project-2/.npmrc', 'modules-dir=modules_2', 'utf8')
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
@@ -702,11 +712,12 @@ test('installing in monorepo with shared lockfile should work on virtual drives'
   const virtualPath = process.cwd() + '-virtual-disk'
   // symlink simulates windows' subst
   await symlinkDir(process.cwd(), virtualPath)
-  const { allProjects, selectedProjectsGraph } = await readProjects(virtualPath, [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(virtualPath, [])
   await install.handler({
     ...DEFAULT_OPTS,
     lockfileDir: virtualPath,
     allProjects,
+    allProjectsGraph,
     dir: virtualPath,
     recursive: true,
     selectedProjectsGraph,

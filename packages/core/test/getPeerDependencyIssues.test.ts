@@ -7,6 +7,7 @@ test('cannot resolve peer dependency for top-level dependency', async () => {
 
   const peerDependencyIssues = await getPeerDependencyIssues([
     {
+      buildIndex: 0,
       manifest: {
         dependencies: {
           'ajv-keywords': '1.5.0',
@@ -24,6 +25,7 @@ test('a conflict is detected when the same peer is required with ranges that do 
 
   const peerDependencyIssues = await getPeerDependencyIssues([
     {
+      buildIndex: 0,
       manifest: {
         dependencies: {
           '@pnpm.e2e/has-foo100-peer': '1.0.0',

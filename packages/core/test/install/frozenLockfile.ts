@@ -53,40 +53,49 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
 
   const projects: MutatedProject[] = [
     {
-      buildIndex: 0,
-      manifest: {
-        name: 'p1',
-
-        dependencies: {
-          'is-positive': '^3.0.0',
-        },
-      },
       mutation: 'install',
       rootDir: path.resolve('p1'),
     },
     {
-      buildIndex: 0,
-      manifest: {
-        name: 'p2',
-
-        dependencies: {
-          'is-negative': '1.0.0',
-        },
-      },
       mutation: 'install',
       rootDir: path.resolve('p2'),
     },
   ]
-  await mutateModules(projects, await testDefaults())
+  const project1 = {
+    buildIndex: 0,
+    manifest: {
+      name: 'p1',
 
-  projects[0].manifest = {
+      dependencies: {
+        'is-positive': '^3.0.0',
+      },
+    },
+    rootDir: path.resolve('p1'),
+  }
+  const project2 = {
+    buildIndex: 0,
+    manifest: {
+      name: 'p2',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    rootDir: path.resolve('p2'),
+  }
+  await mutateModules(projects, await testDefaults({
+    allProjects: [project1, project2],
+  }))
+
+  project1.manifest = {
+    ...project1.manifest,
     dependencies: {
       'is-positive': '^3.1.0',
     },
   }
 
   await expect(
-    mutateModules(projects, await testDefaults({ frozenLockfile: true }))
+    mutateModules(projects, await testDefaults({ frozenLockfile: true, allProjects: [project1, project2] }))
   ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with p1${path.sep}package.json`)
 })
 
@@ -228,6 +237,16 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
 
   const mutatedProjects: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('p1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('p2'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: {
         name: 'p1',
@@ -236,7 +255,6 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
           p2: 'link:../p2',
         },
       },
-      mutation: 'install',
       rootDir: path.resolve('p1'),
     },
     {
@@ -248,14 +266,14 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
           'is-negative': '1.0.0',
         },
       },
-      mutation: 'install',
       rootDir: path.resolve('p2'),
     },
   ]
-  await mutateModules(mutatedProjects, await testDefaults())
+  await mutateModules(mutatedProjects, await testDefaults({ allProjects }))
 
   const reporter = sinon.spy()
   await mutateModules(mutatedProjects, await testDefaults({
+    allProjects,
     preferFrozenLockfile: true,
     reporter,
   }))

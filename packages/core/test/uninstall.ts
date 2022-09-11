@@ -15,6 +15,7 @@ import {
   addDependenciesToPackage,
   link,
   mutateModules,
+  mutateModulesInSingleProject,
 } from '@pnpm/core'
 import exists from 'path-exists'
 import sinon from 'sinon'
@@ -30,14 +31,12 @@ test('uninstall package with no dependencies', async () => {
   let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], await testDefaults({ save: true }))
 
   const reporter = sinon.spy()
-  manifest = (await mutateModules([
-    {
-      dependencyNames: ['is-negative'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ save: true, reporter })))[0].manifest
+  manifest = (await mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({ save: true, reporter }))).manifest
 
   expect(reporter.calledWithMatch({
     initial: {
@@ -85,14 +84,12 @@ test('uninstall a dependency that is not present in node_modules', async () => {
   prepareEmpty()
 
   const reporter = sinon.spy()
-  await mutateModules([
-    {
-      dependencyNames: ['is-negative'],
-      manifest: {},
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ reporter }))
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest: {},
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({ reporter }))
 
   expect(reporter.calledWithMatch({
     level: 'debug',
@@ -106,14 +103,12 @@ test('uninstall a dependency that is not present in node_modules', async () => {
 test('uninstall scoped package', async () => {
   const project = prepareEmpty()
   let manifest = await addDependenciesToPackage({}, ['@zkochan/logger@0.1.0'], await testDefaults({ save: true }))
-  manifest = (await mutateModules([
-    {
-      dependencyNames: ['@zkochan/logger'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ save: true })))[0].manifest
+  manifest = (await mutateModulesInSingleProject({
+    dependencyNames: ['@zkochan/logger'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({ save: true }))).manifest
 
   await project.storeHas('@zkochan/logger', '0.1.0')
 
@@ -127,14 +122,12 @@ test('uninstall tarball dependency', async () => {
   const opts = await testDefaults({ save: true })
 
   let manifest = await addDependenciesToPackage({}, [`http://localhost:${REGISTRY_MOCK_PORT}/is-array/-/is-array-1.0.1.tgz`], opts)
-  manifest = (await mutateModules([
-    {
-      dependencyNames: ['is-array'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], opts))[0].manifest
+  manifest = (await mutateModulesInSingleProject({
+    dependencyNames: ['is-array'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, opts)).manifest
 
   await project.storeHas('is-array', '1.0.1')
   await project.hasNot('is-array')
@@ -145,14 +138,12 @@ test('uninstall tarball dependency', async () => {
 test('uninstall package with dependencies and do not touch other deps', async () => {
   const project = prepareEmpty()
   let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0', 'camelcase-keys@3.0.0'], await testDefaults({ save: true }))
-  manifest = (await mutateModules([
-    {
-      dependencyNames: ['camelcase-keys'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ pruneStore: true, save: true })))[0].manifest
+  manifest = (await mutateModulesInSingleProject({
+    dependencyNames: ['camelcase-keys'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({ pruneStore: true, save: true }))).manifest
 
   await project.storeHasNot('camelcase-keys', '3.0.0')
   await project.hasNot('camelcase-keys')
@@ -180,14 +171,12 @@ test('uninstall package with dependencies and do not touch other deps', async ()
 test('uninstall package with its bin files', async () => {
   prepareEmpty()
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/sh-hello-world@1.0.1'], await testDefaults({ fastUnpack: false, save: true }))
-  await mutateModules([
-    {
-      dependencyNames: ['@pnpm.e2e/sh-hello-world'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ save: true }))
+  await mutateModulesInSingleProject({
+    dependencyNames: ['@pnpm.e2e/sh-hello-world'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({ save: true }))
 
   // check for both a symlink and a file because in some cases the file will be a proxied not symlinked
   const stat = await existsSymlink(path.resolve('node_modules', '.bin', 'sh-hello-world'))
@@ -207,14 +196,12 @@ test('relative link is uninstalled', async () => {
 
   f.copy(linkedPkgName, linkedPkgPath)
   const manifest = await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), opts as (typeof opts & { dir: string, manifest: PackageManifest }))
-  await mutateModules([
-    {
-      dependencyNames: [linkedPkgName],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], opts)
+  await mutateModulesInSingleProject({
+    dependencyNames: [linkedPkgName],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, opts)
 
   await project.hasNot(linkedPkgName)
 })
@@ -231,14 +218,12 @@ test('pendingBuilds gets updated after uninstall', async () => {
   expect(modules1).toBeTruthy()
   expect(modules1!.pendingBuilds.length).toBe(2)
 
-  await mutateModules([
-    {
-      dependencyNames: ['@pnpm.e2e/with-postinstall-b'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ save: true }))
+  await mutateModulesInSingleProject({
+    dependencyNames: ['@pnpm.e2e/with-postinstall-b'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({ save: true }))
 
   const modules2 = await project.readModulesManifest()
   expect(modules2).toBeTruthy()
@@ -272,19 +257,27 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
   await mutateModules(
     [
       {
-        buildIndex: 0,
-        manifest: pkgs[0],
         mutation: 'install',
         rootDir: path.resolve('project-1'),
       },
       {
-        buildIndex: 0,
-        manifest: pkgs[1],
         mutation: 'install',
         rootDir: path.resolve('project-2'),
       },
     ],
     await testDefaults({
+      allProjects: [
+        {
+          buildIndex: 0,
+          manifest: pkgs[0],
+          rootDir: path.resolve('project-1'),
+        },
+        {
+          buildIndex: 0,
+          manifest: pkgs[1],
+          rootDir: path.resolve('project-2'),
+        },
+      ],
       store,
       workspacePackages: {
         'project-2': {
@@ -307,14 +300,12 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
   await projects['project-1'].has('is-positive')
   await projects['project-2'].has('is-negative')
 
-  await mutateModules([
-    {
-      dependencyNames: ['is-positive', 'project-2'],
-      manifest: pkgs[0],
-      mutation: 'uninstallSome',
-      rootDir: path.resolve('project-1'),
-    },
-  ], await testDefaults({
+  await mutateModulesInSingleProject({
+    dependencyNames: ['is-positive', 'project-2'],
+    manifest: pkgs[0],
+    mutation: 'uninstallSome',
+    rootDir: path.resolve('project-1'),
+  }, await testDefaults({
     lockfileDir: process.cwd(),
     store,
     pruneLockfileImporters: false,
@@ -361,17 +352,12 @@ test('uninstall remove modules that is not in package.json', async () => {
 
   await project.has('foo')
 
-  await mutateModules(
-    [
-      {
-        dependencyNames: ['foo'],
-        manifest: {},
-        mutation: 'uninstallSome',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults()
-  )
+  await mutateModulesInSingleProject({
+    dependencyNames: ['foo'],
+    manifest: {},
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults())
 
   await project.hasNot('foo')
 })

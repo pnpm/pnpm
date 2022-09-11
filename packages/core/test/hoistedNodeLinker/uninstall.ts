@@ -5,7 +5,7 @@ import {
 import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
-  mutateModules,
+  mutateModulesInSingleProject,
 } from '@pnpm/core'
 import sinon from 'sinon'
 import { testDefaults } from './../utils'
@@ -20,14 +20,12 @@ test('uninstall package with no dependencies', async () => {
   )
 
   const reporter = sinon.spy()
-  manifest = (await mutateModules([
-    {
-      dependencyNames: ['is-negative'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ nodeLinker: 'hoisted', save: true, reporter })))[0].manifest
+  manifest = (await mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({ nodeLinker: 'hoisted', save: true, reporter }))).manifest
 
   expect(reporter.calledWithMatch({
     initial: {
@@ -80,14 +78,12 @@ test('uninstall package with dependencies and do not touch other deps', async ()
     ['is-negative@2.1.0', 'camelcase-keys@3.0.0'],
     await testDefaults({ nodeLinker: 'hoisted', save: true })
   )
-  manifest = (await mutateModules([
-    {
-      dependencyNames: ['camelcase-keys'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ nodeLinker: 'hoisted', pruneStore: true, save: true })))[0].manifest
+  manifest = (await mutateModulesInSingleProject({
+    dependencyNames: ['camelcase-keys'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({ nodeLinker: 'hoisted', pruneStore: true, save: true }))).manifest
 
   await project.storeHasNot('camelcase-keys', '3.0.0')
   await project.hasNot('camelcase-keys')

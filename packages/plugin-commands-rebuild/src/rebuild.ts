@@ -121,6 +121,7 @@ export async function handler (
   await rebuildSelectedPkgs(
     [
       {
+        buildIndex: 0,
         manifest: await readProjectManifestOnly(rebuildOpts.dir, opts),
         rootDir: rebuildOpts.dir,
       },

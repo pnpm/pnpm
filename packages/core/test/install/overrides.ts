@@ -1,7 +1,7 @@
 import PnpmError from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { addDependenciesToPackage, mutateModules } from '@pnpm/core'
+import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
 import {
   testDefaults,
 } from '../utils'
@@ -37,27 +37,21 @@ test('versions are replaced with versions specified through overrides option', a
     expect(lockfile.overrides).toStrictEqual(currentLockfile.overrides)
   }
   // shall be able to install when package manifest is ignored
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], { ...await testDefaults(), ignorePackageManifest: true, overrides })
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, { ...await testDefaults(), ignorePackageManifest: true, overrides })
 
   // The lockfile is updated if the overrides are changed
   overrides['@pnpm.e2e/bar@^100.0.0'] = '100.0.0'
   // A direct dependency may be overriden as well
   overrides['@pnpm.e2e/foobarqar'] = '1.0.1'
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ overrides }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ overrides }))
 
   {
     const lockfile = await project.readLockfile()
@@ -74,14 +68,11 @@ test('versions are replaced with versions specified through overrides option', a
     expect(lockfile.overrides).toStrictEqual(currentLockfile.overrides)
   }
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ frozenLockfile: true, overrides }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ frozenLockfile: true, overrides }))
 
   {
     const lockfile = await project.readLockfile()
@@ -97,14 +88,11 @@ test('versions are replaced with versions specified through overrides option', a
 
   overrides['@pnpm.e2e/bar@^100.0.0'] = '100.0.1'
   await expect(
-    mutateModules([
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ], await testDefaults({ frozenLockfile: true, overrides }))
+    mutateModulesInSingleProject({
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    }, await testDefaults({ frozenLockfile: true, overrides }))
   ).rejects.toThrow(
     new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
       'Cannot perform a frozen installation because the lockfile needs updates'

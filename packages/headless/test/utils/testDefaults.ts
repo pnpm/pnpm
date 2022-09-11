@@ -2,10 +2,11 @@ import path from 'path'
 import createClient from '@pnpm/client'
 import { HeadlessOptions } from '@pnpm/headless'
 import createStore from '@pnpm/package-store'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import readProjectsContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import storePath from '@pnpm/store-path'
+import fromPairs from 'ramda/src/fromPairs'
 import tempy from 'tempy'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
@@ -28,11 +29,13 @@ export default async function testDefaults (
   const cacheDir = path.join(tmp, 'cache')
   const lockfileDir = opts?.lockfileDir ?? process.cwd()
   const { include, pendingBuilds, projects, registries } = await readProjectsContext(
-    [
-      {
-        rootDir: lockfileDir,
-      },
-    ],
+    opts.projects
+      ? opts.projects.map((rootDir: string) => ({ rootDir }))
+      : [
+        {
+          rootDir: lockfileDir,
+        },
+      ],
     { lockfileDir }
   )
   storeDir = await storePath({
@@ -72,11 +75,10 @@ export default async function testDefaults (
       version: '1.0.0',
     },
     pendingBuilds,
-    projects: opts.projects
-      ? opts.projects
-      : await Promise.all(
-        projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
-      ),
+    selectedProjectDirs: projects.map((project) => project.rootDir),
+    allProjects: fromPairs(
+      await Promise.all(projects.map(async (project) => [project.rootDir, { ...project, manifest: await safeReadPackageFromDir(project.rootDir) }]))
+    ),
     rawConfig: {},
     registries: registries ?? {
       default: registry,

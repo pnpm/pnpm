@@ -7,6 +7,7 @@ import {
   install,
   MutatedProject,
   mutateModules,
+  mutateModulesInSingleProject,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import resolveLinkTarget from 'resolve-link-target'
@@ -85,14 +86,12 @@ test('should remove hoisted dependencies', async () => {
   const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['express'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
-  await mutateModules([
-    {
-      dependencyNames: ['express'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ hoistPattern: '*' }))
+  await mutateModulesInSingleProject({
+    dependencyNames: ['express'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({ hoistPattern: '*' }))
 
   await project.hasNot('express')
   await project.hasNot('.pnpm/node_modules/debug')
@@ -116,14 +115,12 @@ test('should rehoist when uninstalling a package', async () => {
   // this installs debug@3.1.0 and express@4.16.0
   const manifest = await addDependenciesToPackage({}, ['debug@3.1.0', 'express@4.16.0'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
   // uninstall debug@3.1.0 to check if debug@2.6.9 gets reflattened
-  await mutateModules([
-    {
-      dependencyNames: ['debug'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ hoistPattern: '*' }))
+  await mutateModulesInSingleProject({
+    dependencyNames: ['debug'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({ hoistPattern: '*' }))
 
   expect(project.requireModule('.pnpm/node_modules/debug/package.json').version).toEqual('2.6.9')
   expect(project.requireModule('express/package.json').version).toEqual('4.16.0')
@@ -226,14 +223,12 @@ test('should remove aliased hoisted dependencies', async () => {
   const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-aliased-dep'], await testDefaults({ hoistPattern: '*' }))
-  await mutateModules([
-    {
-      dependencyNames: ['@pnpm.e2e/pkg-with-1-aliased-dep'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ hoistPattern: '*' }))
+  await mutateModulesInSingleProject({
+    dependencyNames: ['@pnpm.e2e/pkg-with-1-aliased-dep'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({ hoistPattern: '*' }))
 
   await project.hasNot('@pnpm.e2e/pkg-with-1-aliased-dep')
   await project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -305,14 +300,12 @@ test('should hoist correctly peer dependencies', async () => {
 test('should uninstall correctly peer dependencies', async () => {
   prepareEmpty()
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/using-ajv'], await testDefaults({ hoistPattern: '*' }))
-  await mutateModules([
-    {
-      dependencyNames: ['@pnpm.e2e/using-ajv'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ hoistPattern: '*' }))
+  await mutateModulesInSingleProject({
+    dependencyNames: ['@pnpm.e2e/using-ajv'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({ hoistPattern: '*' }))
 
   // symlink to peer dependency is deleted
   expect(() => fs.lstatSync('node_modules/ajv-keywords')).toThrow()
@@ -346,19 +339,27 @@ test('hoist-pattern: hoist all dependencies to the virtual store node_modules', 
 
   const mutatedProjects: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('package'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: workspaceRootManifest,
-      mutation: 'install',
       rootDir: process.cwd(),
     },
     {
       buildIndex: 0,
       manifest: workspacePackageManifest,
-      mutation: 'install',
       rootDir: path.resolve('package'),
     },
   ]
-  await mutateModules(mutatedProjects, await testDefaults({ hoistPattern: '*' }))
+  await mutateModules(mutatedProjects, await testDefaults({ allProjects, hoistPattern: '*' }))
 
   await projects['root'].has('@pnpm.e2e/pkg-with-1-dep')
   await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -376,7 +377,7 @@ test('hoist-pattern: hoist all dependencies to the virtual store node_modules', 
   await rimraf('node_modules')
   await rimraf('package/node_modules')
 
-  await mutateModules(mutatedProjects, await testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
+  await mutateModules(mutatedProjects, await testDefaults({ allProjects, frozenLockfile: true, hoistPattern: '*' }))
 
   await projects['root'].has('@pnpm.e2e/pkg-with-1-dep')
   await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -422,19 +423,27 @@ test('hoist when updating in one of the workspace projects', async () => {
 
   const mutatedProjects: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('package'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: workspaceRootManifest,
-      mutation: 'install',
       rootDir: process.cwd(),
     },
     {
       buildIndex: 0,
       manifest: workspacePackageManifest,
-      mutation: 'install',
       rootDir: path.resolve('package'),
     },
   ]
-  await mutateModules(mutatedProjects, await testDefaults({ hoistPattern: '*' }))
+  await mutateModules(mutatedProjects, await testDefaults({ allProjects, hoistPattern: '*' }))
 
   const rootModules = assertProject(process.cwd())
   {
@@ -451,7 +460,7 @@ test('hoist when updating in one of the workspace projects', async () => {
       dependencySelectors: ['@pnpm.e2e/foo@100.1.0'],
       mutation: 'installSome',
     },
-  ], await testDefaults({ hoistPattern: '*', pruneLockfileImporters: false }))
+  ], await testDefaults({ allProjects, hoistPattern: '*', pruneLockfileImporters: false }))
 
   const lockfile = await rootModules.readCurrentLockfile()
 
@@ -485,14 +494,11 @@ test('should recreate node_modules with hoisting', async () => {
     expect(modulesManifest?.hoistedDependencies).toStrictEqual({})
   }
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ hoistPattern: '*' }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ hoistPattern: '*' }))
 
   await project.has('@pnpm.e2e/pkg-with-1-dep')
   await project.has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -568,12 +574,21 @@ test('hoist packages which is in the dependencies tree of the selected projects'
 
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('.'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: {
         name: 'root',
         version: '1.0.0',
       },
-      mutation: 'install',
       rootDir: path.resolve('.'),
     },
     {
@@ -585,7 +600,6 @@ test('hoist packages which is in the dependencies tree of the selected projects'
           'is-positive': '3.0.0',
         },
       },
-      mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
   ]
@@ -632,7 +646,7 @@ test('hoist packages which is in the dependencies tree of the selected projects'
     },
   }, { lineWidth: 1000 })
 
-  await mutateModules(importers, await testDefaults({ hoistPattern: '*' }))
+  await mutateModules(importers, await testDefaults({ allProjects, hoistPattern: '*' }))
 
   await root.has('.pnpm/node_modules/is-positive')
   const { version } = root.requireModule('.pnpm/node_modules/is-positive/package.json')
@@ -654,21 +668,6 @@ test('only hoist packages which is in the dependencies tree of the selected proj
       package: { name: 'project-2', dependencies: { '@babel/runtime-corejs3': '7.15.4' } },
     },
   ])
-
-  const importers: MutatedProject[] = [
-    {
-      buildIndex: 0,
-      manifest: {
-        name: 'project-2',
-        version: '1.0.0',
-        dependencies: {
-          '@babel/runtime-corejs3': '7.15.4',
-        },
-      },
-      mutation: 'install',
-      rootDir: path.resolve('project-2'),
-    },
-  ]
 
   await writeYamlFile(WANTED_LOCKFILE, {
     lockfileVersion: 5.3,
@@ -729,7 +728,17 @@ test('only hoist packages which is in the dependencies tree of the selected proj
     },
   }, { lineWidth: 1000 })
 
-  await mutateModules(importers, await testDefaults({ hoistPattern: '*' }))
+  await mutateModulesInSingleProject({
+    manifest: {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        '@babel/runtime-corejs3': '7.15.4',
+      },
+    },
+    mutation: 'install',
+    rootDir: path.resolve('project-2'),
+  }, await testDefaults({ hoistPattern: '*' }))
 
   await root.has('.pnpm/node_modules/@babel/runtime-corejs3')
   const { version: runtimeVersion } = root.requireModule('.pnpm/node_modules/@babel/runtime-corejs3/package.json')

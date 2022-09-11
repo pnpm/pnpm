@@ -79,35 +79,14 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
 
   const importers: MutatedProject[] = [
     {
-      buildIndex: 0,
-      manifest: {
-        name: 'root',
-        version: '1.0.0',
-      },
       mutation: 'install',
       rootDir: path.resolve('.'),
     },
     {
-      buildIndex: 0,
-      manifest: {
-        name: 'project-1',
-        version: '1.0.0',
-        dependencies: {
-          '@babel/runtime-corejs3': '7.15.3',
-        },
-      },
       mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
-      buildIndex: 0,
-      manifest: {
-        name: 'project-3',
-        version: '1.0.0',
-        dependencies: {
-          '@babel/runtime-corejs3': '7.15.4',
-        },
-      },
       mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
@@ -177,7 +156,42 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
     },
   }, { lineWidth: 1000 })
 
-  await mutateModules(importers, await testDefaults({ fixLockfile: true, lockfileOnly: true }))
+  await mutateModules(importers, await testDefaults({
+    fixLockfile: true,
+    lockfileOnly: true,
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'root',
+          version: '1.0.0',
+        },
+        rootDir: path.resolve('.'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'project-1',
+          version: '1.0.0',
+          dependencies: {
+            '@babel/runtime-corejs3': '7.15.3',
+          },
+        },
+        rootDir: path.resolve('project-1'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'project-3',
+          version: '1.0.0',
+          dependencies: {
+            '@babel/runtime-corejs3': '7.15.4',
+          },
+        },
+        rootDir: path.resolve('project-2'),
+      },
+    ],
+  }))
 
   const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
 

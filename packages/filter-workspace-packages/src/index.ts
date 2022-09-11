@@ -1,4 +1,4 @@
-import findWorkspacePackages from '@pnpm/find-workspace-packages'
+import findWorkspacePackages, { Project } from '@pnpm/find-workspace-packages'
 import matcher from '@pnpm/matcher'
 import createPkgGraph, { Package, PackageNode } from 'pkgs-graph'
 import isSubdir from 'is-subdir'
@@ -29,6 +29,12 @@ interface FilteredGraph<T> {
   unmatchedFilters: string[]
 }
 
+export interface ReadProjectsResult {
+  allProjects: Project[]
+  allProjectsGraph: PackageGraph<Project>
+  selectedProjectsGraph: PackageGraph<Project>
+}
+
 export async function readProjects (
   workspaceDir: string,
   pkgSelectors: PackageSelector[],
@@ -37,9 +43,9 @@ export async function readProjects (
     linkWorkspacePackages?: boolean
     changedFilesIgnorePattern?: string[]
   }
-) {
+): Promise<ReadProjectsResult> {
   const allProjects = await findWorkspacePackages(workspaceDir, { engineStrict: opts?.engineStrict })
-  const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
+  const { allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjects(
     allProjects,
     pkgSelectors,
     {
@@ -48,7 +54,7 @@ export async function readProjects (
       changedFilesIgnorePattern: opts?.changedFilesIgnorePattern,
     }
   )
-  return { allProjects, selectedProjectsGraph }
+  return { allProjects, allProjectsGraph, selectedProjectsGraph }
 }
 
 export interface FilterPackagesOptions {

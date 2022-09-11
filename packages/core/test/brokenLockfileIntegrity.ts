@@ -5,7 +5,7 @@ import rimraf from '@zkochan/rimraf'
 import clone from 'ramda/src/clone'
 import {
   addDependenciesToPackage,
-  mutateModules,
+  mutateModulesInSingleProject,
 } from '@pnpm/core'
 import writeYamlFile from 'write-yaml-file'
 import { testDefaults } from './utils'
@@ -27,23 +27,17 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
   corruptedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution['integrity'] = corruptedLockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'].resolution['integrity']
   await writeYamlFile(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
 
-  await expect(mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ frozenLockfile: true }))).rejects.toThrowError(/Package name mismatch found while reading/)
+  await expect(mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ frozenLockfile: true }))).rejects.toThrowError(/Package name mismatch found while reading/)
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults())
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults())
 
   expect(await project.readLockfile()).toStrictEqual(correctLockfile)
 
@@ -52,14 +46,11 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
 
   await rimraf('node_modules')
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ preferFrozenLockfile: false }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ preferFrozenLockfile: false }))
 
   expect(await project.readLockfile()).toStrictEqual(correctLockfile)
 })
@@ -82,25 +73,18 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
   await writeYamlFile(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
 
   await expect(
-    mutateModules([
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))
-  ).rejects.toThrowError(/Got unexpected checksum/)
-
-  await mutateModules([
-    {
-      buildIndex: 0,
+    mutateModulesInSingleProject({
       manifest,
       mutation: 'install',
       rootDir: process.cwd(),
-    },
-  ], await testDefaults({}, { retry: { retries: 0 } }))
+    }, await testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))
+  ).rejects.toThrowError(/Got unexpected checksum/)
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({}, { retry: { retries: 0 } }))
 
   {
     const lockfile = await project.readLockfile()
@@ -113,14 +97,11 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
   await rimraf('node_modules')
 
   const reporter = jest.fn()
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ preferFrozenLockfile: false, reporter }, { retry: { retries: 0 } }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ preferFrozenLockfile: false, reporter }, { retry: { retries: 0 } }))
 
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'warn',

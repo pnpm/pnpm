@@ -16,7 +16,7 @@ import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-moc
 import {
   addDependenciesToPackage,
   install,
-  mutateModules,
+  mutateModulesInSingleProject,
   UnexpectedStoreError,
   UnexpectedVirtualStoreDirError,
 } from '@pnpm/core'
@@ -912,14 +912,11 @@ test('do not update deps when lockfile is present', async () => {
 
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ preferFrozenLockfile: false }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ preferFrozenLockfile: false }))
 
   const latestLockfile = await project.readLockfile()
 
@@ -929,18 +926,15 @@ test('do not update deps when lockfile is present', async () => {
 test('all the subdeps of dependencies are linked when a node_modules is partially up to date', async () => {
   prepareEmpty()
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest: {
-        dependencies: {
-          '@pnpm.e2e/foobarqar': '1.0.0',
-        },
+  await mutateModulesInSingleProject({
+    manifest: {
+      dependencies: {
+        '@pnpm.e2e/foobarqar': '1.0.0',
       },
-      mutation: 'install',
-      rootDir: process.cwd(),
     },
-  ], await testDefaults())
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults())
 
   await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     dependencies: {
@@ -986,18 +980,15 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
     },
   }, { lineWidth: 1000 })
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest: {
-        dependencies: {
-          '@pnpm.e2e/foobarqar': '1.0.1',
-        },
+  await mutateModulesInSingleProject({
+    manifest: {
+      dependencies: {
+        '@pnpm.e2e/foobarqar': '1.0.1',
       },
-      mutation: 'install',
-      rootDir: process.cwd(),
     },
-  ], await testDefaults({ preferFrozenLockfile: false }))
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ preferFrozenLockfile: false }))
 
   expect(
     [...await fs.readdir(path.resolve('node_modules/.pnpm/@pnpm.e2e+foobarqar@1.0.1/node_modules/@pnpm.e2e'))].sort()
@@ -1015,18 +1006,15 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest: {
-        dependencies: {
-          '@pnpm.e2e/parent-of-pkg-with-1-dep': '1.0.0',
-        },
+  await mutateModulesInSingleProject({
+    manifest: {
+      dependencies: {
+        '@pnpm.e2e/parent-of-pkg-with-1-dep': '1.0.0',
       },
-      mutation: 'install',
-      rootDir: process.cwd(),
     },
-  ], await testDefaults())
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults())
 
   const lockfile = await project.readLockfile()
 
@@ -1076,18 +1064,15 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     },
   }, { lineWidth: 1000 })
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest: {
-        dependencies: {
-          '@pnpm.e2e/parent-of-pkg-with-1-dep': '1.0.0',
-        },
+  await mutateModulesInSingleProject({
+    manifest: {
+      dependencies: {
+        '@pnpm.e2e/parent-of-pkg-with-1-dep': '1.0.0',
       },
-      mutation: 'install',
-      rootDir: process.cwd(),
     },
-  ], await testDefaults({ preferFrozenLockfile: false }))
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ preferFrozenLockfile: false }))
 
   expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
 })
@@ -1097,18 +1082,15 @@ test('fail if none of the available resolvers support a version spec', async () 
 
   let err!: PnpmError
   try {
-    await mutateModules([
-      {
-        buildIndex: 0,
-        manifest: {
-          dependencies: {
-            '@types/plotly.js': '1.44.29',
-          },
+    await mutateModulesInSingleProject({
+      manifest: {
+        dependencies: {
+          '@types/plotly.js': '1.44.29',
         },
-        mutation: 'install',
-        rootDir: process.cwd(),
       },
-    ], await testDefaults())
+      mutation: 'install',
+      rootDir: process.cwd(),
+    }, await testDefaults())
     throw new Error('should have failed')
   } catch (_err: any) { // eslint-disable-line
     err = _err
@@ -1132,18 +1114,15 @@ test('globally installed package which don\'t have bins should log warning messa
 
   const opts = await testDefaults({ global: true, reporter })
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest: {
-        dependencies: {
-          'is-positive': '1.0.0',
-        },
+  await mutateModulesInSingleProject({
+    manifest: {
+      dependencies: {
+        'is-positive': '1.0.0',
       },
-      mutation: 'install',
-      rootDir: process.cwd(),
     },
-  ], opts)
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, opts)
 
   expect(reporter.calledWithMatch({
     message: 'is-positive has no binaries',
@@ -1269,19 +1248,16 @@ test('installing dependencies with the same name in different case', async () =>
     },
   ])
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      mutation: 'install',
-      manifest: {
-        dependencies: {
-          File: 'https://registry.npmjs.org/File/-/File-0.10.2.tgz',
-          file: 'https://registry.npmjs.org/file/-/file-0.2.2.tgz',
-        },
+  await mutateModulesInSingleProject({
+    mutation: 'install',
+    manifest: {
+      dependencies: {
+        File: 'https://registry.npmjs.org/File/-/File-0.10.2.tgz',
+        file: 'https://registry.npmjs.org/file/-/file-0.2.2.tgz',
       },
-      rootDir: path.resolve('project-1'),
     },
-  ], await testDefaults({ fastUnpack: false }))
+    rootDir: path.resolve('project-1'),
+  }, await testDefaults({ fastUnpack: false }))
 
   // if it did not fail, it is fine
 })
@@ -1289,19 +1265,16 @@ test('installing dependencies with the same name in different case', async () =>
 test('two dependencies have the same version and name. The only difference is the casing in the name', async () => {
   prepareEmpty()
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      mutation: 'install',
-      manifest: {
-        dependencies: {
-          a: 'npm:JSONStream@1.0.3',
-          b: 'npm:jsonstream@1.0.3',
-        },
+  await mutateModulesInSingleProject({
+    mutation: 'install',
+    manifest: {
+      dependencies: {
+        a: 'npm:JSONStream@1.0.3',
+        b: 'npm:jsonstream@1.0.3',
       },
-      rootDir: process.cwd(),
     },
-  ], await testDefaults({
+    rootDir: process.cwd(),
+  }, await testDefaults({
     fastUnpack: false,
     registries: {
       default: 'https://registry.npmjs.org/',

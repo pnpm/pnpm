@@ -203,6 +203,7 @@ export default async function run (inputArgv: string[]) {
       process.exitCode = 0
       return
     }
+    config.allProjectsGraph = filterResults.allProjectsGraph
     config.selectedProjectsGraph = filterResults.selectedProjectsGraph
     if (isEmpty(config.selectedProjectsGraph)) {
       if (printLogs) {

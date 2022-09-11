@@ -14,8 +14,6 @@ import headless from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import { tempDir } from '@pnpm/prepare'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import readprojectsContext from '@pnpm/read-projects-context'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import fixtures from '@pnpm/test-fixtures'
 import rimraf from '@zkochan/rimraf'
@@ -657,22 +655,9 @@ test('installing with publicHoistPattern=* in a project with external lockfile',
   const lockfileDir = f.prepare('pkg-with-external-lockfile')
   const prefix = path.join(lockfileDir, 'pkg')
 
-  let { projects } = await readprojectsContext(
-    [
-      {
-        rootDir: prefix,
-      },
-    ],
-    { lockfileDir }
-  )
-
-  projects = await Promise.all(
-    projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
-  )
-
   await headless(await testDefaults({
     lockfileDir,
-    projects,
+    projects: [prefix],
     publicHoistPattern: '*',
   }))
 
@@ -725,23 +710,11 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
 test.skip('using side effects cache and hoistPattern=*', async () => {
   const lockfileDir = f.prepare('side-effects-of-subdep')
 
-  const { projects } = await readprojectsContext(
-    [
-      {
-        rootDir: lockfileDir,
-      },
-    ],
-    { lockfileDir }
-  )
-
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
     hoistPattern: '*',
     lockfileDir,
-    projects: await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
-    ),
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
@@ -765,21 +738,10 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
 test('installing in a workspace', async () => {
   const workspaceFixture = f.prepare('workspace')
 
-  let { projects } = await readprojectsContext(
-    [
-      {
-        rootDir: path.join(workspaceFixture, 'foo'),
-      },
-      {
-        rootDir: path.join(workspaceFixture, 'bar'),
-      },
-    ],
-    { lockfileDir: workspaceFixture }
-  )
-
-  projects = await Promise.all(
-    projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
-  )
+  const projects = [
+    path.join(workspaceFixture, 'foo'),
+    path.join(workspaceFixture, 'bar'),
+  ]
 
   await headless(await testDefaults({
     lockfileDir: workspaceFixture,
@@ -849,25 +811,13 @@ test('installing with node-linker=hoisted', async () => {
 test('installing in a workspace with node-linker=hoisted', async () => {
   const prefix = f.prepare('workspace2')
 
-  let { projects } = await readprojectsContext(
-    [
-      {
-        rootDir: path.join(prefix, 'foo'),
-      },
-      {
-        rootDir: path.join(prefix, 'bar'),
-      },
-    ],
-    { lockfileDir: prefix }
-  )
-
-  projects = await Promise.all(
-    projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
-  )
   await headless(await testDefaults({
     lockfileDir: prefix,
     nodeLinker: 'hoisted',
-    projects,
+    projects: [
+      path.join(prefix, 'foo'),
+      path.join(prefix, 'bar'),
+    ],
   }))
 
   expect(realpathSync('bar/node_modules/foo')).toBe(path.resolve('foo'))

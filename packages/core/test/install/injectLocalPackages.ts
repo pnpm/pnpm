@@ -69,21 +69,32 @@ test('inject local packages', async () => {
 
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-3'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: project1Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
     {
       buildIndex: 0,
       manifest: project3Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-3'),
     },
   ]
@@ -108,6 +119,7 @@ test('inject local packages', async () => {
     },
   }
   await mutateModules(importers, await testDefaults({
+    allProjects,
     workspacePackages,
   }))
 
@@ -175,6 +187,7 @@ test('inject local packages', async () => {
   await rimraf('project-3/node_modules')
 
   await mutateModules(importers, await testDefaults({
+    allProjects,
     frozenLockfile: true,
     workspacePackages,
   }))
@@ -192,8 +205,8 @@ test('inject local packages', async () => {
   expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
 
   // The injected project is updated when one of its dependencies needs to be updated
-  importers[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  await mutateModules(importers, await testDefaults({ workspacePackages }))
+  allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
+  await mutateModules(importers, await testDefaults({ allProjects, workspacePackages }))
   {
     const lockfile = await rootModules.readLockfile()
     expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
@@ -286,21 +299,32 @@ test('inject local packages declared via file protocol', async () => {
 
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-3'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: project1Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
     {
       buildIndex: 0,
       manifest: project3Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-3'),
     },
   ]
@@ -325,6 +349,7 @@ test('inject local packages declared via file protocol', async () => {
     },
   }
   await mutateModules(importers, await testDefaults({
+    allProjects,
     workspacePackages,
   }))
 
@@ -392,6 +417,7 @@ test('inject local packages declared via file protocol', async () => {
   await rimraf('project-3/node_modules')
 
   await mutateModules(importers, await testDefaults({
+    allProjects,
     frozenLockfile: true,
     workspacePackages,
   }))
@@ -409,9 +435,9 @@ test('inject local packages declared via file protocol', async () => {
   expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
 
   // The injected project is updated when one of its dependencies needs to be updated
-  importers[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  writeJsonFile('project-1/package.json', importers[0].manifest)
-  await mutateModules(importers, await testDefaults({ workspacePackages }))
+  allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
+  writeJsonFile('project-1/package.json', allProjects[0].manifest)
+  await mutateModules(importers, await testDefaults({ allProjects, workspacePackages }))
   {
     const lockfile = await rootModules.readLockfile()
     expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
@@ -494,21 +520,32 @@ test('inject local packages when the file protocol is used', async () => {
 
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-3'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: project1Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
     {
       buildIndex: 0,
       manifest: project3Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-3'),
     },
   ]
@@ -533,6 +570,7 @@ test('inject local packages when the file protocol is used', async () => {
     },
   }
   await mutateModules(importers, await testDefaults({
+    allProjects,
     workspacePackages,
   }))
 
@@ -595,6 +633,7 @@ test('inject local packages when the file protocol is used', async () => {
   await rimraf('project-3/node_modules')
 
   await mutateModules(importers, await testDefaults({
+    allProjects,
     frozenLockfile: true,
     workspacePackages,
   }))
@@ -612,9 +651,12 @@ test('inject local packages when the file protocol is used', async () => {
   expect(fs.readdirSync('node_modules/.pnpm').length).toBe(8)
 
   // The injected project is updated when one of its dependencies needs to be updated
-  importers[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  writeJsonFile('project-1/package.json', importers[0].manifest)
-  await mutateModules(importers, await testDefaults({ workspacePackages }))
+  allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
+  writeJsonFile('project-1/package.json', allProjects[0].manifest)
+  await mutateModules(importers, await testDefaults({
+    allProjects,
+    workspacePackages,
+  }))
   {
     const lockfile = await rootModules.readLockfile()
     expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
@@ -684,15 +726,23 @@ test('inject local packages and relink them after build', async () => {
 
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: project1Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
   ]
@@ -711,6 +761,7 @@ test('inject local packages and relink them after build', async () => {
     },
   }
   await mutateModules(importers, await testDefaults({
+    allProjects,
     workspacePackages,
   }))
 
@@ -754,6 +805,7 @@ test('inject local packages and relink them after build', async () => {
   await rimraf('project-2/node_modules')
 
   await mutateModules(importers, await testDefaults({
+    allProjects,
     frozenLockfile: true,
     workspacePackages,
   }))
@@ -806,19 +858,27 @@ test('inject local packages and relink them after build (file protocol is used)'
 
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: project1Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults())
+  await mutateModules(importers, await testDefaults({ allProjects }))
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -855,6 +915,7 @@ test('inject local packages and relink them after build (file protocol is used)'
   await rimraf('project-2/node_modules')
 
   await mutateModules(importers, await testDefaults({
+    allProjects,
     frozenLockfile: true,
   }))
 
@@ -928,21 +989,32 @@ test('inject local packages when node-linker is hoisted', async () => {
 
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-3'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: project1Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
     {
       buildIndex: 0,
       manifest: project3Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-3'),
     },
   ]
@@ -967,6 +1039,7 @@ test('inject local packages when node-linker is hoisted', async () => {
     },
   }
   await mutateModules(importers, await testDefaults({
+    allProjects,
     nodeLinker: 'hoisted',
     workspacePackages,
   }))
@@ -1081,21 +1154,32 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
 
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-3'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: project1Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
     {
       buildIndex: 0,
       manifest: project3Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-3'),
     },
   ]
@@ -1120,6 +1204,7 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
     },
   }
   await mutateModules(importers, await testDefaults({
+    allProjects,
     nodeLinker: 'hoisted',
     workspacePackages,
     hooks: {
@@ -1249,21 +1334,32 @@ test('peer dependency of injected project should be resolved correctly', async (
 
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-3'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: project1Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
     {
       buildIndex: 0,
       manifest: project3Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-3'),
     },
   ]
@@ -1288,6 +1384,7 @@ test('peer dependency of injected project should be resolved correctly', async (
     },
   }
   await mutateModules(importers, await testDefaults({
+    allProjects,
     nodeLinker: 'hoisted',
     workspacePackages,
   }))
@@ -1337,15 +1434,23 @@ test('do not modify the manifest of the injected workpspace project', async () =
 
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: project1Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: project2Manifest,
-      mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
   ]
@@ -1364,6 +1469,7 @@ test('do not modify the manifest of the injected workpspace project', async () =
     },
   }
   const [project1] = await mutateModules(importers, await testDefaults({
+    allProjects,
     workspacePackages,
   }))
   expect(project1.manifest).toStrictEqual({

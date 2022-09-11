@@ -11,9 +11,7 @@ import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { DependenciesField } from '@pnpm/types'
-import {
-  mutateModules,
-} from '@pnpm/core'
+import { mutateModulesInSingleProject } from '@pnpm/core'
 import pick from 'ramda/src/pick'
 import without from 'ramda/src/without'
 import renderHelp from 'render-help'
@@ -129,6 +127,7 @@ export const completion: CompletionFunc = async (cliOpts, params) => {
 export async function handler (
   opts: CreateStoreControllerOptions & Pick<Config,
   | 'allProjects'
+  | 'allProjectsGraph'
   | 'bail'
   | 'bin'
   | 'dev'
@@ -161,7 +160,13 @@ export async function handler (
     optionalDependencies: opts.optional !== false,
   }
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
-    await recursive(opts.allProjects, params, { ...opts, include, selectedProjectsGraph: opts.selectedProjectsGraph, workspaceDir: opts.workspaceDir }, 'remove')
+    await recursive(opts.allProjects, params, {
+      ...opts,
+      allProjectsGraph: opts.allProjectsGraph!,
+      include,
+      selectedProjectsGraph: opts.selectedProjectsGraph,
+      workspaceDir: opts.workspaceDir,
+    }, 'remove')
     return
   }
   const store = await createOrConnectStoreController(opts)
@@ -192,17 +197,15 @@ export async function handler (
       targetDependenciesField,
     })
   }
-  const [mutationResult] = await mutateModules(
-    [
-      {
-        binsDir: opts.bin,
-        dependencyNames: params,
-        manifest: currentManifest,
-        mutation: 'uninstallSome',
-        rootDir: opts.dir,
-        targetDependenciesField,
-      },
-    ],
+  const mutationResult = await mutateModulesInSingleProject(
+    {
+      binsDir: opts.bin,
+      dependencyNames: params,
+      manifest: currentManifest,
+      mutation: 'uninstallSome',
+      rootDir: opts.dir,
+      targetDependenciesField,
+    },
     removeOpts
   )
   await writeProjectManifest(mutationResult.manifest)

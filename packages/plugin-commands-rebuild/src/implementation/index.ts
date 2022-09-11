@@ -77,7 +77,7 @@ type PackageSelector = string | {
 }
 
 export async function rebuildSelectedPkgs (
-  projects: Array<{ manifest: ProjectManifest, rootDir: string }>,
+  projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions
 ) {
@@ -86,7 +86,7 @@ export async function rebuildSelectedPkgs (
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContext(projects, opts)
+  const ctx = await getContext({ ...opts, allProjects: projects })
 
   if (!ctx.currentLockfile || (ctx.currentLockfile.packages == null)) return
   const packages = ctx.currentLockfile.packages
@@ -131,7 +131,7 @@ export async function rebuildProjects (
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContext(projects, opts)
+  const ctx = await getContext({ ...opts, allProjects: projects })
 
   let idsToRebuild: string[] = []
 
@@ -164,11 +164,11 @@ export async function rebuildProjects (
   }
   await runLifecycleHooksConcurrently(
     ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare'],
-    ctx.projects,
+    Object.values(ctx.projects),
     opts.childConcurrency || 5,
     scriptsOpts
   )
-  for (const { id, manifest } of ctx.projects) {
+  for (const { id, manifest } of Object.values(ctx.projects)) {
     if (((manifest?.scripts) != null) && (!opts.pending || ctx.pendingBuilds.includes(id))) {
       ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(id), 1)
     }
@@ -227,7 +227,7 @@ async function _rebuild (
     virtualStoreDir: string
     rootModulesDir: string
     currentLockfile: Lockfile
-    projects: Array<{ id: string, rootDir: string }>
+    projects: Record<string, { id: string, rootDir: string }>
     extraBinPaths: string[]
     extraNodePaths: string[]
   },
@@ -241,7 +241,7 @@ async function _rebuild (
   getSubgraphToBuild(
     lockfileWalker(
       ctx.currentLockfile,
-      ctx.projects.map(({ id }) => id),
+      Object.values(ctx.projects).map(({ id }) => id),
       {
         include: {
           dependencies: opts.production,
@@ -324,7 +324,7 @@ async function _rebuild (
         return linkBins(modules, binPath, { warn })
       }))
   )
-  await Promise.all(ctx.projects.map(async ({ rootDir }) => limitLinking(async () => {
+  await Promise.all(Object.values(ctx.projects).map(async ({ rootDir }) => limitLinking(async () => {
     const modules = path.join(rootDir, 'node_modules')
     const binPath = path.join(modules, '.bin')
     return linkBins(modules, binPath, {
