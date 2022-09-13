@@ -36,6 +36,11 @@ test('matcher()', () => {
     expect(match('eslint-plugin-bar')).toBe(false)
   }
   {
+    const match = matcher(['!eslint-plugin-bar', 'eslint-*'])
+    expect(match('eslint-plugin-foo')).toBe(true)
+    expect(match('eslint-plugin-bar')).toBe(false)
+  }
+  {
     const match = matcher(['eslint-*', '!eslint-plugin-*', 'eslint-plugin-bar'])
     expect(match('eslint-config-foo')).toBe(true)
     expect(match('eslint-plugin-foo')).toBe(false)
