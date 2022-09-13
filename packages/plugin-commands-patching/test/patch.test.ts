@@ -102,8 +102,6 @@ describe('patch and commit', () => {
 
     expect(userPatchDir).toContain(tempDir)
     expect(fs.existsSync(userPatchDir)).toBe(true)
-    expect(fs.existsSync(userPatchDir.replace('/user', '/source'))).toBe(true)
-
     expect(fs.existsSync(path.join(userPatchDir, 'lib/index.js'))).toBe(true)
 
     fs.appendFileSync(path.join(userPatchDir, 'lib/index.js'), '\n// test patching', 'utf8')
@@ -120,6 +118,7 @@ describe('patch and commit', () => {
     const patchContent = fs.readFileSync('patches/safe-execa@0.1.2.patch', 'utf8')
     expect(patchContent).toContain('diff --git')
     expect(patchContent).toContain('// test patching')
+    expect(patchContent).toContain('No newline at end of file.')
     expect(fs.readFileSync('node_modules/safe-execa/lib/index.js', 'utf8')).toContain('// test patching')
   })
 })
