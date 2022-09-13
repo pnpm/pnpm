@@ -7,6 +7,7 @@ import {
 
 export default function getOptionsFromRootManifest (manifest: ProjectManifest): {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
+  allowNonAppliedPatches?: boolean
   overrides?: Record<string, string>
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
@@ -23,9 +24,11 @@ export default function getOptionsFromRootManifest (manifest: ProjectManifest): 
   const packageExtensions = manifest.pnpm?.packageExtensions
   const peerDependencyRules = manifest.pnpm?.peerDependencyRules
   const allowedDeprecatedVersions = manifest.pnpm?.allowedDeprecatedVersions
+  const allowNonAppliedPatches = manifest.pnpm?.allowNonAppliedPatches
   const patchedDependencies = manifest.pnpm?.patchedDependencies
   const settings = {
     allowedDeprecatedVersions,
+    allowNonAppliedPatches,
     overrides,
     neverBuiltDependencies,
     packageExtensions,

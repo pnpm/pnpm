@@ -4,6 +4,7 @@ import PnpmError from '@pnpm/error'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
+import logger from '@pnpm/logger'
 import {
   Lockfile,
   ProjectSnapshot,
@@ -83,6 +84,7 @@ export default async function (
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
+    allowNonAppliedPatches?: boolean
   }
 ) {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -110,7 +112,7 @@ export default async function (
     (opts.forceFullResolution || !opts.wantedLockfile.packages?.length) &&
     Object.keys(opts.wantedLockfile.importers).length === importers.length
   ) {
-    verifyPatches(Object.keys(opts.patchedDependencies), appliedPatches)
+    verifyPatches(Object.keys(opts.patchedDependencies), appliedPatches, opts.allowNonAppliedPatches)
   }
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
@@ -266,12 +268,21 @@ export default async function (
   }
 }
 
-function verifyPatches (patchedDependencies: string[], appliedPatches: Set<string>) {
+function verifyPatches (patchedDependencies: string[], appliedPatches: Set<string>, allowNonAppliedPatches: boolean = false) {
   const nonAppliedPatches: string[] = patchedDependencies.filter((patchKey) => !appliedPatches.has(patchKey))
   if (nonAppliedPatches.length) {
-    throw new PnpmError('PATCH_NOT_APPLIED', `The following patches were not applied: ${nonAppliedPatches.join(', ')}`, {
-      hint: 'Either remove them from "patchedDependencies" or update them to match packages in your dependencies.',
-    })
+    const code = 'PATCH_NOT_APPLIED'
+    const message = `The following patches were not applied: ${nonAppliedPatches.join(', ')}`
+    if (allowNonAppliedPatches) {
+      logger.warn({
+        prefix: code,
+        message,
+      })
+    } else {
+      throw new PnpmError(code, message, {
+        hint: 'Either remove them from "patchedDependencies" or update them to match packages in your dependencies.',
+      })
+    }
   }
 }
 

@@ -129,6 +129,7 @@ export type ProjectManifest = BaseManifest & {
     packageExtensions?: Record<string, PackageExtension>
     peerDependencyRules?: PeerDependencyRules
     allowedDeprecatedVersions?: AllowedDeprecatedVersions
+    allowNonAppliedPatches?: boolean
     patchedDependencies?: Record<string, string>
   }
   private?: boolean
