@@ -8,21 +8,25 @@ export default function matcher (patterns: string[] | string): Matcher {
   case 0: return () => false
   case 1: return matcherWhenOnlyOnePattern(patterns[0])
   }
-  return (input: string) => patterns.reduce((result, pattern) => {
+  const matchArr: Array<{ match: Matcher, negation: boolean }> = []
+  for (const pattern of patterns) {
     if (isIgnorePattern(pattern)) {
-      const match = matcherFromPattern(pattern.substring(1))
-      if (match(input)) {
-        return false
-      }
+      matchArr.push({ negation: true, match: matcherFromPattern(pattern.substring(1)) })
     } else {
-      const match = matcherFromPattern(pattern)
-      if (match(input)) {
-        return true
+      matchArr.push({ negation: false, match: matcherFromPattern(pattern) })
+    }
+  }
+  return (input: string) => {
+    let result = false
+    for (const matcher of matchArr) {
+      if (matcher.negation) {
+        result = !matcher.match(input)
+      } else if (matcher.match(input)) {
+        result = true
       }
     }
-
     return result
-  }, false)
+  }
 }
 
 function matcherFromPattern (pattern: string): Matcher {
