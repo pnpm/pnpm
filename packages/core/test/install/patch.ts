@@ -98,6 +98,7 @@ test('patch package', async () => {
 
 test('patch package reports warning if not all patches are applied and allowNonAppliedPatches is set', async () => {
   prepareEmpty()
+  const reporter = jest.fn()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
@@ -110,12 +111,19 @@ test('patch package reports warning if not all patches are applied and allowNonA
     sideEffectsCacheWrite: true,
     patchedDependencies,
     allowNonAppliedPatches: true,
+    reporter,
   }, {}, {}, { packageImportMethod: 'hardlink' })
   await install({
     dependencies: {
       'is-positive': '1.0.0',
     },
   }, opts)
+  expect(reporter).toBeCalledWith(
+    expect.objectContaining({
+      level: 'warn',
+      message: 'The following patches were not applied: is-negative@1.0.0',
+    })
+  )
 })
 
 test('patch package throws an exception if not all patches are applied', async () => {

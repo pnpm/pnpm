@@ -4,7 +4,7 @@ import PnpmError from '@pnpm/error'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
-import logger from '@pnpm/logger'
+import globalWarn from '@pnpm/logger'
 import {
   Lockfile,
   ProjectSnapshot,
@@ -271,15 +271,11 @@ export default async function (
 function verifyPatches (patchedDependencies: string[], appliedPatches: Set<string>, allowNonAppliedPatches: boolean = false) {
   const nonAppliedPatches: string[] = patchedDependencies.filter((patchKey) => !appliedPatches.has(patchKey))
   if (nonAppliedPatches.length) {
-    const code = 'PATCH_NOT_APPLIED'
     const message = `The following patches were not applied: ${nonAppliedPatches.join(', ')}`
     if (allowNonAppliedPatches) {
-      logger.warn({
-        prefix: code,
-        message,
-      })
+      globalWarn(message)
     } else {
-      throw new PnpmError(code, message, {
+      throw new PnpmError('PATCH_NOT_APPLIED', message, {
         hint: 'Either remove them from "patchedDependencies" or update them to match packages in your dependencies.',
       })
     }
