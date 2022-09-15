@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { readWantedLockfile, Lockfile } from '@pnpm/lockfile-file'
 import { ProjectManifest } from '@pnpm/types'
+import { createUpdateOptions, FormatPluginFnOptions } from '@pnpm/meta-updater'
 import isSubdir from 'is-subdir'
 import loadJsonFile from 'load-json-file'
 import normalizePath from 'normalize-path'
@@ -20,8 +21,11 @@ export default async (workspaceDir: string) => {
   if (lockfile == null) {
     throw new Error('no lockfile found')
   }
-  return {
-    'package.json': (manifest: ProjectManifest & { keywords?: string[] }, dir: string) => {
+  return createUpdateOptions({
+    'package.json': (manifest: ProjectManifest & { keywords?: string[] } | null, { dir }) => {
+      if (!manifest) {
+        return manifest;
+      }
       if (manifest.name === 'monorepo-root') {
         manifest.scripts!['release'] = `pnpm --filter=@pnpm/exe publish --tag=${NEXT_TAG} --access=public && pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public && pnpm publish --filter=pnpm --tag=${NEXT_TAG} --access=public`
         return manifest
@@ -60,7 +64,7 @@ export default async (workspaceDir: string) => {
       lockfile,
       workspaceDir,
     }),
-  }
+  })
 }
 
 async function updateTSConfig (
@@ -68,9 +72,11 @@ async function updateTSConfig (
     lockfile: Lockfile
     workspaceDir: string
   },
-  tsConfig: object,
-  dir: string,
-  manifest: ProjectManifest
+  tsConfig: object | null,
+  {
+    dir,
+    manifest,
+  }: FormatPluginFnOptions
 ) {
   if (tsConfig == null) return tsConfig
   if (manifest.name === '@pnpm/tsconfig') return tsConfig
