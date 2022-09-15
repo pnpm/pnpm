@@ -1,5 +1,41 @@
 # pnpm
 
+## 7.12.0-0
+
+### Minor Changes
+
+- A new setting supported in the pnpm section of the `package.json` file: `allowNonAppliedPatches`. When it is set to `true`, non-applied patches will not cause an error, just a warning will be printed. For example:
+
+  ```json
+  {
+    "name": "foo",
+    "version": "1.0.0",
+    "pnpm": {
+      "patchedDependencies": {
+        "express@4.18.1": "patches/express@4.18.1.patch"
+      },
+      "allowNonAppliedPatches": true
+    }
+  }
+  ```
+
+- Now it is possible to exclude packages from hoisting by prepending a `!` to the pattern. This works with both the `hoist-pattern` and `public-hoist-pattern` settings. For instance:
+
+  ```
+  public-hoist-pattern[]='*types*'
+  public-hoist-pattern[]='!@types/react'
+
+  hoist-pattern[]='*eslint*'
+  hoist-pattern[]='!*eslint-plugin*'
+  ```
+
+  Ref [#5272](https://github.com/pnpm/pnpm/issues/5272)
+
+### Patch Changes
+
+- `pnpm patch` should work on files that don't have an end of line [#5320](https://github.com/pnpm/pnpm/issues/5320).
+- Fix `pnpm patch` using a custom `--edit-dir`.
+
 ## 7.11.0
 
 ### Minor Changes
