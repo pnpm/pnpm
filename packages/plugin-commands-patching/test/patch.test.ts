@@ -157,7 +157,6 @@ describe('patching should work when there is a no EOL in the patched file', () =
     expect(fs.existsSync(userPatchDir)).toBe(true)
     expect(fs.existsSync(path.join(userPatchDir, 'lib/index.js'))).toBe(true)
 
-
     fs.appendFileSync(path.join(userPatchDir, 'lib/index.js'), '// patch without newline', 'utf8')
 
     await patchCommit.handler({
