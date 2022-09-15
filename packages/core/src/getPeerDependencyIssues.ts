@@ -51,6 +51,7 @@ export async function getPeerDependencyIssues (
     {
       currentLockfile: ctx.currentLockfile,
       allowedDeprecatedVersions: {},
+      allowNonAppliedPatches: false,
       defaultUpdateDepth: -1,
       dryRun: true,
       engineStrict: false,

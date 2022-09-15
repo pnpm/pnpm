@@ -4,6 +4,7 @@ import PnpmError from '@pnpm/error'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
+import { globalWarn } from '@pnpm/logger'
 import {
   Lockfile,
   ProjectSnapshot,
@@ -83,6 +84,7 @@ export default async function (
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
+    allowNonAppliedPatches?: boolean
   }
 ) {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -110,7 +112,11 @@ export default async function (
     (opts.forceFullResolution || !opts.wantedLockfile.packages?.length) &&
     Object.keys(opts.wantedLockfile.importers).length === importers.length
   ) {
-    verifyPatches(Object.keys(opts.patchedDependencies), appliedPatches)
+    verifyPatches({
+      patchedDependencies: Object.keys(opts.patchedDependencies),
+      appliedPatches,
+      allowNonAppliedPatches: opts.allowNonAppliedPatches,
+    })
   }
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
@@ -266,13 +272,27 @@ export default async function (
   }
 }
 
-function verifyPatches (patchedDependencies: string[], appliedPatches: Set<string>) {
-  const nonAppliedPatches: string[] = patchedDependencies.filter((patchKey) => !appliedPatches.has(patchKey))
-  if (nonAppliedPatches.length) {
-    throw new PnpmError('PATCH_NOT_APPLIED', `The following patches were not applied: ${nonAppliedPatches.join(', ')}`, {
-      hint: 'Either remove them from "patchedDependencies" or update them to match packages in your dependencies.',
-    })
+function verifyPatches (
+  {
+    patchedDependencies,
+    appliedPatches,
+    allowNonAppliedPatches,
+  }: {
+    patchedDependencies: string[]
+    appliedPatches: Set<string>
+    allowNonAppliedPatches: boolean
   }
+): void {
+  const nonAppliedPatches: string[] = patchedDependencies.filter((patchKey) => !appliedPatches.has(patchKey))
+  if (!nonAppliedPatches.length) return
+  const message = `The following patches were not applied: ${nonAppliedPatches.join(', ')}`
+  if (allowNonAppliedPatches) {
+    globalWarn(message)
+    return
+  }
+  throw new PnpmError('PATCH_NOT_APPLIED', message, {
+    hint: 'Either remove them from "patchedDependencies" or update them to match packages in your dependencies.',
+  })
 }
 
 async function finishLockfileUpdates (

@@ -98,6 +98,7 @@ export interface StrictInstallOptions {
   modulesCacheMaxAge: number
   peerDependencyRules: PeerDependencyRules
   allowedDeprecatedVersions: AllowedDeprecatedVersions
+  allowNonAppliedPatches: boolean
   preferSymlinkedExecutables: boolean
   resolutionMode: 'highest' | 'time-based'
 
@@ -124,6 +125,7 @@ const defaults = async (opts: InstallOptions) => {
   }
   return {
     allowedDeprecatedVersions: {},
+    allowNonAppliedPatches: false,
     autoInstallPeers: false,
     childConcurrency: 5,
     depth: 0,

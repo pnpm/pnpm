@@ -819,6 +819,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     {
       allowBuild: createAllowBuildFunction(opts),
       allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
+      allowNonAppliedPatches: opts.allowNonAppliedPatches,
       autoInstallPeers: opts.autoInstallPeers,
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: (opts.update || (opts.updateMatching != null)) ? opts.depth : -1,

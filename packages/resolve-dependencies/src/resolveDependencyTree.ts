@@ -62,6 +62,7 @@ export interface ResolveDependenciesOptions {
   autoInstallPeers?: boolean
   allowBuild?: (pkgName: string) => boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
+  allowNonAppliedPatches: boolean
   currentLockfile: Lockfile
   dryRun: boolean
   engineStrict: boolean
