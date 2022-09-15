@@ -120,8 +120,7 @@ describe('patching should work when there is a no EOL in the patched file', () =
       userConfig: {},
     }
   })
-
-  test('adding content in newline should works fine', async () => {
+  it('should work when adding content on a newline', async () => {
     const output = await patch.handler(defaultPatchOption, ['safe-execa@0.1.2'])
     const userPatchDir = output.substring(output.indexOf(':') + 1).trim()
     const tempDir = os.tmpdir()
@@ -147,8 +146,7 @@ describe('patching should work when there is a no EOL in the patched file', () =
     expect(patchContent).not.toContain('No newline at end of file')
     expect(fs.readFileSync('node_modules/safe-execa/lib/index.js', 'utf8')).toContain('// test patching')
   })
-
-  test('append content should works fine', async () => {
+  it('should work fine when new content is appended', async () => {
     const output = await patch.handler(defaultPatchOption, ['safe-execa@0.1.2'])
     const userPatchDir = output.substring(output.indexOf(':') + 1).trim()
     const tempDir = os.tmpdir()
