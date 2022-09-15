@@ -4784,6 +4784,9 @@ importers:
       is-subdir:
         specifier: ^1.2.0
         version: 1.2.0
+      p-defer:
+        specifier: ^3.0.0
+        version: 3.0.0
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0

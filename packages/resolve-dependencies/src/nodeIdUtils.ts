@@ -1,3 +1,8 @@
+export function nodeIdContains (nodeId: string, pkgId: string) {
+  const pkgIds = splitNodeId(nodeId)
+  return pkgIds.includes(pkgId)
+}
+
 export function nodeIdContainsSequence (nodeId: string, pkgId1: string, pkgId2: string) {
   const pkgIds = splitNodeId(nodeId)
   pkgIds.pop()

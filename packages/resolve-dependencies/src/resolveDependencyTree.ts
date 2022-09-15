@@ -125,6 +125,7 @@ export default async function<T> (
     appliedPatches: new Set<string>(),
     updatedSet: new Set<string>(),
     workspacePackages: opts.workspacePackages,
+    missingPeersOfChildrenByPkgId: {},
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
