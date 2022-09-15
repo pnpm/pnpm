@@ -98,4 +98,5 @@ async function diffFolders (folderA: string, folderB: string) {
     .replace(new RegExp(`(a|b)${escapeStringRegexp(`/${normalizePath(folderBN)}/`)}`, 'g'), '$1/')
     .replace(new RegExp(escapeStringRegexp(`${folderAN}/`), 'g'), '')
     .replace(new RegExp(escapeStringRegexp(`${folderBN}/`), 'g'), '')
+    .replace(/\n\\ No newline at end of file$/, '')
 }
