@@ -187,7 +187,6 @@ export type PkgAddress = {
   rootDir: string
   missingPeers: MissingPeers
   missingPeersOfChildren?: MissingPeersOfChildren
-  resolvedPeers: ResolvedPeers
   publishedAt?: string
 } & ({
   isLinkedDependency: true
@@ -431,7 +430,7 @@ async function resolveDependenciesOfImporters (
     return {
       missingPeers: allMissingPeers,
       pkgAddresses,
-      resolvedPeers: [...pkgAddresses, ...childrenResults, ...postponedPeersResolution].reduce((acc, { resolvedPeers }) => Object.assign(acc, resolvedPeers), {}),
+      resolvedPeers: [...childrenResults, ...postponedPeersResolution].reduce((acc, { resolvedPeers }) => Object.assign(acc, resolvedPeers), {}),
     }
   }, importers, resolveResults))
   return {
@@ -491,10 +490,10 @@ export async function resolveDependencies (
     }
   })
   const newPreferredVersions = { ...preferredVersions }
-  const newNewParentPkgAliases = {}
+  const currentParentPkgAliases = {}
   for (const pkgAddress of pkgAddresses) {
-    if (newNewParentPkgAliases[pkgAddress.alias] !== true) {
-      newNewParentPkgAliases[pkgAddress.alias] = pkgAddress
+    if (currentParentPkgAliases[pkgAddress.alias] !== true) {
+      currentParentPkgAliases[pkgAddress.alias] = pkgAddress
     }
     if (pkgAddress.updated) {
       ctx.updatedSet.add(pkgAddress.alias)
@@ -508,7 +507,7 @@ export async function resolveDependencies (
   }
   const newParentPkgAliases = {
     ...options.parentPkgAliases,
-    ...newNewParentPkgAliases,
+    ...currentParentPkgAliases,
   }
   const postponedResolutionOpts = {
     preferredVersions: newPreferredVersions,
@@ -533,7 +532,7 @@ export async function resolveDependencies (
       childrenResults,
       pkgAddresses,
       parentPkgAliases: options.parentPkgAliases,
-      newNewParentPkgAliases,
+      currentParentPkgAliases,
       postponedPeersResolutionQueue,
     }),
   }
@@ -542,14 +541,14 @@ export async function resolveDependencies (
 async function startResolvingPeers (
   {
     childrenResults,
+    currentParentPkgAliases,
     parentPkgAliases,
     pkgAddresses,
-    newNewParentPkgAliases,
     postponedPeersResolutionQueue,
   }: {
-    parentPkgAliases: ParentPkgAliases
-    newNewParentPkgAliases: ParentPkgAliases
     childrenResults: PeersResolutionResult[]
+    currentParentPkgAliases: ParentPkgAliases
+    parentPkgAliases: ParentPkgAliases
     pkgAddresses: PkgAddress[]
     postponedPeersResolutionQueue: PostponedPeersResolutionFunction[]
   }
@@ -561,7 +560,10 @@ async function startResolvingPeers (
     [
       ...pkgAddresses.map((pkgAddress) => ({
         ...pkgAddress,
-        missingPeers: fromPairs(Object.entries(pkgAddress.missingPeers || {}).filter(([peerName]) => !newNewParentPkgAliases[peerName])),
+        missingPeers: fromPairs(
+          Object.entries(pkgAddress.missingPeers || {})
+            .filter(([peerName]) => !currentParentPkgAliases[peerName])
+        ),
       })),
       ...childrenResults,
       ...results,
@@ -569,7 +571,7 @@ async function startResolvingPeers (
   )
   return {
     missingPeers: allMissingPeers,
-    resolvedPeers: [...pkgAddresses, ...childrenResults, ...results].reduce((acc, { resolvedPeers }) => Object.assign(acc, resolvedPeers), {}),
+    resolvedPeers: [...childrenResults, ...results].reduce((acc, { resolvedPeers }) => Object.assign(acc, resolvedPeers), {}),
   }
 }
 
@@ -1290,7 +1292,7 @@ async function resolveDependency (
     missingPeersOfChildren,
     pkgId: pkgResponse.body.id,
     rootDir,
-    ...getMissingPeers(pkg),
+    missingPeers: getMissingPeers(pkg),
 
     // Next fields are actually only needed when isNew = true
     installable,
@@ -1315,13 +1317,12 @@ async function getManifestFromResponse (
 
 function getMissingPeers (pkg: PackageManifest) {
   const missingPeers = {} as MissingPeers
-  const resolvedPeers = {} as ResolvedPeers
   for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
     if (!pkg.peerDependenciesMeta?.[peerName]?.optional) {
       missingPeers[peerName] = peerVersion
     }
   }
-  return { missingPeers, resolvedPeers }
+  return missingPeers
 }
 
 function pkgIsLeaf (pkg: PackageManifest) {
