@@ -268,7 +268,7 @@ test('automatically install peer dependency when it is a dev dependency in anoth
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/4820
-test('auto install peer deps in a workspace', async () => {
+test('auto install peer deps in a workspace. test #1', async () => {
   prepareEmpty()
   await mutateModules([
     {
@@ -296,7 +296,7 @@ test('auto install peer deps in a workspace', async () => {
   ], await testDefaults({ autoInstallPeers: true }))
 })
 
-test('auto install peer deps in a workspace', async () => {
+test('auto install peer deps in a workspace. test #2', async () => {
   prepareEmpty()
   await mutateModules([
     {

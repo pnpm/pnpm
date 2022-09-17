@@ -158,7 +158,7 @@ export interface ResolutionContext {
   virtualStoreDir: string
   updateMatching?: (pkgName: string) => boolean
   workspacePackages?: WorkspacePackages
-  missingPeersOfChildrenByPkgId: Record<string, { parentNodeId: string, missingPeers: MissingPeersOfChildren }>
+  missingPeersOfChildrenByPkgId: Record<string, { parentNodeId: string, missingPeersOfChildren: MissingPeersOfChildren }>
 }
 
 export type MissingPeers = Record<string, string>
@@ -293,15 +293,14 @@ export async function resolveRootDependencies (
       if (!Object.keys(importerResolutionResult.missingPeers).length) break
       const wantedDependencies = getNonDevWantedDependencies({ dependencies: importerResolutionResult.missingPeers })
 
-      const importerResolutionResultt = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
+      const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
         ...options,
         parentPkgAliases,
         publishedBy,
       })
       importerResolutionResult = {
-        pkgAddresses: importerResolutionResultt.pkgAddresses,
-        missingPeers: (await importerResolutionResultt.peers).missingPeers,
-        resolvedPeers: (await importerResolutionResultt.peers).resolvedPeers,
+        pkgAddresses: resolveDependenciesResult.pkgAddresses,
+        ...(await resolveDependenciesResult.resolvingPeers),
       }
       pkgAddresses.push(...importerResolutionResult.pkgAddresses)
     }
@@ -312,13 +311,13 @@ export async function resolveRootDependencies (
 
 interface ResolvedDependenciesResult {
   pkgAddresses: Array<PkgAddress | LinkedDependency>
-  peers: Promise<{
+  resolvingPeers: Promise<{
     missingPeers: MissingPeers
     resolvedPeers: ResolvedPeers
   }>
 }
 
-interface ResolvedDependenciesResultWithoutPromise {
+interface PkgAddressesByImportersWithoutPeers {
   pkgAddresses: Array<PkgAddress | LinkedDependency>
   missingPeers: MissingPeers
   resolvedPeers: ResolvedPeers
@@ -333,7 +332,7 @@ export interface ImporterToResolve {
 }
 
 interface ResolveDependenciesOfImportersResult {
-  pkgAddressesByImportersWithoutPeers: ResolvedDependenciesResultWithoutPromise[]
+  pkgAddressesByImportersWithoutPeers: PkgAddressesByImportersWithoutPeers[]
   publishedBy?: Date
   time?: Record<string, string>
 }
@@ -523,14 +522,14 @@ export async function resolveDependencies (
   )
   if (!ctx.autoInstallPeers) {
     return {
-      peers: Promise.resolve({
+      resolvingPeers: Promise.resolve({
         missingPeers: {},
         resolvedPeers: {},
       }),
       pkgAddresses,
     }
   }
-  const peers = (async () => {
+  const resolvingPeers = (async () => {
     const results = await Promise.all(
       postponedMissingPeersQueue.map((postponedMissingPeers) => postponedMissingPeers(postponedResolutionOpts))
     )
@@ -551,7 +550,7 @@ export async function resolveDependencies (
   })()
   return {
     pkgAddresses,
-    peers,
+    resolvingPeers,
   }
 }
 
@@ -678,8 +677,8 @@ async function resolveDependenciesOfDependency (
     resolveDependencyResult,
     postponedResolution: async (postponedResolutionOpts) => {
       try {
-        const result = await postponedResolution(postponedResolutionOpts)
-        const missingPeers = (await result.peers).missingPeers
+        const resolvingPeers = await postponedResolution(postponedResolutionOpts)
+        const missingPeers = resolvingPeers.missingPeers
         resolveDependencyResult.missingPeersOfChildren!.resolve(missingPeers)
         const newMissing = {} as MissingPeers
         const resolvedPeers = {} as ResolvedPeers
@@ -748,7 +747,7 @@ async function resolveChildren (
   const wantedDependencies = getNonDevWantedDependencies(parentPkg.pkg)
   const {
     pkgAddresses,
-    peers,
+    resolvingPeers,
   } = await resolveDependencies(ctx, preferredVersions, wantedDependencies,
     {
       currentDepth: parentDepth + 1,
@@ -777,9 +776,7 @@ async function resolveChildren (
     installable: parentPkg.installable,
     resolvedPackage: ctx.resolvedPackagesByDepPath[parentPkg.depPath],
   }
-  return {
-    peers,
-  }
+  return resolvingPeers
 }
 
 function getDepsToResolve (
@@ -1265,7 +1262,7 @@ async function resolveDependency (
   if (!nodeIdContains(options.parentPkg.nodeId, depPath)) {
     if (ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id]) {
       if (!options.parentPkg.nodeId.startsWith(ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].parentNodeId)) {
-        missingPeersOfChildren = ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeers
+        missingPeersOfChildren = ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren
       }
     } else {
       const p = pDefer<MissingPeers>()
@@ -1276,7 +1273,7 @@ async function resolveDependency (
       }
       ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id] = {
         parentNodeId: options.parentPkg.nodeId,
-        missingPeers: missingPeersOfChildren,
+        missingPeersOfChildren,
       }
     }
   }
