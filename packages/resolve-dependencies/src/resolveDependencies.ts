@@ -646,21 +646,7 @@ async function resolveDependenciesOfDependency (
       missingPeersPromise: resolveDependencyResult.missingPeersOfChildren != null
         ? async (postponedResolutionOpts) => {
           const missingPeers = await resolveDependencyResult.missingPeersOfChildren!.get()
-          const newMissing = {} as MissingPeers
-          const resolvedPeers = {} as ResolvedPeers
-          for (const [peerName, peerVersion] of Object.entries(missingPeers)) {
-            if (postponedResolutionOpts.parentPkgAliases[peerName]) {
-              if (postponedResolutionOpts.parentPkgAliases[peerName] !== true) {
-                resolvedPeers[peerName] = postponedResolutionOpts.parentPkgAliases[peerName] as PkgAddress
-              }
-            } else {
-              newMissing[peerName] = peerVersion
-            }
-          }
-          return {
-            missingPeers: newMissing,
-            resolvedPeers,
-          }
+          return filterMissingPeers(missingPeers, postponedResolutionOpts.parentPkgAliases)
         }
         : undefined,
     }
@@ -676,30 +662,28 @@ async function resolveDependenciesOfDependency (
   return {
     resolveDependencyResult,
     postponedResolution: async (postponedResolutionOpts) => {
-      try {
-        const resolvingPeers = await postponedResolution(postponedResolutionOpts)
-        const missingPeers = resolvingPeers.missingPeers
-        resolveDependencyResult.missingPeersOfChildren!.resolve(missingPeers)
-        const newMissing = {} as MissingPeers
-        const resolvedPeers = {} as ResolvedPeers
-        for (const [peerName, peerVersion] of Object.entries(missingPeers)) {
-          if (postponedResolutionOpts.parentPkgAliases[peerName]) {
-            if (postponedResolutionOpts.parentPkgAliases[peerName] !== true) {
-              resolvedPeers[peerName] = postponedResolutionOpts.parentPkgAliases[peerName] as PkgAddress
-            }
-          } else {
-            newMissing[peerName] = peerVersion
-          }
-        }
-        return {
-          resolvedPeers,
-          missingPeers: newMissing,
-        }
-      } catch (err) {
-        resolveDependencyResult.missingPeersOfChildren!.reject(err as Error)
-        throw err
-      }
+      const { missingPeers } = await postponedResolution(postponedResolutionOpts)
+      resolveDependencyResult.missingPeersOfChildren!.resolve(missingPeers)
+      return filterMissingPeers(missingPeers, postponedResolutionOpts.parentPkgAliases)
     },
+  }
+}
+
+function filterMissingPeers (missingPeers: MissingPeers, parentPkgAliases: ParentPkgAliases) {
+  const newMissing = {} as MissingPeers
+  const resolvedPeers = {} as ResolvedPeers
+  for (const [peerName, peerVersion] of Object.entries(missingPeers)) {
+    if (parentPkgAliases[peerName]) {
+      if (parentPkgAliases[peerName] !== true) {
+        resolvedPeers[peerName] = parentPkgAliases[peerName] as PkgAddress
+      }
+    } else {
+      newMissing[peerName] = peerVersion
+    }
+  }
+  return {
+    resolvedPeers,
+    missingPeers: newMissing,
   }
 }
 
