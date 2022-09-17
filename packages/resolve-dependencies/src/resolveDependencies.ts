@@ -257,13 +257,13 @@ interface PostponedResolutionOpts {
   publishedBy?: Date
 }
 
-interface PostponedResolutionFunctionResult {
+interface PeersResolutionResult {
   missingPeers: MissingPeers
   resolvedPeers: ResolvedPeers
 }
 
-type PostponedResolutionFunction = (opts: PostponedResolutionOpts) => Promise<PostponedResolutionFunctionResult>
-type PostponedPeersResolutionFunction = (parentPkgAliases: ParentPkgAliases) => Promise<PostponedResolutionFunctionResult>
+type PostponedResolutionFunction = (opts: PostponedResolutionOpts) => Promise<PeersResolutionResult>
+type PostponedPeersResolutionFunction = (parentPkgAliases: ParentPkgAliases) => Promise<PeersResolutionResult>
 
 interface ResolvedRootDependenciesResult {
   pkgAddressesByImporters: Array<Array<PkgAddress | LinkedDependency>>
@@ -314,16 +314,11 @@ export async function resolveRootDependencies (
 
 interface ResolvedDependenciesResult {
   pkgAddresses: Array<PkgAddress | LinkedDependency>
-  resolvingPeers: Promise<{
-    missingPeers: MissingPeers
-    resolvedPeers: ResolvedPeers
-  }>
+  resolvingPeers: Promise<PeersResolutionResult>
 }
 
-interface PkgAddressesByImportersWithoutPeers {
+interface PkgAddressesByImportersWithoutPeers extends PeersResolutionResult {
   pkgAddresses: Array<PkgAddress | LinkedDependency>
-  missingPeers: MissingPeers
-  resolvedPeers: ResolvedPeers
 }
 
 export interface ImporterToResolve {
@@ -554,7 +549,7 @@ async function startResolvingPeers (
   }: {
     parentPkgAliases: ParentPkgAliases
     newNewParentPkgAliases: ParentPkgAliases
-    childrenResults: PostponedResolutionFunctionResult[]
+    childrenResults: PeersResolutionResult[]
     pkgAddresses: PkgAddress[]
     postponedPeersResolutionQueue: PostponedPeersResolutionFunction[]
   }
@@ -693,7 +688,7 @@ async function resolveDependenciesOfDependency (
   }
 }
 
-function filterMissingPeers (missingPeers: MissingPeers, parentPkgAliases: ParentPkgAliases) {
+function filterMissingPeers (missingPeers: MissingPeers, parentPkgAliases: ParentPkgAliases): PeersResolutionResult {
   const newMissing = {} as MissingPeers
   const resolvedPeers = {} as ResolvedPeers
   for (const [peerName, peerVersion] of Object.entries(missingPeers)) {
@@ -1295,7 +1290,7 @@ async function resolveDependency (
     missingPeersOfChildren,
     pkgId: pkgResponse.body.id,
     rootDir,
-    ...getMissingPeers(pkg, options.parentPkgAliases),
+    ...getMissingPeers(pkg),
 
     // Next fields are actually only needed when isNew = true
     installable,
@@ -1318,7 +1313,7 @@ async function getManifestFromResponse (
   }
 }
 
-function getMissingPeers (pkg: PackageManifest, parentPkgAliases: ParentPkgAliases) {
+function getMissingPeers (pkg: PackageManifest) {
   const missingPeers = {} as MissingPeers
   const resolvedPeers = {} as ResolvedPeers
   for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
