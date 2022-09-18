@@ -266,3 +266,61 @@ test('automatically install peer dependency when it is a dev dependency in anoth
     'is-positive': '1.0.0',
   })
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/4820
+test('auto install peer deps in a workspace. test #1', async () => {
+  prepareEmpty()
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'root-project',
+        devDependencies: {
+          '@pnpm.e2e/abc-parent-with-ab': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project',
+        peerDependencies: {
+          '@pnpm.e2e/abc-parent-with-ab': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project'),
+    },
+  ], await testDefaults({ autoInstallPeers: true }))
+})
+
+test('auto install peer deps in a workspace. test #2', async () => {
+  prepareEmpty()
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'root-project',
+        devDependencies: {
+          '@pnpm.e2e/abc-parent-with-ab': '1.0.0',
+          '@pnpm.e2e/peer-c': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project',
+        peerDependencies: {
+          '@pnpm.e2e/abc-parent-with-ab': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project'),
+    },
+  ], await testDefaults({ autoInstallPeers: true }))
+})

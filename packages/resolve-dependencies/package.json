@@ -50,6 +50,7 @@
     "get-npm-tarball-url": "^2.0.3",
     "is-inner-link": "^4.0.0",
     "is-subdir": "^1.2.0",
+    "p-defer": "^3.0.0",
     "path-exists": "^4.0.0",
     "promise-share": "^1.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
