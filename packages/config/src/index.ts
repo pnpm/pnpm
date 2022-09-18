@@ -214,6 +214,9 @@ export default async (
     'public-hoist-pattern': [
       '*eslint*',
       '*prettier*',
+      'husky',
+      'lint-staged',
+      '@commitlint/*',
     ],
     'recursive-install': true,
     registry: npmDefaults.registry,
