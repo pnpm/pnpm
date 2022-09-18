@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/normalize-registries",
   "description": "Accepts a mapping of registry URLs and returns a mapping with the same URLs but normalized",
-  "version": "3.0.6",
+  "version": "3.0.7",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

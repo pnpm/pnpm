@@ -1,5 +1,59 @@
 # @pnpm/core
 
+## 5.12.0
+
+### Minor Changes
+
+- 156cc1ef6: A new setting supported in the pnpm section of the `package.json` file: `allowNonAppliedPatches`. When it is set to `true`, non-applied patches will not cause an error, just a warning will be printed. For example:
+
+  ```json
+  {
+    "name": "foo",
+    "version": "1.0.0",
+    "pnpm": {
+      "patchedDependencies": {
+        "express@4.18.1": "patches/express@4.18.1.patch"
+      },
+      "allowNonAppliedPatches": true
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [156cc1ef6]
+- Updated dependencies [9b44d38a4]
+- Updated dependencies [8cecfcbe3]
+  - @pnpm/resolve-dependencies@28.4.0
+  - @pnpm/types@8.6.0
+  - @pnpm/matcher@3.1.0
+  - @pnpm/build-modules@9.3.7
+  - @pnpm/core-loggers@7.0.7
+  - dependency-path@9.2.5
+  - @pnpm/filter-lockfile@6.0.19
+  - @pnpm/get-context@6.2.11
+  - @pnpm/headless@18.7.2
+  - @pnpm/hoist@6.2.10
+  - @pnpm/lifecycle@13.1.8
+  - @pnpm/link-bins@7.2.6
+  - @pnpm/lockfile-file@5.3.5
+  - @pnpm/lockfile-to-pnp@1.0.2
+  - @pnpm/lockfile-utils@4.2.5
+  - @pnpm/lockfile-walker@5.0.14
+  - @pnpm/manifest-utils@3.1.3
+  - @pnpm/modules-cleaner@12.0.22
+  - @pnpm/modules-yaml@10.0.7
+  - @pnpm/normalize-registries@3.0.7
+  - @pnpm/package-requester@19.0.3
+  - @pnpm/prune-lockfile@4.0.15
+  - @pnpm/read-package-json@6.0.9
+  - @pnpm/read-project-manifest@3.0.10
+  - @pnpm/remove-bins@3.0.10
+  - @pnpm/resolver-base@9.1.1
+  - @pnpm/store-controller-types@14.1.2
+  - @pnpm/symlink-dependency@5.0.8
+  - @pnpm/crypto.base32-hash@1.0.1
+
 ## 5.11.5
 
 ### Patch Changes

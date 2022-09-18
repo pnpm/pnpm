@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-patching
 
+## 1.3.2
+
+### Patch Changes
+
+- b93a21bed: `pnpm patch` should work on files that don't have an end of line [#5320](https://github.com/pnpm/pnpm/issues/5320).
+- 3f0137077: Fix `pnpm patch` using a custom `--edit-dir`.
+- Updated dependencies [156cc1ef6]
+  - @pnpm/plugin-commands-installation@10.7.0
+  - @pnpm/cli-utils@0.7.37
+  - @pnpm/config@15.10.6
+  - @pnpm/pick-registry-for-package@3.0.7
+  - @pnpm/read-package-json@6.0.9
+  - @pnpm/read-project-manifest@3.0.10
+  - @pnpm/store-connection-manager@4.3.10
+
 ## 1.3.1
 
 ### Patch Changes

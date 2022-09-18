@@ -1,5 +1,16 @@
 # @pnpm/config
 
+## 15.10.6
+
+### Patch Changes
+
+- Updated dependencies [156cc1ef6]
+- Updated dependencies [9b44d38a4]
+  - @pnpm/types@8.6.0
+  - @pnpm/matcher@3.1.0
+  - @pnpm/pnpmfile@2.2.10
+  - @pnpm/read-project-manifest@3.0.10
+
 ## 15.10.5
 
 ### Patch Changes

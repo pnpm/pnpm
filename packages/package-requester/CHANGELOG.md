@@ -1,5 +1,21 @@
 # @pnpm/package-requester
 
+## 19.0.3
+
+### Patch Changes
+
+- Updated dependencies [156cc1ef6]
+  - @pnpm/types@8.6.0
+  - @pnpm/cafs@4.3.1
+  - @pnpm/core-loggers@7.0.7
+  - dependency-path@9.2.5
+  - @pnpm/fetcher-base@13.1.1
+  - @pnpm/package-is-installable@6.0.9
+  - @pnpm/read-package-json@6.0.9
+  - @pnpm/resolver-base@9.1.1
+  - @pnpm/store-controller-types@14.1.2
+  - @pnpm/pick-fetcher@1.0.0
+
 ## 19.0.2
 
 ### Patch Changes

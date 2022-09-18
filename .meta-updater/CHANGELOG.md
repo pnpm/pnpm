@@ -1,5 +1,17 @@
 # @pnpm-private/updater
 
+## 0.4.0
+
+### Minor Changes
+
+- ebf6ee09b: Changes in meta-updater scripts following @pnpm/meta-updater update
+
+### Patch Changes
+
+- Updated dependencies [156cc1ef6]
+  - @pnpm/types@8.6.0
+  - @pnpm/lockfile-file@5.3.5
+
 ## 0.3.15
 
 ### Patch Changes

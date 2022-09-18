@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetch",
-  "version": "5.0.7",
+  "version": "5.0.8",
   "description": "node-fetch with retries",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

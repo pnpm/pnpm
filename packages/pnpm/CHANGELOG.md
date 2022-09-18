@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.12.0-0
+## 7.12.0
 
 ### Minor Changes
 
@@ -33,6 +33,7 @@
 
 ### Patch Changes
 
+- When the same dependency with missing peers is used in multiple workspace projects, install the missing peers in each workspace project [#4820](https://github.com/pnpm/pnpm/issues/4820).
 - `pnpm patch` should work on files that don't have an end of line [#5320](https://github.com/pnpm/pnpm/issues/5320).
 - Fix `pnpm patch` using a custom `--edit-dir`.
 

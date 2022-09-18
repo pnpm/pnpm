@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/types",
-  "version": "8.5.0",
+  "version": "8.6.0",
   "description": "Basic types used by pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

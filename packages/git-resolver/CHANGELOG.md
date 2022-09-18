@@ -1,5 +1,12 @@
 # @pnpm/git-resolver
 
+## 6.1.5
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.1.1
+- @pnpm/fetch@5.0.8
+
 ## 6.1.4
 
 ### Patch Changes

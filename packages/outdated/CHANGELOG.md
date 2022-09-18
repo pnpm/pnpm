@@ -1,5 +1,21 @@
 # @pnpm/outdated
 
+## 10.0.28
+
+### Patch Changes
+
+- Updated dependencies [156cc1ef6]
+- Updated dependencies [9b44d38a4]
+  - @pnpm/types@8.6.0
+  - @pnpm/matcher@3.1.0
+  - dependency-path@9.2.5
+  - @pnpm/lockfile-file@5.3.5
+  - @pnpm/lockfile-utils@4.2.5
+  - @pnpm/manifest-utils@3.1.3
+  - @pnpm/modules-yaml@10.0.7
+  - @pnpm/pick-registry-for-package@3.0.7
+  - @pnpm/client@7.2.6
+
 ## 10.0.27
 
 ### Patch Changes

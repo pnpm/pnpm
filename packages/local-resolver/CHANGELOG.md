@@ -1,5 +1,14 @@
 # @pnpm/local-resolver
 
+## 8.0.12
+
+### Patch Changes
+
+- Updated dependencies [156cc1ef6]
+  - @pnpm/types@8.6.0
+  - @pnpm/read-project-manifest@3.0.10
+  - @pnpm/resolver-base@9.1.1
+
 ## 8.0.11
 
 ### Patch Changes

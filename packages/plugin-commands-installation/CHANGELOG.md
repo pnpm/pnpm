@@ -1,5 +1,45 @@
 # @pnpm/plugin-commands-installation
 
+## 10.7.0
+
+### Minor Changes
+
+- 156cc1ef6: A new setting supported in the pnpm section of the `package.json` file: `allowNonAppliedPatches`. When it is set to `true`, non-applied patches will not cause an error, just a warning will be printed. For example:
+
+  ```json
+  {
+    "name": "foo",
+    "version": "1.0.0",
+    "pnpm": {
+      "patchedDependencies": {
+        "express@4.18.1": "patches/express@4.18.1.patch"
+      },
+      "allowNonAppliedPatches": true
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [156cc1ef6]
+- Updated dependencies [9b44d38a4]
+  - @pnpm/core@5.12.0
+  - @pnpm/types@8.6.0
+  - @pnpm/matcher@3.1.0
+  - @pnpm/pnpmfile@2.2.10
+  - @pnpm/cli-utils@0.7.37
+  - @pnpm/config@15.10.6
+  - @pnpm/find-workspace-packages@4.0.37
+  - @pnpm/manifest-utils@3.1.3
+  - @pnpm/outdated@10.0.28
+  - @pnpm/package-store@14.2.4
+  - @pnpm/plugin-commands-rebuild@6.2.6
+  - @pnpm/read-project-manifest@3.0.10
+  - @pnpm/resolver-base@9.1.1
+  - @pnpm/sort-packages@3.0.8
+  - @pnpm/filter-workspace-packages@5.0.37
+  - @pnpm/store-connection-manager@4.3.10
+
 ## 10.6.5
 
 ### Patch Changes

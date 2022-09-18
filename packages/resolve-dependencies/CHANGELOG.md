@@ -1,5 +1,41 @@
 # @pnpm/resolve-dependencies
 
+## 28.4.0
+
+### Minor Changes
+
+- 156cc1ef6: A new setting supported in the pnpm section of the `package.json` file: `allowNonAppliedPatches`. When it is set to `true`, non-applied patches will not cause an error, just a warning will be printed. For example:
+
+  ```json
+  {
+    "name": "foo",
+    "version": "1.0.0",
+    "pnpm": {
+      "patchedDependencies": {
+        "express@4.18.1": "patches/express@4.18.1.patch"
+      },
+      "allowNonAppliedPatches": true
+    }
+  }
+  ```
+
+### Patch Changes
+
+- 8cecfcbe3: When the same dependency with missing peers is used in multiple workspace projects, install the missing peers in each workspace project [#4820](https://github.com/pnpm/pnpm/issues/4820).
+- Updated dependencies [156cc1ef6]
+  - @pnpm/types@8.6.0
+  - @pnpm/core-loggers@7.0.7
+  - dependency-path@9.2.5
+  - @pnpm/lockfile-types@4.3.2
+  - @pnpm/lockfile-utils@4.2.5
+  - @pnpm/manifest-utils@3.1.3
+  - @pnpm/npm-resolver@13.1.8
+  - @pnpm/pick-registry-for-package@3.0.7
+  - @pnpm/prune-lockfile@4.0.15
+  - @pnpm/read-package-json@6.0.9
+  - @pnpm/resolver-base@9.1.1
+  - @pnpm/store-controller-types@14.1.2
+
 ## 28.3.11
 
 ### Patch Changes

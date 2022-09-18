@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-deploy
 
+## 1.1.6
+
+### Patch Changes
+
+- Updated dependencies [156cc1ef6]
+  - @pnpm/plugin-commands-installation@10.7.0
+  - @pnpm/types@8.6.0
+  - @pnpm/cli-utils@0.7.37
+  - @pnpm/fs.indexed-pkg-importer@1.1.2
+  - @pnpm/directory-fetcher@3.1.2
+
 ## 1.1.5
 
 ### Patch Changes

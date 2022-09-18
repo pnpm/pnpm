@@ -1,5 +1,15 @@
 # @pnpm/read-projects-context
 
+## 6.0.16
+
+### Patch Changes
+
+- Updated dependencies [156cc1ef6]
+  - @pnpm/types@8.6.0
+  - @pnpm/lockfile-file@5.3.5
+  - @pnpm/modules-yaml@10.0.7
+  - @pnpm/normalize-registries@3.0.7
+
 ## 6.0.15
 
 ### Patch Changes
