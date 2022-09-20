@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 28.4.1
+
+### Patch Changes
+
+- a1e834bfc: Deduplicate peer dependencies when automatically installing them [#5373](https://github.com/pnpm/pnpm/issues/5373).
+
 ## 28.4.0
 
 ### Minor Changes

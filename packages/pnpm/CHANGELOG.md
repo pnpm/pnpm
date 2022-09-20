@@ -1,5 +1,11 @@
 # pnpm
 
+## 7.12.1
+
+### Patch Changes
+
+- Deduplicate peer dependencies when automatically installing them [#5373](https://github.com/pnpm/pnpm/issues/5373).
+
 ## 7.12.0
 
 ### Minor Changes
