@@ -7,7 +7,7 @@ import {
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { CliOptions, Config, types as allTypes } from '@pnpm/config'
+import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
@@ -116,7 +116,7 @@ export async function handler (
     const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
     const newManifest = await addDependenciesToPackage(
       manifest ?? {},
-      [`link:${(opts.cliOptions as CliOptions)?.dir ?? cwd}`],
+      [`link:${opts.cliOptions?.dir ? path.join(cwd, opts.cliOptions.dir) : cwd}`],
       linkOpts
     )
     await writeProjectManifest(newManifest)

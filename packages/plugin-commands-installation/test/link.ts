@@ -72,6 +72,32 @@ test('link global bin', async function () {
   await isExecutable((value) => expect(value).toBeTruthy(), path.join(globalBin, 'package-with-bin'))
 })
 
+test('link --dir global bin', async function () {
+  prepare()
+  process.chdir('..')
+
+  const globalDir = path.resolve('global')
+  const globalBin = path.join(globalDir, 'bin')
+  const oldPath = process.env[PATH]
+  process.env[PATH] = `${globalBin}${path.delimiter}${oldPath ?? ''}`
+  await fs.mkdir(globalBin, { recursive: true })
+
+  await writePkg('./dir/package-with-bin-in-dir', { name: 'package-with-bin-in-dir', version: '1.0.0', bin: 'bin.js' })
+  await fs.writeFile('./dir/package-with-bin-in-dir/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
+
+  await link.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: {
+      dir: './dir/package-with-bin-in-dir',
+    },
+    bin: globalBin,
+    dir: globalDir,
+  })
+  process.env[PATH] = oldPath
+
+  await isExecutable((value) => expect(value).toBeTruthy(), path.join(globalBin, 'package-with-bin-in-dir'))
+})
+
 test('relative link', async () => {
   const project = prepare({
     dependencies: {
