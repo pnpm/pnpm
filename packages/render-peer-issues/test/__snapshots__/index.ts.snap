@@ -5,7 +5,7 @@ exports[`renderPeerIssues() 1`] = `
 └─┬ xxx 1.0.0
   ├── ✕ unmet peer bbb@^1.0.0: found 2
   └─┬ yyy 1.0.0
-    ├── ✕ missing peer aaa@\\">=1.0.0 <3.0.0\\"
+    ├── ✕ missing peer aaa@">=1.0.0 <3.0.0"
     └── ✕ unmet peer ccc@^1.0.0: found 2 in xxx
 Peer dependencies that should be installed:
   aaa@^1.0.0  
@@ -26,10 +26,10 @@ Peer dependencies that should be installed:
 exports[`renderPeerIssues() format correctly the version ranges with spaces and "*" 1`] = `
 ".
 └─┬ z 1.0.0
-  ├── ✕ missing peer a@\\"*\\"
-  └── ✕ missing peer b@\\"1 || 2\\"
+  ├── ✕ missing peer a@"*"
+  └── ✕ missing peer b@"1 || 2"
 Peer dependencies that should be installed:
-  a@\\"*\\"       b@\\"1 || 2\\"  
+  a@"*"       b@"1 || 2"  
 "
 `;
 

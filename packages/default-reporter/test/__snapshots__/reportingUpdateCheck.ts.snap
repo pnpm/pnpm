@@ -6,7 +6,7 @@ exports[`print update notification for Corepack if the latest version is greater
    │                                                                  │
    │                Update available! 10.0.0 → 11.0.0.                │
    │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v11.0.0   │
-   │     Run \\"corepack prepare pnpm@11.0.0 --activate\\" to update.     │
+   │     Run "corepack prepare pnpm@11.0.0 --activate" to update.     │
    │                                                                  │
    │      Follow @pnpmjs for updates: https://twitter.com/pnpmjs      │
    │                                                                  │
@@ -20,7 +20,7 @@ exports[`print update notification if the latest version is greater than the cur
    │                                                                  │
    │                Update available! 10.0.0 → 11.0.0.                │
    │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v11.0.0   │
-   │                Run \\"pnpm add -g pnpm\\" to update.                 │
+   │                Run "pnpm add -g pnpm" to update.                 │
    │                                                                  │
    │      Follow @pnpmjs for updates: https://twitter.com/pnpmjs      │
    │                                                                  │
