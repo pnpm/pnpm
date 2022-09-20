@@ -148,6 +148,23 @@ test('don\'t install the same missing peer dependency twice', async () => {
   ].sort())
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/5373
+test('prefer the peer dependency version already used in the root', async () => {
+  await addDistTag({ package: '@pnpm/y', version: '2.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  await install({
+    peerDependencies: {
+      '@pnpm.e2e/has-y-peer': '1.0.0',
+      '@pnpm/y': '^1.0.0',
+    },
+  }, await testDefaults({ autoInstallPeers: true }))
+  const lockfile = await project.readLockfile()
+  expect(Object.keys(lockfile.packages).sort()).toStrictEqual([
+    '/@pnpm/y/1.0.0',
+    '/@pnpm.e2e/has-y-peer/1.0.0_@pnpm+y@1.0.0',
+  ].sort())
+})
+
 test('automatically install root peer dependencies', async () => {
   const project = prepareEmpty()
 

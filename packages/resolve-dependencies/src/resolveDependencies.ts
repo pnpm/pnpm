@@ -387,10 +387,10 @@ async function resolveDependenciesOfImporters (
   }
   const pkgAddressesByImportersWithoutPeers = await Promise.all(zipWith(async (importer, { pkgAddresses, postponedResolutionsQueue, postponedPeersResolutionQueue }) => {
     const newPreferredVersions = { ...importer.preferredVersions }
-    const newParentPkgAliases = { ...importer.parentPkgAliases }
+    const currentParentPkgAliases = {}
     for (const pkgAddress of pkgAddresses) {
-      if (newParentPkgAliases[pkgAddress.alias] !== true) {
-        newParentPkgAliases[pkgAddress.alias] = pkgAddress
+      if (currentParentPkgAliases[pkgAddress.alias] !== true) {
+        currentParentPkgAliases[pkgAddress.alias] = pkgAddress
       }
       if (pkgAddress.updated) {
         ctx.updatedSet.add(pkgAddress.alias)
@@ -402,6 +402,7 @@ async function resolveDependenciesOfImporters (
       }
       newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
     }
+    const newParentPkgAliases = { ...importer.parentPkgAliases, ...currentParentPkgAliases }
     const postponedResolutionOpts = {
       preferredVersions: newPreferredVersions,
       parentPkgAliases: newParentPkgAliases,
@@ -420,9 +421,10 @@ async function resolveDependenciesOfImporters (
     const postponedPeersResolution = await Promise.all(
       postponedPeersResolutionQueue.map((postponedMissingPeers) => postponedMissingPeers(postponedResolutionOpts.parentPkgAliases))
     )
+    const resolvedPeers = [...childrenResults, ...postponedPeersResolution].reduce((acc, { resolvedPeers }) => Object.assign(acc, resolvedPeers), {})
     const allMissingPeers = mergePkgsDeps(
       [
-        ...pkgAddresses,
+        ...filterMissingPeersFromPkgAddresses(pkgAddresses, currentParentPkgAliases, resolvedPeers),
         ...childrenResults,
         ...postponedPeersResolution,
       ].map(({ missingPeers }) => missingPeers).filter(Boolean)
@@ -430,7 +432,7 @@ async function resolveDependenciesOfImporters (
     return {
       missingPeers: allMissingPeers,
       pkgAddresses,
-      resolvedPeers: [...childrenResults, ...postponedPeersResolution].reduce((acc, { resolvedPeers }) => Object.assign(acc, resolvedPeers), {}),
+      resolvedPeers,
     }
   }, importers, resolveResults))
   return {
@@ -438,6 +440,22 @@ async function resolveDependenciesOfImporters (
     publishedBy,
     time,
   }
+}
+
+function filterMissingPeersFromPkgAddresses (pkgAddresses: PkgAddress[], currentParentPkgAliases: ParentPkgAliases, resolvedPeers: ResolvedPeers) {
+  return pkgAddresses.map((pkgAddress) => ({
+    ...pkgAddress,
+    missingPeers: fromPairs(
+      Object.entries(pkgAddress.missingPeers || {})
+        .filter(([peerName]) => {
+          if (!currentParentPkgAliases[peerName]) return true
+          if (currentParentPkgAliases[peerName] !== true) {
+            resolvedPeers[peerName] = currentParentPkgAliases[peerName] as PkgAddress
+          }
+          return false
+        })
+    ),
+  }))
 }
 
 function getPublishedByDate (pkgAddresses: PkgAddress[], timeFromLockfile: Record<string, string> = {}): { publishedBy: Date, newTime: Record<string, string> } {
@@ -559,19 +577,7 @@ async function startResolvingPeers (
   const resolvedPeers = [...childrenResults, ...results].reduce((acc, { resolvedPeers }) => Object.assign(acc, resolvedPeers), {})
   const allMissingPeers = mergePkgsDeps(
     [
-      ...pkgAddresses.map((pkgAddress) => ({
-        ...pkgAddress,
-        missingPeers: fromPairs(
-          Object.entries(pkgAddress.missingPeers || {})
-            .filter(([peerName]) => {
-              if (!currentParentPkgAliases[peerName]) return true
-              if (currentParentPkgAliases[peerName] !== true) {
-                resolvedPeers[peerName] = currentParentPkgAliases[peerName]
-              }
-              return false
-            })
-        ),
-      })),
+      ...filterMissingPeersFromPkgAddresses(pkgAddresses, currentParentPkgAliases, resolvedPeers),
       ...childrenResults,
       ...results,
     ].map(({ missingPeers }) => missingPeers).filter(Boolean)
