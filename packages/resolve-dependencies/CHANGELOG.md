@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 28.4.2
+
+### Patch Changes
+
+- 77f7cee48: Don't crash when auto-install-peers is true and the project has many complex circular dependencies.
+
 ## 28.4.1
 
 ### Patch Changes

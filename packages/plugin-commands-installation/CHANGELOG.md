@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-installation
 
+## 10.7.2
+
+### Patch Changes
+
+- 56aeba4ba: add path join and add test case for pnpm --dir <path> link global
+- 56aeba4ba: fix error in pnpm --dir <path> link --global
+  - @pnpm/core@5.12.2
+  - @pnpm/pnpmfile@2.2.12
+  - @pnpm/config@15.10.8
+  - @pnpm/cli-utils@0.7.39
+  - @pnpm/plugin-commands-rebuild@6.2.8
+  - @pnpm/store-connection-manager@4.3.12
+  - @pnpm/find-workspace-packages@4.0.39
+  - @pnpm/filter-workspace-packages@5.0.39
+
 ## 10.7.1
 
 ### Patch Changes

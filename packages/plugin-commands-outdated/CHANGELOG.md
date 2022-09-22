@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-outdated
 
+## 6.1.8
+
+### Patch Changes
+
+- @pnpm/config@15.10.8
+- @pnpm/cli-utils@0.7.39
+
 ## 6.1.7
 
 ### Patch Changes

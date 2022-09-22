@@ -1,5 +1,12 @@
 # pnpm
 
+## 7.12.2
+
+### Patch Changes
+
+- Don't crash when auto-install-peers is true and the project has many complex circular dependencies [#5394](https://github.com/pnpm/pnpm/pull/5394).
+- `pnpm link --global` should work with the `--dir=<path>` option [#5371](https://github.com/pnpm/pnpm/pull/5371).
+
 ## 7.12.1
 
 ### Patch Changes
