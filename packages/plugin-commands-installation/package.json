@@ -35,7 +35,6 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
-    "@pnpm/logger": "^4.0.0",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/prepare": "workspace:*",

@@ -62,7 +62,6 @@
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^4.0.0",
     "@pnpm/resolve-dependencies": "workspace:*",
     "@types/ramda": "0.28.15",
     "@types/semver": "7.3.10"

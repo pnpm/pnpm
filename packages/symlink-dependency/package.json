@@ -15,7 +15,6 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^4.0.0",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*"
   },

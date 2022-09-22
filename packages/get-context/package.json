@@ -30,7 +30,6 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/get-context#readme",
   "devDependencies": {
     "@pnpm/get-context": "workspace:*",
-    "@pnpm/logger": "^4.0.0",
     "@types/is-ci": "^3.0.0",
     "@types/ramda": "0.28.15"
   },

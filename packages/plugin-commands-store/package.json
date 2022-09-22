@@ -35,7 +35,6 @@
   "devDependencies": {
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
-    "@pnpm/logger": "^4.0.0",
     "@pnpm/plugin-commands-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.0.0-3",

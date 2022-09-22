@@ -33,7 +33,6 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-patching#readme",
   "devDependencies": {
-    "@pnpm/logger": "^4.0.0",
     "@pnpm/plugin-commands-patching": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.0.0-3",

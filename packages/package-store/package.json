@@ -30,7 +30,6 @@
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",
-    "@pnpm/logger": "^4.0.0",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "0.28.15",

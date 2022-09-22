@@ -49,7 +49,6 @@
   },
   "devDependencies": {
     "@pnpm/build-modules": "workspace:*",
-    "@pnpm/logger": "^4.0.0",
     "@types/ramda": "0.28.15"
   },
   "funding": "https://opencollective.com/pnpm",

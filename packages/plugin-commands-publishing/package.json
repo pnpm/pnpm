@@ -36,7 +36,6 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-publishing#readme",
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:*",
-    "@pnpm/logger": "^4.0.0",
     "@pnpm/plugin-commands-publishing": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.0.0-3",

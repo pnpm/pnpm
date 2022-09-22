@@ -58,7 +58,6 @@
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
-    "@pnpm/logger": "^4.0.0",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.0",

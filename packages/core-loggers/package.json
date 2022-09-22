@@ -15,8 +15,7 @@
     "@pnpm/logger": "^4.0.0"
   },
   "devDependencies": {
-    "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/logger": "^4.0.0"
+    "@pnpm/core-loggers": "workspace:*"
   },
   "directories": {
     "test": "test"

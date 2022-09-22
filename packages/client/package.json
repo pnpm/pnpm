@@ -43,8 +43,7 @@
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/logger": "^4.0.0"
+    "@pnpm/fetcher-base": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

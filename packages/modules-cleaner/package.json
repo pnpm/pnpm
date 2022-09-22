@@ -41,7 +41,6 @@
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "devDependencies": {
-    "@pnpm/logger": "^4.0.0",
     "@pnpm/modules-cleaner": "workspace:*",
     "@types/ramda": "0.28.15"
   },

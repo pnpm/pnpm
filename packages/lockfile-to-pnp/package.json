@@ -35,7 +35,6 @@
   },
   "devDependencies": {
     "@pnpm/lockfile-to-pnp": "workspace:*",
-    "@pnpm/logger": "^4.0.0",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.15",
     "rimraf": "^3.0.2"

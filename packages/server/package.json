@@ -34,7 +34,6 @@
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",
-    "@pnpm/logger": "^4.0.0",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/server": "workspace:*",

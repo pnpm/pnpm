@@ -36,7 +36,6 @@
   },
   "devDependencies": {
     "@pnpm/lockfile-file": "workspace:*",
-    "@pnpm/logger": "^4.0.0",
     "@types/js-yaml": "^4.0.5",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.15",
