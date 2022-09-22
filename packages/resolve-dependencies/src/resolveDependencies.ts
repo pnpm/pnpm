@@ -158,7 +158,7 @@ export interface ResolutionContext {
   virtualStoreDir: string
   updateMatching?: (pkgName: string) => boolean
   workspacePackages?: WorkspacePackages
-  missingPeersOfChildrenByPkgId: Record<string, { parentNodeId: string, missingPeersOfChildren: MissingPeersOfChildren }>
+  missingPeersOfChildrenByPkgId: Record<string, { parentImporterId: string, missingPeersOfChildren: MissingPeersOfChildren }>
 }
 
 export type MissingPeers = Record<string, string>
@@ -1278,7 +1278,7 @@ async function resolveDependency (
   let missingPeersOfChildren!: MissingPeersOfChildren | undefined
   if (!nodeIdContains(options.parentPkg.nodeId, depPath)) {
     if (ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id]) {
-      if (!options.parentPkg.nodeId.startsWith(ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].parentNodeId)) {
+      if (!options.parentPkg.nodeId.startsWith(ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].parentImporterId)) {
         missingPeersOfChildren = ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren
       }
     } else {
@@ -1289,7 +1289,7 @@ async function resolveDependency (
         get: pShare(p.promise),
       }
       ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id] = {
-        parentNodeId: options.parentPkg.nodeId,
+        parentImporterId: options.parentPkg.nodeId.substring(0, options.parentPkg.nodeId.indexOf('>', 1) + 1),
         missingPeersOfChildren,
       }
     }
