@@ -341,3 +341,9 @@ test('auto install peer deps in a workspace. test #2', async () => {
     },
   ], await testDefaults({ autoInstallPeers: true }))
 })
+
+// This test may be removed if autoInstallPeers will become true by default
+test('installation on a package with many complex circular dependencies does not fail when auto install peers is on', async () => {
+  prepareEmpty()
+  await addDependenciesToPackage({}, ['webpack@4.46.0'], await testDefaults({ autoInstallPeers: true }))
+})
