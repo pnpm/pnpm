@@ -46,6 +46,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/logger": "^4.0.0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "dependency-path": "workspace:*",

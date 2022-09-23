@@ -4207,6 +4207,9 @@ importers:
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../lockfile-types
+      '@pnpm/logger':
+        specifier: ^4.0.0
+        version: 4.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
