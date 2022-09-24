@@ -51,6 +51,7 @@ import {
   DependenciesField,
   DependencyManifest,
   PackageExtension,
+  PackageManifest,
   PeerDependencyIssues,
   PeerDependencyRules,
   ProjectManifest,
@@ -152,6 +153,9 @@ export type MutatedProject = ProjectOptions & DependenciesMutation
 
 export type MutateModulesOptions = InstallOptions & {
   preferredVersions?: PreferredVersions
+  hooks?: {
+    readPackage?: ReadPackageHook[] | ReadPackageHook
+  } | InstallOptions['hooks']
 }
 
 export async function mutateModules (
@@ -585,7 +589,7 @@ export function createReadPackageHook (
     overrides?: Record<string, string>
     packageExtensions?: Record<string, PackageExtension>
     peerDependencyRules?: PeerDependencyRules
-    readPackageHook?: ReadPackageHook
+    readPackageHook?: ReadPackageHook[] | ReadPackageHook
   }
 ): ReadPackageHook | undefined {
   const hooks: ReadPackageHook[] = []
@@ -608,15 +612,18 @@ export function createReadPackageHook (
   ) {
     hooks.push(createPeerDependencyPatcher(peerDependencyRules))
   }
+  if (Array.isArray(readPackageHook)) {
+    hooks.push(...readPackageHook)
+  } else if (readPackageHook) {
+    hooks.push(readPackageHook)
+  }
+
   if (hooks.length === 0) {
-    return readPackageHook
+    return undefined
   }
   const readPackageAndExtend = hooks.length === 1
     ? hooks[0]
-    : pipeWith(async (f, res) => f(await res), hooks as any) as ReadPackageHook // eslint-disable-line @typescript-eslint/no-explicit-any
-  if (readPackageHook != null) {
-    return (async (manifest: ProjectManifest, dir?: string) => readPackageAndExtend(await readPackageHook(manifest, dir), dir)) as ReadPackageHook
-  }
+    : ((pkg: PackageManifest | ProjectManifest, dir: string) => pipeWith(async (f, res) => f(await res, dir), hooks as any)(pkg)) as ReadPackageHook // eslint-disable-line @typescript-eslint/no-explicit-any
   return readPackageAndExtend
 }
 
