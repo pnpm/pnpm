@@ -11,6 +11,7 @@ on:
         default: latest
         required: true
 
+permissions: {}
 jobs:
   build:
     name: Tagging ${{ github.event.inputs.version }} as ${{ github.event.inputs.tag }}
