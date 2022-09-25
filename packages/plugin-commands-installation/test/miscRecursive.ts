@@ -741,14 +741,14 @@ test('pass readPackage with shared lockfile', async () => {
     recursive: true,
     workspaceDir: process.cwd(),
     hooks: {
-      readPackage (pkg) {
-        return {
+      readPackage: [
+        (pkg) => ({
           ...pkg,
           dependencies: {
             'is-positive': '1.0.0',
           },
-        }
-      },
+        }),
+      ],
     },
   })
 

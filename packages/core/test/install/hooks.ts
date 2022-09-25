@@ -33,8 +33,8 @@ test('readPackage, afterAllResolved hooks', async () => {
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({
     hooks: {
-      afterAllResolved,
-      readPackage: readPackageHook,
+      afterAllResolved: [afterAllResolved],
+      readPackage: [readPackageHook],
     },
   }))
 
@@ -71,8 +71,8 @@ test('readPackage, afterAllResolved async hooks', async () => {
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({
     hooks: {
-      afterAllResolved,
-      readPackage: readPackageHook,
+      afterAllResolved: [afterAllResolved],
+      readPackage: [readPackageHook],
     },
   }))
 
