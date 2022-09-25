@@ -18,7 +18,7 @@ export type PnpmOptions = Omit<Config, 'reporter'> & {
   }
 
   hooks?: {
-    readPackage?: ReadPackageHook
+    readPackage?: ReadPackageHook[]
   }
 
   ignoreFile?: (filename: string) => boolean
