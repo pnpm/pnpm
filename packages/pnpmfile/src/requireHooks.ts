@@ -30,10 +30,10 @@ type Cook<T extends (...args: any[]) => any> = (
 ) => ReturnType<T>
 
 export interface CookedHooks {
-  readPackage: Array<Cook<Required<Hooks>['readPackage']>>
+  readPackage?: Array<Cook<Required<Hooks>['readPackage']>>
   preResolution?: Cook<Required<Hooks>['preResolution']>
-  afterAllResolved: Array<Cook<Required<Hooks>['afterAllResolved']>>
-  filterLog: Array<Cook<Required<Hooks>['filterLog']>>
+  afterAllResolved?: Array<Cook<Required<Hooks>['afterAllResolved']>>
+  filterLog?: Array<Cook<Required<Hooks>['filterLog']>>
   importPackage?: ImportIndexedPackage
   fetchers?: CustomFetchers
 }
@@ -55,7 +55,7 @@ export default function requireHooks (
   if (!globalHooks && !hooks) return { afterAllResolved: [], filterLog: [], readPackage: [] }
   globalHooks = globalHooks || {}
   hooks = hooks || {}
-  const cookedHooks: CookedHooks = {
+  const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'filterLog'>> = {
     afterAllResolved: [],
     filterLog: [],
     readPackage: [],
