@@ -226,6 +226,14 @@ export default async function recursive (
           currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
         }
       }
+
+      if (opts.update) {
+        currentInput = currentInput.filter((param) => {
+          const packageName = param.slice(0, param.lastIndexOf('@'))
+          return !(manifest?.pnpm?.update?.ignore ?? []).includes(packageName)
+        })
+      }
+
       writeProjectManifests.push(writeProjectManifest)
       switch (mutation) {
       case 'uninstallSome':
@@ -325,6 +333,13 @@ export default async function recursive (
           } else {
             currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
           }
+        }
+
+        if (opts.update) {
+          currentInput = currentInput.filter((param) => {
+            const packageName = param.slice(0, param.lastIndexOf('@'))
+            return !(manifest?.pnpm?.update?.ignore ?? []).includes(packageName)
+          })
         }
 
         let action!: any // eslint-disable-line @typescript-eslint/no-explicit-any
