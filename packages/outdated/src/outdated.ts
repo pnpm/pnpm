@@ -74,6 +74,10 @@ export default async function outdated (
             return
           }
 
+          if ((opts.manifest.pnpm?.update?.ignore ?? []).includes(alias)) {
+            return
+          }
+
           const relativeDepPath = dp.refToRelative(ref, alias)
 
           // ignoring linked packages
