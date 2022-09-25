@@ -64,6 +64,9 @@
       "path": "../hoist"
     },
     {
+      "path": "../hooks.read-package-hook"
+    },
+    {
       "path": "../lifecycle"
     },
     {
@@ -101,9 +104,6 @@
     },
     {
       "path": "../package-store"
-    },
-    {
-      "path": "../parse-overrides"
     },
     {
       "path": "../parse-wanted-dependency"

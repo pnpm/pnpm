@@ -289,7 +289,17 @@ export default async function recursive (
   const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
   await Promise.all(pkgPaths.map(async (rootDir: string) =>
     limitInstallation(async () => {
-      const hooks = opts.ignorePnpmfile ? {} : requireHooks(rootDir, opts)
+      const hooks = opts.ignorePnpmfile
+        ? {}
+        : (() => {
+          const pnpmfileHooks = requireHooks(rootDir, opts)
+          return {
+            ...opts.hooks,
+            ...pnpmfileHooks,
+            afterAllResolved: [...(pnpmfileHooks.afterAllResolved ?? []), ...(opts.hooks?.afterAllResolved ?? [])],
+            readPackage: [...(pnpmfileHooks.readPackage ?? []), ...(opts.hooks?.readPackage ?? [])],
+          }
+        })()
       try {
         if (opts.ignoredPackages?.has(rootDir)) {
           return

@@ -75,9 +75,7 @@ export interface GetContextOptions {
   lockfileDir: string
   modulesDir?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
-  hooks?: {
-    readPackage?: ReadPackageHook
-  }
+  readPackageHook?: ReadPackageHook
   include?: IncludedDependencies
   registries: Registries
   storeDir: string
@@ -135,10 +133,10 @@ export default async function getContext<T> (
       prefix: project.rootDir,
     })
   })
-  if ((opts.hooks?.readPackage) != null) {
+  if (opts.readPackageHook != null) {
     for (const project of importersContext.projects) {
       project.originalManifest = project.manifest
-      project.manifest = await opts.hooks.readPackage(clone(project.manifest), project.rootDir)
+      project.manifest = await opts.readPackageHook(clone(project.manifest), project.rootDir)
     }
   }
 
@@ -372,9 +370,7 @@ export async function getContextForSingleImporter (
     lockfileDir: string
     nodeLinker: 'isolated' | 'hoisted' | 'pnp'
     modulesDir?: string
-    hooks?: {
-      readPackage?: ReadPackageHook
-    }
+    readPackageHook?: ReadPackageHook
     include?: IncludedDependencies
     dir: string
     registries: Registries
@@ -463,7 +459,7 @@ export async function getContextForSingleImporter (
     importerId,
     include: opts.include ?? include,
     lockfileDir: opts.lockfileDir,
-    manifest: await opts.hooks?.readPackage?.(manifest) ?? manifest,
+    manifest: await opts.readPackageHook?.(manifest) ?? manifest,
     modulesDir,
     modulesFile: modules,
     pendingBuilds,

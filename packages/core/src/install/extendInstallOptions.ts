@@ -1,6 +1,7 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { HoistingLimits } from '@pnpm/headless'
+import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
@@ -71,9 +72,9 @@ export interface StrictInstallOptions {
   }
   pruneLockfileImporters: boolean
   hooks: {
-    readPackage?: ReadPackageHook
+    readPackage?: ReadPackageHook[]
     preResolution?: (ctx: PreResolutionHookContext) => Promise<void>
-    afterAllResolved?: (lockfile: Lockfile) => Lockfile | Promise<Lockfile>
+    afterAllResolved?: Array<(lockfile: Lockfile) => Lockfile | Promise<Lockfile>>
   }
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
@@ -198,9 +199,13 @@ const defaults = async (opts: InstallOptions) => {
   } as StrictInstallOptions
 }
 
+export type ProcessedInstallOptions = StrictInstallOptions & {
+  readPackageHook?: ReadPackageHook
+}
+
 export default async (
   opts: InstallOptions
-): Promise<StrictInstallOptions> => {
+): Promise<ProcessedInstallOptions> => {
   if (opts) {
     for (const key in opts) {
       if (opts[key] === undefined) {
@@ -212,11 +217,19 @@ export default async (
     throw new PnpmError('CONFIG_CONFLICT_BUILT_DEPENDENCIES', 'Cannot have both neverBuiltDependencies and onlyBuiltDependencies')
   }
   const defaultOpts = await defaults(opts)
-  const extendedOpts = {
+  const extendedOpts: ProcessedInstallOptions = {
     ...defaultOpts,
     ...opts,
     storeDir: defaultOpts.storeDir,
   }
+  extendedOpts.readPackageHook = createReadPackageHook({
+    ignoreCompatibilityDb: extendedOpts.ignoreCompatibilityDb,
+    readPackageHook: extendedOpts.hooks?.readPackage,
+    overrides: extendedOpts.overrides,
+    lockfileDir: extendedOpts.lockfileDir,
+    packageExtensions: extendedOpts.packageExtensions,
+    peerDependencyRules: extendedOpts.peerDependencyRules,
+  })
   if (extendedOpts.lockfileOnly) {
     extendedOpts.ignoreScripts = true
     if (!extendedOpts.useLockfile) {

@@ -30,10 +30,10 @@ type Cook<T extends (...args: any[]) => any> = (
 ) => ReturnType<T>
 
 export interface CookedHooks {
-  readPackage?: Cook<Required<Hooks>['readPackage']>
+  readPackage?: Array<Cook<Required<Hooks>['readPackage']>>
   preResolution?: Cook<Required<Hooks>['preResolution']>
-  afterAllResolved?: Cook<Required<Hooks>['afterAllResolved']>
-  filterLog?: Cook<Required<Hooks>['filterLog']>
+  afterAllResolved?: Array<Cook<Required<Hooks>['afterAllResolved']>>
+  filterLog?: Array<Cook<Required<Hooks>['filterLog']>>
   importPackage?: ImportIndexedPackage
   fetchers?: CustomFetchers
 }
@@ -52,37 +52,31 @@ export default function requireHooks (
     requirePnpmfile(path.join(prefix, '.pnpmfile.cjs'), prefix)
   let hooks: Hooks = pnpmFile?.hooks
 
-  if (!globalHooks && !hooks) return {}
+  if (!globalHooks && !hooks) return { afterAllResolved: [], filterLog: [], readPackage: [] }
   globalHooks = globalHooks || {}
   hooks = hooks || {}
-  const cookedHooks: CookedHooks = {}
+  const cookedHooks: CookedHooks & Required<Pick<CookedHooks, 'filterLog'>> = {
+    afterAllResolved: [],
+    filterLog: [],
+    readPackage: [],
+  }
   for (const hookName of ['readPackage', 'afterAllResolved']) {
-    if (globalHooks[hookName] && hooks[hookName]) {
-      const globalHookContext = createReadPackageHookContext(globalPnpmfile.filename, prefix, hookName)
-      const localHookContext = createReadPackageHookContext(pnpmFile.filename, prefix, hookName)
-      // the `arg` is a package manifest in case of readPackage() and a lockfile object in case of afterAllResolved()
-      cookedHooks[hookName] = async (arg: object) => {
-        return hooks[hookName](
-          await globalHooks[hookName](arg, globalHookContext),
-          localHookContext
-        )
-      }
-    } else if (globalHooks[hookName]) {
+    if (globalHooks[hookName]) {
       const globalHook = globalHooks[hookName]
       const context = createReadPackageHookContext(globalPnpmfile.filename, prefix, hookName)
-      cookedHooks[hookName] = (pkg: object) => globalHook(pkg, context)
-    } else if (hooks[hookName]) {
+      cookedHooks[hookName].push((pkg: object) => globalHook(pkg, context))
+    }
+    if (hooks[hookName]) {
       const hook = hooks[hookName]
       const context = createReadPackageHookContext(pnpmFile.filename, prefix, hookName)
-      cookedHooks[hookName] = (pkg: object) => hook(pkg, context)
+      cookedHooks[hookName].push((pkg: object) => hook(pkg, context))
     }
   }
-  const globalFilterLog = globalHooks.filterLog
-  const filterLog = hooks.filterLog
-  if (globalFilterLog != null && filterLog != null) {
-    cookedHooks.filterLog = (log: Log) => globalFilterLog(log) && filterLog(log)
-  } else {
-    cookedHooks.filterLog = globalFilterLog ?? filterLog
+  if (globalHooks.filterLog != null) {
+    cookedHooks.filterLog.push(globalHooks.filterLog)
+  }
+  if (hooks.filterLog != null) {
+    cookedHooks.filterLog.push(hooks.filterLog)
   }
 
   // `importPackage`, `preResolution` and `fetchers` can only be defined via a global pnpmfile

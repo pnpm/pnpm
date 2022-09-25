@@ -8,7 +8,7 @@ test('logger with filterLog hook', (done) => {
       argv: ['install'],
       config: {
         hooks: {
-          filterLog: (log: Log) => {
+          filterLog: [(log: Log) => {
             if (log.level === 'debug') {
               return false
             }
@@ -21,7 +21,7 @@ test('logger with filterLog hook', (done) => {
               }
             }
             return true
-          },
+          }],
         },
       } as any, // eslint-disable-line
     },

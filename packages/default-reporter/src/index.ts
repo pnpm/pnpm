@@ -194,7 +194,11 @@ export function toOutput$ (
   }, 0)
   let other = Rx.from(otherPushStream)
   if (opts.context.config?.hooks?.filterLog != null) {
-    other = other.pipe(filter(opts.context.config.hooks.filterLog))
+    const filterLogs = opts.context.config.hooks.filterLog
+    const filterFn = filterLogs.length === 1
+      ? filterLogs[0]
+      : (log: logs.Log) => filterLogs.every!((filterLog) => filterLog(log))
+    other = other.pipe(filter(filterFn))
   }
   const log$ = {
     context: Rx.from(contextPushStream),

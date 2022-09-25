@@ -50,13 +50,10 @@ import {
 import {
   DependenciesField,
   DependencyManifest,
-  PackageExtension,
   PeerDependencyIssues,
-  PeerDependencyRules,
   ProjectManifest,
   ReadPackageHook,
 } from '@pnpm/types'
-import { packageExtensions as compatPackageExtensions } from '@yarnpkg/extensions'
 import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
 import pFilter from 'p-filter'
@@ -71,12 +68,9 @@ import unnest from 'ramda/src/unnest'
 import parseWantedDependencies from '../parseWantedDependencies'
 import removeDeps from '../uninstall/removeDeps'
 import allProjectsAreUpToDate from './allProjectsAreUpToDate'
-import createPackageExtender from './createPackageExtender'
-import createVersionsOverrider from './createVersionsOverrider'
-import createPeerDependencyPatcher from './createPeerDependencyPatcher'
 import extendOptions, {
   InstallOptions,
-  StrictInstallOptions,
+  ProcessedInstallOptions as StrictInstallOptions,
 } from './extendInstallOptions'
 import { getPreferredVersionsFromLockfile, getAllUniqueSpecs } from './getPreferredVersions'
 import linkPackages from './link'
@@ -152,6 +146,9 @@ export type MutatedProject = ProjectOptions & DependenciesMutation
 
 export type MutateModulesOptions = InstallOptions & {
   preferredVersions?: PreferredVersions
+  hooks?: {
+    readPackage?: ReadPackageHook[] | ReadPackageHook
+  } | InstallOptions['hooks']
 }
 
 export async function mutateModules (
@@ -176,14 +173,6 @@ export async function mutateModules (
     // When running install/update on a subset of projects, the root project might not be included,
     // so reading its manifest explicitly here.
     await safeReadProjectManifestOnly(opts.lockfileDir)
-  opts.hooks.readPackage = createReadPackageHook({
-    ignoreCompatibilityDb: opts.ignoreCompatibilityDb,
-    readPackageHook: opts.hooks.readPackage,
-    overrides: opts.overrides,
-    lockfileDir: opts.lockfileDir,
-    packageExtensions: opts.packageExtensions,
-    peerDependencyRules: opts.peerDependencyRules,
-  })
 
   const ctx = await getContext(projects, opts)
 
@@ -571,55 +560,6 @@ export function createObjectChecksum (obj: Object) {
   return crypto.createHash('md5').update(s).digest('hex')
 }
 
-export function createReadPackageHook (
-  {
-    ignoreCompatibilityDb,
-    lockfileDir,
-    overrides,
-    packageExtensions,
-    peerDependencyRules,
-    readPackageHook,
-  }: {
-    ignoreCompatibilityDb?: boolean
-    lockfileDir: string
-    overrides?: Record<string, string>
-    packageExtensions?: Record<string, PackageExtension>
-    peerDependencyRules?: PeerDependencyRules
-    readPackageHook?: ReadPackageHook
-  }
-): ReadPackageHook | undefined {
-  const hooks: ReadPackageHook[] = []
-  if (!isEmpty(overrides ?? {})) {
-    hooks.push(createVersionsOverrider(overrides!, lockfileDir))
-  }
-  if (!ignoreCompatibilityDb) {
-    hooks.push(createPackageExtender(fromPairs(compatPackageExtensions)))
-  }
-  if (!isEmpty(packageExtensions ?? {})) {
-    hooks.push(createPackageExtender(packageExtensions!))
-  }
-  if (
-    peerDependencyRules != null &&
-    (
-      !isEmpty(peerDependencyRules.ignoreMissing) ||
-      !isEmpty(peerDependencyRules.allowedVersions) ||
-      !isEmpty(peerDependencyRules.allowAny)
-    )
-  ) {
-    hooks.push(createPeerDependencyPatcher(peerDependencyRules))
-  }
-  if (hooks.length === 0) {
-    return readPackageHook
-  }
-  const readPackageAndExtend = hooks.length === 1
-    ? hooks[0]
-    : pipeWith(async (f, res) => f(await res), hooks as any) as ReadPackageHook // eslint-disable-line @typescript-eslint/no-explicit-any
-  if (readPackageHook != null) {
-    return (async (manifest: ProjectManifest, dir?: string) => readPackageAndExtend(await readPackageHook(manifest, dir), dir)) as ReadPackageHook
-  }
-  return readPackageAndExtend
-}
-
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number) {
   return ((Date.now() - new Date(prunedAt).valueOf()) / (1000 * 60)) > maxAgeInMinutes
 }
@@ -827,7 +767,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       engineStrict: opts.engineStrict,
       force: opts.force,
       forceFullResolution,
-      hooks: opts.hooks,
+      hooks: {
+        readPackage: opts.readPackageHook,
+      },
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir: opts.lockfileDir,
       nodeVersion: opts.nodeVersion,
@@ -882,7 +824,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   })
 
   newLockfile = ((opts.hooks?.afterAllResolved) != null)
-    ? await opts.hooks?.afterAllResolved(newLockfile)
+    ? await pipeWith(async (f, res) => f(await res), opts.hooks.afterAllResolved as any)(newLockfile) as Lockfile // eslint-disable-line
     : newLockfile
 
   if (opts.updateLockfileMinorVersion) {

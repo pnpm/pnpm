@@ -1,7 +1,7 @@
 import resolveDependencies, { getWantedDependencies } from '@pnpm/resolve-dependencies'
 import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import getContext, { GetContextOptions, ProjectOptions } from '@pnpm/get-context'
-import { createReadPackageHook } from './install'
+import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { getPreferredVersionsFromLockfile } from './install/getPreferredVersions'
 import { InstallOptions } from './install/extendInstallOptions'
 import { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'

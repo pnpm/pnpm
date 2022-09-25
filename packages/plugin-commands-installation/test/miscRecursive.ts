@@ -715,3 +715,45 @@ test('installing in monorepo with shared lockfile should work on virtual drives'
 
   await projects['project-1'].has('is-positive')
 })
+
+test('pass readPackage with shared lockfile', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    workspaceDir: process.cwd(),
+    hooks: {
+      readPackage: [
+        (pkg) => ({
+          ...pkg,
+          dependencies: {
+            'is-positive': '1.0.0',
+          },
+        }),
+      ],
+    },
+  })
+
+  await projects['project-1'].has('is-positive')
+  await projects['project-1'].hasNot('is-negative')
+  await projects['project-2'].has('is-positive')
+  await projects['project-2'].hasNot('is-negative')
+})

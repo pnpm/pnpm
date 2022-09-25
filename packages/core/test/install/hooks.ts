@@ -33,8 +33,8 @@ test('readPackage, afterAllResolved hooks', async () => {
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({
     hooks: {
-      afterAllResolved,
-      readPackage: readPackageHook,
+      afterAllResolved: [afterAllResolved],
+      readPackage: [readPackageHook],
     },
   }))
 
@@ -71,8 +71,8 @@ test('readPackage, afterAllResolved async hooks', async () => {
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({
     hooks: {
-      afterAllResolved,
-      readPackage: readPackageHook,
+      afterAllResolved: [afterAllResolved],
+      readPackage: [readPackageHook],
     },
   }))
 
@@ -82,4 +82,43 @@ test('readPackage, afterAllResolved async hooks', async () => {
 
   const wantedLockfile = await project.readLockfile()
   expect(wantedLockfile['foo']).toEqual('foo')
+})
+
+test('readPackage hooks array', async () => {
+  const project = prepareEmpty()
+
+  // w/o the hook, 100.1.0 would be installed
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  function readPackageHook1 (manifest: PackageManifest) {
+    switch (manifest.name) {
+    case '@pnpm.e2e/pkg-with-1-dep':
+      if (manifest.dependencies == null) {
+        throw new Error('@pnpm.e2e/pkg-with-1-dep expected to have a dependencies field')
+      }
+      manifest.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '50.0.0'
+      break
+    }
+    return manifest
+  }
+
+  function readPackageHook2 (manifest: PackageManifest) {
+    switch (manifest.name) {
+    case '@pnpm.e2e/pkg-with-1-dep':
+      if (manifest.dependencies == null) {
+        throw new Error('@pnpm.e2e/pkg-with-1-dep expected to have a dependencies field')
+      }
+      manifest.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.0.0'
+      break
+    }
+    return manifest
+  }
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({
+    hooks: {
+      readPackage: [readPackageHook1, readPackageHook2],
+    },
+  }))
+
+  await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
 })

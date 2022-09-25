@@ -73,15 +73,15 @@ export async function handler (
   await rimraf(deployDir)
   await fs.promises.mkdir(deployDir, { recursive: true })
   await copyProject(deployedDir, deployDir)
-  const readPackageHook = opts.hooks?.readPackage
-  // eslint-disable-next-line
-  const newReadPackageHook = readPackageHook ? (async (pkg: any, context: any) => deployHook(await readPackageHook(pkg, context))) : deployHook
   await install.handler({
     ...opts,
     depth: Infinity,
     hooks: {
       ...opts.hooks,
-      readPackage: newReadPackageHook,
+      readPackage: [
+        ...(opts.hooks?.readPackage ?? []),
+        deployHook,
+      ],
     },
     frozenLockfile: false,
     preferFrozenLockfile: false,
