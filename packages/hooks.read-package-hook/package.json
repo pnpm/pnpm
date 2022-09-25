@@ -1,0 +1,51 @@
+{
+  "name": "@pnpm/hooks.read-package-hook",
+  "version": "0.0.0",
+  "description": "Creates the default package reader hook used by pnpm",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "_test": "jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/hooks.read-package-hook",
+  "keywords": [
+    "pnpm7"
+  ],
+  "engines": {
+    "node": ">=14.6"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/hooks.read-package-hook#readme",
+  "dependencies": {
+    "@pnpm/matcher": "workspace:*",
+    "@pnpm/parse-overrides": "workspace:*",
+    "@pnpm/parse-wanted-dependency": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@yarnpkg/extensions": "1.2.0-rc.1",
+    "normalize-path": "^3.0.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
+    "semver": "^7.3.7"
+  },
+  "devDependencies": {
+    "@pnpm/hooks.read-package-hook": "workspace:*",
+    "@types/normalize-path": "^3.0.0",
+    "@types/ramda": "0.28.15",
+    "@types/semver": "7.3.10",
+    "@yarnpkg/core": "4.0.0-rc.14"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

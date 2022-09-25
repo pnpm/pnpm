@@ -1,4 +1,4 @@
-import createPackageExtender from '../../lib/install/createPackageExtender'
+import createPackageExtender from '../lib/createPackageExtender'
 
 const packageExtender = createPackageExtender({
   foo: {

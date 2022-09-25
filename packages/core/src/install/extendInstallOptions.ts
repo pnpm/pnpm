@@ -1,6 +1,7 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { HoistingLimits } from '@pnpm/headless'
+import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
@@ -15,7 +16,6 @@ import {
 } from '@pnpm/types'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
-import { createReadPackageHook } from './createReadPackageHook'
 import { PreResolutionHookContext } from './hooks'
 
 export interface StrictInstallOptions {
