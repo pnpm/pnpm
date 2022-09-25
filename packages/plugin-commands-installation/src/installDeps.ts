@@ -222,6 +222,14 @@ when running add/update with the --workspace option')
       params = createWorkspaceSpecs(params, workspacePackages)
     }
   }
+
+  if (opts.update) {
+    params = params.filter((param) => {
+      const packageName = param.slice(0, param.lastIndexOf('@'))
+      return !(manifest?.pnpm?.update?.ignore ?? []).includes(packageName)
+    })
+  }
+
   if (params?.length) {
     const mutatedProject: MutatedProject = {
       allowNew: opts.allowNew,
