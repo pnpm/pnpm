@@ -1,4 +1,5 @@
 import path from 'path'
+import { Log } from '@pnpm/core-loggers'
 import { requireHooks, requirePnpmfile, BadReadPackageHookError } from '@pnpm/pnpmfile'
 
 test('ignoring a pnpmfile that exports undefined', () => {
@@ -29,12 +30,14 @@ test('filterLog hook combines with the global hook', () => {
   const hooks = requireHooks(__dirname, { globalPnpmfile, pnpmfile })
 
   expect(hooks.filterLog).toBeDefined()
-  expect(hooks.filterLog!({
+  expect(hooks.filterLog!.length).toBe(2)
+  const filterLog = (log: Log) => hooks.filterLog!.every((hook) => hook(log))
+  expect(filterLog({
     name: 'pnpm:summary',
     level: 'error',
     prefix: 'test',
   })).toBeTruthy()
-  expect(hooks.filterLog!({
+  expect(filterLog({
     name: 'pnpm:summary',
     level: 'debug',
     prefix: 'test',
