@@ -1325,6 +1325,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
+      '@pnpm/graceful-fs':
+        specifier: workspace:*
+        version: link:../graceful-fs
       find-up:
         specifier: ^5.0.0
         version: 5.0.0

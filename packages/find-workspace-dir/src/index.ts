@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import PnpmError from '@pnpm/error'
 import findUp from 'find-up'
+import gfs from '@pnpm/graceful-fs'
 
 const WORKSPACE_DIR_ENV_VAR = 'NPM_CONFIG_WORKSPACE_DIR'
 const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
@@ -14,6 +15,15 @@ export default async function findWorkspaceDir (cwd: string) {
   if (workspaceManifestLocation?.endsWith('.yml')) {
     throw new PnpmError('BAD_WORKSPACE_MANIFEST_NAME', `The workspace manifest file should be named "pnpm-workspace.yaml". File found: ${workspaceManifestLocation}`)
   }
+  const packageManifestFile = workspaceManifestDirEnvVar
+    ? path.join(workspaceManifestDirEnvVar, 'package.json')
+    : await findUp([WORKSPACE_MANIFEST_FILENAME, 'package.json'], { cwd: await getRealPath(cwd) })
+  const packageManifest = JSON.parse(await gfs.readFile(packageManifestFile!, 'utf-8'))
+
+  if (packageManifest?.workspaces?.length) {
+    throw new PnpmError('BAD_PACKAGE_JSON_WORKSPACES', 'The root package.json file should not have workspaces defined with pnpm. Remove and use "pnpm-workspace.yaml" instead!')
+  }
+
   return workspaceManifestLocation && path.dirname(workspaceManifestLocation)
 }
 
