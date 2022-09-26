@@ -5,8 +5,7 @@ import {
   Config,
 } from '@pnpm/config'
 import { scopeLogger } from '@pnpm/core-loggers'
-import { filterPackages } from '@pnpm/filter-workspace-packages'
-import findWorkspacePackages from '@pnpm/find-workspace-packages'
+import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import logger from '@pnpm/logger'
 import { ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { node } from '@pnpm/plugin-commands-env'
@@ -167,18 +166,6 @@ export default async function run (inputArgv: string[]) {
 
   if (cliOptions['recursive']) {
     const wsDir = workspaceDir ?? process.cwd()
-    const allProjects = await findWorkspacePackages(wsDir, {
-      engineStrict: config.engineStrict,
-      patterns: cliOptions['workspace-packages'],
-    })
-
-    if (allProjects.length === 0) {
-      if (printLogs) {
-        console.log(`No projects found in "${wsDir}"`)
-      }
-      process.exitCode = 0
-      return
-    }
 
     config.filter = config.filter ?? []
     config.filterProd = config.filterProd ?? []
@@ -194,7 +181,9 @@ export default async function run (inputArgv: string[]) {
       filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: false })
     }
 
-    const filterResults = await filterPackages(allProjects, filters, {
+    const filterResults = await filterPackagesFromDir(wsDir, filters, {
+      engineStrict: config.engineStrict,
+      patterns: cliOptions['workspace-packages'],
       linkWorkspacePackages: !!config.linkWorkspacePackages,
       prefix: process.cwd(),
       workspaceDir: wsDir,
@@ -202,6 +191,14 @@ export default async function run (inputArgv: string[]) {
       changedFilesIgnorePattern: config.changedFilesIgnorePattern,
       useGlobDirFiltering: !config.legacyDirFiltering,
     })
+
+    if (filterResults.allProjects.length === 0) {
+      if (printLogs) {
+        console.log(`No projects found in "${wsDir}"`)
+      }
+      process.exitCode = 0
+      return
+    }
     config.selectedProjectsGraph = filterResults.selectedProjectsGraph
     if (isEmpty(config.selectedProjectsGraph)) {
       if (printLogs) {
@@ -213,7 +210,7 @@ export default async function run (inputArgv: string[]) {
     if (filterResults.unmatchedFilters.length !== 0 && printLogs) {
       console.log(`No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`)
     }
-    config.allProjects = allProjects
+    config.allProjects = filterResults.allProjects
     config.workspaceDir = wsDir
   }
 

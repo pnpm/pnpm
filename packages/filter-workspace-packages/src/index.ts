@@ -51,18 +51,33 @@ export async function readProjects (
   return { allProjects, selectedProjectsGraph }
 }
 
+export interface FilterPackagesOptions {
+  linkWorkspacePackages?: boolean
+  prefix: string
+  workspaceDir: string
+  testPattern?: string[]
+  changedFilesIgnorePattern?: string[]
+  useGlobDirFiltering?: boolean
+}
+
+export async function filterPackagesFromDir (
+  workspaceDir: string,
+  filter: WorkspaceFilter[],
+  opts: FilterPackagesOptions & { engineStrict?: boolean, patterns: string[] }
+) {
+  const allProjects = await findWorkspacePackages(workspaceDir, { engineStrict: opts?.engineStrict, patterns: opts.patterns })
+  return {
+    allProjects,
+    ...(await filterPackages(allProjects, filter, opts)),
+  }
+}
+
 export async function filterPackages<T> (
   pkgs: Array<Package & T>,
   filter: WorkspaceFilter[],
-  opts: {
-    linkWorkspacePackages?: boolean
-    prefix: string
-    workspaceDir: string
-    testPattern?: string[]
-    changedFilesIgnorePattern?: string[]
-    useGlobDirFiltering?: boolean
-  }
+  opts: FilterPackagesOptions
 ): Promise<{
+    allProjectsGraph: PackageGraph<T>
     selectedProjectsGraph: PackageGraph<T>
     unmatchedFilters: string[]
   }> {
@@ -82,6 +97,7 @@ export async function filterPkgsBySelectorObjects<T> (
     useGlobDirFiltering?: boolean
   }
 ): Promise<{
+    allProjectsGraph: PackageGraph<T>
     selectedProjectsGraph: PackageGraph<T>
     unmatchedFilters: string[]
   }> {
@@ -89,9 +105,9 @@ export async function filterPkgsBySelectorObjects<T> (
 
   if ((allPackageSelectors.length > 0) || (prodPackageSelectors.length > 0)) {
     let filteredGraph: FilteredGraph<T> | undefined
+    const { graph } = createPkgGraph<T>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
 
     if (allPackageSelectors.length > 0) {
-      const { graph } = createPkgGraph<T>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
       filteredGraph = await filterGraph(graph, allPackageSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
@@ -112,7 +128,8 @@ export async function filterPkgsBySelectorObjects<T> (
       })
     }
 
-    return Promise.resolve({
+    return {
+      allProjectsGraph: graph,
       selectedProjectsGraph: {
         ...prodFilteredGraph?.selectedProjectsGraph,
         ...filteredGraph?.selectedProjectsGraph,
@@ -121,10 +138,10 @@ export async function filterPkgsBySelectorObjects<T> (
         ...(prodFilteredGraph !== undefined ? prodFilteredGraph.unmatchedFilters : []),
         ...(filteredGraph !== undefined ? filteredGraph.unmatchedFilters : []),
       ],
-    })
+    }
   } else {
     const { graph } = createPkgGraph<T>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
-    return Promise.resolve({ selectedProjectsGraph: graph, unmatchedFilters: [] })
+    return { allProjectsGraph: graph, selectedProjectsGraph: graph, unmatchedFilters: [] }
   }
 }
 
