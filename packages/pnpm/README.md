@@ -18,6 +18,7 @@ Fast, disk space efficient package manager:
 * **Works as a Node.js version manager.** See [pnpm env use](https://pnpm.io/cli/env).
 * **Works everywhere.** Supports Windows, Linux, and macOS.
 * **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.io/users) since 2016.
+* [See the full feature comparison with npm and Yarn](https://pnpm.io/feature-comparison).
 
 To quote the [Rush](https://rushjs.io/) team:
 
