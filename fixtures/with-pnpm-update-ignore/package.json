@@ -7,7 +7,7 @@
   },
   "pnpm": {
     "update": {
-      "ignore": [
+      "ignoreDependencies": [
         "is-positive"
       ]
     }

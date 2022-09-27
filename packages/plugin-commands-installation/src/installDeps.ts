@@ -226,7 +226,7 @@ when running add/update with the --workspace option')
   if (opts.update) {
     params = params.filter((param) => {
       const packageName = param.slice(0, param.lastIndexOf('@'))
-      return !(manifest?.pnpm?.update?.ignore ?? []).includes(packageName)
+      return !(manifest?.pnpm?.update?.ignoreDependencies ?? []).includes(packageName)
     })
   }
 

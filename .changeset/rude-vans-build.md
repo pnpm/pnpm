@@ -5,4 +5,4 @@
 "@pnpm/types": major
 ---
 
-Ignore packages listed in package.json > pnpm.update.ignore fields on update/outdated command [#5358](https://github.com/pnpm/pnpm/issues/5358)
+Ignore packages listed in package.json > pnpm.update.ignoreDependencies fields on update/outdated command [#5358](https://github.com/pnpm/pnpm/issues/5358)

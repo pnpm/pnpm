@@ -225,7 +225,7 @@ test('update should work normal when set empty string version', async () => {
   expect(lockfile.devDependencies['@pnpm.e2e/peer-c']).toEqual('2.0.0')
 })
 
-test('ignore packages in package.json > pnpm.update.ignore fields in update command', async () => {
+test('ignore packages in package.json > pnpm.update.ignoreDependencies fields in update command', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
 
@@ -236,7 +236,7 @@ test('ignore packages in package.json > pnpm.update.ignore fields in update comm
     },
     pnpm: {
       update: {
-        ignore: [
+        ignoreDependencies: [
           '@pnpm.e2e/foo',
         ],
       },
