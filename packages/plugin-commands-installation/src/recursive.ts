@@ -230,7 +230,7 @@ export default async function recursive (
       if (opts.update) {
         currentInput = currentInput.filter((param) => {
           const packageName = param.slice(0, param.lastIndexOf('@'))
-          return !(manifest?.pnpm?.update?.ignore ?? []).includes(packageName)
+          return !(manifest?.pnpm?.update?.ignoreDependencies ?? []).includes(packageName)
         })
       }
 
@@ -338,7 +338,7 @@ export default async function recursive (
         if (opts.update) {
           currentInput = currentInput.filter((param) => {
             const packageName = param.slice(0, param.lastIndexOf('@'))
-            return !(manifest?.pnpm?.update?.ignore ?? []).includes(packageName)
+            return !(manifest?.pnpm?.update?.ignoreDependencies ?? []).includes(packageName)
           })
         }
 

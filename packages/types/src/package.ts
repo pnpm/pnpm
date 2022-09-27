@@ -132,7 +132,7 @@ export type ProjectManifest = BaseManifest & {
     allowNonAppliedPatches?: boolean
     patchedDependencies?: Record<string, string>
     update?: {
-      ignore?: string[]
+      ignoreDependencies?: string[]
     }
   }
   private?: boolean
