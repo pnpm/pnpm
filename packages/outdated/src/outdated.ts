@@ -34,6 +34,7 @@ export default async function outdated (
     compatible?: boolean
     currentLockfile: Lockfile | null
     getLatestManifest: GetLatestManifestFunction
+    ignoreDependencies?: Set<string>
     include?: IncludedDependencies
     lockfileDir: string
     manifest: ProjectManifest
@@ -74,7 +75,7 @@ export default async function outdated (
             return
           }
 
-          if ((opts.manifest.pnpm?.updateConfig?.ignoreDependencies ?? []).includes(alias)) {
+          if (opts.ignoreDependencies?.has(alias)) {
             return
           }
 
