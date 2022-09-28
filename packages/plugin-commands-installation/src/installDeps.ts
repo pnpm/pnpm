@@ -225,14 +225,6 @@ when running add/update with the --workspace option')
     }
   }
 
-  if (opts.update) {
-    const packagesSpecifiedInParamsMatcher = createMatcher(params)
-    currentInput = currentInput.filter((param) => {
-      const packageName = param.slice(0, param.lastIndexOf('@'))
-      return !(manifest?.pnpm?.update?.ignoreDependencies ?? []).includes(packageName) || (!!packagesSpecifiedInParamsMatcher && packagesSpecifiedInParamsMatcher(packageName))
-    })
-  }
-
   if (currentInput?.length) {
     const mutatedProject: MutatedProject = {
       allowNew: opts.allowNew,

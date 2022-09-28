@@ -227,14 +227,6 @@ export default async function recursive (
         }
       }
 
-      if (opts.update) {
-        const packagesSpecifiedInParamsMatcher = createMatcher(params)
-        currentInput = currentInput.filter((param) => {
-          const packageName = param.slice(0, param.lastIndexOf('@'))
-          return !(manifest?.pnpm?.update?.ignoreDependencies ?? []).includes(packageName) || (!!packagesSpecifiedInParamsMatcher && packagesSpecifiedInParamsMatcher(packageName))
-        })
-      }
-
       writeProjectManifests.push(writeProjectManifest)
       switch (mutation) {
       case 'uninstallSome':
@@ -334,14 +326,6 @@ export default async function recursive (
           } else {
             currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
           }
-        }
-
-        if (opts.update) {
-          const packagesSpecifiedInParamsMatcher = createMatcher(params)
-          currentInput = currentInput.filter((param) => {
-            const packageName = param.slice(0, param.lastIndexOf('@'))
-            return !(manifest?.pnpm?.update?.ignoreDependencies ?? []).includes(packageName) || (!!packagesSpecifiedInParamsMatcher && packagesSpecifiedInParamsMatcher(packageName))
-          })
         }
 
         let action!: any // eslint-disable-line @typescript-eslint/no-explicit-any
