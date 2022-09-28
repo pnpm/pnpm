@@ -6,7 +6,7 @@
     "is-negative": "1.0.0"
   },
   "pnpm": {
-    "update": {
+    "updateConfig": {
       "ignoreDependencies": [
         "is-positive"
       ]

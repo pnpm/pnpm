@@ -131,7 +131,7 @@ export type ProjectManifest = BaseManifest & {
     allowedDeprecatedVersions?: AllowedDeprecatedVersions
     allowNonAppliedPatches?: boolean
     patchedDependencies?: Record<string, string>
-    update?: {
+    updateConfig?: {
       ignoreDependencies?: string[]
     }
   }

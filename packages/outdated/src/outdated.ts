@@ -74,7 +74,7 @@ export default async function outdated (
             return
           }
 
-          if ((opts.manifest.pnpm?.update?.ignoreDependencies ?? []).includes(alias)) {
+          if ((opts.manifest.pnpm?.updateConfig?.ignoreDependencies ?? []).includes(alias)) {
             return
           }
 
