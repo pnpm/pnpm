@@ -236,7 +236,7 @@ test('ignore packages in package.json > pnpm.update.ignoreDependencies fields in
     },
     pnpm: {
       update: {
-        ignore: [
+        ignoreDependencies: [
           '@pnpm.e2e/foo',
         ],
       },
