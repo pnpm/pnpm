@@ -199,42 +199,45 @@ when running add/update with the --workspace option')
     }
   }
 
-  const updateMatch = opts.update && (params.length > 0) ? createMatcher(params) : null
+  let currentInput = [...params]
+
+  const updateMatch = opts.update && (currentInput.length > 0) ? createMatcher(currentInput) : null
   if (updateMatch != null) {
-    params = matchDependencies(updateMatch, manifest, includeDirect)
-    if (params.length === 0 && opts.depth === 0) {
+    currentInput = matchDependencies(updateMatch, manifest, includeDirect)
+    if (currentInput.length === 0 && opts.depth === 0) {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies.')
     }
   }
 
   if (opts.update && opts.latest) {
-    if (!params || (params.length === 0)) {
-      params = updateToLatestSpecsFromManifest(manifest, includeDirect)
+    if (!currentInput || (currentInput.length === 0)) {
+      currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
     } else {
-      params = createLatestSpecs(params, manifest)
+      currentInput = createLatestSpecs(currentInput, manifest)
     }
   }
   if (opts.workspace) {
-    if (!params || (params.length === 0)) {
-      params = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
+    if (!currentInput || (currentInput.length === 0)) {
+      currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
     } else {
-      params = createWorkspaceSpecs(params, workspacePackages)
+      currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
     }
   }
 
   if (opts.update) {
-    params = params.filter((param) => {
+    const packagesSpecifiedInParams = params.map(param => param.slice(0, param.lastIndexOf('@')))
+    currentInput = currentInput.filter((param) => {
       const packageName = param.slice(0, param.lastIndexOf('@'))
-      return !(manifest?.pnpm?.update?.ignoreDependencies ?? []).includes(packageName)
+      return !(manifest?.pnpm?.update?.ignoreDependencies ?? []).includes(packageName) || packagesSpecifiedInParams.includes(packageName)
     })
   }
 
-  if (params?.length) {
+  if (currentInput?.length) {
     const mutatedProject: MutatedProject = {
       allowNew: opts.allowNew,
       binsDir: opts.bin,
-      dependencySelectors: params,
+      dependencySelectors: currentInput,
       manifest,
       mutation: 'installSome',
       peer: opts.savePeer,

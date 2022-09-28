@@ -228,9 +228,10 @@ export default async function recursive (
       }
 
       if (opts.update) {
+        const packagesSpecifiedInParams = params.map(param => param.slice(0, param.lastIndexOf('@')))
         currentInput = currentInput.filter((param) => {
           const packageName = param.slice(0, param.lastIndexOf('@'))
-          return !(manifest?.pnpm?.update?.ignoreDependencies ?? []).includes(packageName)
+          return !(manifest?.pnpm?.update?.ignoreDependencies ?? []).includes(packageName) || packagesSpecifiedInParams.includes(packageName)
         })
       }
 
@@ -336,9 +337,10 @@ export default async function recursive (
         }
 
         if (opts.update) {
+          const packagesSpecifiedInParams = params.map(param => param.slice(0, param.lastIndexOf('@')))
           currentInput = currentInput.filter((param) => {
             const packageName = param.slice(0, param.lastIndexOf('@'))
-            return !(manifest?.pnpm?.update?.ignoreDependencies ?? []).includes(packageName)
+            return !(manifest?.pnpm?.update?.ignoreDependencies ?? []).includes(packageName) || packagesSpecifiedInParams.includes(packageName)
           })
         }
 
