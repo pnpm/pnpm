@@ -201,22 +201,23 @@ when running add/update with the --workspace option')
 
   let currentInput = [...params]
 
+  const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
   if (opts.update && params.length === 0) {
-    const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
     currentInput = [...ignoredPackages.map(pkg => `!${pkg}`), ...currentInput]
   }
 
   const updateMatch = opts.update && (currentInput.length > 0) ? createMatcher(currentInput) : null
+  const hasIgnored = ignoredPackages.length > 0
   if (updateMatch != null) {
-    currentInput = matchDependencies(updateMatch, manifest, includeDirect)
-    if (currentInput.length === 0 && opts.depth === 0) {
+    const currentInput = matchDependencies(updateMatch, manifest, includeDirect)
+    if (currentInput.length === 0 && opts.depth === 0 && ignoredPackages.length === 0) {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies.')
     }
   }
 
   if (opts.update && opts.latest) {
-    if (!currentInput || (currentInput.length === 0)) {
+    if ((!currentInput || (currentInput.length === 0)) && !hasIgnored) {
       currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
     } else {
       currentInput = createLatestSpecs(currentInput, manifest)

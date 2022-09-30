@@ -199,11 +199,12 @@ export default async function recursive (
       const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
       let currentInput = [...params]
+      const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
       if (opts.update && params.length === 0) {
-        const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
         currentInput = [...ignoredPackages.map(pkg => `!${pkg}`), ...currentInput]
       }
       const updateMatch = cmdFullName === 'update' && (currentInput.length > 0) ? createMatcher(currentInput) : null
+      const hasIgnored = ignoredPackages.length > 0
       if (updateMatch != null) {
         currentInput = matchDependencies(updateMatch, manifest, includeDirect)
         if ((currentInput.length === 0) && (typeof opts.depth === 'undefined' || opts.depth <= 0)) {
@@ -212,7 +213,7 @@ export default async function recursive (
         }
       }
       if (updateToLatest) {
-        if (!params || (params.length === 0)) {
+        if ((!params || (params.length === 0)) && !hasIgnored) {
           currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
         } else {
           currentInput = createLatestSpecs(currentInput, manifest)
@@ -311,17 +312,18 @@ export default async function recursive (
 
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...params]
+        const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
         if (opts.update && params.length === 0) {
-          const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
           currentInput = [...ignoredPackages.map(pkg => `!${pkg}`), ...currentInput]
         }
         const updateMatch = cmdFullName === 'update' && (currentInput.length > 0) ? createMatcher(currentInput) : null
+        const hasIgnored = ignoredPackages.length > 0
         if (updateMatch != null) {
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
           if (currentInput.length === 0) return
         }
         if (updateToLatest) {
-          if (!params || (params.length === 0)) {
+          if ((!params || (params.length === 0)) && !hasIgnored) {
             currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
           } else {
             currentInput = createLatestSpecs(currentInput, manifest)
