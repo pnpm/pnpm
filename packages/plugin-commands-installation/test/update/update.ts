@@ -261,6 +261,7 @@ test('ignore packages in package.json > Config.ignoreDependencies fields in upda
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     workspaceDir: process.cwd(),
+    latest: true,
   })
 
   const lockfileUpdated = await project.readLockfile()
