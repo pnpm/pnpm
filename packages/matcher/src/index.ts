@@ -8,12 +8,17 @@ export default function matcher (patterns: string[] | string): Matcher {
   return (input) => m(input) !== -1
 }
 
+interface MatcherFunction {
+  match: Matcher
+  ignore: boolean
+}
+
 export function matcherWithIndex (patterns: string[]): MatcherWithIndex {
   switch (patterns.length) {
   case 0: return () => -1
   case 1: return matcherWhenOnlyOnePatternWithIndex(patterns[0])
   }
-  const matchArr: Array<{ match: Matcher, ignore: boolean }> = []
+  const matchArr: MatcherFunction[] = []
   let hasIgnore = false
   for (const pattern of patterns) {
     if (isIgnorePattern(pattern)) {
@@ -24,29 +29,33 @@ export function matcherWithIndex (patterns: string[]): MatcherWithIndex {
     }
   }
   if (!hasIgnore) {
-    return (input: string) => {
-      for (let i = 0; i < matchArr.length; i++) {
-        if (matchArr[i].match(input)) return i
+    return matchInputWithNonIgnoreMatchers.bind(null, matchArr)
+  }
+  return matchInputWithMatchersArray.bind(null, matchArr)
+}
+
+function matchInputWithNonIgnoreMatchers (matchArr: MatcherFunction[], input: string): number {
+  for (let i = 0; i < matchArr.length; i++) {
+    if (matchArr[i].match(input)) return i
+  }
+  return -1
+}
+
+function matchInputWithMatchersArray (matchArr: MatcherFunction[], input: string): number {
+  let matchedPatternIndex = -1
+  for (let i = 0; i < matchArr.length; i++) {
+    const { ignore, match } = matchArr[i]
+    if (ignore) {
+      if (match(input)) {
+        matchedPatternIndex = -1
+      } else if (matchedPatternIndex === -1) {
+        matchedPatternIndex = i
       }
-      return -1
+    } else if (matchedPatternIndex === -1 && match(input)) {
+      matchedPatternIndex = i
     }
   }
-  return (input: string) => {
-    let isMatched = -1
-    for (let i = 0; i < matchArr.length; i++) {
-      const { ignore, match } = matchArr[i]
-      if (ignore) {
-        if (!match(input)) {
-          isMatched = isMatched === -1 ? i : isMatched
-        } else {
-          isMatched = -1
-        }
-      } else if (isMatched === -1 && match(input)) {
-        isMatched = i
-      }
-    }
-    return isMatched
-  }
+  return matchedPatternIndex
 }
 
 function matcherFromPattern (pattern: string): Matcher {
