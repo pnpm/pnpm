@@ -1,12 +1,17 @@
 import escapeStringRegexp from 'escape-string-regexp'
 
 type Matcher = (input: string) => boolean
+type MatcherWithIndex = (input: string) => number
 
 export default function matcher (patterns: string[] | string): Matcher {
-  if (typeof patterns === 'string') return matcherWhenOnlyOnePattern(patterns)
+  const m = matcherWithIndex(Array.isArray(patterns) ? patterns : [patterns])
+  return (input) => m(input) !== -1
+}
+
+export function matcherWithIndex (patterns: string[]): MatcherWithIndex {
   switch (patterns.length) {
-  case 0: return () => false
-  case 1: return matcherWhenOnlyOnePattern(patterns[0])
+  case 0: return () => -1
+  case 1: return matcherWhenOnlyOnePatternWithIndex(patterns[0])
   }
   const matchArr: Array<{ match: Matcher, ignore: boolean }> = []
   let hasIgnore = false
@@ -19,15 +24,25 @@ export default function matcher (patterns: string[] | string): Matcher {
     }
   }
   if (!hasIgnore) {
-    return (input: string) => matchArr.some(({ match }) => match(input))
+    return (input: string) => {
+      for (let i = 0; i < matchArr.length; i++) {
+        if (matchArr[i].match(input)) return i
+      }
+      return -1
+    }
   }
   return (input: string) => {
-    let isMatched = false
-    for (const { ignore, match } of matchArr) {
+    let isMatched = -1
+    for (let i = 0; i < matchArr.length; i++) {
+      const { ignore, match } = matchArr[i]
       if (ignore) {
-        isMatched = !match(input)
-      } else if (!isMatched && match(input)) {
-        isMatched = true
+        if (!match(input)) {
+          isMatched = isMatched === -1 ? i : isMatched
+        } else {
+          isMatched = -1
+        }
+      } else if (isMatched === -1 && match(input)) {
+        isMatched = i
       }
     }
     return isMatched
@@ -52,8 +67,16 @@ function isIgnorePattern (pattern: string): boolean {
   return pattern.startsWith('!')
 }
 
+function matcherWhenOnlyOnePatternWithIndex (pattern: string): MatcherWithIndex {
+  const m = matcherWhenOnlyOnePattern(pattern)
+  return (input) => m(input) ? 0 : -1
+}
+
 function matcherWhenOnlyOnePattern (pattern: string): Matcher {
-  return isIgnorePattern(pattern)
-    ? () => false
-    : matcherFromPattern(pattern)
+  if (!isIgnorePattern(pattern)) {
+    return matcherFromPattern(pattern)
+  }
+  const ignorePattern = pattern.substring(1)
+  const m = matcherFromPattern(ignorePattern)
+  return (input) => !m(input)
 }

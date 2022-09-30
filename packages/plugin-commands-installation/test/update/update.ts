@@ -40,6 +40,39 @@ test('update with "*" pattern', async () => {
   expect(lockfile.packages['/@pnpm.e2e/foo/1.0.0']).toBeTruthy()
 })
 
+test('update with negation pattern', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/peer-a': '1.0.0',
+      '@pnpm.e2e/peer-c': '1.0.0',
+      '@pnpm.e2e/foo': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+    workspaceDir: process.cwd(),
+  }, ['!@pnpm.e2e/peer-*'])
+
+  const lockfile = await project.readLockfile()
+
+  expect(lockfile.packages['/@pnpm.e2e/peer-a/1.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/peer-c/1.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/foo/2.0.0']).toBeTruthy()
+})
+
 test('update: fail when both "latest" and "workspace" are true', async () => {
   preparePackages([
     {
