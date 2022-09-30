@@ -173,8 +173,6 @@ export default async function recursive (
     optionalDependencies: true,
   }
 
-  const updateMatch = cmdFullName === 'update' && (params.length > 0) ? createMatcher(params) : null
-
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
     let importers = await getImporters()
@@ -201,6 +199,11 @@ export default async function recursive (
       const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
       let currentInput = [...params]
+      if (opts.update) {
+        const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
+        currentInput = [...ignoredPackages.map(pkg => `!${pkg}`), ...currentInput]
+      }
+      const updateMatch = cmdFullName === 'update' && (currentInput.length > 0) ? createMatcher(currentInput) : null
       if (updateMatch != null) {
         currentInput = matchDependencies(updateMatch, manifest, includeDirect)
         if ((currentInput.length === 0) && (typeof opts.depth === 'undefined' || opts.depth <= 0)) {
@@ -308,6 +311,11 @@ export default async function recursive (
 
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...params]
+        if (opts.update) {
+          const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
+          currentInput = [...ignoredPackages.map(pkg => `!${pkg}`), ...currentInput]
+        }
+        const updateMatch = cmdFullName === 'update' && (currentInput.length > 0) ? createMatcher(currentInput) : null
         if (updateMatch != null) {
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
           if (currentInput.length === 0) return

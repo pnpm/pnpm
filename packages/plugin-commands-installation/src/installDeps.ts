@@ -201,6 +201,11 @@ when running add/update with the --workspace option')
 
   let currentInput = [...params]
 
+  if (opts.update) {
+    const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
+    currentInput = [...ignoredPackages.map(pkg => `!${pkg}`), ...currentInput]
+  }
+
   const updateMatch = opts.update && (currentInput.length > 0) ? createMatcher(currentInput) : null
   if (updateMatch != null) {
     currentInput = matchDependencies(updateMatch, manifest, includeDirect)
