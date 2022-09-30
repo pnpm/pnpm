@@ -9,7 +9,7 @@ import PnpmError from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
-import matcher from '@pnpm/matcher'
+import { matcherWithIndex } from '@pnpm/matcher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { requireHooks } from '@pnpm/pnpmfile'
 import sortPackages from '@pnpm/sort-packages'
@@ -500,26 +500,22 @@ export function matchDependencies (
 }
 
 export function createMatcher (params: string[]) {
-  const matchers = params.map((param) => {
-    const atIndex = param.indexOf('@', 1)
-    let pattern!: string
-    let spec!: string
+  const patterns: string[] = []
+  const specs: string[] = []
+  for (const param of params) {
+    const atIndex = param.indexOf('@', param[0] === '!' ? 2 : 1)
     if (atIndex === -1) {
-      pattern = param
-      spec = ''
+      patterns.push(param)
+      specs.push('')
     } else {
-      pattern = param.slice(0, atIndex)
-      spec = param.slice(atIndex + 1)
+      patterns.push(param.slice(0, atIndex))
+      specs.push(param.slice(atIndex + 1))
     }
-    return {
-      match: matcher(pattern),
-      spec,
-    }
-  })
+  }
+  const matcher = matcherWithIndex(patterns)
   return (depName: string) => {
-    for (const { spec, match } of matchers) {
-      if (match(depName)) return spec
-    }
-    return null
+    const index = matcher(depName)
+    if (index === -1) return null
+    return specs[index]
   }
 }
