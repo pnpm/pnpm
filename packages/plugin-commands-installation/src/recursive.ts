@@ -199,7 +199,7 @@ export default async function recursive (
       const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
       let currentInput = [...params]
-      if (opts.update) {
+      if (opts.update && params.length === 0) {
         const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
         currentInput = [...ignoredPackages.map(pkg => `!${pkg}`), ...currentInput]
       }
@@ -311,7 +311,7 @@ export default async function recursive (
 
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...params]
-        if (opts.update) {
+        if (opts.update && params.length === 0) {
           const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
           currentInput = [...ignoredPackages.map(pkg => `!${pkg}`), ...currentInput]
         }
