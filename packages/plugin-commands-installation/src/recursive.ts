@@ -194,17 +194,17 @@ export default async function recursive (
     }
     const writeProjectManifests = [] as Array<(manifest: ProjectManifest) => Promise<void>>
     const mutatedImporters = [] as MutatedProject[]
+    let currentInput = [...params]
+    const ignoredPackages = (manifestsByPath[opts.workspaceDir]?.manifest?.pnpm?.updateConfig?.ignoreDependencies ?? [])
+    const shouldIgnorePackages = opts.update && params.length === 0 && ignoredPackages.length > 0
+    if (shouldIgnorePackages) {
+      currentInput = makeIgnorePatterns(ignoredPackages)
+    }
+    const updateMatch = cmdFullName === 'update' && (currentInput.length > 0) ? createMatcher(currentInput) : null
     await Promise.all(importers.map(async ({ buildIndex, rootDir }) => {
       const localConfig = await memReadLocalConfig(rootDir)
       const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
-      let currentInput = [...params]
-      const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
-      const shouldIgnorePackages = opts.update && params.length === 0 && ignoredPackages.length > 0
-      if (shouldIgnorePackages) {
-        currentInput = makeIgnorePatterns(ignoredPackages)
-      }
-      const updateMatch = cmdFullName === 'update' && (currentInput.length > 0) ? createMatcher(currentInput) : null
       if (updateMatch != null) {
         currentInput = matchDependencies(updateMatch, manifest, includeDirect)
         if ((currentInput.length === 0) && (typeof opts.depth === 'undefined' || opts.depth <= 0)) {

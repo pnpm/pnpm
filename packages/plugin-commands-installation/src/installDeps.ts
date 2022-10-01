@@ -209,7 +209,7 @@ when running add/update with the --workspace option')
 
   const updateMatch = opts.update && (currentInput.length > 0) ? createMatcher(currentInput) : null
   if (updateMatch != null) {
-    const currentInput = matchDependencies(updateMatch, manifest, includeDirect)
+    currentInput = matchDependencies(updateMatch, manifest, includeDirect)
     if (currentInput.length === 0 && opts.depth === 0 && ignoredPackages.length === 0) {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies.')
