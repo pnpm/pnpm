@@ -88,7 +88,7 @@ test('link --dir global bin', async function () {
   await link.handler({
     ...DEFAULT_OPTS,
     cliOptions: {
-      dir: './dir/package-with-bin-in-dir',
+      dir: path.resolve('./dir/package-with-bin-in-dir'),
     },
     bin: globalBin,
     dir: globalDir,

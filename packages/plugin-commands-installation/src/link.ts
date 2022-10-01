@@ -116,7 +116,7 @@ export async function handler (
     const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
     const newManifest = await addDependenciesToPackage(
       manifest ?? {},
-      [`link:${opts.cliOptions?.dir ? path.join(cwd, opts.cliOptions.dir) : cwd}`],
+      [`link:${opts.cliOptions?.dir ? path.resolve(opts.cliOptions.dir) : cwd}`],
       linkOpts
     )
     await writeProjectManifest(newManifest)
