@@ -40,7 +40,6 @@ import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLa
 import getSaveType from './getSaveType'
 import getPinnedVersion from './getPinnedVersion'
 import { PreferredVersions } from '@pnpm/resolver-base'
-import { ignoreDependenciesWithSelectorPattern } from './ignoreDependenciesWithSelectorPattern'
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -203,7 +202,7 @@ export default async function recursive (
       const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
       const shouldIgnorePackages = opts.update && params.length === 0 && ignoredPackages.length > 0
       if (shouldIgnorePackages) {
-        currentInput = ignoreDependenciesWithSelectorPattern(currentInput, ignoredPackages)
+        currentInput = makeIgnorePatterns(ignoredPackages)
       }
       const updateMatch = cmdFullName === 'update' && (currentInput.length > 0) ? createMatcher(currentInput) : null
       if (updateMatch != null) {
@@ -231,7 +230,6 @@ export default async function recursive (
           currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
         }
       }
-
       writeProjectManifests.push(writeProjectManifest)
       switch (mutation) {
       case 'uninstallSome':
@@ -316,7 +314,7 @@ export default async function recursive (
         const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
         const shouldIgnorePackages = opts.update && params.length === 0 && ignoredPackages.length > 0
         if (shouldIgnorePackages) {
-          currentInput = ignoreDependenciesWithSelectorPattern(currentInput, ignoredPackages)
+          currentInput = makeIgnorePatterns(ignoredPackages)
         }
         const updateMatch = cmdFullName === 'update' && (currentInput.length > 0) ? createMatcher(currentInput) : null
         if (updateMatch != null) {
@@ -530,4 +528,8 @@ export function createMatcher (params: string[]) {
     if (index === -1) return null
     return specs[index]
   }
+}
+
+export function makeIgnorePatterns (ignoredDependencies: string[]): string[] {
+  return ignoredDependencies.map(depName => `!${depName}`)
 }

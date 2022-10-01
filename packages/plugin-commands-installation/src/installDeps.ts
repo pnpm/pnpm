@@ -24,10 +24,9 @@ import getOptionsFromRootManifest from './getOptionsFromRootManifest'
 import getPinnedVersion from './getPinnedVersion'
 import getSaveType from './getSaveType'
 import getNodeExecPath from './nodeExecPath'
-import recursive, { createMatcher, matchDependencies } from './recursive'
+import recursive, { createMatcher, matchDependencies, makeIgnorePatterns } from './recursive'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
-import { ignoreDependenciesWithSelectorPattern } from './ignoreDependenciesWithSelectorPattern'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -205,7 +204,7 @@ when running add/update with the --workspace option')
   const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
   const shouldIgnorePackages = opts.update && params.length === 0 && ignoredPackages.length > 0
   if (shouldIgnorePackages) {
-    currentInput = ignoreDependenciesWithSelectorPattern(currentInput, ignoredPackages)
+    currentInput = makeIgnorePatterns(ignoredPackages)
   }
 
   const updateMatch = opts.update && (currentInput.length > 0) ? createMatcher(currentInput) : null
