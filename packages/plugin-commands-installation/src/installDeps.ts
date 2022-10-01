@@ -27,6 +27,7 @@ import getNodeExecPath from './nodeExecPath'
 import recursive, { createMatcher, matchDependencies } from './recursive'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
+import { ignoreDependenciesWithSelectorPattern } from './ignoreDependenciesWithSelectorPattern'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -202,12 +203,12 @@ when running add/update with the --workspace option')
   let currentInput = [...params]
 
   const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
-  if (opts.update && params.length === 0) {
-    currentInput = [...ignoredPackages.map(pkg => `!${pkg}`), ...currentInput]
+  const shouldIgnorePackages = opts.update && params.length === 0 && ignoredPackages.length > 0
+  if (shouldIgnorePackages) {
+    currentInput = ignoreDependenciesWithSelectorPattern(currentInput, ignoredPackages)
   }
 
   const updateMatch = opts.update && (currentInput.length > 0) ? createMatcher(currentInput) : null
-  const hasIgnored = ignoredPackages.length > 0
   if (updateMatch != null) {
     const currentInput = matchDependencies(updateMatch, manifest, includeDirect)
     if (currentInput.length === 0 && opts.depth === 0 && ignoredPackages.length === 0) {
@@ -217,7 +218,7 @@ when running add/update with the --workspace option')
   }
 
   if (opts.update && opts.latest) {
-    if ((!currentInput || (currentInput.length === 0)) && !hasIgnored) {
+    if ((!currentInput || (currentInput.length === 0)) && !shouldIgnorePackages) {
       currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
     } else {
       currentInput = createLatestSpecs(currentInput, manifest)

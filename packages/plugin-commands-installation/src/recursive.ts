@@ -40,6 +40,7 @@ import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLa
 import getSaveType from './getSaveType'
 import getPinnedVersion from './getPinnedVersion'
 import { PreferredVersions } from '@pnpm/resolver-base'
+import { ignoreDependenciesWithSelectorPattern } from './ignoreDependenciesWithSelectorPattern'
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -200,11 +201,11 @@ export default async function recursive (
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
       let currentInput = [...params]
       const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
-      if (opts.update && params.length === 0) {
-        currentInput = [...ignoredPackages.map(pkg => `!${pkg}`), ...currentInput]
+      const shouldIgnorePackages = opts.update && params.length === 0 && ignoredPackages.length > 0
+      if (shouldIgnorePackages) {
+        currentInput = ignoreDependenciesWithSelectorPattern(currentInput, ignoredPackages)
       }
       const updateMatch = cmdFullName === 'update' && (currentInput.length > 0) ? createMatcher(currentInput) : null
-      const hasIgnored = ignoredPackages.length > 0
       if (updateMatch != null) {
         currentInput = matchDependencies(updateMatch, manifest, includeDirect)
         if ((currentInput.length === 0) && (typeof opts.depth === 'undefined' || opts.depth <= 0)) {
@@ -213,7 +214,7 @@ export default async function recursive (
         }
       }
       if (updateToLatest) {
-        if ((!params || (params.length === 0)) && !hasIgnored) {
+        if ((!params || (params.length === 0)) && !shouldIgnorePackages) {
           currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
         } else {
           currentInput = createLatestSpecs(currentInput, manifest)
@@ -313,17 +314,17 @@ export default async function recursive (
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...params]
         const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
-        if (opts.update && params.length === 0) {
-          currentInput = [...ignoredPackages.map(pkg => `!${pkg}`), ...currentInput]
+        const shouldIgnorePackages = opts.update && params.length === 0 && ignoredPackages.length > 0
+        if (shouldIgnorePackages) {
+          currentInput = ignoreDependenciesWithSelectorPattern(currentInput, ignoredPackages)
         }
         const updateMatch = cmdFullName === 'update' && (currentInput.length > 0) ? createMatcher(currentInput) : null
-        const hasIgnored = ignoredPackages.length > 0
         if (updateMatch != null) {
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
           if (currentInput.length === 0) return
         }
         if (updateToLatest) {
-          if ((!params || (params.length === 0)) && !hasIgnored) {
+          if ((!params || (params.length === 0)) && !shouldIgnorePackages) {
             currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
           } else {
             currentInput = createLatestSpecs(currentInput, manifest)
