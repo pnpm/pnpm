@@ -24,7 +24,7 @@ import getOptionsFromRootManifest from './getOptionsFromRootManifest'
 import getPinnedVersion from './getPinnedVersion'
 import getSaveType from './getSaveType'
 import getNodeExecPath from './nodeExecPath'
-import recursive, { createMatcher, matchDependencies, makeIgnorePatterns } from './recursive'
+import recursive, { createMatcher, matchDependencies, makeIgnorePatterns, UpdateDepsMatcher } from './recursive'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
@@ -201,23 +201,26 @@ when running add/update with the --workspace option')
 
   let currentInput = [...params]
 
-  const ignoredPackages = (manifest.pnpm?.updateConfig?.ignoreDependencies ?? [])
-  const shouldIgnorePackages = opts.update && params.length === 0 && ignoredPackages.length > 0
-  if (shouldIgnorePackages) {
-    currentInput = makeIgnorePatterns(ignoredPackages)
+  let updateMatch: UpdateDepsMatcher | null
+  if (opts.update) {
+    const ignoreDeps = manifest.pnpm?.updateConfig?.ignoreDependencies
+    if (params.length === 0 && ignoreDeps?.length) {
+      currentInput = makeIgnorePatterns(ignoreDeps)
+    }
+    updateMatch = currentInput.length ? createMatcher(currentInput) : null
+  } else {
+    updateMatch = null
   }
-
-  const updateMatch = opts.update && (currentInput.length > 0) ? createMatcher(currentInput) : null
   if (updateMatch != null) {
     currentInput = matchDependencies(updateMatch, manifest, includeDirect)
-    if (currentInput.length === 0 && opts.depth === 0 && ignoredPackages.length === 0) {
+    if (currentInput.length === 0 && opts.depth === 0) {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies.')
     }
   }
 
   if (opts.update && opts.latest) {
-    if ((!currentInput || (currentInput.length === 0)) && !shouldIgnorePackages) {
+    if (!currentInput || (currentInput.length === 0)) {
       currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
     } else {
       currentInput = createLatestSpecs(currentInput, manifest)

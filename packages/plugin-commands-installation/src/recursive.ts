@@ -173,12 +173,16 @@ export default async function recursive (
     optionalDependencies: true,
   }
 
-  const ignoredPackages = (manifestsByPath[opts.workspaceDir]?.manifest?.pnpm?.updateConfig?.ignoreDependencies ?? [])
-  const shouldIgnorePackages = opts.update && params.length === 0 && ignoredPackages.length > 0
-  if (shouldIgnorePackages) {
-    params = makeIgnorePatterns(ignoredPackages)
+  let updateMatch: UpdateDepsMatcher | null
+  if (cmdFullName === 'update') {
+    const ignoreDeps = manifestsByPath[opts.workspaceDir]?.manifest?.pnpm?.updateConfig?.ignoreDependencies
+    if (params.length === 0 && ignoreDeps?.length) {
+      params = makeIgnorePatterns(ignoreDeps)
+    }
+    updateMatch = params.length ? createMatcher(params) : null
+  } else {
+    updateMatch = null
   }
-  const updateMatch = cmdFullName === 'update' && (params.length > 0) ? createMatcher(params) : null
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
     let importers = await getImporters()
@@ -213,7 +217,7 @@ export default async function recursive (
         }
       }
       if (updateToLatest) {
-        if ((!params || (params.length === 0)) && !shouldIgnorePackages) {
+        if (!params || (params.length === 0)) {
           currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
         } else {
           currentInput = createLatestSpecs(currentInput, manifest)
@@ -316,7 +320,7 @@ export default async function recursive (
           if (currentInput.length === 0) return
         }
         if (updateToLatest) {
-          if ((!params || (params.length === 0)) && !shouldIgnorePackages) {
+          if (!params || (params.length === 0)) {
             currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
           } else {
             currentInput = createLatestSpecs(currentInput, manifest)
@@ -503,7 +507,9 @@ export function matchDependencies (
   return matchedDeps
 }
 
-export function createMatcher (params: string[]) {
+export type UpdateDepsMatcher = (input: string) => string | null
+
+export function createMatcher (params: string[]): UpdateDepsMatcher {
   const patterns: string[] = []
   const specs: string[] = []
   for (const param of params) {
