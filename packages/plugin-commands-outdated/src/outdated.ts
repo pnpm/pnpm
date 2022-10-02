@@ -167,15 +167,17 @@ export async function handler (
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     return outdatedRecursive(pkgs, params, { ...opts, include })
   }
+  const manifest = await readProjectManifestOnly(opts.dir, opts)
   const packages = [
     {
       dir: opts.dir,
-      manifest: await readProjectManifestOnly(opts.dir, opts),
+      manifest,
     },
   ]
   const [outdatedPackages] = await outdatedDepsOfProjects(packages, params, {
     ...opts,
     fullMetadata: opts.long,
+    ignoreDependencies: new Set(manifest?.pnpm?.updateConfig?.ignoreDependencies ?? []),
     include,
     retry: {
       factor: opts.fetchRetryFactor,

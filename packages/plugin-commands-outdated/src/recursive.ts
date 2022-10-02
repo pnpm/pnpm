@@ -50,9 +50,11 @@ export default async (
   opts: OutdatedCommandOptions & { include: IncludedDependencies }
 ) => {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
+  const rootManifest = pkgs.find(({ dir }) => dir === opts.lockfileDir ?? opts.dir)
   const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, params, {
     ...opts,
     fullMetadata: opts.long,
+    ignoreDependencies: new Set(rootManifest?.manifest?.pnpm?.updateConfig?.ignoreDependencies ?? []),
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

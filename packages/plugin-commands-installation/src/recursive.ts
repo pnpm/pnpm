@@ -173,8 +173,18 @@ export default async function recursive (
     optionalDependencies: true,
   }
 
-  const updateMatch = cmdFullName === 'update' && (params.length > 0) ? createMatcher(params) : null
-
+  let updateMatch: UpdateDepsMatcher | null
+  if (cmdFullName === 'update') {
+    if (params.length === 0) {
+      const ignoreDeps = manifestsByPath[opts.workspaceDir]?.manifest?.pnpm?.updateConfig?.ignoreDependencies
+      if (ignoreDeps?.length) {
+        params = makeIgnorePatterns(ignoreDeps)
+      }
+    }
+    updateMatch = params.length ? createMatcher(params) : null
+  } else {
+    updateMatch = null
+  }
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
     let importers = await getImporters()
@@ -499,7 +509,9 @@ export function matchDependencies (
   return matchedDeps
 }
 
-export function createMatcher (params: string[]) {
+export type UpdateDepsMatcher = (input: string) => string | null
+
+export function createMatcher (params: string[]): UpdateDepsMatcher {
   const patterns: string[] = []
   const specs: string[] = []
   for (const param of params) {
@@ -518,4 +530,8 @@ export function createMatcher (params: string[]) {
     if (index === -1) return null
     return specs[index]
   }
+}
+
+export function makeIgnorePatterns (ignoredDependencies: string[]): string[] {
+  return ignoredDependencies.map(depName => `!${depName}`)
 }

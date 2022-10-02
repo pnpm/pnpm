@@ -34,6 +34,7 @@ export default async function outdated (
     compatible?: boolean
     currentLockfile: Lockfile | null
     getLatestManifest: GetLatestManifestFunction
+    ignoreDependencies?: Set<string>
     include?: IncludedDependencies
     lockfileDir: string
     manifest: ProjectManifest
@@ -69,8 +70,10 @@ export default async function outdated (
         pkgs.map(async (alias) => {
           const ref = opts.wantedLockfile!.importers[importerId][depType]![alias]
 
-          // ignoring linked packages. (For backward compatibility)
-          if (ref.startsWith('file:')) {
+          if (
+            ref.startsWith('file:') || // ignoring linked packages. (For backward compatibility)
+            opts.ignoreDependencies?.has(alias)
+          ) {
             return
           }
 

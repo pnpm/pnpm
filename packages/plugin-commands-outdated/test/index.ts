@@ -15,6 +15,7 @@ const hasOutdatedDepsFixtureAndExternalLockfile = path.join(fixtures, 'has-outda
 const hasNotOutdatedDepsFixture = path.join(fixtures, 'has-not-outdated-deps')
 const hasMajorOutdatedDepsFixture = path.join(fixtures, 'has-major-outdated-deps')
 const hasNoLockfileFixture = path.join(fixtures, 'has-no-lockfile')
+const withPnpmUpdateIgnore = path.join(fixtures, 'with-pnpm-update-ignore')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -314,6 +315,22 @@ test('pnpm outdated: print only compatible versions', async () => {
 │ Package     │ Current │ Latest │
 ├─────────────┼─────────┼────────┤
 │ is-negative │ 1.0.0   │ 1.0.1  │
+└─────────────┴─────────┴────────┘
+`)
+})
+
+test('ignore packages in package.json > pnpm.updateConfig.ignoreDependencies in outdated command', async () => {
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: withPnpmUpdateIgnore,
+  })
+
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toBe(`\
+┌─────────────┬─────────┬────────┐
+│ Package     │ Current │ Latest │
+├─────────────┼─────────┼────────┤
+│ is-negative │ 1.0.0   │ 2.1.0  │
 └─────────────┴─────────┴────────┘
 `)
 })

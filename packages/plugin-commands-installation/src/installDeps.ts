@@ -24,7 +24,7 @@ import getOptionsFromRootManifest from './getOptionsFromRootManifest'
 import getPinnedVersion from './getPinnedVersion'
 import getSaveType from './getSaveType'
 import getNodeExecPath from './nodeExecPath'
-import recursive, { createMatcher, matchDependencies } from './recursive'
+import recursive, { createMatcher, matchDependencies, makeIgnorePatterns, UpdateDepsMatcher } from './recursive'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
@@ -199,7 +199,18 @@ when running add/update with the --workspace option')
     }
   }
 
-  const updateMatch = opts.update && (params.length > 0) ? createMatcher(params) : null
+  let updateMatch: UpdateDepsMatcher | null
+  if (opts.update) {
+    if (params.length === 0) {
+      const ignoreDeps = manifest.pnpm?.updateConfig?.ignoreDependencies
+      if (ignoreDeps?.length) {
+        params = makeIgnorePatterns(ignoreDeps)
+      }
+    }
+    updateMatch = params.length ? createMatcher(params) : null
+  } else {
+    updateMatch = null
+  }
   if (updateMatch != null) {
     params = matchDependencies(updateMatch, manifest, includeDirect)
     if (params.length === 0 && opts.depth === 0) {
