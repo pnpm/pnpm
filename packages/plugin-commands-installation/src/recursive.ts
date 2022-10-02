@@ -175,9 +175,11 @@ export default async function recursive (
 
   let updateMatch: UpdateDepsMatcher | null
   if (cmdFullName === 'update') {
-    const ignoreDeps = manifestsByPath[opts.workspaceDir]?.manifest?.pnpm?.updateConfig?.ignoreDependencies
-    if (params.length === 0 && ignoreDeps?.length) {
-      params = makeIgnorePatterns(ignoreDeps)
+    if (params.length === 0) {
+      const ignoreDeps = manifestsByPath[opts.workspaceDir]?.manifest?.pnpm?.updateConfig?.ignoreDependencies
+      if (ignoreDeps?.length) {
+        params = makeIgnorePatterns(ignoreDeps)
+      }
     }
     updateMatch = params.length ? createMatcher(params) : null
   } else {

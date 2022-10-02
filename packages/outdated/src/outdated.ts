@@ -70,12 +70,10 @@ export default async function outdated (
         pkgs.map(async (alias) => {
           const ref = opts.wantedLockfile!.importers[importerId][depType]![alias]
 
-          // ignoring linked packages. (For backward compatibility)
-          if (ref.startsWith('file:')) {
-            return
-          }
-
-          if (opts.ignoreDependencies?.has(alias)) {
+          if (
+            ref.startsWith('file:') || // ignoring linked packages. (For backward compatibility)
+            opts.ignoreDependencies?.has(alias)
+          ) {
             return
           }
 

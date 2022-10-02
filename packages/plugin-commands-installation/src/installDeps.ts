@@ -201,9 +201,11 @@ when running add/update with the --workspace option')
 
   let updateMatch: UpdateDepsMatcher | null
   if (opts.update) {
-    const ignoreDeps = manifest.pnpm?.updateConfig?.ignoreDependencies
-    if (params.length === 0 && ignoreDeps?.length) {
-      params = makeIgnorePatterns(ignoreDeps)
+    if (params.length === 0) {
+      const ignoreDeps = manifest.pnpm?.updateConfig?.ignoreDependencies
+      if (ignoreDeps?.length) {
+        params = makeIgnorePatterns(ignoreDeps)
+      }
     }
     updateMatch = params.length ? createMatcher(params) : null
   } else {
@@ -231,7 +233,6 @@ when running add/update with the --workspace option')
       params = createWorkspaceSpecs(params, workspacePackages)
     }
   }
-
   if (params?.length) {
     const mutatedProject: MutatedProject = {
       allowNew: opts.allowNew,
