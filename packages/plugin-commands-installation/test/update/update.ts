@@ -226,12 +226,12 @@ test('update should work normal when set empty string version', async () => {
 })
 
 test('ignore packages in package.json > updateConfig.ignoreDependencies fields in update command', async () => {
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
 
   const project = prepare({
     dependencies: {
-      '@pnpm.e2e/foo': '2.0.0',
+      '@pnpm.e2e/foo': '100.0.0',
       '@pnpm.e2e/bar': '100.0.0',
     },
     pnpm: {
@@ -251,10 +251,10 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/foo/2.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/foo/100.0.0']).toBeTruthy()
   expect(lockfile.packages['/@pnpm.e2e/bar/100.0.0']).toBeTruthy()
 
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
 
   await update.handler({
@@ -266,17 +266,17 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
 
   const lockfileUpdated = await project.readLockfile()
 
-  expect(lockfileUpdated.packages['/@pnpm.e2e/foo/2.0.0']).toBeTruthy()
+  expect(lockfileUpdated.packages['/@pnpm.e2e/foo/100.0.0']).toBeTruthy()
   expect(lockfileUpdated.packages['/@pnpm.e2e/bar/100.1.0']).toBeTruthy()
 })
 
 test('not ignore packages if these are specified in parameter even if these are listed in package.json > pnpm.update.ignoreDependencies fields in update command', async () => {
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
 
   const project = prepare({
     dependencies: {
-      '@pnpm.e2e/foo': '2.0.0',
+      '@pnpm.e2e/foo': '100.0.0',
       '@pnpm.e2e/bar': '100.0.0',
     },
     pnpm: {
@@ -296,10 +296,10 @@ test('not ignore packages if these are specified in parameter even if these are 
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/foo/2.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/foo/100.0.0']).toBeTruthy()
   expect(lockfile.packages['/@pnpm.e2e/bar/100.0.0']).toBeTruthy()
 
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
 
   await update.handler({
@@ -310,6 +310,6 @@ test('not ignore packages if these are specified in parameter even if these are 
 
   const lockfileUpdated = await project.readLockfile()
 
-  expect(lockfileUpdated.packages['/@pnpm.e2e/foo/100.0.0']).toBeTruthy()
+  expect(lockfileUpdated.packages['/@pnpm.e2e/foo/100.1.0']).toBeTruthy()
   expect(lockfileUpdated.packages['/@pnpm.e2e/bar/100.1.0']).toBeTruthy()
 })
