@@ -199,46 +199,44 @@ when running add/update with the --workspace option')
     }
   }
 
-  let currentInput = [...params]
-
   let updateMatch: UpdateDepsMatcher | null
   if (opts.update) {
     const ignoreDeps = manifest.pnpm?.updateConfig?.ignoreDependencies
     if (params.length === 0 && ignoreDeps?.length) {
-      currentInput = makeIgnorePatterns(ignoreDeps)
+      params = makeIgnorePatterns(ignoreDeps)
     }
-    updateMatch = currentInput.length ? createMatcher(currentInput) : null
+    updateMatch = params.length ? createMatcher(params) : null
   } else {
     updateMatch = null
   }
   if (updateMatch != null) {
-    currentInput = matchDependencies(updateMatch, manifest, includeDirect)
-    if (currentInput.length === 0 && opts.depth === 0) {
+    params = matchDependencies(updateMatch, manifest, includeDirect)
+    if (params.length === 0 && opts.depth === 0) {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies.')
     }
   }
 
   if (opts.update && opts.latest) {
-    if (!currentInput || (currentInput.length === 0)) {
-      currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
+    if (!params || (params.length === 0)) {
+      params = updateToLatestSpecsFromManifest(manifest, includeDirect)
     } else {
-      currentInput = createLatestSpecs(currentInput, manifest)
+      params = createLatestSpecs(params, manifest)
     }
   }
   if (opts.workspace) {
-    if (!currentInput || (currentInput.length === 0)) {
-      currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
+    if (!params || (params.length === 0)) {
+      params = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
     } else {
-      currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
+      params = createWorkspaceSpecs(params, workspacePackages)
     }
   }
 
-  if (currentInput?.length) {
+  if (params?.length) {
     const mutatedProject: MutatedProject = {
       allowNew: opts.allowNew,
       binsDir: opts.bin,
-      dependencySelectors: currentInput,
+      dependencySelectors: params,
       manifest,
       mutation: 'installSome',
       peer: opts.savePeer,
