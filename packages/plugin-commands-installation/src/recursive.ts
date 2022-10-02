@@ -173,13 +173,12 @@ export default async function recursive (
     optionalDependencies: true,
   }
 
-  let currentInput = [...params]
   const ignoredPackages = (manifestsByPath[opts.workspaceDir]?.manifest?.pnpm?.updateConfig?.ignoreDependencies ?? [])
   const shouldIgnorePackages = opts.update && params.length === 0 && ignoredPackages.length > 0
   if (shouldIgnorePackages) {
-    currentInput = makeIgnorePatterns(ignoredPackages)
+    params = makeIgnorePatterns(ignoredPackages)
   }
-  const updateMatch = cmdFullName === 'update' && (currentInput.length > 0) ? createMatcher(currentInput) : null
+  const updateMatch = cmdFullName === 'update' && (params.length > 0) ? createMatcher(params) : null
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
     let importers = await getImporters()
@@ -205,6 +204,7 @@ export default async function recursive (
       const localConfig = await memReadLocalConfig(rootDir)
       const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
+      let currentInput = [...params]
       if (updateMatch != null) {
         currentInput = matchDependencies(updateMatch, manifest, includeDirect)
         if ((currentInput.length === 0) && (typeof opts.depth === 'undefined' || opts.depth <= 0)) {
