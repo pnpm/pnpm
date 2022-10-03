@@ -115,6 +115,44 @@
     },
     "patchedDependencies": {
       "pkg@5.7.0": "patches/pkg@5.7.0.patch"
+    },
+    "updateConfig": {
+      "ignoreDependencies": [
+        "boxen",
+        "camelcase",
+        "camelcase-keys",
+        "chalk",
+        "detect-indent",
+        "escape-string-regexp",
+        "filenamify",
+        "find-up",
+        "get-port",
+        "is-port-reachable",
+        "load-json-file",
+        "mem",
+        "node-fetch",
+        "p-any",
+        "p-defer",
+        "p-filter",
+        "p-limit",
+        "p-memoize",
+        "p-queue",
+        "p-settle",
+        "parse-json",
+        "path-exists",
+        "pretty-bytes",
+        "pretty-ms",
+        "process-exists",
+        "ps-list",
+        "sort-keys",
+        "strip-ansi",
+        "strip-bom",
+        "tempy",
+        "unique-string",
+        "wrap-ansi",
+        "write-json-file",
+        "write-pkg"
+      ]
     }
   }
 }
