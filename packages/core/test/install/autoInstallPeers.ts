@@ -1,6 +1,6 @@
 import path from 'path'
 import assertProject from '@pnpm/assert-project'
-import { addDependenciesToPackage, install, mutateModules } from '@pnpm/core'
+import { addDependenciesToPackage, install, mutateModules, PackageManifest } from '@pnpm/core'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf from '@zkochan/rimraf'
@@ -346,4 +346,49 @@ test('auto install peer deps in a workspace. test #2', async () => {
 test('installation on a package with many complex circular dependencies does not fail when auto install peers is on', async () => {
   prepareEmpty()
   await addDependenciesToPackage({}, ['webpack@4.46.0'], await testDefaults({ autoInstallPeers: true }))
+})
+
+test('do not override the direct dependency with an auto installed peer dependency', async () => {
+  const includedDeps = new Set([
+    '@angular-devkit/build-angular',
+    '@angular/platform-browser-dynamic',
+    'inquirer',
+    'rxjs',
+    '@angular/common',
+    'rxjs',
+  ])
+  const project = prepareEmpty()
+  await install({
+    dependencies: {
+      rxjs: '6.6.7',
+    },
+    devDependencies: {
+      'jest-preset-angular': '12.0.1',
+    },
+  }, await testDefaults({
+    autoInstallPeers: true,
+    hooks: {
+      // This hook may be removed and the test will still be valid.
+      // The only reason the hook was added to remove the packages that aren't needed for the tests and make the test faster.
+      readPackage: [
+        (pkg: PackageManifest) => {
+          for (const depType of ['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta']) {
+            if (pkg[depType]) {
+              for (const depName of Object.keys(pkg[depType])) {
+                if (!includedDeps.has(depName)) {
+                  delete pkg[depType][depName]
+                }
+              }
+            }
+          }
+          if (pkg.name === '@angular-devkit/build-angular' && pkg.dependencies) {
+            delete pkg.dependencies.rxjs
+          }
+          return pkg
+        },
+      ],
+    },
+  }))
+  const lockfile = await project.readLockfile()
+  expect(lockfile.dependencies.rxjs).toStrictEqual('6.6.7')
 })
