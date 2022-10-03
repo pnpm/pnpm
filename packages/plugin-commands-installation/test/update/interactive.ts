@@ -223,3 +223,73 @@ test('interactive update of dev dependencies only', async () => {
     ['/is-negative/1.0.1', '/is-negative/2.1.0']
   )
 })
+
+test('interactively update should ignore dependencies from the ignoreDependencies field', async () => {
+  const project = prepare({
+    dependencies: {
+      // has 1.0.0 and 1.0.1 that satisfy this range
+      'is-negative': '^1.0.0',
+      // only 2.0.0 satisfies this range
+      'is-positive': '^2.0.0',
+      // has many versions that satisfy ^3.0.0
+      micromatch: '^3.0.0',
+    },
+    pnpm: {
+      updateConfig: {
+        ignoreDependencies: ['is-negative'],
+      },
+    },
+  })
+
+  const storeDir = path.resolve('pnpm-store')
+  await add.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    save: false,
+    storeDir,
+  }, [
+    'is-negative@1.0.0',
+    'is-positive@2.0.0',
+    'micromatch@3.0.0',
+  ])
+
+  prompt.mockResolvedValue({
+    updateDependencies: ['micromatch'],
+  })
+
+  prompt.mockClear()
+  await update.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    interactive: true,
+    linkWorkspacePackages: true,
+    storeDir,
+  })
+
+  expect(prompt.mock.calls[0][0].choices).toStrictEqual([
+    {
+      message: chalk`micromatch 3.0.0 ❯ 3.{yellowBright.bold 1.10} `,
+      name: 'micromatch',
+    },
+  ])
+  expect(prompt).toBeCalledWith(expect.objectContaining({
+    footer: '\nEnter to start updating. Ctrl-c to cancel.',
+    message: 'Choose which packages to update ' +
+        `(Press ${chalk.cyan('<space>')} to select, ` +
+        `${chalk.cyan('<a>')} to toggle all, ` +
+        `${chalk.cyan('<i>')} to invert selection)`,
+    name: 'updateDependencies',
+    type: 'multiselect',
+  }))
+
+  {
+    const lockfile = await project.readLockfile()
+
+    expect(lockfile.packages['/micromatch/3.1.10']).toBeTruthy()
+    expect(lockfile.packages['/is-negative/1.0.0']).toBeTruthy()
+    expect(lockfile.packages['/is-positive/2.0.0']).toBeTruthy()
+  }
+})
