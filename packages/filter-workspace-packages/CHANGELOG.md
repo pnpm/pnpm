@@ -1,5 +1,17 @@
 # @pnpm/filter-workspace-packages
 
+## 5.1.0
+
+### Minor Changes
+
+- 2e830c0cb: New function exported: `filterPackagesFromDir`.
+
+### Patch Changes
+
+- Updated dependencies [abb41a626]
+  - @pnpm/matcher@3.2.0
+  - @pnpm/find-workspace-packages@4.0.40
+
 ## 5.0.39
 
 ### Patch Changes

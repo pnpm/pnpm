@@ -1,5 +1,22 @@
 # @pnpm/pnpmfile
 
+## 3.0.0
+
+### Major Changes
+
+- 51566e34b: Returns an array of hook functions.
+
+### Patch Changes
+
+- Updated dependencies [51566e34b]
+- Updated dependencies [51566e34b]
+- Updated dependencies [d665f3ff7]
+  - @pnpm/core@6.0.0
+  - @pnpm/types@8.7.0
+  - @pnpm/core-loggers@7.0.8
+  - @pnpm/lockfile-types@4.3.3
+  - @pnpm/store-controller-types@14.1.3
+
 ## 2.2.12
 
 ### Patch Changes

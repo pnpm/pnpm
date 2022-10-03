@@ -1,5 +1,11 @@
 # @pnpm/matcher
 
+## 3.2.0
+
+### Minor Changes
+
+- abb41a626: New function added that returns the number of the matched pattern: matcherWithIndex().
+
 ## 3.1.0
 
 ### Minor Changes

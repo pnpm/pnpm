@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/symlink-dependency",
   "description": "Symlink a dependency to node_modules",
-  "version": "5.0.8",
+  "version": "5.0.9",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

@@ -1,5 +1,17 @@
 # @pnpm/mount-modules
 
+## 0.2.43
+
+### Patch Changes
+
+- Updated dependencies [d665f3ff7]
+  - @pnpm/types@8.7.0
+  - @pnpm/config@15.10.9
+  - @pnpm/cafs@4.3.2
+  - dependency-path@9.2.6
+  - @pnpm/lockfile-file@5.3.6
+  - @pnpm/lockfile-utils@4.2.6
+
 ## 0.2.42
 
 ### Patch Changes

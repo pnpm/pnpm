@@ -1,5 +1,11 @@
 # @pnpm/tarball-resolver
 
+## 6.0.9
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.1.2
+
 ## 6.0.8
 
 ### Patch Changes

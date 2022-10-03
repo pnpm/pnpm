@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-deploy
 
+## 1.1.9
+
+### Patch Changes
+
+- 51566e34b: Hooks should be applied on `pnpm deploy` [#5306](https://github.com/pnpm/pnpm/issues/5306).
+- Updated dependencies [abb41a626]
+- Updated dependencies [51566e34b]
+- Updated dependencies [5beb4e26b]
+- Updated dependencies [d665f3ff7]
+  - @pnpm/plugin-commands-installation@10.8.0
+  - @pnpm/types@8.7.0
+  - @pnpm/cli-utils@0.7.40
+  - @pnpm/fs.indexed-pkg-importer@1.1.3
+  - @pnpm/directory-fetcher@3.1.3
+
 ## 1.1.8
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 1.1.3
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.8
+- @pnpm/store-controller-types@14.1.3
+
 ## 1.1.2
 
 ### Patch Changes

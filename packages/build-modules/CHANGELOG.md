@@ -1,5 +1,17 @@
 # @pnpm/build-modules
 
+## 9.3.8
+
+### Patch Changes
+
+- Updated dependencies [d665f3ff7]
+  - @pnpm/types@8.7.0
+  - @pnpm/core-loggers@7.0.8
+  - @pnpm/lifecycle@13.1.9
+  - @pnpm/link-bins@7.2.7
+  - @pnpm/read-package-json@6.0.10
+  - @pnpm/store-controller-types@14.1.3
+
 ## 9.3.7
 
 ### Patch Changes

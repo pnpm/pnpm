@@ -1,5 +1,25 @@
 # @pnpm/outdated
 
+## 10.1.0
+
+### Minor Changes
+
+- d665f3ff7: Ignore packages listed in package.json > pnpm.updateConfig.ignoreDependencies fields on update/outdated command [#5358](https://github.com/pnpm/pnpm/issues/5358)
+
+### Patch Changes
+
+- Updated dependencies [abb41a626]
+- Updated dependencies [d665f3ff7]
+  - @pnpm/matcher@3.2.0
+  - @pnpm/types@8.7.0
+  - dependency-path@9.2.6
+  - @pnpm/lockfile-file@5.3.6
+  - @pnpm/lockfile-utils@4.2.6
+  - @pnpm/manifest-utils@3.1.4
+  - @pnpm/modules-yaml@10.0.8
+  - @pnpm/pick-registry-for-package@3.0.8
+  - @pnpm/client@7.2.7
+
 ## 10.0.28
 
 ### Patch Changes

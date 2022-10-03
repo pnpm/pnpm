@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 8.7.0
+
+### Minor Changes
+
+- d665f3ff7: Ignore packages listed in package.json > pnpm.updateConfig.ignoreDependencies fields on update/outdated command [#5358](https://github.com/pnpm/pnpm/issues/5358)
+
 ## 8.6.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/merge-lockfile-changes
 
+## 3.0.11
+
+### Patch Changes
+
+- @pnpm/lockfile-types@4.3.3
+
 ## 3.0.10
 
 ### Patch Changes

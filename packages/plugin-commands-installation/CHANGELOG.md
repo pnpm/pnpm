@@ -1,5 +1,56 @@
 # @pnpm/plugin-commands-installation
 
+## 10.8.0
+
+### Minor Changes
+
+- abb41a626: It is possible now to update all dependencies except the listed ones using `!`. For instance, update all dependencies, except `lodash`:
+
+  ```
+  pnpm update !lodash
+  ```
+
+  It also works with pattends, for instance:
+
+  ```
+  pnpm update !@babel/*
+  ```
+
+  And it may be combined with other patterns:
+
+  ```
+  pnpm update @babel/* !@babel/core
+  ```
+
+- d665f3ff7: Ignore packages listed in package.json > pnpm.updateConfig.ignoreDependencies fields on update/outdated command [#5358](https://github.com/pnpm/pnpm/issues/5358)
+
+### Patch Changes
+
+- 51566e34b: Combining readPackage hook from options and from pnpmfile
+- 5beb4e26b: fix dir path repeated join in link global
+- Updated dependencies [abb41a626]
+- Updated dependencies [51566e34b]
+- Updated dependencies [2e830c0cb]
+- Updated dependencies [51566e34b]
+- Updated dependencies [d665f3ff7]
+- Updated dependencies [51566e34b]
+  - @pnpm/matcher@3.2.0
+  - @pnpm/core@6.0.0
+  - @pnpm/filter-workspace-packages@5.1.0
+  - @pnpm/outdated@10.1.0
+  - @pnpm/types@8.7.0
+  - @pnpm/pnpmfile@3.0.0
+  - @pnpm/config@15.10.9
+  - @pnpm/cli-utils@0.7.40
+  - @pnpm/plugin-commands-rebuild@6.2.9
+  - @pnpm/find-workspace-packages@4.0.40
+  - @pnpm/manifest-utils@3.1.4
+  - @pnpm/package-store@14.2.5
+  - @pnpm/read-project-manifest@3.0.11
+  - @pnpm/resolver-base@9.1.2
+  - @pnpm/sort-packages@3.0.9
+  - @pnpm/store-connection-manager@4.3.13
+
 ## 10.7.2
 
 ### Patch Changes

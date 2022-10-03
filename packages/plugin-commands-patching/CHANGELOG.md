@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-patching
 
+## 1.3.5
+
+### Patch Changes
+
+- Updated dependencies [abb41a626]
+- Updated dependencies [51566e34b]
+- Updated dependencies [5beb4e26b]
+- Updated dependencies [d665f3ff7]
+  - @pnpm/plugin-commands-installation@10.8.0
+  - @pnpm/config@15.10.9
+  - @pnpm/cli-utils@0.7.40
+  - @pnpm/pick-registry-for-package@3.0.8
+  - @pnpm/read-package-json@6.0.10
+  - @pnpm/read-project-manifest@3.0.11
+  - @pnpm/store-connection-manager@4.3.13
+
 ## 1.3.4
 
 ### Patch Changes

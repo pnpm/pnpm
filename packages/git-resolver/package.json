@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/git-resolver",
-  "version": "6.1.5",
+  "version": "6.1.6",
   "description": "Resolver for git-hosted packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

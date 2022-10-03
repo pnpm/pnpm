@@ -1,5 +1,19 @@
 # @pnpm/default-reporter
 
+## 10.0.0
+
+### Major Changes
+
+- 51566e34b: Accept an array of hooks.
+
+### Patch Changes
+
+- Updated dependencies [d665f3ff7]
+  - @pnpm/types@8.7.0
+  - @pnpm/config@15.10.9
+  - @pnpm/core-loggers@7.0.8
+  - @pnpm/render-peer-issues@2.1.2
+
 ## 9.1.28
 
 ### Patch Changes

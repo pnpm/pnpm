@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/fs.indexed-pkg-importer",
   "description": "Replicates indexed directories using hard links, copies, or cloning",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

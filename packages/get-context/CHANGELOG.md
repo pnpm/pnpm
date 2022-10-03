@@ -1,5 +1,20 @@
 # @pnpm/get-context
 
+## 7.0.0
+
+### Major Changes
+
+- 51566e34b: Pass readPackageHook as a separate option not as a subproperty of `hooks`.
+
+### Patch Changes
+
+- Updated dependencies [d665f3ff7]
+  - @pnpm/types@8.7.0
+  - @pnpm/core-loggers@7.0.8
+  - @pnpm/lockfile-file@5.3.6
+  - @pnpm/modules-yaml@10.0.8
+  - @pnpm/read-projects-context@6.0.17
+
 ## 6.2.11
 
 ### Patch Changes

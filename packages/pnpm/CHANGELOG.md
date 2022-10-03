@@ -1,5 +1,37 @@
 # pnpm
 
+## 7.13.0
+
+### Minor Changes
+
+- It is possible now to update all dependencies except the listed ones using `!`. For instance, update all dependencies, except `lodash`:
+
+  ```
+  pnpm update !lodash
+  ```
+
+  It also works with pattends, for instance:
+
+  ```
+  pnpm update !@babel/*
+  ```
+
+  And it may be combined with other patterns:
+
+  ```
+  pnpm update @babel/* !@babel/core
+  ```
+
+### Patch Changes
+
+- Hooks should be applied on `pnpm deploy` [#5306](https://github.com/pnpm/pnpm/issues/5306).
+- Stop `--filter-prod` option to run command on all the projects when used on workspace. `--filter-prod` option now only filter from `dependencies` and omit `devDependencies` instead of including all the packages when used on workspace. So what was happening is that if you use `--filter-prod` on workspace root like this:
+  ```bash
+  pnpm --filter-prod ...build-modules exec node -e 'console.log(require(`./package.json`).name)'
+  ```
+  it was printing all the package of workspace, where it should only print the package name of itself and packages where it has been added as `dependency` (not as `devDependencies`)
+- Don't override the root dependency when auto installing peer dependencies [#5412](https://github.com/pnpm/pnpm/issues/5412).
+
 ## 7.12.2
 
 ### Patch Changes

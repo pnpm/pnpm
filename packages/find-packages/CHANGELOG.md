@@ -1,5 +1,13 @@
 # find-packages
 
+## 9.0.11
+
+### Patch Changes
+
+- Updated dependencies [d665f3ff7]
+  - @pnpm/types@8.7.0
+  - @pnpm/read-project-manifest@3.0.11
+
 ## 9.0.10
 
 ### Patch Changes

@@ -1,5 +1,50 @@
 # @pnpm/core
 
+## 6.0.0
+
+### Major Changes
+
+- 51566e34b: Accept an array of hooks.
+
+### Patch Changes
+
+- 51566e34b: Combining readPackage hook from options and from pnpmfile
+- Updated dependencies [51566e34b]
+- Updated dependencies [abb41a626]
+- Updated dependencies [d665f3ff7]
+- Updated dependencies [ff331dd95]
+- Updated dependencies [51566e34b]
+  - @pnpm/hooks.read-package-hook@1.0.0
+  - @pnpm/matcher@3.2.0
+  - @pnpm/types@8.7.0
+  - @pnpm/resolve-dependencies@28.4.3
+  - @pnpm/get-context@7.0.0
+  - @pnpm/hoist@6.2.11
+  - @pnpm/build-modules@9.3.8
+  - @pnpm/core-loggers@7.0.8
+  - dependency-path@9.2.6
+  - @pnpm/filter-lockfile@6.0.20
+  - @pnpm/headless@18.7.3
+  - @pnpm/lifecycle@13.1.9
+  - @pnpm/link-bins@7.2.7
+  - @pnpm/lockfile-file@5.3.6
+  - @pnpm/lockfile-to-pnp@1.0.3
+  - @pnpm/lockfile-utils@4.2.6
+  - @pnpm/lockfile-walker@5.0.15
+  - @pnpm/manifest-utils@3.1.4
+  - @pnpm/modules-cleaner@12.0.23
+  - @pnpm/modules-yaml@10.0.8
+  - @pnpm/normalize-registries@3.0.8
+  - @pnpm/package-requester@19.0.4
+  - @pnpm/prune-lockfile@4.0.16
+  - @pnpm/read-package-json@6.0.10
+  - @pnpm/read-project-manifest@3.0.11
+  - @pnpm/remove-bins@3.0.11
+  - @pnpm/resolver-base@9.1.2
+  - @pnpm/store-controller-types@14.1.3
+  - @pnpm/symlink-dependency@5.0.9
+  - @pnpm/crypto.base32-hash@1.0.1
+
 ## 5.12.2
 
 ### Patch Changes

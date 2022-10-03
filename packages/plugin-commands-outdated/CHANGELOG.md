@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-outdated
 
+## 6.2.0
+
+### Minor Changes
+
+- d665f3ff7: Ignore packages listed in package.json > pnpm.updateConfig.ignoreDependencies fields on update/outdated command [#5358](https://github.com/pnpm/pnpm/issues/5358)
+
+### Patch Changes
+
+- Updated dependencies [abb41a626]
+- Updated dependencies [d665f3ff7]
+  - @pnpm/matcher@3.2.0
+  - @pnpm/outdated@10.1.0
+  - @pnpm/types@8.7.0
+  - @pnpm/config@15.10.9
+  - @pnpm/cli-utils@0.7.40
+  - @pnpm/lockfile-file@5.3.6
+  - @pnpm/modules-yaml@10.0.8
+  - @pnpm/default-resolver@15.0.21
+
 ## 6.1.8
 
 ### Patch Changes

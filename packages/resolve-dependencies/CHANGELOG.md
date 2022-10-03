@@ -1,5 +1,24 @@
 # @pnpm/resolve-dependencies
 
+## 28.4.3
+
+### Patch Changes
+
+- ff331dd95: Don't override the root dependency when auto installing peer dependencies [#5412](https://github.com/pnpm/pnpm/issues/5412).
+- Updated dependencies [d665f3ff7]
+  - @pnpm/types@8.7.0
+  - @pnpm/core-loggers@7.0.8
+  - dependency-path@9.2.6
+  - @pnpm/lockfile-types@4.3.3
+  - @pnpm/lockfile-utils@4.2.6
+  - @pnpm/manifest-utils@3.1.4
+  - @pnpm/npm-resolver@13.1.9
+  - @pnpm/pick-registry-for-package@3.0.8
+  - @pnpm/prune-lockfile@4.0.16
+  - @pnpm/read-package-json@6.0.10
+  - @pnpm/resolver-base@9.1.2
+  - @pnpm/store-controller-types@14.1.3
+
 ## 28.4.2
 
 ### Patch Changes
