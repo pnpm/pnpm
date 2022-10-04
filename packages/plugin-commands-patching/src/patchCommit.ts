@@ -89,9 +89,10 @@ async function diffFolders (folderA: string, folderB: string) {
   if (stderr.length > 0)
     throw new Error(`Unable to diff directories. Make sure you have a recent version of 'git' available in PATH.\nThe following error was reported by 'git':\n${stderr}`)
 
-  const normalizePath = folderAN.startsWith('/')
-    ? (p: string) => p.slice(1)
-    : (p: string) => p
+  const normalizePath = (p: string) =>
+    (p.startsWith('/') || p.endsWith('/'))
+      ? p.replace(/^\/|\/$/g, '')
+      : p
 
   return stdout
     .replace(new RegExp(`(a|b)(${escapeStringRegexp(`/${normalizePath(folderAN)}/`)})`, 'g'), '$1/')
