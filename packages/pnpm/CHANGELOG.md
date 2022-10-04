@@ -1,5 +1,11 @@
 # pnpm
 
+## 7.13.1
+
+### Patch Changes
+
+- `pnpm update --interactive` should not list dependencies ignored via the `pnpm.updateConfig.ignoreDependencies` setting.
+
 ## 7.13.0
 
 ### Minor Changes

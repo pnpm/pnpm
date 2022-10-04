@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-installation
 
+## 10.8.1
+
+### Patch Changes
+
+- 536b16856: `pnpm update --interactive` should not list dependencies ignored via the `pnpm.updateConfig.ignoreDependencies` setting.
+
 ## 10.8.0
 
 ### Minor Changes
