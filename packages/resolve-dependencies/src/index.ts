@@ -54,13 +54,13 @@ export {
 
 interface ProjectToLink {
   binsDir: string
-  directNodeIdsByAlias: {[alias: string]: string}
+  directNodeIdsByAlias: { [alias: string]: string }
   id: string
   linkedDependencies: LinkedDependency[]
   manifest: ProjectManifest
   modulesDir: string
   rootDir: string
-  topParents: Array<{name: string, version: string}>
+  topParents: Array<{ name: string, version: string }>
 }
 
 export type ImporterToResolve = Importer<{
@@ -339,7 +339,7 @@ async function finishLockfileUpdates (
 function addDirectDependenciesToLockfile (
   newManifest: ProjectManifest,
   projectSnapshot: ProjectSnapshot,
-  linkedPackages: Array<{alias: string}>,
+  linkedPackages: Array<{ alias: string }>,
   directDependencies: ResolvedDirectDependency[],
   registries: Registries,
   autoInstallPeers?: boolean

@@ -44,7 +44,7 @@ export default async function linkPackages (
   opts: {
     currentLockfile: Lockfile
     dependenciesByProjectId: {
-      [id: string]: {[alias: string]: string}
+      [id: string]: { [alias: string]: string }
     }
     force: boolean
     depsStateCache: DepsStateCache
@@ -58,7 +58,7 @@ export default async function linkPackages (
     linkedDependenciesByProjectId: Record<string, LinkedDependency[]>
     lockfileDir: string
     makePartialCurrentLockfile: boolean
-    outdatedDependencies: {[pkgId: string]: string}
+    outdatedDependencies: { [pkgId: string]: string }
     pruneStore: boolean
     pruneVirtualStore: boolean
     registries: Registries

@@ -30,7 +30,7 @@ export interface AuditAdvisory {
       dev: boolean
       optional: boolean
       bundled: boolean
-    },
+    }
   ]
   id: number
   created: string
@@ -71,7 +71,7 @@ export interface AuditMetadata {
 
 export interface AuditReport {
   actions: AuditAction[]
-  advisories: {[id: string]: AuditAdvisory}
+  advisories: { [id: string]: AuditAdvisory }
   muted: Object[]
   metadata: AuditMetadata
 }

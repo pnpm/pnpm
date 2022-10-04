@@ -16,4 +16,4 @@ export type FetchingProgressMessage = {
   status: 'in_progress'
 }
 
-export type FetchingProgressLog = {name: 'pnpm:fetching-progress'} & LogBase & FetchingProgressMessage
+export type FetchingProgressLog = { name: 'pnpm:fetching-progress' } & LogBase & FetchingProgressMessage

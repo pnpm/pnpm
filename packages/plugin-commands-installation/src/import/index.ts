@@ -55,7 +55,7 @@ interface YarnPackageLock {
 
 enum YarnLockType {
   yarn = 'yarn',
-  yarn2 = 'yarn2',
+  yarn2 = 'yarn2'
 }
 
 // copy from yarn v1

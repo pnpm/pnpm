@@ -14,7 +14,7 @@ import { createManifestGetter, ManifestGetterOptions } from './createManifestGet
 import outdated, { OutdatedPackage } from './outdated'
 
 export default async function outdatedDepsOfProjects (
-  pkgs: Array<{dir: string, manifest: ProjectManifest}>,
+  pkgs: Array<{ dir: string, manifest: ProjectManifest }>,
   args: string[],
   opts: Omit<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'> & {
     compatible?: boolean

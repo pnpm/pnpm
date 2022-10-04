@@ -223,7 +223,7 @@ export function toOutput$ (
     summary: Rx.from(summaryPushStream),
     updateCheck: Rx.from(updateCheckPushStream),
   }
-  const outputs: Array<Rx.Observable<Rx.Observable<{msg: string}>>> = reporterForClient(
+  const outputs: Array<Rx.Observable<Rx.Observable<{ msg: string }>>> = reporterForClient(
     log$,
     {
       appendOnly: opts.reportingOptions?.appendOnly,
@@ -243,7 +243,7 @@ export function toOutput$ (
   if (opts.reportingOptions?.appendOnly) {
     return Rx.merge(...outputs)
       .pipe(
-        map((log: Rx.Observable<{msg: string}>) => log.pipe(map((msg) => msg.msg))),
+        map((log: Rx.Observable<{ msg: string }>) => log.pipe(map((msg) => msg.msg))),
         mergeAll()
       )
   }

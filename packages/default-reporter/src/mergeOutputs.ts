@@ -2,13 +2,13 @@ import * as Rx from 'rxjs'
 import { filter, map, mergeAll, scan } from 'rxjs/operators'
 import { EOL } from './constants'
 
-export default function mergeOutputs (outputs: Array<Rx.Observable<Rx.Observable<{msg: string}>>>): Rx.Observable<string> {
+export default function mergeOutputs (outputs: Array<Rx.Observable<Rx.Observable<{ msg: string }>>>): Rx.Observable<string> {
   let blockNo = 0
   let fixedBlockNo = 0
   let started = false
   let previousOutput: string | null = null
   return Rx.merge(...outputs).pipe(
-    map((log: Rx.Observable<{msg: string}>) => {
+    map((log: Rx.Observable<{ msg: string }>) => {
       let currentBlockNo = -1
       let currentFixedBlockNo = -1
       return log.pipe(
@@ -44,7 +44,7 @@ export default function mergeOutputs (outputs: Array<Rx.Observable<Rx.Observable
         acc.blocks[log.blockNo] = log.msg
       }
       return acc
-    }, { fixedBlocks: [], blocks: [] } as {fixedBlocks: string[], blocks: string[]}),
+    }, { fixedBlocks: [], blocks: [] } as { fixedBlocks: string[], blocks: string[] }),
     map((sections) => {
       const fixedBlocks = sections.fixedBlocks.filter(Boolean)
       const nonFixedPart = sections.blocks.filter(Boolean).join(EOL)

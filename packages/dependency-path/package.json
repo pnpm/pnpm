@@ -37,7 +37,7 @@
     "semver": "^7.3.7"
   },
   "devDependencies": {
-    "@types/semver": "7.3.10",
+    "@types/semver": "7.3.12",
     "dependency-path": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",

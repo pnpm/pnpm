@@ -42,7 +42,7 @@ type LinkFunctionOptions = LinkOptions & {
 export { LinkFunctionOptions }
 
 export default async function link (
-  linkFromPkgs: Array<{alias: string, path: string} | string>,
+  linkFromPkgs: Array<{ alias: string, path: string } | string>,
   destModules: string,
   maybeOpts: LinkFunctionOptions
 ) {
@@ -57,7 +57,7 @@ export default async function link (
   }, true)
 
   const importerId = getLockfileImporterId(ctx.lockfileDir, opts.dir)
-  const linkedPkgs: Array<{path: string, manifest: DependencyManifest, alias: string}> = []
+  const linkedPkgs: Array<{ path: string, manifest: DependencyManifest, alias: string }> = []
   const specsToUpsert = [] as PackageSpecObject[]
 
   for (const linkFrom of linkFromPkgs) {

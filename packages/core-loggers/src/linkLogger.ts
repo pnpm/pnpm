@@ -9,4 +9,4 @@ export interface LinkMessage {
   link: string
 }
 
-export type LinkLog = {name: 'pnpm:link'} & LogBase & LinkMessage
+export type LinkLog = { name: 'pnpm:link' } & LogBase & LinkMessage

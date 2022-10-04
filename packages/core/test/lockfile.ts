@@ -58,7 +58,7 @@ test('lockfile has correct format', async () => {
   expect(lockfile.packages[id].dependencies).toBeTruthy()
   expect(lockfile.packages[id].dependencies).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep'])
   expect(lockfile.packages[id].resolution).toBeTruthy()
-  expect((lockfile.packages[id].resolution as {integrity: string}).integrity).toBeTruthy()
+  expect((lockfile.packages[id].resolution as { integrity: string }).integrity).toBeTruthy()
   expect((lockfile.packages[id].resolution as TarballResolution).tarball).toBeFalsy()
 
   const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'

@@ -24,7 +24,7 @@ export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions,
 >
 
 export async function createOrConnectStoreControllerCached (
-  storeControllerCache: Map<string, Promise<{ctrl: StoreController, dir: string}>>,
+  storeControllerCache: Map<string, Promise<{ ctrl: StoreController, dir: string }>>,
   opts: CreateStoreControllerOptions
 ) {
   const storeDir = await storePath({
@@ -35,7 +35,7 @@ export async function createOrConnectStoreControllerCached (
   if (!storeControllerCache.has(storeDir)) {
     storeControllerCache.set(storeDir, createOrConnectStoreController(opts))
   }
-  return await storeControllerCache.get(storeDir) as {ctrl: StoreController, dir: string}
+  return await storeControllerCache.get(storeDir) as { ctrl: StoreController, dir: string }
 }
 
 export async function createOrConnectStoreController (

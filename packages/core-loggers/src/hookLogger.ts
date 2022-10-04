@@ -11,4 +11,4 @@ export interface HookMessage {
   prefix: string
 }
 
-export type HookLog = {name: 'pnpm:hook'} & LogBase & HookMessage
+export type HookLog = { name: 'pnpm:hook' } & LogBase & HookMessage

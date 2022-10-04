@@ -108,7 +108,7 @@ export default async function<T> (
     linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? -1,
     lockfileDir: opts.lockfileDir,
     nodeVersion: opts.nodeVersion,
-    outdatedDependencies: {} as {[pkgId: string]: string},
+    outdatedDependencies: {} as { [pkgId: string]: string },
     patchedDependencies: opts.patchedDependencies,
     pendingNodes: [] as PendingNode[],
     pnpmVersion: opts.pnpmVersion,
@@ -236,7 +236,7 @@ function buildTree (
   },
   parentNodeId: string,
   parentId: string,
-  children: Array<{alias: string, depPath: string}>,
+  children: Array<{ alias: string, depPath: string }>,
   depth: number,
   installable: boolean
 ) {

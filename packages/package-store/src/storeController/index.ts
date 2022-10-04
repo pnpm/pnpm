@@ -56,7 +56,7 @@ export default async function (
     upload,
   }
 
-  async function upload (builtPkgLocation: string, opts: {filesIndexFile: string, sideEffectsCacheKey: string}) {
+  async function upload (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }) {
     const sideEffectsIndex = await cafs.addFilesFromDir(builtPkgLocation)
     // TODO: move this to a function
     // This is duplicated in @pnpm/package-requester

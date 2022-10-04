@@ -143,7 +143,7 @@ async function resolveAndFetch (
     force?: boolean
     nodeVersion?: string
     pnpmVersion?: string
-    requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>}
+    requestsQueue: { add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T> }
     resolve: ResolveFunction
     fetchPackageToStore: FetchPackageToStoreFunction
     storeDir: string
@@ -308,7 +308,7 @@ function fetchToStore (
     fetchingLocker: Map<string, FetchLock>
     getFilePathInCafs: (integrity: string, fileType: FileType) => string
     getFilePathByModeInCafs: (integrity: string, mode: number) => string
-    requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>}
+    requestsQueue: { add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T> }
     storeDir: string
   },
   opts: FetchPackageToStoreOptions

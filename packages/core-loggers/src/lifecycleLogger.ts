@@ -20,4 +20,4 @@ export type LifecycleMessage = {
   optional: boolean
 })
 
-export type LifecycleLog = {name: 'pnpm:lifecycle'} & LogBase & LifecycleMessage
+export type LifecycleLog = { name: 'pnpm:lifecycle' } & LogBase & LifecycleMessage

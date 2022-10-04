@@ -55,7 +55,7 @@ export async function execPnpx (args: string[]): Promise<void> {
   })
 }
 
-export function spawnPnpx (args: string[], opts?: {storeDir?: string}): NodeChildProcess {
+export function spawnPnpx (args: string[], opts?: { storeDir?: string }): NodeChildProcess {
   return crossSpawn.spawn(process.execPath, [pnpxBinLocation, ...args], {
     env: createEnv(opts),
     stdio: 'inherit',
@@ -86,7 +86,7 @@ export function execPnpxSync (args: string[], opts?: { env: Object }): ChildProc
   }) as ChildProcess
 }
 
-function createEnv (opts?: {storeDir?: string}): NodeJS.ProcessEnv {
+function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
   const env = {
     npm_config_fetch_retries: '4',
     npm_config_hoist: 'true',

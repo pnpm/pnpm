@@ -10,4 +10,4 @@ export interface PeerDependencyIssuesMessage {
   issuesByProjects: PeerDependencyIssuesByProjects
 }
 
-export type PeerDependencyIssuesLog = {name: 'pnpm:peer-dependency-issues'} & LogBase & PeerDependencyIssuesMessage
+export type PeerDependencyIssuesLog = { name: 'pnpm:peer-dependency-issues' } & LogBase & PeerDependencyIssuesMessage

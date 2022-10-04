@@ -61,7 +61,7 @@
         "error",
         "1tbs"
     ],
-    "comma-dangle": [
+    "@typescript-eslint/comma-dangle": [
         "error",
         {
             "arrays": "always-multiline",

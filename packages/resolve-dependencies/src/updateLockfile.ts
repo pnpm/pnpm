@@ -63,8 +63,8 @@ function toLockfileDependency (
     depPath: string
     registry: string
     registries: Registries
-    updatedDeps: Array<{alias: string, depPath: string}>
-    updatedOptionalDeps: Array<{alias: string, depPath: string}>
+    updatedDeps: Array<{ alias: string, depPath: string }>
+    updatedOptionalDeps: Array<{ alias: string, depPath: string }>
     depGraph: DependenciesGraph
     prevSnapshot?: PackageSnapshot
     lockfileIncludeTarballUrl?: boolean
@@ -195,7 +195,7 @@ function toLockfileDependency (
 // the `depth` property defines how deep should dependencies be checked
 function updateResolvedDeps (
   prevResolvedDeps: ResolvedDependencies,
-  updatedDeps: Array<{alias: string, depPath: string}>,
+  updatedDeps: Array<{ alias: string, depPath: string }>,
   registries: Registries,
   depGraph: DependenciesGraph
 ) {

@@ -2,7 +2,7 @@ export interface Dependencies {
   [name: string]: string
 }
 
-export type PackageBin = string | {[commandName: string]: string}
+export type PackageBin = string | { [commandName: string]: string }
 
 export type PackageScripts = {
   [name: string]: string

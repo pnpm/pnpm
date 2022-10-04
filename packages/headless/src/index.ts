@@ -605,7 +605,7 @@ async function linkRootPackages (
     importerModulesDir: string
     projects: Array<{ id: string, manifest: ProjectManifest }>
     lockfileDir: string
-    rootDependencies: {[alias: string]: string}
+    rootDependencies: { [alias: string]: string }
   }
 ) {
   const importerManifestsByImporterId = {} as { [id: string]: ProjectManifest }

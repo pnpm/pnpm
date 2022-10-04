@@ -41,7 +41,7 @@
     "@pnpm/hooks.read-package-hook": "workspace:*",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.15",
-    "@types/semver": "7.3.10",
+    "@types/semver": "7.3.12",
     "@yarnpkg/core": "4.0.0-rc.14"
   },
   "funding": "https://opencollective.com/pnpm",

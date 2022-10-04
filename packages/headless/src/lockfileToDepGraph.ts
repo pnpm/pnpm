@@ -35,7 +35,7 @@ export interface DependenciesGraphNode {
   fetchingFiles: () => Promise<PackageFilesResponse>
   finishing: () => Promise<void>
   dir: string
-  children: {[alias: string]: string}
+  children: { [alias: string]: string }
   optionalDependencies: Set<string>
   optional: boolean
   depPath: string // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
@@ -230,11 +230,11 @@ async function getChildrenPaths (
     sideEffectsCacheRead: boolean
     storeController: StoreController
   },
-  allDeps: {[alias: string]: string},
+  allDeps: { [alias: string]: string },
   peerDeps: Set<string> | null,
   importerId: string
 ) {
-  const children: {[alias: string]: string} = {}
+  const children: { [alias: string]: string } = {}
   for (const alias of Object.keys(allDeps)) {
     const childDepPath = dp.refToAbsolute(allDeps[alias], alias, ctx.registries)
     if (childDepPath === null) {

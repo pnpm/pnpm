@@ -9,4 +9,4 @@ export interface UpdateCheckMessage {
   latestVersion: string
 }
 
-export type UpdateCheckLog = {name: 'pnpm:update-check'} & LogBase & UpdateCheckMessage
+export type UpdateCheckLog = { name: 'pnpm:update-check' } & LogBase & UpdateCheckMessage

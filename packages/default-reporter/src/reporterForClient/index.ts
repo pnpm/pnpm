@@ -56,14 +56,14 @@ export default function (
     throttleProgress?: number
     width?: number
   }
-): Array<Rx.Observable<Rx.Observable<{msg: string}>>> {
+): Array<Rx.Observable<Rx.Observable<{ msg: string }>>> {
   const width = opts.width ?? process.stdout.columns ?? 80
   const cwd = opts.pnpmConfig?.dir ?? process.cwd()
   const throttle = typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
     ? throttleTime(opts.throttleProgress, undefined, { leading: true, trailing: true })
     : undefined
 
-  const outputs: Array<Rx.Observable<Rx.Observable<{msg: string}>>> = [
+  const outputs: Array<Rx.Observable<Rx.Observable<{ msg: string }>>> = [
     reportLifecycleScripts(log$, {
       appendOnly: opts.appendOnly === true || opts.streamLifecycleOutput,
       aggregateOutput: opts.aggregateOutput,

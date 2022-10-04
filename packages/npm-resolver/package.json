@@ -62,7 +62,7 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.15",
-    "@types/semver": "7.3.10",
+    "@types/semver": "7.3.12",
     "@types/ssri": "^7.1.1",
     "nock": "13.2.9",
     "path-exists": "^4.0.0",

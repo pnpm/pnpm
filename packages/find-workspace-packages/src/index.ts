@@ -37,11 +37,11 @@ export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?
     includeRoot: true,
     patterns,
   })
-  pkgs.sort((pkg1: {dir: string}, pkg2: {dir: string}) => pkg1.dir.localeCompare(pkg2.dir))
+  pkgs.sort((pkg1: { dir: string }, pkg2: { dir: string }) => pkg1.dir.localeCompare(pkg2.dir))
   return pkgs
 }
 
-async function requirePackagesManifest (dir: string): Promise<{packages?: string[]} | null> {
+async function requirePackagesManifest (dir: string): Promise<{ packages?: string[] } | null> {
   try {
     return await readYamlFile<{ packages?: string[] }>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
   } catch (err: any) { // eslint-disable-line

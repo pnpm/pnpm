@@ -146,7 +146,7 @@ test('request package but skip fetching, when resolution is already available', 
   }) as PackageResponse & {
     body: {
       latest: string
-      manifest: {name: string}
+      manifest: { name: string }
     }
     files: () => Promise<object>
     finishing: () => Promise<void>
@@ -600,7 +600,7 @@ test('always return a package manifest in the response', async () => {
       preferredVersions: {},
       projectDir,
       registry,
-    }) as PackageResponse & {body: {manifest: {name: string}}}
+    }) as PackageResponse & { body: { manifest: { name: string } } }
 
     expect(pkgResponse.body).toBeTruthy()
     expect(pkgResponse.body.manifest.name).toBeTruthy()
@@ -621,7 +621,7 @@ test('always return a package manifest in the response', async () => {
       preferredVersions: {},
       projectDir,
       registry,
-    }) as PackageResponse & {bundledManifest: () => Promise<DependencyManifest>}
+    }) as PackageResponse & { bundledManifest: () => Promise<DependencyManifest> }
 
     expect(pkgResponse.body).toBeTruthy()
     expect(
@@ -831,7 +831,7 @@ test('fetch a git package without a package.json', async () => {
       preferredVersions: {},
       projectDir,
       registry,
-    }) as PackageResponse & {body: {manifest: {name: string}}}
+    }) as PackageResponse & { body: { manifest: { name: string } } }
 
     expect(pkgResponse.body).toBeTruthy()
     expect(pkgResponse.body.manifest).toBeUndefined()

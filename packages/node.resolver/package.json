@@ -43,6 +43,6 @@
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
-    "@types/semver": "7.3.10"
+    "@types/semver": "7.3.12"
   }
 }

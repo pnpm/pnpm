@@ -12,4 +12,4 @@ export type StatsMessage = {
   removed: number
 })
 
-export type StatsLog = {name: 'pnpm:stats'} & LogBase & StatsMessage
+export type StatsLog = { name: 'pnpm:stats' } & LogBase & StatsMessage

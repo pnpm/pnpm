@@ -46,7 +46,7 @@ export default async function (
       stop: async () => {
         await limitedFetch(`${remotePrefix}/stop`, {})
       },
-      upload: async (builtPkgLocation: string, opts: {filesIndexFile: string, sideEffectsCacheKey: string}) => {
+      upload: async (builtPkgLocation: string, opts: { filesIndexFile: string, sideEffectsCacheKey: string }) => {
         await limitedFetch(`${remotePrefix}/upload`, {
           builtPkgLocation,
           opts,
@@ -139,7 +139,7 @@ function fetchPackage (
     msgId,
     options,
   })
-    .then((fetchResponseBody: object & {filesIndexFile: string, inStoreLocation: string}) => {
+    .then((fetchResponseBody: object & { filesIndexFile: string, inStoreLocation: string }) => {
       const fetchingBundledManifest = options.fetchRawManifest
         ? limitedFetch(`${remotePrefix}/rawManifestResponse`, { msgId })
         : undefined

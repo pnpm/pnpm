@@ -104,7 +104,7 @@ export interface Dependencies {
   [name: string]: string
 }
 
-export type PackageBin = string | {[name: string]: string}
+export type PackageBin = string | { [name: string]: string }
 
 /** @example
  * {

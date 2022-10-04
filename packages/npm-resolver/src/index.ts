@@ -34,7 +34,7 @@ import workspacePrefToNpm from './workspacePrefToNpm'
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta
-  constructor (opts: { wantedDependency: WantedDependency, packageMeta: PackageMeta}) {
+  constructor (opts: { wantedDependency: WantedDependency, packageMeta: PackageMeta }) {
     const dep = opts.wantedDependency.alias
       ? `${opts.wantedDependency.alias}@${opts.wantedDependency.pref ?? ''}`
       : opts.wantedDependency.pref!
@@ -150,7 +150,7 @@ async function resolveNpm (
   if (spec == null) return null
 
   const authHeaderValue = ctx.getAuthHeaderValueByURI(opts.registry)
-  let pickResult!: {meta: PackageMeta, pickedPackage: PackageInRegistry | null}
+  let pickResult!: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
   try {
     pickResult = await ctx.pickPackage(spec, {
       pickLowestVersion: opts.pickLowestVersion,

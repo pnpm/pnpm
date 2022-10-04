@@ -60,7 +60,7 @@ function findPackages (
 // TODO: move this logic to separate package as this is also used in dependencies-hierarchy
 function matches (
   searched: PackageSelector[],
-  manifest: {name: string, version?: string}
+  manifest: { name: string, version?: string }
 ) {
   return searched.some((searchedPkg) => {
     if (typeof searchedPkg === 'string') {

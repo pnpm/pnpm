@@ -135,7 +135,7 @@ export interface ResolutionContext {
   dryRun: boolean
   forceFullResolution: boolean
   resolvedPackagesByDepPath: ResolvedPackagesByDepPath
-  outdatedDependencies: {[pkgId: string]: string}
+  outdatedDependencies: { [pkgId: string]: string }
   childrenByParentDepPath: ChildrenByParentDepPath
   patchedDependencies?: Record<string, PatchFile>
   pendingNodes: PendingNode[]
@@ -879,7 +879,7 @@ function referenceSatisfiesWantedSpec (
     lockfile: Lockfile
     prefix: string
   },
-  wantedDep: {alias: string, pref: string},
+  wantedDep: { alias: string, pref: string },
   preferredRef: string
 ) {
   const depPath = dp.refToRelative(preferredRef, wantedDep.alias)

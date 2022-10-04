@@ -64,6 +64,6 @@ export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string, op
   return true
 }
 
-function countOfNonLinkedDeps (lockfileDeps: {[depName: string]: string}): number {
+function countOfNonLinkedDeps (lockfileDeps: { [depName: string]: string }): number {
   return Object.values(lockfileDeps).filter((ref) => !ref.includes('link:') && !ref.includes('file:')).length
 }

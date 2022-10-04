@@ -9,7 +9,7 @@ export default function (
   opts: {}
 ) {
   return async function resolveGit (
-    wantedDependency: {pref: string}
+    wantedDependency: { pref: string }
   ): Promise<ResolveResult | null> {
     const parsedSpec = await parsePref(wantedDependency.pref)
 
@@ -83,7 +83,7 @@ async function resolveRef (repo: string, ref: string, range?: string) {
   return resolveRefFromRefs(refs, repo, ref, range)
 }
 
-function resolveRefFromRefs (refs: {[ref: string]: string}, repo: string, ref: string, range?: string) {
+function resolveRefFromRefs (refs: { [ref: string]: string }, repo: string, ref: string, range?: string) {
   if (!range) {
     const commitId =
       refs[ref] ||

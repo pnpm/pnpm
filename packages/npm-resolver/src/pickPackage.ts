@@ -78,7 +78,7 @@ export default async (
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
-): Promise<{meta: PackageMeta, pickedPackage: PackageInRegistry | null}> => {
+): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> => {
   opts = opts || {}
   const _pickPackageFromMeta =
     opts.publishedBy

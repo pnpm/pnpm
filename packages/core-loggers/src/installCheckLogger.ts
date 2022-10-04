@@ -9,4 +9,4 @@ export interface InstallCheckMessage {
   pkgId: string
 }
 
-export type InstallCheckLog = {name: 'pnpm:install-check'} & LogBase & InstallCheckMessage
+export type InstallCheckLog = { name: 'pnpm:install-check' } & LogBase & InstallCheckMessage

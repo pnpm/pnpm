@@ -212,7 +212,7 @@ function getPkgsDepPaths (
   registries: Registries,
   packages: PackageSnapshots,
   skipped: Set<string>
-): {[depPath: string]: string} {
+): { [depPath: string]: string } {
   const pkgIdsByDepPath = {}
   for (const depPath of Object.keys(packages)) {
     if (skipped.has(depPath)) continue

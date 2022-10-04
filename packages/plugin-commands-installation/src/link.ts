@@ -90,7 +90,7 @@ export async function handler (
 ) {
   const cwd = process.cwd()
 
-  const storeControllerCache = new Map<string, Promise<{dir: string, ctrl: StoreController}>>()
+  const storeControllerCache = new Map<string, Promise<{ dir: string, ctrl: StoreController }>>()
   let workspacePackagesArr
   let workspacePackages!: WorkspacePackages
   if (opts.workspaceDir) {

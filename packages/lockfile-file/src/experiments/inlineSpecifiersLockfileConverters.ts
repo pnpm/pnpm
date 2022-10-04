@@ -61,7 +61,7 @@ function convertProjectSnapshotToInlineSpecifiersFormat (
 
 function convertResolvedDependenciesToInlineSpecifiersFormat (
   resolvedDependencies: ResolvedDependencies,
-  { specifiers }: { specifiers: ResolvedDependencies}
+  { specifiers }: { specifiers: ResolvedDependencies }
 ): InlineSpecifiersResolvedDependencies {
   return mapValues(resolvedDependencies, (version, depName) => ({
     specifier: specifiers[depName],

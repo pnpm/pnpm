@@ -13,7 +13,7 @@ export type IncludedDependencies = {
 }
 
 export interface Modules {
-  hoistedAliases?: {[depPath: string]: string[]} // for backward compatibility
+  hoistedAliases?: { [depPath: string]: string[] } // for backward compatibility
   hoistedDependencies: HoistedDependencies
   hoistPattern?: string[]
   included: IncludedDependencies

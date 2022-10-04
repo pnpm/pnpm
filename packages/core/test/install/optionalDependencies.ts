@@ -85,7 +85,7 @@ test('skip optional dependency that does not support the current OS', async () =
 
   expect(currentLockfile.packages).toStrictEqual(lockfile.packages)
 
-  const modulesInfo = await readYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
+  const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
   expect(modulesInfo.skipped).toStrictEqual([
     '/@pnpm.e2e/dep-of-optional-pkg/1.0.0',
     '/@pnpm.e2e/not-compatible-with-any-os/1.0.0',
@@ -532,7 +532,7 @@ test('skip optional dependency that does not support the current OS, when doing 
     })
   )
 
-  const modulesInfo = await readYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
+  const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
   expect(modulesInfo.skipped).toStrictEqual([
     '/@pnpm.e2e/dep-of-optional-pkg/1.0.0',
     '/@pnpm.e2e/not-compatible-with-any-os/1.0.0',

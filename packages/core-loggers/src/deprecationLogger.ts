@@ -14,4 +14,4 @@ export interface DeprecationMessage {
   depth: number
 }
 
-export type DeprecationLog = {name: 'pnpm:deprecation'} & LogBase & DeprecationMessage
+export type DeprecationLog = { name: 'pnpm:deprecation' } & LogBase & DeprecationMessage

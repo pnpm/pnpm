@@ -6,7 +6,7 @@ export interface DepsGraph {
 }
 
 export interface DepsGraphNode {
-  children: {[alias: string]: string}
+  children: { [alias: string]: string }
   depPath: string
 }
 

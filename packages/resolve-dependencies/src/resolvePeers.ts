@@ -24,7 +24,7 @@ export interface GenericDependenciesGraphNode {
   // at this point the version is really needed only for logging
   modules: string
   dir: string
-  children: {[alias: string]: string}
+  children: { [alias: string]: string }
   depth: number
   peerDependencies?: Dependencies
   transitivePeerDependencies: Set<string>
@@ -48,10 +48,10 @@ export interface GenericDependenciesGraph<T extends PartialResolvedPackage> {
 export default function<T extends PartialResolvedPackage> (
   opts: {
     projects: Array<{
-      directNodeIdsByAlias: {[alias: string]: string}
+      directNodeIdsByAlias: { [alias: string]: string }
       // only the top dependencies that were already installed
       // to avoid warnings about unresolved peer dependencies
-      topParents: Array<{name: string, version: string}>
+      topParents: Array<{ name: string, version: string }>
       rootDir: string // is only needed for logging
       id: string
     }>
@@ -61,7 +61,7 @@ export default function<T extends PartialResolvedPackage> (
   }
 ): {
     dependenciesGraph: GenericDependenciesGraph<T>
-    dependenciesByProjectId: {[id: string]: {[alias: string]: string}}
+    dependenciesByProjectId: { [id: string]: { [alias: string]: string } }
     peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   } {
   const depGraph: GenericDependenciesGraph<T> = {}
@@ -99,7 +99,7 @@ export default function<T extends PartialResolvedPackage> (
     }, {})
   })
 
-  const dependenciesByProjectId: {[id: string]: {[alias: string]: string}} = {}
+  const dependenciesByProjectId: { [id: string]: { [alias: string]: string } } = {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
     dependenciesByProjectId[id] = Object.keys(directNodeIdsByAlias).reduce((rootPathsByAlias, alias) => {
       rootPathsByAlias[alias] = pathsByNodeId[directNodeIdsByAlias[alias]]
@@ -116,8 +116,8 @@ export default function<T extends PartialResolvedPackage> (
 function createPkgsByName<T extends PartialResolvedPackage> (
   dependenciesTree: DependenciesTree<T>,
   { directNodeIdsByAlias, topParents }: {
-    directNodeIdsByAlias: {[alias: string]: string}
-    topParents: Array<{name: string, version: string, linkedDir?: string}>
+    directNodeIdsByAlias: { [alias: string]: string }
+    topParents: Array<{ name: string, version: string, linkedDir?: string }>
   }
 ) {
   return Object.assign(
@@ -161,7 +161,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   parentParentPkgs: ParentRefs,
   ctx: {
     dependenciesTree: DependenciesTree<T>
-    pathsByNodeId: {[nodeId: string]: string}
+    pathsByNodeId: { [nodeId: string]: string }
     depGraph: GenericDependenciesGraph<T>
     virtualStoreDir: string
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
@@ -356,7 +356,7 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   },
   parentPkgs: ParentRefs,
   ctx: {
-    pathsByNodeId: {[nodeId: string]: string}
+    pathsByNodeId: { [nodeId: string]: string }
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     virtualStoreDir: string
@@ -398,7 +398,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
   }
 ): PeersResolution {
-  const resolvedPeers: {[alias: string]: string} = {}
+  const resolvedPeers: { [alias: string]: string } = {}
   const missingPeers = []
   for (const peerName in ctx.resolvedPackage.peerDependencies) { // eslint-disable-line:forin
     const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName].replace(/^workspace:/, '')
@@ -502,7 +502,7 @@ interface ParentRef {
   nodeId?: string
 }
 
-function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{alias: string, nodeId: string, node: DependenciesTreeNode<T>}>): ParentRefs {
+function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{ alias: string, nodeId: string, node: DependenciesTreeNode<T> }>): ParentRefs {
   const pkgsByName: ParentRefs = {}
   for (const { alias, node, nodeId } of nodes) {
     pkgsByName[alias] = {

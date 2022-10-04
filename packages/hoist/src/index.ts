@@ -152,14 +152,14 @@ async function getDependencies (
 }
 
 export interface Dependency {
-  children: {[alias: string]: string}
+  children: { [alias: string]: string }
   depPath: string
   depth: number
 }
 
 async function hoistGraph (
   depNodes: Dependency[],
-  currentSpecifiers: {[alias: string]: string},
+  currentSpecifiers: { [alias: string]: string },
   opts: {
     getAliasHoistType: GetAliasHoistType
   }

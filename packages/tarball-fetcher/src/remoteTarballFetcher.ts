@@ -57,7 +57,7 @@ export type DownloadFunction = (url: string, opts: {
 
 export interface NpmRegistryClient {
   get: (url: string, getOpts: object, cb: (err: Error, data: object, raw: object, res: HttpResponse) => void) => void
-  fetch: (url: string, opts: {auth?: object}, cb: (err: Error, res: IncomingMessage) => void) => void
+  fetch: (url: string, opts: { auth?: object }, cb: (err: Error, res: IncomingMessage) => void) => void
 }
 
 export default (

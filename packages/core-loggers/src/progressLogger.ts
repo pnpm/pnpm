@@ -16,4 +16,4 @@ export type ProgressMessage = {
   to: string
 }
 
-export type ProgressLog = {name: 'pnpm:progress'} & LogBase & ProgressMessage
+export type ProgressLog = { name: 'pnpm:progress' } & LogBase & ProgressMessage

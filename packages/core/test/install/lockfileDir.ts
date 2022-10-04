@@ -27,7 +27,7 @@ test.skip('subsequent installation fails if a different lockfile directory is sp
 
   const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDir: path.resolve('..') }))
 
-  let err!: Error & {code: string}
+  let err!: Error & { code: string }
 
   try {
     await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults({ lockfileDir: process.cwd() }))

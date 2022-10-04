@@ -10,4 +10,4 @@ export interface ScopeMessage {
   workspacePrefix?: string
 }
 
-export type ScopeLog = {name: 'pnpm:scope'} & LogBase & ScopeMessage
+export type ScopeLog = { name: 'pnpm:scope' } & LogBase & ScopeMessage
