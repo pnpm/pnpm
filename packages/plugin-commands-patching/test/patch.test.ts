@@ -94,7 +94,7 @@ describe('patch and commit', () => {
       .rejects.toThrow(`The target directory already exists: '${editDir}'`)
   })
 
-  test('patch and commit with a trailing slash', async () => {
+  test('patch and commit should work when the patch directory is specified with a trailing slash', async () => {
     const editDir = path.join(tempy.directory()) + (os.platform() === 'win32' ? '\\' : '/')
 
     const output = await patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0'])
