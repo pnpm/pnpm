@@ -23,14 +23,12 @@ test('update with "*" pattern', async () => {
   await install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    workspaceDir: process.cwd(),
   })
 
   await update.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     latest: true,
-    workspaceDir: process.cwd(),
   }, ['@pnpm.e2e/peer-*'])
 
   const lockfile = await project.readLockfile()
@@ -56,14 +54,12 @@ test('update with negation pattern', async () => {
   await install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    workspaceDir: process.cwd(),
   })
 
   await update.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     latest: true,
-    workspaceDir: process.cwd(),
   }, ['!@pnpm.e2e/peer-*'])
 
   const lockfile = await project.readLockfile()
@@ -114,7 +110,6 @@ describe('update by package name', () => {
     await install.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-      workspaceDir: process.cwd(),
     })
   })
   it("should fail when the package isn't in the direct dependencies and depth is 0", async () => {
@@ -125,20 +120,18 @@ describe('update by package name', () => {
         depth: 0,
         dir: process.cwd(),
         sharedWorkspaceLockfile: true,
-        workspaceDir: process.cwd(),
       }, ['@pnpm.e2e/peer-b'])
     } catch (_err: any) { // eslint-disable-line
       err = _err
     }
     expect(err.code).toBe('ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
-    expect(err.message).toBe('None of the specified packages were found in the dependencies of any of the projects.')
+    expect(err.message).toBe('None of the specified packages were found in the dependencies.')
   })
   it("shouldn't fail when the package isn't in the direct dependencies", async () => {
     await update.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
       sharedWorkspaceLockfile: true,
-      workspaceDir: process.cwd(),
     }, ['@pnpm.e2e/peer-b'])
   })
 })
@@ -155,7 +148,6 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
   await install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    workspaceDir: process.cwd(),
   })
 
   {
@@ -174,7 +166,6 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
     dir: process.cwd(),
     latest: true,
     save: false,
-    workspaceDir: process.cwd(),
   }, [])
 
   {
@@ -206,14 +197,12 @@ test('update should work normal when set empty string version', async () => {
   await install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    workspaceDir: process.cwd(),
   })
 
   await update.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     latest: true,
-    workspaceDir: process.cwd(),
   }, ['*'])
 
   const lockfile = await project.readLockfile()
@@ -246,7 +235,6 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
   await install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    workspaceDir: process.cwd(),
   })
 
   const lockfile = await project.readLockfile()
@@ -260,7 +248,6 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
   await update.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    workspaceDir: process.cwd(),
     latest: true,
   })
 
@@ -291,7 +278,6 @@ test('not ignore packages if these are specified in parameter even if these are 
   await install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    workspaceDir: process.cwd(),
   })
 
   const lockfile = await project.readLockfile()
@@ -305,7 +291,6 @@ test('not ignore packages if these are specified in parameter even if these are 
   await update.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    workspaceDir: process.cwd(),
   }, ['@pnpm.e2e/foo@latest', '@pnpm.e2e/bar@latest'])
 
   const lockfileUpdated = await project.readLockfile()
