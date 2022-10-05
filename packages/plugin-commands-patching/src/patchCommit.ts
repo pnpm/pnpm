@@ -89,14 +89,17 @@ async function diffFolders (folderA: string, folderB: string) {
   if (stderr.length > 0)
     throw new Error(`Unable to diff directories. Make sure you have a recent version of 'git' available in PATH.\nThe following error was reported by 'git':\n${stderr}`)
 
-  const normalizePath = folderAN.startsWith('/')
-    ? (p: string) => p.slice(1)
-    : (p: string) => p
-
   return stdout
-    .replace(new RegExp(`(a|b)(${escapeStringRegexp(`/${normalizePath(folderAN)}/`)})`, 'g'), '$1/')
-    .replace(new RegExp(`(a|b)${escapeStringRegexp(`/${normalizePath(folderBN)}/`)}`, 'g'), '$1/')
+    .replace(new RegExp(`(a|b)(${escapeStringRegexp(`/${removeTrailingAndLeadingSlash(folderAN)}/`)})`, 'g'), '$1/')
+    .replace(new RegExp(`(a|b)${escapeStringRegexp(`/${removeTrailingAndLeadingSlash(folderBN)}/`)}`, 'g'), '$1/')
     .replace(new RegExp(escapeStringRegexp(`${folderAN}/`), 'g'), '')
     .replace(new RegExp(escapeStringRegexp(`${folderBN}/`), 'g'), '')
     .replace(/\n\\ No newline at end of file$/, '')
+}
+
+function removeTrailingAndLeadingSlash (p: string) {
+  if (p.startsWith('/') || p.endsWith('/')) {
+    return p.replace(/^\/|\/$/g, '')
+  }
+  return p
 }

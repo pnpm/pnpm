@@ -93,6 +93,25 @@ describe('patch and commit', () => {
     await expect(() => patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0']))
       .rejects.toThrow(`The target directory already exists: '${editDir}'`)
   })
+
+  test('patch and commit should work when the patch directory is specified with a trailing slash', async () => {
+    const editDir = path.join(tempy.directory()) + (os.platform() === 'win32' ? '\\' : '/')
+
+    const output = await patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0'])
+    const patchDir = output.substring(output.indexOf(':') + 1).trim()
+
+    expect(patchDir).toBe(editDir)
+    expect(fs.existsSync(patchDir)).toBe(true)
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, [patchDir])
+
+    expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
+  })
 })
 
 describe('patching should work when there is a no EOL in the patched file', () => {
