@@ -4,6 +4,7 @@ export default class PnpmError extends Error {
   public readonly code: string
   public readonly hint?: string
   public attempts?: number
+  public prefix?: string
   public pkgsStack?: Array<{ id: string, name: string, version: string }>
   constructor (
     code: string,

@@ -20,8 +20,12 @@ const colorPath = chalk.gray
 export default function reportError (logObj: Log, config?: Config) {
   const errorInfo = getErrorInfo(logObj, config)
   let output = formatErrorSummary(errorInfo.title, logObj['err']['code'])
-  if (logObj['pkgsStack']?.length) {
-    output += `\n\n${formatPkgsStack(logObj['pkgsStack'])}`
+  if (logObj['pkgsStack'] != null) {
+    if (logObj['pkgsStack'].length > 0) {
+      output += `\n\n${formatPkgsStack(logObj['pkgsStack'])}`
+    } else if (logObj['prefix']) {
+      output += `\n\nThis error happened while installing a direct dependency of ${logObj['prefix'] as string}`
+    }
   }
   if (errorInfo.body) {
     output += `\n\n${errorInfo.body}`

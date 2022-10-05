@@ -1067,6 +1067,7 @@ async function resolveDependency (
       })
       return null
     }
+    err.prefix = options.prefix
     err.pkgsStack = nodeIdToParents(options.parentPkg.nodeId, ctx.resolvedPackagesByDepPath)
     throw err
   }
