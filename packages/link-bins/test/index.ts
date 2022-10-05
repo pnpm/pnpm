@@ -376,7 +376,7 @@ test("linkBins() emits global warning when bin points to path that doesn't exist
 
 testOnWindows('linkBins() shoud remove an existing .exe file from the target directory', async () => {
   const binTarget = tempy.directory()
-  writeFileSync(path.join(binTarget, 'foo.exe'), 'foo', 'utf8')
+  writeFileSync(path.join(binTarget, 'simple.exe'), '', 'utf8')
   const warn = jest.fn()
   const simpleFixture = f.prepare('simple-fixture')
 
