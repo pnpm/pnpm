@@ -1114,6 +1114,7 @@ test('fail if none of the available resolvers support a version spec', async () 
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER')
+  expect(err.prefix).toBe(process.cwd())
   expect(err.pkgsStack).toStrictEqual(
     [
       {

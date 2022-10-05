@@ -128,7 +128,8 @@ test('prints suggestions when an internet-connection related error happens', (do
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${formatError('ERR_PNPM_BAD_TARBALL_SIZE', 'Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')}
+      expect(output).toBe(`/project-dir:
+${formatError('ERR_PNPM_BAD_TARBALL_SIZE', 'Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')}
 ${ERROR_PAD}
 ${ERROR_PAD}This error happened while installing the dependencies of foo@1.0.0
 ${ERROR_PAD}
@@ -150,6 +151,7 @@ ${ERROR_PAD}For instance, \`pnpm install --fetch-retries 5 --network-concurrency
   })
 
   const err = new PnpmError('BAD_TARBALL_SIZE', 'Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')
+  err.prefix = '/project-dir'
   err.pkgsStack = [
     {
       id: 'registry.npmjs.org/foo/1.0.0',
@@ -355,13 +357,14 @@ test('prints error even if the error object not passed in through the message ob
   })
 })
 
-test('prints error without packages stacktrace when pkgsStack is empty', (done) => {
+test('prints error without packages stacktrace when pkgsStack is empty but do print the project directory path', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
   })
 
   const err = new PnpmError('SOME_ERROR', 'some error')
+  err.prefix = '/project-dir'
   err.pkgsStack = []
   logger.error(err, err)
 
@@ -371,7 +374,10 @@ test('prints error without packages stacktrace when pkgsStack is empty', (done) 
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(formatError('ERR_PNPM_SOME_ERROR', 'some error'))
+      expect(output).toBe(`/project-dir:
+${formatError('ERR_PNPM_SOME_ERROR', 'some error')}
+${ERROR_PAD}
+${ERROR_PAD}This error happened while installing a direct dependency of /project-dir`)
     },
   })
 })
@@ -413,6 +419,7 @@ test('prints error with packages stacktrace - depth 2', (done) => {
   })
 
   const err = new PnpmError('SOME_ERROR', 'some error')
+  err.prefix = '/project-dir'
   err.pkgsStack = [
     {
       id: 'registry.npmjs.org/foo/1.0.0',
@@ -433,7 +440,8 @@ test('prints error with packages stacktrace - depth 2', (done) => {
     complete: () => done(),
     error: done,
     next: output => {
-      expect(output).toBe(`${formatError('ERR_PNPM_SOME_ERROR', 'some error')}
+      expect(output).toBe(`/project-dir:
+${formatError('ERR_PNPM_SOME_ERROR', 'some error')}
 ${ERROR_PAD}
 ${ERROR_PAD}This error happened while installing the dependencies of foo@1.0.0
 ${ERROR_PAD} at bar@1.0.0`)
