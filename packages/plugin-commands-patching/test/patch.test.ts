@@ -95,7 +95,7 @@ describe('patch and commit', () => {
   })
 
   test('patch and commit with a trailing slash', async () => {
-    const editDir = path.join(tempy.directory()) + '\\'
+    const editDir = path.join(tempy.directory()) + (os.platform() === 'win32' ? '\\' : '/')
 
     const output = await patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0'])
     const patchDir = output.substring(output.indexOf(':') + 1).trim()
