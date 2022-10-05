@@ -1,5 +1,12 @@
 # @pnpm/real-hoist
 
+## 0.2.20
+
+### Patch Changes
+
+- Updated dependencies [e8a631bf0]
+  - @pnpm/error@3.1.0
+
 ## 0.2.19
 
 ### Patch Changes

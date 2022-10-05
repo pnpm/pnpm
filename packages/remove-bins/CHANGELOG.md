@@ -1,5 +1,11 @@
 # @pnpm/remove-bins
 
+## 3.0.12
+
+### Patch Changes
+
+- @pnpm/read-package-json@6.0.11
+
 ## 3.0.11
 
 ### Patch Changes

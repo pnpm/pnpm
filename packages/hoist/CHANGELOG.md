@@ -1,5 +1,12 @@
 # @pnpm/hoist
 
+## 6.2.12
+
+### Patch Changes
+
+- Updated dependencies [5eb41a551]
+  - @pnpm/link-bins@7.2.8
+
 ## 6.2.11
 
 ### Patch Changes

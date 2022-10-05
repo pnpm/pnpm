@@ -1,5 +1,12 @@
 # @pnpm/modules-cleaner
 
+## 12.0.24
+
+### Patch Changes
+
+- @pnpm/filter-lockfile@6.0.21
+- @pnpm/remove-bins@3.0.12
+
 ## 12.0.23
 
 ### Patch Changes

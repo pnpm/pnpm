@@ -1,5 +1,14 @@
 # @pnpm/default-reporter
 
+## 10.0.1
+
+### Patch Changes
+
+- e8a631bf0: When a direct dependency fails to resolve, print the path to the project directory in the error message.
+- Updated dependencies [e8a631bf0]
+  - @pnpm/error@3.1.0
+  - @pnpm/config@15.10.10
+
 ## 10.0.0
 
 ### Major Changes

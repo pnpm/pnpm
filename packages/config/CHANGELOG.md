@@ -1,5 +1,14 @@
 # @pnpm/config
 
+## 15.10.10
+
+### Patch Changes
+
+- Updated dependencies [e8a631bf0]
+  - @pnpm/error@3.1.0
+  - @pnpm/pnpmfile@3.0.1
+  - @pnpm/read-project-manifest@3.0.12
+
 ## 15.10.9
 
 ### Patch Changes

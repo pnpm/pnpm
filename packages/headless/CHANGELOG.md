@@ -1,5 +1,26 @@
 # @pnpm/headless
 
+## 18.7.4
+
+### Patch Changes
+
+- Updated dependencies [e8a631bf0]
+- Updated dependencies [5eb41a551]
+  - @pnpm/error@3.1.0
+  - @pnpm/link-bins@7.2.8
+  - @pnpm/build-modules@9.3.9
+  - @pnpm/filter-lockfile@6.0.21
+  - @pnpm/lockfile-file@5.3.7
+  - @pnpm/package-is-installable@6.0.11
+  - @pnpm/package-requester@19.0.5
+  - @pnpm/read-package-json@6.0.11
+  - @pnpm/read-project-manifest@3.0.12
+  - @pnpm/real-hoist@0.2.20
+  - @pnpm/hoist@6.2.12
+  - @pnpm/modules-cleaner@12.0.24
+  - @pnpm/lockfile-to-pnp@1.0.4
+  - @pnpm/lifecycle@13.1.10
+
 ## 18.7.3
 
 ### Patch Changes

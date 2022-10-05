@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-package-json",
-  "version": "6.0.10",
+  "version": "6.0.11",
   "description": "Read a package.json",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

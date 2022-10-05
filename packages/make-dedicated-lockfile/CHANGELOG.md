@@ -1,5 +1,16 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.3.23
+
+### Patch Changes
+
+- Updated dependencies [e8a631bf0]
+  - @pnpm/error@3.1.0
+  - @pnpm/exportable-manifest@3.1.5
+  - @pnpm/find-workspace-dir@4.0.3
+  - @pnpm/lockfile-file@5.3.7
+  - @pnpm/read-project-manifest@3.0.12
+
 ## 0.3.22
 
 ### Patch Changes

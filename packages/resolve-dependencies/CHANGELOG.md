@@ -1,5 +1,16 @@
 # @pnpm/resolve-dependencies
 
+## 28.4.4
+
+### Patch Changes
+
+- e8a631bf0: When a direct dependency fails to resolve, print the path to the project directory in the error message.
+- Updated dependencies [e8a631bf0]
+  - @pnpm/error@3.1.0
+  - @pnpm/manifest-utils@3.1.5
+  - @pnpm/npm-resolver@13.1.10
+  - @pnpm/read-package-json@6.0.11
+
 ## 28.4.3
 
 ### Patch Changes

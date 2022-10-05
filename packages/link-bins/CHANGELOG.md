@@ -1,5 +1,19 @@
 # @pnpm/link-bins
 
+## 7.2.8
+
+### Patch Changes
+
+- 5eb41a551: When linking commands to a directory, remove any .exe files that are already present in that target directory by the same name.
+
+  This fixes an issue with pnpm global update on Windows. If pnpm was installed with the standalone script and then updated with pnpm using `pnpm add --global pnpm`, the exe file initially created by the standalone script should be removed.
+
+- Updated dependencies [e8a631bf0]
+  - @pnpm/error@3.1.0
+  - @pnpm/manifest-utils@3.1.5
+  - @pnpm/read-package-json@6.0.11
+  - @pnpm/read-project-manifest@3.0.12
+
 ## 7.2.7
 
 ### Patch Changes

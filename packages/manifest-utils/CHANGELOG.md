@@ -1,5 +1,12 @@
 # @pnpm/manifest-utils
 
+## 3.1.5
+
+### Patch Changes
+
+- Updated dependencies [e8a631bf0]
+  - @pnpm/error@3.1.0
+
 ## 3.1.4
 
 ### Patch Changes

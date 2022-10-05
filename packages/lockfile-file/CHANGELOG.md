@@ -1,5 +1,12 @@
 # @pnpm/lockfile-file
 
+## 5.3.7
+
+### Patch Changes
+
+- Updated dependencies [e8a631bf0]
+  - @pnpm/error@3.1.0
+
 ## 5.3.6
 
 ### Patch Changes

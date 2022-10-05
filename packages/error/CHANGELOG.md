@@ -1,5 +1,11 @@
 # @pnpm/error
 
+## 3.1.0
+
+### Minor Changes
+
+- e8a631bf0: Add new optional field: prefix.
+
 ## 3.0.1
 
 ### Patch Changes

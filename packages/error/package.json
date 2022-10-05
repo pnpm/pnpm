@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/error",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "description": "An error class for pnpm errors",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

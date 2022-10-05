@@ -1,5 +1,13 @@
 # @pnpm/pnpmfile
 
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [e8a631bf0]
+  - @pnpm/error@3.1.0
+  - @pnpm/core@6.0.1
+
 ## 3.0.0
 
 ### Major Changes

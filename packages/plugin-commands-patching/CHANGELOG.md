@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-patching
 
+## 1.3.7
+
+### Patch Changes
+
+- 911d29584: `pnpm patch-commit` should work when the patch directory is specified with a trailing slash [#5449](https://github.com/pnpm/pnpm/issues/5449).
+- Updated dependencies [e8a631bf0]
+  - @pnpm/error@3.1.0
+  - @pnpm/cli-utils@0.7.41
+  - @pnpm/config@15.10.10
+  - @pnpm/plugin-commands-installation@10.8.2
+  - @pnpm/read-package-json@6.0.11
+  - @pnpm/read-project-manifest@3.0.12
+  - @pnpm/store-connection-manager@4.3.14
+
 ## 1.3.6
 
 ### Patch Changes
