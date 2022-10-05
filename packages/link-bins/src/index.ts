@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import { promises as fs, existsSync } from 'fs'
 import path from 'path'
 import PnpmError from '@pnpm/error'
 import logger, { globalWarn } from '@pnpm/logger'
@@ -9,6 +9,7 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependencyManifest, ProjectManifest } from '@pnpm/types'
 import cmdShim from '@zkochan/cmd-shim'
+import rimraf from '@zkochan/rimraf'
 import isSubdir from 'is-subdir'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
@@ -200,6 +201,13 @@ export interface LinkBinOptions {
 
 async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions) {
   const externalBinPath = path.join(binsDir, cmd.name)
+  if (IS_WINDOWS) {
+    const exePath = path.join(binsDir, `${cmd.name}${getExeExtension()}`)
+    if (existsSync(exePath)) {
+      globalWarn(`The target bin directory already contains an exe called ${cmd.name}, so removing ${exePath}`)
+      await rimraf(exePath)
+    }
+  }
 
   if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null) {
     await symlinkDir(cmd.path, externalBinPath)
@@ -224,6 +232,18 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
     await fixBin(cmd.path, 0o755)
   }
+}
+
+function getExeExtension (): string {
+  let cmdExtension
+
+  if (process.env.PATHEXT) {
+    cmdExtension = process.env.PATHEXT
+      .split(path.delimiter)
+      .find(ext => ext.toUpperCase() === '.EXE')
+  }
+
+  return cmdExtension ?? '.exe'
 }
 
 async function safeReadPkgJson (pkgDir: string): Promise<DependencyManifest | null> {
