@@ -1853,6 +1853,9 @@ importers:
       '@zkochan/cmd-shim':
         specifier: ^5.3.1
         version: 5.3.1
+      '@zkochan/rimraf':
+        specifier: ^2.1.2
+        version: 2.1.2
       bin-links:
         specifier: ^3.0.3
         version: 3.0.3

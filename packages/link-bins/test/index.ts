@@ -1,5 +1,5 @@
 /// <reference path="../../../typings/index.d.ts"/>
-import { promises as fs } from 'fs'
+import { promises as fs, writeFileSync } from 'fs'
 import path from 'path'
 import logger, { globalWarn } from '@pnpm/logger'
 import linkBins, {
@@ -35,6 +35,8 @@ beforeEach(() => {
 const POWER_SHELL_IS_SUPPORTED = isWindows()
 const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
+
+const testOnWindows = IS_WINDOWS ? test : test.skip
 
 function getExpectedBins (bins: string[]) {
   const expectedBins = [...bins]
@@ -370,4 +372,15 @@ test("linkBins() emits global warning when bin points to path that doesn't exist
   expect(
     globalWarn
   ).toHaveBeenCalled()
+})
+
+testOnWindows('linkBins() shoud remove an existing .exe file from the target directory', async () => {
+  const binTarget = tempy.directory()
+  writeFileSync(path.join(binTarget, 'simple.exe'), '', 'utf8')
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
+
+  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
 })
