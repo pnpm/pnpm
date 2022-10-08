@@ -169,6 +169,7 @@ interface MissingPeersOfChildren {
   resolve: (missingPeers: MissingPeers) => void
   reject: (err: Error) => void
   get: () => Promise<MissingPeers>
+  resolved?: boolean
 }
 
 export type PkgAddress = {
@@ -228,6 +229,7 @@ export interface ResolvedPackage {
     os?: string[]
     libc?: string[]
   }
+  parentImporterIds: Set<string>
 }
 
 type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath' | 'rootDir'>
@@ -697,6 +699,7 @@ async function resolveDependenciesOfDependency (
     resolveDependencyResult,
     postponedResolution: async (postponedResolutionOpts) => {
       const { missingPeers, resolvedPeers } = await postponedResolution(postponedResolutionOpts)
+      resolveDependencyResult.missingPeersOfChildren!.resolved = true
       resolveDependencyResult.missingPeersOfChildren!.resolve(missingPeers)
       return filterMissingPeers({ missingPeers, resolvedPeers }, postponedResolutionOpts.parentPkgAliases)
     },
@@ -1213,6 +1216,8 @@ async function resolveDependency (
   const parentIsInstallable = options.parentPkg.installable === undefined || options.parentPkg.installable
   const installable = parentIsInstallable && pkgResponse.body.isInstallable !== false
   const isNew = !ctx.resolvedPackagesByDepPath[depPath]
+  const parentImporterId = options.parentPkg.nodeId.substring(0, options.parentPkg.nodeId.indexOf('>', 1) + 1)
+  let isNewNew = false
 
   if (isNew) {
     if (
@@ -1251,11 +1256,18 @@ async function resolveDependency (
       pkgResponse,
       prepare,
       wantedDependency,
+      parentImporterId,
     })
   } else {
     ctx.resolvedPackagesByDepPath[depPath].prod = ctx.resolvedPackagesByDepPath[depPath].prod || !wantedDependency.dev && !wantedDependency.optional
     ctx.resolvedPackagesByDepPath[depPath].dev = ctx.resolvedPackagesByDepPath[depPath].dev || wantedDependency.dev
     ctx.resolvedPackagesByDepPath[depPath].optional = ctx.resolvedPackagesByDepPath[depPath].optional && wantedDependency.optional
+    if (ctx.autoInstallPeers) {
+      if (!ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren.resolved) {
+        isNewNew = !ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.has(parentImporterId)
+      }
+      ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.add(parentImporterId)
+    }
     if (ctx.resolvedPackagesByDepPath[depPath].fetchingFiles == null && pkgResponse.files != null) {
       ctx.resolvedPackagesByDepPath[depPath].fetchingFiles = pkgResponse.files
       ctx.resolvedPackagesByDepPath[depPath].filesIndexFile = pkgResponse.filesIndexFile!
@@ -1293,7 +1305,7 @@ async function resolveDependency (
         get: pShare(p.promise),
       }
       ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id] = {
-        parentImporterId: options.parentPkg.nodeId.substring(0, options.parentPkg.nodeId.indexOf('>', 1) + 1),
+        parentImporterId,
         missingPeersOfChildren,
       }
     }
@@ -1302,7 +1314,7 @@ async function resolveDependency (
     alias: wantedDependency.alias || pkg.name,
     depIsLinked,
     depPath,
-    isNew,
+    isNew: isNew || isNewNew,
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
     missingPeersOfChildren,
@@ -1354,6 +1366,7 @@ function getResolvedPackage (
     depPath: string
     force: boolean
     hasBin: boolean
+    parentImporterId: string
     patchFile?: PatchFile
     pkg: PackageManifest
     pkgResponse: PackageResponse
@@ -1377,6 +1390,7 @@ function getResolvedPackage (
       os: options.pkg.os,
       libc: options.pkg.libc,
     },
+    parentImporterIds: new Set([options.parentImporterId]),
     depPath: options.depPath,
     dev: options.wantedDependency.dev,
     fetchingBundledManifest: options.pkgResponse.bundledManifest,
