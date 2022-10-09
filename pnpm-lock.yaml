@@ -2043,8 +2043,8 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       write-file-atomic:
-        specifier: ^3.0.3
-        version: 3.0.3
+        specifier: ^4.0.2
+        version: 4.0.2
     devDependencies:
       '@pnpm/lockfile-file':
         specifier: workspace:*
@@ -5192,8 +5192,8 @@ importers:
         specifier: ^2.2.1
         version: 2.2.1
       write-file-atomic:
-        specifier: ^3.0.3
-        version: 3.0.3
+        specifier: ^4.0.2
+        version: 4.0.2
       write-yaml-file:
         specifier: ^4.2.0
         version: 4.2.0
@@ -17435,7 +17435,7 @@ time:
   /version-selector-type/3.0.0: '2020-05-02T19:53:43.038Z'
   /which/2.0.2: '2019-11-18T22:26:15.325Z'
   /wrap-ansi/7.0.0: '2020-04-22T16:53:23.889Z'
-  /write-file-atomic/3.0.3: '2020-02-24T22:27:04.013Z'
+  /write-file-atomic/4.0.2: '2022-08-16T17:12:53.613Z'
   /write-json-file/4.3.0: '2020-02-07T08:54:49.528Z'
   /write-json5-file/3.1.0: '2021-02-11T22:54:24.439Z'
   /write-pkg/4.0.0: '2019-04-29T10:37:09.855Z'
