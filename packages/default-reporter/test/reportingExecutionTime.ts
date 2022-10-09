@@ -1,9 +1,9 @@
-import { finishTimeLogger } from '@pnpm/core-loggers'
+import { executionTimeLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
 import { take } from 'rxjs/operators'
 
-test('does not print finish time for help command', (done) => {
+test('does not print execution time for help command', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['help'],
@@ -11,9 +11,9 @@ test('does not print finish time for help command', (done) => {
     streamParser: createStreamParser(),
   })
 
-  finishTimeLogger.debug({
+  executionTimeLogger.debug({
     startedAt: 1665279402859,
-    finishedAt: 1665279413671,
+    endedAt: 1665279413671,
   })
 
   const subscription = output$.subscribe({
@@ -30,7 +30,7 @@ test('does not print finish time for help command', (done) => {
   }, 10)
 })
 
-test('prints finish time for install command', (done) => {
+test('prints execution time for install command', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
@@ -38,9 +38,9 @@ test('prints finish time for install command', (done) => {
     streamParser: createStreamParser(),
   })
 
-  finishTimeLogger.debug({
+  executionTimeLogger.debug({
     startedAt: 1665279402859,
-    finishedAt: 1665279413671,
+    endedAt: 1665279413671,
   })
 
   expect.assertions(1)

@@ -8,7 +8,7 @@ import { getConfig } from '@pnpm/cli-utils'
 import {
   Config,
 } from '@pnpm/config'
-import { finishTimeLogger, scopeLogger } from '@pnpm/core-loggers'
+import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import logger from '@pnpm/logger'
 import { ParsedCliArgs } from '@pnpm/parse-cli-args'
@@ -267,9 +267,9 @@ export default async function run (inputArgv: string[]) {
     if (result instanceof Promise) {
       result = await result
     }
-    finishTimeLogger.debug({
+    executionTimeLogger.debug({
       startedAt: global['startedAt'],
-      finishedAt: Date.now(),
+      endedAt: Date.now(),
     })
     if (!result) {
       return { output: null, exitCode: 0 }

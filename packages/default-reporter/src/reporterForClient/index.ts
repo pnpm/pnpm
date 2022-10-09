@@ -5,7 +5,7 @@ import * as Rx from 'rxjs'
 import { throttleTime } from 'rxjs/operators'
 import reportBigTarballsProgress from './reportBigTarballsProgress'
 import reportContext from './reportContext'
-import reportFinishTime from './reportFinishTime'
+import { reportExecutionTime } from './reportExecutionTime'
 import reportDeprecations from './reportDeprecations'
 import reportHooks from './reportHooks'
 import reportInstallChecks from './reportInstallChecks'
@@ -20,11 +20,18 @@ import reportStats from './reportStats'
 import reportSummary from './reportSummary'
 import reportUpdateCheck from './reportUpdateCheck'
 
+const PRINT_EXECUTION_TIME_IN_COMMANDS = {
+  install: true,
+  update: true,
+  add: true,
+  remove: true,
+}
+
 export default function (
   log$: {
     context: Rx.Observable<logs.ContextLog>
     fetchingProgress: Rx.Observable<logs.FetchingProgressLog>
-    finishTime: Rx.Observable<logs.FinishTimeLog>
+    executionTime: Rx.Observable<logs.ExecutionTimeLog>
     progress: Rx.Observable<logs.ProgressLog>
     stage: Rx.Observable<logs.StageLog>
     deprecation: Rx.Observable<logs.DeprecationLog>
@@ -90,8 +97,8 @@ export default function (
     reportUpdateCheck(log$.updateCheck, opts),
   ]
 
-  if (['install', 'update', 'add', 'remove'].includes(opts.cmd)) {
-    outputs.push(reportFinishTime(log$.finishTime))
+  if (PRINT_EXECUTION_TIME_IN_COMMANDS[opts.cmd]) {
+    outputs.push(reportExecutionTime(log$.executionTime))
   }
 
   // logLevelNumber: 0123 = error warn info debug
