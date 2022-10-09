@@ -1263,9 +1263,8 @@ async function resolveDependency (
     ctx.resolvedPackagesByDepPath[depPath].dev = ctx.resolvedPackagesByDepPath[depPath].dev || wantedDependency.dev
     ctx.resolvedPackagesByDepPath[depPath].optional = ctx.resolvedPackagesByDepPath[depPath].optional && wantedDependency.optional
     if (ctx.autoInstallPeers) {
-      if (!ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren.resolved) {
-        isNewNew = !ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.has(parentImporterId)
-      }
+      isNewNew = !ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren.resolved
+        && !ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.has(parentImporterId)
       ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.add(parentImporterId)
     }
     if (ctx.resolvedPackagesByDepPath[depPath].fetchingFiles == null && pkgResponse.files != null) {
