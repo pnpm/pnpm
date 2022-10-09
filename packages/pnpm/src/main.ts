@@ -1,6 +1,6 @@
 /* eslint-disable import/first */
-if (!global['startedAt']) {
-  global['startedAt'] = Date.now()
+if (!global['pnpm__startedAt']) {
+  global['pnpm__startedAt'] = Date.now()
 }
 import loudRejection from 'loud-rejection'
 import packageManager from '@pnpm/cli-meta'
@@ -268,7 +268,7 @@ export default async function run (inputArgv: string[]) {
       result = await result
     }
     executionTimeLogger.debug({
-      startedAt: global['startedAt'],
+      startedAt: global['pnpm__startedAt'],
       endedAt: Date.now(),
     })
     if (!result) {
