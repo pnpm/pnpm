@@ -105,6 +105,7 @@ export async function handler (
   const destDir = opts.packDestination
     ? (path.isAbsolute(opts.packDestination) ? opts.packDestination : path.join(dir, opts.packDestination ?? '.'))
     : dir
+  await fs.promises.mkdir(destDir, { recursive: true })
   await packPkg({
     destFile: path.join(destDir, tarballName),
     filesMap,
@@ -115,7 +116,7 @@ export async function handler (
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['postpack'], entryManifest)
   }
-  if (opts.dir !== dir) {
+  if (opts.dir !== destDir) {
     return path.join(destDir, tarballName)
   }
   return path.relative(opts.dir, path.join(dir, tarballName))
