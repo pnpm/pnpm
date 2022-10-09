@@ -113,6 +113,8 @@ export async function handler (
     workspacePackages,
   })
 
+  const linkCwdDir = opts.cliOptions?.dir && opts.cliOptions?.global ? path.resolve(opts.cliOptions.dir) : cwd
+
   // pnpm link
   if ((params == null) || (params.length === 0)) {
     if (path.relative(linkOpts.dir, cwd) === '') {
@@ -121,7 +123,7 @@ export async function handler (
     const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
     const newManifest = await addDependenciesToPackage(
       manifest ?? {},
-      [`link:${opts.cliOptions?.dir ? path.resolve(opts.cliOptions.dir) : cwd}`],
+      [`link:${linkCwdDir}`],
       linkOpts
     )
     await writeProjectManifest(newManifest)
@@ -179,7 +181,7 @@ export async function handler (
     globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(globalPkgPath, 'node_modules', pkgName)))
   }
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(cwd, opts)
+  const { manifest, writeProjectManifest } = await readProjectManifest(linkCwdDir, opts)
 
   const linkConfig = await getConfig(
     { ...opts.cliOptions, dir: cwd },
@@ -190,7 +192,7 @@ export async function handler (
     }
   )
   const storeL = await createOrConnectStoreControllerCached(storeControllerCache, linkConfig)
-  const newManifest = await link(pkgPaths, path.join(cwd, 'node_modules'), {
+  const newManifest = await link(pkgPaths, path.join(linkCwdDir, 'node_modules'), {
     ...linkConfig,
     targetDependenciesField: linkOpts.targetDependenciesField,
     storeController: storeL.ctrl,
