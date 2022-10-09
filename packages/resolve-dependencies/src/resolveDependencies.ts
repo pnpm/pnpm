@@ -1293,7 +1293,7 @@ async function resolveDependency (
     ? path.resolve(ctx.lockfileDir, pkgResponse.body.resolution['directory'])
     : options.prefix
   let missingPeersOfChildren!: MissingPeersOfChildren | undefined
-  if (!nodeIdContains(options.parentPkg.nodeId, depPath) && ctx.autoInstallPeers) {
+  if (ctx.autoInstallPeers && !nodeIdContains(options.parentPkg.nodeId, depPath)) {
     if (ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id]) {
       if (!options.parentPkg.nodeId.startsWith(ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].parentImporterId)) {
         missingPeersOfChildren = ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren
