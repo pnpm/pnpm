@@ -101,6 +101,7 @@ export function toOutput$ (
   opts = opts || {}
   const contextPushStream = new Rx.Subject<logs.ContextLog>()
   const fetchingProgressPushStream = new Rx.Subject<logs.FetchingProgressLog>()
+  const finishTimePushStream = new Rx.Subject<logs.FinishTimeLog>()
   const progressPushStream = new Rx.Subject<logs.ProgressLog>()
   const stagePushStream = new Rx.Subject<logs.StageLog>()
   const deprecationPushStream = new Rx.Subject<logs.DeprecationLog>()
@@ -125,6 +126,9 @@ export function toOutput$ (
       switch (log.name) {
       case 'pnpm:context':
         contextPushStream.next(log)
+        break
+      case 'pnpm:finish-time':
+        finishTimePushStream.next(log)
         break
       case 'pnpm:fetching-progress':
         fetchingProgressPushStream.next(log)
@@ -204,6 +208,7 @@ export function toOutput$ (
     context: Rx.from(contextPushStream),
     deprecation: Rx.from(deprecationPushStream),
     fetchingProgress: Rx.from(fetchingProgressPushStream),
+    finishTime: Rx.from(finishTimePushStream),
     hook: Rx.from(hookPushStream),
     installCheck: Rx.from(installCheckPushStream),
     lifecycle: Rx.from(lifecyclePushStream),

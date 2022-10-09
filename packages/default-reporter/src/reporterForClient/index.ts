@@ -5,6 +5,7 @@ import * as Rx from 'rxjs'
 import { throttleTime } from 'rxjs/operators'
 import reportBigTarballsProgress from './reportBigTarballsProgress'
 import reportContext from './reportContext'
+import reportFinishTime from './reportFinishTime'
 import reportDeprecations from './reportDeprecations'
 import reportHooks from './reportHooks'
 import reportInstallChecks from './reportInstallChecks'
@@ -23,6 +24,7 @@ export default function (
   log$: {
     context: Rx.Observable<logs.ContextLog>
     fetchingProgress: Rx.Observable<logs.FetchingProgressLog>
+    finishTime: Rx.Observable<logs.FinishTimeLog>
     progress: Rx.Observable<logs.ProgressLog>
     stage: Rx.Observable<logs.StageLog>
     deprecation: Rx.Observable<logs.DeprecationLog>
@@ -87,6 +89,10 @@ export default function (
     reportContext(log$, { cwd }),
     reportUpdateCheck(log$.updateCheck, opts),
   ]
+
+  if (['install', 'update', 'add', 'remove'].includes(opts.cmd)) {
+    outputs.push(reportFinishTime(log$.finishTime))
+  }
 
   // logLevelNumber: 0123 = error warn info debug
   const logLevelNumber = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']

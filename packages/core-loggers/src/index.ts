@@ -2,6 +2,7 @@ import {
   ContextLog,
   DeprecationLog,
   FetchingProgressLog,
+  FinishTimeLog,
   HookLog,
   InstallCheckLog,
   LifecycleLog,
@@ -27,6 +28,7 @@ export type Log =
   | ContextLog
   | DeprecationLog
   | FetchingProgressLog
+  | FinishTimeLog
   | HookLog
   | InstallCheckLog
   | LifecycleLog
