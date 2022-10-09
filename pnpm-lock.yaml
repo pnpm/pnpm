@@ -1750,8 +1750,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@yarnpkg/extensions':
-        specifier: 1.2.0-rc.1
-        version: 1.2.0-rc.1_@yarnpkg+core@4.0.0-rc.14
+        specifier: 2.0.0-rc.6
+        version: 2.0.0-rc.6_@yarnpkg+core@4.0.0-rc.14
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
@@ -8563,6 +8563,16 @@ packages:
       '@yarnpkg/core': '*'
     dependencies:
       '@yarnpkg/core': 4.0.0-rc.14_typanion@3.12.0
+    dev: true
+
+  /@yarnpkg/extensions/2.0.0-rc.6_@yarnpkg+core@4.0.0-rc.14:
+    resolution: {integrity: sha512-hqp7U6bJTTe3mLIt5c7+U1TD2y9kRUzCjvzLpkAwNR5uoo6Tww5/XxdmhXeDiPbb3J3kLHTFNxEg3FhcGQ03UQ==}
+    engines: {node: '>=14.15.0'}
+    peerDependencies:
+      '@yarnpkg/core': '*'
+    dependencies:
+      '@yarnpkg/core': 4.0.0-rc.14_typanion@3.12.0
+    dev: false
 
   /@yarnpkg/fslib/2.7.1:
     resolution: {integrity: sha512-xUf0KTuTfVgWWW33sa7SopIPjpq1K7c8Ta/vYLI5FmEHTZ3uBc8FssEjXDXVkIv6HwO3DVI+5mhRfqlTrQSSNw==}
@@ -17269,7 +17279,7 @@ time:
   /@typescript-eslint/eslint-plugin/5.39.0: '2022-10-03T17:43:40.949Z'
   /@typescript-eslint/parser/5.39.0: '2022-10-03T17:43:24.613Z'
   /@yarnpkg/core/4.0.0-rc.14: '2022-07-21T15:08:15.810Z'
-  /@yarnpkg/extensions/1.2.0-rc.1: '2022-07-21T15:03:36.970Z'
+  /@yarnpkg/extensions/2.0.0-rc.6: '2022-10-08T16:07:44.171Z'
   /@yarnpkg/lockfile/1.1.0: '2018-09-10T13:37:58.652Z'
   /@yarnpkg/nm/4.0.0-rc.14: '2022-07-21T15:08:26.178Z'
   /@yarnpkg/parsers/3.0.0-rc.14: '2022-07-21T15:06:57.310Z'
