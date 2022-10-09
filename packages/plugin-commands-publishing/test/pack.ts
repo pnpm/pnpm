@@ -262,3 +262,21 @@ test('pack should read from the correct node_modules when publishing from a cust
     },
   })
 })
+
+test('pack to custom destination directory', async () => {
+  prepare({
+    name: 'custom-dest',
+    version: '0.0.0',
+  })
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: path.resolve('custom-dest'),
+    embedReadme: false,
+  })
+
+  expect(output).toBe(path.resolve('custom-dest/custom-dest-0.0.0.tgz'))
+})
