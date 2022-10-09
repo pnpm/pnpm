@@ -699,8 +699,10 @@ async function resolveDependenciesOfDependency (
     resolveDependencyResult,
     postponedResolution: async (postponedResolutionOpts) => {
       const { missingPeers, resolvedPeers } = await postponedResolution(postponedResolutionOpts)
-      resolveDependencyResult.missingPeersOfChildren!.resolved = true
-      resolveDependencyResult.missingPeersOfChildren!.resolve(missingPeers)
+      if (resolveDependencyResult.missingPeersOfChildren) {
+        resolveDependencyResult.missingPeersOfChildren.resolved = true
+        resolveDependencyResult.missingPeersOfChildren.resolve(missingPeers)
+      }
       return filterMissingPeers({ missingPeers, resolvedPeers }, postponedResolutionOpts.parentPkgAliases)
     },
   }
@@ -1217,7 +1219,7 @@ async function resolveDependency (
   const installable = parentIsInstallable && pkgResponse.body.isInstallable !== false
   const isNew = !ctx.resolvedPackagesByDepPath[depPath]
   const parentImporterId = options.parentPkg.nodeId.substring(0, options.parentPkg.nodeId.indexOf('>', 1) + 1)
-  let isNewNew = false
+  let resolveChildren = false
 
   if (isNew) {
     if (
@@ -1263,8 +1265,8 @@ async function resolveDependency (
     ctx.resolvedPackagesByDepPath[depPath].dev = ctx.resolvedPackagesByDepPath[depPath].dev || wantedDependency.dev
     ctx.resolvedPackagesByDepPath[depPath].optional = ctx.resolvedPackagesByDepPath[depPath].optional && wantedDependency.optional
     if (ctx.autoInstallPeers) {
-      isNewNew = !ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren.resolved
-        && !ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.has(parentImporterId)
+      resolveChildren = !ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren.resolved &&
+        !ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.has(parentImporterId)
       ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.add(parentImporterId)
     }
     if (ctx.resolvedPackagesByDepPath[depPath].fetchingFiles == null && pkgResponse.files != null) {
@@ -1291,7 +1293,7 @@ async function resolveDependency (
     ? path.resolve(ctx.lockfileDir, pkgResponse.body.resolution['directory'])
     : options.prefix
   let missingPeersOfChildren!: MissingPeersOfChildren | undefined
-  if (!nodeIdContains(options.parentPkg.nodeId, depPath)) {
+  if (!nodeIdContains(options.parentPkg.nodeId, depPath) && ctx.autoInstallPeers) {
     if (ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id]) {
       if (!options.parentPkg.nodeId.startsWith(ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].parentImporterId)) {
         missingPeersOfChildren = ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren
@@ -1313,7 +1315,7 @@ async function resolveDependency (
     alias: wantedDependency.alias || pkg.name,
     depIsLinked,
     depPath,
-    isNew: isNew || isNewNew,
+    isNew: isNew || resolveChildren,
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
     missingPeersOfChildren,
