@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 7.2.9
+
+### Patch Changes
+
+- @pnpm/manifest-utils@3.1.6
+
 ## 7.2.8
 
 ### Patch Changes

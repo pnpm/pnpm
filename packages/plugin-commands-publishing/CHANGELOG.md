@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-publishing
 
+## 5.2.11
+
+### Patch Changes
+
+- e07225651: Fix the return path of `pnpm pack`, when a custom destination directory is used [#5471](https://github.com/pnpm/pnpm/issues/5471).
+  - @pnpm/lifecycle@13.1.11
+  - @pnpm/cli-utils@0.7.42
+  - @pnpm/client@7.2.9
+  - @pnpm/config@15.10.11
+
 ## 5.2.10
 
 ### Patch Changes

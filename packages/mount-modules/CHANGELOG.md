@@ -1,5 +1,11 @@
 # @pnpm/mount-modules
 
+## 0.2.45
+
+### Patch Changes
+
+- @pnpm/config@15.10.11
+
 ## 0.2.44
 
 ### Patch Changes

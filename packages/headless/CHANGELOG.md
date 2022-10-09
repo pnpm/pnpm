@@ -1,5 +1,21 @@
 # @pnpm/headless
 
+## 18.7.5
+
+### Patch Changes
+
+- Updated dependencies [3ae888c28]
+  - @pnpm/core-loggers@7.1.0
+  - @pnpm/build-modules@9.3.10
+  - @pnpm/lifecycle@13.1.11
+  - @pnpm/modules-cleaner@12.0.25
+  - @pnpm/package-is-installable@6.0.12
+  - @pnpm/package-requester@19.0.6
+  - @pnpm/symlink-dependency@5.0.10
+  - @pnpm/link-bins@7.2.9
+  - @pnpm/filter-lockfile@6.0.22
+  - @pnpm/hoist@6.2.13
+
 ## 18.7.4
 
 ### Patch Changes

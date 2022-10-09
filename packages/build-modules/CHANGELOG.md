@@ -1,5 +1,14 @@
 # @pnpm/build-modules
 
+## 9.3.10
+
+### Patch Changes
+
+- Updated dependencies [3ae888c28]
+  - @pnpm/core-loggers@7.1.0
+  - @pnpm/lifecycle@13.1.11
+  - @pnpm/link-bins@7.2.9
+
 ## 9.3.9
 
 ### Patch Changes

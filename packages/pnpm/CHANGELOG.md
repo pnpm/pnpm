@@ -1,5 +1,14 @@
 # pnpm
 
+## 7.13.3
+
+### Patch Changes
+
+- Don't crash when `auto-install-peers` is set to `true` and installation is done on a workspace with that has the same dependencies in multiple projects [#5454](https://github.com/pnpm/pnpm/issues/5454).
+- Add global option in `pnpm link --help` [#5461](https://github.com/pnpm/pnpm/pull/5461).
+- Show execution time on `install`, `update`, `add`, and `remove` [#1021](https://github.com/pnpm/pnpm/issues/1021).
+- Fix the return path of `pnpm pack`, when a custom destination directory is used [#5471](https://github.com/pnpm/pnpm/issues/5471).
+
 ## 7.13.2
 
 ### Patch Changes

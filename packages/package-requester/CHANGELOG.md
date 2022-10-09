@@ -1,5 +1,13 @@
 # @pnpm/package-requester
 
+## 19.0.6
+
+### Patch Changes
+
+- Updated dependencies [3ae888c28]
+  - @pnpm/core-loggers@7.1.0
+  - @pnpm/package-is-installable@6.0.12
+
 ## 19.0.5
 
 ### Patch Changes

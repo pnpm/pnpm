@@ -1,5 +1,12 @@
 # @pnpm/outdated
 
+## 10.1.2
+
+### Patch Changes
+
+- @pnpm/manifest-utils@3.1.6
+- @pnpm/client@7.2.9
+
 ## 10.1.1
 
 ### Patch Changes

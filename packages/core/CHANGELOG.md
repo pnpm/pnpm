@@ -1,5 +1,26 @@
 # @pnpm/core
 
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [84f440419]
+- Updated dependencies [3ae888c28]
+  - @pnpm/resolve-dependencies@28.4.5
+  - @pnpm/core-loggers@7.1.0
+  - @pnpm/build-modules@9.3.10
+  - @pnpm/get-context@7.0.2
+  - @pnpm/headless@18.7.5
+  - @pnpm/lifecycle@13.1.11
+  - @pnpm/manifest-utils@3.1.6
+  - @pnpm/modules-cleaner@12.0.25
+  - @pnpm/package-requester@19.0.6
+  - @pnpm/remove-bins@3.0.13
+  - @pnpm/symlink-dependency@5.0.10
+  - @pnpm/link-bins@7.2.9
+  - @pnpm/filter-lockfile@6.0.22
+  - @pnpm/hoist@6.2.13
+
 ## 6.0.1
 
 ### Patch Changes

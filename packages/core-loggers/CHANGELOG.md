@@ -1,5 +1,11 @@
 # @pnpm/core-loggers
 
+## 7.1.0
+
+### Minor Changes
+
+- 3ae888c28: Show execution time on `install`, `update`, `add`, and `remove` [#1021](https://github.com/pnpm/pnpm/issues/1021).
+
 ## 7.0.8
 
 ### Patch Changes

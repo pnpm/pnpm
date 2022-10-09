@@ -1,5 +1,17 @@
 # @pnpm/default-reporter
 
+## 10.1.0
+
+### Minor Changes
+
+- 3ae888c28: Show execution time on `install`, `update`, `add`, and `remove` [#1021](https://github.com/pnpm/pnpm/issues/1021).
+
+### Patch Changes
+
+- Updated dependencies [3ae888c28]
+  - @pnpm/core-loggers@7.1.0
+  - @pnpm/config@15.10.11
+
 ## 10.0.1
 
 ### Patch Changes

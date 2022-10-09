@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-store
 
+## 5.1.46
+
+### Patch Changes
+
+- @pnpm/get-context@7.0.2
+- @pnpm/cli-utils@0.7.42
+- @pnpm/config@15.10.11
+- @pnpm/store-connection-manager@4.3.15
+
 ## 5.1.45
 
 ### Patch Changes

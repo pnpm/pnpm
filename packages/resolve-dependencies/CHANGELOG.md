@@ -1,5 +1,15 @@
 # @pnpm/resolve-dependencies
 
+## 28.4.5
+
+### Patch Changes
+
+- 84f440419: Don't crash when `auto-install-peers` is set to `true` and installation is done on a workspace with that has the same dependencies in multiple projects [#5454](https://github.com/pnpm/pnpm/issues/5454).
+- Updated dependencies [3ae888c28]
+  - @pnpm/core-loggers@7.1.0
+  - @pnpm/manifest-utils@3.1.6
+  - @pnpm/npm-resolver@13.1.11
+
 ## 28.4.4
 
 ### Patch Changes

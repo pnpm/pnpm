@@ -1,5 +1,12 @@
 # @pnpm/hoist
 
+## 6.2.13
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@5.0.10
+- @pnpm/link-bins@7.2.9
+
 ## 6.2.12
 
 ### Patch Changes

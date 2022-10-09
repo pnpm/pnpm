@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-installation
 
+## 10.8.3
+
+### Patch Changes
+
+- 3277188eb: Add global option in `pnpm link --help` [#5461](https://github.com/pnpm/pnpm/pull/5461).
+  - @pnpm/core@6.0.2
+  - @pnpm/manifest-utils@3.1.6
+  - @pnpm/plugin-commands-rebuild@6.2.11
+  - @pnpm/pnpmfile@3.0.2
+  - @pnpm/cli-utils@0.7.42
+  - @pnpm/outdated@10.1.2
+  - @pnpm/package-store@14.2.7
+  - @pnpm/config@15.10.11
+  - @pnpm/find-workspace-packages@4.0.42
+  - @pnpm/store-connection-manager@4.3.15
+  - @pnpm/filter-workspace-packages@5.1.2
+
 ## 10.8.2
 
 ### Patch Changes
