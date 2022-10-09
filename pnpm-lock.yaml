@@ -4916,8 +4916,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       uuid:
-        specifier: ^8.3.2
-        version: 8.3.2
+        specifier: ^9.0.0
+        version: 9.0.0
     devDependencies:
       '@pnpm/client':
         specifier: workspace:*
@@ -16610,8 +16610,8 @@ packages:
     deprecated: Please upgrade  to version 7 or higher.  Older versions may use Math.random() in certain circumstances, which is known to be problematic.  See https://v8.dev/blog/math-random for details.
     hasBin: true
 
-  /uuid/8.3.2:
-    resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+  /uuid/9.0.0:
+    resolution: {integrity: sha512-MXcSTerfPa4uqyzStbRoTgt5XIe3x5+42+q1sDuy3R5MDk66URdLMOZe5aPX/SQd+kuYAh0FdP/pO28IkQyTeg==}
     hasBin: true
     dev: false
 
@@ -17429,7 +17429,7 @@ time:
   /typescript/4.8.4: '2022-09-27T19:58:38.001Z'
   /unified/9.2.2: '2021-07-01T16:39:11.345Z'
   /unique-string/2.0.0: '2019-04-29T04:18:06.804Z'
-  /uuid/8.3.2: '2020-12-08T20:38:36.233Z'
+  /uuid/9.0.0: '2022-09-05T20:03:54.869Z'
   /validate-npm-package-name/4.0.0: '2022-03-29T19:58:04.486Z'
   /verdaccio/5.15.4: '2022-09-29T06:12:00.128Z'
   /version-selector-type/3.0.0: '2020-05-02T19:53:43.038Z'

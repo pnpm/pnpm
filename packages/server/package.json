@@ -52,7 +52,7 @@
     "@pnpm/types": "workspace:*",
     "p-limit": "^3.1.0",
     "promise-share": "^1.0.0",
-    "uuid": "^8.3.2"
+    "uuid": "^9.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
