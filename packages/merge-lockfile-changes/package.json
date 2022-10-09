@@ -34,7 +34,7 @@
     "@pnpm/lockfile-types": "workspace:*",
     "comver-to-semver": "^1.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "semver": "^7.3.7"
+    "semver": "^7.3.8"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {

@@ -95,7 +95,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "read-yaml-file": "^2.1.0",
     "render-help": "^1.0.2",
-    "semver": "^7.3.7",
+    "semver": "^7.3.8",
     "split-cmd": "^1.0.1",
     "strip-ansi": "^6.0.1",
     "symlink-dir": "^5.0.1",

@@ -56,7 +56,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "rename-overwrite": "^4.0.2",
     "safe-promise-defer": "^1.0.1",
-    "semver": "^7.3.7",
+    "semver": "^7.3.8",
     "semver-range-intersect": "^0.3.1",
     "string.prototype.replaceall": "1.0.6",
     "version-selector-type": "^3.0.0"

@@ -35,7 +35,7 @@
     "detect-libc": "^2.0.1",
     "execa": "npm:safe-execa@^0.1.2",
     "mem": "^8.1.1",
-    "semver": "^7.3.7"
+    "semver": "^7.3.8"
   },
   "devDependencies": {
     "@pnpm/package-is-installable": "workspace:*",

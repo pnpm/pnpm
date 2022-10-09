@@ -48,7 +48,7 @@
     "@pnpm/types": "workspace:*",
     "dependency-path": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "semver": "^7.3.7"
+    "semver": "^7.3.8"
   },
   "devDependencies": {
     "@pnpm/outdated": "workspace:*",

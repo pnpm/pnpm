@@ -36,7 +36,7 @@
     "@pnpm/resolver-base": "workspace:*",
     "graceful-git": "^3.1.2",
     "hosted-git-info": "npm:@zkochan/hosted-git-info@^4.0.2",
-    "semver": "^7.3.7"
+    "semver": "^7.3.8"
   },
   "devDependencies": {
     "@pnpm/git-resolver": "workspace:*",

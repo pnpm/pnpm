@@ -59,7 +59,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "rename-overwrite": "^4.0.2",
     "safe-promise-defer": "^1.0.1",
-    "semver": "^7.3.7",
+    "semver": "^7.3.8",
     "ssri": "^9.0.1"
   },
   "devDependencies": {

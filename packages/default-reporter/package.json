@@ -47,7 +47,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "right-pad": "^1.0.1",
     "rxjs": "^7.5.7",
-    "semver": "^7.3.7",
+    "semver": "^7.3.8",
     "stacktracey": "^2.1.8",
     "string-length": "^4.0.2",
     "strip-ansi": "^6.0.1"
