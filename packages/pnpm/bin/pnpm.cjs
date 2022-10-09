@@ -12,6 +12,7 @@ ${COMPATIBILITY_PAGE}`)
   process.exit(1)
 }
 
+global['pnpm__startedAt'] = Date.now()
 require('../dist/pnpm.cjs')
 
 // if you want to debug at your local env, you can use this

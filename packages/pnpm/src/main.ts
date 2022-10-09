@@ -1,10 +1,14 @@
+/* eslint-disable import/first */
+if (!global['pnpm__startedAt']) {
+  global['pnpm__startedAt'] = Date.now()
+}
 import loudRejection from 'loud-rejection'
 import packageManager from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
 import {
   Config,
 } from '@pnpm/config'
-import { scopeLogger } from '@pnpm/core-loggers'
+import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import logger from '@pnpm/logger'
 import { ParsedCliArgs } from '@pnpm/parse-cli-args'
@@ -263,6 +267,10 @@ export default async function run (inputArgv: string[]) {
     if (result instanceof Promise) {
       result = await result
     }
+    executionTimeLogger.debug({
+      startedAt: global['pnpm__startedAt'],
+      endedAt: Date.now(),
+    })
     if (!result) {
       return { output: null, exitCode: 0 }
     }
