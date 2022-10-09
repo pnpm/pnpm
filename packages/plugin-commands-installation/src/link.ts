@@ -64,14 +64,19 @@ export function help () {
 
         list: [
           ...UNIVERSAL_OPTIONS,
+          {
+            description: 'Link package to/from global node_modules',
+            name: '--global',
+            shortAlias: '-g',
+          },
         ],
       },
     ],
     url: docsUrl('link'),
     usages: [
-      'pnpm link (in package dir)',
-      'pnpm link <pkg>',
       'pnpm link <dir>',
+      'pnpm link --global (in package dir)',
+      'pnpm link --global <pkg>',
     ],
   })
 }
