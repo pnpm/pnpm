@@ -61,6 +61,6 @@ export function createReadPackageHook (
   }
   const readPackageAndExtend = hooks.length === 1
     ? hooks[0]
-    : ((pkg: PackageManifest | ProjectManifest, dir: string) => pipeWith(async (f, res) => f(await res, dir), hooks as any)(pkg)) as ReadPackageHook // eslint-disable-line @typescript-eslint/no-explicit-any
+    : ((pkg: PackageManifest | ProjectManifest, dir: string) => pipeWith(async (f, res) => f(await res, dir), hooks as any)(pkg, dir)) as ReadPackageHook // eslint-disable-line @typescript-eslint/no-explicit-any
   return readPackageAndExtend
 }
