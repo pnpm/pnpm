@@ -1004,8 +1004,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       const projectToInstall = projects[index]
       if (opts.global && projectToInstall.mutation.includes('install')) {
         projectToInstall.wantedDependencies.forEach(pkg => {
-          if (pkg.alias && !linkedPackages?.includes(pkg.alias)) {
-            logger.warn({ message: `${pkg.alias} has no binaries`, prefix: opts.lockfileDir })
+          if (!linkedPackages?.includes(pkg.alias)) {
+            logger.warn({ message: `${pkg.alias ?? pkg.pref} has no binaries`, prefix: opts.lockfileDir })
           }
         })
       }
