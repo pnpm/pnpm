@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 7.2.10
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@3.0.13
+
 ## 7.2.9
 
 ### Patch Changes

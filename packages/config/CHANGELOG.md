@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 15.10.12
+
+### Patch Changes
+
+- @pnpm/pnpmfile@3.0.3
+- @pnpm/read-project-manifest@3.0.13
+
 ## 15.10.11
 
 ### Patch Changes

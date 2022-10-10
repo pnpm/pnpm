@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 5.3.8
+
+### Patch Changes
+
+- 7c296fe9b: Update write-file-atomic to v4.
+
 ## 5.3.7
 
 ### Patch Changes

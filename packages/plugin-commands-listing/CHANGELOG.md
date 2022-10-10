@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-listing
 
+## 5.1.12
+
+### Patch Changes
+
+- @pnpm/config@15.10.12
+- @pnpm/list@7.0.26
+- @pnpm/cli-utils@0.7.43
+
 ## 5.1.11
 
 ### Patch Changes

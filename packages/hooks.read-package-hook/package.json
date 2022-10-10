@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/hooks.read-package-hook",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Creates the default package reader hook used by pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

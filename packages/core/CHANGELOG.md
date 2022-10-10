@@ -1,5 +1,25 @@
 # @pnpm/core
 
+## 6.0.3
+
+### Patch Changes
+
+- 96b507b73: Fix WARN undefined has no binaries
+- Updated dependencies [f4813c487]
+- Updated dependencies [8c3a0b236]
+- Updated dependencies [7c296fe9b]
+  - @pnpm/hooks.read-package-hook@1.0.2
+  - @pnpm/lockfile-file@5.3.8
+  - @pnpm/get-context@7.0.3
+  - @pnpm/headless@18.7.6
+  - @pnpm/lockfile-to-pnp@1.0.5
+  - @pnpm/read-project-manifest@3.0.13
+  - @pnpm/link-bins@7.2.10
+  - @pnpm/lifecycle@13.1.12
+  - @pnpm/build-modules@9.3.11
+  - @pnpm/hoist@6.2.14
+  - @pnpm/package-requester@19.0.6
+
 ## 6.0.2
 
 ### Patch Changes

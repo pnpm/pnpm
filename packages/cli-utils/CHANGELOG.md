@@ -1,5 +1,13 @@
 # @pnpm/cli-utils
 
+## 0.7.43
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@3.0.13
+- @pnpm/config@15.10.12
+- @pnpm/default-reporter@10.1.1
+
 ## 0.7.42
 
 ### Patch Changes

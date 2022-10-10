@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 10.1.1
+
+### Patch Changes
+
+- @pnpm/config@15.10.12
+
 ## 10.1.0
 
 ### Minor Changes

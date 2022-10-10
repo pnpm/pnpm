@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-installation
 
+## 10.8.4
+
+### Patch Changes
+
+- 96b507b73: `pnpm link <pkg> --global` should work when a custom target directory is specified with the `--dir` CLI option [#5473](https://github.com/pnpm/pnpm/pull/5473).
+- Updated dependencies [96b507b73]
+  - @pnpm/core@6.0.3
+  - @pnpm/store-connection-manager@4.3.16
+  - @pnpm/pnpmfile@3.0.3
+  - @pnpm/outdated@10.1.3
+  - @pnpm/read-project-manifest@3.0.13
+  - @pnpm/plugin-commands-rebuild@6.2.12
+  - @pnpm/config@15.10.12
+  - @pnpm/cli-utils@0.7.43
+  - @pnpm/find-workspace-packages@4.0.43
+  - @pnpm/filter-workspace-packages@5.1.3
+  - @pnpm/package-store@14.2.7
+
 ## 10.8.3
 
 ### Patch Changes

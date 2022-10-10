@@ -1,5 +1,11 @@
 # @pnpm/server
 
+## 13.0.9
+
+### Patch Changes
+
+- 147ec6eaf: Update uuid to v9.
+
 ## 13.0.8
 
 ### Patch Changes

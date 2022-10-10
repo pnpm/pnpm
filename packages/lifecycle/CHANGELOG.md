@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 13.1.12
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@3.1.5
+
 ## 13.1.11
 
 ### Patch Changes

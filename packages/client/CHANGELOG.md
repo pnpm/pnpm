@@ -1,5 +1,12 @@
 # @pnpm/client
 
+## 7.2.10
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@3.1.5
+- @pnpm/default-resolver@15.0.24
+
 ## 7.2.9
 
 ### Patch Changes

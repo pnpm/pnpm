@@ -1,5 +1,12 @@
 # @pnpm/read-project-manifest
 
+## 3.0.13
+
+### Patch Changes
+
+- Updated dependencies [7c296fe9b]
+  - @pnpm/write-project-manifest@3.0.10
+
 ## 3.0.12
 
 ### Patch Changes

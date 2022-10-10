@@ -1,5 +1,12 @@
 # pnpm
 
+## 7.13.4
+
+### Patch Changes
+
+- `pnpm link <pkg> --global` should work when a custom target directory is specified with the `--dir` CLI option [#5473](https://github.com/pnpm/pnpm/pull/5473).
+- It should be possible to override dependencies with local packages using overrides [#5443](https://github.com/pnpm/pnpm/issues/5443).
+
 ## 7.13.3
 
 ### Patch Changes

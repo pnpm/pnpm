@@ -1,5 +1,12 @@
 # @pnpm/hooks.read-package-hook
 
+## 1.0.2
+
+### Patch Changes
+
+- f4813c487: Update @yarnpkg/extensions.
+- 8c3a0b236: The readPackageHooks should always get the project directory as the second argument.
+
 ## 1.0.1
 
 ### Patch Changes
