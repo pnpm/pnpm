@@ -64,6 +64,9 @@ test('link global bin', async function () {
 
   await link.handler({
     ...DEFAULT_OPTS,
+    cliOptions: {
+      global: true,
+    },
     bin: globalBin,
     dir: globalDir,
   })
@@ -72,7 +75,7 @@ test('link global bin', async function () {
   await isExecutable((value) => expect(value).toBeTruthy(), path.join(globalBin, 'package-with-bin'))
 })
 
-test('link --dir global bin', async function () {
+test('link to global bin from the specified directory', async function () {
   prepare()
   process.chdir('..')
 
@@ -88,6 +91,7 @@ test('link --dir global bin', async function () {
   await link.handler({
     ...DEFAULT_OPTS,
     cliOptions: {
+      global: true,
       dir: path.resolve('./dir/package-with-bin-in-dir'),
     },
     bin: globalBin,
@@ -96,6 +100,49 @@ test('link --dir global bin', async function () {
   process.env[PATH] = oldPath
 
   await isExecutable((value) => expect(value).toBeTruthy(), path.join(globalBin, 'package-with-bin-in-dir'))
+})
+
+test('link a global package to the specified directory', async function () {
+  const project = prepare()
+  process.chdir('..')
+
+  const globalDir = path.resolve('global')
+  const globalBin = path.join(globalDir, 'bin')
+  const oldPath = process.env[PATH]
+  process.env[PATH] = `${globalBin}${path.delimiter}${oldPath ?? ''}`
+  await fs.mkdir(globalBin, { recursive: true })
+
+  await writePkg('global-package-with-bin', { name: 'global-package-with-bin', version: '1.0.0', bin: 'bin.js' })
+  await fs.writeFile('global-package-with-bin/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
+
+  process.chdir('global-package-with-bin')
+
+  // link to global
+  await link.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: {
+      global: true,
+    },
+    bin: globalBin,
+    dir: globalDir,
+  })
+
+  process.chdir('..')
+
+  // link from global
+  await link.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: {
+      global: true,
+      dir: path.resolve('./project'),
+    },
+    bin: globalBin,
+    dir: globalDir,
+  }, ['global-package-with-bin'])
+
+  process.env[PATH] = oldPath
+
+  await project.has('global-package-with-bin')
 })
 
 test('relative link', async () => {
