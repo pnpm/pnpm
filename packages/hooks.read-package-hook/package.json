@@ -32,7 +32,7 @@
     "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@yarnpkg/extensions": "2.0.0-rc.6",
+    "@yarnpkg/extensions": "2.0.0-rc.7",
     "normalize-path": "^3.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "semver": "^7.3.8"
@@ -42,7 +42,7 @@
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.15",
     "@types/semver": "7.3.12",
-    "@yarnpkg/core": "4.0.0-rc.14"
+    "@yarnpkg/core": "4.0.0-rc.15"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

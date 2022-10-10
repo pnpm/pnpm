@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
-    "@yarnpkg/nm": "4.0.0-rc.14",
+    "@yarnpkg/nm": "4.0.0-rc.25",
     "dependency-path": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
