@@ -359,7 +359,6 @@ export async function mutateModules (
           return projects.map((mutatedProject) => {
             const project = ctx.projects[mutatedProject.rootDir]
             return {
-              ...mutatedProject,
               ...project,
               manifest: project.originalManifest ?? project.manifest,
             }
@@ -391,12 +390,14 @@ export async function mutateModules (
 
     // TODO: make it concurrent
     for (const project of projects) {
-      const projectOpts = ctx.projects[project.rootDir]
+      const projectOpts = {
+        ...project,
+        ...ctx.projects[project.rootDir],
+      }
       switch (project.mutation) {
       case 'uninstallSome':
         projectsToInstall.push({
           pruneDirectDependencies: false,
-          ...project,
           ...projectOpts,
           removePackages: project.dependencyNames,
           updatePackageManifest: true,
@@ -405,7 +406,6 @@ export async function mutateModules (
         break
       case 'install': {
         await installCase({
-          ...project,
           ...projectOpts,
           updatePackageManifest: opts.updatePackageManifest ?? opts.update,
         })
@@ -413,7 +413,6 @@ export async function mutateModules (
       }
       case 'installSome': {
         await installSome({
-          ...project,
           ...projectOpts,
           updatePackageManifest: opts.updatePackageManifest !== false,
         })
@@ -439,7 +438,7 @@ export async function mutateModules (
 
         // TODO: install only those that were unlinked
         // but don't update their version specs in package.json
-        await installCase({ ...project, ...projectOpts, mutation: 'install' })
+        await installCase({ ...projectOpts, mutation: 'install' })
         break
       }
       case 'unlinkSome': {
@@ -472,7 +471,6 @@ export async function mutateModules (
         // TODO: install only those that were unlinked
         // but don't update their version specs in package.json
         await installSome({
-          ...project,
           ...projectOpts,
           dependencySelectors: packagesToInstall,
           mutation: 'installSome',

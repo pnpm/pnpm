@@ -240,13 +240,13 @@ when running add/update with the --workspace option')
       binsDir: opts.bin,
       dependencySelectors: params,
       manifest,
-      mutation: 'installSome',
+      mutation: 'installSome' as const,
       peer: opts.savePeer,
       pinnedVersion: getPinnedVersion(opts),
       rootDir: opts.dir,
       targetDependenciesField: getSaveType(opts),
     }
-    const updatedImporter = await mutateModulesInSingleProject(mutatedProject as any, installOpts) // eslint-disable-line @typescript-eslint/no-explicit-any
+    const updatedImporter = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
       await writeProjectManifest(updatedImporter.manifest)
     }
