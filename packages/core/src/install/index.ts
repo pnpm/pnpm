@@ -317,10 +317,7 @@ export async function mutateModules (
         })
       }
       if (opts.lockfileOnly) {
-        return projects.map((mutatedProject) => ({
-          ...mutatedProject,
-          ...ctx.projects[mutatedProject.rootDir],
-        }))
+        return projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir])
       }
       if (!ctx.existsWantedLockfile) {
         if (Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
@@ -394,13 +391,13 @@ export async function mutateModules (
 
     // TODO: make it concurrent
     for (const project of projects) {
-      const projectInfo = ctx.projects[project.rootDir]
+      const projectOpts = ctx.projects[project.rootDir]
       switch (project.mutation) {
       case 'uninstallSome':
         projectsToInstall.push({
           pruneDirectDependencies: false,
           ...project,
-          ...projectInfo,
+          ...projectOpts,
           removePackages: project.dependencyNames,
           updatePackageManifest: true,
           wantedDependencies: [],
@@ -409,7 +406,7 @@ export async function mutateModules (
       case 'install': {
         await installCase({
           ...project,
-          ...projectInfo,
+          ...projectOpts,
           updatePackageManifest: opts.updatePackageManifest ?? opts.update,
         })
         break
@@ -417,46 +414,43 @@ export async function mutateModules (
       case 'installSome': {
         await installSome({
           ...project,
-          ...projectInfo,
+          ...projectOpts,
           updatePackageManifest: opts.updatePackageManifest !== false,
         })
         break
       }
       case 'unlink': {
-        const packageDirs = await readModulesDirs(projectInfo.modulesDir)
+        const packageDirs = await readModulesDirs(projectOpts.modulesDir)
         const externalPackages = await pFilter(
           packageDirs!,
-          async (packageDir: string) => isExternalLink(ctx.storeDir, projectInfo.modulesDir, packageDir)
+          async (packageDir: string) => isExternalLink(ctx.storeDir, projectOpts.modulesDir, packageDir)
         )
-        const allDeps = getAllDependenciesFromManifest(projectInfo.manifest)
+        const allDeps = getAllDependenciesFromManifest(projectOpts.manifest)
         const packagesToInstall: string[] = []
         for (const pkgName of externalPackages) {
-          await rimraf(path.join(projectInfo.modulesDir, pkgName))
+          await rimraf(path.join(projectOpts.modulesDir, pkgName))
           if (allDeps[pkgName]) {
             packagesToInstall.push(pkgName)
           }
         }
         if (packagesToInstall.length === 0) {
-          return projects.map((mutatedProject) => ({
-            ...mutatedProject,
-            ...ctx.projects[mutatedProject.rootDir],
-          }))
+          return projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir])
         }
 
         // TODO: install only those that were unlinked
         // but don't update their version specs in package.json
-        await installCase({ ...project, ...projectInfo, mutation: 'install' })
+        await installCase({ ...project, ...projectOpts, mutation: 'install' })
         break
       }
       case 'unlinkSome': {
-        if (projectInfo.manifest?.name && opts.globalBin) {
-          await removeBin(path.join(opts.globalBin, projectInfo.manifest?.name))
+        if (projectOpts.manifest?.name && opts.globalBin) {
+          await removeBin(path.join(opts.globalBin, projectOpts.manifest?.name))
         }
         const packagesToInstall: string[] = []
-        const allDeps = getAllDependenciesFromManifest(projectInfo.manifest)
+        const allDeps = getAllDependenciesFromManifest(projectOpts.manifest)
         for (const depName of project.dependencyNames) {
           try {
-            if (!await isExternalLink(ctx.storeDir, projectInfo.modulesDir, depName)) {
+            if (!await isExternalLink(ctx.storeDir, projectOpts.modulesDir, depName)) {
               logger.warn({
                 message: `${depName} is not an external link`,
                 prefix: project.rootDir,
@@ -466,23 +460,20 @@ export async function mutateModules (
           } catch (err: any) { // eslint-disable-line
             if (err['code'] !== 'ENOENT') throw err
           }
-          await rimraf(path.join(projectInfo.modulesDir, depName))
+          await rimraf(path.join(projectOpts.modulesDir, depName))
           if (allDeps[depName]) {
             packagesToInstall.push(depName)
           }
         }
         if (packagesToInstall.length === 0) {
-          return projects.map((mutatedProject) => ({
-            ...mutatedProject,
-            ...ctx.projects[mutatedProject.rootDir],
-          }))
+          return projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir])
         }
 
         // TODO: install only those that were unlinked
         // but don't update their version specs in package.json
         await installSome({
           ...project,
-          ...projectInfo,
+          ...projectOpts,
           dependencySelectors: packagesToInstall,
           mutation: 'installSome',
           updatePackageManifest: false,

@@ -9,7 +9,7 @@ import type { Hooks } from '@pnpm/pnpmfile'
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 
 export interface Config {
-  allProjects?: Project[] // Array<Project & { buildIndex: number }>
+  allProjects?: Project[]
   selectedProjectsGraph?: ProjectsGraph
   allProjectsGraph?: ProjectsGraph
 
