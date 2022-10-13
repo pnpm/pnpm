@@ -19,6 +19,7 @@ function toImporterDepPaths (
   importerIds: string[],
   opts: {
     include: { [dependenciesField in DependenciesField]: boolean }
+    importerIdSet: Set<string>
   }
 ): string[] {
   const importerDeps = importerIds
@@ -37,6 +38,9 @@ function toImporterDepPaths (
   if (!nextImporterIds.length) {
     return depPaths
   }
+  nextImporterIds.forEach((importerId) => {
+    opts.importerIdSet.add(importerId)
+  })
   return [
     ...depPaths,
     ...toImporterDepPaths(lockfile, nextImporterIds, opts),
@@ -80,6 +84,7 @@ export default function filterByImportersAndEngine (
 
   const directDepPaths = toImporterDepPaths(lockfile, importerIds, {
     include: opts.include,
+    importerIdSet,
   })
 
   const packages =
@@ -215,6 +220,7 @@ function pkgAllDeps (
     nextRelDepPaths.push(
       ...toImporterDepPaths(ctx.lockfile, additionalImporterIds, {
         include: opts.include,
+        importerIdSet: ctx.importerIdSet,
       })
     )
     pkgAllDeps(ctx, nextRelDepPaths, installable, opts)
