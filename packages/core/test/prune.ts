@@ -6,7 +6,7 @@ import {
   addDependenciesToPackage,
   install,
   link,
-  mutateModules,
+  mutateModulesInSingleProject,
 } from '@pnpm/core'
 import sinon from 'sinon'
 import { testDefaults } from './utils'
@@ -31,22 +31,16 @@ test('prune removes extraneous packages', async () => {
 
   const reporter = sinon.spy()
 
-  await mutateModules(
-    [
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        pruneDirectDependencies: true,
-        rootDir: process.cwd(),
-      },
-    ],
-    {
-      ...opts,
-      pruneStore: true,
-      reporter,
-    }
-  )
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    pruneDirectDependencies: true,
+    rootDir: process.cwd(),
+  }, {
+    ...opts,
+    pruneStore: true,
+    reporter,
+  })
 
   expect(reporter.calledWithMatch({
     level: 'debug',

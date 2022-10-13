@@ -13,6 +13,7 @@ import {
   addDependenciesToPackage,
   install,
   mutateModules,
+  mutateModulesInSingleProject,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
@@ -692,14 +693,12 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`,
   {
     const reporter = sinon.spy()
 
-    await mutateModules([
-      {
-        dependencyNames: ['is-positive'],
-        manifest,
-        mutation: 'uninstallSome',
-        rootDir: process.cwd(),
-      },
-    ], await testDefaults({ useLockfile: false, reporter }))
+    await mutateModulesInSingleProject({
+      dependencyNames: ['is-positive'],
+      manifest,
+      mutation: 'uninstallSome',
+      rootDir: process.cwd(),
+    }, await testDefaults({ useLockfile: false, reporter }))
 
     expect(reporter.calledWithMatch(LOCKFILE_WARN_LOG)).toBeTruthy()
   }
@@ -943,19 +942,28 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
   await mutateModules(
     [
       {
-        buildIndex: 0,
-        manifest: pkg1,
         mutation: 'install',
         rootDir: path.resolve('pkg1'),
       },
       {
-        buildIndex: 0,
-        manifest: pkg2,
         mutation: 'install',
         rootDir: path.resolve('pkg2'),
       },
     ],
-    await testDefaults()
+    await testDefaults({
+      allProjects: [
+        {
+          buildIndex: 0,
+          manifest: pkg1,
+          rootDir: path.resolve('pkg1'),
+        },
+        {
+          buildIndex: 0,
+          manifest: pkg2,
+          rootDir: path.resolve('pkg2'),
+        },
+      ],
+    })
   )
 
   await projects['pkg1'].has('is-negative')
@@ -989,14 +997,11 @@ test('existing dependencies are preserved when updating a lockfile to a newer fo
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults())
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults())
 
   const updatedLockfile = await project.readLockfile()
 
@@ -1017,14 +1022,11 @@ test('lockfile is not getting broken if the used registry changes', async () => 
   }
   expect(err.code).toBe('ERR_PNPM_REGISTRIES_MISMATCH')
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], newOpts)
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, newOpts)
   await addDependenciesToPackage(manifest, ['is-negative@1'], newOpts)
 
   expect(Object.keys((await project.readLockfile()).packages)).toStrictEqual([
@@ -1047,27 +1049,21 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
 
   let err!: PnpmError
   try {
-    await mutateModules([
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ], await testDefaults({ frozenLockfile: true }))
+    await mutateModulesInSingleProject({
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    }, await testDefaults({ frozenLockfile: true }))
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY')
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ preferFrozenLockfile: true }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ preferFrozenLockfile: true }))
 
   await project.has('@pnpm.e2e/pkg-with-1-dep')
   const lockfile = await project.readLockfile()
@@ -1300,14 +1296,11 @@ packages:
 
   const reporter = jest.fn()
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      mutation: 'install',
-      manifest,
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ reporter }))
+  await mutateModulesInSingleProject({
+    mutation: 'install',
+    manifest,
+    rootDir: process.cwd(),
+  }, await testDefaults({ reporter }))
 
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'warn',
@@ -1352,14 +1345,11 @@ test('a broken lockfile should not break the store', async () => {
 
   await writeYamlFile(WANTED_LOCKFILE, lockfile)
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ lockfileOnly: true, storeDir: path.resolve('store2') }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ lockfileOnly: true, storeDir: path.resolve('store2') }))
 
   delete lockfile.packages!['/is-positive/1.0.0'].name
   delete lockfile.packages!['/is-positive/1.0.0'].version
@@ -1367,14 +1357,11 @@ test('a broken lockfile should not break the store', async () => {
   await writeYamlFile(WANTED_LOCKFILE, lockfile)
   await rimraf(path.resolve('node_modules'))
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ lockfileOnly: true, storeDir: path.resolve('store2') }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ lockfileOnly: true, storeDir: path.resolve('store2') }))
 })
 
 test('include tarball URL', async () => {

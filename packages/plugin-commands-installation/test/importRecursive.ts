@@ -42,10 +42,11 @@ const DEFAULT_OPTS = {
 
 test('import from shared yarn.lock of monorepo', async () => {
   f.prepare('workspace-has-shared-yarn-lock')
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects,
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
     lockfileDir: process.cwd(),
@@ -64,10 +65,11 @@ test('import from shared yarn.lock of monorepo', async () => {
 
 test('import from shared package-lock.json of monorepo', async () => {
   f.prepare('workspace-has-shared-package-lock-json')
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects,
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
     lockfileDir: process.cwd(),
@@ -86,10 +88,11 @@ test('import from shared package-lock.json of monorepo', async () => {
 
 test('import from shared npm-shrinkwrap.json of monorepo', async () => {
   f.prepare('workspace-has-shared-npm-shrinkwrap-json')
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await importCommand.handler({
     ...DEFAULT_OPTS,
-    allProjects,
+    allProjects: allProjects as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    allProjectsGraph,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
     lockfileDir: process.cwd(),

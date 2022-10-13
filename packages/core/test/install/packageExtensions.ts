@@ -1,6 +1,6 @@
 import PnpmError from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
-import { addDependenciesToPackage, mutateModules } from '@pnpm/core'
+import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
 import { createObjectChecksum } from '../../lib/install/index'
 import {
   testDefaults,
@@ -38,14 +38,11 @@ test('manifests are extended with fields specified by packageExtensions', async 
 
   // The lockfile is updated if the overrides are changed
   packageExtensions['is-positive'].dependencies!['@pnpm.e2e/foobar'] = '100.0.0'
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ packageExtensions }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ packageExtensions }))
 
   {
     const lockfile = await project.readLockfile()
@@ -62,14 +59,11 @@ test('manifests are extended with fields specified by packageExtensions', async 
     expect(lockfile.packageExtensionsChecksum).toStrictEqual(currentLockfile.packageExtensionsChecksum)
   }
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ frozenLockfile: true, packageExtensions }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ frozenLockfile: true, packageExtensions }))
 
   {
     const lockfile = await project.readLockfile()
@@ -87,14 +81,11 @@ test('manifests are extended with fields specified by packageExtensions', async 
 
   packageExtensions['is-positive'].dependencies!['@pnpm.e2e/bar'] = '100.0.1'
   await expect(
-    mutateModules([
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ], await testDefaults({ frozenLockfile: true, packageExtensions }))
+    mutateModulesInSingleProject({
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    }, await testDefaults({ frozenLockfile: true, packageExtensions }))
   ).rejects.toThrow(
     new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
       'Cannot perform a frozen installation because the lockfile needs updates'

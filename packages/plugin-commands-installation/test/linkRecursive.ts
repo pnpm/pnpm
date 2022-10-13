@@ -26,10 +26,11 @@ test('recursive linking/unlinking', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
@@ -47,6 +48,7 @@ test('recursive linking/unlinking', async () => {
   await unlink.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
@@ -87,10 +89,11 @@ test('recursive unlink specific package', async () => {
     },
   ])
 
-  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
@@ -108,6 +111,7 @@ test('recursive unlink specific package', async () => {
   await unlink.handler({
     ...DEFAULT_OPTS,
     allProjects,
+    allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,

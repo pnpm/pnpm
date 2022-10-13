@@ -5,7 +5,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   install,
-  mutateModules,
+  mutateModulesInSingleProject,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import isWindows from 'is-windows'
@@ -145,22 +145,19 @@ test('INIT_CWD is always set to lockfile directory', async () => {
   const rootDir = process.cwd()
   await fs.mkdir('subd')
   process.chdir('subd')
-  await mutateModules([
-    {
-      buildIndex: 0,
-      mutation: 'install',
-      manifest: {
-        dependencies: {
-          'json-append': '1.1.1',
-          '@pnpm.e2e/write-lifecycle-env': '1.0.0',
-        },
-        scripts: {
-          install: 'node -e "process.stdout.write(process.env.INIT_CWD)" | json-append output.json',
-        },
+  await mutateModulesInSingleProject({
+    mutation: 'install',
+    manifest: {
+      dependencies: {
+        'json-append': '1.1.1',
+        '@pnpm.e2e/write-lifecycle-env': '1.0.0',
       },
-      rootDir,
+      scripts: {
+        install: 'node -e "process.stdout.write(process.env.INIT_CWD)" | json-append output.json',
+      },
     },
-  ], await testDefaults({
+    rootDir,
+  }, await testDefaults({
     fastUnpack: false,
     lockfileDir: rootDir,
   }))
@@ -297,17 +294,11 @@ test('lifecycle scripts run before linking bins', async () => {
 
   await rimraf('node_modules')
 
-  await mutateModules(
-    [
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults({ frozenLockfile: true })
-  )
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ frozenLockfile: true }))
 
   await project.isExecutable('.bin/cmd1')
   await project.isExecutable('.bin/cmd2')
@@ -324,17 +315,11 @@ test('hoisting does not fail on commands that will be created by lifecycle scrip
   // Testing the same with headless installation
   await rimraf('node_modules')
 
-  await mutateModules(
-    [
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults({ frozenLockfile: true, hoistPattern: '*' })
-  )
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
 
   // await project.isExecutable('.pnpm/node_modules/.bin/cmd1')
   // await project.isExecutable('.pnpm/node_modules/.bin/cmd2')
@@ -362,17 +347,11 @@ test('bins are linked even if lifecycle scripts are ignored', async () => {
 
   await rimraf('node_modules')
 
-  await mutateModules(
-    [
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults({ frozenLockfile: true, ignoreScripts: true })
-  )
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ frozenLockfile: true, ignoreScripts: true }))
 
   await project.isExecutable('.bin/peer-with-bin')
   await project.isExecutable('@pnpm.e2e/pkg-with-peer-having-bin/node_modules/.bin/hello-world-js-bin')
@@ -397,17 +376,11 @@ test('dependency should not be added to current lockfile if it was not built suc
   )
 
   await expect(
-    mutateModules(
-      [
-        {
-          buildIndex: 0,
-          manifest,
-          mutation: 'install',
-          rootDir: process.cwd(),
-        },
-      ],
-      await testDefaults({ frozenLockfile: true })
-    )
+    mutateModulesInSingleProject({
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    }, await testDefaults({ frozenLockfile: true }))
   ).rejects.toThrow()
 
   expect(await project.readCurrentLockfile()).toBeFalsy()
@@ -504,14 +477,11 @@ test('lockfile is updated if neverBuiltDependencies is changed', async () => {
   }
 
   const neverBuiltDependencies = ['@pnpm.e2e/pre-and-postinstall-scripts-example']
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ neverBuiltDependencies }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ neverBuiltDependencies }))
 
   {
     const lockfile = await project.readLockfile()
@@ -536,14 +506,11 @@ test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
   }
 
   const onlyBuiltDependencies: string[] = []
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ onlyBuiltDependencies }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ onlyBuiltDependencies }))
 
   {
     const lockfile = await project.readLockfile()
@@ -553,14 +520,11 @@ test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
   }
 
   onlyBuiltDependencies.push('@pnpm.e2e/pre-and-postinstall-scripts-example')
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ onlyBuiltDependencies }))
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ onlyBuiltDependencies }))
 
   {
     const lockfile = await project.readLockfile()
@@ -590,31 +554,19 @@ test('lifecycle scripts run after linking root dependencies', async () => {
     },
   }
 
-  await mutateModules(
-    [
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults({ fastUnpack: false })
-  )
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ fastUnpack: false }))
 
   await rimraf('node_modules')
 
-  await mutateModules(
-    [
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults({ fastUnpack: false, frozenLockfile: true })
-  )
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ fastUnpack: false, frozenLockfile: true }))
 
   // if there was no exception, the test passed
 })

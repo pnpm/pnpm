@@ -16,6 +16,7 @@ const workspacePackages = {
 test('allProjectsAreUpToDate(): works with packages linked through the workspace protocol using relative path', async () => {
   expect(await allProjectsAreUpToDate([
     {
+      buildIndex: 0,
       id: 'bar',
       manifest: {
         dependencies: {
@@ -25,6 +26,7 @@ test('allProjectsAreUpToDate(): works with packages linked through the workspace
       rootDir: 'bar',
     },
     {
+      buildIndex: 0,
       id: 'foo',
       manifest: fooManifest,
       rootDir: 'foo',
@@ -55,6 +57,7 @@ test('allProjectsAreUpToDate(): works with packages linked through the workspace
 test('allProjectsAreUpToDate(): works with aliased local dependencies', async () => {
   expect(await allProjectsAreUpToDate([
     {
+      buildIndex: 0,
       id: 'bar',
       manifest: {
         dependencies: {
@@ -64,6 +67,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies', async ()
       rootDir: 'bar',
     },
     {
+      buildIndex: 0,
       id: 'foo',
       manifest: fooManifest,
       rootDir: 'foo',
@@ -94,6 +98,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies', async ()
 test('allProjectsAreUpToDate(): works with aliased local dependencies that specify versions', async () => {
   expect(await allProjectsAreUpToDate([
     {
+      buildIndex: 0,
       id: 'bar',
       manifest: {
         dependencies: {
@@ -103,6 +108,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies that speci
       rootDir: 'bar',
     },
     {
+      buildIndex: 0,
       id: 'foo',
       manifest: fooManifest,
       rootDir: 'foo',
@@ -133,6 +139,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies that speci
 test('allProjectsAreUpToDate(): returns false if the aliased dependency version is out of date', async () => {
   expect(await allProjectsAreUpToDate([
     {
+      buildIndex: 0,
       id: 'bar',
       manifest: {
         dependencies: {
@@ -142,6 +149,7 @@ test('allProjectsAreUpToDate(): returns false if the aliased dependency version 
       rootDir: 'bar',
     },
     {
+      buildIndex: 0,
       id: 'foo',
       manifest: fooManifest,
       rootDir: 'foo',
@@ -174,6 +182,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
     await allProjectsAreUpToDate(
       [
         {
+          buildIndex: 0,
           id: 'bar',
           manifest: {
             dependencies: {
@@ -185,6 +194,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
           rootDir: 'bar',
         },
         {
+          buildIndex: 0,
           id: 'bar2',
           manifest: {
             dependencies: {
@@ -194,11 +204,13 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
           rootDir: 'bar2',
         },
         {
+          buildIndex: 0,
           id: 'foo',
           manifest: fooManifest,
           rootDir: 'foo',
         },
         {
+          buildIndex: 0,
           id: 'foo2',
           manifest: {
             name: 'foo2',
@@ -207,6 +219,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
           rootDir: 'foo2',
         },
         {
+          buildIndex: 0,
           id: 'foo3',
           manifest: {
             name: 'foo3',
@@ -261,6 +274,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
 test('allProjectsAreUpToDate(): returns false if dependenciesMeta differs', async () => {
   expect(await allProjectsAreUpToDate([
     {
+      buildIndex: 0,
       id: 'bar',
       manifest: {
         dependencies: {
@@ -275,6 +289,7 @@ test('allProjectsAreUpToDate(): returns false if dependenciesMeta differs', asyn
       rootDir: 'bar',
     },
     {
+      buildIndex: 0,
       id: 'foo',
       manifest: fooManifest,
       rootDir: 'foo',
@@ -305,6 +320,7 @@ test('allProjectsAreUpToDate(): returns false if dependenciesMeta differs', asyn
 test('allProjectsAreUpToDate(): returns true if dependenciesMeta matches', async () => {
   expect(await allProjectsAreUpToDate([
     {
+      buildIndex: 0,
       id: 'bar',
       manifest: {
         dependencies: {
@@ -319,6 +335,7 @@ test('allProjectsAreUpToDate(): returns true if dependenciesMeta matches', async
       rootDir: 'bar',
     },
     {
+      buildIndex: 0,
       id: 'foo',
       manifest: fooManifest,
       rootDir: 'foo',

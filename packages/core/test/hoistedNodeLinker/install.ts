@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { addDependenciesToPackage, install, mutateModules } from '@pnpm/core'
+import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { sync as loadJsonFile } from 'load-json-file'
@@ -107,32 +107,42 @@ test('adding a new dependency to one of the workspace projects', async () => {
 
   let [{ manifest }] = await mutateModules([
     {
-      buildIndex: 0,
-      manifest: {
-        name: 'project-1',
-        version: '1.0.0',
-
-        dependencies: {
-          '@pnpm.e2e/bar': '100.0.0',
-        },
-      },
       mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
-      buildIndex: 1,
-      manifest: {
-        name: 'project-2',
-        version: '1.0.0',
-
-        dependencies: {
-          '@pnpm.e2e/foobarqar': '1.0.0',
-        },
-      },
       mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
-  ], await testDefaults({ nodeLinker: 'hoisted' }))
+  ], await testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'project-1',
+          version: '1.0.0',
+
+          dependencies: {
+            '@pnpm.e2e/bar': '100.0.0',
+          },
+        },
+        rootDir: path.resolve('project-1'),
+      },
+      {
+        buildIndex: 1,
+        manifest: {
+          name: 'project-2',
+          version: '1.0.0',
+
+          dependencies: {
+            '@pnpm.e2e/foobarqar': '1.0.0',
+          },
+        },
+        rootDir: path.resolve('project-2'),
+      },
+    ],
+    nodeLinker: 'hoisted',
+  }))
   manifest = await addDependenciesToPackage(
     manifest,
     ['is-negative@1.0.0'],
@@ -181,21 +191,18 @@ test('run pre/postinstall scripts. bin files should be linked in a hoisted node_
 test('running install scripts in a workspace that has no root project', async () => {
   prepareEmpty()
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest: {
-        name: 'project-1',
-        version: '1.0.0',
+  await mutateModulesInSingleProject({
+    manifest: {
+      name: 'project-1',
+      version: '1.0.0',
 
-        dependencies: {
-          '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
-        },
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
       },
-      mutation: 'install',
-      rootDir: path.resolve('project-1'),
     },
-  ], await testDefaults({ fastUnpack: false, nodeLinker: 'hoisted' }))
+    mutation: 'install',
+    rootDir: path.resolve('project-1'),
+  }, await testDefaults({ fastUnpack: false, nodeLinker: 'hoisted' }))
 
   expect(fs.existsSync('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
 })

@@ -20,6 +20,7 @@ import rimraf from '@zkochan/rimraf'
 import pathAbsolute from 'path-absolute'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
+import fromPairs from 'ramda/src/fromPairs'
 import checkCompatibility from './checkCompatibility'
 import UnexpectedStoreError from './checkCompatibility/UnexpectedStoreError'
 import UnexpectedVirtualStoreDirError from './checkCompatibility/UnexpectedVirtualStoreDirError'
@@ -27,7 +28,7 @@ import readLockfileFile from './readLockfiles'
 
 export { UnexpectedStoreError, UnexpectedVirtualStoreDirError }
 
-export interface PnpmContext<T> {
+export interface PnpmContext {
   currentLockfile: Lockfile
   currentLockfileIsUpToDate: boolean
   existsCurrentLockfile: boolean
@@ -39,10 +40,10 @@ export interface PnpmContext<T> {
   include: IncludedDependencies
   modulesFile: Modules | null
   pendingBuilds: string[]
-  projects: Array<{
+  projects: Record<string, {
     modulesDir: string
     id: string
-  } & HookOptions & T & Required<ProjectOptions>>
+  } & HookOptions & Required<ProjectOptions>>
   rootModulesDir: string
   hoistPattern: string[] | undefined
   hoistedModulesDir: string
@@ -56,6 +57,7 @@ export interface PnpmContext<T> {
 }
 
 export interface ProjectOptions {
+  buildIndex: number
   binsDir?: string
   manifest: ProjectManifest
   modulesDir?: string
@@ -67,6 +69,7 @@ interface HookOptions {
 }
 
 export interface GetContextOptions {
+  allProjects: Array<ProjectOptions & HookOptions>
   force: boolean
   forceNewModules?: boolean
   forceSharedLockfile: boolean
@@ -91,12 +94,11 @@ export interface GetContextOptions {
   forcePublicHoistPattern?: boolean
 }
 
-export default async function getContext<T> (
-  projects: Array<ProjectOptions & HookOptions & T>,
+export default async function getContext (
   opts: GetContextOptions
-): Promise<PnpmContext<T>> {
+): Promise<PnpmContext> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
-  let importersContext = await readProjectsContext(projects, { lockfileDir: opts.lockfileDir, modulesDir })
+  let importersContext = await readProjectsContext(opts.allProjects, { lockfileDir: opts.lockfileDir, modulesDir })
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), opts.lockfileDir)
 
   if (importersContext.modules != null) {
@@ -118,7 +120,7 @@ export default async function getContext<T> (
       publicHoistPattern: opts.publicHoistPattern,
     })
     if (purged) {
-      importersContext = await readProjectsContext(projects, {
+      importersContext = await readProjectsContext(opts.allProjects, {
         lockfileDir: opts.lockfileDir,
         modulesDir,
       })
@@ -127,7 +129,7 @@ export default async function getContext<T> (
 
   await fs.mkdir(opts.storeDir, { recursive: true })
 
-  projects.forEach((project) => {
+  opts.allProjects.forEach((project) => {
     packageManifestLogger.debug({
       initial: project.manifest,
       prefix: project.rootDir,
@@ -148,7 +150,7 @@ export default async function getContext<T> (
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
   const hoistPattern = importersContext.currentHoistPattern ?? opts.hoistPattern
-  const ctx: PnpmContext<T> = {
+  const ctx: PnpmContext = {
     extraBinPaths,
     extraNodePaths: getExtraNodePaths({ nodeLinker: opts.nodeLinker, hoistPattern, virtualStoreDir }),
     hoistedDependencies: importersContext.hoistedDependencies,
@@ -158,7 +160,7 @@ export default async function getContext<T> (
     lockfileDir: opts.lockfileDir,
     modulesFile: importersContext.modules,
     pendingBuilds: importersContext.pendingBuilds,
-    projects: importersContext.projects,
+    projects: fromPairs(importersContext.projects.map((project) => [project.rootDir, project])),
     publicHoistPattern: importersContext.currentPublicHoistPattern ?? opts.publicHoistPattern,
     registries: {
       ...opts.registries,

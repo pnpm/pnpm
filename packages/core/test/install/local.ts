@@ -8,7 +8,7 @@ import fixtures from '@pnpm/test-fixtures'
 import {
   addDependenciesToPackage,
   install,
-  mutateModules,
+  mutateModulesInSingleProject,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
@@ -212,14 +212,11 @@ test('do not update deps when installing in a project that has local tarball dep
 
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
 
-  await mutateModules([
-    {
-      buildIndex: 0,
-      manifest,
-      mutation: 'install',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults())
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults())
 
   const latestLockfile = await project.readLockfile()
 

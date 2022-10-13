@@ -7,14 +7,14 @@ import readYamlFile from 'read-yaml-file'
 
 export { Project }
 
-export default async (
+export default async function (
   workspaceRoot: string,
   opts?: {
     engineStrict?: boolean
     nodeVersion?: string
     patterns?: string[]
   }
-) => {
+): Promise<Project[]> {
   const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
   for (const pkg of pkgs) {
     packageIsInstallable(pkg.dir, pkg.manifest, opts ?? {})

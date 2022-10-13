@@ -90,24 +90,35 @@ test('install a workspace with git-branch-lockfile = true', async () => {
 
   const opts = await testDefaults({
     useGitBranchLockfile: true,
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: rootManifest,
+        rootDir: process.cwd(),
+      },
+      {
+        buildIndex: 0,
+        manifest: project1Manifest,
+        rootDir: path.resolve('project-1'),
+      },
+      {
+        buildIndex: 0,
+        manifest: project2Manifest,
+        rootDir: path.resolve('project-2'),
+      },
+    ],
   })
 
   await mutateModules([
     {
-      buildIndex: 0,
-      manifest: rootManifest,
       mutation: 'install',
       rootDir: process.cwd(),
     },
     {
-      buildIndex: 0,
-      manifest: project1Manifest,
       mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
-      buildIndex: 0,
-      manifest: project2Manifest,
       mutation: 'install',
       rootDir: path.resolve('project-2'),
     },

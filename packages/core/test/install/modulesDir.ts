@@ -53,6 +53,16 @@ test('using different custom modules directory for every project', async () => {
 
   const importers: MutatedProject[] = [
     {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
       buildIndex: 0,
       manifest: {
         name: 'project-1',
@@ -63,7 +73,6 @@ test('using different custom modules directory for every project', async () => {
         },
       },
       modulesDir: 'modules_1',
-      mutation: 'install',
       rootDir: path.resolve('project-1'),
     },
     {
@@ -77,11 +86,10 @@ test('using different custom modules directory for every project', async () => {
         },
       },
       modulesDir: 'modules_2',
-      mutation: 'install',
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults())
+  await mutateModules(importers, await testDefaults({ allProjects }))
 
   await projects['project-1'].has('is-positive', 'modules_1')
   await projects['project-2'].has('is-positive', 'modules_2')

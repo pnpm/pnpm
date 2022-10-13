@@ -2,7 +2,7 @@ import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config } from '@pnpm/config'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { mutateModules } from '@pnpm/core'
+import { mutateModulesInSingleProject } from '@pnpm/core'
 import renderHelp from 'render-help'
 import getOptionsFromRootManifest from './getOptionsFromRootManifest'
 import { cliOptionsTypes, rcOptionsTypes } from './install'
@@ -44,6 +44,7 @@ export async function handler (
   opts: CreateStoreControllerOptions &
   Pick<Config,
   | 'allProjects'
+  | 'allProjectsGraph'
   | 'bail'
   | 'bin'
   | 'engineStrict'
@@ -61,7 +62,12 @@ export async function handler (
   params: string[]
 ) {
   if (opts.recursive && (opts.allProjects != null) && (opts.selectedProjectsGraph != null) && opts.workspaceDir) {
-    await recursive(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph, workspaceDir: opts.workspaceDir }, 'unlink')
+    await recursive(opts.allProjects, params, {
+      ...opts,
+      allProjectsGraph: opts.allProjectsGraph!,
+      selectedProjectsGraph: opts.selectedProjectsGraph,
+      workspaceDir: opts.workspaceDir,
+    }, 'unlink')
     return
   }
   const store = await createOrConnectStoreController(opts)
@@ -73,20 +79,16 @@ export async function handler (
   })
 
   if (!params || (params.length === 0)) {
-    return mutateModules([
-      {
-        dependencyNames: params,
-        manifest: await readProjectManifestOnly(opts.dir, opts),
-        mutation: 'unlinkSome',
-        rootDir: opts.dir,
-      },
-    ], unlinkOpts)
-  }
-  return mutateModules([
-    {
+    return mutateModulesInSingleProject({
+      dependencyNames: params,
       manifest: await readProjectManifestOnly(opts.dir, opts),
-      mutation: 'unlink',
+      mutation: 'unlinkSome',
       rootDir: opts.dir,
-    },
-  ], unlinkOpts)
+    }, unlinkOpts)
+  }
+  return mutateModulesInSingleProject({
+    manifest: await readProjectManifestOnly(opts.dir, opts),
+    mutation: 'unlink',
+    rootDir: opts.dir,
+  }, unlinkOpts)
 }

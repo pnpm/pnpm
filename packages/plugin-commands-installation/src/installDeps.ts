@@ -12,9 +12,8 @@ import { createOrConnectStoreController, CreateStoreControllerOptions } from '@p
 import { IncludedDependencies, Project } from '@pnpm/types'
 import {
   install,
-  mutateModules,
+  mutateModulesInSingleProject,
   MutateModulesOptions,
-  MutatedProject,
   WorkspacePackages,
 } from '@pnpm/core'
 import logger from '@pnpm/logger'
@@ -35,6 +34,7 @@ const OVERWRITE_UPDATE_OPTIONS = {
 
 export type InstallDepsOptions = Pick<Config,
 | 'allProjects'
+| 'allProjectsGraph'
 | 'autoInstallPeers'
 | 'bail'
 | 'bin'
@@ -149,6 +149,7 @@ when running add/update with the --workspace option')
           ...opts,
           forceHoistPattern,
           forcePublicHoistPattern,
+          allProjectsGraph: selectedProjectsGraph,
           selectedProjectsGraph,
           workspaceDir: opts.workspaceDir,
         },
@@ -176,7 +177,7 @@ when running add/update with the --workspace option')
   }
 
   const store = await createOrConnectStoreController(opts)
-  const installOpts: MutateModulesOptions = {
+  const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
     ...getOptionsFromRootManifest(manifest),
     forceHoistPattern,
@@ -234,18 +235,18 @@ when running add/update with the --workspace option')
     }
   }
   if (params?.length) {
-    const mutatedProject: MutatedProject = {
+    const mutatedProject = {
       allowNew: opts.allowNew,
       binsDir: opts.bin,
       dependencySelectors: params,
       manifest,
-      mutation: 'installSome',
+      mutation: 'installSome' as const,
       peer: opts.savePeer,
       pinnedVersion: getPinnedVersion(opts),
       rootDir: opts.dir,
       targetDependenciesField: getSaveType(opts),
     }
-    const [updatedImporter] = await mutateModules([mutatedProject], installOpts)
+    const updatedImporter = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false) {
       await writeProjectManifest(updatedImporter.manifest)
     }
@@ -270,6 +271,7 @@ when running add/update with the --workspace option')
     await recursive(allProjects, [], {
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
+      allProjectsGraph: opts.allProjectsGraph!,
       selectedProjectsGraph,
       workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understand that is not undefined
     }, 'install')

@@ -11,6 +11,7 @@ export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'raw
 export interface Config {
   allProjects?: Project[]
   selectedProjectsGraph?: ProjectsGraph
+  allProjectsGraph?: ProjectsGraph
 
   allowNew: boolean
   autoInstallPeers?: boolean

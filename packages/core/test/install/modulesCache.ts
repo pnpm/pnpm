@@ -4,7 +4,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   install,
-  mutateModules,
+  mutateModulesInSingleProject,
 } from '@pnpm/core'
 import { testDefaults } from '../utils'
 
@@ -22,14 +22,12 @@ test('the modules cache is pruned when it expires', async () => {
 
   expect(modulesFile?.prunedAt).toBeTruthy()
 
-  manifest = (await mutateModules([
-    {
-      dependencyNames: ['is-negative'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({})))[0].manifest
+  manifest = (await mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({}))).manifest
 
   await project.has('.pnpm/is-negative@1.0.0/node_modules/is-negative')
 
@@ -60,14 +58,12 @@ test('the modules cache is pruned when it expires and headless install is used',
 
   expect(modulesFile?.prunedAt).toBeTruthy()
 
-  manifest = (await mutateModules([
-    {
-      dependencyNames: ['is-negative'],
-      manifest,
-      mutation: 'uninstallSome',
-      rootDir: process.cwd(),
-    },
-  ], await testDefaults({ lockfileOnly: true })))[0].manifest
+  manifest = (await mutateModulesInSingleProject({
+    dependencyNames: ['is-negative'],
+    manifest,
+    mutation: 'uninstallSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({ lockfileOnly: true }))).manifest
 
   manifest = await install(manifest, await testDefaults({ frozenLockfile: true }))
 

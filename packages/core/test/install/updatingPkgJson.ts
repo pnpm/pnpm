@@ -2,7 +2,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   install,
-  mutateModules,
+  mutateModulesInSingleProject,
 } from '@pnpm/core'
 import { addDistTag } from '@pnpm/registry-mock'
 import { testDefaults } from '../utils'
@@ -197,24 +197,21 @@ test('an update bumps the versions in the manifest', async () => {
 
   prepareEmpty()
 
-  const [{ manifest }] = await mutateModules([
-    {
-      buildIndex: 0,
-      manifest: {
-        dependencies: {
-          '@pnpm.e2e/peer-a': '~1.0.0',
-        },
-        devDependencies: {
-          '@pnpm.e2e/foo': '^100.0.0',
-        },
-        optionalDependencies: {
-          '@pnpm.e2e/peer-c': '^1.0.1',
-        },
+  const { manifest } = await mutateModulesInSingleProject({
+    manifest: {
+      dependencies: {
+        '@pnpm.e2e/peer-a': '~1.0.0',
       },
-      mutation: 'install',
-      rootDir: process.cwd(),
+      devDependencies: {
+        '@pnpm.e2e/foo': '^100.0.0',
+      },
+      optionalDependencies: {
+        '@pnpm.e2e/peer-c': '^1.0.1',
+      },
     },
-  ],
+    mutation: 'install',
+    rootDir: process.cwd(),
+  },
   await testDefaults({
     update: true,
   }))

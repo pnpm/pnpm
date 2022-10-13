@@ -4,7 +4,7 @@ import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
 import fixtures from '@pnpm/test-fixtures'
 import readYamlFile from 'read-yaml-file'
-import { addDependenciesToPackage, mutateModules } from '@pnpm/core'
+import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
@@ -45,18 +45,13 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
   f.copy('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', 'pkg.tgz')
 
   const lockfileDir = path.resolve('..')
-  const [{ manifest }] = await mutateModules(
-    [
-      {
-        allowNew: true,
-        dependencySelectors: ['file:pkg.tgz'],
-        manifest: {},
-        mutation: 'installSome',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults({ lockfileDir })
-  )
+  const { manifest } = await mutateModulesInSingleProject({
+    allowNew: true,
+    dependencySelectors: ['file:pkg.tgz'],
+    manifest: {},
+    mutation: 'installSome',
+    rootDir: process.cwd(),
+  }, await testDefaults({ lockfileDir }))
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
   expect(lockfile.packages!['file:project/pkg.tgz']).toBeTruthy()
@@ -64,17 +59,11 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
 
   await rimraf('node_modules')
 
-  await mutateModules(
-    [
-      {
-        buildIndex: 0,
-        manifest,
-        mutation: 'install',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults({ frozenLockfile: true, lockfileDir })
-  )
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd(),
+  }, await testDefaults({ frozenLockfile: true, lockfileDir }))
 
   await project.has('tar-pkg-with-dep')
 })
