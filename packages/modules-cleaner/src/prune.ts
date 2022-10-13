@@ -4,7 +4,7 @@ import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import filterLockfile, { filterLockfileByImporters } from '@pnpm/filter-lockfile'
+import { filterLockfile, filterLockfileByImporters } from '@pnpm/filter-lockfile'
 import {
   Lockfile,
   PackageSnapshots,

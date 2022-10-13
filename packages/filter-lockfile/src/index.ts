@@ -1,7 +1,3 @@
-import filterLockfile from './filterLockfile'
-import filterLockfileByImporters from './filterLockfileByImporters'
-import filterLockfileByImportersAndEngine from './filterLockfileByImportersAndEngine'
-
-export default filterLockfile
-
-export { filterLockfileByImporters, filterLockfileByImportersAndEngine }
+export { filterLockfile } from './filterLockfile'
+export { filterLockfileByImporters } from './filterLockfileByImporters'
+export { filterLockfileByImportersAndEngine } from './filterLockfileByImportersAndEngine'

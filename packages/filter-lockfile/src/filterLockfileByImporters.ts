@@ -7,11 +7,11 @@ import {
 import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import pnpmLogger from '@pnpm/logger'
 import { DependenciesField } from '@pnpm/types'
-import filterImporter from './filterImporter'
+import { filterImporter } from './filterImporter'
 
 const logger = pnpmLogger('lockfile')
 
-export default function filterByImporters (
+export function filterLockfileByImporters (
   lockfile: Lockfile,
   importerIds: string[],
   opts: {

@@ -10,11 +10,11 @@ import packageIsInstallable from '@pnpm/package-is-installable'
 import { DependenciesField } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import unnest from 'ramda/src/unnest'
-import filterImporter from './filterImporter'
+import { filterImporter } from './filterImporter'
 
 const logger = pnpmLogger('lockfile')
 
-export default function filterByImportersAndEngine (
+export function filterLockfileByImportersAndEngine (
   lockfile: Lockfile,
   importerIds: string[],
   opts: {

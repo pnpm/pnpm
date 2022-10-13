@@ -1,7 +1,7 @@
 import { ProjectSnapshot } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
 
-export default function filterImporter (
+export function filterImporter (
   importer: ProjectSnapshot,
   include: { [dependenciesField in DependenciesField]: boolean }
 ) {
