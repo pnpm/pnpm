@@ -143,20 +143,6 @@ export default async function recursive (
 
   const memReadLocalConfig = mem(readLocalConfig)
 
-  function getImporters () {
-    const importers = [] as Array<{ rootDir: string }>
-    let prefixes = Object.keys(opts.selectedProjectsGraph)
-    if (opts.ignoredPackages != null) {
-      prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))
-    }
-    prefixes.forEach((prefix) => {
-      importers.push({
-        rootDir: prefix,
-      })
-    })
-    return importers
-  }
-
   const updateToLatest = opts.update && opts.latest
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,
@@ -178,7 +164,7 @@ export default async function recursive (
   }
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
-    let importers = getImporters()
+    let importers = getImporters(opts)
     const calculatedRepositoryRoot = await fs.realpath(calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir)))
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
     importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
@@ -518,29 +504,30 @@ export function makeIgnorePatterns (ignoredDependencies: string[]): string[] {
   return ignoredDependencies.map(depName => `!${depName}`)
 }
 
-export function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: ProjectsGraph, sort?: boolean): ProjectOptions[] {
+function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: ProjectsGraph, sort?: boolean): ProjectOptions[] {
   const chunks = sort !== false
     ? sortPackages(allProjectsGraph)
     : [Object.keys(allProjectsGraph).sort()]
-  const allProjs = [] as ProjectOptions[]
-  chunks.forEach((prefixes: string[], buildIndex) => {
-    prefixes.forEach((prefix) => {
-      allProjs.push({
-        buildIndex,
-        manifest: manifestsByPath[prefix].manifest,
-        rootDir: prefix,
-      })
-    })
-  })
-  return allProjs
+  return chunks.map((prefixes: string[], buildIndex) => prefixes.map((rootDir) => ({
+    buildIndex,
+    manifest: manifestsByPath[rootDir].manifest,
+    rootDir,
+  }))).flat()
 }
 
-export interface ManifestsByPath { [dir: string]: Omit<Project, 'dir'> }
+interface ManifestsByPath { [dir: string]: Omit<Project, 'dir'> }
 
-export function getManifestsByPath (projects: Project[]) {
-  const manifestsByPath: ManifestsByPath = {}
-  for (const { dir, manifest, writeProjectManifest } of projects) {
+function getManifestsByPath (projects: Project[]) {
+  return projects.reduce((manifestsByPath, { dir, manifest, writeProjectManifest }) => {
     manifestsByPath[dir] = { manifest, writeProjectManifest }
+    return manifestsByPath
+  }, {})
+}
+
+function getImporters (opts: Pick<RecursiveOptions, 'selectedProjectsGraph' | 'ignoredPackages'>) {
+  let rootDirs = Object.keys(opts.selectedProjectsGraph)
+  if (opts.ignoredPackages != null) {
+    rootDirs = rootDirs.filter((rootDir) => !opts.ignoredPackages!.has(rootDir))
   }
-  return manifestsByPath
+  return rootDirs.map((rootDir) => ({ rootDir }))
 }
