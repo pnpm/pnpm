@@ -94,7 +94,7 @@ export interface GetContextOptions {
   forcePublicHoistPattern?: boolean
 }
 
-export default async function getContext (
+export async function getContext (
   opts: GetContextOptions
 ): Promise<PnpmContext> {
   const modulesDir = opts.modulesDir ?? 'node_modules'

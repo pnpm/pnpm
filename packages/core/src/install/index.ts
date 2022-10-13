@@ -12,8 +12,8 @@ import {
 } from '@pnpm/core-loggers'
 import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import PnpmError from '@pnpm/error'
-import getContext, { PnpmContext } from '@pnpm/get-context'
-import headless from '@pnpm/headless'
+import { getContext, PnpmContext } from '@pnpm/get-context'
+import { headlessInstall } from '@pnpm/headless'
 import runLifecycleHook, {
   makeNodeRequireOption,
   runLifecycleHooksConcurrently,
@@ -330,7 +330,7 @@ export async function mutateModules (
           logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
         }
         try {
-          await headless({
+          await headlessInstall({
             ...ctx,
             ...opts,
             currentEngine: {
@@ -1172,7 +1172,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ...opts,
         lockfileOnly: true,
       })
-      await headless({
+      await headlessInstall({
         ...ctx,
         ...opts,
         currentEngine: {

@@ -148,7 +148,7 @@ export interface HeadlessOptions {
   useGitBranchLockfile?: boolean
 }
 
-export default async (opts: HeadlessOptions) => {
+export async function headlessInstall (opts: HeadlessOptions) {
   const reporter = opts.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
