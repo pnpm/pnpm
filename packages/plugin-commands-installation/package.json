@@ -38,7 +38,7 @@
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.0.0",
+    "@pnpm/registry-mock": "3.1.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-ci": "^3.0.0",
     "@types/proxyquire": "^1.3.28",
