@@ -28,7 +28,7 @@ export default async function testDefaults (
   let storeDir = opts?.storeDir ?? path.join(tmp, 'store')
   const cacheDir = path.join(tmp, 'cache')
   const lockfileDir = opts?.lockfileDir ?? process.cwd()
-  const { include, pendingBuilds, projects, registries } = await readProjectsContext(
+  const { include, pendingBuilds, projects } = await readProjectsContext(
     opts.projects
       ? opts.projects.map((rootDir: string) => ({ rootDir }))
       : [
@@ -80,7 +80,7 @@ export default async function testDefaults (
       await Promise.all(projects.map(async (project) => [project.rootDir, { ...project, manifest: await safeReadPackageFromDir(project.rootDir) }]))
     ),
     rawConfig: {},
-    registries: registries ?? {
+    registries: {
       default: registry,
     },
     sideEffectsCache: true,
