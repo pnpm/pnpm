@@ -2,7 +2,7 @@
 import fs from 'fs'
 import path from 'path'
 import getPort from 'get-port'
-import createClient from '@pnpm/client'
+import { createClient } from '@pnpm/client'
 import createStore from '@pnpm/package-store'
 import { connectStoreController, createServer } from '@pnpm/server'
 import fetch from 'node-fetch'

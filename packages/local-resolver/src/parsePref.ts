@@ -1,6 +1,6 @@
 import os from 'os'
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import normalize from 'normalize-path'
 
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']

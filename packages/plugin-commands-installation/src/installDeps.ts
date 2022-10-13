@@ -4,7 +4,7 @@ import {
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'

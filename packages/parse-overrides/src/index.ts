@@ -1,4 +1,4 @@
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import parseWantedDependency from '@pnpm/parse-wanted-dependency'
 
 const DELIMITER_REGEX = /[^ |@]>/

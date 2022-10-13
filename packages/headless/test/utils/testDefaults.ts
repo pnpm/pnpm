@@ -1,5 +1,5 @@
 import path from 'path'
-import createClient from '@pnpm/client'
+import { createClient } from '@pnpm/client'
 import { HeadlessOptions } from '@pnpm/headless'
 import createStore from '@pnpm/package-store'
 import { safeReadPackageFromDir } from '@pnpm/read-package-json'

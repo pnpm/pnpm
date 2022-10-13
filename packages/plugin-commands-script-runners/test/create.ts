@@ -1,4 +1,4 @@
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { create, dlx } from '../src'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
 

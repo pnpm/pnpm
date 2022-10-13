@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import createCafs, {
+import {
+  createCafs,
   getFilePathByModeInCafs,
 } from '@pnpm/cafs'
 import type { Cafs, PackageFilesResponse } from '@pnpm/cafs-types'

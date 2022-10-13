@@ -1,6 +1,6 @@
 import { Config } from '@pnpm/config'
 import { Log } from '@pnpm/core-loggers'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import renderPeerIssues from '@pnpm/render-peer-issues'
 import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import chalk from 'chalk'

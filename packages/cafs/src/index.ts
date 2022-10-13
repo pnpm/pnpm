@@ -32,7 +32,7 @@ export {
   PackageFilesIndex,
 }
 
-export default function createCafs (cafsDir: string, ignore?: ((filename: string) => Boolean)) {
+export function createCafs (cafsDir: string, ignore?: ((filename: string) => Boolean)) {
   const locker = new Map()
   const _writeBufferToCafs = writeBufferToCafs.bind(null, locker, cafsDir)
   const addStream = addStreamToCafs.bind(null, _writeBufferToCafs)

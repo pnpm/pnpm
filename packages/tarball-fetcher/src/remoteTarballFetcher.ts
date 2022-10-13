@@ -1,7 +1,7 @@
 import { IncomingMessage } from 'http'
 import urlLib from 'url'
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import PnpmError, { FetchError } from '@pnpm/error'
+import { FetchError, PnpmError } from '@pnpm/error'
 import { FetchResult } from '@pnpm/fetcher-base'
 import type { Cafs, DeferredManifestPromise } from '@pnpm/cafs-types'
 import { FetchFromRegistry } from '@pnpm/fetching-types'

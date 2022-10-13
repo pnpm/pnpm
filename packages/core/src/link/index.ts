@@ -2,7 +2,7 @@ import path from 'path'
 import {
   summaryLogger,
 } from '@pnpm/core-loggers'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import {

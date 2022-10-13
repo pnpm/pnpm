@@ -1,7 +1,7 @@
 /// <reference path="../../../typings/index.d.ts" />
 import path from 'path'
 import assertProject from '@pnpm/assert-project'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { importCommand } from '@pnpm/plugin-commands-installation'
 import prepare from '@pnpm/prepare'
 import fixtures from '@pnpm/test-fixtures'

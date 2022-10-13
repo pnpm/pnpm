@@ -1,4 +1,4 @@
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { setup } from '@pnpm/plugin-commands-setup'
 import { addDirToEnvPath, PathExtenderReport } from '@pnpm/os.env.path-extender'
 

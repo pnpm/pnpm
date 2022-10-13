@@ -4,10 +4,10 @@ import createResolve, {
 } from '@pnpm/default-resolver'
 import { AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
 import { FetchFromRegistry, GetCredentials, RetryTimeoutOptions } from '@pnpm/fetching-types'
-import type { CustomFetchers } from '@pnpm/fetcher-base'
+import type { CustomFetchers, GitFetcher, DirectoryFetcher } from '@pnpm/fetcher-base'
 import createDirectoryFetcher from '@pnpm/directory-fetcher'
 import fetchFromGit from '@pnpm/git-fetcher'
-import createTarballFetcher from '@pnpm/tarball-fetcher'
+import createTarballFetcher, { TarballFetchers } from '@pnpm/tarball-fetcher'
 import getCredentialsByURI from 'credentials-by-uri'
 import mem from 'mem'
 
@@ -23,7 +23,12 @@ export type ClientOptions = {
   gitShallowHosts?: string[]
 } & ResolverFactoryOptions & AgentOptions
 
-export default function (opts: ClientOptions) {
+export interface Client {
+  fetchers: Fetchers
+  resolve: ResolveFunction
+}
+
+export function createClient (opts: ClientOptions): Client {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getCredentials = mem((registry: string) => getCredentialsByURI(opts.authConfig, registry, opts.userConfig))
   return {
@@ -38,12 +43,17 @@ export function createResolver (opts: ClientOptions) {
   return createResolve(fetchFromRegistry, getCredentials, opts)
 }
 
+type Fetchers = {
+  git: GitFetcher
+  directory: DirectoryFetcher
+} & TarballFetchers
+
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
   getCredentials: GetCredentials,
   opts: Pick<ClientOptions, 'retry' | 'gitShallowHosts'>,
   customFetchers?: CustomFetchers
-) {
+): Fetchers {
   const defaultFetchers = {
     ...createTarballFetcher(fetchFromRegistry, getCredentials, opts),
     ...fetchFromGit(opts),

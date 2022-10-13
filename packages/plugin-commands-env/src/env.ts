@@ -1,7 +1,7 @@
 import { promises as fs, existsSync } from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { resolveNodeVersion } from '@pnpm/node.resolver'
 import { globalInfo } from '@pnpm/logger'

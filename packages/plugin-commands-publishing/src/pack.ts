@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { createGzip } from 'zlib'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { types as allTypes, UniversalOptions, Config } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
 import exportableManifest from '@pnpm/exportable-manifest'

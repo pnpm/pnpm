@@ -1,5 +1,5 @@
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import * as micromatch from 'micromatch'
 import execa from 'execa'
 import findUp from 'find-up'

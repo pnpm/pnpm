@@ -1,5 +1,5 @@
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
 import fromPairs from 'ramda/src/fromPairs'

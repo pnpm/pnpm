@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import {
   FetchFromRegistry,
   RetryTimeoutOptions,

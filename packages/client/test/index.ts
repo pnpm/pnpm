@@ -1,5 +1,5 @@
 /// <reference path="../../../typings/index.d.ts"/>
-import createClient, { createResolver } from '@pnpm/client'
+import { createClient, createResolver } from '@pnpm/client'
 
 test('createClient()', () => {
   const client = createClient({

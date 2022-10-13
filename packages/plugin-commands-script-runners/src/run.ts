@@ -7,7 +7,7 @@ import {
 import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import runLifecycleHooks, {
   makeNodeRequireOption,
   RunLifecycleHookOptions,

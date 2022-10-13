@@ -15,7 +15,7 @@ pnpm add @pnpm/error
 ### Usage
 
 ```ts
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 
 try {
     throw new PnpmError('THE_ERROR_CODE', 'The error message')

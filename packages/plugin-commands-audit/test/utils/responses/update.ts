@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import audit from '@pnpm/audit'
+import { audit } from '@pnpm/audit'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import fixtures from '@pnpm/test-fixtures'
 

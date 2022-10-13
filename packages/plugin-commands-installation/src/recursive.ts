@@ -5,7 +5,7 @@ import {
   throwOnCommandFail,
 } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'

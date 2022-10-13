@@ -1,6 +1,6 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import logger, { LogBase } from '@pnpm/logger'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import storePath from '@pnpm/store-path'

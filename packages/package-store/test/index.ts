@@ -1,6 +1,6 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
-import createClient from '@pnpm/client'
+import { createClient } from '@pnpm/client'
 import createStore from '@pnpm/package-store'
 import tempy from 'tempy'
 

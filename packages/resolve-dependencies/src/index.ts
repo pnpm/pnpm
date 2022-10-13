@@ -1,6 +1,6 @@
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'

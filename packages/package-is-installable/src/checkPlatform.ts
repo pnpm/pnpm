@@ -1,4 +1,4 @@
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { familySync as getLibcFamilySync } from 'detect-libc'
 
 const currentLibc = getLibcFamilySync() ?? 'unknown'

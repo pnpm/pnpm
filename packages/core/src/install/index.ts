@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import path from 'path'
-import buildModules, { DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
+import { buildModules, DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
@@ -11,7 +11,7 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { getContext, PnpmContext } from '@pnpm/get-context'
 import { headlessInstall } from '@pnpm/headless'
 import runLifecycleHook, {

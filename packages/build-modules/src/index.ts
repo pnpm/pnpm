@@ -1,7 +1,7 @@
 import path from 'path'
 import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger from '@pnpm/logger'
@@ -14,7 +14,7 @@ import buildSequence, { DependenciesGraph, DependenciesGraphNode } from './build
 
 export { DepsStateCache }
 
-export default async (
+export async function buildModules (
   depGraph: DependenciesGraph,
   rootDepPaths: string[],
   opts: {
@@ -38,7 +38,7 @@ export default async (
     storeController: StoreController
     rootModulesDir: string
   }
-) => {
+) {
   const warn = (message: string) => logger.warn({ message, prefix: opts.lockfileDir })
   // postinstall hooks
 

@@ -1,4 +1,4 @@
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { VersionSelectors } from '@pnpm/resolver-base'
 import semver from 'semver'
 import { RegistryPackageSpec } from './parsePref'

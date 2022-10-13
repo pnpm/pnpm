@@ -1,7 +1,7 @@
 import path from 'path'
 import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import runLifecycleHooks, {
   makeNodeRequireOption,
   RunLifecycleHookOptions,

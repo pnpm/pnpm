@@ -1,5 +1,5 @@
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { PackageManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 import normalizePackageData from 'normalize-package-data'

@@ -1,5 +1,5 @@
 import { promisify } from 'util'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import filterWorkspacePackages, { PackageGraph } from '@pnpm/filter-workspace-packages'
 import './parsePackageSelector'
 import fs from 'fs'

@@ -2,7 +2,7 @@
 import { promises as fs, statSync } from 'fs'
 import path from 'path'
 import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'
-import createClient from '@pnpm/client'
+import { createClient } from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
 import createPackageRequester, { PackageResponse } from '@pnpm/package-requester'
 import type { PackageFilesResponse } from '@pnpm/cafs-types'

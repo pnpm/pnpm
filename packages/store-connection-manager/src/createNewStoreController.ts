@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs'
-import createClient from '@pnpm/client'
+import { createClient } from '@pnpm/client'
 import { Config } from '@pnpm/config'
 import createStore from '@pnpm/package-store'
 import pnpm from '@pnpm/cli-meta'

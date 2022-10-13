@@ -1,7 +1,7 @@
 /// <reference path="../../../typings/index.d.ts" />
 import { promises as fs } from 'fs'
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import {
   restart,

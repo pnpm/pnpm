@@ -1,4 +1,4 @@
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 
 export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
 

@@ -1,9 +1,10 @@
 import url from 'url'
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import PnpmError, {
+import {
   FetchError,
   FetchErrorRequest,
   FetchErrorResponse,
+  PnpmError,
 } from '@pnpm/error'
 import { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching-types'
 import * as retry from '@zkochan/retry'

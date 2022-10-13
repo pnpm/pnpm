@@ -1,7 +1,7 @@
 import path from 'path'
 import fs from 'fs'
 import { LAYOUT_VERSION } from '@pnpm/constants'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import loadNpmConf from '@pnpm/npm-conf'
 import npmTypes from '@pnpm/npm-conf/lib/types'
 import { requireHooks } from '@pnpm/pnpmfile'

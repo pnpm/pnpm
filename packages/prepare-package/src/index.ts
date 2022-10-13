@@ -1,5 +1,5 @@
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'

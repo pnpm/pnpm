@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import buildModules from '@pnpm/build-modules'
+import { buildModules } from '@pnpm/build-modules'
 import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
@@ -14,7 +14,7 @@ import {
   statsLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import {
   filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
