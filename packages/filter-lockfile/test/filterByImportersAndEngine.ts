@@ -538,3 +538,109 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
   })
   expect(Array.from(skippedPackages)).toStrictEqual(['/preserve-existing-skipped/1.0.0', '/optional-dep/1.0.0', '/foo/1.0.0'])
 })
+
+test('filterByImportersAndEngine(): includes linked packages', () => {
+  const filteredLockfile = filterLockfileByImportersAndEngine(
+    {
+      importers: {
+        'project-1': {
+          dependencies: {
+            'project-2': 'link:project-2',
+          },
+          devDependencies: {
+          },
+          optionalDependencies: {
+          },
+          specifiers: {
+            'project-2': '^1.0.0',
+          },
+        },
+        'project-2': {
+          dependencies: {
+            'project-3': 'link:project-3',
+            foo: '1.0.0',
+          },
+          specifiers: {
+            foo: '^1.0.0',
+          },
+        },
+        'project-3': {
+          dependencies: {
+            bar: '1.0.0',
+          },
+          specifiers: {
+            bar: '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        '/bar/1.0.0': {
+          resolution: { integrity: '' },
+        },
+        '/foo/1.0.0': {
+          resolution: { integrity: '' },
+        },
+      },
+    },
+    ['project-1'],
+    {
+      currentEngine: {
+        nodeVersion: '10.0.0',
+        pnpmVersion: '2.0.0',
+      },
+      engineStrict: true,
+      failOnMissingDependencies: true,
+      include: {
+        dependencies: true,
+        devDependencies: true,
+        optionalDependencies: true,
+      },
+      lockfileDir: process.cwd(),
+      skipped: new Set(),
+    }
+  )
+
+  expect(filteredLockfile.lockfile).toStrictEqual({
+    importers: {
+      'project-1': {
+        dependencies: {
+          'project-2': 'link:project-2',
+        },
+        devDependencies: {
+        },
+        optionalDependencies: {
+        },
+        specifiers: {
+          'project-2': '^1.0.0',
+        },
+      },
+      'project-2': {
+        dependencies: {
+          'project-3': 'link:project-3',
+          foo: '1.0.0',
+        },
+        specifiers: {
+          foo: '^1.0.0',
+        },
+      },
+      'project-3': {
+        dependencies: {
+          bar: '1.0.0',
+        },
+        specifiers: {
+          bar: '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '/bar/1.0.0': {
+        resolution: { integrity: '' },
+      },
+      '/foo/1.0.0': {
+        resolution: { integrity: '' },
+      },
+    },
+  })
+})

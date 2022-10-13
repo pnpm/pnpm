@@ -20,7 +20,7 @@ function toImporterDepPaths (
   opts: {
     include: { [dependenciesField in DependenciesField]: boolean }
   }
-) {
+): string[] {
   const importerDeps = importerIds
     .map(importerId => lockfile.importers[importerId])
     .map(importer => ({
@@ -32,11 +32,32 @@ function toImporterDepPaths (
     }))
     .map(Object.entries)
 
-  const importerDepsPaths = unnest(importerDeps)
-    .map(([pkgName, ref]) => dp.refToRelative(ref, pkgName))
-    .filter(nodeId => nodeId !== null) as string[]
+  const { depPaths, importerIds: nextImporterIds } = parseDepRefs(unnest(importerDeps), lockfile)
 
-  return importerDepsPaths
+  if (!nextImporterIds.length) {
+    return depPaths
+  }
+  return [
+    ...depPaths,
+    ...toImporterDepPaths(lockfile, nextImporterIds, opts),
+  ]
+}
+
+function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: Lockfile) {
+  return refsByPkgNames
+    .reduce((acc, [pkgName, ref]) => {
+      if (ref.startsWith('link:')) {
+        const importerId = ref.substring(5)
+        if (lockfile.importers[importerId]) {
+          acc.importerIds.push(importerId)
+        }
+        return acc
+      }
+      const depPath = dp.refToRelative(ref, pkgName)
+      if (depPath == null) return acc
+      acc.depPaths.push(depPath)
+      return acc
+    }, { depPaths: [] as string[], importerIds: [] as string[] })
 }
 
 export default function filterByImportersAndEngine (
@@ -184,39 +205,18 @@ function pkgAllDeps (
       }
     }
     ctx.pickedPackages[depPath] = pkgSnapshot
-    const nextRelDepPaths = Object.entries({
+    const { depPaths: nextRelDepPaths, importerIds: additionalImporterIds } = parseDepRefs(Object.entries({
       ...pkgSnapshot.dependencies,
       ...(opts.include.optionalDependencies
         ? pkgSnapshot.optionalDependencies
         : {}),
-    })
-      .map(([pkgName, ref]) => {
-        if (ref.startsWith('link:')) {
-          return ref
-        }
-        return dp.refToRelative(ref, pkgName)
-      })
-      .filter(nodeId => nodeId !== null) as string[]
-
-    // Also include missing deeply linked workspace project
-    const actualNextRelDepPaths = []
-    const additionalImporterIds = []
-    for (const nextDepPath of nextRelDepPaths) {
-      if (nextDepPath.startsWith('link:')) {
-        const ref = nextDepPath.slice(5)
-        additionalImporterIds.push(ref)
-        ctx.importerIdSet.add(ref)
-      } else {
-        actualNextRelDepPaths.push(nextDepPath)
-      }
-    }
-
-    actualNextRelDepPaths.push(
+    }), ctx.lockfile)
+    additionalImporterIds.forEach((importerId) => ctx.importerIdSet.add(importerId))
+    nextRelDepPaths.push(
       ...toImporterDepPaths(ctx.lockfile, additionalImporterIds, {
         include: opts.include,
       })
     )
-
-    pkgAllDeps(ctx, actualNextRelDepPaths, installable, opts)
+    pkgAllDeps(ctx, nextRelDepPaths, installable, opts)
   }
 }
