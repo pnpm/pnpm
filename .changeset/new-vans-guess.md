@@ -1,7 +1,6 @@
 ---
-"@pnpm/core": patch
-"@pnpm/filter-lockfile": patch
 "@pnpm/headless": patch
+"pnpm": patch
 ---
 
-fix: also include missing deeply linked workspace packages at headless installation
+Also include missing deeply linked workspace packages at headless installation [#5034](https://github.com/pnpm/pnpm/issues/5034).
