@@ -14,56 +14,6 @@ import filterImporter from './filterImporter'
 
 const logger = pnpmLogger('lockfile')
 
-function toImporterDepPaths (
-  lockfile: Lockfile,
-  importerIds: string[],
-  opts: {
-    include: { [dependenciesField in DependenciesField]: boolean }
-    importerIdSet: Set<string>
-  }
-): string[] {
-  const importerDeps = importerIds
-    .map(importerId => lockfile.importers[importerId])
-    .map(importer => ({
-      ...(opts.include.dependencies ? importer.dependencies : {}),
-      ...(opts.include.devDependencies ? importer.devDependencies : {}),
-      ...(opts.include.optionalDependencies
-        ? importer.optionalDependencies
-        : {}),
-    }))
-    .map(Object.entries)
-
-  const { depPaths, importerIds: nextImporterIds } = parseDepRefs(unnest(importerDeps), lockfile)
-
-  if (!nextImporterIds.length) {
-    return depPaths
-  }
-  nextImporterIds.forEach((importerId) => {
-    opts.importerIdSet.add(importerId)
-  })
-  return [
-    ...depPaths,
-    ...toImporterDepPaths(lockfile, nextImporterIds, opts),
-  ]
-}
-
-function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: Lockfile) {
-  return refsByPkgNames
-    .reduce((acc, [pkgName, ref]) => {
-      if (ref.startsWith('link:')) {
-        const importerId = ref.substring(5)
-        if (lockfile.importers[importerId]) {
-          acc.importerIds.push(importerId)
-        }
-        return acc
-      }
-      const depPath = dp.refToRelative(ref, pkgName)
-      if (depPath == null) return acc
-      acc.depPaths.push(depPath)
-      return acc
-    }, { depPaths: [] as string[], importerIds: [] as string[] })
-}
-
 export default function filterByImportersAndEngine (
   lockfile: Lockfile,
   importerIds: string[],
@@ -79,7 +29,7 @@ export default function filterByImportersAndEngine (
     lockfileDir: string
     skipped: Set<string>
   }
-): { lockfile: Lockfile, importerIds: string[] } {
+): { lockfile: Lockfile, selectedImporterIds: string[] } {
   const importerIdSet = new Set(importerIds) as Set<string>
 
   const directDepPaths = toImporterDepPaths(lockfile, importerIds, {
@@ -120,7 +70,7 @@ export default function filterByImportersAndEngine (
       importers,
       packages,
     },
-    importerIds: Array.from(importerIdSet),
+    selectedImporterIds: Array.from(importerIdSet),
   }
 }
 
@@ -225,4 +175,54 @@ function pkgAllDeps (
     )
     pkgAllDeps(ctx, nextRelDepPaths, installable, opts)
   }
+}
+
+function toImporterDepPaths (
+  lockfile: Lockfile,
+  importerIds: string[],
+  opts: {
+    include: { [dependenciesField in DependenciesField]: boolean }
+    importerIdSet: Set<string>
+  }
+): string[] {
+  const importerDeps = importerIds
+    .map(importerId => lockfile.importers[importerId])
+    .map(importer => ({
+      ...(opts.include.dependencies ? importer.dependencies : {}),
+      ...(opts.include.devDependencies ? importer.devDependencies : {}),
+      ...(opts.include.optionalDependencies
+        ? importer.optionalDependencies
+        : {}),
+    }))
+    .map(Object.entries)
+
+  const { depPaths, importerIds: nextImporterIds } = parseDepRefs(unnest(importerDeps), lockfile)
+
+  if (!nextImporterIds.length) {
+    return depPaths
+  }
+  nextImporterIds.forEach((importerId) => {
+    opts.importerIdSet.add(importerId)
+  })
+  return [
+    ...depPaths,
+    ...toImporterDepPaths(lockfile, nextImporterIds, opts),
+  ]
+}
+
+function parseDepRefs (refsByPkgNames: Array<[string, string]>, lockfile: Lockfile) {
+  return refsByPkgNames
+    .reduce((acc, [pkgName, ref]) => {
+      if (ref.startsWith('link:')) {
+        const importerId = ref.substring(5)
+        if (lockfile.importers[importerId]) {
+          acc.importerIds.push(importerId)
+        }
+        return acc
+      }
+      const depPath = dp.refToRelative(ref, pkgName)
+      if (depPath == null) return acc
+      acc.depPaths.push(depPath)
+      return acc
+    }, { depPaths: [] as string[], importerIds: [] as string[] })
 }

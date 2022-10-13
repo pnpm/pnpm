@@ -243,7 +243,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
   const initialImporterIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
     ? Object.keys(wantedLockfile.importers)
     : selectedProjects.map(({ id }) => id)
-  const { lockfile: filteredLockfile, importerIds } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, {
+  const { lockfile: filteredLockfile, selectedImporterIds: importerIds } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, {
     ...filterOpts,
     currentEngine: opts.currentEngine,
     engineStrict: opts.engineStrict,
@@ -253,17 +253,13 @@ export async function headlessInstall (opts: HeadlessOptions) {
   })
 
   // Update selectedProjects to add missing projects. importerIds will have the updated ids, found from deeply linked workspace projects
-  const missingIds = [] as string[]
   const initialImporterIdSet = new Set(initialImporterIds)
-  for (const id of importerIds) {
-    if (!initialImporterIdSet.has(id)) {
-      missingIds.push(id)
-    }
-  }
-  for (const id of missingIds) {
-    const additionalProject = Object.values(opts.allProjects).find((project) => project.id === id)
-    if (additionalProject) {
-      selectedProjects.push(additionalProject)
+  const missingIds = importerIds.filter((importerId) => !initialImporterIdSet.has(importerId))
+  if (missingIds.length > 0) {
+    for (const project of Object.values(opts.allProjects)) {
+      if (missingIds.includes(project.id)) {
+        selectedProjects.push(project)
+      }
     }
   }
 

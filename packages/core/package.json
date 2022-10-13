@@ -45,7 +45,6 @@
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/read-projects-context": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",
     "@pnpm/resolve-dependencies": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
