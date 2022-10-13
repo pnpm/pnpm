@@ -643,7 +643,7 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
       },
     },
   })
-  expect(filteredLockfile.importerIds).toStrictEqual([
+  expect(filteredLockfile.selectedImporterIds).toStrictEqual([
     'project-1',
     'project-2',
     'project-3',
