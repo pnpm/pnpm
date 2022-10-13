@@ -65,9 +65,8 @@
   "packageManager": "pnpm@7.10.0",
   "pnpm": {
     "overrides": {
-      "@yarnpkg/core": "4.0.0-rc.15",
-      "@yarnpkg/fslib": "3.0.0-rc.15",
-      "@yarnpkg/libzip": "3.0.0-rc.15",
+      "@yarnpkg/fslib": "3.0.0-rc.25",
+      "@yarnpkg/libzip": "3.0.0-rc.25",
       "glob-parent@<5.1.2": ">=5.1.2",
       "hosted-git-info@4": "npm:@zkochan/hosted-git-info@^4.0.2",
       "istanbul-reports": "npm:@zkochan/istanbul-reports",

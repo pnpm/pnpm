@@ -83,7 +83,7 @@
     "@pnpm/sort-packages": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@yarnpkg/core": "4.0.0-rc.15",
+    "@yarnpkg/core": "4.0.0-rc.25",
     "@yarnpkg/lockfile": "^1.1.0",
     "@yarnpkg/parsers": "3.0.0-rc.25",
     "@zkochan/rimraf": "^2.1.2",
