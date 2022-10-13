@@ -1,4 +1,5 @@
-import createResolve, {
+import {
+  createResolver as _createResolver,
   ResolveFunction,
   ResolverFactoryOptions,
 } from '@pnpm/default-resolver'
@@ -33,14 +34,14 @@ export function createClient (opts: ClientOptions): Client {
   const getCredentials = mem((registry: string) => getCredentialsByURI(opts.authConfig, registry, opts.userConfig))
   return {
     fetchers: createFetchers(fetchFromRegistry, getCredentials, opts, opts.customFetchers),
-    resolve: createResolve(fetchFromRegistry, getCredentials, opts),
+    resolve: _createResolver(fetchFromRegistry, getCredentials, opts),
   }
 }
 
 export function createResolver (opts: ClientOptions) {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getCredentials = mem((registry: string) => getCredentialsByURI(opts.authConfig, registry))
-  return createResolve(fetchFromRegistry, getCredentials, opts)
+  return _createResolver(fetchFromRegistry, getCredentials, opts)
 }
 
 type Fetchers = {

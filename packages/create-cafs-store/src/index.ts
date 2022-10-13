@@ -64,7 +64,7 @@ function getFlatMap (
   return { filesMap, isBuilt }
 }
 
-export default function createCafsStore (
+export function createCafsStore (
   storeDir: string,
   opts?: {
     ignoreFile?: (filename: string) => boolean

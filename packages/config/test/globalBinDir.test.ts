@@ -5,7 +5,7 @@ import path from 'path'
 import pathName from 'path-name'
 import symlinkDir from 'symlink-dir'
 import { homedir } from 'os'
-import getConfig from '@pnpm/config'
+import { getConfig } from '@pnpm/config'
 
 const globalBinDir = path.join(homedir(), '.local', 'pnpm')
 const isWindows = process.platform === 'win32'

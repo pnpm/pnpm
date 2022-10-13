@@ -1,4 +1,4 @@
-import getConfig from '@pnpm/config'
+import { getConfig } from '@pnpm/config'
 import { updateCheckLogger } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import loadJsonFile from 'load-json-file'

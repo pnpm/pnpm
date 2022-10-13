@@ -47,7 +47,7 @@ export interface DependenciesHierarchy {
   unsavedDependencies?: PackageNode[]
 }
 
-export default async function dependenciesHierarchy (
+export async function buildDependenciesHierarchy (
   projectPaths: string[],
   maybeOpts: {
     depth: number

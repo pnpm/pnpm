@@ -18,7 +18,7 @@ export {
   ResolverFactoryOptions,
 }
 
-export default function createResolver (
+export function createResolver (
   fetchFromRegistry: FetchFromRegistry,
   getCredentials: GetCredentials,
   pnpmOpts: ResolverFactoryOptions

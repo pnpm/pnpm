@@ -1,9 +1,9 @@
 /// <reference path="../../../typings/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
-import PnpmError, { FetchError } from '@pnpm/error'
+import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import createCafsStore from '@pnpm/create-cafs-store'
+import { createCafsStore } from '@pnpm/create-cafs-store'
 import fixtures from '@pnpm/test-fixtures'
 import createFetcher, {
   BadTarballError,

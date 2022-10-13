@@ -133,7 +133,7 @@ export const types = Object.assign({
 
 export type CliOptions = Record<string, unknown> & { dir?: string }
 
-export default async (
+export async function getConfig (
   opts: {
     globalDirShouldAllowWrite?: boolean
     cliOptions: CliOptions
@@ -146,7 +146,7 @@ export default async (
     checkUnknownSetting?: boolean
     env?: Record<string, string | undefined>
   }
-): Promise<{ config: Config, warnings: string[] }> => {
+): Promise<{ config: Config, warnings: string[] }> {
   const env = opts.env ?? process.env
   const packageManager = opts.packageManager ?? { name: 'pnpm', version: 'undefined' }
   const cliOptions = opts.cliOptions ?? {}

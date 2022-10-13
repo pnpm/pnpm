@@ -12,9 +12,9 @@ pnpm add @pnpm/default-reporter
 
 ```ts
 import { streamParser } from '@pnpm/logger'
-import defaultReporter from '@pnpm/default-reporter'
+import { initDefaultReporter } from '@pnpm/default-reporter'
 
-const stopReporting = defaultReporter({
+const stopReporting = initDefaultReporter({
   context: {
     argv: [],
   },

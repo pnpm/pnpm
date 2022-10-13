@@ -1,4 +1,4 @@
-import getConfig from '@pnpm/config'
+import { getConfig } from '@pnpm/config'
 import { promises as fs } from 'fs'
 import path from 'path'
 
