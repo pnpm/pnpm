@@ -1,6 +1,6 @@
 import filenamify from 'filenamify'
 import path from 'path'
-import { satisfiesWithPrereleases } from '@yarnpkg/core/lib/semverUtils'
+import { semverUtils } from '@yarnpkg/core'
 import {
   Dependencies,
   PeerDependencyIssues,
@@ -424,7 +424,7 @@ function resolvePeers<T extends PartialResolvedPackage> (
       continue
     }
 
-    if (!satisfiesWithPrereleases(resolved.version, peerVersionRange, true)) {
+    if (!semverUtils.satisfiesWithPrereleases(resolved.version, peerVersionRange, true)) {
       const location = getLocationFromNodeIdAndPkg({
         dependenciesTree: ctx.dependenciesTree,
         nodeId: ctx.nodeId,
