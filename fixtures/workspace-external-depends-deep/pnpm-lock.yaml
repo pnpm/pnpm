@@ -1,0 +1,43 @@
+lockfileVersion: 5.4
+
+importers:
+
+  .:
+    specifiers:
+      is-positive: 1.0.0
+    dependencies:
+      is-positive: 1.0.0
+
+  packages/f:
+    specifiers:
+      is-negative: 1.0.0
+      is-positive: 1.0.0
+    dependencies:
+      is-negative: 1.0.0
+      is-positive: 1.0.0
+
+  packages/g:
+    specifiers:
+      '@pnpm.e2e/external-depend-on-internal-dep': 1.0.0
+      is-positive: 1.0.0
+    dependencies:
+      '@pnpm.e2e/external-depend-on-internal-dep': 1.0.0
+      is-positive: 1.0.0
+
+packages:
+
+  /@pnpm.e2e/external-depend-on-internal-dep/1.0.0:
+    resolution: {integrity: sha512-UPhSnFgg3p1acuOcuWgunypA7tTqhVCBUUC4laNotJw1RUbTldprdLJmrhOvGylvw4VBipHnXPm/y9wTIAf53A==}
+    dependencies:
+      '@pnpm.e2e/internal-f': link:packages/f
+    dev: false
+
+  /is-negative/1.0.0:
+    resolution: {integrity: sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==}
+    engines: {node: '>=0.10.0'}
+    dev: false
+
+  /is-positive/1.0.0:
+    resolution: {integrity: sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==}
+    engines: {node: '>=0.10.0'}
+    dev: false

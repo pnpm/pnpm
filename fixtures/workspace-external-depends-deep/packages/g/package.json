@@ -1,0 +1,8 @@
+{
+  "name": "@kenrick95/internal-g",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/external-depend-on-internal-dep": "1.0.0",
+    "is-positive": "1.0.0"
+  }
+}

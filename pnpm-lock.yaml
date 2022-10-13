@@ -59,8 +59,8 @@ importers:
         specifier: 0.2.0
         version: 0.2.0_typanion@3.12.0
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       '@pnpm/tsconfig':
         specifier: workspace:*
         version: link:utils/tsconfig
@@ -726,8 +726,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
@@ -1655,8 +1655,8 @@ importers:
         specifier: workspace:*
         version: link:../read-projects-context
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
@@ -2795,8 +2795,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../privatePackages/test-fixtures
@@ -3094,8 +3094,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
 
   packages/plugin-commands-env:
     dependencies:
@@ -3361,8 +3361,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../privatePackages/test-fixtures
@@ -3461,8 +3461,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -3558,8 +3558,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -3625,8 +3625,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -3725,8 +3725,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       '@types/cross-spawn':
         specifier: ^6.0.2
         version: 6.0.2
@@ -3879,8 +3879,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../privatePackages/test-fixtures
@@ -3985,8 +3985,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       '@types/is-windows':
         specifier: ^1.0.0
         version: 1.0.0
@@ -4174,8 +4174,8 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       '@types/archy':
         specifier: 0.0.32
         version: 0.0.32
@@ -4205,7 +4205,7 @@ importers:
     optionalDependencies:
       node-gyp:
         specifier: ^9.2.0
-        version: 9.2.0
+        version: 9.3.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -4319,8 +4319,8 @@ importers:
         specifier: workspace:*
         version: link:../read-project-manifest
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../run-npm
@@ -5225,8 +5225,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/modules-yaml
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5265,8 +5265,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/cafs
       '@pnpm/registry-mock':
-        specifier: 3.0.0
-        version: 3.0.0_typanion@3.12.0
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -7698,8 +7698,8 @@ packages:
       - typanion
     dev: true
 
-  /@pnpm/registry-mock/3.0.0_typanion@3.12.0:
-    resolution: {integrity: sha512-/e6P2sVX+1frYDl7z4qAnRHEU2VG4RUu4vcsoSZdc9LFi93ZxQ9gbuF066aR+T3S+JcFFjHNZXfJUj8ZaTfssg==}
+  /@pnpm/registry-mock/3.1.0_typanion@3.12.0:
+    resolution: {integrity: sha512-uOWJxzqNOutPbeH+yQW+cYwg0yM1eCdaMWstlIVjBCCoJ2IEpwsi3KhQnCDmMKZbqqUdPDcHTQaYzMKVG0WAFQ==}
     engines: {node: '>=10.13'}
     hasBin: true
     dependencies:
@@ -7977,7 +7977,7 @@ packages:
   /@types/byline/4.2.33:
     resolution: {integrity: sha512-LJYez7wrWcJQQDknqZtrZuExMGP0IXmPl1rOOGDqLbu+H7UNNRfKNuSxCBcQMLH1EfjeWidLedC/hCc5dDfBog==}
     dependencies:
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
     dev: true
 
   /@types/cacheable-request/6.0.2:
@@ -8131,6 +8131,10 @@ packages:
 
   /@types/node/18.8.4:
     resolution: {integrity: sha512-WdlVphvfR/GJCLEMbNA8lJ0lhFNBj4SW3O+O5/cEGw9oYrv0al9zTwuQsq+myDUXgNx2jgBynoVgZ2MMJ6pbow==}
+
+  /@types/node/18.8.5:
+    resolution: {integrity: sha512-Bq7G3AErwe5A/Zki5fdD3O6+0zDChhg671NfPjtIcbtzDNZTv4NPKMRFr7gtYPG7y+B8uTiNK4Ngd9T0FTar6Q==}
+    dev: true
 
   /@types/normalize-package-data/2.4.1:
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
@@ -9889,7 +9893,7 @@ packages:
     hasBin: true
     dependencies:
       graceful-fs: 4.2.10
-      minimist: 1.2.6
+      minimist: 1.2.7
       mkdirp: 0.5.6
       rimraf: 2.7.1
 
@@ -10076,8 +10080,8 @@ packages:
     engines: {node: '>=10'}
     dev: true
 
-  /decimal.js/10.4.1:
-    resolution: {integrity: sha512-F29o+vci4DodHYT9UrR5IEbfBw9pE5eSapIJdTqXK5+6hq+t8VRxwQyKlW2i+KDKFkkJQRvFyI/QXD83h8LyQw==}
+  /decimal.js/10.4.2:
+    resolution: {integrity: sha512-ic1yEvwT6GuvaYwBLLY6/aFFgjZdySKTE8en/fkU3QICTmRtgtSlFn0u0BXN06InZwtfCelR7j8LRiDI/02iGA==}
 
   /decompress-maybe/1.0.0:
     resolution: {integrity: sha512-av8/KhXWRUYQ7lGTl/9Gtizz3nQ+7NqDFm/I4Lx+JvTbzHiD4WqfqxMO4YYi91FTqffoBDCYPfIvofwQZwZ3ZQ==}
@@ -11728,7 +11732,7 @@ packages:
     engines: {node: '>=0.4.7'}
     hasBin: true
     dependencies:
-      minimist: 1.2.6
+      minimist: 1.2.7
       neo-async: 2.6.2
       source-map: 0.6.1
       wordwrap: 1.0.0
@@ -12857,7 +12861,7 @@ packages:
       cssom: 0.4.4
       cssstyle: 2.3.0
       data-urls: 2.0.0
-      decimal.js: 10.4.1
+      decimal.js: 10.4.2
       domexception: 2.0.1
       escodegen: 2.0.0
       form-data: 3.0.1
@@ -13612,6 +13616,9 @@ packages:
   /minimist/1.2.6:
     resolution: {integrity: sha512-Jsjnk4bw3YJqYzbdyBiNsPWHPfO++UGG749Cxs6peCu5Xg4nrena6OVxOYxrQTqww0Jmwt+Ref8rggumkTLz9Q==}
 
+  /minimist/1.2.7:
+    resolution: {integrity: sha512-bzfL1YUZsP41gmu/qjrEk0Q6i2ix/cVeAhbCbqH9u3zYutS1cLg00qhrD0M2MVdCcx4Sc0UpP2eBWo9rotpq6g==}
+
   /minipass-collect/1.0.2:
     resolution: {integrity: sha512-6T6lH0H8OG9kITm/Jm6tdooIbogG9e0tLgpY6mphXSm/A9u8Nq1ryBG+Qspiub9LjWlBPsPS3tWQ/Botq4FdxA==}
     engines: {node: '>= 8'}
@@ -13699,7 +13706,7 @@ packages:
     resolution: {integrity: sha512-FP+p8RB8OWpF3YZBCrP5gtADmtXApB5AMLn+vdyA+PyxCjrCs00mjyUozssO33cwDeT3wNGdLxJ5M//YqtHAJw==}
     hasBin: true
     dependencies:
-      minimist: 1.2.6
+      minimist: 1.2.7
 
   /mkdirp/1.0.4:
     resolution: {integrity: sha512-vVqVZQyf3WLx2Shd0qJ9xuvqgAyKPLAiqITEtqW0oIUjzo3PePDd6fW9iFz30ef7Ysp/oiWqbhszeGWW2T6Gzw==}
@@ -13880,8 +13887,8 @@ packages:
       - bluebird
       - supports-color
 
-  /node-gyp/9.2.0:
-    resolution: {integrity: sha512-/+/YxGfIJOh/fnMsr4Ep0v6oOIjnO1BgLd2dcDspBX1spTkQU7xSIox5RdRE/2/Uq3ZwK8Z5swRIbMUmPlslmg==}
+  /node-gyp/9.3.0:
+    resolution: {integrity: sha512-A6rJWfXFz7TQNjpldJ915WFb1LnhO4lIve3ANPbWreuEoLoKlFT3sxIepPBkLhM27crW8YmN+pjlgbasH6cH/Q==}
     engines: {node: ^12.22 || ^14.13 || >=16}
     hasBin: true
     requiresBuild: true
@@ -14034,6 +14041,7 @@ packages:
 
   /npmlog/4.1.2:
     resolution: {integrity: sha512-2uUqazuKlTaSI/dC8AzicUck7+IrEaOnN/e0jd3Xtt1KcGpwx30v50mL7oPyr/h9bL3E4aZccVwpwP+5W9Vjkg==}
+    requiresBuild: true
     dependencies:
       are-we-there-yet: 1.1.7
       console-control-strings: 1.1.0
@@ -14370,7 +14378,7 @@ packages:
       fs-extra: 7.0.1
       is-ci: 2.0.0
       klaw-sync: 6.0.0
-      minimist: 1.2.6
+      minimist: 1.2.7
       open: 7.4.2
       rimraf: 2.7.1
       semver: 5.7.1
@@ -17132,7 +17140,7 @@ time:
   /@pnpm/npm-package-arg/1.0.0: '2022-06-28T12:48:31.287Z'
   /@pnpm/os.env.path-extender/0.2.6: '2022-08-08T10:36:30.986Z'
   /@pnpm/ramda/0.28.1: '2022-08-03T13:56:59.597Z'
-  /@pnpm/registry-mock/3.0.0: '2022-09-04T20:12:48.942Z'
+  /@pnpm/registry-mock/3.1.0: '2022-10-13T19:59:17.408Z'
   /@pnpm/semver-diff/1.1.0: '2021-11-16T12:40:59.941Z'
   /@pnpm/tabtab/0.1.2: '2021-03-05T17:31:19.932Z'
   /@types/adm-zip/0.4.34: '2021-04-04T18:01:23.318Z'
@@ -17261,7 +17269,7 @@ time:
   /micromatch/4.0.5: '2022-03-24T19:31:47.722Z'
   /nock/13.2.9: '2022-07-19T18:34:55.582Z'
   /node-fetch/3.0.0-beta.9: '2020-09-05T12:52:27.791Z'
-  /node-gyp/9.2.0: '2022-10-04T10:40:24.552Z'
+  /node-gyp/9.3.0: '2022-10-11T04:54:21.968Z'
   /normalize-newline/3.0.0: '2016-09-06T12:35:43.571Z'
   /normalize-package-data/4.0.1: '2022-08-15T21:03:50.558Z'
   /normalize-path/3.0.0: '2018-04-19T14:54:47.609Z'

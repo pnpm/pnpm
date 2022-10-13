@@ -831,3 +831,29 @@ test('installing in a workspace with node-linker=hoisted', async () => {
 function readPkgVersion (dir: string): string {
   return loadJsonFile.sync<{ version: string }>(path.join(dir, 'package.json')).version
 }
+
+test('installing a package deeply installs all required dependencies', async () => {
+  const workspaceFixture = f.prepare('workspace-external-depends-deep')
+  const projects = [
+    path.join(workspaceFixture),
+    path.join(workspaceFixture, 'packages/f'),
+    path.join(workspaceFixture, 'packages/g'),
+    workspaceFixture,
+  ]
+
+  await headlessInstall(
+    await testDefaults({
+      lockfileDir: workspaceFixture,
+      projects,
+      selectedProjectDirs: [projects[2]],
+    })
+  )
+
+  for (const projectDir of projects) {
+    if (projectDir === workspaceFixture) {
+      continue
+    }
+    const projectAssertion = assertProject(projectDir)
+    expect(projectAssertion.requireModule('is-positive')).toBeTruthy()
+  }
+})
