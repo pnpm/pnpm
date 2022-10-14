@@ -10,7 +10,7 @@ import {
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
 import ssri from 'ssri'
-import parsePref, { WantedLocalDependency } from './parsePref'
+import { parsePref, WantedLocalDependency } from './parsePref'
 
 export { WantedLocalDependency }
 

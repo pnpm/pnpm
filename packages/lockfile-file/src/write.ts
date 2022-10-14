@@ -187,7 +187,7 @@ function pruneTime (time: Record<string, string>, importers: Record<string, Proj
   return fromPairs(Object.entries(time).filter(([depPath]) => rootDepPaths.has(depPath)))
 }
 
-export default async function writeLockfiles (
+export async function writeLockfiles (
   opts: {
     forceSharedFormat?: boolean
     useInlineSpecifiersFormat?: boolean

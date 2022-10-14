@@ -3,12 +3,12 @@ import { PackageNode } from 'dependencies-hierarchy'
 import sortBy from 'ramda/src/sortBy'
 import path from 'ramda/src/path'
 import { Ord } from 'ramda'
-import getPkgInfo from './getPkgInfo'
+import { getPkgInfo } from './getPkgInfo'
 import { PackageDependencyHierarchy } from './types'
 
 const sortPackages = sortBy(path(['pkg', 'alias']) as (pkg: PackageNode) => Ord)
 
-export default async function (
+export async function renderJson (
   pkgs: PackageDependencyHierarchy[],
   opts: {
     depth: number

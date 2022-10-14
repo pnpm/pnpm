@@ -3,7 +3,7 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { depPathToFilename } from 'dependency-path'
 import fromPairs from 'ramda/src/fromPairs'
 
-export default function extendProjectsWithTargetDirs<T> (
+export function extendProjectsWithTargetDirs<T> (
   projects: Array<T & { id: string }>,
   lockfile: Lockfile,
   ctx: {

@@ -21,7 +21,7 @@ export interface WantedLocalDependency {
   injected?: boolean
 }
 
-export default function parsePref (
+export function parsePref (
   wd: WantedLocalDependency,
   projectDir: string,
   lockfileDir: string

@@ -4,13 +4,13 @@ import { Resolution } from '@pnpm/resolver-base'
 import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
-import nameVerFromPkgSnapshot from './nameVerFromPkgSnapshot'
+import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot'
 
-export default (
+export function pkgSnapshotToResolution (
   depPath: string,
   pkgSnapshot: PackageSnapshot,
   registries: Registries
-): Resolution => {
+): Resolution {
   if (pkgSnapshot.resolution['type'] || pkgSnapshot.resolution['tarball']?.startsWith('file:')) {
     return pkgSnapshot.resolution as Resolution
   }

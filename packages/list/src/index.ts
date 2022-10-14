@@ -1,10 +1,10 @@
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependenciesField, Registries } from '@pnpm/types'
 import { buildDependenciesHierarchy } from 'dependencies-hierarchy'
-import createPackagesSearcher from './createPackagesSearcher'
-import renderJson from './renderJson'
-import renderParseable from './renderParseable'
-import renderTree from './renderTree'
+import { createPackagesSearcher } from './createPackagesSearcher'
+import { renderJson } from './renderJson'
+import { renderParseable } from './renderParseable'
+import { renderTree } from './renderTree'
 import { PackageDependencyHierarchy } from './types'
 
 const DEFAULTS = {

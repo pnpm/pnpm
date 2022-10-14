@@ -1,7 +1,7 @@
 import path from 'path'
-import readPkg from './readPkg'
+import { readPkg } from './readPkg'
 
-export default async function getPkgInfo (
+export async function getPkgInfo (
   pkg: {
     alias: string
     name: string

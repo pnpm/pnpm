@@ -5,7 +5,7 @@ import { PackageDependencyHierarchy } from './types'
 
 const sortPackages = sortBy(prop('name'))
 
-export default async function (
+export async function renderParseable (
   pkgs: PackageDependencyHierarchy[],
   opts: {
     long: boolean

@@ -43,7 +43,7 @@ export interface LockfileToHoistedDepGraphOptions {
   virtualStoreDir: string
 }
 
-export default async function lockfileToHoistedDepGraph (
+export async function lockfileToHoistedDepGraph (
   lockfile: Lockfile,
   currentLockfile: Lockfile | null,
   opts: LockfileToHoistedDepGraphOptions

@@ -1,5 +1,1 @@
-import prune from './prune'
-
-export {
-  prune,
-}
+export { prune } from './prune'

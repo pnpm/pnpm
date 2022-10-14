@@ -7,7 +7,7 @@ import cliColumns from 'cli-columns'
 import sortBy from 'ramda/src/sortBy'
 import rpath from 'ramda/src/path'
 import { Ord } from 'ramda'
-import getPkgInfo from './getPkgInfo'
+import { getPkgInfo } from './getPkgInfo'
 import { PackageDependencyHierarchy } from './types'
 
 const sortPackages = sortBy(rpath(['name']) as (pkg: PackageNode) => Ord)
@@ -27,7 +27,7 @@ export interface RenderTreeOptions {
   showExtraneous: boolean
 }
 
-export default async function (
+export async function renderTree (
   packages: PackageDependencyHierarchy[],
   opts: RenderTreeOptions
 ) {

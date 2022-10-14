@@ -85,7 +85,7 @@ export interface LockfileToDepGraphResult {
   pkgLocationByDepPath?: Record<string, string>
 }
 
-export default async function lockfileToDepGraph (
+export async function lockfileToDepGraph (
   lockfile: Lockfile,
   currentLockfile: Lockfile | null,
   opts: LockfileToDepGraphOptions

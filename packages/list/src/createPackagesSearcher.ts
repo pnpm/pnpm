@@ -3,7 +3,7 @@ import npa from '@pnpm/npm-package-arg'
 import { SearchFunction } from 'dependencies-hierarchy'
 import semver from 'semver'
 
-export default function createPatternSearcher (queries: string[]) {
+export function createPackagesSearcher (queries: string[]) {
   const searchers: SearchFunction[] = queries
     .map(parseSearchQuery)
     .map((packageSelector) => search.bind(null, packageSelector))
