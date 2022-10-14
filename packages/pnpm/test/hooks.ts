@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { PackageManifest } from '@pnpm/types'
-import prepare, { preparePackages } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import loadJsonFile from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from './utils'

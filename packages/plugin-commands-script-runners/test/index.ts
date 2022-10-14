@@ -8,7 +8,7 @@ import {
   run,
   test as testCommand,
 } from '@pnpm/plugin-commands-script-runners'
-import prepare, { preparePackages } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import execa from 'execa'
 import isWindows from 'is-windows'
 import writeYamlFile from 'write-yaml-file'

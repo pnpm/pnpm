@@ -1,5 +1,5 @@
 import path from 'path'
-import prepare, { preparePackages } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readYamlFile from 'read-yaml-file'
 import writeYamlFile from 'write-yaml-file'

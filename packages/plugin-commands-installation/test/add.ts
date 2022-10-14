@@ -1,7 +1,7 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { add, remove } from '@pnpm/plugin-commands-installation'
-import prepare, { preparePackages } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import loadJsonFile from 'load-json-file'
 import tempy from 'tempy'

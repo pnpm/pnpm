@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { Lockfile } from '@pnpm/lockfile-types'
-import prepare, { preparePackages } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import { createPeersFolderSuffix } from 'dependency-path'
 import readYamlFile from 'read-yaml-file'
 import loadJsonFile from 'load-json-file'
