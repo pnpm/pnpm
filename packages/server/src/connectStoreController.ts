@@ -1,4 +1,4 @@
-import fetch from '@pnpm/fetch'
+import { fetch } from '@pnpm/fetch'
 import {
   FetchPackageToStoreOptions,
   PackageFilesResponse,

@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import findWorkspacePackages from '@pnpm/find-workspace-packages'
+import { findWorkspacePackages } from '@pnpm/find-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { read as readModulesManifest } from '@pnpm/modules-yaml'
 import prepare, {

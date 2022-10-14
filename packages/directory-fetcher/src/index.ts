@@ -9,9 +9,9 @@ export interface CreateDirectoryFetcherOptions {
   includeOnlyPackageFiles?: boolean
 }
 
-export default (
+export function createDirectoryFetcher (
   opts?: CreateDirectoryFetcherOptions
-) => {
+) {
   const fetchFromDir = opts?.includeOnlyPackageFiles ? fetchPackageFilesFromDir : fetchAllFilesFromDir
 
   const directoryFetcher: DirectoryFetcher = (cafs, resolution, opts) => {

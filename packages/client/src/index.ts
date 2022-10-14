@@ -6,7 +6,7 @@ import {
 import { AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
 import { FetchFromRegistry, GetCredentials, RetryTimeoutOptions } from '@pnpm/fetching-types'
 import type { CustomFetchers, GitFetcher, DirectoryFetcher } from '@pnpm/fetcher-base'
-import createDirectoryFetcher from '@pnpm/directory-fetcher'
+import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import fetchFromGit from '@pnpm/git-fetcher'
 import createTarballFetcher, { TarballFetchers } from '@pnpm/tarball-fetcher'
 import getCredentialsByURI from 'credentials-by-uri'

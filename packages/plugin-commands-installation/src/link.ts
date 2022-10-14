@@ -9,8 +9,8 @@ import {
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import findWorkspaceDir from '@pnpm/find-workspace-dir'
-import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
+import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
+import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/find-workspace-packages'
 import { StoreController } from '@pnpm/package-store'
 import { createOrConnectStoreControllerCached, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {

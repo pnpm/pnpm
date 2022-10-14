@@ -20,7 +20,7 @@ export interface MakePublishManifestOptions {
   readmeFile?: string
 }
 
-export default async function makePublishManifest (
+export async function createExportableManifest (
   dir: string,
   originalManifest: ProjectManifest,
   opts?: MakePublishManifestOptions

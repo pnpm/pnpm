@@ -4,7 +4,7 @@ import { createGzip } from 'zlib'
 import { PnpmError } from '@pnpm/error'
 import { types as allTypes, UniversalOptions, Config } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
-import exportableManifest from '@pnpm/exportable-manifest'
+import { createExportableManifest } from '@pnpm/exportable-manifest'
 import binify from '@pnpm/package-bins'
 import { DependencyManifest } from '@pnpm/types'
 import fg from 'fast-glob'
@@ -155,7 +155,7 @@ async function packPkg (opts: {
     const mode = isExecutable ? 0o755 : 0o644
     if (/^package\/package\.(json|json5|yaml)/.test(name)) {
       const readmeFile = embedReadme ? await readReadmeFile(filesMap) : undefined
-      const publishManifest = await exportableManifest(projectDir, manifest, { readmeFile, modulesDir: opts.modulesDir })
+      const publishManifest = await createExportableManifest(projectDir, manifest, { readmeFile, modulesDir: opts.modulesDir })
       pack.entry({ mode, mtime, name: 'package/package.json' }, JSON.stringify(publishManifest, null, 2))
       continue
     }

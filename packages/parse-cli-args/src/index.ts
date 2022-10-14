@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import findWorkspaceDir from '@pnpm/find-workspace-dir'
+import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import nopt from '@pnpm/nopt'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 

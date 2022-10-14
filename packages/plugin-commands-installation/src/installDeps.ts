@@ -6,7 +6,7 @@ import {
 import { Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
-import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
+import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/find-workspace-packages'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { IncludedDependencies, Project } from '@pnpm/types'

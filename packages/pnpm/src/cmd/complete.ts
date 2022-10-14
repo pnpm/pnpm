@@ -1,6 +1,6 @@
 import { Completion, CompletionFunc } from '@pnpm/command'
-import findWorkspaceDir from '@pnpm/find-workspace-dir'
-import findWorkspacePackages from '@pnpm/find-workspace-packages'
+import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
+import { findWorkspacePackages } from '@pnpm/find-workspace-packages'
 import { getOptionCompletions } from '../getOptionType'
 import optionTypesToCompletions from '../optionTypesToCompletions'
 import universalShorthands from '../shorthands'

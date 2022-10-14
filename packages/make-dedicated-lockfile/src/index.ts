@@ -1,6 +1,6 @@
 import path from 'path'
 import pnpmExec from '@pnpm/exec'
-import exportableManifest from '@pnpm/exportable-manifest'
+import { createExportableManifest } from '@pnpm/exportable-manifest'
 import {
   getLockfileImporterId,
   ProjectSnapshot,
@@ -36,7 +36,7 @@ export default async function (lockfileDir: string, projectDir: string) {
   await writeWantedLockfile(projectDir, dedicatedLockfile)
 
   const { manifest, writeProjectManifest } = await readProjectManifest(projectDir)
-  const publishManifest = await exportableManifest(projectDir, manifest)
+  const publishManifest = await createExportableManifest(projectDir, manifest)
   await writeProjectManifest(publishManifest)
 
   const modulesDir = path.join(projectDir, 'node_modules')
