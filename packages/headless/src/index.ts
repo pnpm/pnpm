@@ -18,7 +18,7 @@ import { PnpmError } from '@pnpm/error'
 import {
   filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
-import hoist from '@pnpm/hoist'
+import { hoist } from '@pnpm/hoist'
 import {
   runLifecycleHooksConcurrently,
   makeNodeRequireOption,

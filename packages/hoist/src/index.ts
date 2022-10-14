@@ -14,7 +14,7 @@ import * as dp from 'dependency-path'
 
 const hoistLogger = logger('hoist')
 
-export default async function hoistByLockfile (
+export async function hoist (
   opts: {
     extraNodePath?: string[]
     preferSymlinkedExecutables?: boolean

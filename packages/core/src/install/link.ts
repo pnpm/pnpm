@@ -10,7 +10,7 @@ import {
 import {
   filterLockfileByImporters,
 } from '@pnpm/filter-lockfile'
-import hoist from '@pnpm/hoist'
+import { hoist } from '@pnpm/hoist'
 import { Lockfile } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'

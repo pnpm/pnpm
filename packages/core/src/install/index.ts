@@ -14,8 +14,9 @@ import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import { PnpmError } from '@pnpm/error'
 import { getContext, PnpmContext } from '@pnpm/get-context'
 import { headlessInstall } from '@pnpm/headless'
-import runLifecycleHook, {
+import {
   makeNodeRequireOption,
+  runLifecycleHook,
   runLifecycleHooksConcurrently,
   RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/lifecycle'

@@ -1,10 +1,10 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
-import createResolveFromGit from '@pnpm/git-resolver'
+import { createGitResolver } from '@pnpm/git-resolver'
 import git from 'graceful-git'
 import isWindows from 'is-windows'
 
-const resolveFromGit = createResolveFromGit({})
+const resolveFromGit = createGitResolver({})
 
 test('resolveFromGit() with commit', async () => {
   const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99' })

@@ -10,8 +10,8 @@ export function makeNodeRequireOption (modulePath: string) {
   return { NODE_OPTIONS }
 }
 
-export default runLifecycleHook
 export {
+  runLifecycleHook,
   runLifecycleHooksConcurrently,
   RunLifecycleHookOptions,
   RunLifecycleHooksConcurrentlyOptions,

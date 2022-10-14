@@ -7,7 +7,7 @@ import { AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
 import { FetchFromRegistry, GetCredentials, RetryTimeoutOptions } from '@pnpm/fetching-types'
 import type { CustomFetchers, GitFetcher, DirectoryFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
-import fetchFromGit from '@pnpm/git-fetcher'
+import { createGitFetcher } from '@pnpm/git-fetcher'
 import createTarballFetcher, { TarballFetchers } from '@pnpm/tarball-fetcher'
 import getCredentialsByURI from 'credentials-by-uri'
 import mem from 'mem'
@@ -57,7 +57,7 @@ function createFetchers (
 ): Fetchers {
   const defaultFetchers = {
     ...createTarballFetcher(fetchFromRegistry, getCredentials, opts),
-    ...fetchFromGit(opts),
+    ...createGitFetcher(opts),
     ...createDirectoryFetcher(),
   }
 

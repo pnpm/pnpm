@@ -5,7 +5,7 @@ import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { URL } from 'url'
 
-export default (createOpts?: { gitShallowHosts?: string[] }) => {
+export function createGitFetcher (createOpts?: { gitShallowHosts?: string[] }) {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
 
   const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {

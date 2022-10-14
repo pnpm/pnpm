@@ -2,7 +2,8 @@ import path from 'path'
 import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import runLifecycleHooks, {
+import {
+  runLifecycleHook,
   makeNodeRequireOption,
   RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
@@ -94,15 +95,15 @@ export default async (
             pkg.package.manifest.scripts?.[`pre${scriptName}`] &&
             !pkg.package.manifest.scripts[scriptName].includes(`pre${scriptName}`)
           ) {
-            await runLifecycleHooks(`pre${scriptName}`, pkg.package.manifest, lifecycleOpts)
+            await runLifecycleHook(`pre${scriptName}`, pkg.package.manifest, lifecycleOpts)
           }
-          await runLifecycleHooks(scriptName, pkg.package.manifest, { ...lifecycleOpts, args: passedThruArgs })
+          await runLifecycleHook(scriptName, pkg.package.manifest, { ...lifecycleOpts, args: passedThruArgs })
           if (
             opts.enablePrePostScripts &&
             pkg.package.manifest.scripts?.[`post${scriptName}`] &&
             !pkg.package.manifest.scripts[scriptName].includes(`post${scriptName}`)
           ) {
-            await runLifecycleHooks(`post${scriptName}`, pkg.package.manifest, lifecycleOpts)
+            await runLifecycleHook(`post${scriptName}`, pkg.package.manifest, lifecycleOpts)
           }
           result.passes++
         } catch (err: any) { // eslint-disable-line
