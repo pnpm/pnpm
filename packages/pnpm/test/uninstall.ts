@@ -1,5 +1,5 @@
 import path from 'path'
-import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
+import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import prepare from '@pnpm/prepare'
 import exists from 'path-exists'
 import PATH from 'path-name'
@@ -21,7 +21,7 @@ test('uninstall package and remove from appropriate property', async () => {
 
   await project.hasNot('is-positive')
 
-  const pkgJson = await readPkgFromDir(process.cwd())
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
   expect(pkgJson.optionalDependencies).toBeUndefined()
 })
 

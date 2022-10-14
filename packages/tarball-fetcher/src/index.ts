@@ -26,7 +26,7 @@ export interface TarballFetchers {
   gitHostedTarball: FetchFunction
 }
 
-export default function (
+export function createTarballFetcher (
   fetchFromRegistry: FetchFromRegistry,
   getCredentials: GetCredentials,
   opts: {

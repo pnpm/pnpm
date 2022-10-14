@@ -8,7 +8,7 @@ import { FetchFromRegistry, GetCredentials, RetryTimeoutOptions } from '@pnpm/fe
 import type { CustomFetchers, GitFetcher, DirectoryFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import { createGitFetcher } from '@pnpm/git-fetcher'
-import createTarballFetcher, { TarballFetchers } from '@pnpm/tarball-fetcher'
+import { createTarballFetcher, TarballFetchers } from '@pnpm/tarball-fetcher'
 import getCredentialsByURI from 'credentials-by-uri'
 import mem from 'mem'
 

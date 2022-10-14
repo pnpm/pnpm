@@ -2,7 +2,7 @@
 import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
-import writeProjectManifest from '@pnpm/write-project-manifest'
+import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import tempy from 'tempy'
 
 const readFile = promisify(fs.readFile)

@@ -3,7 +3,7 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { UniversalOptions } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import writeProjectManifest from '@pnpm/write-project-manifest'
+import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import renderHelp from 'render-help'
 import { parseRawConfig } from './utils'
 

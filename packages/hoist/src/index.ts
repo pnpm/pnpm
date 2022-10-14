@@ -8,7 +8,7 @@ import {
 import { lockfileWalker, LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import logger from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
-import symlinkDependency from '@pnpm/symlink-dependency'
+import { symlinkDependency } from '@pnpm/symlink-dependency'
 import { HoistedDependencies } from '@pnpm/types'
 import * as dp from 'dependency-path'
 

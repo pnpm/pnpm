@@ -2,7 +2,7 @@ import { promises as fs, Stats } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { ProjectManifest } from '@pnpm/types'
-import writeProjectManifest from '@pnpm/write-project-manifest'
+import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import readYamlFile from 'read-yaml-file'
 
 import detectIndent from 'detect-indent'

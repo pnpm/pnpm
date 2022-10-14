@@ -10,7 +10,7 @@ const YAML_FORMAT = {
   noRefs: true,
 }
 
-export default async function writeProjectManifest (
+export async function writeProjectManifest (
   filePath: string,
   manifest: ProjectManifest,
   opts?: {

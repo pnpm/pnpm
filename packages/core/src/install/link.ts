@@ -21,7 +21,7 @@ import {
   LinkedDependency,
 } from '@pnpm/resolve-dependencies'
 import { StoreController } from '@pnpm/store-controller-types'
-import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
+import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   HoistedDependencies,
   Registries,

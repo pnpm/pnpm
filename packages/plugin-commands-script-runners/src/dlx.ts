@@ -7,7 +7,7 @@ import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
-import storePath from '@pnpm/store-path'
+import { getStorePath }from '@pnpm/store-path'
 import execa from 'execa'
 import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
@@ -132,7 +132,7 @@ async function getDlxDir (
     pnpmHomeDir: string
   }
 ): Promise<string> {
-  const storeDir = await storePath({
+  const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,

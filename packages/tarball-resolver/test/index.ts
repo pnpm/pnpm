@@ -1,5 +1,5 @@
 /// <reference path="../../../typings/index.d.ts"/>
-import resolveFromTarball from '@pnpm/tarball-resolver'
+import { resolveFromTarball } from '@pnpm/tarball-resolver'
 
 test('tarball from npm registry', async () => {
   const resolutionResult = await resolveFromTarball({ pref: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz' })

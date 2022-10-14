@@ -17,7 +17,7 @@ import {
   CreateStoreControllerOptions,
   serverConnectionInfoDir,
 } from '@pnpm/store-connection-manager'
-import storePath from '@pnpm/store-path'
+import { getStorePath }from '@pnpm/store-path'
 import Diable from '@zkochan/diable'
 import getPort from 'get-port'
 import isWindows from 'is-windows'
@@ -43,7 +43,7 @@ export default async (
   if (opts.background && !Diable.isDaemon()) {
     Diable()
   }
-  const storeDir = await storePath({
+  const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,

@@ -9,7 +9,7 @@ import prepare, {
   preparePackages,
   tempDir as makeTempDir,
 } from '@pnpm/prepare'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readYamlFile from 'read-yaml-file'
 import execa from 'execa'
 import rimraf from '@zkochan/rimraf'

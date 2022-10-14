@@ -10,7 +10,7 @@ import {
   ResolverFactoryOptions,
 } from '@pnpm/npm-resolver'
 import { ResolveFunction } from '@pnpm/resolver-base'
-import resolveFromTarball from '@pnpm/tarball-resolver'
+import { resolveFromTarball } from '@pnpm/tarball-resolver'
 
 export {
   PackageMeta,

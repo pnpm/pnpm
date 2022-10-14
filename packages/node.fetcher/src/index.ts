@@ -8,7 +8,7 @@ import {
 import type { FilesIndex } from '@pnpm/cafs-types'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { createCafsStore } from '@pnpm/create-cafs-store'
-import createFetcher, { waitForFilesIndex } from '@pnpm/tarball-fetcher'
+import { createTarballFetcher, waitForFilesIndex } from '@pnpm/tarball-fetcher'
 import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
 import tempy from 'tempy'
@@ -33,7 +33,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     return
   }
   const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
-  const fetchers = createFetcher(fetch, getCredentials, {
+  const fetchers = createTarballFetcher(fetch, getCredentials, {
     retry: opts.retry,
     timeout: opts.fetchTimeout,
   })

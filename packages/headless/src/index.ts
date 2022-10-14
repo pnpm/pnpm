@@ -54,7 +54,7 @@ import {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store-controller-types'
-import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
+import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { DependencyManifest, HoistedDependencies, ProjectManifest, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import pLimit from 'p-limit'

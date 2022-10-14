@@ -1,6 +1,6 @@
 import semver from 'semver'
 
-export default function (range: string, versions: string[]) {
+export function resolveWorkspaceRange (range: string, versions: string[]) {
   if (range === '*' || range === '^' || range === '~') {
     return semver.maxSatisfying(versions, '*', {
       includePrerelease: true,

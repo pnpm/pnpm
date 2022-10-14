@@ -5,7 +5,7 @@ import {
   GetCredentials,
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
-import resolveWorkspaceRange from '@pnpm/resolve-workspace-range'
+import { resolveWorkspaceRange }from '@pnpm/resolve-workspace-range'
 import {
   PreferredVersions,
   ResolveResult,

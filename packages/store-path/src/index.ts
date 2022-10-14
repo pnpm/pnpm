@@ -10,7 +10,7 @@ import touch from 'touch'
 
 const STORE_VERSION = 'v3'
 
-export default function (
+export function getStorePath (
   {
     pkgRoot,
     storePath,

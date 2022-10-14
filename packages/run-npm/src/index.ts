@@ -7,7 +7,7 @@ export interface RunNPMOptions {
   cwd?: string
 }
 
-export default function runNpm (npmPath: string | undefined, args: string[], options?: RunNPMOptions) {
+export function runNpm (npmPath: string | undefined, args: string[], options?: RunNPMOptions) {
   const npm = npmPath ?? 'npm'
   return runScriptSync(npm, args, {
     cwd: options?.cwd ?? process.cwd(),
