@@ -24,7 +24,7 @@ export interface Project {
   writeProjectManifest: (manifest: ProjectManifest, force?: boolean | undefined) => Promise<void>
 }
 
-export default async function findPkgs (root: string, opts?: Options): Promise<Project[]> {
+export async function findPackages (root: string, opts?: Options): Promise<Project[]> {
   opts = opts ?? {}
   const globOpts = { ...opts, cwd: root, includeRoot: undefined }
   globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE

@@ -1,12 +1,12 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import packageManager from '@pnpm/cli-meta'
+import { packageManager } from '@pnpm/cli-meta'
 import { Config } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { StoreController } from '@pnpm/package-store'
 import { connectStoreController } from '@pnpm/server'
-import storePath from '@pnpm/store-path'
+import { getStorePath } from '@pnpm/store-path'
 import delay from 'delay'
 import createNewStoreController, { CreateNewStoreControllerOptions } from './createNewStoreController'
 import runServerInBackground from './runServerInBackground'
@@ -27,7 +27,7 @@ export async function createOrConnectStoreControllerCached (
   storeControllerCache: Map<string, Promise<{ ctrl: StoreController, dir: string }>>,
   opts: CreateStoreControllerOptions
 ) {
-  const storeDir = await storePath({
+  const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
@@ -44,7 +44,7 @@ export async function createOrConnectStoreController (
     ctrl: StoreController
     dir: string
   }> {
-  const storeDir = await storePath({
+  const storeDir = await getStorePath({
     pkgRoot: opts.workspaceDir ?? opts.dir,
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,

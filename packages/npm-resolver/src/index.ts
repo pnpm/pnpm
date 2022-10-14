@@ -1,11 +1,11 @@
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import {
   FetchFromRegistry,
   GetCredentials,
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
-import resolveWorkspaceRange from '@pnpm/resolve-workspace-range'
+import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
   PreferredVersions,
   ResolveResult,
@@ -68,7 +68,7 @@ export interface ResolverFactoryOptions {
   timeout?: number
 }
 
-export default function createResolver (
+export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
   getCredentials: GetCredentials,
   opts: ResolverFactoryOptions

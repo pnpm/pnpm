@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import path from 'path'
-import buildModules, { DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
+import { buildModules, DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
@@ -11,15 +11,16 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { getContext, PnpmContext } from '@pnpm/get-context'
 import { headlessInstall } from '@pnpm/headless'
-import runLifecycleHook, {
+import {
   makeNodeRequireOption,
+  runLifecycleHook,
   runLifecycleHooksConcurrently,
   RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/lifecycle'
-import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
+import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   ProjectSnapshot,
   Lockfile,
@@ -34,14 +35,15 @@ import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
 import logger, { globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
-import readModulesDirs from '@pnpm/read-modules-dir'
+import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { removeBin } from '@pnpm/remove-bins'
-import resolveDependencies, {
+import {
   getWantedDependencies,
   DependenciesGraph,
   DependenciesGraphNode,
   PinnedVersion,
+  resolveDependencies,
   WantedDependency,
 } from '@pnpm/resolve-dependencies'
 import {
@@ -419,7 +421,7 @@ export async function mutateModules (
         break
       }
       case 'unlink': {
-        const packageDirs = await readModulesDirs(projectOpts.modulesDir)
+        const packageDirs = await readModulesDir(projectOpts.modulesDir)
         const externalPackages = await pFilter(
           packageDirs!,
           async (packageDir: string) => isExternalLink(ctx.storeDir, projectOpts.modulesDir, packageDir)

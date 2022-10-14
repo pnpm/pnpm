@@ -4,7 +4,7 @@ import gracefulFs from 'graceful-fs'
 
 const readdir = util.promisify(gracefulFs.readdir)
 
-export default async function readModulesDir (modulesDir: string) {
+export async function readModulesDir (modulesDir: string) {
   try {
     return await _readModulesDir(modulesDir)
   } catch (err: any) { // eslint-disable-line

@@ -1,6 +1,6 @@
 import path from 'path'
 import prepare, { preparePackages } from '@pnpm/prepare'
-import { fromDir as readPackage } from '@pnpm/read-package-json'
+import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readYamlFile from 'read-yaml-file'
 import writeYamlFile from 'write-yaml-file'
 import {
@@ -24,7 +24,7 @@ test('update <dep>', async () => {
   const lockfile = await project.readLockfile()
   expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('101.0.0')
 
-  const pkg = await readPackage(process.cwd())
+  const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^101.0.0')
 })
 
@@ -41,7 +41,7 @@ test('update --no-save', async () => {
   const lockfile = await project.readLockfile()
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo/100.1.0'])
 
-  const pkg = await readPackage(process.cwd())
+  const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.0.0')
 })
 
@@ -62,7 +62,7 @@ test('update', async () => {
   const lockfile = await project.readLockfile()
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo/100.1.0'])
 
-  const pkg = await readPackage(process.cwd())
+  const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
 })
 
@@ -85,7 +85,7 @@ test('recursive update --no-save', async () => {
   const lockfile = await readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo/100.1.0'])
 
-  const pkg = await readPackage(path.resolve('project'))
+  const pkg = await readPackageJsonFromDir(path.resolve('project'))
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.0.0')
 })
 
@@ -108,7 +108,7 @@ test('recursive update', async () => {
   const lockfile = await readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo/100.1.0'])
 
-  const pkg = await readPackage(path.resolve('project'))
+  const pkg = await readPackageJsonFromDir(path.resolve('project'))
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
 })
 
@@ -133,7 +133,7 @@ test('recursive update --no-shared-workspace-lockfile', async function () {
   const lockfile = await projects['project'].readLockfile()
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo/100.1.0'])
 
-  const pkg = await readPackage(path.resolve('project'))
+  const pkg = await readPackageJsonFromDir(path.resolve('project'))
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
 })
 
@@ -157,7 +157,7 @@ test('update --latest', async function () {
   expect(lockfile.dependencies['@pnpm.e2e/bar']).toBe('100.1.0')
   expect(lockfile.dependencies['alias']).toBe('/@pnpm.e2e/qar/100.1.0')
 
-  const pkg = await readPackage(process.cwd())
+  const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^101.0.0')
   expect(pkg.dependencies?.['@pnpm.e2e/bar']).toBe('^100.1.0')
   expect(pkg.dependencies?.['alias']).toBe('npm:@pnpm.e2e/qar@^100.1.0')
@@ -184,7 +184,7 @@ test('update --latest --save-exact', async function () {
   expect(lockfile.dependencies['@pnpm.e2e/bar']).toBe('100.1.0')
   expect(lockfile.dependencies['alias']).toBe('/@pnpm.e2e/qar/100.1.0')
 
-  const pkg = await readPackage(process.cwd())
+  const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('101.0.0')
   expect(pkg.dependencies?.['@pnpm.e2e/bar']).toBe('100.1.0')
   expect(pkg.dependencies?.['alias']).toBe('npm:@pnpm.e2e/qar@100.1.0')
@@ -211,7 +211,7 @@ test('update --latest specific dependency', async function () {
   expect(lockfile.dependencies['@pnpm.e2e/foo']).toBe('100.0.0')
   expect(lockfile.dependencies['alias']).toBe('/@pnpm.e2e/qar/100.1.0')
 
-  const pkg = await readPackage(process.cwd())
+  const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
   expect(pkg.dependencies?.['@pnpm.e2e/bar']).toBe('^100.1.0')
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
@@ -236,7 +236,7 @@ test('update --latest --prod', async function () {
   expect(lockfile.devDependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
   expect(lockfile.dependencies['@pnpm.e2e/bar']).toBe('100.1.0')
 
-  const pkg = await readPackage(process.cwd())
+  const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.devDependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
   expect(pkg.dependencies?.['@pnpm.e2e/bar']).toBe('^100.1.0')
 
@@ -275,7 +275,7 @@ test('recursive update --latest on projects that do not share a lockfile', async
 
   await execPnpm(['recursive', 'update', '--latest'])
 
-  const manifest1 = await readPackage(path.resolve('project-1'))
+  const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
   expect(manifest1.dependencies).toStrictEqual({
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
     '@pnpm.e2e/foo': '100.1.0',
@@ -285,7 +285,7 @@ test('recursive update --latest on projects that do not share a lockfile', async
   expect(lockfile1.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('101.0.0')
   expect(lockfile1.dependencies['@pnpm.e2e/foo']).toBe('100.1.0')
 
-  const manifest2 = await readPackage(path.resolve('project-2'))
+  const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
   expect(manifest2.dependencies).toStrictEqual({
     '@pnpm.e2e/bar': '100.1.0',
     '@pnpm.e2e/foo': '100.1.0',
@@ -332,7 +332,7 @@ test('recursive update --latest --prod on projects that do not share a lockfile'
 
   await execPnpm(['-r', 'update', '--latest', '--prod'])
 
-  const manifest1 = await readPackage(path.resolve('project-1'))
+  const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
   expect(manifest1.dependencies).toStrictEqual({
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
   })
@@ -347,7 +347,7 @@ test('recursive update --latest --prod on projects that do not share a lockfile'
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await projects['project-1'].has('@pnpm.e2e/foo')
 
-  const manifest2 = await readPackage(path.resolve('project-2'))
+  const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
   expect(manifest2.dependencies).toStrictEqual({
     '@pnpm.e2e/foo': '100.1.0',
   })
@@ -397,7 +397,7 @@ test('recursive update --latest specific dependency on projects that do not shar
 
   await execPnpm(['-r', 'update', '--latest', '@pnpm.e2e/foo', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', 'alias'])
 
-  const manifest1 = await readPackage(path.resolve('project-1'))
+  const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
   expect(manifest1.dependencies).toStrictEqual({
     alias: 'npm:@pnpm.e2e/qar@^100.1.0', // this might be not correct
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
@@ -409,7 +409,7 @@ test('recursive update --latest specific dependency on projects that do not shar
   expect(lockfile1.dependencies['@pnpm.e2e/foo']).toBe('100.1.0')
   expect(lockfile1.dependencies['alias']).toBe('/@pnpm.e2e/qar/100.1.0')
 
-  const manifest2 = await readPackage(path.resolve('project-2'))
+  const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
   expect(manifest2.dependencies).toStrictEqual({
     '@pnpm.e2e/bar': '100.0.0',
     '@pnpm.e2e/foo': '^100.1.0',
@@ -453,13 +453,13 @@ test('recursive update --latest on projects with a shared a lockfile', async () 
 
   await execPnpm(['recursive', 'update', '--latest'])
 
-  const manifest1 = await readPackage(path.resolve('project-1'))
+  const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
   expect(manifest1.dependencies).toStrictEqual({
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
     '@pnpm.e2e/foo': '100.1.0',
   })
 
-  const manifest2 = await readPackage(path.resolve('project-2'))
+  const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
   expect(manifest2.dependencies).toStrictEqual({
     '@pnpm.e2e/bar': '100.1.0',
     '@pnpm.e2e/foo': '100.1.0',
@@ -509,7 +509,7 @@ test('recursive update --latest --prod on projects with a shared a lockfile', as
 
   await execPnpm(['recursive', 'update', '--latest', '--prod'])
 
-  const manifest1 = await readPackage(path.resolve('project-1'))
+  const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
   expect(manifest1.dependencies).toStrictEqual({
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
   })
@@ -517,7 +517,7 @@ test('recursive update --latest --prod on projects with a shared a lockfile', as
     '@pnpm.e2e/foo': '100.0.0',
   })
 
-  const manifest2 = await readPackage(path.resolve('project-2'))
+  const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
   expect(manifest2.dependencies).toStrictEqual({
     '@pnpm.e2e/foo': '100.1.0',
   })
@@ -572,14 +572,14 @@ test('recursive update --latest specific dependency on projects with a shared a 
 
   await execPnpm(['recursive', 'update', '--latest', '@pnpm.e2e/foo', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', 'alias'])
 
-  const manifest1 = await readPackage(path.resolve('project-1'))
+  const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
   expect(manifest1.dependencies).toStrictEqual({
     alias: 'npm:@pnpm.e2e/qar@^100.1.0', // this might be incorrect
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
     '@pnpm.e2e/foo': '100.1.0',
   })
 
-  const manifest2 = await readPackage(path.resolve('project-2'))
+  const manifest2 = await readPackageJsonFromDir(path.resolve('project-2'))
   expect(manifest2.dependencies).toStrictEqual({
     '@pnpm.e2e/bar': '100.0.0',
     '@pnpm.e2e/foo': '100.1.0',

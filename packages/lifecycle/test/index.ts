@@ -1,6 +1,6 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
-import runLifecycleHook, { runPostinstallHooks } from '@pnpm/lifecycle'
+import { runLifecycleHook, runPostinstallHooks } from '@pnpm/lifecycle'
 import loadJsonFile from 'load-json-file'
 import rimraf from '@zkochan/rimraf'
 

@@ -1,4 +1,4 @@
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import diable from '@zkochan/diable'
 
 export default (storePath: string) => {

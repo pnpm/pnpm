@@ -1,11 +1,11 @@
 import path from 'path'
 import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
-import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
+import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import logger from '@pnpm/logger'
-import { fromDir as readPackageFromDir, safeReadPackageFromDir } from '@pnpm/read-package-json'
+import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
 import { applyPatch } from 'patch-package/dist/applyPatches'
@@ -14,7 +14,7 @@ import buildSequence, { DependenciesGraph, DependenciesGraphNode } from './build
 
 export { DepsStateCache }
 
-export default async (
+export async function buildModules (
   depGraph: DependenciesGraph,
   rootDepPaths: string[],
   opts: {
@@ -38,7 +38,7 @@ export default async (
     storeController: StoreController
     rootModulesDir: string
   }
-) => {
+) {
   const warn = (message: string) => logger.warn({ message, prefix: opts.lockfileDir })
   // postinstall hooks
 
@@ -132,7 +132,7 @@ async function buildDependency (
   } catch (err: any) { // eslint-disable-line
     if (depNode.optional) {
       // TODO: add parents field to the log
-      const pkg = await readPackageFromDir(path.join(depNode.dir)) as DependencyManifest
+      const pkg = await readPackageJsonFromDir(path.join(depNode.dir)) as DependencyManifest
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: {
@@ -203,7 +203,7 @@ export async function linkBinsOfDependencies (
   const pkgs = await Promise.all(pkgNodes
     .map(async (dep) => ({
       location: dep.dir,
-      manifest: await dep.fetchingBundledManifest?.() ?? (await safeReadPackageFromDir(dep.dir) as DependencyManifest) ?? {},
+      manifest: await dep.fetchingBundledManifest?.() ?? (await safeReadPackageJsonFromDir(dep.dir) as DependencyManifest) ?? {},
     }))
   )
 

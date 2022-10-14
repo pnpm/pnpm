@@ -67,7 +67,7 @@ export function sequenceGraph (pkgGraph: ProjectsGraph): GraphSequencerResult<st
   })
 }
 
-export default function sortPackages (pkgGraph: ProjectsGraph): string[][] {
+export function sortPackages (pkgGraph: ProjectsGraph): string[][] {
   const graphSequencerResult = sequenceGraph(pkgGraph)
   return graphSequencerResult.chunks
 }

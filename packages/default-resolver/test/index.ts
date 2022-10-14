@@ -1,5 +1,5 @@
 /// <reference path="../../../typings/index.d.ts"/>
-import createResolver from '@pnpm/default-resolver'
+import { createResolver } from '@pnpm/default-resolver'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 
 test('createResolver()', () => {

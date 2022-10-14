@@ -1,5 +1,5 @@
 import path from 'path'
-import hoist from '@pnpm/real-hoist'
+import { hoist } from '@pnpm/real-hoist'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 
 test('hoist', async () => {

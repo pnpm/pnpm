@@ -3,9 +3,9 @@ import path from 'path'
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
-import runLifecycleHooks, { RunLifecycleHookOptions } from '@pnpm/lifecycle'
-import runNpm from '@pnpm/run-npm'
+import { PnpmError } from '@pnpm/error'
+import { runLifecycleHook, RunLifecycleHookOptions } from '@pnpm/lifecycle'
+import { runNpm } from '@pnpm/run-npm'
 import { ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
 import { prompt } from 'enquirer'
@@ -249,6 +249,6 @@ export async function runScriptsIfPresent (
 ) {
   for (const scriptName of scriptNames) {
     if (!manifest.scripts?.[scriptName]) continue
-    await runLifecycleHooks(scriptName, manifest, opts)
+    await runLifecycleHook(scriptName, manifest, opts)
   }
 }

@@ -3,7 +3,7 @@ import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { connectStoreController } from '@pnpm/server'
 import { serverConnectionInfoDir, tryLoadServerJson } from '@pnpm/store-connection-manager'
-import storePath from '@pnpm/store-path'
+import { getStorePath } from '@pnpm/store-path'
 import delay from 'delay'
 import processExists from 'process-exists'
 import killcb from 'tree-kill'
@@ -17,7 +17,7 @@ export default async (
     pnpmHomeDir: string
   }
 ) => {
-  const storeDir = await storePath({
+  const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,

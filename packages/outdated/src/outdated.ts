@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import {
   getLockfileImporterId,
   Lockfile,

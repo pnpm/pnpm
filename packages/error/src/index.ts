@@ -1,6 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 
-export default class PnpmError extends Error {
+export class PnpmError extends Error {
   public readonly code: string
   public readonly hint?: string
   public attempts?: number

@@ -1,4 +1,4 @@
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { AgentOptions, fetchWithAgent, RetryTimeoutOptions } from '@pnpm/fetch'
 import { GetCredentials } from '@pnpm/fetching-types'
 import { Lockfile } from '@pnpm/lockfile-types'
@@ -8,7 +8,7 @@ import { AuditReport } from './types'
 
 export * from './types'
 
-export default async function audit (
+export async function audit (
   lockfile: Lockfile,
   getCredentials: GetCredentials,
   opts: {

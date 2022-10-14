@@ -3,11 +3,11 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
-import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
-import packageBins from '@pnpm/package-bins'
-import storePath from '@pnpm/store-path'
+import { readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { getBinsFromPackageManifest } from '@pnpm/package-bins'
+import { getStorePath } from '@pnpm/store-path'
 import execa from 'execa'
 import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
@@ -93,14 +93,14 @@ export async function handler (
 }
 
 async function getPkgName (pkgDir: string) {
-  const manifest = await readPkgFromDir(pkgDir)
+  const manifest = await readPackageJsonFromDir(pkgDir)
   return Object.keys(manifest.dependencies ?? {})[0]
 }
 
 async function getBinName (modulesDir: string, pkgName: string): Promise<string> {
   const pkgDir = path.join(modulesDir, pkgName)
-  const manifest = await readPkgFromDir(pkgDir)
-  const bins = await packageBins(manifest, pkgDir)
+  const manifest = await readPackageJsonFromDir(pkgDir)
+  const bins = await getBinsFromPackageManifest(manifest, pkgDir)
   if (bins.length === 0) {
     throw new PnpmError('DLX_NO_BIN', `No binaries found in ${pkgName}`)
   }
@@ -132,7 +132,7 @@ async function getDlxDir (
     pnpmHomeDir: string
   }
 ): Promise<string> {
-  const storeDir = await storePath({
+  const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,

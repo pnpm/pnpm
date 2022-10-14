@@ -1,7 +1,7 @@
 import * as path from 'path'
 import { promises as fs } from 'fs'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import {
   PackageManifestLog,
   ProgressLog,

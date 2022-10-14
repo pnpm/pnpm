@@ -3,8 +3,8 @@ import escapeStringRegexp from 'escape-string-regexp'
 type Matcher = (input: string) => boolean
 type MatcherWithIndex = (input: string) => number
 
-export default function matcher (patterns: string[] | string): Matcher {
-  const m = matcherWithIndex(Array.isArray(patterns) ? patterns : [patterns])
+export function createMatcher (patterns: string[] | string): Matcher {
+  const m = createMatcherWithIndex(Array.isArray(patterns) ? patterns : [patterns])
   return (input) => m(input) !== -1
 }
 
@@ -13,7 +13,7 @@ interface MatcherFunction {
   ignore: boolean
 }
 
-export function matcherWithIndex (patterns: string[]): MatcherWithIndex {
+export function createMatcherWithIndex (patterns: string[]): MatcherWithIndex {
   switch (patterns.length) {
   case 0: return () => -1
   case 1: return matcherWhenOnlyOnePatternWithIndex(patterns[0])

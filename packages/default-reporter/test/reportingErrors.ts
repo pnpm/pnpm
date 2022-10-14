@@ -1,6 +1,6 @@
 import path from 'path'
 import { toOutput$ } from '@pnpm/default-reporter'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'

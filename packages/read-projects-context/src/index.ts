@@ -1,7 +1,7 @@
 import path from 'path'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { Modules, read as readModulesYaml } from '@pnpm/modules-yaml'
-import normalizeRegistries from '@pnpm/normalize-registries'
+import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { DependenciesField, HoistedDependencies, Registries } from '@pnpm/types'
 import realpathMissing from 'realpath-missing'
 
@@ -11,7 +11,7 @@ export interface ProjectOptions {
   rootDir: string
 }
 
-export default async function <T> (
+export async function readProjectsContext<T> (
   projects: Array<ProjectOptions & T>,
   opts: {
     lockfileDir: string

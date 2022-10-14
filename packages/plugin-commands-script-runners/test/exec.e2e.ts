@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { exec, run } from '@pnpm/plugin-commands-script-runners'
 import prepare, { prepareEmpty, preparePackages } from '@pnpm/prepare'

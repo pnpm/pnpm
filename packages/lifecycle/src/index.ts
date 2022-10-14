@@ -1,5 +1,5 @@
 import path from 'path'
-import { safeReadPackageFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import exists from 'path-exists'
 import runLifecycleHook, { RunLifecycleHookOptions } from './runLifecycleHook'
 import runLifecycleHooksConcurrently, { RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently'
@@ -10,8 +10,8 @@ export function makeNodeRequireOption (modulePath: string) {
   return { NODE_OPTIONS }
 }
 
-export default runLifecycleHook
 export {
+  runLifecycleHook,
   runLifecycleHooksConcurrently,
   RunLifecycleHookOptions,
   RunLifecycleHooksConcurrentlyOptions,
@@ -20,7 +20,7 @@ export {
 export async function runPostinstallHooks (
   opts: RunLifecycleHookOptions
 ): Promise<boolean> {
-  const pkg = await safeReadPackageFromDir(opts.pkgRoot)
+  const pkg = await safeReadPackageJsonFromDir(opts.pkgRoot)
   if (pkg == null) return false
   if (pkg.scripts == null) {
     pkg.scripts = {}

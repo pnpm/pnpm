@@ -1,6 +1,6 @@
 import path from 'path'
 import pnpmExec from '@pnpm/exec'
-import exportableManifest from '@pnpm/exportable-manifest'
+import { createExportableManifest } from '@pnpm/exportable-manifest'
 import {
   getLockfileImporterId,
   ProjectSnapshot,
@@ -8,7 +8,7 @@ import {
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
-import readProjectManifest from '@pnpm/read-project-manifest'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import fromPairs from 'ramda/src/fromPairs'
 import renameOverwrite from 'rename-overwrite'
@@ -36,7 +36,7 @@ export default async function (lockfileDir: string, projectDir: string) {
   await writeWantedLockfile(projectDir, dedicatedLockfile)
 
   const { manifest, writeProjectManifest } = await readProjectManifest(projectDir)
-  const publishManifest = await exportableManifest(projectDir, manifest)
+  const publishManifest = await createExportableManifest(projectDir, manifest)
   await writeProjectManifest(publishManifest)
 
   const modulesDir = path.join(projectDir, 'node_modules')

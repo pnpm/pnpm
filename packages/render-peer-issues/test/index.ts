@@ -1,4 +1,4 @@
-import renderPeerIssues from '@pnpm/render-peer-issues'
+import { renderPeerIssues } from '@pnpm/render-peer-issues'
 import stripAnsi from 'strip-ansi'
 
 test('renderPeerIssues()', () => {

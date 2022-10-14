@@ -1,7 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
-import list, { forPackages as listForPackages } from '@pnpm/list'
+import { list, listForPackages } from '@pnpm/list'
 import { IncludedDependencies } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'

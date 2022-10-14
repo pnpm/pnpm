@@ -1,5 +1,5 @@
 import path from 'path'
-import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
+import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
   DependenciesField,

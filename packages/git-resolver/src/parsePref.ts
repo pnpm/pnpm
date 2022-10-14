@@ -1,5 +1,5 @@
 import url, { URL } from 'url'
-import fetch from '@pnpm/fetch'
+import { fetch } from '@pnpm/fetch'
 
 import git from 'graceful-git'
 import HostedGit from 'hosted-git-info'

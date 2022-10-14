@@ -7,8 +7,9 @@ import {
 import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
-import runLifecycleHooks, {
+import { PnpmError } from '@pnpm/error'
+import {
+  runLifecycleHook,
   makeNodeRequireOption,
   RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
@@ -200,15 +201,15 @@ so you may run "pnpm -w run ${scriptName}"`,
       manifest.scripts?.[`pre${scriptName}`] &&
       !manifest.scripts[scriptName].includes(`pre${scriptName}`)
     ) {
-      await runLifecycleHooks(`pre${scriptName}`, manifest, lifecycleOpts)
+      await runLifecycleHook(`pre${scriptName}`, manifest, lifecycleOpts)
     }
-    await runLifecycleHooks(scriptName, manifest, { ...lifecycleOpts, args: passedThruArgs })
+    await runLifecycleHook(scriptName, manifest, { ...lifecycleOpts, args: passedThruArgs })
     if (
       opts.enablePrePostScripts &&
       manifest.scripts?.[`post${scriptName}`] &&
       !manifest.scripts[scriptName].includes(`post${scriptName}`)
     ) {
-      await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
+      await runLifecycleHook(`post${scriptName}`, manifest, lifecycleOpts)
     }
   } catch (err: any) { // eslint-disable-line
     if (opts.bail !== false) {

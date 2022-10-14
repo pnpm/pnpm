@@ -1,4 +1,4 @@
-import parseCliArgsLib from '@pnpm/parse-cli-args'
+import { parseCliArgs as parseCliArgsLib } from '@pnpm/parse-cli-args'
 import {
   getCliOptionsTypes,
   getCommandFullName,

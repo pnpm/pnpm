@@ -3,7 +3,7 @@ import {
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile-file'
-import matcher from '@pnpm/matcher'
+import { createMatcher } from '@pnpm/matcher'
 import { read as readModulesManifest } from '@pnpm/modules-yaml'
 import {
   IncludedDependencies,
@@ -40,7 +40,7 @@ export default async function outdatedDepsOfProjects (
     lockfileDir,
   })
   return Promise.all(pkgs.map(async ({ dir, manifest }) => {
-    const match = (args.length > 0) && matcher(args) || undefined
+    const match = (args.length > 0) && createMatcher(args) || undefined
     return outdated({
       compatible: opts.compatible,
       currentLockfile,

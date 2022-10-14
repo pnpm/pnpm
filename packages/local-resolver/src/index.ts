@@ -1,6 +1,6 @@
 import { existsSync } from 'fs'
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/graceful-fs'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
@@ -17,7 +17,7 @@ export { WantedLocalDependency }
 /**
  * Resolves a package hosted on the local filesystem
  */
-export default async function resolveLocal (
+export async function resolveFromLocal (
   wantedDependency: WantedLocalDependency,
   opts: {
     lockfileDir?: string

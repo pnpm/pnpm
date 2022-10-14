@@ -1,4 +1,4 @@
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import {
   FetchFunction,
   FetchOptions,
@@ -20,7 +20,13 @@ export { BadTarballError } from './errorTypes'
 
 export { TarballIntegrityError, waitForFilesIndex }
 
-export default function (
+export interface TarballFetchers {
+  localTarball: FetchFunction
+  remoteTarball: FetchFunction
+  gitHostedTarball: FetchFunction
+}
+
+export function createTarballFetcher (
   fetchFromRegistry: FetchFromRegistry,
   getCredentials: GetCredentials,
   opts: {
@@ -28,7 +34,7 @@ export default function (
     retry?: RetryTimeoutOptions
     offline?: boolean
   }
-): { localTarball: FetchFunction, remoteTarball: FetchFunction, gitHostedTarball: FetchFunction } {
+): TarballFetchers {
   const download = createDownloader(fetchFromRegistry, {
     retry: opts.retry,
     timeout: opts.timeout,

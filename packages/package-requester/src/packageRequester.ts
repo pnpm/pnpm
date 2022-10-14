@@ -11,7 +11,7 @@ import {
 } from '@pnpm/cafs'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import {
   Fetchers,
   FetchOptions,
@@ -20,8 +20,8 @@ import {
 import type { Cafs, DeferredManifestPromise, PackageFilesResponse } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import logger from '@pnpm/logger'
-import packageIsInstallable from '@pnpm/package-is-installable'
-import readPackage from '@pnpm/read-package-json'
+import { packageIsInstallable } from '@pnpm/package-is-installable'
+import { readPackageJson } from '@pnpm/read-package-json'
 import {
   DirectoryResolution,
   Resolution,
@@ -79,7 +79,7 @@ function normalizeBundledManifest (manifest: DependencyManifest): BundledManifes
   }
 }
 
-export default function (
+export function createPackageRequester (
   opts: {
     engineStrict?: boolean
     force?: boolean
@@ -631,7 +631,7 @@ async function writeJsonFile (filePath: string, data: Object) {
 }
 
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {
-  return pickBundledManifest(await readPackage(pkgJsonPath) as DependencyManifest)
+  return pickBundledManifest(await readPackageJson(pkgJsonPath) as DependencyManifest)
 }
 
 async function tarballIsUpToDate (

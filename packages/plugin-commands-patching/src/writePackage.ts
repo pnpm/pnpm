@@ -3,8 +3,8 @@ import {
   createOrConnectStoreController,
   CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
-import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
-import parseWantedDependency from '@pnpm/parse-wanted-dependency'
+import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
+import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 
 export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'registries'>
 

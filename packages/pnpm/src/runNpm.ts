@@ -1,6 +1,6 @@
-import packageManager from '@pnpm/cli-meta'
-import getConfig, { types as allTypes } from '@pnpm/config'
-import runNpm from '@pnpm/run-npm'
+import { packageManager } from '@pnpm/cli-meta'
+import { getConfig, types as allTypes } from '@pnpm/config'
+import { runNpm } from '@pnpm/run-npm'
 import pick from 'ramda/src/pick'
 
 export default async function run (args: string[]) {

@@ -1,6 +1,6 @@
 import { Registries } from '@pnpm/types'
 
-export default (registries: Registries, packageName: string, pref?: string) => {
+export function pickRegistryForPackage (registries: Registries, packageName: string, pref?: string) {
   const scope = getScope(packageName, pref)
   return (scope && registries[scope]) ?? registries.default
 }

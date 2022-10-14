@@ -1,15 +1,16 @@
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { FetchFromRegistry, GetCredentials } from '@pnpm/fetching-types'
-import createResolveFromGit from '@pnpm/git-resolver'
-import resolveFromLocal from '@pnpm/local-resolver'
-import createResolveFromNpm, {
+import { createGitResolver } from '@pnpm/git-resolver'
+import { resolveFromLocal } from '@pnpm/local-resolver'
+import {
+  createNpmResolver,
   PackageMeta,
   PackageMetaCache,
   ResolveFromNpmOptions,
   ResolverFactoryOptions,
 } from '@pnpm/npm-resolver'
 import { ResolveFunction } from '@pnpm/resolver-base'
-import resolveFromTarball from '@pnpm/tarball-resolver'
+import { resolveFromTarball } from '@pnpm/tarball-resolver'
 
 export {
   PackageMeta,
@@ -18,13 +19,13 @@ export {
   ResolverFactoryOptions,
 }
 
-export default function createResolver (
+export function createResolver (
   fetchFromRegistry: FetchFromRegistry,
   getCredentials: GetCredentials,
   pnpmOpts: ResolverFactoryOptions
 ): ResolveFunction {
-  const resolveFromNpm = createResolveFromNpm(fetchFromRegistry, getCredentials, pnpmOpts)
-  const resolveFromGit = createResolveFromGit(pnpmOpts)
+  const resolveFromNpm = createNpmResolver(fetchFromRegistry, getCredentials, pnpmOpts)
+  const resolveFromGit = createGitResolver(pnpmOpts)
   return async (wantedDependency, opts) => {
     const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??
       (wantedDependency.pref && (

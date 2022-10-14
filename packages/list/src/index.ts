@@ -1,6 +1,6 @@
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependenciesField, Registries } from '@pnpm/types'
-import dh from 'dependencies-hierarchy'
+import { buildDependenciesHierarchy } from 'dependencies-hierarchy'
 import createPackagesSearcher from './createPackagesSearcher'
 import renderJson from './renderJson'
 import renderParseable from './renderParseable'
@@ -16,7 +16,7 @@ const DEFAULTS = {
   showExtraneous: true,
 }
 
-export async function forPackages (
+export async function listForPackages (
   packages: string[],
   projectPaths: string[],
   maybeOpts: {
@@ -34,21 +34,21 @@ export async function forPackages (
   const search = createPackagesSearcher(packages)
 
   const pkgs = await Promise.all(
-    Object.entries(await dh(projectPaths, {
+    Object.entries(await buildDependenciesHierarchy(projectPaths, {
       depth: opts.depth,
       include: maybeOpts?.include,
       lockfileDir: maybeOpts?.lockfileDir,
       registries: opts.registries,
       search,
     }))
-      .map(async ([projectPath, dependenciesHierarchy]) => {
+      .map(async ([projectPath, buildDependenciesHierarchy]) => {
         const entryPkg = await readProjectManifestOnly(projectPath)
         return {
           name: entryPkg.name,
           version: entryPkg.version,
 
           path: projectPath,
-          ...dependenciesHierarchy,
+          ...buildDependenciesHierarchy,
         } as PackageDependencyHierarchy
       })
   )
@@ -63,7 +63,7 @@ export async function forPackages (
   })
 }
 
-export default async function (
+export async function list (
   projectPaths: string[],
   maybeOpts: {
     alwaysPrintRootPackage?: boolean
@@ -85,7 +85,7 @@ export default async function (
           acc[projectPath] = {}
           return acc
         }, {})
-        : await dh(projectPaths, {
+        : await buildDependenciesHierarchy(projectPaths, {
           depth: opts.depth,
           include: maybeOpts?.include,
           lockfileDir: maybeOpts?.lockfileDir,

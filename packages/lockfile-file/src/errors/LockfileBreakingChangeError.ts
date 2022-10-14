@@ -1,4 +1,4 @@
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 
 export default class LockfileBreakingChangeError extends PnpmError {
   public filename: string

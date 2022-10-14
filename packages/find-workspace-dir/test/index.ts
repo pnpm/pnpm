@@ -1,7 +1,7 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
 import fs from 'fs'
-import findWorkspaceDir from '@pnpm/find-workspace-dir'
+import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 
 const NPM_CONFIG_WORKSPACE_DIR_ENV_VAR = 'NPM_CONFIG_WORKSPACE_DIR'
 const FAKE_PATH = 'FAKE_PATH'

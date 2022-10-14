@@ -1,4 +1,4 @@
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
 import { createObjectChecksum } from '../../lib/install/index'

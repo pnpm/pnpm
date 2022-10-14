@@ -1,9 +1,9 @@
 import {
   PackageFilesIndex,
 } from '@pnpm/cafs'
-import createCafsStore from '@pnpm/create-cafs-store'
+import { createCafsStore } from '@pnpm/create-cafs-store'
 import { Fetchers } from '@pnpm/fetcher-base'
-import createPackageRequester from '@pnpm/package-requester'
+import { createPackageRequester } from '@pnpm/package-requester'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import {
   ImportIndexedPackage,
@@ -14,7 +14,7 @@ import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import prune from './prune'
 
-export default async function (
+export async function createPackageStore (
   resolve: ResolveFunction,
   fetchers: Fetchers,
   initOpts: {

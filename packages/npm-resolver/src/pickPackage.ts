@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { promises as fs } from 'fs'
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import logger from '@pnpm/logger'
 import gfs from '@pnpm/graceful-fs'
 import { VersionSelectors } from '@pnpm/resolver-base'

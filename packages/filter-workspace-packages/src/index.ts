@@ -1,6 +1,6 @@
-import findWorkspacePackages, { Project } from '@pnpm/find-workspace-packages'
-import matcher from '@pnpm/matcher'
-import createPkgGraph, { Package, PackageNode } from 'pkgs-graph'
+import { findWorkspacePackages, Project } from '@pnpm/find-workspace-packages'
+import { createMatcher } from '@pnpm/matcher'
+import { createPkgGraph, Package, PackageNode } from 'pkgs-graph'
 import isSubdir from 'is-subdir'
 import difference from 'ramda/src/difference'
 import partition from 'ramda/src/partition'
@@ -114,7 +114,7 @@ export async function filterPkgsBySelectorObjects<T> (
     const { graph } = createPkgGraph<T>(pkgs, { linkWorkspacePackages: opts.linkWorkspacePackages })
 
     if (allPackageSelectors.length > 0) {
-      filteredGraph = await filterGraph(graph, allPackageSelectors, {
+      filteredGraph = await filterWorkspacePackages(graph, allPackageSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
         changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
@@ -126,7 +126,7 @@ export async function filterPkgsBySelectorObjects<T> (
 
     if (prodPackageSelectors.length > 0) {
       const { graph } = createPkgGraph<T>(pkgs, { ignoreDevDeps: true, linkWorkspacePackages: opts.linkWorkspacePackages })
-      prodFilteredGraph = await filterGraph(graph, prodPackageSelectors, {
+      prodFilteredGraph = await filterWorkspacePackages(graph, prodPackageSelectors, {
         workspaceDir: opts.workspaceDir,
         testPattern: opts.testPattern,
         changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
@@ -151,7 +151,7 @@ export async function filterPkgsBySelectorObjects<T> (
   }
 }
 
-export default async function filterGraph<T> (
+export async function filterWorkspacePackages<T> (
   pkgGraph: PackageGraph<T>,
   packageSelectors: PackageSelector[],
   opts: {
@@ -295,7 +295,7 @@ function matchPackages<T> (
   graph: PackageGraph<T>,
   pattern: string
 ): string[] {
-  const match = matcher(pattern)
+  const match = createMatcher(pattern)
   const matches = Object.keys(graph).filter((id) => graph[id].package.manifest.name && match(graph[id].package.manifest.name!))
   if (matches.length === 0 && !pattern.startsWith('@') && !pattern.includes('/')) {
     const scopedMatches = matchPackages(graph, `@*/${pattern}`)

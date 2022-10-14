@@ -11,7 +11,7 @@ pnpm add @pnpm/which-version-is-pinned
 ## Usage
 
 ```ts
-import whichVersionIsPinned from '@pnpm/which-version-is-pinned'
+import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
 
 whichVersionIsPinned('^1.0.0')
 // major

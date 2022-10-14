@@ -2,8 +2,8 @@
 import fs from 'fs'
 import path from 'path'
 import getPort from 'get-port'
-import createClient from '@pnpm/client'
-import createStore from '@pnpm/package-store'
+import { createClient } from '@pnpm/client'
+import { createPackageStore } from '@pnpm/package-store'
 import { connectStoreController, createServer } from '@pnpm/server'
 import fetch from 'node-fetch'
 import rimraf from '@zkochan/rimraf'
@@ -24,7 +24,7 @@ async function createStoreController (storeDir?: string) {
     authConfig,
     cacheDir,
   })
-  return createStore(resolve, fetchers, {
+  return createPackageStore(resolve, fetchers, {
     networkConcurrency: 1,
     cacheDir,
     storeDir,

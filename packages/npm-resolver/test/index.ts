@@ -1,8 +1,9 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import _createResolveFromNpm, {
+import {
+  createNpmResolver,
   RegistryResponseError,
   NoMatchingVersionError,
 } from '@pnpm/npm-resolver'
@@ -29,7 +30,7 @@ const delay = async (time: number) => new Promise<void>((resolve) => setTimeout(
 
 const fetch = createFetchFromRegistry({})
 const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
-const createResolveFromNpm = _createResolveFromNpm.bind(null, fetch, getCredentials)
+const createResolveFromNpm = createNpmResolver.bind(null, fetch, getCredentials)
 
 async function retryLoadJsonFile<T> (filePath: string) {
   let retry = 0

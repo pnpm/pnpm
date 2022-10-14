@@ -4,7 +4,7 @@ import { linkLogger } from '@pnpm/core-loggers'
 import symlinkDir from 'symlink-dir'
 import symlinkDirectRootDependency from './symlinkDirectRootDependency'
 
-export default async function symlinkDependency (
+export async function symlinkDependency (
   dependencyRealLocation: string,
   destModulesDir: string,
   importAs: string

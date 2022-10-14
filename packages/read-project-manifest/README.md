@@ -15,7 +15,7 @@ pnpm add @pnpm/read-project-manifest
 ## Usage
 
 ```ts
-import readProjectManifest from '@pnpm/read-project-manifest'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 
 const { manifest, fileName } = await readProjectManifest(process.cwd())
 ```

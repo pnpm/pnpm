@@ -1,9 +1,9 @@
 import * as path from 'path'
-import createClient from '@pnpm/client'
-import createStore from '@pnpm/package-store'
+import { createClient } from '@pnpm/client'
+import { createPackageStore } from '@pnpm/package-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { StoreController } from '@pnpm/store-controller-types'
-import storePath from '@pnpm/store-path'
+import { getStorePath } from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
 import { InstallOptions } from '@pnpm/core'
 
@@ -45,12 +45,12 @@ export default async function testDefaults<T> (
     ...fetchOpts,
   })
   let storeDir = opts?.storeDir ?? path.resolve('.store')
-  storeDir = await storePath({
+  storeDir = await getStorePath({
     pkgRoot: opts?.prefix ?? process.cwd(),
     storePath: storeDir,
     pnpmHomeDir: '',
   })
-  const storeController = await createStore(
+  const storeController = await createPackageStore(
     resolve,
     fetchers,
     {

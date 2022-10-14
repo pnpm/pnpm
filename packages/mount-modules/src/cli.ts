@@ -1,8 +1,8 @@
-import getConfig from '@pnpm/config'
+import { getConfig } from '@pnpm/config'
 import { promises as fs } from 'fs'
 import path from 'path'
 
-import getStorePath from '@pnpm/store-path'
+import { getStorePath } from '@pnpm/store-path'
 import Fuse from 'fuse-native'
 import createFuseHandlers from './createFuseHandlers'
 (async () => { /* eslint-disable-line */

@@ -3,7 +3,8 @@ import { DependencyManifest } from '@pnpm/types'
 import pDefer from 'p-defer'
 import path from 'path'
 import tempy from 'tempy'
-import createCafs, {
+import {
+  createCafs,
   checkFilesIntegrity,
   getFilePathInCafs,
 } from '../src'

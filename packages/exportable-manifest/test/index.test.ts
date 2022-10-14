@@ -1,8 +1,8 @@
 /// <reference path="../../../typings/index.d.ts"/>
-import exportableManifest from '@pnpm/exportable-manifest'
+import { createExportableManifest } from '@pnpm/exportable-manifest'
 
 test('the pnpm options are removed', async () => {
-  expect(await exportableManifest(process.cwd(), {
+  expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
     version: '1.0.0',
     dependencies: {
@@ -23,7 +23,7 @@ test('the pnpm options are removed', async () => {
 })
 
 test('publish lifecycle scripts are removed', async () => {
-  expect(await exportableManifest(process.cwd(), {
+  expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
     version: '1.0.0',
     scripts: {
@@ -47,7 +47,7 @@ test('publish lifecycle scripts are removed', async () => {
 })
 
 test('readme added to published manifest', async () => {
-  expect(await exportableManifest(process.cwd(), {
+  expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
     version: '1.0.0',
   }, { readmeFile: 'readme content' })).toStrictEqual({

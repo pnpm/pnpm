@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import findWorkspacePackages from '@pnpm/find-workspace-packages'
+import { findWorkspacePackages } from '@pnpm/find-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { read as readModulesManifest } from '@pnpm/modules-yaml'
 import prepare, {
@@ -9,7 +9,7 @@ import prepare, {
   preparePackages,
   tempDir as makeTempDir,
 } from '@pnpm/prepare'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readYamlFile from 'read-yaml-file'
 import execa from 'execa'
 import rimraf from '@zkochan/rimraf'

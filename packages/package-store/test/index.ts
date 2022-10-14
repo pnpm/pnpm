@@ -1,7 +1,7 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
-import createClient from '@pnpm/client'
-import createStore from '@pnpm/package-store'
+import { createClient } from '@pnpm/client'
+import { createPackageStore } from '@pnpm/package-store'
 import tempy from 'tempy'
 
 describe('store.importPackage()', () => {
@@ -15,7 +15,7 @@ describe('store.importPackage()', () => {
       authConfig,
       cacheDir: path.join(tmp, 'cache'),
     })
-    const storeController = await createStore(resolve, fetchers, {
+    const storeController = await createPackageStore(resolve, fetchers, {
       storeDir,
       cacheDir,
       verifyStoreIntegrity: true,
@@ -52,7 +52,7 @@ describe('store.importPackage()', () => {
       authConfig,
       cacheDir: path.join(tmp, 'cache'),
     })
-    const storeController = await createStore(resolve, fetchers, {
+    const storeController = await createPackageStore(resolve, fetchers, {
       packageImportMethod: 'copy',
       storeDir,
       cacheDir,

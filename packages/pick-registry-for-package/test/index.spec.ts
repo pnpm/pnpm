@@ -1,4 +1,4 @@
-import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
+import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 
 test('pick correct scope', () => {
   const registries = {

@@ -1,14 +1,14 @@
 import { PeerDependencyRules, ReadPackageHook } from '@pnpm/types'
-import matcher from '@pnpm/matcher'
+import { createMatcher } from '@pnpm/matcher'
 import isEmpty from 'ramda/src/isEmpty'
 
 export default function (
   peerDependencyRules: PeerDependencyRules
 ): ReadPackageHook {
   const ignoreMissingPatterns = [...new Set(peerDependencyRules.ignoreMissing ?? [])]
-  const ignoreMissingMatcher = matcher(ignoreMissingPatterns)
+  const ignoreMissingMatcher = createMatcher(ignoreMissingPatterns)
   const allowAnyPatterns = [...new Set(peerDependencyRules.allowAny ?? [])]
-  const allowAnyMatcher = matcher(allowAnyPatterns)
+  const allowAnyMatcher = createMatcher(allowAnyPatterns)
   return ((pkg) => {
     if (isEmpty(pkg.peerDependencies)) return pkg
     for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {

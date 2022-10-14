@@ -5,14 +5,14 @@ import {
   throwOnCommandFail,
 } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
-import { matcherWithIndex } from '@pnpm/matcher'
+import { createMatcherWithIndex } from '@pnpm/matcher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { requireHooks } from '@pnpm/pnpmfile'
-import sortPackages from '@pnpm/sort-packages'
+import { sortPackages } from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
   IncludedDependencies,
@@ -492,7 +492,7 @@ export function createMatcher (params: string[]): UpdateDepsMatcher {
       specs.push(param.slice(atIndex + 1))
     }
   }
-  const matcher = matcherWithIndex(patterns)
+  const matcher = createMatcherWithIndex(patterns)
   return (depName: string) => {
     const index = matcher(depName)
     if (index === -1) return null

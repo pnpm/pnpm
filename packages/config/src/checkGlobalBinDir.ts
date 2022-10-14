@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { sync as canWriteToDir } from 'can-write-to-dir'
 import PATH from 'path-name'
 

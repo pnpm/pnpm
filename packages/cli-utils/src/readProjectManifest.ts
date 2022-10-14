@@ -1,4 +1,4 @@
-import _readProjectManifest, * as utils from '@pnpm/read-project-manifest'
+import * as utils from '@pnpm/read-project-manifest'
 import { ProjectManifest } from '@pnpm/types'
 import { packageIsInstallable } from './packageIsInstallable'
 
@@ -13,7 +13,7 @@ export async function readProjectManifest (
     manifest: ProjectManifest
     writeProjectManifest: (manifest: ProjectManifest, force?: boolean) => Promise<void>
   }> {
-  const { fileName, manifest, writeProjectManifest } = await _readProjectManifest(projectDir)
+  const { fileName, manifest, writeProjectManifest } = await utils.readProjectManifest(projectDir)
   packageIsInstallable(projectDir, manifest as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
   return { fileName, manifest, writeProjectManifest }
 }

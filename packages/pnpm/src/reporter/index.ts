@@ -1,5 +1,5 @@
 import { Config } from '@pnpm/config'
-import defaultReporter from '@pnpm/default-reporter'
+import { initDefaultReporter } from '@pnpm/default-reporter'
 import { LogLevel, streamParser, writeToConsole } from '@pnpm/logger'
 import silentReporter from './silentReporter'
 
@@ -14,7 +14,7 @@ export default (
 ) => {
   switch (reporterType) {
   case 'default':
-    defaultReporter({
+    initDefaultReporter({
       useStderr: opts.config.useStderr,
       context: {
         argv: opts.cmd ? [opts.cmd] : [],
@@ -30,7 +30,7 @@ export default (
     })
     return
   case 'append-only':
-    defaultReporter({
+    initDefaultReporter({
       useStderr: opts.config.useStderr,
       context: {
         argv: opts.cmd ? [opts.cmd] : [],

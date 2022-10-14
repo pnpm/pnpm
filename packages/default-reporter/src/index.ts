@@ -12,7 +12,7 @@ import reporterForServer from './reporterForServer'
 
 export { formatWarn }
 
-export default function (
+export function initDefaultReporter (
   opts: {
     useStderr?: boolean
     streamParser: object

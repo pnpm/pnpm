@@ -1,6 +1,6 @@
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
@@ -14,7 +14,7 @@ import {
   getSpecFromPackageManifest,
   PinnedVersion,
 } from '@pnpm/manifest-utils'
-import { safeReadPackageFromDir as safeReadPkgFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
   DEPENDENCIES_FIELDS,
   DependencyManifest,
@@ -77,7 +77,7 @@ export type ImporterToResolve = Importer<{
   updatePackageManifest: boolean
 }
 
-export default async function (
+export async function resolveDependencies (
   importers: ImporterToResolve[],
   opts: ResolveDependenciesOptions & {
     defaultUpdateDepth: number
@@ -429,7 +429,7 @@ function getAliasToDependencyTypeMap (manifest: ProjectManifest) {
 
 async function getTopParents (pkgNames: string[], modules: string) {
   const pkgs = await Promise.all(
-    pkgNames.map((pkgName) => path.join(modules, pkgName)).map(safeReadPkgFromDir)
+    pkgNames.map((pkgName) => path.join(modules, pkgName)).map(safeReadPackageJsonFromDir)
   )
   return (
     pkgs

@@ -1,4 +1,4 @@
-import whichVersionIsPinned from '@pnpm/which-version-is-pinned'
+import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
 
 test.each([
   ['^1.0.0', 'major'],

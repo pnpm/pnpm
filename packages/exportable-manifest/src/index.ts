@@ -1,5 +1,5 @@
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
 import fromPairs from 'ramda/src/fromPairs'
@@ -20,7 +20,7 @@ export interface MakePublishManifestOptions {
   readmeFile?: string
 }
 
-export default async function makePublishManifest (
+export async function createExportableManifest (
   dir: string,
   originalManifest: ProjectManifest,
   opts?: MakePublishManifestOptions

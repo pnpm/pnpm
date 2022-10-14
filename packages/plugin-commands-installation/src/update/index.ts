@@ -7,7 +7,7 @@ import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
-import matcher from '@pnpm/matcher'
+import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
@@ -271,7 +271,7 @@ async function update (
     include,
     update: true,
     updateMatching: (dependencies.length > 0) && dependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
-      ? matcher(dependencies)
+      ? createMatcher(dependencies)
       : undefined,
     updatePackageManifest: opts.save !== false,
   }, dependencies)

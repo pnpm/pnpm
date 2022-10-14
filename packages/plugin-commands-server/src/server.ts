@@ -1,7 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'

@@ -1,5 +1,5 @@
-import PnpmError from '@pnpm/error'
-import parseWantedDependency from '@pnpm/parse-wanted-dependency'
+import { PnpmError } from '@pnpm/error'
+import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 
 const DELIMITER_REGEX = /[^ |@]>/
 
@@ -15,7 +15,7 @@ interface VersionOverride {
   newPref: string
 }
 
-export default function parseOverrides (
+export function parseOverrides (
   overrides: Record<string, string>
 ): VersionOverride[] {
   return Object.entries(overrides)

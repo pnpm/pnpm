@@ -1,5 +1,5 @@
-import packageManager from '@pnpm/cli-meta'
-import getConfig, { CliOptions } from '@pnpm/config'
+import { packageManager } from '@pnpm/cli-meta'
+import { getConfig, CliOptions } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
 
 export default async function (

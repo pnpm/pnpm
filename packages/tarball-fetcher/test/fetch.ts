@@ -1,11 +1,12 @@
 /// <reference path="../../../typings/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
-import PnpmError, { FetchError } from '@pnpm/error'
+import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import createCafsStore from '@pnpm/create-cafs-store'
+import { createCafsStore } from '@pnpm/create-cafs-store'
 import fixtures from '@pnpm/test-fixtures'
-import createFetcher, {
+import {
+  createTarballFetcher,
   BadTarballError,
   TarballIntegrityError,
 } from '@pnpm/tarball-fetcher'
@@ -23,7 +24,7 @@ const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='
 const registry = 'http://example.com/'
 const fetchFromRegistry = createFetchFromRegistry({})
 const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
-const fetch = createFetcher(fetchFromRegistry, getCredentials, {
+const fetch = createTarballFetcher(fetchFromRegistry, getCredentials, {
   retry: {
     maxTimeout: 100,
     minTimeout: 0,
@@ -203,7 +204,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
     tarball: `file:${tarballAbsoluteLocation}`,
   }
 
-  const fetch = createFetcher(fetchFromRegistry, getCredentials, {
+  const fetch = createTarballFetcher(fetchFromRegistry, getCredentials, {
     offline: true,
     retry: {
       maxTimeout: 100,
@@ -227,7 +228,7 @@ test('fail when trying to fetch a non-local tarball in offline mode', async () =
     tarball: `${registry}foo.tgz`,
   }
 
-  const fetch = createFetcher(fetchFromRegistry, getCredentials, {
+  const fetch = createTarballFetcher(fetchFromRegistry, getCredentials, {
     offline: true,
     retry: {
       maxTimeout: 100,
@@ -322,7 +323,7 @@ test('accessing private packages', async () => {
     alwaysAuth: undefined,
     authHeaderValue: 'Bearer ofjergrg349gj3f2',
   })
-  const fetch = createFetcher(fetchFromRegistry, getCredentials, {
+  const fetch = createTarballFetcher(fetchFromRegistry, getCredentials, {
     retry: {
       maxTimeout: 100,
       minTimeout: 0,

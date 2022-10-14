@@ -1,11 +1,11 @@
 import path from 'path'
-import createClient from '@pnpm/client'
+import { createClient } from '@pnpm/client'
 import { HeadlessOptions } from '@pnpm/headless'
-import createStore from '@pnpm/package-store'
-import { safeReadPackageFromDir } from '@pnpm/read-package-json'
-import readProjectsContext from '@pnpm/read-projects-context'
+import { createPackageStore } from '@pnpm/package-store'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
+import { readProjectsContext } from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import storePath from '@pnpm/store-path'
+import { getStorePath } from '@pnpm/store-path'
 import fromPairs from 'ramda/src/fromPairs'
 import tempy from 'tempy'
 
@@ -38,7 +38,7 @@ export default async function testDefaults (
       ],
     { lockfileDir }
   )
-  storeDir = await storePath({
+  storeDir = await getStorePath({
     pkgRoot: lockfileDir,
     storePath: storeDir,
     pnpmHomeDir: '',
@@ -51,7 +51,7 @@ export default async function testDefaults (
     ...resolveOpts,
     ...fetchOpts,
   })
-  const storeController = await createStore(
+  const storeController = await createPackageStore(
     resolve,
     fetchers,
     {
@@ -77,7 +77,7 @@ export default async function testDefaults (
     pendingBuilds,
     selectedProjectDirs: opts.selectedProjectDirs ?? projects.map((project) => project.rootDir),
     allProjects: fromPairs(
-      await Promise.all(projects.map(async (project) => [project.rootDir, { ...project, manifest: await safeReadPackageFromDir(project.rootDir) }]))
+      await Promise.all(projects.map(async (project) => [project.rootDir, { ...project, manifest: await safeReadPackageJsonFromDir(project.rootDir) }]))
     ),
     rawConfig: {},
     registries: {

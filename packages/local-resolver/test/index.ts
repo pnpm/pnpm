@@ -1,6 +1,6 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
-import resolveFromLocal from '@pnpm/local-resolver'
+import { resolveFromLocal } from '@pnpm/local-resolver'
 import normalize from 'normalize-path'
 
 test('resolve directory', async () => {

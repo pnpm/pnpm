@@ -1,6 +1,6 @@
-import audit from '@pnpm/audit'
+import { audit } from '@pnpm/audit'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import nock from 'nock'
 import lockfileToAuditTree from '../lib/lockfileToAuditTree'
 

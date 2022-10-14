@@ -8,7 +8,7 @@ import {
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { writePackage } from './writePackage'
 
 export function rcOptionsTypes () {

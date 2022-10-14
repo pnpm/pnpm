@@ -10,7 +10,7 @@ import {
 import {
   filterLockfileByImporters,
 } from '@pnpm/filter-lockfile'
-import hoist from '@pnpm/hoist'
+import { hoist } from '@pnpm/hoist'
 import { Lockfile } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
@@ -21,7 +21,7 @@ import {
   LinkedDependency,
 } from '@pnpm/resolve-dependencies'
 import { StoreController } from '@pnpm/store-controller-types'
-import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
+import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   HoistedDependencies,
   Registries,

@@ -2,8 +2,8 @@ import path from 'path'
 import {
   removalLogger,
 } from '@pnpm/core-loggers'
-import binify from '@pnpm/package-bins'
-import { safeReadPackageFromDir } from '@pnpm/read-package-json'
+import { getBinsFromPackageManifest } from '@pnpm/package-bins'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { DependencyManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import CMD_EXTENSION from 'cmd-extension'
@@ -32,10 +32,10 @@ export async function removeBinsOfDependency (
     binsDir: string
   }
 ) {
-  const uninstalledPkgJson = await safeReadPackageFromDir(dependencyDir) as DependencyManifest
+  const uninstalledPkgJson = await safeReadPackageJsonFromDir(dependencyDir) as DependencyManifest
 
   if (!uninstalledPkgJson) return
-  const cmds = await binify(uninstalledPkgJson, dependencyDir)
+  const cmds = await getBinsFromPackageManifest(uninstalledPkgJson, dependencyDir)
 
   if (!opts.dryRun) {
     await Promise.all(

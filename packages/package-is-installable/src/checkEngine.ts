@@ -1,4 +1,4 @@
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import semver from 'semver'
 
 export class UnsupportedEngineError extends PnpmError {

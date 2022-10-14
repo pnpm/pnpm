@@ -1,13 +1,13 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
-import createFetcher from '@pnpm/directory-fetcher'
+import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import fixtures from '@pnpm/test-fixtures'
 
 const f = fixtures(__dirname)
 
 test('fetch including only package files', async () => {
   process.chdir(f.find('simple-pkg'))
-  const fetcher = createFetcher({ includeOnlyPackageFiles: true })
+  const fetcher = createDirectoryFetcher({ includeOnlyPackageFiles: true })
 
   // eslint-disable-next-line
   const fetchResult = await fetcher.directory({} as any, {
@@ -30,7 +30,7 @@ test('fetch including only package files', async () => {
 
 test('fetch including all files', async () => {
   process.chdir(f.find('simple-pkg'))
-  const fetcher = createFetcher()
+  const fetcher = createDirectoryFetcher()
 
   // eslint-disable-next-line
   const fetchResult = await fetcher.directory({} as any, {
@@ -54,7 +54,7 @@ test('fetch including all files', async () => {
 
 test('fetch a directory that has no package.json', async () => {
   process.chdir(f.find('no-manifest'))
-  const fetcher = createFetcher()
+  const fetcher = createDirectoryFetcher()
   const manifest = {
     resolve: jest.fn(),
     reject: jest.fn(),

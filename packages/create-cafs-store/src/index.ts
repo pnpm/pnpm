@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import createCafs, {
+import {
+  createCafs,
   getFilePathByModeInCafs,
 } from '@pnpm/cafs'
 import type { Cafs, PackageFilesResponse } from '@pnpm/cafs-types'
@@ -63,7 +64,7 @@ function getFlatMap (
   return { filesMap, isBuilt }
 }
 
-export default function createCafsStore (
+export function createCafsStore (
   storeDir: string,
   opts?: {
     ignoreFile?: (filename: string) => boolean

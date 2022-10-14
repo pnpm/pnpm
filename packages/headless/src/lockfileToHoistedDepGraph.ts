@@ -10,13 +10,13 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
-import packageIsInstallable from '@pnpm/package-is-installable'
+import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { PatchFile, Registries } from '@pnpm/types'
 import {
   FetchPackageToStoreFunction,
   StoreController,
 } from '@pnpm/store-controller-types'
-import hoist, { HoistingLimits, HoisterResult } from '@pnpm/real-hoist'
+import { hoist, HoistingLimits, HoisterResult } from '@pnpm/real-hoist'
 import * as dp from 'dependency-path'
 import {
   DependenciesGraph,

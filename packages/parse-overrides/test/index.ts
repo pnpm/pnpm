@@ -1,4 +1,4 @@
-import parseOverrides from '@pnpm/parse-overrides'
+import { parseOverrides } from '@pnpm/parse-overrides'
 
 test.each([
   [

@@ -1,12 +1,12 @@
 import path from 'path'
-import PnpmError from '@pnpm/error'
-import { safeReadPackageFromDir } from '@pnpm/read-package-json'
+import { PnpmError } from '@pnpm/error'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import preferredPM from 'preferred-pm'
 
-export default async function preparePackage (pkgDir: string) {
-  const manifest = await safeReadPackageFromDir(pkgDir)
+export async function preparePackage (pkgDir: string) {
+  const manifest = await safeReadPackageJsonFromDir(pkgDir)
   if (manifest?.scripts?.prepare != null && manifest.scripts.prepare !== '') {
     const pm = (await preferredPM(pkgDir))?.name ?? 'npm'
     try {

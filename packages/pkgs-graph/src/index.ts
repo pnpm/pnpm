@@ -1,6 +1,6 @@
 import path from 'path'
 import npa from '@pnpm/npm-package-arg'
-import resolveWorkspaceRange from '@pnpm/resolve-workspace-range'
+import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 
 export interface Manifest {
   name?: string
@@ -26,7 +26,7 @@ export interface PackageNode<T> {
   dependencies: string[]
 }
 
-export default function <T> (pkgs: Array<Package & T>, opts?: {
+export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
   ignoreDevDeps?: boolean
   linkWorkspacePackages?: boolean
 }): {

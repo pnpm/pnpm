@@ -4,7 +4,7 @@ import path from 'path'
 import prepare from '@pnpm/prepare'
 import tempy from 'tempy'
 import { patch, patchCommit } from '@pnpm/plugin-commands-patching'
-import readProjectManifest from '@pnpm/read-project-manifest'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS } from './utils/index'
 

@@ -1,7 +1,7 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
-import createCafsStore from '@pnpm/create-cafs-store'
-import createFetcher from '@pnpm/git-fetcher'
+import { createCafsStore } from '@pnpm/create-cafs-store'
+import { createGitFetcher } from '@pnpm/git-fetcher'
 import { DependencyManifest } from '@pnpm/types'
 import pDefer from 'p-defer'
 import tempy from 'tempy'
@@ -22,7 +22,7 @@ beforeEach(() => {
 
 test('fetch', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createFetcher().git
+  const fetch = createGitFetcher().git
   const manifest = pDefer<DependencyManifest>()
   const { filesIndex } = await fetch(
     createCafsStore(cafsDir),
@@ -43,7 +43,7 @@ test('fetch', async () => {
 
 test('fetch a package from Git that has a prepare script', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createFetcher().git
+  const fetch = createGitFetcher().git
   const manifest = pDefer<DependencyManifest>()
   const { filesIndex } = await fetch(
     createCafsStore(cafsDir),
@@ -62,7 +62,7 @@ test('fetch a package from Git that has a prepare script', async () => {
 // Test case for https://github.com/pnpm/pnpm/issues/1866
 test('fetch a package without a package.json', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createFetcher().git
+  const fetch = createGitFetcher().git
   const manifest = pDefer<DependencyManifest>()
   const { filesIndex } = await fetch(
     createCafsStore(cafsDir),
@@ -82,7 +82,7 @@ test('fetch a package without a package.json', async () => {
 // Covers the regression reported in https://github.com/pnpm/pnpm/issues/4064
 test('fetch a big repository', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createFetcher().git
+  const fetch = createGitFetcher().git
   const manifest = pDefer<DependencyManifest>()
   const { filesIndex } = await fetch(createCafsStore(cafsDir),
     {
@@ -95,7 +95,7 @@ test('fetch a big repository', async () => {
 
 test('still able to shallow fetch for allowed hosts', async () => {
   const cafsDir = tempy.directory()
-  const fetch = createFetcher({ gitShallowHosts: ['github.com'] }).git
+  const fetch = createGitFetcher({ gitShallowHosts: ['github.com'] }).git
   const manifest = pDefer<DependencyManifest>()
   const resolution = {
     commit: 'c9b30e71d704cd30fa71f2edd1ecc7dcc4985493',

@@ -2,7 +2,7 @@ import path from 'path'
 import {
   summaryLogger,
 } from '@pnpm/core-loggers'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
@@ -20,7 +20,7 @@ import {
   updateProjectManifestObject,
 } from '@pnpm/manifest-utils'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
-import readProjectManifest from '@pnpm/read-project-manifest'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   DependenciesField,

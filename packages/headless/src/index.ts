@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import buildModules from '@pnpm/build-modules'
+import { buildModules } from '@pnpm/build-modules'
 import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
@@ -14,16 +14,16 @@ import {
   statsLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import {
   filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
-import hoist from '@pnpm/hoist'
+import { hoist } from '@pnpm/hoist'
 import {
   runLifecycleHooksConcurrently,
   makeNodeRequireOption,
 } from '@pnpm/lifecycle'
-import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
+import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
   Lockfile,
@@ -48,13 +48,13 @@ import {
   write as writeModulesYaml,
 } from '@pnpm/modules-yaml'
 import { HoistingLimits } from '@pnpm/real-hoist'
-import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store-controller-types'
-import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
+import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { DependencyManifest, HoistedDependencies, ProjectManifest, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import pLimit from 'p-limit'
@@ -790,7 +790,7 @@ async function linkAllBins (
               .filter(({ hasBin }) => hasBin)
               .map(async ({ dir }) => ({
                 location: dir,
-                manifest: await readPackageFromDir(dir) as DependencyManifest,
+                manifest: await readPackageJsonFromDir(dir) as DependencyManifest,
               }))
           )
 

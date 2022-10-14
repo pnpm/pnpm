@@ -15,7 +15,7 @@ pnpm add @pnpm/config
 ## Usage
 
 ```ts
-import getConfig from '@pnpm/config'
+import { getConfig } from '@pnpm/config'
 
 getConfig().then(pnpmConfig => console.log(pnpmConfig))
 ```

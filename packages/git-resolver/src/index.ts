@@ -5,7 +5,7 @@ import parsePref, { HostedPackageSpec } from './parsePref'
 
 export { HostedPackageSpec }
 
-export default function (
+export function createGitResolver (
   opts: {}
 ) {
   return async function resolveGit (

@@ -1,5 +1,5 @@
-import PnpmError from '@pnpm/error'
-import parseWantedDependency from '@pnpm/parse-wanted-dependency'
+import { PnpmError } from '@pnpm/error'
+import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { WorkspacePackages } from '@pnpm/resolver-base'
 import { IncludedDependencies, ProjectManifest } from '@pnpm/types'
 

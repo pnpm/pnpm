@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { tempDir } from '@pnpm/prepare'
 import { env, node } from '@pnpm/plugin-commands-env'
 import * as execa from 'execa'

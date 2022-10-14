@@ -1,20 +1,20 @@
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import linkBins, { WarnFunction } from '@pnpm/link-bins'
+import { linkBins, WarnFunction } from '@pnpm/link-bins'
 import {
   Lockfile,
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
-import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
+import { lockfileWalker, LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import logger from '@pnpm/logger'
-import matcher from '@pnpm/matcher'
-import symlinkDependency from '@pnpm/symlink-dependency'
+import { createMatcher } from '@pnpm/matcher'
+import { symlinkDependency } from '@pnpm/symlink-dependency'
 import { HoistedDependencies } from '@pnpm/types'
 import * as dp from 'dependency-path'
 
 const hoistLogger = logger('hoist')
 
-export default async function hoistByLockfile (
+export async function hoist (
   opts: {
     extraNodePath?: string[]
     preferSymlinkedExecutables?: boolean
@@ -80,8 +80,8 @@ function createGetAliasHoistType (
   publicHoistPattern: string[],
   privateHoistPattern: string[]
 ): GetAliasHoistType {
-  const publicMatcher = matcher(publicHoistPattern)
-  const privateMatcher = matcher(privateHoistPattern)
+  const publicMatcher = createMatcher(publicHoistPattern)
+  const privateMatcher = createMatcher(privateHoistPattern)
   return (alias: string) => {
     if (publicMatcher(alias)) return 'public'
     if (privateMatcher(alias)) return 'private'

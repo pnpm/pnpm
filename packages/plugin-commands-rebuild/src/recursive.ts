@@ -8,7 +8,7 @@ import {
 } from '@pnpm/config'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
-import sortPackages from '@pnpm/sort-packages'
+import { sortPackages } from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { Project, ProjectManifest } from '@pnpm/types'
 import camelcaseKeys from 'camelcase-keys'

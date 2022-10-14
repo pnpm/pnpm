@@ -1,7 +1,7 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import { promises as fs } from 'fs'
 import path from 'path'
-import readProjectManifest, { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { readProjectManifest, tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import tempy from 'tempy'
 
 const fixtures = path.join(__dirname, '../fixtures')

@@ -15,7 +15,7 @@ pnpm add @pnpm/write-project-manifest
 ## Usage
 
 ```ts
-import writeProjectManifest from '@pnpm/write-project-manifest'
+import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import path from 'path'
 
 (async () => await writeProjectManifest(path.resolve('package.yaml'), { name: 'foo', version: '1.0.0' }))()

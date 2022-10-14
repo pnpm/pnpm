@@ -2,7 +2,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import prepare, { tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

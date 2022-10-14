@@ -9,14 +9,14 @@ import {
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
 } from '@pnpm/lifecycle'
-import linkBins from '@pnpm/link-bins'
+import { linkBins } from '@pnpm/link-bins'
 import {
   Lockfile,
   nameVerFromPkgSnapshot,
   packageIsIndependent,
   PackageSnapshots,
 } from '@pnpm/lockfile-utils'
-import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
+import { lockfileWalker, LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'

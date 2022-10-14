@@ -1,5 +1,5 @@
-import PnpmError from '@pnpm/error'
-import findWorkspaceDir from '@pnpm/find-workspace-dir'
+import { PnpmError } from '@pnpm/error'
+import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import makeDedicatedLockfile from '.'
 
 main() // eslint-disable-line

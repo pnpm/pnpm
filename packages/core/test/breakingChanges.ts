@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'

@@ -5,7 +5,7 @@ import {
   IncludedDependencies,
   ProjectManifest,
 } from '@pnpm/types'
-import whichVersionIsPinned from '@pnpm/which-version-is-pinned'
+import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
 
 export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
 

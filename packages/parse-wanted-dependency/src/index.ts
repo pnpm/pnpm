@@ -5,7 +5,7 @@ interface ParsedWantedDependency {
   pref: string
 }
 
-export default function parseWantedDependency (
+export function parseWantedDependency (
   rawWantedDependency: string
 ): Partial<ParsedWantedDependency> & (Omit<ParsedWantedDependency, 'pref'> | Omit<ParsedWantedDependency, 'alias'> | ParsedWantedDependency) {
   const versionDelimiter = rawWantedDependency.indexOf('@', 1) // starting from 1 to skip the @ that marks scope

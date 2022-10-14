@@ -4,7 +4,7 @@ import {
   progressLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import {
   Lockfile,
   PackageSnapshot,
@@ -16,7 +16,7 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
 import logger from '@pnpm/logger'
-import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
+import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
   DirectoryResolution,
   PreferredVersions,

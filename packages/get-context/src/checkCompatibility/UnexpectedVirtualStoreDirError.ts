@@ -1,4 +1,4 @@
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 
 export default class UnexpectedVirtualStoreDirError extends PnpmError {
   public expected: string

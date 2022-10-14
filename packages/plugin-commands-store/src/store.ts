@@ -1,9 +1,9 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import logger, { LogBase } from '@pnpm/logger'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import storePath from '@pnpm/store-path'
+import { getStorePath } from '@pnpm/store-path'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import storeAdd from './storeAdd'
@@ -77,7 +77,7 @@ export async function handler (opts: StoreCommandOptions, params: string[]) {
   case 'status':
     return statusCmd(opts)
   case 'path':
-    return storePath({
+    return getStorePath({
       pkgRoot: opts.dir,
       storePath: opts.storeDir,
       pnpmHomeDir: opts.pnpmHomeDir,
@@ -106,7 +106,7 @@ export async function handler (opts: StoreCommandOptions, params: string[]) {
 
 async function statusCmd (opts: StoreCommandOptions) {
   const modifiedPkgs = await storeStatus(Object.assign(opts, {
-    storeDir: await storePath({
+    storeDir: await getStorePath({
       pkgRoot: opts.dir,
       storePath: opts.storeDir,
       pnpmHomeDir: opts.pnpmHomeDir,
