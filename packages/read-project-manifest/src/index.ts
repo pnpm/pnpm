@@ -27,7 +27,7 @@ export async function safeReadProjectManifestOnly (projectDir: string) {
   }
 }
 
-export default async function readProjectManifest (projectDir: string): Promise<{
+export async function readProjectManifest (projectDir: string): Promise<{
   fileName: string
   manifest: ProjectManifest
   writeProjectManifest: WriteProjectManifest

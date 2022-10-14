@@ -8,7 +8,7 @@ import {
   IncludedDependencies,
   Modules,
 } from '@pnpm/modules-yaml'
-import readProjectsContext from '@pnpm/read-projects-context'
+import { readProjectsContext } from '@pnpm/read-projects-context'
 import {
   DEPENDENCIES_FIELDS,
   HoistedDependencies,

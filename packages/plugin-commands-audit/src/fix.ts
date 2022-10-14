@@ -1,5 +1,5 @@
 import { AuditReport, AuditAdvisory } from '@pnpm/audit'
-import readProjectManifest from '@pnpm/read-project-manifest'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 import fromPairs from 'ramda/src/fromPairs'
 
 export default async function fix (dir: string, auditReport: AuditReport) {

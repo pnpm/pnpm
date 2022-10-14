@@ -8,7 +8,7 @@ import {
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
-import readProjectManifest from '@pnpm/read-project-manifest'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import fromPairs from 'ramda/src/fromPairs'
 import renameOverwrite from 'rename-overwrite'

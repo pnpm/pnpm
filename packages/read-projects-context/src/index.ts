@@ -11,7 +11,7 @@ export interface ProjectOptions {
   rootDir: string
 }
 
-export default async function <T> (
+export async function readProjectsContext<T> (
   projects: Array<ProjectOptions & T>,
   opts: {
     lockfileDir: string
