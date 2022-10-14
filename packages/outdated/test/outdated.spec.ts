@@ -1,4 +1,4 @@
-import outdated from '../lib/outdated'
+import { outdated } from '../lib/outdated'
 
 async function getLatestManifest (packageName: string) {
   return ({
