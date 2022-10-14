@@ -2,7 +2,8 @@ import { PnpmError } from '@pnpm/error'
 import { FetchFromRegistry, GetCredentials } from '@pnpm/fetching-types'
 import { createGitResolver } from '@pnpm/git-resolver'
 import { resolveFromLocal } from '@pnpm/local-resolver'
-import createResolveFromNpm, {
+import {
+  createNpmResolver,
   PackageMeta,
   PackageMetaCache,
   ResolveFromNpmOptions,
@@ -23,7 +24,7 @@ export function createResolver (
   getCredentials: GetCredentials,
   pnpmOpts: ResolverFactoryOptions
 ): ResolveFunction {
-  const resolveFromNpm = createResolveFromNpm(fetchFromRegistry, getCredentials, pnpmOpts)
+  const resolveFromNpm = createNpmResolver(fetchFromRegistry, getCredentials, pnpmOpts)
   const resolveFromGit = createGitResolver(pnpmOpts)
   return async (wantedDependency, opts) => {
     const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions) ??

@@ -8,7 +8,7 @@ export interface Command {
   path: string
 }
 
-export default async function binify (manifest: DependencyManifest, pkgPath: string): Promise<Command[]> {
+export async function getBinsFromPackageManifest (manifest: DependencyManifest, pkgPath: string): Promise<Command[]> {
   if (manifest.bin) {
     return commandsFromBin(manifest.bin, manifest.name, pkgPath)
   }

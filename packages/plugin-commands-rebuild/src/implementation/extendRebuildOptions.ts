@@ -1,6 +1,6 @@
 import path from 'path'
 import { LogBase } from '@pnpm/logger'
-import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
+import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { StoreController } from '@pnpm/store-controller-types'
 import { Registries } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'

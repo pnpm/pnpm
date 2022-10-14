@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import logger, { globalInfo, streamParser } from '@pnpm/logger'
-import parseWantedDependency from '@pnpm/parse-wanted-dependency'
+import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import { StoreController } from '@pnpm/store-controller-types'
 import { Registries } from '@pnpm/types'

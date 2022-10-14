@@ -6,7 +6,7 @@ import { Config, types } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
-import packageBins from '@pnpm/package-bins'
+import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import storePath from '@pnpm/store-path'
 import execa from 'execa'
 import omit from 'ramda/src/omit'
@@ -100,7 +100,7 @@ async function getPkgName (pkgDir: string) {
 async function getBinName (modulesDir: string, pkgName: string): Promise<string> {
   const pkgDir = path.join(modulesDir, pkgName)
   const manifest = await readPkgFromDir(pkgDir)
-  const bins = await packageBins(manifest, pkgDir)
+  const bins = await getBinsFromPackageManifest(manifest, pkgDir)
   if (bins.length === 0) {
     throw new PnpmError('DLX_NO_BIN', `No binaries found in ${pkgName}`)
   }

@@ -3,7 +3,7 @@ import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import logger, { globalWarn } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import binify, { Command } from '@pnpm/package-bins'
+import { Command, getBinsFromPackageManifest } from '@pnpm/package-bins'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
@@ -184,7 +184,7 @@ async function getPackageBins (
 }
 
 async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string, nodeExecPath?: string): Promise<CommandInfo[]> {
-  const cmds = await binify(manifest, pkgDir)
+  const cmds = await getBinsFromPackageManifest(manifest, pkgDir)
   return cmds.map((cmd) => ({
     ...cmd,
     ownName: cmd.name === manifest.name,

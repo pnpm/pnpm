@@ -20,7 +20,7 @@ export interface ParsedCliArgs {
   workspaceDir?: string
 }
 
-export default async function parseCliArgs (
+export async function parseCliArgs (
   opts: {
     escapeArgs?: string[]
     fallbackCommand?: string

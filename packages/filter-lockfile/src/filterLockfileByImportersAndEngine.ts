@@ -6,7 +6,7 @@ import {
 } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import pnpmLogger from '@pnpm/logger'
-import packageIsInstallable from '@pnpm/package-is-installable'
+import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { DependenciesField } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import unnest from 'ramda/src/unnest'

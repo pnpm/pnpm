@@ -1,7 +1,7 @@
 import path from 'path'
 import partition from 'ramda/src/partition'
 import { Dependencies, PackageManifest, ReadPackageHook } from '@pnpm/types'
-import parseOverrides from '@pnpm/parse-overrides'
+import { parseOverrides } from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
 import semver from 'semver'
 

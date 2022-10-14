@@ -20,7 +20,7 @@ import {
 import type { Cafs, DeferredManifestPromise, PackageFilesResponse } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import logger from '@pnpm/logger'
-import packageIsInstallable from '@pnpm/package-is-installable'
+import { packageIsInstallable } from '@pnpm/package-is-installable'
 import readPackage from '@pnpm/read-package-json'
 import {
   DirectoryResolution,
@@ -79,7 +79,7 @@ function normalizeBundledManifest (manifest: DependencyManifest): BundledManifes
   }
 }
 
-export default function (
+export function createPackageRequester (
   opts: {
     engineStrict?: boolean
     force?: boolean

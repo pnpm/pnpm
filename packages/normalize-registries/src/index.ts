@@ -5,7 +5,7 @@ export const DEFAULT_REGISTRIES = {
   default: 'https://registry.npmjs.org/',
 }
 
-export default function normalizeRegistries (registries?: { [scope: string]: string }): Registries {
+export function normalizeRegistries (registries?: { [scope: string]: string }): Registries {
   if (registries == null) return DEFAULT_REGISTRIES
 
   const normalizeRegistries = {}

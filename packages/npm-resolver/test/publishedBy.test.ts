@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import _createResolveFromNpm from '@pnpm/npm-resolver'
+import { createNpmResolver } from '@pnpm/npm-resolver'
 import fixtures from '@pnpm/test-fixtures'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
@@ -16,7 +16,7 @@ const badDatesMeta = loadJsonFile.sync<any>(f.find('bad-dates.json'))
 
 const fetch = createFetchFromRegistry({})
 const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
-const createResolveFromNpm = _createResolveFromNpm.bind(null, fetch, getCredentials)
+const createResolveFromNpm = createNpmResolver.bind(null, fetch, getCredentials)
 
 test('fall back to a newer version if there is no version published by the given date', async () => {
   nock(registry)

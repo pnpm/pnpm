@@ -5,7 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import { types as allTypes, UniversalOptions, Config } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
 import { createExportableManifest } from '@pnpm/exportable-manifest'
-import binify from '@pnpm/package-bins'
+import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { DependencyManifest } from '@pnpm/types'
 import fg from 'fast-glob'
 import pick from 'ramda/src/pick'
@@ -144,7 +144,7 @@ async function packPkg (opts: {
   } = opts
   const { manifest } = await readProjectManifest(projectDir, {})
   const bins = [
-    ...(await binify(manifest as DependencyManifest, projectDir)).map(({ path }) => path),
+    ...(await getBinsFromPackageManifest(manifest as DependencyManifest, projectDir)).map(({ path }) => path),
     ...(manifest.publishConfig?.executableFiles ?? [])
       .map((executableFile) => path.join(projectDir, executableFile)),
   ]

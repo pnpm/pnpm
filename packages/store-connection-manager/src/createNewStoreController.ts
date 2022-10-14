@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import { createClient } from '@pnpm/client'
 import { Config } from '@pnpm/config'
-import createStore from '@pnpm/package-store'
+import { createPackageStore } from '@pnpm/package-store'
 import pnpm from '@pnpm/cli-meta'
 
 type CreateResolverOptions = Pick<Config,
@@ -81,7 +81,7 @@ export default async (
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {
-    ctrl: await createStore(resolve, fetchers, {
+    ctrl: await createPackageStore(resolve, fetchers, {
       engineStrict: opts.engineStrict,
       force: opts.force,
       nodeVersion: opts.nodeVersion,

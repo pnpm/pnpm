@@ -1,9 +1,9 @@
 import path from 'path'
-import getBinsFromPkg from '@pnpm/package-bins'
+import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 
-test('getBinsFromPkg()', async () => {
+test('getBinsFromPackageManifest()', async () => {
   expect(
-    await getBinsFromPkg({
+    await getBinsFromPackageManifest({
       bin: 'one-bin',
       name: 'one-bin',
       version: '1.0.0',
@@ -15,9 +15,9 @@ test('getBinsFromPkg()', async () => {
   )
 })
 
-test('getBinsFromPkg() should allow $ as command name', async () => {
+test('getBinsFromPackageManifest() should allow $ as command name', async () => {
   expect(
-    await getBinsFromPkg({
+    await getBinsFromPackageManifest({
       bin: {
         $: './undollar.js',
       },
@@ -34,7 +34,7 @@ test('getBinsFromPkg() should allow $ as command name', async () => {
 test('find all the bin files from a bin directory', async () => {
   const fixtures = path.join(__dirname, 'fixtures')
   expect(
-    await getBinsFromPkg({
+    await getBinsFromPackageManifest({
       name: 'bin-dir',
       version: '1.0.0',
 
@@ -55,7 +55,7 @@ test('find all the bin files from a bin directory', async () => {
 
 test('get bin of scoped package', async () => {
   expect(
-    await getBinsFromPkg({
+    await getBinsFromPackageManifest({
       bin: 'bin.js',
       name: '@foo/bar',
       version: '1.0.0',
@@ -69,7 +69,7 @@ test('get bin of scoped package', async () => {
 
 test('skip dangerous bin names', async () => {
   expect(
-    await getBinsFromPkg({
+    await getBinsFromPackageManifest({
       name: 'foo',
       version: '1.0.0',
 
@@ -91,7 +91,7 @@ test('skip dangerous bin names', async () => {
 
 test('skip dangerous bin locations', async () => {
   expect(
-    await getBinsFromPkg({
+    await getBinsFromPackageManifest({
       name: 'foo',
       version: '1.0.0',
 

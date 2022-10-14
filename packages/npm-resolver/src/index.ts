@@ -68,7 +68,7 @@ export interface ResolverFactoryOptions {
   timeout?: number
 }
 
-export default function createResolver (
+export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
   getCredentials: GetCredentials,
   opts: ResolverFactoryOptions

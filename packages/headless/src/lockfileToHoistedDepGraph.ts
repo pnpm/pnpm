@@ -10,7 +10,7 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
-import packageIsInstallable from '@pnpm/package-is-installable'
+import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { PatchFile, Registries } from '@pnpm/types'
 import {
   FetchPackageToStoreFunction,

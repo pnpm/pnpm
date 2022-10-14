@@ -13,7 +13,7 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
-import normalizeRegistries from '@pnpm/normalize-registries'
+import { normalizeRegistries } from '@pnpm/normalize-registries'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesField, DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'

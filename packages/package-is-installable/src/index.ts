@@ -15,7 +15,7 @@ export {
   WantedEngine,
 }
 
-export default function packageIsInstallable (
+export function packageIsInstallable (
   pkgId: string,
   pkg: {
     name: string
