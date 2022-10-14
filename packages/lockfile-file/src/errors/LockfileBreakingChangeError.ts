@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 
-export default class LockfileBreakingChangeError extends PnpmError {
+export class LockfileBreakingChangeError extends PnpmError {
   public filename: string
   constructor (filename: string) {
     super('LOCKFILE_BREAKING_CHANGE', `Lockfile ${filename} not compatible with current pnpm`)

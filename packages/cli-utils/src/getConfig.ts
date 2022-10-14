@@ -1,8 +1,8 @@
 import { packageManager } from '@pnpm/cli-meta'
-import { getConfig, CliOptions } from '@pnpm/config'
+import { getConfig as _getConfig, CliOptions } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
 
-export default async function (
+export async function getConfig (
   cliOptions: CliOptions,
   opts: {
     excludeReporter: boolean
@@ -12,7 +12,7 @@ export default async function (
     checkUnknownSetting?: boolean
   }
 ) {
-  const { config, warnings } = await getConfig({
+  const { config, warnings } = await _getConfig({
     cliOptions,
     globalDirShouldAllowWrite: opts.globalDirShouldAllowWrite,
     packageManager,

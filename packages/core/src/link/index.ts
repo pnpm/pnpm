@@ -41,7 +41,7 @@ type LinkFunctionOptions = LinkOptions & {
 
 export { LinkFunctionOptions }
 
-export default async function link (
+export async function link (
   linkFromPkgs: Array<{ alias: string, path: string } | string>,
   destModules: string,
   maybeOpts: LinkFunctionOptions

@@ -11,7 +11,7 @@ const filenameConflictsLogger = logger('_filename-conflicts')
 
 export type ImportFile = (src: string, dest: string) => Promise<void>
 
-export default async function importIndexedDir (
+export async function importIndexedDir (
   importFile: ImportFile,
   newDir: string,
   filenames: Record<string, string>

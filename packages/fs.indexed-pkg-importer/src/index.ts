@@ -5,7 +5,7 @@ import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import { FilesMap, ImportOptions, ImportIndexedPackage } from '@pnpm/store-controller-types'
 import pLimit from 'p-limit'
 import exists from 'path-exists'
-import importIndexedDir, { ImportFile } from './importIndexedDir'
+import { importIndexedDir, ImportFile } from './importIndexedDir'
 
 const limitLinking = pLimit(16)
 

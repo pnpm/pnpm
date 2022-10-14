@@ -3,7 +3,7 @@ import {
   IncludedDependencies,
   ProjectManifest,
 } from '@pnpm/types'
-import getSpecFromPackageManifest from './getSpecFromPackageManifest'
+import { getSpecFromPackageManifest } from './getSpecFromPackageManifest'
 
 export * from './getPref'
 export * from './updateProjectManifestObject'

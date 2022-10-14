@@ -4,7 +4,7 @@ import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { StoreController } from '@pnpm/store-controller-types'
 import { ProjectManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
-import runLifecycleHook, { RunLifecycleHookOptions } from './runLifecycleHook'
+import { runLifecycleHook, RunLifecycleHookOptions } from './runLifecycleHook'
 
 export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
 | 'depPath'
@@ -23,7 +23,7 @@ export interface Importer {
   targetDirs?: string[]
 }
 
-export default async function runLifecycleHooksConcurrently (
+export async function runLifecycleHooksConcurrently (
   stages: string[],
   importers: Importer[],
   childConcurrency: number,

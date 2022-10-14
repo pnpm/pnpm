@@ -1,8 +1,6 @@
 import { packageManager } from '@pnpm/cli-meta'
-import getConfig from './getConfig'
 
-export { getConfig }
-
+export { getConfig } from './getConfig'
 export * from './packageIsInstallable'
 export * from './readDepNameCompletions'
 export * from './readProjectManifest'

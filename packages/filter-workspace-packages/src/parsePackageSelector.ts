@@ -11,7 +11,7 @@ export interface PackageSelector {
   followProdDepsOnly?: boolean
 }
 
-export default (rawSelector: string, prefix: string): PackageSelector => {
+export function parsePackageSelector (rawSelector: string, prefix: string): PackageSelector {
   let exclude = false
   if (rawSelector[0] === '!') {
     exclude = true

@@ -1,7 +1,7 @@
 import { URL } from 'url'
 import { FetchFromRegistry } from '@pnpm/fetching-types'
 import { getAgent, AgentOptions } from '@pnpm/network.agent'
-import fetch, { isRedirect, Response, RequestInfo, RequestInit } from './fetch'
+import { fetch, isRedirect, Response, RequestInfo, RequestInit } from './fetch'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
@@ -28,7 +28,7 @@ export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions) {
 
 export { AgentOptions }
 
-export default function (
+export function createFetchFromRegistry (
   defaultOpts: {
     fullMetadata?: boolean
     userAgent?: string

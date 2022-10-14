@@ -15,7 +15,7 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import pnpmPkgJson from '../pnpmPkgJson'
+import { pnpmPkgJson } from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 import { PreResolutionHookContext } from './hooks'
 
