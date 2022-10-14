@@ -478,8 +478,8 @@ importers:
         specifier: workspace:*
         version: link:../matcher
       '@pnpm/npm-conf':
-        specifier: 2.0.0
-        version: 2.0.0
+        specifier: 2.0.1
+        version: 2.0.1
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../pnpmfile
@@ -7434,6 +7434,15 @@ packages:
     dependencies:
       '@pnpm/network.ca-file': 1.0.1
       config-chain: 1.1.13
+    dev: true
+
+  /@pnpm/npm-conf/2.0.1:
+    resolution: {integrity: sha512-3+0d2togeuHF4WNfjMLK0MPiM2nqX31dYoaQhLTl5fNmFzn2iciB/MGs1LNMM34bcty6PYoSq0sFI77GfJ1D8g==}
+    engines: {node: '>=12'}
+    dependencies:
+      '@pnpm/network.ca-file': 1.0.1
+      config-chain: 1.1.13
+    dev: false
 
   /@pnpm/npm-lifecycle/2.0.0-1_typanion@3.12.0:
     resolution: {integrity: sha512-eUeRVUxnr9xP50ESMuRDrWYN/AQmaV2g/Wvs3ckHBx7XFJw8ljix66L7R1S1FoUqxNn0BeyPeIE9ANwn/syIAQ==}
@@ -17135,7 +17144,7 @@ time:
   /@pnpm/meta-updater/0.2.0: '2022-09-14T15:47:23.242Z'
   /@pnpm/network.agent/0.0.3: '2022-06-12T19:51:53.044Z'
   /@pnpm/nopt/0.2.1: '2021-06-01T19:45:54.552Z'
-  /@pnpm/npm-conf/2.0.0: '2022-07-31T00:06:52.248Z'
+  /@pnpm/npm-conf/2.0.1: '2022-10-13T22:29:40.601Z'
   /@pnpm/npm-lifecycle/2.0.0-1: '2022-02-21T22:36:47.308Z'
   /@pnpm/npm-package-arg/1.0.0: '2022-06-28T12:48:31.287Z'
   /@pnpm/os.env.path-extender/0.2.6: '2022-08-08T10:36:30.986Z'
