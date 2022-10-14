@@ -1,5 +1,1 @@
-import testDefaults from './testDefaults'
-
-export {
-  testDefaults,
-}
+export { testDefaults } from './testDefaults'

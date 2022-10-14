@@ -21,7 +21,7 @@ import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
-import testDefaults from './utils/testDefaults'
+import { testDefaults } from './utils/testDefaults'
 
 const f = fixtures(__dirname)
 
