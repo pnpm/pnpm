@@ -1,6 +1,6 @@
 import * as path from 'path'
 import { createClient } from '@pnpm/client'
-import createStore from '@pnpm/package-store'
+import { createPackageStore } from '@pnpm/package-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { StoreController } from '@pnpm/store-controller-types'
 import storePath from '@pnpm/store-path'
@@ -50,7 +50,7 @@ export default async function testDefaults<T> (
     storePath: storeDir,
     pnpmHomeDir: '',
   })
-  const storeController = await createStore(
+  const storeController = await createPackageStore(
     resolve,
     fetchers,
     {

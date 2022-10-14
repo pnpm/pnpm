@@ -1,4 +1,4 @@
-import packageManager from '@pnpm/cli-meta'
+import { packageManager } from '@pnpm/cli-meta'
 import logger from '@pnpm/logger'
 import { checkPackage, UnsupportedEngineError, WantedEngine } from '@pnpm/package-is-installable'
 

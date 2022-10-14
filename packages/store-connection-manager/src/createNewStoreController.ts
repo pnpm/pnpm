@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import { createClient } from '@pnpm/client'
 import { Config } from '@pnpm/config'
 import { createPackageStore } from '@pnpm/package-store'
-import pnpm from '@pnpm/cli-meta'
+import { packageManager } from '@pnpm/cli-meta'
 
 type CreateResolverOptions = Pick<Config,
 | 'fetchRetries'
@@ -85,7 +85,7 @@ export default async (
       engineStrict: opts.engineStrict,
       force: opts.force,
       nodeVersion: opts.nodeVersion,
-      pnpmVersion: pnpm.version,
+      pnpmVersion: packageManager.version,
       ignoreFile: opts.ignoreFile,
       importPackage: opts.hooks?.importPackage,
       networkConcurrency: opts.networkConcurrency,

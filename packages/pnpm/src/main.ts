@@ -3,7 +3,7 @@ if (!global['pnpm__startedAt']) {
   global['pnpm__startedAt'] = Date.now()
 }
 import loudRejection from 'loud-rejection'
-import packageManager from '@pnpm/cli-meta'
+import { packageManager } from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
 import {
   Config,

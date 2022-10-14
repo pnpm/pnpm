@@ -1,7 +1,7 @@
 import path from 'path'
 import { createClient } from '@pnpm/client'
 import { HeadlessOptions } from '@pnpm/headless'
-import createStore from '@pnpm/package-store'
+import { createPackageStore } from '@pnpm/package-store'
 import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import readProjectsContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -51,7 +51,7 @@ export default async function testDefaults (
     ...resolveOpts,
     ...fetchOpts,
   })
-  const storeController = await createStore(
+  const storeController = await createPackageStore(
     resolve,
     fetchers,
     {

@@ -1,4 +1,4 @@
-import packageManager from '@pnpm/cli-meta'
+import { packageManager } from '@pnpm/cli-meta'
 import { getConfig, CliOptions } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
 

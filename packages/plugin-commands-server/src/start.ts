@@ -8,7 +8,7 @@ import {
 } from 'fs'
 import { promisify } from 'util'
 import path from 'path'
-import packageManager from '@pnpm/cli-meta'
+import { packageManager } from '@pnpm/cli-meta'
 import { PnpmError } from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { createServer } from '@pnpm/server'

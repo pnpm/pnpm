@@ -10,7 +10,7 @@ const argv = process.argv.slice(2)
   switch (argv[0]) {
   case '-v':
   case '--version': {
-    const { version } = (await import('@pnpm/cli-meta')).default
+    const { version } = (await import('@pnpm/cli-meta')).packageManager
     console.log(version)
     break
   }

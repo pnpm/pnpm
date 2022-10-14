@@ -3,7 +3,7 @@ import {
   createResolver,
   ResolveFunction,
 } from '@pnpm/client'
-import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
+import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { DependencyManifest, Registries } from '@pnpm/types'
 
 interface GetManifestOpts {

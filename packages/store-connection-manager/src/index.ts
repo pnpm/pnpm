@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import packageManager from '@pnpm/cli-meta'
+import { packageManager } from '@pnpm/cli-meta'
 import { Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import logger from '@pnpm/logger'

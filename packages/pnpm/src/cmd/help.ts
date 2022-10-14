@@ -1,4 +1,4 @@
-import packageManager from '@pnpm/cli-meta'
+import { packageManager } from '@pnpm/cli-meta'
 import renderHelp from 'render-help'
 
 export default function (helpByCommandName: Record<string, () => string>) {
