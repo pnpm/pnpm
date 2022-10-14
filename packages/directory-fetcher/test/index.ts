@@ -1,7 +1,7 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 
 const f = fixtures(__dirname)
 

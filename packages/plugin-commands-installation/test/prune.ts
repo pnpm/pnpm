@@ -1,8 +1,8 @@
 import path from 'path'
 import { add, install, link, prune } from '@pnpm/plugin-commands-installation'
-import prepare from '@pnpm/prepare'
+import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(__dirname)

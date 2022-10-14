@@ -1,5 +1,5 @@
 import path from 'path'
-import assertProject from '@pnpm/assert-project'
+import { assertProject } from '@pnpm/assert-project'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'

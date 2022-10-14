@@ -8,7 +8,7 @@ import {
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 import { PackageManifest } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
 import {

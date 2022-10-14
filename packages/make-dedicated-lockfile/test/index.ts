@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import pnpmExec from '@pnpm/exec'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 import makeDedicatedLockfile from '../lib'
 
 const f = fixtures(__dirname)

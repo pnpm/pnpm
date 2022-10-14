@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import prepare from '@pnpm/prepare'
+import { prepare } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import {
   addDistTag,

@@ -4,7 +4,7 @@ import { PackageManifest } from '@pnpm/types'
 import semver from 'semver'
 import { WantedDependency } from './getNonDevWantedDependencies'
 
-export default function wantedDepIsLocallyAvailable (
+export function wantedDepIsLocallyAvailable (
   workspacePackages: WorkspacePackages,
   wantedDependency: WantedDependency,
   opts: {

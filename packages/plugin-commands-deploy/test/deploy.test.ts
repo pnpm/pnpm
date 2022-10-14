@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { deploy } from '@pnpm/plugin-commands-deploy'
-import assertProject from '@pnpm/assert-project'
+import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { DEFAULT_OPTS } from './utils'

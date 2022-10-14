@@ -6,7 +6,7 @@ import {
   linkBins,
   linkBinsOfPackages,
 } from '@pnpm/link-bins'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 import CMD_EXTENSION from 'cmd-extension'
 import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'

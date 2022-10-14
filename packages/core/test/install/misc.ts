@@ -10,7 +10,7 @@ import {
   StatsLog,
 } from '@pnpm/core-loggers'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 import { ProjectManifest } from '@pnpm/types'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import {

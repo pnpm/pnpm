@@ -1,7 +1,7 @@
 import path from 'path'
 import { RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 import {
   addDependenciesToPackage,
   install,

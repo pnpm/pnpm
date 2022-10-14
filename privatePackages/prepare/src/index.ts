@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import assertProject, { Modules, Project } from '@pnpm/assert-project'
+import { assertProject, Modules, Project } from '@pnpm/assert-project'
 import { ProjectManifest } from '@pnpm/types'
 import uniqueString from 'unique-string'
 import { sync as writeJson5File } from 'write-json5-file'
@@ -56,7 +56,7 @@ export function preparePackages (
   return result
 }
 
-export default function prepare (
+export function prepare (
   manifest?: ProjectManifest,
   opts?: {
     manifestFormat?: ManifestFormat

@@ -1,3 +1,5 @@
 import path from 'path'
 
-export default (storePath: string) => path.join(storePath, 'server')
+export function serverConnectionInfoDir (storePath: string) {
+  return path.join(storePath, 'server')
+}

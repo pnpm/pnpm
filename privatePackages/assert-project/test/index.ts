@@ -1,6 +1,6 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
-import assertProject from '../src'
+import { assertProject } from '../src'
 
 test('assertProject()', async () => {
   const project = assertProject(path.join(__dirname, '../../..'))

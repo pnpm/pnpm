@@ -17,7 +17,7 @@ export type StoreServerController = StoreController & {
   stop: () => Promise<void>
 }
 
-export default async function (
+export async function connectStoreController (
   initOpts: {
     remotePrefix: string
     concurrency?: number

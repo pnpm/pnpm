@@ -12,7 +12,7 @@ pnpm install -D @pnpm/assert-project
 
 ```ts
 import test = require('tape')
-import assertProject from '@pnpm/assert-project'
+import { assertProject } from '@pnpm/assert-project'
 
 test('...', async t => {
   // ...

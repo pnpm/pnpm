@@ -1,6 +1,6 @@
 import { logger } from '@pnpm/logger'
 
-export default function err (error: Error) {
+export function errorHandler (error: Error) {
   if (!global['reporterInitialized']) {
     console.log(error)
     process.exitCode = 1

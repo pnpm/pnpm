@@ -1,7 +1,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import prepare from '@pnpm/prepare'
+import { prepare } from '@pnpm/prepare'
 import tempy from 'tempy'
 import { patch, patchCommit } from '@pnpm/plugin-commands-patching'
 import { readProjectManifest } from '@pnpm/read-project-manifest'

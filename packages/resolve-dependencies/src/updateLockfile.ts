@@ -15,11 +15,11 @@ import isEmpty from 'ramda/src/isEmpty'
 import fromPairs from 'ramda/src/fromPairs'
 import mergeRight from 'ramda/src/mergeRight'
 import partition from 'ramda/src/partition'
-import depPathToRef from './depPathToRef'
+import { depPathToRef } from './depPathToRef'
 import { ResolvedPackage } from './resolveDependencies'
 import { DependenciesGraph } from '.'
 
-export default function (
+export function updateLockfile (
   { dependenciesGraph, lockfile, prefix, registries, lockfileIncludeTarballUrl }: {
     dependenciesGraph: DependenciesGraph
     lockfile: Lockfile

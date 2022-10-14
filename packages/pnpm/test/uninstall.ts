@@ -1,6 +1,6 @@
 import path from 'path'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
-import prepare from '@pnpm/prepare'
+import { prepare } from '@pnpm/prepare'
 import exists from 'path-exists'
 import PATH from 'path-name'
 import { execPnpm } from './utils'

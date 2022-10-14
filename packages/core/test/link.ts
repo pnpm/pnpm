@@ -5,7 +5,7 @@ import {
   install,
   link,
 } from '@pnpm/core'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { RootLog } from '@pnpm/core-loggers'

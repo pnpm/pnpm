@@ -23,8 +23,8 @@ import {
 } from '@pnpm/types'
 import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
-import getWantedDependencies, { WantedDependency } from './getWantedDependencies'
-import depPathToRef from './depPathToRef'
+import { getWantedDependencies, WantedDependency } from './getWantedDependencies'
+import { depPathToRef } from './depPathToRef'
 import resolveDependencyTree, {
   Importer,
   LinkedDependency,
@@ -36,9 +36,9 @@ import resolvePeers, {
   GenericDependenciesGraph,
   GenericDependenciesGraphNode,
 } from './resolvePeers'
-import toResolveImporter from './toResolveImporter'
-import updateLockfile from './updateLockfile'
-import updateProjectManifest from './updateProjectManifest'
+import { toResolveImporter } from './toResolveImporter'
+import { updateLockfile } from './updateLockfile'
+import { updateProjectManifest } from './updateProjectManifest'
 
 export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
 

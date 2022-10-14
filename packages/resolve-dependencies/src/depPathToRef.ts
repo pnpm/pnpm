@@ -3,7 +3,7 @@ import { Registries } from '@pnpm/types'
 import { getRegistryByPackageName } from 'dependency-path'
 import encodeRegistry from 'encode-registry'
 
-export default function depPathToRef (
+export function depPathToRef (
   depPath: string,
   opts: {
     alias: string

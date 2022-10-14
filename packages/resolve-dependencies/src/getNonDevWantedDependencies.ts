@@ -8,7 +8,7 @@ export interface WantedDependency {
   injected?: boolean
 }
 
-export default function getNonDevWantedDependencies (pkg: Pick<DependencyManifest, 'bundleDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'>) {
+export function getNonDevWantedDependencies (pkg: Pick<DependencyManifest, 'bundleDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'>) {
   const bd = pkg.bundleDependencies ?? pkg.bundleDependencies
   const bundledDeps = new Set(Array.isArray(bd) ? bd : [])
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)

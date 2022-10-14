@@ -1,5 +1,5 @@
 import path from 'path'
-import prepare from '@pnpm/prepare'
+import { prepare } from '@pnpm/prepare'
 import { PackageManifest } from '@pnpm/types'
 import PATH from 'path-name'
 import loadJsonFile from 'load-json-file'
