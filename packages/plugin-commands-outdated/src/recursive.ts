@@ -44,11 +44,11 @@ interface OutdatedInWorkspace extends OutdatedPackage {
   wanted: string
 }
 
-export default async (
+export async function outdatedRecursive (
   pkgs: Array<{ dir: string, manifest: ProjectManifest }>,
   params: string[],
   opts: OutdatedCommandOptions & { include: IncludedDependencies }
-) => {
+) {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
   const rootManifest = pkgs.find(({ dir }) => dir === opts.lockfileDir ?? opts.dir)
   const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, params, {

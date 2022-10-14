@@ -1,4 +1,4 @@
-import normalizeArch from './normalizeArch'
+import { getNormalizedArch } from './normalizeArch'
 
 export function getNodeTarball (
   nodeVersion: string,
@@ -7,7 +7,7 @@ export function getNodeTarball (
   processArch: string
 ) {
   const platform = processPlatform === 'win32' ? 'win' : processPlatform
-  const arch = normalizeArch(processPlatform, processArch, nodeVersion)
+  const arch = getNormalizedArch(processPlatform, processArch, nodeVersion)
   const extension = platform === 'win' ? 'zip' : 'tar.gz'
   const pkgName = `node-v${nodeVersion}-${platform}-${arch}`
   return {

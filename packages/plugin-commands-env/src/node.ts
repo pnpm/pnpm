@@ -7,7 +7,7 @@ import { fetchNode } from '@pnpm/node.fetcher'
 import { getStorePath } from '@pnpm/store-path'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
-import getNodeMirror from './getNodeMirror'
+import { getNodeMirror } from './getNodeMirror'
 import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
 
 export type NvmNodeCommandOptions = Pick<Config,

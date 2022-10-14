@@ -29,7 +29,7 @@ export interface OutdatedPackage {
   wanted: string
 }
 
-export default async function outdated (
+export async function outdated (
   opts: {
     compatible?: boolean
     currentLockfile: Lockfile | null

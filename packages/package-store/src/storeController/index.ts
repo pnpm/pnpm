@@ -12,7 +12,7 @@ import {
 } from '@pnpm/store-controller-types'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
-import prune from './prune'
+import { prune } from './prune'
 
 export async function createPackageStore (
   resolve: ResolveFunction,

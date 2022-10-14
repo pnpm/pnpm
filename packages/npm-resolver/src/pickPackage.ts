@@ -12,7 +12,7 @@ import pLimit from 'p-limit'
 import pathTemp from 'path-temp'
 import pick from 'ramda/src/pick'
 import renameOverwrite from 'rename-overwrite'
-import toRaw from './toRaw'
+import { toRaw } from './toRaw'
 import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta'
 import { RegistryPackageSpec } from './parsePref'
 
@@ -66,7 +66,7 @@ function pickPackageFromMetaUsingTime (
   return pickPackageFromMeta(pickLowestVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
 }
 
-export default async (
+export async function pickPackage (
   ctx: {
     fetch: (pkgName: string, registry: string, authHeaderValue?: string) => Promise<PackageMeta>
     metaDir: string
@@ -78,7 +78,7 @@ export default async (
   },
   spec: RegistryPackageSpec,
   opts: PickPackageOptions
-): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> => {
+): Promise<{ meta: PackageMeta, pickedPackage: PackageInRegistry | null }> {
   opts = opts || {}
   const _pickPackageFromMeta =
     opts.publishedBy

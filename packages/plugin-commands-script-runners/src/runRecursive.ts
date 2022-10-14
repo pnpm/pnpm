@@ -11,7 +11,7 @@ import { logger } from '@pnpm/logger'
 import { sortPackages } from '@pnpm/sort-packages'
 import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'
-import existsInDir from './existsInDir'
+import { existsInDir } from './existsInDir'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'

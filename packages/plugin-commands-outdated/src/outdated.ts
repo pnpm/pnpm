@@ -24,7 +24,7 @@ import {
   DEFAULT_COMPARATORS,
   OutdatedWithVersionDiff,
 } from './utils'
-import outdatedRecursive from './recursive'
+import { outdatedRecursive } from './recursive'
 
 export function rcOptionsTypes () {
   return {

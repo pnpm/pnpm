@@ -18,7 +18,7 @@ import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import { runRecursive, RecursiveRunOpts } from './runRecursive'
-import existsInDir from './existsInDir'
+import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 
 export const IF_PRESENT_OPTION = {
