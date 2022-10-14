@@ -26,7 +26,7 @@ export interface PackageNode<T> {
   dependencies: string[]
 }
 
-export default function <T> (pkgs: Array<Package & T>, opts?: {
+export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
   ignoreDevDeps?: boolean
   linkWorkspacePackages?: boolean
 }): {

@@ -1,6 +1,6 @@
 import path from 'path'
 import type { GitFetcher } from '@pnpm/fetcher-base'
-import preparePackage from '@pnpm/prepare-package'
+import { preparePackage } from '@pnpm/prepare-package'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { URL } from 'url'

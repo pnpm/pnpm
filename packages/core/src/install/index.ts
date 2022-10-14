@@ -35,7 +35,7 @@ import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
 import logger, { globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
-import readModulesDirs from '@pnpm/read-modules-dir'
+import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { removeBin } from '@pnpm/remove-bins'
 import resolveDependencies, {
@@ -420,7 +420,7 @@ export async function mutateModules (
         break
       }
       case 'unlink': {
-        const packageDirs = await readModulesDirs(projectOpts.modulesDir)
+        const packageDirs = await readModulesDir(projectOpts.modulesDir)
         const externalPackages = await pFilter(
           packageDirs!,
           async (packageDir: string) => isExternalLink(ctx.storeDir, projectOpts.modulesDir, packageDir)

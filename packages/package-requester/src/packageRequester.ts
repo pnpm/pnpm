@@ -21,7 +21,7 @@ import type { Cafs, DeferredManifestPromise, PackageFilesResponse } from '@pnpm/
 import gfs from '@pnpm/graceful-fs'
 import logger from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import readPackage from '@pnpm/read-package-json'
+import { readPackageJson } from '@pnpm/read-package-json'
 import {
   DirectoryResolution,
   Resolution,
@@ -631,7 +631,7 @@ async function writeJsonFile (filePath: string, data: Object) {
 }
 
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {
-  return pickBundledManifest(await readPackage(pkgJsonPath) as DependencyManifest)
+  return pickBundledManifest(await readPackageJson(pkgJsonPath) as DependencyManifest)
 }
 
 async function tarballIsUpToDate (

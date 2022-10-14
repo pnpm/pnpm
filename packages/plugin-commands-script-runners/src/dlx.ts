@@ -5,7 +5,7 @@ import { OUTPUT_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { add } from '@pnpm/plugin-commands-installation'
-import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
+import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import storePath from '@pnpm/store-path'
 import execa from 'execa'
@@ -93,13 +93,13 @@ export async function handler (
 }
 
 async function getPkgName (pkgDir: string) {
-  const manifest = await readPkgFromDir(pkgDir)
+  const manifest = await readPackageJsonFromDir(pkgDir)
   return Object.keys(manifest.dependencies ?? {})[0]
 }
 
 async function getBinName (modulesDir: string, pkgName: string): Promise<string> {
   const pkgDir = path.join(modulesDir, pkgName)
-  const manifest = await readPkgFromDir(pkgDir)
+  const manifest = await readPackageJsonFromDir(pkgDir)
   const bins = await getBinsFromPackageManifest(manifest, pkgDir)
   if (bins.length === 0) {
     throw new PnpmError('DLX_NO_BIN', `No binaries found in ${pkgName}`)

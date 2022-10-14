@@ -48,7 +48,7 @@ import {
   write as writeModulesYaml,
 } from '@pnpm/modules-yaml'
 import { HoistingLimits } from '@pnpm/real-hoist'
-import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   PackageFilesResponse,
@@ -790,7 +790,7 @@ async function linkAllBins (
               .filter(({ hasBin }) => hasBin)
               .map(async ({ dir }) => ({
                 location: dir,
-                manifest: await readPackageFromDir(dir) as DependencyManifest,
+                manifest: await readPackageJsonFromDir(dir) as DependencyManifest,
               }))
           )
 

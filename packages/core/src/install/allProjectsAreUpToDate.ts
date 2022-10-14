@@ -5,7 +5,7 @@ import {
   ProjectSnapshot,
 } from '@pnpm/lockfile-file'
 import { satisfiesPackageManifest } from '@pnpm/lockfile-utils'
-import { safeReadPackageFromDir as safeReadPkgFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { WorkspacePackages } from '@pnpm/resolver-base'
 import {
   DEPENDENCIES_FIELDS,
@@ -99,7 +99,7 @@ async function linkedPackagesAreUpToDate (
         // workspace:x.x.x dependency
         continue
       }
-      const linkedPkg = manifestsByDir[linkedDir] ?? await safeReadPkgFromDir(linkedDir)
+      const linkedPkg = manifestsByDir[linkedDir] ?? await safeReadPackageJsonFromDir(linkedDir)
       const availableRange = getVersionRange(currentSpec)
       // This should pass the same options to semver as @pnpm/npm-resolver
       const localPackageSatisfiesRange = availableRange === '*' || availableRange === '^' || availableRange === '~' ||

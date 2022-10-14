@@ -14,8 +14,8 @@ import {
 } from '@pnpm/lockfile-utils'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
-import readModulesDir from '@pnpm/read-modules-dir'
-import { safeReadPackageFromDir } from '@pnpm/read-package-json'
+import { readModulesDir } from '@pnpm/read-modules-dir'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { DependenciesField, DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from 'dependency-path'
 import normalizePath from 'normalize-path'
@@ -189,7 +189,7 @@ async function dependenciesHierarchyForPackage (
         version = `link:${normalizePath(path.relative(projectPath, pkgPath))}`
       } catch (err: any) { // eslint-disable-line
         // if error happened. The package is not a link
-        const pkg = await safeReadPackageFromDir(pkgPath)
+        const pkg = await safeReadPackageJsonFromDir(pkgPath)
         version = pkg?.version ?? 'undefined'
       }
       const pkg = {
