@@ -1,5 +1,1 @@
-import BadTarballError from './BadTarballError'
-
-export {
-  BadTarballError,
-}
+export { BadTarballError } from './BadTarballError'

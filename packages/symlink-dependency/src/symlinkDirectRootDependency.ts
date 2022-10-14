@@ -14,7 +14,7 @@ const DEP_TYPE_BY_DEPS_FIELD_NAME = {
   optionalDependencies: 'optional',
 }
 
-export default async function symlinkDirectRootDependency (
+export async function symlinkDirectRootDependency (
   dependencyLocation: string,
   destModulesDir: string,
   importAs: string,

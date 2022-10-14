@@ -2,7 +2,7 @@ import path from 'path'
 import { linkLogger } from '@pnpm/core-loggers'
 
 import symlinkDir from 'symlink-dir'
-import symlinkDirectRootDependency from './symlinkDirectRootDependency'
+export { symlinkDirectRootDependency } from './symlinkDirectRootDependency'
 
 export async function symlinkDependency (
   dependencyRealLocation: string,
@@ -13,5 +13,3 @@ export async function symlinkDependency (
   linkLogger.debug({ target: dependencyRealLocation, link })
   return symlinkDir(dependencyRealLocation, link)
 }
-
-export { symlinkDirectRootDependency }

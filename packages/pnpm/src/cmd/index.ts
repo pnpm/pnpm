@@ -24,8 +24,8 @@ import { init } from '@pnpm/plugin-commands-init'
 import pick from 'ramda/src/pick'
 import { PnpmOptions } from '../types'
 import * as bin from './bin'
-import createCompletion from './completion'
-import createHelp from './help'
+import { createCompletion } from './completion'
+import { createHelp } from './help'
 import * as installTest from './installTest'
 import * as recursive from './recursive'
 import * as root from './root'
@@ -183,7 +183,7 @@ function initialCompletion () {
   return Object.keys(handlerByCommandName).map((name) => ({ name }))
 }
 
-export default handlerByCommandName
+export const pnpmCmds = handlerByCommandName
 
 export function getCliOptionsTypes (commandName: string) {
   return cliOptionsTypesByCommandName[commandName]?.() || {}

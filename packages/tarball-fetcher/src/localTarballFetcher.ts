@@ -13,7 +13,7 @@ interface Resolution {
   tarball: string
 }
 
-export default function createLocalTarballFetcher (): FetchFunction {
+export function createLocalTarballFetcher (): FetchFunction {
   const fetch = (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const tarball = resolvePath(opts.lockfileDir, resolution.tarball.slice(5))
 

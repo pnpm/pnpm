@@ -10,7 +10,7 @@ interface Resolution {
   tarball: string
 }
 
-export default function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction): FetchFunction {
+export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const { filesIndex } = await fetchRemoteTarball(cafs, resolution, opts)
 

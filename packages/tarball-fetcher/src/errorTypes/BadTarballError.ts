@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 
-export default class BadTarballError extends PnpmError {
+export class BadTarballError extends PnpmError {
   public expectedSize: number
   public receivedSize: number
   constructor (

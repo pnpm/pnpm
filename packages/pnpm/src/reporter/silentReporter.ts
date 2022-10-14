@@ -1,10 +1,10 @@
 import { LogBase } from '@pnpm/logger'
 
-export default (
+export function silentReporter (
   streamParser: {
     on: (event: 'data', handler: (obj: LogBase) => void) => void
   }
-) => {
+) {
   streamParser.on('data', (obj: LogBase) => {
     if (obj.level !== 'error') return
 

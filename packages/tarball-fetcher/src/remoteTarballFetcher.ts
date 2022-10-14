@@ -60,7 +60,7 @@ export interface NpmRegistryClient {
   fetch: (url: string, opts: { auth?: object }, cb: (err: Error, res: IncomingMessage) => void) => void
 }
 
-export default (
+export function createDownloader (
   fetchFromRegistry: FetchFromRegistry,
   gotOpts: {
     // retry
@@ -73,7 +73,7 @@ export default (
     }
     timeout?: number
   }
-): DownloadFunction => {
+): DownloadFunction {
   const retryOpts = {
     factor: 10,
     maxTimeout: 6e4, // 1 minute

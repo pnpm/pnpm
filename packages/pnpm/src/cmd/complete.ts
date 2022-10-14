@@ -5,7 +5,7 @@ import { getOptionCompletions } from '../getOptionType'
 import optionTypesToCompletions from '../optionTypesToCompletions'
 import universalShorthands from '../shorthands'
 
-export default async function complete (
+export async function complete (
   ctx: {
     cliOptionsTypesByCommandName: Record<string, () => Object>
     completionByCommandName: Record<string, CompletionFunc>

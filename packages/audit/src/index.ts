@@ -3,7 +3,7 @@ import { AgentOptions, fetchWithAgent, RetryTimeoutOptions } from '@pnpm/fetch'
 import { GetCredentials } from '@pnpm/fetching-types'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
-import lockfileToAuditTree from './lockfileToAuditTree'
+import { lockfileToAuditTree } from './lockfileToAuditTree'
 import { AuditReport } from './types'
 
 export * from './types'
