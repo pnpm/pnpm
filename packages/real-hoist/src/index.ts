@@ -4,13 +4,13 @@ import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
 import * as dp from 'dependency-path'
-import { hoist, HoisterDependencyKind, HoisterTree, HoisterResult } from '@yarnpkg/nm'
+import { hoist as _hoist, HoisterDependencyKind, HoisterTree, HoisterResult } from '@yarnpkg/nm'
 
 export type HoistingLimits = Map<string, Set<string>>
 
 export { HoisterResult }
 
-export default function hoistByLockfile (
+export function hoist (
   lockfile: Lockfile,
   opts?: {
     hoistingLimits?: HoistingLimits
@@ -46,7 +46,7 @@ export default function hoistByLockfile (
     node.dependencies.add(importerNode)
   }
 
-  return hoist(node, opts)
+  return _hoist(node, opts)
 }
 
 function toTree (nodes: Map<string, HoisterTree>, lockfile: Lockfile, deps: Record<string, string>): Set<HoisterTree> {

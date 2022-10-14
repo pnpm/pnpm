@@ -1,5 +1,5 @@
 import { PeerDependencyIssuesLog } from '@pnpm/core-loggers'
-import renderPeerIssues from '@pnpm/render-peer-issues'
+import { renderPeerIssues } from '@pnpm/render-peer-issues'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import formatWarn from './utils/formatWarn'

@@ -3,7 +3,7 @@ import archy from 'archy'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
 
-export default function (
+export function renderPeerIssues (
   peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects,
   opts?: { width?: number }
 ) {

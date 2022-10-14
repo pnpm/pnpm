@@ -16,7 +16,7 @@ import {
   FetchPackageToStoreFunction,
   StoreController,
 } from '@pnpm/store-controller-types'
-import hoist, { HoistingLimits, HoisterResult } from '@pnpm/real-hoist'
+import { hoist, HoistingLimits, HoisterResult } from '@pnpm/real-hoist'
 import * as dp from 'dependency-path'
 import {
   DependenciesGraph,
