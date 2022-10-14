@@ -16,7 +16,7 @@ import {
   MutateModulesOptions,
   WorkspacePackages,
 } from '@pnpm/core'
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import isSubdir from 'is-subdir'
 import getOptionsFromRootManifest from './getOptionsFromRootManifest'

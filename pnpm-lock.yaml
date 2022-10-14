@@ -235,8 +235,8 @@ importers:
         specifier: workspace:*
         version: link:../link-bins
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../read-package-json
@@ -386,8 +386,8 @@ importers:
         specifier: workspace:*
         version: link:../error
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../manifest-utils
@@ -602,8 +602,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-walker
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../manifest-utils
@@ -801,8 +801,8 @@ importers:
   packages/core-loggers:
     dependencies:
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -823,8 +823,8 @@ importers:
         specifier: workspace:*
         version: link:../fs.indexed-pkg-importer
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
@@ -870,8 +870,8 @@ importers:
         specifier: workspace:*
         version: link:../error
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/render-peer-issues':
         specifier: workspace:*
         version: link:../render-peer-issues
@@ -1139,8 +1139,8 @@ importers:
         specifier: workspace:*
         version: link:../fetching-types
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/network.agent':
         specifier: 0.0.3
         version: 0.0.3
@@ -1208,8 +1208,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-walker
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../package-is-installable
@@ -1363,8 +1363,8 @@ importers:
         specifier: workspace:*
         version: link:../core-loggers
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
@@ -1412,8 +1412,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-file
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
@@ -1579,8 +1579,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-utils
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/modules-cleaner':
         specifier: workspace:*
         version: link:../modules-cleaner
@@ -1712,8 +1712,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-walker
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../matcher
@@ -1789,8 +1789,8 @@ importers:
         specifier: workspace:*
         version: link:../directory-fetcher
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/npm-lifecycle':
         specifier: ^2.0.0-1
         version: 2.0.0-1_typanion@3.12.0
@@ -1832,8 +1832,8 @@ importers:
         specifier: workspace:*
         version: link:../error
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../manifest-utils
@@ -2009,8 +2009,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-types
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/merge-lockfile-changes':
         specifier: workspace:*
         version: link:../merge-lockfile-changes
@@ -2085,8 +2085,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-utils
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -2209,8 +2209,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-file
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/prune-lockfile':
         specifier: workspace:*
         version: link:../prune-lockfile
@@ -2303,8 +2303,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-utils
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/read-modules-dir':
         specifier: workspace:*
         version: link:../read-modules-dir
@@ -2374,8 +2374,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-utils
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
@@ -2511,8 +2511,8 @@ importers:
         specifier: workspace:*
         version: link:../graceful-fs
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/resolve-workspace-range':
         specifier: workspace:*
         version: link:../resolve-workspace-range
@@ -2614,8 +2614,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-utils
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../manifest-utils
@@ -2682,8 +2682,8 @@ importers:
         specifier: workspace:*
         version: link:../error
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -2725,8 +2725,8 @@ importers:
         specifier: workspace:*
         version: link:../graceful-fs
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../package-is-installable
@@ -2837,8 +2837,8 @@ importers:
         specifier: workspace:*
         version: link:../fetcher-base
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../package-requester
@@ -3063,8 +3063,8 @@ importers:
         specifier: workspace:*
         version: link:../fs.indexed-pkg-importer
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../plugin-commands-installation
@@ -3112,8 +3112,8 @@ importers:
         specifier: workspace:*
         version: link:../fetch
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/node.fetcher':
         specifier: workspace:*
         version: link:../node.fetcher
@@ -3240,8 +3240,8 @@ importers:
         specifier: workspace:*
         version: link:../graceful-fs
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../manifest-utils
@@ -3433,8 +3433,8 @@ importers:
         specifier: workspace:*
         version: link:../list
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -3582,8 +3582,8 @@ importers:
         specifier: workspace:*
         version: link:../error
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../parse-wanted-dependency
@@ -3658,8 +3658,8 @@ importers:
         specifier: workspace:*
         version: link:../lifecycle
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../package-bins
@@ -3815,8 +3815,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-walker
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
@@ -3927,8 +3927,8 @@ importers:
         specifier: workspace:*
         version: link:../lifecycle
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../package-bins
@@ -4018,8 +4018,8 @@ importers:
         specifier: workspace:*
         version: link:../error
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/server':
         specifier: workspace:*
         version: link:../server
@@ -4076,8 +4076,8 @@ importers:
         specifier: workspace:*
         version: link:../cli-utils
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/os.env.path-extender':
         specifier: ^0.2.6
         version: 0.2.6
@@ -4116,8 +4116,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-utils
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/normalize-registries':
         specifier: workspace:*
         version: link:../normalize-registries
@@ -4205,7 +4205,7 @@ importers:
     optionalDependencies:
       node-gyp:
         specifier: ^9.2.0
-        version: 9.3.0
+        version: 9.2.0
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -4253,8 +4253,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-types
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
@@ -4481,8 +4481,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-types
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
@@ -4646,8 +4646,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-file
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
@@ -4693,8 +4693,8 @@ importers:
         specifier: workspace:*
         version: link:../core-loggers
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../package-bins
@@ -4767,8 +4767,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile-utils
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../manifest-utils
@@ -4903,8 +4903,8 @@ importers:
         specifier: workspace:*
         version: link:../fetch
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
@@ -4986,8 +4986,8 @@ importers:
         specifier: workspace:*
         version: link:../error
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../package-store
@@ -5079,8 +5079,8 @@ importers:
         specifier: workspace:*
         version: link:../core-loggers
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -5113,8 +5113,8 @@ importers:
         specifier: workspace:*
         version: link:../graceful-fs
       '@pnpm/logger':
-        specifier: ^4.0.0
-        version: 4.0.0
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../prepare-package
@@ -6241,7 +6241,7 @@ packages:
       '@commitlint/types': 17.0.0
       fs-extra: 10.1.0
       git-raw-commits: 2.0.11
-      minimist: 1.2.6
+      minimist: 1.2.7
     dev: true
 
   /@commitlint/resolve-extends/17.1.0:
@@ -6368,7 +6368,7 @@ packages:
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     dependencies:
       '@jest/types': 29.1.2
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       chalk: 4.1.2
       jest-message-util: 29.1.2
       jest-util: 29.1.2
@@ -6424,7 +6424,7 @@ packages:
     dependencies:
       '@jest/fake-timers': 29.1.2
       '@jest/types': 29.1.2
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       jest-mock: 29.1.2
     dev: true
 
@@ -6451,7 +6451,7 @@ packages:
     dependencies:
       '@jest/types': 29.1.2
       '@sinonjs/fake-timers': 9.1.2
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       jest-message-util: 29.1.2
       jest-mock: 29.1.2
       jest-util: 29.1.2
@@ -6484,7 +6484,7 @@ packages:
       '@jest/transform': 29.1.2_@babel+types@7.19.3
       '@jest/types': 29.1.2
       '@jridgewell/trace-mapping': 0.3.16
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       chalk: 4.1.2
       collect-v8-coverage: 1.0.1
       exit: 0.1.2
@@ -7303,6 +7303,14 @@ packages:
     dependencies:
       bole: 4.0.1
       ndjson: 2.0.0
+    dev: true
+
+  /@pnpm/logger/5.0.0:
+    resolution: {integrity: sha512-YfcB2QrX+Wx1o6LD1G2Y2fhDhOix/bAY/oAnMpHoNLsKkWIRbt1oKLkIFvxBMzLwAEPqnYWguJrYC+J6i4ywbw==}
+    engines: {node: '>=12.17'}
+    dependencies:
+      bole: 5.0.0
+      ndjson: 2.0.0
 
   /@pnpm/manifest-utils/3.1.6_@pnpm+logger@4.0.0:
     resolution: {integrity: sha512-vIytrjq4PhtxML4lvoPRuczGckY9Te838WwZ6KBUnLzg8d5/+GRJf13UoUV2vvgyOURutyyCRyi3qTE1orVfCA==}
@@ -8092,7 +8100,7 @@ packages:
   /@types/keyv/3.1.4:
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
     dependencies:
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
 
   /@types/lodash/4.14.181:
     resolution: {integrity: sha512-n3tyKthHJbkiWhDZs3DkhkCzt2MexYHXlX0td5iMplyfwketaOeKboEVBqzceH7juqvEg3q5oUoBFxSLu7zFag==}
@@ -8143,7 +8151,6 @@ packages:
 
   /@types/node/18.8.5:
     resolution: {integrity: sha512-Bq7G3AErwe5A/Zki5fdD3O6+0zDChhg671NfPjtIcbtzDNZTv4NPKMRFr7gtYPG7y+B8uTiNK4Ngd9T0FTar6Q==}
-    dev: true
 
   /@types/normalize-package-data/2.4.1:
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
@@ -9257,6 +9264,13 @@ packages:
 
   /bole/4.0.1:
     resolution: {integrity: sha512-42r0aSOJFJti2l6LasBHq2BuWJzohGs349olQnH/ETlJo87XnoWw7UT8pGE6UstjxzOKkwz7tjoFcmSr6L16vg==}
+    dependencies:
+      fast-safe-stringify: 2.1.1
+      individual: 3.0.0
+    dev: true
+
+  /bole/5.0.0:
+    resolution: {integrity: sha512-5Mg86/HaigcCBIeO4lsRQmOlDBhmSrVJgvvAeREc6ly3s53Bg0GGtxTYDu3xmlPpaFYhj8ONpkk7kI9Bd1Wclg==}
     dependencies:
       fast-safe-stringify: 2.1.1
       individual: 3.0.0
@@ -12398,7 +12412,7 @@ packages:
       '@jest/expect': 29.1.2
       '@jest/test-result': 29.1.2
       '@jest/types': 29.1.2
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       chalk: 4.1.2
       co: 4.6.0
       dedent: 0.7.0
@@ -12564,7 +12578,7 @@ packages:
       '@jest/environment': 29.1.2
       '@jest/fake-timers': 29.1.2
       '@jest/types': 29.1.2
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       jest-mock: 29.1.2
       jest-util: 29.1.2
     dev: true
@@ -12580,7 +12594,7 @@ packages:
     dependencies:
       '@jest/types': 29.1.2
       '@types/graceful-fs': 4.1.5
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       anymatch: 3.1.2
       fb-watchman: 2.0.2
       graceful-fs: 4.2.10
@@ -12631,7 +12645,7 @@ packages:
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     dependencies:
       '@jest/types': 29.1.2
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       jest-util: 29.1.2
     dev: true
 
@@ -12686,7 +12700,7 @@ packages:
       '@jest/test-result': 29.1.2
       '@jest/transform': 29.1.2_@babel+types@7.19.3
       '@jest/types': 29.1.2
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       chalk: 4.1.2
       emittery: 0.10.2
       graceful-fs: 4.2.10
@@ -12718,7 +12732,7 @@ packages:
       '@jest/test-result': 29.1.2
       '@jest/transform': 29.1.2_@babel+types@7.19.3
       '@jest/types': 29.1.2
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       chalk: 4.1.2
       cjs-module-lexer: 1.2.2
       collect-v8-coverage: 1.0.1
@@ -12800,7 +12814,7 @@ packages:
     dependencies:
       '@jest/test-result': 29.1.2
       '@jest/types': 29.1.2
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.10.2
@@ -12812,7 +12826,7 @@ packages:
     resolution: {integrity: sha512-AdTZJxKjTSPHbXT/AIOjQVmoFx0LHFcVabWu0sxI7PAy7rFf8c0upyvgBKgguVXdM4vY74JdwkyD4hSmpTW8jA==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     dependencies:
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       jest-util: 29.1.2
       merge-stream: 2.0.0
       supports-color: 8.1.1
@@ -12938,7 +12952,7 @@ packages:
     resolution: {integrity: sha512-aKS4WQjPenRxiQsC93MNfjx+nbF4PAdYzmd/1JIj8HYzqfbu86beTuNgXDzPknWk0n0uARlyewZo4s++ES36Ow==}
     hasBin: true
     dependencies:
-      minimist: 1.2.6
+      minimist: 1.2.7
     dev: false
 
   /json5/2.2.1:
@@ -13624,6 +13638,7 @@ packages:
 
   /minimist/1.2.6:
     resolution: {integrity: sha512-Jsjnk4bw3YJqYzbdyBiNsPWHPfO++UGG749Cxs6peCu5Xg4nrena6OVxOYxrQTqww0Jmwt+Ref8rggumkTLz9Q==}
+    dev: true
 
   /minimist/1.2.7:
     resolution: {integrity: sha512-bzfL1YUZsP41gmu/qjrEk0Q6i2ix/cVeAhbCbqH9u3zYutS1cLg00qhrD0M2MVdCcx4Sc0UpP2eBWo9rotpq6g==}
@@ -13783,7 +13798,7 @@ packages:
     hasBin: true
     dependencies:
       json-stringify-safe: 5.0.1
-      minimist: 1.2.6
+      minimist: 1.2.7
       readable-stream: 3.6.0
       split2: 3.2.2
       through2: 4.0.2
@@ -13896,8 +13911,8 @@ packages:
       - bluebird
       - supports-color
 
-  /node-gyp/9.3.0:
-    resolution: {integrity: sha512-A6rJWfXFz7TQNjpldJ915WFb1LnhO4lIve3ANPbWreuEoLoKlFT3sxIepPBkLhM27crW8YmN+pjlgbasH6cH/Q==}
+  /node-gyp/9.2.0:
+    resolution: {integrity: sha512-/+/YxGfIJOh/fnMsr4Ep0v6oOIjnO1BgLd2dcDspBX1spTkQU7xSIox5RdRE/2/Uq3ZwK8Z5swRIbMUmPlslmg==}
     engines: {node: ^12.22 || ^14.13 || >=16}
     hasBin: true
     requiresBuild: true
@@ -14569,7 +14584,7 @@ packages:
       detect-libc: 1.0.3
       expand-template: 2.0.3
       github-from-package: 0.0.0
-      minimist: 1.2.6
+      minimist: 1.2.7
       mkdirp-classic: 0.5.3
       napi-build-utils: 1.0.2
       node-abi: 2.30.1
@@ -14837,7 +14852,7 @@ packages:
     dependencies:
       deep-extend: 0.6.0
       ini: 1.3.8
-      minimist: 1.2.6
+      minimist: 1.2.7
       strip-json-comments: 2.0.1
     dev: true
 
@@ -16259,7 +16274,7 @@ packages:
     dependencies:
       '@types/json5': 0.0.29
       json5: 1.0.1
-      minimist: 1.2.6
+      minimist: 1.2.7
       strip-bom: 3.0.0
     dev: false
 
@@ -17114,7 +17129,7 @@ packages:
       globby: 11.1.0
       into-stream: 6.0.0
       is-core-module: 2.9.0
-      minimist: 1.2.6
+      minimist: 1.2.7
       multistream: 4.1.0
       pkg-fetch: 3.4.1
       prebuild-install: 6.1.4
@@ -17140,7 +17155,7 @@ time:
   /@pnpm/colorize-semver-diff/1.0.1: '2020-10-25T15:50:17.812Z'
   /@pnpm/exec/2.0.0: '2020-10-29T23:51:01.271Z'
   /@pnpm/graph-sequencer/1.0.0: '2022-03-20T20:48:58.797Z'
-  /@pnpm/logger/4.0.0: '2021-04-04T13:03:01.132Z'
+  /@pnpm/logger/5.0.0: '2022-10-14T13:56:04.285Z'
   /@pnpm/meta-updater/0.2.0: '2022-09-14T15:47:23.242Z'
   /@pnpm/network.agent/0.0.3: '2022-06-12T19:51:53.044Z'
   /@pnpm/nopt/0.2.1: '2021-06-01T19:45:54.552Z'
@@ -17278,7 +17293,7 @@ time:
   /micromatch/4.0.5: '2022-03-24T19:31:47.722Z'
   /nock/13.2.9: '2022-07-19T18:34:55.582Z'
   /node-fetch/3.0.0-beta.9: '2020-09-05T12:52:27.791Z'
-  /node-gyp/9.3.0: '2022-10-11T04:54:21.968Z'
+  /node-gyp/9.2.0: '2022-10-04T10:40:24.552Z'
   /normalize-newline/3.0.0: '2016-09-06T12:35:43.571Z'
   /normalize-package-data/4.0.1: '2022-08-15T21:03:50.558Z'
   /normalize-path/3.0.0: '2018-04-19T14:54:47.609Z'

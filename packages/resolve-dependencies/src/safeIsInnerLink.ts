@@ -1,5 +1,5 @@
 import path from 'path'
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import isInnerLink from 'is-inner-link'
 import isSubdir from 'is-subdir'
 import renameOverwrite from 'rename-overwrite'

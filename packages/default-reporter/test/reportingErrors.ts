@@ -1,7 +1,7 @@
 import path from 'path'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { PnpmError } from '@pnpm/error'
-import logger, {
+import { logger,
   createStreamParser,
 } from '@pnpm/logger'
 import { map, take } from 'rxjs/operators'

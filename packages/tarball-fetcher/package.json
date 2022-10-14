@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/tarball-fetcher#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^4.0.0"
+    "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",

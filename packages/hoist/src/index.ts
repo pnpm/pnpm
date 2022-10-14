@@ -6,7 +6,7 @@ import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
 import { lockfileWalker, LockfileWalkerStep } from '@pnpm/lockfile-walker'
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import { HoistedDependencies } from '@pnpm/types'

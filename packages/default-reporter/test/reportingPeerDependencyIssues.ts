@@ -1,6 +1,6 @@
 import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
-import logger, {
+import { logger,
   createStreamParser,
 } from '@pnpm/logger'
 import { take } from 'rxjs/operators'

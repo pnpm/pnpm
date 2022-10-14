@@ -1,7 +1,7 @@
 import path from 'path'
 import { createResolver } from '@pnpm/client'
 import { Config } from '@pnpm/config'
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import { sortPackages } from '@pnpm/sort-packages'

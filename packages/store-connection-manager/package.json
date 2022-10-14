@@ -44,7 +44,7 @@
     "dir-is-case-sensitive": "^2.0.0"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^4.0.0"
+    "@pnpm/logger": "^5.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

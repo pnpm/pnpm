@@ -34,7 +34,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/mount-modules#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^4.0.0"
+    "@pnpm/logger": "^5.0.0"
   },
   "devDependencies": {
     "@pnpm/mount-modules": "workspace:*",
@@ -46,7 +46,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
-    "@pnpm/logger": "^4.0.0",
+    "@pnpm/logger": "^5.0.0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "dependency-path": "workspace:*",

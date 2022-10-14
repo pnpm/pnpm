@@ -5,14 +5,14 @@ import {
   PackageSnapshots,
 } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
-import pnpmLogger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { DependenciesField } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import unnest from 'ramda/src/unnest'
 import { filterImporter } from './filterImporter'
 
-const logger = pnpmLogger('lockfile')
+const lockfileLogger = logger('lockfile')
 
 export function filterLockfileByImportersAndEngine (
   lockfile: Lockfile,
@@ -124,7 +124,7 @@ function pkgAllDeps (
       if (opts.failOnMissingDependencies) {
         throw new LockfileMissingDependencyError(depPath)
       }
-      logger.debug(`No entry for "${depPath}" in ${WANTED_LOCKFILE}`)
+      lockfileLogger.debug(`No entry for "${depPath}" in ${WANTED_LOCKFILE}`)
       continue
     }
     let installable!: boolean

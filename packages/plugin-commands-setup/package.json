@@ -36,7 +36,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "peerDependencies": {
-    "@pnpm/logger": "^4.0.0"
+    "@pnpm/logger": "^5.0.0"
   },
   "devDependencies": {
     "@pnpm/error": "workspace:*",

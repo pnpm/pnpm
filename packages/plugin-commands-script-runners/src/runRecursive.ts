@@ -7,7 +7,7 @@ import {
   makeNodeRequireOption,
   RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { sortPackages } from '@pnpm/sort-packages'
 import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'

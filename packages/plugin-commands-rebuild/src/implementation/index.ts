@@ -17,7 +17,7 @@ import {
   PackageSnapshots,
 } from '@pnpm/lockfile-utils'
 import { lockfileWalker, LockfileWalkerStep } from '@pnpm/lockfile-walker'
-import logger, { streamParser } from '@pnpm/logger'
+import { logger, streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { ProjectManifest } from '@pnpm/types'

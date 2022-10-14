@@ -15,7 +15,7 @@ import {
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
   DirectoryResolution,

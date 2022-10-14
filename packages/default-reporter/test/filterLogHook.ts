@@ -1,6 +1,6 @@
 import { Log } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
-import logger, { createStreamParser } from '@pnpm/logger'
+import { logger, createStreamParser } from '@pnpm/logger'
 
 test('logger with filterLog hook', (done) => {
   const output$ = toOutput$({
