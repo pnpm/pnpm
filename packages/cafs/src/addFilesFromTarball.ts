@@ -4,7 +4,7 @@ import decompress from 'decompress-maybe'
 import tar from 'tar-stream'
 import { parseJsonStream } from './parseJson'
 
-export default async function (
+export async function addFilesFromTarball (
   addStreamToCafs: (fileStream: PassThrough, mode: number) => Promise<FileWriteResult>,
   _ignore: null | ((filename: string) => Boolean),
   stream: NodeJS.ReadableStream,

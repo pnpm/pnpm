@@ -206,9 +206,9 @@ export type ProcessedInstallOptions = StrictInstallOptions & {
   readPackageHook?: ReadPackageHook
 }
 
-export default async (
+export async function extendOptions (
   opts: InstallOptions
-): Promise<ProcessedInstallOptions> => {
+): Promise<ProcessedInstallOptions> {
   if (opts) {
     for (const key in opts) {
       if (opts[key] === undefined) {

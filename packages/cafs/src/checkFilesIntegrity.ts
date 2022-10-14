@@ -28,7 +28,7 @@ export interface PackageFilesIndex {
   sideEffects?: Record<string, Record<string, PackageFileInfo>>
 }
 
-export default async function (
+export async function checkFilesIntegrity (
   cafsDir: string,
   pkgIndex: Record<string, PackageFileInfo>,
   manifest?: DeferredManifestPromise

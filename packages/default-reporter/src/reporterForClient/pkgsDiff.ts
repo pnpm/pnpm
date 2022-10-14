@@ -27,7 +27,7 @@ export const propertyByDependencyType = {
   prod: 'dependencies',
 }
 
-export default function (
+export function getPkgsDiff (
   log$: {
     deprecation: Rx.Observable<logs.DeprecationLog>
     summary: Rx.Observable<logs.SummaryLog>

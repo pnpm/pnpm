@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 
-export default class UnexpectedStoreError extends PnpmError {
+export class UnexpectedStoreError extends PnpmError {
   public expectedStorePath: string
   public actualStorePath: string
   public modulesDir: string

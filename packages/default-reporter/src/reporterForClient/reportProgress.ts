@@ -17,7 +17,7 @@ interface ModulesInstallProgress {
   requirer: string
 }
 
-export default (
+export function reportProgress (
   log$: {
     progress: Rx.Observable<ProgressLog>
     stage: Rx.Observable<StageLog>
@@ -27,7 +27,7 @@ export default (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     throttle?: Rx.OperatorFunction<any, any>
   }
-) => {
+) {
   const progressOutput = throttledProgressOutput.bind(null, opts.throttle)
 
   return getModulesInstallProgress$(log$.stage, log$.progress).pipe(

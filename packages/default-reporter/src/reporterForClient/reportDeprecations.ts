@@ -2,16 +2,16 @@ import { DeprecationLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map } from 'rxjs/operators'
 import chalk from 'chalk'
-import formatWarn from './utils/formatWarn'
+import { formatWarn } from './utils/formatWarn'
 import { zoomOut } from './utils/zooming'
 
-export default (
+export function reportDeprecations (
   deprecation$: Rx.Observable<DeprecationLog>,
   opts: {
     cwd: string
     isRecursive: boolean
   }
-) => {
+) {
   return deprecation$.pipe(
     map((log) => {
       if (!opts.isRecursive && log.prefix === opts.cwd) {

@@ -13,7 +13,7 @@ import {
 import { map, skip, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import normalizeNewline from 'normalize-newline'
-import formatWarn from '../src/reporterForClient/utils/formatWarn'
+import { formatWarn } from '../src/reporterForClient/utils/formatWarn'
 
 const hlValue = chalk.cyanBright
 const hlPkgId = chalk['whiteBright']

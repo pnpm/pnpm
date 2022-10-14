@@ -38,7 +38,7 @@ import { ImporterToUpdate } from './index'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
-export default async function linkPackages (
+export async function linkPackages (
   projects: ImporterToUpdate[],
   depGraph: DependenciesGraph,
   opts: {

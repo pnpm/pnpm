@@ -2,12 +2,12 @@ import { SkippedOptionalDependencyLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
 
-export default (
+export function reportSkippedOptionalDependencies (
   skippedOptionalDependency$: Rx.Observable<SkippedOptionalDependencyLog>,
   opts: {
     cwd: string
   }
-) => {
+) {
   return skippedOptionalDependency$.pipe(
     filter((log) => Boolean(log['prefix'] === opts.cwd && log.parents && log.parents.length === 0)),
     map((log) => Rx.of({

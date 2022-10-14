@@ -13,7 +13,7 @@ const limit = pLimit(20)
 
 const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
 
-export default async function (
+export async function addFilesFromDir (
   cafs: {
     addStream: (stream: NodeJS.ReadableStream, mode: number) => Promise<FileWriteResult>
     addBuffer: (buffer: Buffer, mode: number) => Promise<FileWriteResult>

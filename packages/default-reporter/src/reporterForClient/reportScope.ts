@@ -14,13 +14,13 @@ const COMMANDS_THAT_REPORT_SCOPE = new Set([
   'test',
 ])
 
-export default (
+export function reportScope (
   scope$: Rx.Observable<ScopeLog>,
   opts: {
     isRecursive: boolean
     cmd: string
   }
-) => {
+) {
   if (!COMMANDS_THAT_REPORT_SCOPE.has(opts.cmd)) {
     return Rx.NEVER
   }

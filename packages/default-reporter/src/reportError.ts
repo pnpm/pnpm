@@ -17,7 +17,7 @@ StackTracey.maxColumnWidths = {
 const highlight = chalk.yellow
 const colorPath = chalk.gray
 
-export default function reportError (logObj: Log, config?: Config) {
+export function reportError (logObj: Log, config?: Config) {
   const errorInfo = getErrorInfo(logObj, config)
   let output = formatErrorSummary(errorInfo.title, logObj['err']['code'])
   if (logObj['pkgsStack'] != null) {

@@ -4,13 +4,13 @@ import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import normalize from 'normalize-path'
 
-export default (
+export function reportContext (
   log$: {
     context: Rx.Observable<ContextLog>
     packageImportMethod: Rx.Observable<PackageImportMethodLog>
   },
   opts: { cwd: string }
-) => {
+) {
   return Rx.combineLatest(
     log$.context.pipe(take(1)),
     log$.packageImportMethod.pipe(take(1))

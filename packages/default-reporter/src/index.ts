@@ -5,10 +5,10 @@ import * as Rx from 'rxjs'
 import { filter, map, mergeAll } from 'rxjs/operators'
 import createDiffer from 'ansi-diff'
 import { EOL } from './constants'
-import mergeOutputs from './mergeOutputs'
-import reporterForClient from './reporterForClient'
-import formatWarn from './reporterForClient/utils/formatWarn'
-import reporterForServer from './reporterForServer'
+import { mergeOutputs } from './mergeOutputs'
+import { reporterForClient } from './reporterForClient'
+import { formatWarn } from './reporterForClient/utils/formatWarn'
+import { reporterForServer } from './reporterForServer'
 
 export { formatWarn }
 
