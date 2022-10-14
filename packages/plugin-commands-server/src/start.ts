@@ -17,7 +17,7 @@ import {
   CreateStoreControllerOptions,
   serverConnectionInfoDir,
 } from '@pnpm/store-connection-manager'
-import { getStorePath }from '@pnpm/store-path'
+import { getStorePath } from '@pnpm/store-path'
 import Diable from '@zkochan/diable'
 import getPort from 'get-port'
 import isWindows from 'is-windows'

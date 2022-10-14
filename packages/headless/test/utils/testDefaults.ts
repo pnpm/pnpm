@@ -5,7 +5,7 @@ import { createPackageStore } from '@pnpm/package-store'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectsContext } from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { getStorePath }from '@pnpm/store-path'
+import { getStorePath } from '@pnpm/store-path'
 import fromPairs from 'ramda/src/fromPairs'
 import tempy from 'tempy'
 

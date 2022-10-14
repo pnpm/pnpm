@@ -1,4 +1,4 @@
-import { getStorePath }from '@pnpm/store-path'
+import { getStorePath } from '@pnpm/store-path'
 import isWindows from 'is-windows'
 
 jest.mock('os')

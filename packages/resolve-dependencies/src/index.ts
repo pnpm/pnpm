@@ -77,7 +77,7 @@ export type ImporterToResolve = Importer<{
   updatePackageManifest: boolean
 }
 
-export default async function (
+export async function resolveDependencies (
   importers: ImporterToResolve[],
   opts: ResolveDependenciesOptions & {
     defaultUpdateDepth: number

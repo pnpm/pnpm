@@ -38,11 +38,12 @@ import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { removeBin } from '@pnpm/remove-bins'
-import resolveDependencies, {
+import {
   getWantedDependencies,
   DependenciesGraph,
   DependenciesGraphNode,
   PinnedVersion,
+  resolveDependencies,
   WantedDependency,
 } from '@pnpm/resolve-dependencies'
 import {
