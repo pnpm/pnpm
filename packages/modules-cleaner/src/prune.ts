@@ -11,7 +11,7 @@ import {
   ProjectSnapshot,
 } from '@pnpm/lockfile-types'
 import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { StoreController } from '@pnpm/store-controller-types'
 import {

@@ -19,7 +19,7 @@ import {
 } from '@pnpm/fetcher-base'
 import type { Cafs, DeferredManifestPromise, PackageFilesResponse } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
 import {

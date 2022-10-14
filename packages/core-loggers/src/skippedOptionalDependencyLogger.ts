@@ -1,8 +1,9 @@
-import baseLogger, {
+import {
   LogBase,
+  logger,
 } from '@pnpm/logger'
 
-export const skippedOptionalDependencyLogger = baseLogger<SkippedOptionalDependencyMessage>('skipped-optional-dependency')
+export const skippedOptionalDependencyLogger = logger<SkippedOptionalDependencyMessage>('skipped-optional-dependency')
 
 export type SkippedOptionalDependencyLog = { name: 'pnpm:skipped-optional-dependency' } & LogBase & SkippedOptionalDependencyMessage
 

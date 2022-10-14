@@ -11,7 +11,7 @@ import {
   writeCurrentLockfile,
   writeLockfiles,
 } from '@pnpm/lockfile-file'
-import logger, { streamParser } from '@pnpm/logger'
+import { logger, streamParser } from '@pnpm/logger'
 import {
   getPref,
   getSpecFromPackageManifest,

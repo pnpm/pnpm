@@ -30,7 +30,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^4.0.0"
+    "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
     "@pnpm/config": "workspace:*",

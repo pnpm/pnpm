@@ -37,7 +37,7 @@
     "@pnpm/exportable-manifest": "workspace:*",
     "@pnpm/find-workspace-dir": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
-    "@pnpm/logger": "^4.0.0",
+    "@pnpm/logger": "^5.0.0",
     "@pnpm/prune-lockfile": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",

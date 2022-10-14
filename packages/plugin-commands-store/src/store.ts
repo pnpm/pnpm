@@ -1,7 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import logger, { LogBase } from '@pnpm/logger'
+import { logger, LogBase } from '@pnpm/logger'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { getStorePath } from '@pnpm/store-path'
 import pick from 'ramda/src/pick'

@@ -1,7 +1,7 @@
 import { promises as fs, existsSync } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import logger, { globalWarn } from '@pnpm/logger'
+import { logger, globalWarn } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { Command, getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { readModulesDir } from '@pnpm/read-modules-dir'

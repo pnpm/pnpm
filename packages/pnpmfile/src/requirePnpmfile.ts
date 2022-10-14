@@ -1,6 +1,6 @@
 import fs from 'fs'
 import { PnpmError } from '@pnpm/error'
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { PackageManifest } from '@pnpm/types'
 import chalk from 'chalk'
 

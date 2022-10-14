@@ -1,13 +1,13 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import pnpmLogger, { globalWarn } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
 import sanitizeFilename from 'sanitize-filename'
 import makeEmptyDir from 'make-empty-dir'
 import pathTemp from 'path-temp'
 import renameOverwrite from 'rename-overwrite'
 
-const filenameConflictsLogger = pnpmLogger('_filename-conflicts')
+const filenameConflictsLogger = logger('_filename-conflicts')
 
 export type ImportFile = (src: string, dest: string) => Promise<void>
 

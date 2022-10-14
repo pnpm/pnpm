@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import {
   addDirToEnvPath,
   ConfigReport,

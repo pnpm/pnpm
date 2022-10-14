@@ -1,9 +1,10 @@
-import baseLogger, {
+import {
   LogBase,
+  logger,
 } from '@pnpm/logger'
 import { ProjectManifest } from '@pnpm/types'
 
-export const packageManifestLogger = baseLogger<PackageManifestMessage>('package-manifest')
+export const packageManifestLogger = logger<PackageManifestMessage>('package-manifest')
 
 export type PackageManifestMessage = {
   prefix: string

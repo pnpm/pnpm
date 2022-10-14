@@ -35,7 +35,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/package-requester#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^4.0.0"
+    "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:*",

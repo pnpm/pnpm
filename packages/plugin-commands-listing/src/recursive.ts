@@ -1,5 +1,5 @@
 import { Config } from '@pnpm/config'
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { IncludedDependencies, Project } from '@pnpm/types'
 import { render } from './list'
 

@@ -10,7 +10,7 @@ import {
 } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { node } from '@pnpm/plugin-commands-env'
 import chalk from 'chalk'

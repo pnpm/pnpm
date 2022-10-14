@@ -1,8 +1,9 @@
-import baseLogger, {
+import {
   LogBase,
+  logger,
 } from '@pnpm/logger'
 
-export const summaryLogger = baseLogger<SummaryMessage>('summary')
+export const summaryLogger = logger<SummaryMessage>('summary')
 
 export interface SummaryMessage {
   prefix: string

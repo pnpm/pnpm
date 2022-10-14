@@ -1,9 +1,10 @@
-import baseLogger, {
+import {
   LogBase,
   Logger,
+  logger,
 } from '@pnpm/logger'
 
-export const deprecationLogger = baseLogger('deprecation') as Logger<DeprecationMessage>
+export const deprecationLogger = logger('deprecation') as Logger<DeprecationMessage>
 
 export interface DeprecationMessage {
   pkgName: string

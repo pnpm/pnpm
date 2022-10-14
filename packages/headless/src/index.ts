@@ -38,8 +38,9 @@ import {
   nameVerFromPkgSnapshot,
   satisfiesPackageManifest,
 } from '@pnpm/lockfile-utils'
-import logger, {
+import {
   LogBase,
+  logger,
   streamParser,
 } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'

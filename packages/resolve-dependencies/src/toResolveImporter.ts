@@ -1,4 +1,4 @@
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import {
   PreferredVersions,

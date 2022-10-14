@@ -1,4 +1,4 @@
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import {
   Lockfile,
   LockfileResolution,

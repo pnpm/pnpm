@@ -13,10 +13,8 @@ jest.mock('path-temp', () => (dir: string) => path.join(dir, '_tmp'))
 jest.mock('rename-overwrite', () => jest.fn())
 const globalInfo = jest.fn()
 const globalWarn = jest.fn()
-const baseLogger = jest.fn(() => ({ debug: jest.fn() }))
-baseLogger['globalInfo'] = globalInfo
-baseLogger['globalWarn'] = globalWarn
-jest.mock('@pnpm/logger', () => baseLogger)
+const logger = jest.fn(() => ({ debug: jest.fn() }))
+jest.mock('@pnpm/logger', () => ({ logger, globalWarn, globalInfo }))
 
 // eslint-disable-next-line
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'

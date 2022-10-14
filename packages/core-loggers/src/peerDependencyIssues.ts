@@ -1,10 +1,11 @@
-import baseLogger, {
+import {
   LogBase,
   Logger,
+  logger,
 } from '@pnpm/logger'
 import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 
-export const peerDependencyIssuesLogger = baseLogger('peer-dependency-issues') as Logger<PeerDependencyIssuesMessage>
+export const peerDependencyIssuesLogger = logger('peer-dependency-issues') as Logger<PeerDependencyIssuesMessage>
 
 export interface PeerDependencyIssuesMessage {
   issuesByProjects: PeerDependencyIssuesByProjects

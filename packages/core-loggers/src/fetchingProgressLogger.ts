@@ -1,9 +1,10 @@
-import baseLogger, {
+import {
   LogBase,
   Logger,
+  logger,
 } from '@pnpm/logger'
 
-export const fetchingProgressLogger = baseLogger('fetching-progress') as Logger<FetchingProgressMessage>
+export const fetchingProgressLogger = logger('fetching-progress') as Logger<FetchingProgressMessage>
 
 export type FetchingProgressMessage = {
   attempt: number

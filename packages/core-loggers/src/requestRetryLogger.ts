@@ -1,8 +1,9 @@
-import baseLogger, {
+import {
   LogBase,
+  logger,
 } from '@pnpm/logger'
 
-export const requestRetryLogger = baseLogger<RequestRetryMessage>('request-retry')
+export const requestRetryLogger = logger<RequestRetryMessage>('request-retry')
 
 export interface RequestRetryMessage {
   attempt: number

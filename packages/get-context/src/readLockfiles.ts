@@ -10,7 +10,7 @@ import {
   readWantedLockfile,
   readWantedLockfileAndAutofixConflicts,
 } from '@pnpm/lockfile-file'
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 import isCI from 'is-ci'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'

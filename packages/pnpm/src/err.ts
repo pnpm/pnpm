@@ -1,4 +1,4 @@
-import logger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 
 export default function err (error: Error) {
   if (!global['reporterInitialized']) {
