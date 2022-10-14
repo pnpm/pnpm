@@ -18,8 +18,7 @@ jest.mock('@pnpm/logger', () => {
   const globalWarn = jest.fn()
 
   return {
-    __esModule: true,
-    default: () => ({ debug }),
+    logger: () => ({ debug }),
     globalWarn,
   }
 })
