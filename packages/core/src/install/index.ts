@@ -20,7 +20,7 @@ import {
   runLifecycleHooksConcurrently,
   RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/lifecycle'
-import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
+import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   ProjectSnapshot,
   Lockfile,

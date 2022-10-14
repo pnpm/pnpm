@@ -23,7 +23,7 @@ import {
   runLifecycleHooksConcurrently,
   makeNodeRequireOption,
 } from '@pnpm/lifecycle'
-import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
+import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
   Lockfile,

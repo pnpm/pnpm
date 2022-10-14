@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { FetchFromRegistry, GetCredentials } from '@pnpm/fetching-types'
 import { createGitResolver } from '@pnpm/git-resolver'
-import resolveFromLocal from '@pnpm/local-resolver'
+import { resolveFromLocal } from '@pnpm/local-resolver'
 import createResolveFromNpm, {
   PackageMeta,
   PackageMetaCache,

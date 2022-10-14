@@ -31,7 +31,7 @@ export type WarningCode = 'BINARIES_CONFLICT' | 'EMPTY_BIN'
 
 export type WarnFunction = (msg: string, code: WarningCode) => void
 
-export default async (
+export async function linkBins (
   modulesDir: string,
   binsDir: string,
   opts: LinkBinOptions & {
@@ -40,7 +40,7 @@ export default async (
     projectManifest?: ProjectManifest
     warn: WarnFunction
   }
-): Promise<string[]> => {
+): Promise<string[]> {
   const allDeps = await readModulesDir(modulesDir)
   // If the modules dir does not exist, do nothing
   if (allDeps === null) return []
@@ -70,7 +70,7 @@ export default async (
   )
 
   const cmdsToLink = directDependencies != null ? preferDirectCmds(allCmds) : allCmds
-  return linkBins(cmdsToLink, binsDir, opts)
+  return _linkBins(cmdsToLink, binsDir, opts)
 }
 
 function preferDirectCmds (allCmds: Array<CommandInfo & { isDirectDependency?: boolean }>) {
@@ -101,7 +101,7 @@ export async function linkBinsOfPackages (
       .filter((cmds: Command[]) => cmds.length)
   )
 
-  return linkBins(allCmds, binsTarget, opts)
+  return _linkBins(allCmds, binsTarget, opts)
 }
 
 type CommandInfo = Command & {
@@ -111,7 +111,7 @@ type CommandInfo = Command & {
   nodeExecPath?: string
 }
 
-async function linkBins (
+async function _linkBins (
   allCmds: CommandInfo[],
   binsDir: string,
   opts: LinkBinOptions

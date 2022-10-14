@@ -16,7 +16,7 @@ const DEFAULTS = {
   showExtraneous: true,
 }
 
-export async function forPackages (
+export async function listForPackages (
   packages: string[],
   projectPaths: string[],
   maybeOpts: {
@@ -63,7 +63,7 @@ export async function forPackages (
   })
 }
 
-export default async function (
+export async function list (
   projectPaths: string[],
   maybeOpts: {
     alwaysPrintRootPackage?: boolean

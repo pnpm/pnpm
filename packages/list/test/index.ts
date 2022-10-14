@@ -1,6 +1,6 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
-import list, { forPackages as listForPackages } from '@pnpm/list'
+import { list, listForPackages } from '@pnpm/list'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
 import renderTree from '../lib/renderTree'

@@ -1,5 +1,5 @@
 import { findWorkspacePackages, Project } from '@pnpm/find-workspace-packages'
-import matcher from '@pnpm/matcher'
+import { createMatcher } from '@pnpm/matcher'
 import createPkgGraph, { Package, PackageNode } from 'pkgs-graph'
 import isSubdir from 'is-subdir'
 import difference from 'ramda/src/difference'
@@ -295,7 +295,7 @@ function matchPackages<T> (
   graph: PackageGraph<T>,
   pattern: string
 ): string[] {
-  const match = matcher(pattern)
+  const match = createMatcher(pattern)
   const matches = Object.keys(graph).filter((id) => graph[id].package.manifest.name && match(graph[id].package.manifest.name!))
   if (matches.length === 0 && !pattern.startsWith('@') && !pattern.includes('/')) {
     const scopedMatches = matchPackages(graph, `@*/${pattern}`)

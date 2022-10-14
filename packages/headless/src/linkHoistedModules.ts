@@ -5,7 +5,7 @@ import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import linkBins from '@pnpm/link-bins'
+import { linkBins } from '@pnpm/link-bins'
 import logger from '@pnpm/logger'
 import {
   PackageFilesResponse,

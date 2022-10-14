@@ -7,7 +7,7 @@ import npmTypes from '@pnpm/npm-conf/lib/types'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { getCurrentBranch } from '@pnpm/git-utils'
-import matcher from '@pnpm/matcher'
+import { createMatcher } from '@pnpm/matcher'
 import camelcase from 'camelcase'
 import isWindows from 'is-windows'
 import normalizeRegistryUrl from 'normalize-registry-url'
@@ -291,7 +291,7 @@ export async function getConfig (
     if (pnpmConfig['mergeGitBranchLockfilesBranchPattern'] != null && pnpmConfig['mergeGitBranchLockfilesBranchPattern'].length > 0) {
       const branch = await getCurrentBranch()
       if (branch) {
-        const branchMatcher = matcher(pnpmConfig['mergeGitBranchLockfilesBranchPattern'])
+        const branchMatcher = createMatcher(pnpmConfig['mergeGitBranchLockfilesBranchPattern'])
         return branchMatcher(branch)
       }
     }

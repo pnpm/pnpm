@@ -17,7 +17,7 @@ export { WantedLocalDependency }
 /**
  * Resolves a package hosted on the local filesystem
  */
-export default async function resolveLocal (
+export async function resolveFromLocal (
   wantedDependency: WantedLocalDependency,
   opts: {
     lockfileDir?: string

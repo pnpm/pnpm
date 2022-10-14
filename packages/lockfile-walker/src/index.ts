@@ -44,7 +44,7 @@ export function lockfileWalkerGroupImporterSteps (
   })
 }
 
-export default function lockfileWalker (
+export function lockfileWalker (
   lockfile: Lockfile,
   importerIds: string[],
   opts?: {

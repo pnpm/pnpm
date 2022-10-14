@@ -1,4 +1,4 @@
-import matcher from '@pnpm/matcher'
+import { createMatcher } from '@pnpm/matcher'
 import npa from '@pnpm/npm-package-arg'
 import { SearchFunction } from 'dependencies-hierarchy'
 import semver from 'semver'
@@ -31,13 +31,13 @@ function search (
 function parseSearchQuery (query: string) {
   const parsed = npa(query)
   if (parsed.raw === parsed.name) {
-    return { matchName: matcher(parsed.name) }
+    return { matchName: createMatcher(parsed.name) }
   }
   if (parsed.type !== 'version' && parsed.type !== 'range') {
     throw new Error(`Invalid queryment - ${query}. List can search only by version or range`)
   }
   return {
-    matchName: matcher(parsed.name),
+    matchName: createMatcher(parsed.name),
     matchVersion: (version: string) => semver.satisfies(version, parsed.fetchSpec),
   }
 }

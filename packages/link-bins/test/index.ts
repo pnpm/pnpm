@@ -2,7 +2,8 @@
 import { promises as fs, writeFileSync } from 'fs'
 import path from 'path'
 import logger, { globalWarn } from '@pnpm/logger'
-import linkBins, {
+import {
+  linkBins,
   linkBinsOfPackages,
 } from '@pnpm/link-bins'
 import fixtures from '@pnpm/test-fixtures'

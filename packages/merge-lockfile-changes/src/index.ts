@@ -2,7 +2,7 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import comverToSemver from 'comver-to-semver'
 import semver from 'semver'
 
-export default function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile) {
+export function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile) {
   const newLockfile: Lockfile = {
     importers: {},
     lockfileVersion: semver.gt(comverToSemver(theirs.lockfileVersion.toString()), comverToSemver(ours.lockfileVersion.toString()))

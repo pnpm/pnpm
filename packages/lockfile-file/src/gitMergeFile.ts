@@ -1,5 +1,5 @@
 import { Lockfile } from '@pnpm/lockfile-types'
-import mergeLockfileChanges from '@pnpm/merge-lockfile-changes'
+import { mergeLockfileChanges } from '@pnpm/merge-lockfile-changes'
 import yaml from 'js-yaml'
 
 const MERGE_CONFLICT_PARENT = '|||||||'
