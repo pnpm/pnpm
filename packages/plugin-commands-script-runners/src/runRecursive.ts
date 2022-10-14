@@ -27,10 +27,10 @@ Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' 
   ifPresent?: boolean
 }
 
-export default async (
+export async function runRecursive (
   params: string[],
   opts: RecursiveRunOpts
-) => {
+) {
   const [scriptName, ...passedThruArgs] = params
   if (!scriptName) {
     throw new PnpmError('SCRIPT_NAME_IS_REQUIRED', 'You must specify the script you want to run')

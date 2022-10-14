@@ -17,7 +17,7 @@ import { ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
-import runRecursive, { RecursiveRunOpts } from './runRecursive'
+import { runRecursive, RecursiveRunOpts } from './runRecursive'
 import existsInDir from './existsInDir'
 import { handler as exec } from './exec'
 

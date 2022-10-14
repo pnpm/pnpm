@@ -5,7 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { InstallCommandOptions } from './install'
-import installDeps from './installDeps'
+import { installDeps } from './installDeps'
 
 export function rcOptionsTypes () {
   return pick([

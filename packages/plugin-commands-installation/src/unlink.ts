@@ -4,9 +4,9 @@ import { Config } from '@pnpm/config'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { mutateModulesInSingleProject } from '@pnpm/core'
 import renderHelp from 'render-help'
-import getOptionsFromRootManifest from './getOptionsFromRootManifest'
+import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { cliOptionsTypes, rcOptionsTypes } from './install'
-import recursive from './recursive'
+import { recursive } from './recursive'
 
 export { cliOptionsTypes, rcOptionsTypes }
 

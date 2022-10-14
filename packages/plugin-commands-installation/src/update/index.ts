@@ -15,8 +15,8 @@ import pick from 'ramda/src/pick'
 import unnest from 'ramda/src/unnest'
 import renderHelp from 'render-help'
 import { InstallCommandOptions } from '../install'
-import installDeps from '../installDeps'
-import getUpdateChoices from './getUpdateChoices'
+import { installDeps } from '../installDeps'
+import { getUpdateChoices } from './getUpdateChoices'
 
 export function rcOptionsTypes () {
   return pick([

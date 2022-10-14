@@ -6,7 +6,7 @@ import type { Lockfile } from '@pnpm/lockfile-types'
 import type { Log } from '@pnpm/core-loggers'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
 import { ImportIndexedPackage } from '@pnpm/store-controller-types'
-import requirePnpmfile from './requirePnpmfile'
+import { requirePnpmfile } from './requirePnpmfile'
 
 interface HookContext {
   log: (message: string) => void
@@ -38,7 +38,7 @@ export interface CookedHooks {
   fetchers?: CustomFetchers
 }
 
-export default function requireHooks (
+export function requireHooks (
   prefix: string,
   opts: {
     globalPnpmfile?: string

@@ -19,12 +19,12 @@ import {
 import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import isSubdir from 'is-subdir'
-import getOptionsFromRootManifest from './getOptionsFromRootManifest'
-import getPinnedVersion from './getPinnedVersion'
-import getSaveType from './getSaveType'
-import getNodeExecPath from './nodeExecPath'
-import recursive, { createMatcher, matchDependencies, makeIgnorePatterns, UpdateDepsMatcher } from './recursive'
-import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
+import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
+import { getPinnedVersion } from './getPinnedVersion'
+import { getSaveType } from './getSaveType'
+import { getNodeExecPath } from './nodeExecPath'
+import { recursive, createMatcher, matchDependencies, makeIgnorePatterns, UpdateDepsMatcher } from './recursive'
+import { updateToLatestSpecsFromManifest, createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -93,7 +93,7 @@ export type InstallDepsOptions = Pick<Config,
   workspace?: boolean
 } & Partial<Pick<Config, 'pnpmHomeDir'>>
 
-export default async function handler (
+export async function installDeps (
   opts: InstallDepsOptions,
   params: string[]
 ) {

@@ -2,8 +2,8 @@ import { Completion, CompletionFunc } from '@pnpm/command'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import { findWorkspacePackages } from '@pnpm/find-workspace-packages'
 import { getOptionCompletions } from '../getOptionType'
-import optionTypesToCompletions from '../optionTypesToCompletions'
-import universalShorthands from '../shorthands'
+import { optionTypesToCompletions } from '../optionTypesToCompletions'
+import { shorthands as universalShorthands } from '../shorthands'
 
 export async function complete (
   ctx: {

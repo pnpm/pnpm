@@ -21,8 +21,8 @@ import { parse as parseYarnLock } from '@yarnpkg/lockfile'
 import * as yarnCore from '@yarnpkg/core'
 import { parseSyml } from '@yarnpkg/parsers'
 import exists from 'path-exists'
-import getOptionsFromRootManifest from '../getOptionsFromRootManifest'
-import recursive from '../recursive'
+import { getOptionsFromRootManifest } from '../getOptionsFromRootManifest'
+import { recursive } from '../recursive'
 import { yarnLockFileKeyNormalizer } from './yarnUtil'
 
 interface NpmPackageLock {

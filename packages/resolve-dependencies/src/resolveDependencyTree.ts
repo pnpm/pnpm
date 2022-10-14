@@ -88,7 +88,7 @@ export interface ResolveDependenciesOptions {
   workspacePackages: WorkspacePackages
 }
 
-export default async function<T> (
+export async function resolveDependencyTree<T> (
   importers: Array<ImporterToResolveGeneric<T>>,
   opts: ResolveDependenciesOptions
 ) {

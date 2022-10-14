@@ -4,9 +4,9 @@ import { globalInfo } from '@pnpm/logger'
 import { serverConnectionInfoDir, tryLoadServerJson } from '@pnpm/store-connection-manager'
 import { getStorePath } from '@pnpm/store-path'
 
-export default async (
+export async function status (
   opts: Pick<Config, 'dir' | 'pnpmHomeDir' | 'storeDir'>
-) => {
+) {
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,

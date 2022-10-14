@@ -2,7 +2,7 @@ import { filterDependenciesByType, getAllDependenciesFromManifest } from '@pnpm/
 import { IncludedDependencies, ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
 
-export default function updateToLatestSpecsFromManifest (manifest: ProjectManifest, include: IncludedDependencies) {
+export function updateToLatestSpecsFromManifest (manifest: ProjectManifest, include: IncludedDependencies) {
   const allDeps = filterDependenciesByType(manifest, include)
   const updateSpecs = []
   for (const [depName, depVersion] of Object.entries(allDeps)) {

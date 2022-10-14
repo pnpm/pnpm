@@ -1,6 +1,5 @@
-import requireHooks from './requireHooks'
 import type { CookedHooks } from './requireHooks'
-import requirePnpmfile, { BadReadPackageHookError } from './requirePnpmfile'
 
-export { requireHooks, requirePnpmfile, BadReadPackageHookError }
+export { requireHooks } from './requireHooks'
+export { requirePnpmfile, BadReadPackageHookError } from './requirePnpmfile'
 export type Hooks = CookedHooks

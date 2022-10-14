@@ -25,16 +25,18 @@ import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
 import { getWantedDependencies, WantedDependency } from './getWantedDependencies'
 import { depPathToRef } from './depPathToRef'
-import resolveDependencyTree, {
+import {
   Importer,
   LinkedDependency,
   ResolveDependenciesOptions,
   ResolvedDirectDependency,
   ResolvedPackage,
+  resolveDependencyTree,
 } from './resolveDependencyTree'
-import resolvePeers, {
+import {
   GenericDependenciesGraph,
   GenericDependenciesGraphNode,
+  resolvePeers,
 } from './resolvePeers'
 import { toResolveImporter } from './toResolveImporter'
 import { updateLockfile } from './updateLockfile'

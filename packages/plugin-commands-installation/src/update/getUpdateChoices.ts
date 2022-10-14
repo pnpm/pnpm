@@ -5,7 +5,7 @@ import { getBorderCharacters, table } from '@zkochan/table'
 import isEmpty from 'ramda/src/isEmpty'
 import unnest from 'ramda/src/unnest'
 
-export default function (outdatedPkgsOfProjects: OutdatedPackage[]) {
+export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[]) {
   const allOutdatedPkgs = mergeOutdatedPkgs(outdatedPkgsOfProjects)
   if (isEmpty(allOutdatedPkgs)) {
     return []

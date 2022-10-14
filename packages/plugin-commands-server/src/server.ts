@@ -5,9 +5,9 @@ import { PnpmError } from '@pnpm/error'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import start from './start'
-import status from './status'
-import stop from './stop'
+import { start } from './start'
+import { status } from './status'
+import { stop } from './stop'
 
 export const rcOptionsTypes = cliOptionsTypes
 

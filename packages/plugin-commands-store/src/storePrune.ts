@@ -2,7 +2,7 @@ import { streamParser } from '@pnpm/logger'
 import { StoreController } from '@pnpm/store-controller-types'
 import { ReporterFunction } from './types'
 
-export default async function (
+export async function storePrune (
   opts: {
     reporter?: ReporterFunction
     storeController: StoreController

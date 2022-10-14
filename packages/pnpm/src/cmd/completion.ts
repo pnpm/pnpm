@@ -5,7 +5,7 @@ import {
   currentTypedWordType,
   getLastOption,
 } from '../getOptionType'
-import parseCliArgs from '../parseCliArgs'
+import { parseCliArgs } from '../parseCliArgs'
 import { complete } from './complete'
 
 export function createCompletion (

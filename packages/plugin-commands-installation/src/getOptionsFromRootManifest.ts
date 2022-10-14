@@ -5,7 +5,7 @@ import {
   ProjectManifest,
 } from '@pnpm/types'
 
-export default function getOptionsFromRootManifest (manifest: ProjectManifest): {
+export function getOptionsFromRootManifest (manifest: ProjectManifest): {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowNonAppliedPatches?: boolean
   overrides?: Record<string, string>

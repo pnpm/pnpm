@@ -24,7 +24,7 @@ class PnpmFileFailError extends PnpmError {
   }
 }
 
-export default (pnpmFilePath: string, prefix: string) => {
+export function requirePnpmfile (pnpmFilePath: string, prefix: string) {
   try {
     const pnpmfile = require(pnpmFilePath) // eslint-disable-line
     if (typeof pnpmfile === 'undefined') {

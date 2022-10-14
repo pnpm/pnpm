@@ -6,7 +6,7 @@ import { StoreController } from '@pnpm/store-controller-types'
 import { Registries } from '@pnpm/types'
 import { ReporterFunction } from './types'
 
-export default async function (
+export async function storeAdd (
   fuzzyDeps: string[],
   opts: {
     prefix?: string
