@@ -1,8 +1,9 @@
-import baseLogger, {
+import {
   LogBase,
+  logger,
 } from '@pnpm/logger'
 
-export const packageImportMethodLogger = baseLogger('package-import-method')
+export const packageImportMethodLogger = logger('package-import-method')
 
 export interface PackageImportMethodMessage {
   method: 'clone' | 'hardlink' | 'copy'

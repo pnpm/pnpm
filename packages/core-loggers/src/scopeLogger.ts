@@ -1,8 +1,9 @@
-import baseLogger, {
+import {
   LogBase,
+  logger,
 } from '@pnpm/logger'
 
-export const scopeLogger = baseLogger<ScopeMessage>('scope')
+export const scopeLogger = logger<ScopeMessage>('scope')
 
 export interface ScopeMessage {
   selected: number

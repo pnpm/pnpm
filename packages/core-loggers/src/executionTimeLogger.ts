@@ -1,8 +1,9 @@
-import baseLogger, {
+import {
   LogBase,
+  logger,
 } from '@pnpm/logger'
 
-export const executionTimeLogger = baseLogger('execution-time')
+export const executionTimeLogger = logger('execution-time')
 
 export interface ExecutionTimeMessage {
   startedAt: number

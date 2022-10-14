@@ -1,8 +1,9 @@
-import baseLogger, {
+import {
   LogBase,
+  logger,
 } from '@pnpm/logger'
 
-export const stageLogger = baseLogger<StageMessage>('stage')
+export const stageLogger = logger<StageMessage>('stage')
 
 export interface StageMessage {
   prefix: string

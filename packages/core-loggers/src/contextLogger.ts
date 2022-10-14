@@ -1,8 +1,9 @@
-import baseLogger, {
+import {
   LogBase,
+  logger,
 } from '@pnpm/logger'
 
-export const contextLogger = baseLogger('context')
+export const contextLogger = logger('context')
 
 export interface ContextMessage {
   currentLockfileExists: boolean

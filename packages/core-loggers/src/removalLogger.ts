@@ -1,3 +1,3 @@
-import baseLogger from '@pnpm/logger'
+import { logger } from '@pnpm/logger'
 
-export const removalLogger = baseLogger<string>('removal')
+export const removalLogger = logger<string>('removal')

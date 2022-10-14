@@ -1,9 +1,10 @@
-import baseLogger, {
+import {
   LogBase,
   Logger,
+  logger,
 } from '@pnpm/logger'
 
-export const progressLogger = baseLogger('progress') as Logger<ProgressMessage>
+export const progressLogger = logger('progress') as Logger<ProgressMessage>
 
 export type ProgressMessage = {
   packageId: string

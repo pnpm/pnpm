@@ -1,8 +1,9 @@
-import baseLogger, {
+import {
   LogBase,
+  logger,
 } from '@pnpm/logger'
 
-export const hookLogger = baseLogger('hook')
+export const hookLogger = logger('hook')
 
 export interface HookMessage {
   from: string

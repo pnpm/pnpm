@@ -1,8 +1,9 @@
-import baseLogger, {
+import {
   LogBase,
+  logger,
 } from '@pnpm/logger'
 
-export const statsLogger = baseLogger<StatsMessage>('stats')
+export const statsLogger = logger<StatsMessage>('stats')
 
 export type StatsMessage = {
   prefix: string

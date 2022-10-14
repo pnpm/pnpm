@@ -1,8 +1,9 @@
-import baseLogger, {
+import {
   LogBase,
+  logger,
 } from '@pnpm/logger'
 
-export const lifecycleLogger = baseLogger<LifecycleMessage>('lifecycle')
+export const lifecycleLogger = logger<LifecycleMessage>('lifecycle')
 
 // TODO: make depPath optional
 export type LifecycleMessage = {
