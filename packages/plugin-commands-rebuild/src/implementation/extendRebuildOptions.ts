@@ -77,9 +77,9 @@ const defaults = async (opts: RebuildOptions) => {
   } as StrictRebuildOptions
 }
 
-export default async (
+export async function extendRebuildOptions (
   opts: RebuildOptions
-): Promise<StrictRebuildOptions> => {
+): Promise<StrictRebuildOptions> {
   if (opts) {
     for (const key in opts) {
       if (opts[key] === undefined) {

@@ -22,7 +22,7 @@ export interface PnpmContext {
   wantedLockfile: Lockfile
 }
 
-export default async function (
+export async function readLockfiles (
   opts: {
     force: boolean
     forceSharedLockfile: boolean

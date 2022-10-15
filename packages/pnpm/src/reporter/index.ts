@@ -1,17 +1,17 @@
 import { Config } from '@pnpm/config'
 import { initDefaultReporter } from '@pnpm/default-reporter'
 import { LogLevel, streamParser, writeToConsole } from '@pnpm/logger'
-import silentReporter from './silentReporter'
+import { silentReporter } from './silentReporter'
 
 export type ReporterType = 'default' | 'ndjson' | 'silent' | 'append-only'
 
-export default (
+export function initReporter (
   reporterType: ReporterType,
   opts: {
     cmd: string | null
     config: Config
   }
-) => {
+) {
   switch (reporterType) {
   case 'default':
     initDefaultReporter({

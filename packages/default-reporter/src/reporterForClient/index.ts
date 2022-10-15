@@ -3,22 +3,22 @@ import * as logs from '@pnpm/core-loggers'
 import { LogLevel } from '@pnpm/logger'
 import * as Rx from 'rxjs'
 import { throttleTime } from 'rxjs/operators'
-import reportBigTarballsProgress from './reportBigTarballsProgress'
-import reportContext from './reportContext'
+import { reportBigTarballProgress } from './reportBigTarballsProgress'
+import { reportContext } from './reportContext'
 import { reportExecutionTime } from './reportExecutionTime'
-import reportDeprecations from './reportDeprecations'
-import reportHooks from './reportHooks'
-import reportInstallChecks from './reportInstallChecks'
-import reportLifecycleScripts from './reportLifecycleScripts'
-import reportMisc, { LOG_LEVEL_NUMBER } from './reportMisc'
-import reportPeerDependencyIssues from './reportPeerDependencyIssues'
-import reportProgress from './reportProgress'
-import reportRequestRetry from './reportRequestRetry'
-import reportScope from './reportScope'
-import reportSkippedOptionalDependencies from './reportSkippedOptionalDependencies'
-import reportStats from './reportStats'
-import reportSummary from './reportSummary'
-import reportUpdateCheck from './reportUpdateCheck'
+import { reportDeprecations } from './reportDeprecations'
+import { reportHooks } from './reportHooks'
+import { reportInstallChecks } from './reportInstallChecks'
+import { reportLifecycleScripts } from './reportLifecycleScripts'
+import { reportMisc, LOG_LEVEL_NUMBER } from './reportMisc'
+import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
+import { reportProgress } from './reportProgress'
+import { reportRequestRetry } from './reportRequestRetry'
+import { reportScope } from './reportScope'
+import { reportSkippedOptionalDependencies } from './reportSkippedOptionalDependencies'
+import { reportStats } from './reportStats'
+import { reportSummary } from './reportSummary'
+import { reportUpdateCheck } from './reportUpdateCheck'
 
 const PRINT_EXECUTION_TIME_IN_COMMANDS = {
   install: true,
@@ -27,7 +27,7 @@ const PRINT_EXECUTION_TIME_IN_COMMANDS = {
   remove: true,
 }
 
-export default function (
+export function reporterForClient (
   log$: {
     context: Rx.Observable<logs.ContextLog>
     fetchingProgress: Rx.Observable<logs.FetchingProgressLog>
@@ -128,7 +128,7 @@ export default function (
   }
 
   if (!opts.appendOnly) {
-    outputs.push(reportBigTarballsProgress(log$))
+    outputs.push(reportBigTarballProgress(log$))
   }
 
   if (!opts.isRecursive) {

@@ -27,7 +27,8 @@ import graphSequencer from '@pnpm/graph-sequencer'
 import npa from '@pnpm/npm-package-arg'
 import pLimit from 'p-limit'
 import semver from 'semver'
-import extendOptions, {
+import {
+  extendRebuildOptions,
   RebuildOptions,
   StrictRebuildOptions,
 } from './extendRebuildOptions'
@@ -85,7 +86,7 @@ export async function rebuildSelectedPkgs (
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
-  const opts = await extendOptions(maybeOpts)
+  const opts = await extendRebuildOptions(maybeOpts)
   const ctx = await getContext({ ...opts, allProjects: projects })
 
   if (!ctx.currentLockfile || (ctx.currentLockfile.packages == null)) return
@@ -130,7 +131,7 @@ export async function rebuildProjects (
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
-  const opts = await extendOptions(maybeOpts)
+  const opts = await extendRebuildOptions(maybeOpts)
   const ctx = await getContext({ ...opts, allProjects: projects })
 
   let idsToRebuild: string[] = []

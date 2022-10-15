@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { audit } from '@pnpm/audit'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 
 const f = fixtures(__dirname)
 

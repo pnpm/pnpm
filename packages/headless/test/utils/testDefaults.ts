@@ -18,7 +18,7 @@ const retryOpts = {
   retryMintimeout: 10_000,
 }
 
-export default async function testDefaults (
+export async function testDefaults (
   opts?: any, // eslint-disable-line
   resolveOpts?: any, // eslint-disable-line
   fetchOpts?: any, // eslint-disable-line

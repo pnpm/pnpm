@@ -7,7 +7,7 @@ interface PackageExtensionMatch {
   range: string | undefined
 }
 
-export default function (
+export function createPackageExtender (
   packageExtensions: Record<string, PackageExtension>
 ): ReadPackageHook {
   const extensionsByPkgName = {} as Record<string, PackageExtensionMatch[]>

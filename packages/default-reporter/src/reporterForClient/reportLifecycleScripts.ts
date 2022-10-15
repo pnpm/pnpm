@@ -6,10 +6,8 @@ import chalk from 'chalk'
 import prettyTime from 'pretty-ms'
 import stripAnsi from 'strip-ansi'
 import { EOL } from '../constants'
-import formatPrefix, { formatPrefixNoTrim } from './utils/formatPrefix'
-import {
-  hlValue,
-} from './outputConstants'
+import { formatPrefix, formatPrefixNoTrim } from './utils/formatPrefix'
+import { hlValue } from './outputConstants'
 
 const NODE_MODULES = `${path.sep}node_modules${path.sep}`
 
@@ -22,7 +20,7 @@ let currentColor = 0
 
 type ColorByPkg = Map<string, (txt: string) => string>
 
-export default (
+export function reportLifecycleScripts (
   log$: {
     lifecycle: Rx.Observable<LifecycleLog>
   },
@@ -32,7 +30,7 @@ export default (
     cwd: string
     width: number
   }
-) => {
+) {
   // When the reporter is not append-only, the length of output is limited
   // in order to reduce flickering
   if (opts.appendOnly) {

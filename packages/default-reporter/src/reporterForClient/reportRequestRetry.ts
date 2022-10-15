@@ -2,11 +2,11 @@ import { RequestRetryLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map } from 'rxjs/operators'
 import prettyMilliseconds from 'pretty-ms'
-import formatWarn from './utils/formatWarn'
+import { formatWarn } from './utils/formatWarn'
 
-export default (
+export function reportRequestRetry (
   requestRetry$: Rx.Observable<RequestRetryLog>
-) => {
+) {
   return requestRetry$.pipe(
     map((log) => {
       const retriesLeft = log.maxRetries - log.attempt + 1

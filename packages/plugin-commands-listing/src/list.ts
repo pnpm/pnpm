@@ -5,7 +5,7 @@ import { list, listForPackages } from '@pnpm/list'
 import { IncludedDependencies } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import listRecursive from './recursive'
+import { listRecursive } from './recursive'
 
 export function rcOptionsTypes () {
   return pick([

@@ -27,9 +27,9 @@ import equals from 'ramda/src/equals'
 import mergeAll from 'ramda/src/mergeAll'
 import pickAll from 'ramda/src/pickAll'
 import props from 'ramda/src/props'
-import removeDirectDependency from './removeDirectDependency'
+import { removeDirectDependency } from './removeDirectDependency'
 
-export default async function prune (
+export async function prune (
   importers: Array<{
     binsDir: string
     id: string

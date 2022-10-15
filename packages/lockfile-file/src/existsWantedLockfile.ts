@@ -7,10 +7,10 @@ interface ExistsWantedLockfileOptions {
   mergeGitBranchLockfiles?: boolean
 }
 
-export default async (pkgPath: string, opts: ExistsWantedLockfileOptions = {
+export async function existsWantedLockfile (pkgPath: string, opts: ExistsWantedLockfileOptions = {
   useGitBranchLockfile: false,
   mergeGitBranchLockfiles: false,
-}) => {
+}) {
   const wantedLockfile: string = await getWantedLockfileName(opts)
   return new Promise((resolve, reject) => {
     fs.access(path.join(pkgPath, wantedLockfile), (err) => {

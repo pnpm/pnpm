@@ -1,12 +1,12 @@
 import { PnpmError } from '@pnpm/error'
-import ErrorRelatedSources from './ErrorRelatedSources'
+import { ErrorRelatedSources } from './ErrorRelatedSources'
 
 export type BreakingChangeErrorOptions = ErrorRelatedSources & {
   code: string
   message: string
 }
 
-export default class BreakingChangeError extends PnpmError {
+export class BreakingChangeError extends PnpmError {
   public relatedIssue?: number
   public relatedPR?: number
   public additionalInformation?: string

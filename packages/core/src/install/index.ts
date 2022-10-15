@@ -67,16 +67,17 @@ import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
 import unnest from 'ramda/src/unnest'
-import parseWantedDependencies from '../parseWantedDependencies'
-import removeDeps from '../uninstall/removeDeps'
-import allProjectsAreUpToDate from './allProjectsAreUpToDate'
-import extendOptions, {
+import { parseWantedDependencies } from '../parseWantedDependencies'
+import { removeDeps } from '../uninstall/removeDeps'
+import { allProjectsAreUpToDate } from './allProjectsAreUpToDate'
+import {
+  extendOptions,
   InstallOptions,
   ProcessedInstallOptions as StrictInstallOptions,
 } from './extendInstallOptions'
 import { getPreferredVersionsFromLockfile, getAllUniqueSpecs } from './getPreferredVersions'
-import linkPackages from './link'
-import reportPeerDependencyIssues from './reportPeerDependencyIssues'
+import { linkPackages } from './link'
+import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
 
 const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
   'ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE',

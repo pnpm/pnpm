@@ -16,7 +16,7 @@ import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import whichcb from 'which'
 import { checkGlobalBinDir } from './checkGlobalBinDir'
-import getScopeRegistries from './getScopeRegistries'
+import { getScopeRegistries } from './getScopeRegistries'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
 import {
   Config,

@@ -1,6 +1,6 @@
 import encodeRegistry from 'encode-registry'
 
-export default function createPkgId (
+export function createPkgId (
   registry: string,
   pkgName: string,
   pkgVersion: string

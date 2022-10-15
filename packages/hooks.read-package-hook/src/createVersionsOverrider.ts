@@ -5,7 +5,7 @@ import { parseOverrides } from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
 import semver from 'semver'
 
-export default function (
+export function createVersionsOverrider (
   overrides: Record<string, string>,
   rootDir: string
 ): ReadPackageHook {

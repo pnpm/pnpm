@@ -1,4 +1,4 @@
-export default function workspacePrefToNpm (workspacePref: string): string {
+export function workspacePrefToNpm (workspacePref: string): string {
   const prefParts = /^workspace:([^._/][^@]*@)?(.*)$/.exec(workspacePref)
 
   if (prefParts == null) {

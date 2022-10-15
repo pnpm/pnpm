@@ -35,11 +35,11 @@ import mem from 'mem'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import readIniFile from 'read-ini-file'
-import getOptionsFromRootManifest from './getOptionsFromRootManifest'
+import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
-import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
-import getSaveType from './getSaveType'
-import getPinnedVersion from './getPinnedVersion'
+import { updateToLatestSpecsFromManifest, createLatestSpecs } from './updateToLatestSpecsFromManifest'
+import { getSaveType } from './getSaveType'
+import { getPinnedVersion } from './getPinnedVersion'
 import { PreferredVersions } from '@pnpm/resolver-base'
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -93,7 +93,7 @@ Pick<Config,
 Pick<Config, 'workspaceDir'>
 >
 
-export default async function recursive (
+export async function recursive (
   allProjects: Project[],
   params: string[],
   opts: RecursiveOptions,

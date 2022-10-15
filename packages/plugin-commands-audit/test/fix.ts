@@ -1,5 +1,5 @@
 import path from 'path'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 import { ProjectManifest } from '@pnpm/types'
 import { audit } from '@pnpm/plugin-commands-audit'
 import loadJsonFile from 'load-json-file'

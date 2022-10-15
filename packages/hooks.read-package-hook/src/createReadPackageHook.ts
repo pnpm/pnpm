@@ -9,9 +9,9 @@ import {
 import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'
-import createPackageExtender from './createPackageExtender'
-import createVersionsOverrider from './createVersionsOverrider'
-import createPeerDependencyPatcher from './createPeerDependencyPatcher'
+import { createPackageExtender } from './createPackageExtender'
+import { createVersionsOverrider } from './createVersionsOverrider'
+import { createPeerDependencyPatcher } from './createPeerDependencyPatcher'
 
 export function createReadPackageHook (
   {

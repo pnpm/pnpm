@@ -1,4 +1,4 @@
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 import fs from 'fs'
 import path from 'path'
 import { workWithInitModule, personToString } from '../lib/utils'

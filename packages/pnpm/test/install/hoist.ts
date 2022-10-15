@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs'
-import prepare, { preparePackages } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import writeYamlFile from 'write-yaml-file'
 import { execPnpm } from '../utils'
 

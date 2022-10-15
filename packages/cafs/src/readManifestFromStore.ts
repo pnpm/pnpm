@@ -3,7 +3,7 @@ import gfs from '@pnpm/graceful-fs'
 import { getFilePathByModeInCafs } from './getFilePathInCafs'
 import { parseJsonBuffer } from './parseJson'
 
-export default async function readManifestFromStore (
+export async function readManifestFromStore (
   cafsDir: string,
   pkgIndex: Record<string, PackageFileInfo>,
   deferredManifest?: DeferredManifestPromise

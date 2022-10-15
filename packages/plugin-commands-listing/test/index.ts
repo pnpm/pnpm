@@ -3,7 +3,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { list, why } from '@pnpm/plugin-commands-listing'
-import prepare, { preparePackages } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 
 import execa from 'execa'
 import stripAnsi from 'strip-ansi'

@@ -2,9 +2,9 @@ import { Config } from '@pnpm/config'
 import { Log } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import chalk from 'chalk'
-import reportError from './reportError'
+import { reportError } from './reportError'
 
-export default function (
+export function reporterForServer (
   log$: Rx.Observable<Log>,
   config?: Config
 ) {

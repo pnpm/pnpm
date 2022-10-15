@@ -14,11 +14,11 @@ import { logger } from '@pnpm/logger'
 import { ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { node } from '@pnpm/plugin-commands-env'
 import chalk from 'chalk'
-import checkForUpdates from './checkForUpdates'
-import pnpmCmds, { rcOptionsTypes } from './cmd'
+import { checkForUpdates } from './checkForUpdates'
+import { pnpmCmds, rcOptionsTypes } from './cmd'
 import { formatUnknownOptionsError } from './formatError'
-import parseCliArgs from './parseCliArgs'
-import initReporter, { ReporterType } from './reporter'
+import { parseCliArgs } from './parseCliArgs'
+import { initReporter, ReporterType } from './reporter'
 import isCI from 'is-ci'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
@@ -36,7 +36,7 @@ const DEPRECATED_OPTIONS = new Set([
 // A workaround for the https://github.com/vercel/pkg/issues/897 issue.
 delete process.env.PKG_EXECPATH
 
-export default async function run (inputArgv: string[]) {
+export async function main (inputArgv: string[]) {
   let parsedCliArgs!: ParsedCliArgs
   try {
     parsedCliArgs = await parseCliArgs(inputArgv)

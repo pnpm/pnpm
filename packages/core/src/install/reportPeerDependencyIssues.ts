@@ -3,7 +3,7 @@ import { peerDependencyIssuesLogger } from '@pnpm/core-loggers'
 import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import isEmpty from 'ramda/src/isEmpty'
 
-export default function (
+export function reportPeerDependencyIssues (
   peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects,
   opts: {
     lockfileDir: string

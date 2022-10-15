@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import assertProject from '@pnpm/assert-project'
+import { assertProject } from '@pnpm/assert-project'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,

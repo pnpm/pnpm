@@ -16,7 +16,7 @@ type DirEntry = {
   entries: Record<string, DirEntry>
 }
 
-export default function (lockfile: Lockfile): DirEntry {
+export function makeVirtualNodeModules (lockfile: Lockfile): DirEntry {
   const entries: Record<string, DirEntry> = {
     '.pnpm': {
       entryType: 'directory',

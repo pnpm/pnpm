@@ -1,7 +1,7 @@
 import { Config } from '@pnpm/config'
 import { DependenciesField } from '@pnpm/types'
 
-export default function getSaveType (
+export function getSaveType (
   opts: Pick<Config, 'saveDev' | 'saveOptional' | 'saveProd' | 'savePeer'>
 ): DependenciesField | undefined {
   if (opts.saveDev === true || opts.savePeer) return 'devDependencies'

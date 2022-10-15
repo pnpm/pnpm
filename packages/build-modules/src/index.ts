@@ -10,7 +10,7 @@ import { StoreController } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
 import { applyPatch } from 'patch-package/dist/applyPatches'
 import runGroups from 'run-groups'
-import buildSequence, { DependenciesGraph, DependenciesGraphNode } from './buildSequence'
+import { buildSequence, DependenciesGraph, DependenciesGraphNode } from './buildSequence'
 
 export { DepsStateCache }
 

@@ -1,11 +1,11 @@
 import path from 'path'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { Modules } from '@pnpm/modules-yaml'
-import ModulesBreakingChangeError from './ModulesBreakingChangeError'
-import UnexpectedStoreError from './UnexpectedStoreError'
-import UnexpectedVirtualStoreDir from './UnexpectedVirtualStoreDirError'
+import { ModulesBreakingChangeError } from './ModulesBreakingChangeError'
+import { UnexpectedStoreError } from './UnexpectedStoreError'
+import { UnexpectedVirtualStoreDirError } from './UnexpectedVirtualStoreDirError'
 
-export default function checkCompatibility (
+export function checkCompatibility (
   modules: Modules,
   opts: {
     storeDir: string
@@ -30,7 +30,7 @@ export default function checkCompatibility (
     })
   }
   if (modules.virtualStoreDir && path.relative(modules.virtualStoreDir, opts.virtualStoreDir) !== '') {
-    throw new UnexpectedVirtualStoreDir({
+    throw new UnexpectedVirtualStoreDirError({
       actual: opts.virtualStoreDir,
       expected: modules.virtualStoreDir,
       modulesDir: opts.modulesDir,

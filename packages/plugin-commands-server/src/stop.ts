@@ -10,13 +10,13 @@ import killcb from 'tree-kill'
 
 const kill = promisify(killcb) as (pid: number, signal: string) => Promise<void>
 
-export default async (
+export async function stop (
   opts: {
     storeDir?: string
     dir: string
     pnpmHomeDir: string
   }
-) => {
+) {
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,

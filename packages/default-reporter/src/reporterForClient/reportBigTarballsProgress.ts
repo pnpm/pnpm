@@ -9,11 +9,11 @@ import {
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
-export default (
+export function reportBigTarballProgress (
   log$: {
     fetchingProgress: Rx.Observable<FetchingProgressLog>
   }
-) => {
+) {
   return log$.fetchingProgress.pipe(
     filter((log: FetchingProgressLog) => log.status === 'started' &&
       typeof log.size === 'number' && log.size >= BIG_TARBALL_SIZE &&

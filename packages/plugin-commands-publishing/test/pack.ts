@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { pack } from '@pnpm/plugin-commands-publishing'
-import prepare, { tempDir } from '@pnpm/prepare'
+import { prepare, tempDir } from '@pnpm/prepare'
 import exists from 'path-exists'
 import tar from 'tar'
 import { DEFAULT_OPTS } from './utils'

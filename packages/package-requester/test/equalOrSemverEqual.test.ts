@@ -1,4 +1,4 @@
-import equalOrSemverEqual from '../lib/equalOrSemverEqual'
+import { equalOrSemverEqual } from '../lib/equalOrSemverEqual'
 
 test('equalOrSemverEqual()', () => {
   expect(equalOrSemverEqual('a', 'a')).toBeTruthy()

@@ -8,7 +8,7 @@ import * as schemas from 'hyperdrive-schemas'
 import loadJsonFile from 'load-json-file'
 import Fuse from 'fuse-native'
 import * as cafsExplorer from './cafsExplorer'
-import makeVirtualNodeModules from './makeVirtualNodeModules'
+import { makeVirtualNodeModules } from './makeVirtualNodeModules'
 
 const TIME = new Date()
 const STAT_DEFAULT = {
@@ -20,7 +20,7 @@ const STAT_DEFAULT = {
   gid: process.getgid ? process.getgid() : 0,
 }
 
-export default async function createFuseHandlers (lockfileDir: string, cafsDir: string) {
+export async function createFuseHandlers (lockfileDir: string, cafsDir: string) {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
   if (lockfile == null) throw new Error('Cannot generate a .pnp.cjs without a lockfile')
   return createFuseHandlersFromLockfile(lockfile, cafsDir)

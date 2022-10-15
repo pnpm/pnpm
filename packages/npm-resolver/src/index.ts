@@ -19,18 +19,20 @@ import pMemoize from 'p-memoize'
 import clone from 'ramda/src/clone'
 import semver from 'semver'
 import ssri from 'ssri'
-import pickPackage, {
+import {
   PackageInRegistry,
   PackageMeta,
   PackageMetaCache,
   PickPackageOptions,
+  pickPackage,
 } from './pickPackage'
-import parsePref, {
+import {
+  parsePref,
   RegistryPackageSpec,
 } from './parsePref'
-import fromRegistry, { RegistryResponseError } from './fetch'
-import createPkgId from './createNpmPkgId'
-import workspacePrefToNpm from './workspacePrefToNpm'
+import { fromRegistry, RegistryResponseError } from './fetch'
+import { createPkgId } from './createNpmPkgId'
+import { workspacePrefToNpm } from './workspacePrefToNpm'
 
 export class NoMatchingVersionError extends PnpmError {
   public readonly packageMeta: PackageMeta

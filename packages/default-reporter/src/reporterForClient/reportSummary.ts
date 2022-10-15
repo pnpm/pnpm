@@ -11,7 +11,8 @@ import { map, take } from 'rxjs/operators'
 import chalk from 'chalk'
 import semver from 'semver'
 import { EOL } from '../constants'
-import getPkgsDiff, {
+import {
+  getPkgsDiff,
   PackageDiff,
   propertyByDependencyType,
 } from './pkgsDiff'
@@ -26,7 +27,7 @@ const CONFIG_BY_DEP_TYPE = {
   optional: 'optional',
 }
 
-export default (
+export function reportSummary (
   log$: {
     deprecation: Rx.Observable<DeprecationLog>
     summary: Rx.Observable<SummaryLog>
@@ -38,7 +39,7 @@ export default (
     env: NodeJS.ProcessEnv
     pnpmConfig?: Config
   }
-) => {
+) {
   const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
 
   const summaryLog$ = log$.summary.pipe(take(1))

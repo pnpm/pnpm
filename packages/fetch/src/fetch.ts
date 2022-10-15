@@ -1,6 +1,6 @@
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { operation, RetryTimeoutOptions } from '@zkochan/retry'
-import fetch, { Request, RequestInit as NodeRequestInit, Response } from 'node-fetch'
+import nodeFetch, { Request, RequestInit as NodeRequestInit, Response } from 'node-fetch'
 
 export { isRedirect } from 'node-fetch'
 
@@ -22,7 +22,7 @@ export interface RequestInit extends NodeRequestInit {
   timeout?: number
 }
 
-export default async function fetchRetry (url: RequestInfo, opts: RequestInit = {}): Promise<Response> {
+export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<Response> {
   const retryOpts = opts.retry ?? {}
   const maxRetries = retryOpts.retries ?? 2
 
@@ -38,7 +38,7 @@ export default async function fetchRetry (url: RequestInfo, opts: RequestInit = 
     return await new Promise((resolve, reject) => op.attempt(async (attempt) => {
       try {
         // this will be retried
-        const res = await fetch(url as any, opts) // eslint-disable-line
+        const res = await nodeFetch(url as any, opts) // eslint-disable-line
         // A retry on 409 sometimes helps when making requests to the Bit registry.
         if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
           throw new ResponseError(res)

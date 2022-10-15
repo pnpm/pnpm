@@ -7,10 +7,10 @@ import {
 import { Dependencies, ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
 import { ImporterToResolve } from '.'
-import getWantedDependencies, { WantedDependency } from './getWantedDependencies'
-import safeIsInnerLink from './safeIsInnerLink'
+import { getWantedDependencies, WantedDependency } from './getWantedDependencies'
+import { safeIsInnerLink } from './safeIsInnerLink'
 
-export default async function toResolveImporter (
+export async function toResolveImporter (
   opts: {
     defaultUpdateDepth: number
     lockfileOnly: boolean

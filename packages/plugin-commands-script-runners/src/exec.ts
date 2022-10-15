@@ -10,7 +10,7 @@ import execa from 'execa'
 import pLimit from 'p-limit'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import existsInDir from './existsInDir'
+import { existsInDir } from './existsInDir'
 import { makeEnv } from './makeEnv'
 import {
   PARALLEL_OPTION_HELP,

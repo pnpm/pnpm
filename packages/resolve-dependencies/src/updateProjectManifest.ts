@@ -10,7 +10,7 @@ import semver from 'semver'
 import { ResolvedDirectDependency } from './resolveDependencyTree'
 import { ImporterToResolve } from '.'
 
-export default async function updateProjectManifest (
+export async function updateProjectManifest (
   importer: ImporterToResolve,
   opts: {
     directDependencies: ResolvedDirectDependency[]

@@ -68,14 +68,15 @@ import pick from 'ramda/src/pick'
 import props from 'ramda/src/props'
 import union from 'ramda/src/union'
 import realpathMissing from 'realpath-missing'
-import linkHoistedModules from './linkHoistedModules'
-import lockfileToDepGraph, {
+import { linkHoistedModules } from './linkHoistedModules'
+import {
   DirectDependenciesByImporterId,
   DependenciesGraph,
   DependenciesGraphNode,
   LockfileToDepGraphOptions,
+  lockfileToDepGraph,
 } from './lockfileToDepGraph'
-import lockfileToHoistedDepGraph from './lockfileToHoistedDepGraph'
+import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph'
 
 export { HoistingLimits }
 

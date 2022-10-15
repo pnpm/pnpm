@@ -15,7 +15,7 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import pnpmPkgJson from '../pnpmPkgJson'
+import { pnpmPkgJson } from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 import { PreResolutionHookContext } from './hooks'
 
@@ -206,9 +206,9 @@ export type ProcessedInstallOptions = StrictInstallOptions & {
   readPackageHook?: ReadPackageHook
 }
 
-export default async (
+export async function extendOptions (
   opts: InstallOptions
-): Promise<ProcessedInstallOptions> => {
+): Promise<ProcessedInstallOptions> {
   if (opts) {
     for (const key in opts) {
       if (opts[key] === undefined) {

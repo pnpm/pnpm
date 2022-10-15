@@ -47,8 +47,8 @@ import fromPairs from 'ramda/src/fromPairs'
 import omit from 'ramda/src/omit'
 import zipWith from 'ramda/src/zipWith'
 import semver from 'semver'
-import encodePkgId from './encodePkgId'
-import getNonDevWantedDependencies, { WantedDependency } from './getNonDevWantedDependencies'
+import { encodePkgId } from './encodePkgId'
+import { getNonDevWantedDependencies, WantedDependency } from './getNonDevWantedDependencies'
 import { safeIntersect } from './mergePeers'
 import {
   createNodeId,
@@ -56,7 +56,7 @@ import {
   nodeIdContains,
   splitNodeId,
 } from './nodeIdUtils'
-import wantedDepIsLocallyAvailable from './wantedDepIsLocallyAvailable'
+import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
 import safePromiseDefer, { SafePromiseDefer } from 'safe-promise-defer'
 
 const dependencyResolvedLogger = logger('_dependency_resolved')

@@ -1,4 +1,4 @@
-import buildSequence from '../lib/buildSequence'
+import { buildSequence } from '../lib/buildSequence'
 
 test('buildSequence() test 1', () => {
   const chunks = buildSequence({

@@ -10,7 +10,7 @@ import cmdShim from '@zkochan/cmd-shim'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 import { getNodeDir, NvmNodeCommandOptions, getNodeVersionsBaseDir } from './node'
-import getNodeMirror from './getNodeMirror'
+import { getNodeMirror } from './getNodeMirror'
 import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
 
 export function rcOptionsTypes () {

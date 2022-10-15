@@ -18,7 +18,7 @@ export interface WantedDependency {
   pinnedVersion?: PinnedVersion
 }
 
-export default function getWantedDependencies (
+export function getWantedDependencies (
   pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies' | 'dependenciesMeta' | 'peerDependencies'>,
   opts?: {
     autoInstallPeers?: boolean

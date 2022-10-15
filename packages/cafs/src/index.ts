@@ -5,20 +5,22 @@ import getStream from 'get-stream'
 import pathTemp from 'path-temp'
 import renameOverwrite from 'rename-overwrite'
 import ssri from 'ssri'
-import addFilesFromDir from './addFilesFromDir'
-import addFilesFromTarball from './addFilesFromTarball'
-import checkFilesIntegrity, {
+import { addFilesFromDir } from './addFilesFromDir'
+import { addFilesFromTarball } from './addFilesFromTarball'
+import {
+  checkFilesIntegrity,
   PackageFilesIndex,
   verifyFileIntegrity,
 } from './checkFilesIntegrity'
-import readManifestFromStore from './readManifestFromStore'
-import getFilePathInCafs, {
+import { readManifestFromStore } from './readManifestFromStore'
+import {
+  getFilePathInCafs,
   contentPathFromHex,
   FileType,
   getFilePathByModeInCafs,
   modeIsExecutable,
 } from './getFilePathInCafs'
-import writeFile from './writeFile'
+import { writeFile } from './writeFile'
 
 export { IntegrityLike } from 'ssri'
 

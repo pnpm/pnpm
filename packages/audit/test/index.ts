@@ -2,7 +2,7 @@ import { audit } from '@pnpm/audit'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import nock from 'nock'
-import lockfileToAuditTree from '../lib/lockfileToAuditTree'
+import { lockfileToAuditTree } from '../lib/lockfileToAuditTree'
 
 describe('audit', () => {
   test('lockfileToAuditTree()', () => {

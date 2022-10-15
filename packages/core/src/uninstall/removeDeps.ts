@@ -5,7 +5,7 @@ import {
   ProjectManifest,
 } from '@pnpm/types'
 
-export default async function (
+export async function removeDeps (
   packageManifest: ProjectManifest,
   removedPackages: string[],
   opts: {

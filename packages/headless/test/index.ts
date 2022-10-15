@@ -1,7 +1,7 @@
 /// <reference path="../../../typings/index.d.ts" />
 import { promises as fs, existsSync, realpathSync, writeFileSync } from 'fs'
 import path from 'path'
-import assertProject from '@pnpm/assert-project'
+import { assertProject } from '@pnpm/assert-project'
 import { getFilePathInCafs } from '@pnpm/cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
@@ -15,13 +15,13 @@ import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import { tempDir } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
-import testDefaults from './utils/testDefaults'
+import { testDefaults } from './utils/testDefaults'
 
 const f = fixtures(__dirname)
 

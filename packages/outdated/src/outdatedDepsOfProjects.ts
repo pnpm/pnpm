@@ -11,9 +11,9 @@ import {
 } from '@pnpm/types'
 import unnest from 'ramda/src/unnest'
 import { createManifestGetter, ManifestGetterOptions } from './createManifestGetter'
-import outdated, { OutdatedPackage } from './outdated'
+import { outdated, OutdatedPackage } from './outdated'
 
-export default async function outdatedDepsOfProjects (
+export async function outdatedDepsOfProjects (
   pkgs: Array<{ dir: string, manifest: ProjectManifest }>,
   args: string[],
   opts: Omit<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'> & {

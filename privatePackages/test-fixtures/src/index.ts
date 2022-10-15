@@ -3,7 +3,7 @@ import path from 'path'
 import { tempDir } from '@pnpm/prepare'
 import fsx from 'fs-extra'
 
-export default function (searchFromDir: string) {
+export function fixtures (searchFromDir: string) {
   return {
     copy: copyFixture.bind(null, searchFromDir),
     find: findFixture.bind(null, searchFromDir),

@@ -2,8 +2,8 @@ import {
   installCheckLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
-import checkEngine, { UnsupportedEngineError, WantedEngine } from './checkEngine'
-import checkPlatform, { UnsupportedPlatformError } from './checkPlatform'
+import { checkEngine, UnsupportedEngineError, WantedEngine } from './checkEngine'
+import { checkPlatform, UnsupportedPlatformError } from './checkPlatform'
 import { getSystemNodeVersion } from './getSystemNodeVersion'
 
 export { Engine } from './checkEngine'

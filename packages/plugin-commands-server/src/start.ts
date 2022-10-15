@@ -28,7 +28,7 @@ const write = promisify(_write)
 const close = promisify(_close)
 const open = promisify(_open)
 
-export default async (
+export async function start (
   opts: CreateStoreControllerOptions & {
     background?: boolean
     protocol?: 'auto' | 'tcp' | 'ipc'
@@ -36,7 +36,7 @@ export default async (
     ignoreStopRequests?: boolean
     ignoreUploadRequests?: boolean
   }
-) => {
+) {
   if (opts.protocol === 'ipc' && opts.port) {
     throw new Error('Port cannot be selected when server communicates via IPC')
   }

@@ -15,7 +15,7 @@ import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
 import * as pack from './pack'
-import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
+import { recursivePublish, PublishRecursiveOpts } from './recursivePublish'
 
 export function rcOptionsTypes () {
   return pick([

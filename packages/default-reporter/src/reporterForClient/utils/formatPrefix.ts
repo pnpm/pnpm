@@ -2,7 +2,7 @@ import path from 'path'
 import normalize from 'normalize-path'
 import { PREFIX_MAX_LENGTH } from '../outputConstants'
 
-export default function formatPrefix (cwd: string, prefix: string) {
+export function formatPrefix (cwd: string, prefix: string) {
   prefix = formatPrefixNoTrim(cwd, prefix)
 
   if (prefix.length <= PREFIX_MAX_LENGTH) {

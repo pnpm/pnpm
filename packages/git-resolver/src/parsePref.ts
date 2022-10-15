@@ -29,7 +29,7 @@ const gitProtocols = new Set([
   'ssh',
 ])
 
-export default async function parsePref (pref: string): Promise<HostedPackageSpec | null> {
+export async function parsePref (pref: string): Promise<HostedPackageSpec | null> {
   const hosted = HostedGit.fromUrl(pref)
   if (hosted != null) {
     return fromHostedGit(hosted)

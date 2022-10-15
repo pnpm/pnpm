@@ -3,7 +3,7 @@ import path from 'path'
 import { list, listForPackages } from '@pnpm/list'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
-import renderTree from '../lib/renderTree'
+import { renderTree } from '../lib/renderTree'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color

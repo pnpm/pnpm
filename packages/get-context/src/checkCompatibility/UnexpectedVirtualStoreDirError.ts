@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 
-export default class UnexpectedVirtualStoreDirError extends PnpmError {
+export class UnexpectedVirtualStoreDirError extends PnpmError {
   public expected: string
   public actual: string
   public modulesDir: string

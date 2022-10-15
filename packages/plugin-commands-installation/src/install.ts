@@ -6,7 +6,7 @@ import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import isCI from 'is-ci'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import installDeps from './installDeps'
+import { installDeps } from './installDeps'
 
 export function rcOptionsTypes () {
   return pick([

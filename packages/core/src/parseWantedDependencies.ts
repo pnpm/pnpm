@@ -3,7 +3,7 @@ import { Dependencies } from '@pnpm/types'
 import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
 import { PinnedVersion, WantedDependency } from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
 
-export default function parseWantedDependencies (
+export function parseWantedDependencies (
   rawWantedDependencies: string[],
   opts: {
     allowNew: boolean

@@ -40,7 +40,7 @@ export class RegistryResponseError extends FetchError {
   }
 }
 
-export default async function fromRegistry (
+export async function fromRegistry (
   fetch: FetchFromRegistry,
   fetchOpts: { retry: RetryTimeoutOptions, timeout: number },
   pkgName: string,

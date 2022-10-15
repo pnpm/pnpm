@@ -4,7 +4,7 @@ import gfs from '@pnpm/graceful-fs'
 
 const dirs = new Set()
 
-export default async function (
+export async function writeFile (
   fileDest: string,
   buffer: Buffer,
   mode?: number

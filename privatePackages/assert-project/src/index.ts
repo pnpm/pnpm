@@ -1,5 +1,5 @@
 import path from 'path'
-import assertStore from '@pnpm/assert-store'
+import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import { Modules, read as readModules } from '@pnpm/modules-yaml'
@@ -43,7 +43,7 @@ export interface Project {
   writePackageJson: (pkgJson: object) => Promise<void>
 }
 
-export default (projectPath: string, encodedRegistryName?: string): Project => {
+export function assertProject (projectPath: string, encodedRegistryName?: string): Project {
   const ern = encodedRegistryName ?? `localhost+${REGISTRY_MOCK_PORT}`
   const modules = path.join(projectPath, 'node_modules')
 

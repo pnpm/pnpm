@@ -1,4 +1,4 @@
-import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../lib/updateToLatestSpecsFromManifest'
+import { updateToLatestSpecsFromManifest, createLatestSpecs } from '../lib/updateToLatestSpecsFromManifest'
 
 const MANIFEST = {
   dependencies: {

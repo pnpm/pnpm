@@ -13,7 +13,7 @@ import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import fromPairs from 'ramda/src/fromPairs'
 import renameOverwrite from 'rename-overwrite'
 
-export default async function (lockfileDir: string, projectDir: string) {
+export async function makeDedicatedLockfile (lockfileDir: string, projectDir: string) {
   const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
   if (lockfile == null) {
     throw new Error('no lockfile found')

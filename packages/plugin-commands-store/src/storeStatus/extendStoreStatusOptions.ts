@@ -41,9 +41,9 @@ const defaults = async (opts: StoreStatusOptions) => {
   } as StrictStoreStatusOptions
 }
 
-export default async (
+export async function extendStoreStatusOptions (
   opts: StoreStatusOptions
-): Promise<StrictStoreStatusOptions> => {
+): Promise<StrictStoreStatusOptions> {
   if (opts) {
     for (const key in opts) {
       if (opts[key] === undefined) {

@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import assertStore from '@pnpm/assert-store'
+import { assertStore } from '@pnpm/assert-store'
 import { store } from '@pnpm/plugin-commands-store'
 import { tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

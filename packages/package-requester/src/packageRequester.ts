@@ -50,7 +50,7 @@ import pick from 'ramda/src/pick'
 import renameOverwrite from 'rename-overwrite'
 import semver from 'semver'
 import ssri from 'ssri'
-import equalOrSemverEqual from './equalOrSemverEqual'
+import { equalOrSemverEqual } from './equalOrSemverEqual'
 import safePromiseDefer from 'safe-promise-defer'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'

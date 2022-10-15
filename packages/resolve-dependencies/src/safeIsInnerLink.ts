@@ -4,7 +4,7 @@ import isInnerLink from 'is-inner-link'
 import isSubdir from 'is-subdir'
 import renameOverwrite from 'rename-overwrite'
 
-export default async function safeIsInnerLink (
+export async function safeIsInnerLink (
   projectModulesDir: string,
   depName: string,
   opts: {

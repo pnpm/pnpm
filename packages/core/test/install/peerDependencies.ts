@@ -4,7 +4,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 import readYamlFile from 'read-yaml-file'
 import {
   addDependenciesToPackage,

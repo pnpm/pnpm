@@ -11,7 +11,7 @@ import {
 } from './outputConstants'
 import { zoomOut } from './utils/zooming'
 
-export default (
+export function reportStats (
   log$: {
     stats: Rx.Observable<StatsLog>
   },
@@ -21,7 +21,7 @@ export default (
     isRecursive: boolean
     width: number
   }
-) => {
+) {
   const stats$ = opts.isRecursive
     ? log$.stats
     : log$.stats.pipe(filter((log) => log.prefix !== opts.cwd))

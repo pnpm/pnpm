@@ -1,3 +1,3 @@
 import { logger } from '@pnpm/logger'
 
-export default logger('lockfile')
+export const lockfileLogger = logger('lockfile')

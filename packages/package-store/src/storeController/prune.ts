@@ -13,7 +13,7 @@ export interface PruneOptions {
   storeDir: string
 }
 
-export default async function prune ({ cacheDir, storeDir }: PruneOptions) {
+export async function prune ({ cacheDir, storeDir }: PruneOptions) {
   const cafsDir = path.join(storeDir, 'files')
   await Promise.all([
     rimraf(path.join(cacheDir, 'metadata')),

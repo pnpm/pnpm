@@ -1,10 +1,10 @@
 /// <reference path="../../../typings/index.d.ts" />
 import path from 'path'
-import assertProject from '@pnpm/assert-project'
+import { assertProject } from '@pnpm/assert-project'
 import { importCommand } from '@pnpm/plugin-commands-installation'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { readProjects } from '@pnpm/filter-workspace-packages'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 import tempy from 'tempy'
 
 const f = fixtures(__dirname)

@@ -10,7 +10,7 @@ import equals from 'ramda/src/equals'
 import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
 import writeFileAtomicCB from 'write-file-atomic'
-import logger from './logger'
+import { lockfileLogger as logger } from './logger'
 import { sortLockfileKeys } from './sortLockfileKeys'
 import { getWantedLockfileName } from './lockfileName'
 import { convertToInlineSpecifiersFormat } from './experiments/inlineSpecifiersLockfileConverters'
@@ -187,7 +187,7 @@ function pruneTime (time: Record<string, string>, importers: Record<string, Proj
   return fromPairs(Object.entries(time).filter(([depPath]) => rootDepPaths.has(depPath)))
 }
 
-export default async function writeLockfiles (
+export async function writeLockfiles (
   opts: {
     forceSharedFormat?: boolean
     useInlineSpecifiersFormat?: boolean

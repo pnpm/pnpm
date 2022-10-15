@@ -1,7 +1,7 @@
 import { createReadStream, promises as fs, mkdirSync } from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
-import prepare, { prepareEmpty } from '@pnpm/prepare'
+import { prepare, prepareEmpty } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import loadJsonFile from 'load-json-file'

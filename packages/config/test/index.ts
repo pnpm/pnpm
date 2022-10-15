@@ -6,7 +6,7 @@ import { getCurrentBranch } from '@pnpm/git-utils'
 import { getConfig } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import loadNpmConf from '@pnpm/npm-conf'
-import prepare, { prepareEmpty } from '@pnpm/prepare'
+import { prepare, prepareEmpty } from '@pnpm/prepare'
 
 import symlinkDir from 'symlink-dir'
 

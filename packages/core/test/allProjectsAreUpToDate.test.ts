@@ -1,4 +1,4 @@
-import allProjectsAreUpToDate from '../lib/install/allProjectsAreUpToDate'
+import { allProjectsAreUpToDate } from '../lib/install/allProjectsAreUpToDate'
 
 const fooManifest = {
   name: 'foo',

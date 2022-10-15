@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import which from '@zkochan/which'
 
-export default async function () {
+export async function getNodeExecPath () {
   try {
     // The system default Node.js executable is preferred
     // not the one used to run the pnpm CLI.

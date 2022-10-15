@@ -1,4 +1,4 @@
-import getPinnedVersion from '../lib/getPinnedVersion'
+import { getPinnedVersion } from '../lib/getPinnedVersion'
 
 test('getPinnedVersion()', () => {
   expect(getPinnedVersion({ saveExact: true })).toEqual('patch')

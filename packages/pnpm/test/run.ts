@@ -1,7 +1,7 @@
 import { promises as fs, mkdirSync } from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
-import prepare, { preparePackages } from '@pnpm/prepare'
+import { prepare, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { execPnpm, execPnpmSync } from './utils'
 

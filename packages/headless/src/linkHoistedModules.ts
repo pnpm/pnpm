@@ -19,7 +19,7 @@ import {
   DependenciesGraph,
 } from './lockfileToDepGraph'
 
-export default async function linkHoistedModules (
+export async function linkHoistedModules (
   storeController: StoreController,
   graph: DependenciesGraph,
   prevGraph: DependenciesGraph,

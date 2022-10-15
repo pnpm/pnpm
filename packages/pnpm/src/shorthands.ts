@@ -1,5 +1,5 @@
 // eslint-disable
-export default {
+export const shorthands = {
   s: '--reporter=silent',
   d: '--loglevel=info',
   dd: '--loglevel=verbose',

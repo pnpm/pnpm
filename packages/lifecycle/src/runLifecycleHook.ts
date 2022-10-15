@@ -23,7 +23,7 @@ export interface RunLifecycleHookOptions {
   unsafePerm: boolean
 }
 
-export default async function runLifecycleHook (
+export async function runLifecycleHook (
   stage: string,
   manifest: ProjectManifest | DependencyManifest,
   opts: RunLifecycleHookOptions

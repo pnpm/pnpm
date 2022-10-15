@@ -23,7 +23,7 @@ export interface DependenciesGraph {
   [depPath: string]: DependenciesGraphNode
 }
 
-export default function buildSequence (
+export function buildSequence (
   depGraph: Record<string, Pick<DependenciesGraphNode, 'children' | 'requiresBuild'>>,
   rootDepPaths: string[]
 ) {

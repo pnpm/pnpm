@@ -13,7 +13,7 @@ interface State {
 
 const UPDATE_CHECK_FREQUENCY = 24 * 60 * 60 * 1000 // 1 day
 
-export default async function (config: Config) {
+export async function checkForUpdates (config: Config) {
   const stateFile = path.join(config.stateDir, 'pnpm-state.json')
   let state: State | undefined
   try {

@@ -1,5 +1,1 @@
-import LockfileBreakingChangeError from './LockfileBreakingChangeError'
-
-export {
-  LockfileBreakingChangeError,
-}
+export { LockfileBreakingChangeError } from './LockfileBreakingChangeError'

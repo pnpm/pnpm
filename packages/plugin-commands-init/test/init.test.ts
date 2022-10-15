@@ -1,6 +1,6 @@
 import path from 'path'
 import { init } from '@pnpm/plugin-commands-init'
-import prepare, { prepareEmpty } from '@pnpm/prepare'
+import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { sync as loadJsonFile } from 'load-json-file'
 
 test('init a new package.json', async () => {

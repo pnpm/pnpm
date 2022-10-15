@@ -1,6 +1,6 @@
 import path from 'path'
 import { add, install } from '@pnpm/plugin-commands-installation'
-import prepare from '@pnpm/prepare'
+import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import tempy from 'tempy'
 

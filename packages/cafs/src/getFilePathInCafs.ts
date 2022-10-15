@@ -14,7 +14,7 @@ export function getFilePathByModeInCafs (
   return path.join(cafsDir, contentPathFromIntegrity(integrity, fileType))
 }
 
-export default function getFilePathInCafs (
+export function getFilePathInCafs (
   cafsDir: string,
   integrity: string | IntegrityLike,
   fileType: FileType

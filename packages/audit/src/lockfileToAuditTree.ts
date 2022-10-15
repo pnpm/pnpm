@@ -18,7 +18,7 @@ export type AuditTree = AuditNode & {
   metadata: Object
 }
 
-export default function lockfileToAuditTree (
+export function lockfileToAuditTree (
   lockfile: Lockfile,
   opts?: {
     include?: { [dependenciesField in DependenciesField]: boolean }

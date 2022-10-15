@@ -6,8 +6,8 @@ import difference from 'ramda/src/difference'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
 import * as micromatch from 'micromatch'
-import getChangedPkgs from './getChangedPackages'
-import parsePackageSelector, { PackageSelector } from './parsePackageSelector'
+import { getChangedPackages } from './getChangedPackages'
+import { parsePackageSelector, PackageSelector } from './parsePackageSelector'
 
 export { parsePackageSelector, PackageSelector }
 
@@ -209,7 +209,7 @@ async function _filterGraph<T> (
     let entryPackages: string[] | null = null
     if (selector.diff) {
       let ignoreDependentForPkgs: string[] = []
-        ;[entryPackages, ignoreDependentForPkgs] = await getChangedPkgs(Object.keys(pkgGraph),
+        ;[entryPackages, ignoreDependentForPkgs] = await getChangedPackages(Object.keys(pkgGraph),
         selector.diff, { workspaceDir: selector.parentDir ?? opts.workspaceDir, testPattern: opts.testPattern, changedFilesIgnorePattern: opts.changedFilesIgnorePattern })
       selectEntries({
         ...selector,

@@ -4,8 +4,8 @@ import { Log, RegistryLog } from '@pnpm/core-loggers'
 import { LogLevel } from '@pnpm/logger'
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
-import reportError from '../reportError'
-import formatWarn from './utils/formatWarn'
+import { reportError } from '../reportError'
+import { formatWarn } from './utils/formatWarn'
 import { autozoom } from './utils/zooming'
 
 // eslint-disable:object-literal-sort-keys
@@ -19,7 +19,7 @@ export const LOG_LEVEL_NUMBER: Record<LogLevel, number> = {
 
 const MAX_SHOWN_WARNINGS = 5
 
-export default (
+export function reportMisc (
   log$: {
     registry: Rx.Observable<RegistryLog>
     other: Rx.Observable<Log>
@@ -31,7 +31,7 @@ export default (
     config?: Config
     zoomOutCurrent: boolean
   }
-) => {
+) {
   const maxLogLevel = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
   const reportWarning = makeWarningReporter(opts)
   return Rx.merge(log$.registry, log$.other).pipe(

@@ -7,7 +7,7 @@ import {
   RegistryResponseError,
   NoMatchingVersionError,
 } from '@pnpm/npm-resolver'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import exists from 'path-exists'

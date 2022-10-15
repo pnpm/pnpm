@@ -31,7 +31,7 @@ type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
   pending?: boolean
 } & Partial<Pick<Config, 'bail' | 'sort' | 'workspaceConcurrency'>>
 
-export default async function recursive (
+export async function recursiveRebuild (
   allProjects: Project[],
   params: string[],
   opts: RecursiveRebuildOpts & {

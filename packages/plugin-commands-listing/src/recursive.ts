@@ -3,7 +3,7 @@ import { logger } from '@pnpm/logger'
 import { IncludedDependencies, Project } from '@pnpm/types'
 import { render } from './list'
 
-export default async (
+export async function listRecursive (
   pkgs: Project[],
   params: string[],
   opts: Pick<Config, 'lockfileDir'> & {
@@ -13,7 +13,7 @@ export default async (
     parseable?: boolean
     lockfileDir?: string
   }
-) => {
+) {
   const depth = opts.depth ?? 0
   if (opts.lockfileDir) {
     return render(pkgs.map((pkg) => pkg.dir), params, {

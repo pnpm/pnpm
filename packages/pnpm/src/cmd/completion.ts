@@ -5,10 +5,10 @@ import {
   currentTypedWordType,
   getLastOption,
 } from '../getOptionType'
-import parseCliArgs from '../parseCliArgs'
-import complete from './complete'
+import { parseCliArgs } from '../parseCliArgs'
+import { complete } from './complete'
 
-export default function (
+export function createCompletion (
   opts: {
     cliOptionsTypesByCommandName: Record<string, () => Object>
     completionByCommandName: Record<string, CompletionFunc>

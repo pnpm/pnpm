@@ -6,9 +6,9 @@ import { createOrConnectStoreController, CreateStoreControllerOptions } from '@p
 import { getStorePath } from '@pnpm/store-path'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import storeAdd from './storeAdd'
-import storePrune from './storePrune'
-import storeStatus from './storeStatus'
+import { storeAdd } from './storeAdd'
+import { storePrune } from './storePrune'
+import { storeStatus } from './storeStatus'
 
 export const rcOptionsTypes = cliOptionsTypes
 

@@ -1,4 +1,4 @@
-import prepare from '@pnpm/prepare'
+import { prepare } from '@pnpm/prepare'
 import deepRequireCwd from 'deep-require-cwd'
 import { execPnpm } from '../utils'
 

@@ -53,7 +53,7 @@ Partial<Pick<Config,
   reportSummary?: boolean
 }
 
-export default async function (
+export async function recursivePublish (
   opts: PublishRecursiveOpts & Required<Pick<Config, 'selectedProjectsGraph'>>
 ) {
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)

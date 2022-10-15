@@ -16,7 +16,7 @@ import pEvery from 'p-every'
 import any from 'ramda/src/any'
 import semver from 'semver'
 
-export default async function allProjectsAreUpToDate (
+export async function allProjectsAreUpToDate (
   projects: Array<ProjectOptions & { id: string }>,
   opts: {
     autoInstallPeers: boolean

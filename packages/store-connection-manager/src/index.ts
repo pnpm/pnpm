@@ -8,9 +8,9 @@ import { StoreController } from '@pnpm/package-store'
 import { connectStoreController } from '@pnpm/server'
 import { getStorePath } from '@pnpm/store-path'
 import delay from 'delay'
-import createNewStoreController, { CreateNewStoreControllerOptions } from './createNewStoreController'
-import runServerInBackground from './runServerInBackground'
-import serverConnectionInfoDir from './serverConnectionInfoDir'
+import { createNewStoreController, CreateNewStoreControllerOptions } from './createNewStoreController'
+import { runServerInBackground } from './runServerInBackground'
+import { serverConnectionInfoDir } from './serverConnectionInfoDir'
 
 export { createNewStoreController, serverConnectionInfoDir }
 

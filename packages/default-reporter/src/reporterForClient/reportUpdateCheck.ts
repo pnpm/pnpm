@@ -5,9 +5,9 @@ import * as Rx from 'rxjs'
 import { filter, map, take } from 'rxjs/operators'
 import semver from 'semver'
 
-export default (log$: Rx.Observable<UpdateCheckLog>, opts: {
+export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
   env: NodeJS.ProcessEnv
-}) => {
+}) {
   return log$.pipe(
     take(1),
     filter((log) => semver.gt(log.latestVersion, log.currentVersion)),

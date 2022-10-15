@@ -45,7 +45,7 @@ export interface GenericDependenciesGraph<T extends PartialResolvedPackage> {
   [depPath: string]: T & GenericDependenciesGraphNode
 }
 
-export default function<T extends PartialResolvedPackage> (
+export function resolvePeers<T extends PartialResolvedPackage> (
   opts: {
     projects: Array<{
       directNodeIdsByAlias: { [alias: string]: string }
@@ -230,7 +230,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
 
   const { resolvedPeers, missingPeers } = isEmpty(resolvedPackage.peerDependencies)
     ? { resolvedPeers: {}, missingPeers: [] }
-    : resolvePeers({
+    : _resolvePeers({
       currentDepth: node.depth,
       dependenciesTree: ctx.dependenciesTree,
       lockfileDir: ctx.lockfileDir,
@@ -386,7 +386,7 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   return { resolvedPeers: unknownResolvedPeersOfChildren, missingPeers: Array.from(allMissingPeers) }
 }
 
-function resolvePeers<T extends PartialResolvedPackage> (
+function _resolvePeers<T extends PartialResolvedPackage> (
   ctx: {
     currentDepth: number
     lockfileDir: string

@@ -1,10 +1,10 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { add } from '@pnpm/plugin-commands-installation'
-import prepare from '@pnpm/prepare'
+import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import tempy from 'tempy'
-import getNodeExecPath from '../lib/nodeExecPath'
+import { getNodeExecPath } from '../lib/nodeExecPath'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const tmp = tempy.directory()

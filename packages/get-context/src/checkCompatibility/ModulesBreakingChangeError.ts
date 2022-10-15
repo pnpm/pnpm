@@ -1,11 +1,11 @@
-import BreakingChangeError from './BreakingChangeError'
-import ErrorRelatedSources from './ErrorRelatedSources'
+import { BreakingChangeError } from './BreakingChangeError'
+import { ErrorRelatedSources } from './ErrorRelatedSources'
 
 export type ModulesBreakingChangeErrorOptions = ErrorRelatedSources & {
   modulesPath: string
 }
 
-export default class ModulesBreakingChangeError extends BreakingChangeError {
+export class ModulesBreakingChangeError extends BreakingChangeError {
   public modulesPath: string
   constructor (opts: ModulesBreakingChangeErrorOptions) {
     super({

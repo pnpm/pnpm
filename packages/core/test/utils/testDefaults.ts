@@ -16,7 +16,7 @@ const retryOpts = {
   retryMintimeout: 10_000,
 }
 
-export default async function testDefaults<T> (
+export async function testDefaults<T> (
   opts?: T & {
     fastUnpack?: boolean
     storeDir?: string

@@ -5,7 +5,7 @@ import {
   StoreController,
   WantedDependency,
 } from '@pnpm/store-controller-types'
-import locking from './lock'
+import { locking } from './lock'
 
 interface RequestBody {
   msgId: string
@@ -22,7 +22,7 @@ interface RequestBody {
   searchQueries: string[]
 }
 
-export default function (
+export function createServer (
   store: StoreController,
   opts: {
     path?: string

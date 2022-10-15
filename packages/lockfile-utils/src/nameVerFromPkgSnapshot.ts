@@ -1,10 +1,10 @@
 import { PackageSnapshot } from '@pnpm/lockfile-types'
 import * as dp from 'dependency-path'
 
-export default (
+export function nameVerFromPkgSnapshot (
   depPath: string,
   pkgSnapshot: PackageSnapshot
-) => {
+) {
   if (!pkgSnapshot.name) {
     const pkgInfo = dp.parse(depPath)
     return {

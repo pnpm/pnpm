@@ -1,4 +1,4 @@
-import createPeerDependencyPatcher from '../lib/createPeerDependencyPatcher'
+import { createPeerDependencyPatcher } from '../lib/createPeerDependencyPatcher'
 
 test('createPeerDependencyPatcher() ignores missing', () => {
   const patcher = createPeerDependencyPatcher({

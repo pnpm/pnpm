@@ -10,16 +10,17 @@ import * as dp from 'dependency-path'
 import dint from 'dint'
 import loadJsonFile from 'load-json-file'
 import pFilter from 'p-filter'
-import extendOptions, {
+import {
+  extendStoreStatusOptions,
   StoreStatusOptions,
 } from './extendStoreStatusOptions'
 
-export default async function (maybeOpts: StoreStatusOptions) {
+export async function storeStatus (maybeOpts: StoreStatusOptions) {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
   }
-  const opts = await extendOptions(maybeOpts)
+  const opts = await extendStoreStatusOptions(maybeOpts)
   const {
     registries,
     storeDir,

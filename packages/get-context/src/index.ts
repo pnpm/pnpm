@@ -21,10 +21,10 @@ import pathAbsolute from 'path-absolute'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
 import fromPairs from 'ramda/src/fromPairs'
-import checkCompatibility from './checkCompatibility'
-import UnexpectedStoreError from './checkCompatibility/UnexpectedStoreError'
-import UnexpectedVirtualStoreDirError from './checkCompatibility/UnexpectedVirtualStoreDirError'
-import readLockfileFile from './readLockfiles'
+import { checkCompatibility } from './checkCompatibility'
+import { UnexpectedStoreError } from './checkCompatibility/UnexpectedStoreError'
+import { UnexpectedVirtualStoreDirError } from './checkCompatibility/UnexpectedVirtualStoreDirError'
+import { readLockfiles } from './readLockfiles'
 
 export { UnexpectedStoreError, UnexpectedVirtualStoreDirError }
 
@@ -170,7 +170,7 @@ export async function getContext (
     skipped: importersContext.skipped,
     storeDir: opts.storeDir,
     virtualStoreDir,
-    ...await readLockfileFile({
+    ...await readLockfiles({
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
       frozenLockfile: opts.frozenLockfile === true,
@@ -475,7 +475,7 @@ export async function getContextForSingleImporter (
     skipped,
     storeDir,
     virtualStoreDir,
-    ...await readLockfileFile({
+    ...await readLockfiles({
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
       frozenLockfile: false,

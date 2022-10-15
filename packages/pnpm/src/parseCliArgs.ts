@@ -5,7 +5,7 @@ import {
   GLOBAL_OPTIONS,
   shorthandsByCommandName,
 } from './cmd'
-import universalShorthands from './shorthands'
+import { shorthands as universalShorthands } from './shorthands'
 
 const RENAMED_OPTIONS = {
   'lockfile-directory': 'lockfile-dir',
@@ -14,7 +14,7 @@ const RENAMED_OPTIONS = {
   store: 'store-dir',
 }
 
-export default async function parseCliArgs (inputArgv: string[]) {
+export async function parseCliArgs (inputArgv: string[]) {
   return parseCliArgsLib({
     fallbackCommand: 'run',
     escapeArgs: ['create', 'dlx', 'exec'],

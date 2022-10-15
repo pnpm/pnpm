@@ -1,15 +1,15 @@
 import { InstallCheckLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
-import formatWarn from './utils/formatWarn'
+import { formatWarn } from './utils/formatWarn'
 import { autozoom } from './utils/zooming'
 
-export default (
+export function reportInstallChecks (
   installCheck$: Rx.Observable<InstallCheckLog>,
   opts: {
     cwd: string
   }
-) => {
+) {
   return installCheck$.pipe(
     map((log) => formatInstallCheck(opts.cwd, log)),
     filter(Boolean),

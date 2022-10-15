@@ -1,4 +1,4 @@
-import parsePref from '../lib/parsePref'
+import { parsePref } from '../lib/parsePref'
 
 test.each([
   ['ssh://username:password@example.com:repo.git', 'ssh://username:password@example.com/repo.git'],

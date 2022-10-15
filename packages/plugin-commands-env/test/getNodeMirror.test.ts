@@ -1,4 +1,4 @@
-import getNodeMirror from '../lib/getNodeMirror'
+import { getNodeMirror } from '../lib/getNodeMirror'
 
 test.each([
   ['release', { 'node-mirror:release': 'http://test.mirror.localhost/release' }, 'http://test.mirror.localhost/release/'],

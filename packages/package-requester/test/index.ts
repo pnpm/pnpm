@@ -8,7 +8,7 @@ import { createPackageRequester, PackageResponse } from '@pnpm/package-requester
 import type { PackageFilesResponse } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import fixtures from '@pnpm/test-fixtures'
+import { fixtures } from '@pnpm/test-fixtures'
 import { DependencyManifest } from '@pnpm/types'
 import delay from 'delay'
 import { depPathToFilename } from 'dependency-path'

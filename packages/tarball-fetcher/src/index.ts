@@ -9,12 +9,13 @@ import {
   GetCredentials,
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
-import createDownloader, {
+import {
+  createDownloader,
   DownloadFunction,
   TarballIntegrityError,
 } from './remoteTarballFetcher'
-import createLocalTarballFetcher from './localTarballFetcher'
-import createGitHostedTarballFetcher, { waitForFilesIndex } from './gitHostedTarballFetcher'
+import { createLocalTarballFetcher } from './localTarballFetcher'
+import { createGitHostedTarballFetcher, waitForFilesIndex } from './gitHostedTarballFetcher'
 
 export { BadTarballError } from './errorTypes'
 

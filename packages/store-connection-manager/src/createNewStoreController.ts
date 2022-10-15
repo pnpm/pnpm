@@ -43,9 +43,9 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
   ignoreFile?: (filename: string) => boolean
 } & Partial<Pick<Config, 'userConfig'>>
 
-export default async (
+export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
-) => {
+) {
   const fullMetadata = opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField
   const { resolve, fetchers } = createClient({
     customFetchers: opts.hooks?.fetchers,

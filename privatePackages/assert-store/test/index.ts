@@ -1,6 +1,6 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
-import assertStore from '@pnpm/assert-store'
+import { assertStore } from '@pnpm/assert-store'
 
 test('assertStore() store assertions', async () => {
   const storePath = path.join(__dirname, 'fixture/store/v3/')

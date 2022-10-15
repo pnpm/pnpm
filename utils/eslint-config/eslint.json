@@ -15,6 +15,7 @@
         ]
       }
     ],
+    "import/no-default-export": "error",
     "@typescript-eslint/indent": [
         "error",
         2,
