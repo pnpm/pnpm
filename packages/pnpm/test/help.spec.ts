@@ -1,4 +1,4 @@
-import createHelp from '../src/cmd/help'
+import { createHelp } from '../src/cmd/help'
 
 test('print an error when help not found', () => {
   expect(

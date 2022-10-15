@@ -8,9 +8,9 @@ import {
   spawnPnpx,
 } from './execPnpm'
 import { pathToLocalPkg } from './localPkg'
-import retryLoadJsonFile from './retryLoadJsonFile'
 import testDefaults from './testDefaults'
 
+export { retryLoadJsonFile } from './retryLoadJsonFile'
 export {
   pathToLocalPkg,
   testDefaults,
@@ -21,5 +21,4 @@ export {
   spawnPnpm,
   spawnPnpx,
   addDistTag,
-  retryLoadJsonFile,
 }

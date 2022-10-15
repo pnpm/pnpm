@@ -1,4 +1,4 @@
-import complete from '../src/cmd/complete'
+import { complete } from '../src/cmd/complete'
 
 test('complete an option value', async () => {
   const completions = await complete(
