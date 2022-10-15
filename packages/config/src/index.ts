@@ -227,7 +227,7 @@ export async function getConfig (
     'shell-emulator': false,
     reverse: false,
     sort: true,
-    'strict-peer-dependencies': true,
+    'strict-peer-dependencies': false,
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'use-beta-cli': false,
     'use-inline-specifiers-lockfile-format': false,
