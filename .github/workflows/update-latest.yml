@@ -22,8 +22,7 @@ jobs:
       uses: actions/setup-node@v3
     - name: Update tag
       env:
-        NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        "npm_config_//registry.npmjs.org/:_authToken": ${{ secrets.NPM_TOKEN }}
       run: |
-        npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
         npm dist-tag add pnpm@${{ github.event.inputs.version }} ${{ github.event.inputs.tag }}
         npm dist-tag add @pnpm/exe@${{ github.event.inputs.version }} ${{ github.event.inputs.tag }}
