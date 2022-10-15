@@ -93,10 +93,14 @@ export async function outdated (
           const current = (currentRelative && dp.parse(currentRelative).version) ?? currentRef
           const wanted = dp.parse(relativeDepPath).version ?? ref
           const { name: packageName } = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot)
+          const name = dp.parse(relativeDepPath).name ?? packageName
 
           // It might be not the best solution to check for pkgSnapshot.name
           // TODO: add some other field to distinct packages not from the registry
-          if (pkgSnapshot.resolution && (pkgSnapshot.resolution['type'] || pkgSnapshot.name)) {
+          if (
+            pkgSnapshot.resolution &&
+            (pkgSnapshot.resolution['type'] || pkgSnapshot.name && /^https?:\/\//.test(allDeps[name]))
+          ) {
             if (current !== wanted) {
               outdated.push({
                 alias,
@@ -110,7 +114,6 @@ export async function outdated (
             return
           }
 
-          const name = dp.parse(relativeDepPath).name ?? packageName
           const latestManifest = await opts.getLatestManifest(
             name,
             opts.compatible ? (allDeps[name] ?? 'latest') : 'latest'
