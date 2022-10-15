@@ -35,10 +35,8 @@ jobs:
         run: pnpm install
       - name: Publish Packages
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          pnpm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
-          pnpm release
+          "npm_config_//registry.npmjs.org/:_authToken": ${{ secrets.NPM_TOKEN }}
+        run: pnpm release
       - name: Copy Artifacts
         run: pnpm run copy-artifacts
       - name: Generate release description
