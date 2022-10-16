@@ -1,5 +1,12 @@
 # @pnpm/cli-meta
 
+## 4.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
 ## 3.0.8
 
 ### Patch Changes

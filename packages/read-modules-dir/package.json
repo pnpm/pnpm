@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-modules-dir",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "description": "Finds all direct packages in node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

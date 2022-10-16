@@ -1,5 +1,21 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.4.0
+
+### Minor Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+  - @pnpm/exportable-manifest@4.0.0
+  - @pnpm/find-workspace-dir@5.0.0
+  - @pnpm/lockfile-file@6.0.0
+  - @pnpm/read-project-manifest@4.0.0
+
 ## 0.3.24
 
 ### Patch Changes

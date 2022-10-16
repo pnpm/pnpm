@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/parse-cli-args",
-  "version": "5.0.3",
+  "version": "6.0.0",
   "description": "Parses the CLI args passed to pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

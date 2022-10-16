@@ -1,5 +1,22 @@
 # dependencies-hierarchy
 
+## 12.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [72f7d6b3b]
+- Updated dependencies [f884689e0]
+  - @pnpm/modules-yaml@11.0.0
+  - @pnpm/lockfile-file@6.0.0
+  - @pnpm/normalize-registries@4.0.0
+  - @pnpm/read-modules-dir@5.0.0
+  - @pnpm/read-package-json@7.0.0
+
 ## 11.0.26
 
 ### Patch Changes

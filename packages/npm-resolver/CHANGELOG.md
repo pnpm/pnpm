@@ -1,5 +1,19 @@
 # @pnpm/npm-resolver
 
+## 14.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+  - @pnpm/core-loggers@8.0.0
+  - @pnpm/resolve-workspace-range@4.0.0
+
 ## 13.1.11
 
 ### Patch Changes

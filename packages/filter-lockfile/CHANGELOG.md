@@ -1,5 +1,20 @@
 # @pnpm/filter-lockfile
 
+## 7.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+- a236ecf57: Breaking change to the API. Also include missing deeply linked workspace packages at headless installation.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+  - @pnpm/lockfile-walker@6.0.0
+  - @pnpm/package-is-installable@7.0.0
+
 ## 6.0.22
 
 ### Patch Changes

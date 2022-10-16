@@ -1,5 +1,31 @@
 # @pnpm/plugin-commands-outdated
 
+## 7.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [1d0fd82fd]
+- Updated dependencies [645384bfd]
+- Updated dependencies [72f7d6b3b]
+- Updated dependencies [6ad990a6a]
+- Updated dependencies [f884689e0]
+- Updated dependencies [6ad990a6a]
+- Updated dependencies [3c117996e]
+  - @pnpm/config@16.0.0
+  - @pnpm/default-resolver@16.0.0
+  - @pnpm/error@4.0.0
+  - @pnpm/modules-yaml@11.0.0
+  - @pnpm/outdated@11.0.0
+  - @pnpm/cli-utils@1.0.0
+  - @pnpm/lockfile-file@6.0.0
+  - @pnpm/matcher@4.0.0
+  - @pnpm/store-path@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-publishing
 
+## 6.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [1d0fd82fd]
+- Updated dependencies [645384bfd]
+- Updated dependencies [f884689e0]
+- Updated dependencies [3c117996e]
+  - @pnpm/client@8.0.0
+  - @pnpm/config@16.0.0
+  - @pnpm/error@4.0.0
+  - @pnpm/exportable-manifest@4.0.0
+  - @pnpm/lifecycle@14.0.0
+  - @pnpm/cli-utils@1.0.0
+  - @pnpm/package-bins@7.0.0
+  - @pnpm/pick-registry-for-package@4.0.0
+  - @pnpm/run-npm@5.0.0
+  - @pnpm/sort-packages@4.0.0
+
 ## 5.2.12
 
 ### Patch Changes

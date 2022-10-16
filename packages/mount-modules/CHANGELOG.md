@@ -1,5 +1,23 @@
 # @pnpm/mount-modules
 
+## 0.3.0
+
+### Minor Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [1d0fd82fd]
+- Updated dependencies [645384bfd]
+- Updated dependencies [f884689e0]
+- Updated dependencies [3c117996e]
+  - @pnpm/cafs@5.0.0
+  - @pnpm/config@16.0.0
+  - @pnpm/lockfile-file@6.0.0
+  - @pnpm/store-path@7.0.0
+
 ## 0.2.46
 
 ### Patch Changes

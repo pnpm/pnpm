@@ -1,5 +1,18 @@
 # @pnpm/hooks.read-package-hook
 
+## 2.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [f884689e0]
+  - @pnpm/matcher@4.0.0
+  - @pnpm/parse-overrides@3.0.0
+  - @pnpm/parse-wanted-dependency@4.0.0
+
 ## 1.0.2
 
 ### Patch Changes

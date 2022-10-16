@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/parse-wanted-dependency",
   "description": "Parse dependency specifier",
-  "version": "3.0.2",
+  "version": "4.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

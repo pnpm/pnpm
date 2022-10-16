@@ -1,5 +1,20 @@
 # @pnpm/audit
 
+## 4.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+  - @pnpm/fetch@6.0.0
+  - @pnpm/lockfile-walker@6.0.0
+
 ## 3.1.11
 
 ### Patch Changes

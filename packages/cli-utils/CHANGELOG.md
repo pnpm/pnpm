@@ -1,5 +1,26 @@
 # @pnpm/cli-utils
 
+## 1.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [1d0fd82fd]
+- Updated dependencies [645384bfd]
+- Updated dependencies [f884689e0]
+- Updated dependencies [3c117996e]
+  - @pnpm/cli-meta@4.0.0
+  - @pnpm/config@16.0.0
+  - @pnpm/default-reporter@11.0.0
+  - @pnpm/error@4.0.0
+  - @pnpm/manifest-utils@4.0.0
+  - @pnpm/package-is-installable@7.0.0
+  - @pnpm/read-project-manifest@4.0.0
+
 ## 0.7.43
 
 ### Patch Changes

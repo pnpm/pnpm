@@ -1,5 +1,17 @@
 # find-packages
 
+## 10.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [f884689e0]
+  - @pnpm/read-project-manifest@4.0.0
+
 ## 9.0.13
 
 ### Patch Changes

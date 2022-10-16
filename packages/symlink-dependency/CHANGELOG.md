@@ -1,5 +1,16 @@
 # @pnpm/symlink-dependency
 
+## 6.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [f884689e0]
+  - @pnpm/core-loggers@8.0.0
+
 ## 5.0.10
 
 ### Patch Changes

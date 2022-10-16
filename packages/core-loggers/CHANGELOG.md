@@ -1,5 +1,11 @@
 # @pnpm/core-loggers
 
+## 8.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
 ## 7.1.0
 
 ### Minor Changes

@@ -1,5 +1,21 @@
 # @pnpm/list
 
+## 8.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - dependencies-hierarchy@12.0.0
+  - @pnpm/matcher@4.0.0
+  - @pnpm/read-package-json@7.0.0
+  - @pnpm/read-project-manifest@4.0.0
+
 ## 7.0.26
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/which-version-is-pinned
 
+## 4.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
 ## 3.0.0
 
 ### Major Changes

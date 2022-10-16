@@ -1,5 +1,11 @@
 # @pnpm/run-npm
 
+## 5.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
 ## 4.0.1
 
 ### Patch Changes

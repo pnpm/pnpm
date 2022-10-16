@@ -1,5 +1,11 @@
 # @pnpm/resolve-workspace-range
 
+## 4.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
 ## 3.0.0
 
 ### Major Changes

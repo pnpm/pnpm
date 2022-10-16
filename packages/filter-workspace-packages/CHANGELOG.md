@@ -1,5 +1,25 @@
 # @pnpm/filter-workspace-packages
 
+## 6.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Minor Changes
+
+- 645384bfd: `readProjects()` returns `allProjectsGraph`.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+  - @pnpm/find-workspace-packages@5.0.0
+  - @pnpm/matcher@4.0.0
+  - pkgs-graph@8.0.0
+
 ## 5.1.3
 
 ### Patch Changes

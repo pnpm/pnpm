@@ -1,5 +1,19 @@
 # @pnpm/node.fetcher
 
+## 2.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/create-cafs-store@3.0.0
+  - @pnpm/error@4.0.0
+  - @pnpm/tarball-fetcher@12.0.0
+
 ## 1.0.15
 
 ### Patch Changes

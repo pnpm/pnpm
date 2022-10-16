@@ -1,5 +1,19 @@
 # @pnpm/read-projects-context
 
+## 7.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [72f7d6b3b]
+- Updated dependencies [f884689e0]
+  - @pnpm/modules-yaml@11.0.0
+  - @pnpm/lockfile-file@6.0.0
+  - @pnpm/normalize-registries@4.0.0
+
 ## 6.0.19
 
 ### Patch Changes

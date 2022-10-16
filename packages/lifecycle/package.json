@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lifecycle",
-  "version": "13.1.12",
+  "version": "14.0.0",
   "description": "Package lifecycle hook runner",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

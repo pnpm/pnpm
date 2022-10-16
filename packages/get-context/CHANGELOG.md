@@ -1,5 +1,23 @@
 # @pnpm/get-context
 
+## 8.0.0
+
+### Major Changes
+
+- 645384bfd: Breaking changes to the API.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [72f7d6b3b]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+  - @pnpm/modules-yaml@11.0.0
+  - @pnpm/core-loggers@8.0.0
+  - @pnpm/lockfile-file@6.0.0
+  - @pnpm/read-projects-context@7.0.0
+
 ## 7.0.3
 
 ### Patch Changes

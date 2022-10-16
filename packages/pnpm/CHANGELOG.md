@@ -1,5 +1,14 @@
 # pnpm
 
+## 7.13.5
+
+### Patch Changes
+
+- Print a warning when cannot read the builtin npm configuration.
+- Also include missing deeply linked workspace packages at headless installation [#5034](https://github.com/pnpm/pnpm/issues/5034).
+- `pnpm outdated` should work when the package tarballs are hosted on a domain that differs from the registry's domain [#5492](https://github.com/pnpm/pnpm/issues/5492).
+- `strict-peer-dependencies` is set to `false` by default.
+
 ## 7.13.4
 
 ### Patch Changes

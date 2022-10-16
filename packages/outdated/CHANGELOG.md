@@ -1,5 +1,27 @@
 # @pnpm/outdated
 
+## 11.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+- 6ad990a6a: `registries` is a required option for the outdated function.
+
+### Patch Changes
+
+- 6ad990a6a: `pnpm outdated` should work when the package tarballs are hosted on a domain that differs from the registry's domain [#5492](https://github.com/pnpm/pnpm/issues/5492).
+- Updated dependencies [043d988fc]
+- Updated dependencies [72f7d6b3b]
+- Updated dependencies [f884689e0]
+  - @pnpm/client@8.0.0
+  - @pnpm/error@4.0.0
+  - @pnpm/modules-yaml@11.0.0
+  - @pnpm/lockfile-file@6.0.0
+  - @pnpm/manifest-utils@4.0.0
+  - @pnpm/matcher@4.0.0
+  - @pnpm/npm-resolver@14.0.0
+  - @pnpm/pick-registry-for-package@4.0.0
+
 ## 10.1.3
 
 ### Patch Changes

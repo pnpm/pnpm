@@ -1,5 +1,11 @@
 # @pnpm/package-bins
 
+## 7.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
 ## 6.0.8
 
 ### Patch Changes

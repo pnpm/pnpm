@@ -1,5 +1,11 @@
 # @pnpm/matcher
 
+## 4.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
 ## 3.2.0
 
 ### Minor Changes

@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-env
 
+## 3.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [1d0fd82fd]
+- Updated dependencies [645384bfd]
+- Updated dependencies [f884689e0]
+- Updated dependencies [3c117996e]
+  - @pnpm/config@16.0.0
+  - @pnpm/error@4.0.0
+  - @pnpm/fetch@6.0.0
+  - @pnpm/cli-utils@1.0.0
+  - @pnpm/node.fetcher@2.0.0
+  - @pnpm/remove-bins@4.0.0
+  - @pnpm/store-path@7.0.0
+  - @pnpm/node.resolver@1.0.16
+
 ## 2.3.11
 
 ### Patch Changes

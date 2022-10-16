@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-deploy
 
+## 2.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [645384bfd]
+- Updated dependencies [f884689e0]
+- Updated dependencies [e35988d1f]
+  - @pnpm/directory-fetcher@4.0.0
+  - @pnpm/error@4.0.0
+  - @pnpm/plugin-commands-installation@11.0.0
+  - @pnpm/cli-utils@1.0.0
+  - @pnpm/fs.indexed-pkg-importer@2.0.0
+
 ## 1.1.13
 
 ### Patch Changes

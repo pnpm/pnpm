@@ -1,5 +1,22 @@
 # @pnpm/client
 
+## 8.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/default-resolver@16.0.0
+  - @pnpm/directory-fetcher@4.0.0
+  - @pnpm/fetch@6.0.0
+  - @pnpm/git-fetcher@6.0.0
+  - @pnpm/tarball-fetcher@12.0.0
+
 ## 7.2.10
 
 ### Patch Changes

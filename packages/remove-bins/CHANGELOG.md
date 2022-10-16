@@ -1,5 +1,18 @@
 # @pnpm/remove-bins
 
+## 4.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [f884689e0]
+  - @pnpm/core-loggers@8.0.0
+  - @pnpm/package-bins@7.0.0
+  - @pnpm/read-package-json@7.0.0
+
 ## 3.0.13
 
 ### Patch Changes

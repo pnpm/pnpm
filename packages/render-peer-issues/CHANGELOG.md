@@ -1,5 +1,11 @@
 # @pnpm/render-peer-issues
 
+## 3.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
 ## 2.1.2
 
 ### Patch Changes

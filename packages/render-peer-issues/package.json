@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/render-peer-issues",
   "description": "Visualizes peer dependency issues",
-  "version": "2.1.2",
+  "version": "3.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

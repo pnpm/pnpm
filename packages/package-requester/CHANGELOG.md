@@ -1,5 +1,21 @@
 # @pnpm/package-requester
 
+## 20.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/cafs@5.0.0
+  - @pnpm/error@4.0.0
+  - @pnpm/core-loggers@8.0.0
+  - @pnpm/package-is-installable@7.0.0
+  - @pnpm/read-package-json@7.0.0
+
 ## 19.0.6
 
 ### Patch Changes

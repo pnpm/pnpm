@@ -1,5 +1,12 @@
 # @pnpm/cafs
 
+## 5.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
 ## 4.3.2
 
 ### Patch Changes

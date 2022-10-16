@@ -1,5 +1,16 @@
 # @pnpm/lockfile-to-pnp
 
+## 2.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [f884689e0]
+  - @pnpm/lockfile-file@6.0.0
+
 ## 1.0.5
 
 ### Patch Changes

@@ -1,5 +1,31 @@
 # @pnpm/plugin-commands-script-runners
 
+## 6.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [1d0fd82fd]
+- Updated dependencies [645384bfd]
+- Updated dependencies [645384bfd]
+- Updated dependencies [f884689e0]
+- Updated dependencies [3c117996e]
+- Updated dependencies [e35988d1f]
+  - @pnpm/config@16.0.0
+  - @pnpm/error@4.0.0
+  - @pnpm/lifecycle@14.0.0
+  - @pnpm/plugin-commands-installation@11.0.0
+  - @pnpm/cli-utils@1.0.0
+  - @pnpm/package-bins@7.0.0
+  - @pnpm/read-package-json@7.0.0
+  - @pnpm/read-project-manifest@4.0.0
+  - @pnpm/sort-packages@4.0.0
+  - @pnpm/store-path@7.0.0
+
 ## 5.1.13
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/tarball-resolver
 
+## 7.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
 ## 6.0.9
 
 ### Patch Changes

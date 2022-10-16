@@ -1,5 +1,18 @@
 # @pnpm/prepare-package
 
+## 3.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+  - @pnpm/read-package-json@7.0.0
+
 ## 2.0.11
 
 ### Patch Changes

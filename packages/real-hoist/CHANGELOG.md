@@ -1,5 +1,18 @@
 # @pnpm/real-hoist
 
+## 1.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- e35988d1f: Update Yarn dependencies.
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+
 ## 0.2.20
 
 ### Patch Changes

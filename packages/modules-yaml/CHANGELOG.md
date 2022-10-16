@@ -1,5 +1,11 @@
 # @pnpm/modules-yaml
 
+## 11.0.0
+
+### Major Changes
+
+- 72f7d6b3b: Export readModulesManifest and writeModulesManifest instead of read and write.
+
 ## 10.0.8
 
 ### Patch Changes

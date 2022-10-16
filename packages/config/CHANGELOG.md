@@ -1,5 +1,27 @@
 # @pnpm/config
 
+## 16.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Minor Changes
+
+- 645384bfd: New field returned: allProjectsGraph.
+
+### Patch Changes
+
+- 1d0fd82fd: Print a warning when cannot read the builtin npm configuration.
+- 3c117996e: `strict-peer-dependencies` is set to `false` by default.
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+  - @pnpm/matcher@4.0.0
+  - @pnpm/pnpmfile@4.0.0
+  - @pnpm/read-project-manifest@4.0.0
+
 ## 15.10.12
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/find-workspace-dir",
-  "version": "4.0.3",
+  "version": "5.0.0",
   "description": "Finds the root of a pnpm workspace",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

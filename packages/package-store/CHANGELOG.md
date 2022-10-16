@@ -1,5 +1,19 @@
 # @pnpm/package-store
 
+## 15.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/cafs@5.0.0
+  - @pnpm/create-cafs-store@3.0.0
+  - @pnpm/package-requester@20.0.0
+
 ## 14.2.7
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/read-project-manifest
 
+## 4.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+  - @pnpm/write-project-manifest@4.0.0
+
 ## 3.0.13
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/exe",
   "description": "Fast, disk space efficient package manager",
-  "version": "7.13.4",
+  "version": "7.13.5",
   "publishConfig": {
     "bin": {
       "pnpm": "pnpm"

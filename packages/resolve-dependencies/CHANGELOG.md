@@ -1,5 +1,25 @@
 # @pnpm/resolve-dependencies
 
+## 29.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- e35988d1f: Update Yarn dependencies.
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+  - @pnpm/core-loggers@8.0.0
+  - @pnpm/manifest-utils@4.0.0
+  - @pnpm/npm-resolver@14.0.0
+  - @pnpm/pick-registry-for-package@4.0.0
+  - @pnpm/read-package-json@7.0.0
+  - @pnpm/which-version-is-pinned@4.0.0
+
 ## 28.4.5
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 2.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [f884689e0]
+  - @pnpm/core-loggers@8.0.0
+
 ## 1.1.4
 
 ### Patch Changes

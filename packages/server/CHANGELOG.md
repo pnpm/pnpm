@@ -1,5 +1,17 @@
 # @pnpm/server
 
+## 14.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/fetch@6.0.0
+
 ## 13.0.9
 
 ### Patch Changes

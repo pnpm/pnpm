@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-listing
 
+## 6.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [1d0fd82fd]
+- Updated dependencies [645384bfd]
+- Updated dependencies [f884689e0]
+- Updated dependencies [3c117996e]
+  - @pnpm/config@16.0.0
+  - @pnpm/error@4.0.0
+  - @pnpm/list@8.0.0
+  - @pnpm/cli-utils@1.0.0
+
 ## 5.1.12
 
 ### Patch Changes

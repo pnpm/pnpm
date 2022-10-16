@@ -1,5 +1,16 @@
 # pkgs-graph
 
+## 8.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [f884689e0]
+  - @pnpm/resolve-workspace-range@4.0.0
+
 ## 7.0.2
 
 ### Patch Changes

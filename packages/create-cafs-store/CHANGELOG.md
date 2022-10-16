@@ -1,5 +1,19 @@
 # @pnpm/create-cafs-store
 
+## 3.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/cafs@5.0.0
+  - @pnpm/fs.indexed-pkg-importer@2.0.0
+
 ## 2.2.5
 
 ### Patch Changes

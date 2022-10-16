@@ -1,5 +1,38 @@
 # @pnpm/headless
 
+## 19.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+- 645384bfd: Breaking changes to the API. All projects must be passed via a new field in options.
+
+### Patch Changes
+
+- a236ecf57: Also include missing deeply linked workspace packages at headless installation [#5034](https://github.com/pnpm/pnpm/issues/5034).
+- Updated dependencies [043d988fc]
+- Updated dependencies [72f7d6b3b]
+- Updated dependencies [f884689e0]
+- Updated dependencies [a236ecf57]
+- Updated dependencies [e35988d1f]
+  - @pnpm/build-modules@10.0.0
+  - @pnpm/error@4.0.0
+  - @pnpm/hoist@7.0.0
+  - @pnpm/lifecycle@14.0.0
+  - @pnpm/link-bins@8.0.0
+  - @pnpm/modules-yaml@11.0.0
+  - @pnpm/core-loggers@8.0.0
+  - @pnpm/filter-lockfile@7.0.0
+  - @pnpm/lockfile-file@6.0.0
+  - @pnpm/lockfile-to-pnp@2.0.0
+  - @pnpm/modules-cleaner@13.0.0
+  - @pnpm/package-is-installable@7.0.0
+  - @pnpm/package-requester@20.0.0
+  - @pnpm/read-package-json@7.0.0
+  - @pnpm/read-project-manifest@4.0.0
+  - @pnpm/real-hoist@1.0.0
+  - @pnpm/symlink-dependency@6.0.0
+
 ## 18.7.6
 
 ### Patch Changes

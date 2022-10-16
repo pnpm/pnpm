@@ -1,5 +1,24 @@
 # @pnpm/default-reporter
 
+## 11.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [1d0fd82fd]
+- Updated dependencies [645384bfd]
+- Updated dependencies [f884689e0]
+- Updated dependencies [3c117996e]
+  - @pnpm/config@16.0.0
+  - @pnpm/error@4.0.0
+  - @pnpm/core-loggers@8.0.0
+  - @pnpm/render-peer-issues@3.0.0
+
 ## 10.1.1
 
 ### Patch Changes

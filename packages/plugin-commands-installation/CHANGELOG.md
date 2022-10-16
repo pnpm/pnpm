@@ -1,5 +1,42 @@
 # @pnpm/plugin-commands-installation
 
+## 11.0.0
+
+### Major Changes
+
+- 645384bfd: New required option added: `allProjectsGraph`.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- e35988d1f: Update Yarn dependencies.
+- Updated dependencies [043d988fc]
+- Updated dependencies [1d0fd82fd]
+- Updated dependencies [645384bfd]
+- Updated dependencies [6ad990a6a]
+- Updated dependencies [f884689e0]
+- Updated dependencies [6ad990a6a]
+- Updated dependencies [3c117996e]
+- Updated dependencies [645384bfd]
+- Updated dependencies [645384bfd]
+  - @pnpm/config@16.0.0
+  - @pnpm/error@4.0.0
+  - @pnpm/filter-workspace-packages@6.0.0
+  - @pnpm/find-workspace-dir@5.0.0
+  - @pnpm/find-workspace-packages@5.0.0
+  - @pnpm/outdated@11.0.0
+  - @pnpm/cli-utils@1.0.0
+  - @pnpm/core@7.0.0
+  - @pnpm/manifest-utils@4.0.0
+  - @pnpm/matcher@4.0.0
+  - @pnpm/package-store@15.0.0
+  - @pnpm/parse-wanted-dependency@4.0.0
+  - @pnpm/plugin-commands-rebuild@7.0.0
+  - @pnpm/pnpmfile@4.0.0
+  - @pnpm/read-project-manifest@4.0.0
+  - @pnpm/sort-packages@4.0.0
+  - @pnpm/store-connection-manager@5.0.0
+
 ## 10.8.4
 
 ### Patch Changes

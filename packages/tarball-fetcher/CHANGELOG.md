@@ -1,5 +1,19 @@
 # @pnpm/tarball-fetcher
 
+## 12.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+  - @pnpm/core-loggers@8.0.0
+  - @pnpm/prepare-package@3.0.0
+
 ## 11.0.5
 
 ### Patch Changes
