@@ -39,6 +39,7 @@ test('outdated()', async () => {
             'linked-2': 'file:../linked-2',
           },
           specifiers: {
+            'from-github': 'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
             'is-negative': '^2.1.0',
             'is-positive': '^1.0.0',
           },
@@ -74,7 +75,10 @@ test('outdated()', async () => {
     manifest: {
       name: 'wanted-shrinkwrap',
       version: '1.0.0',
-
+      dependencies: {
+        'from-github': 'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+        'from-github-2': 'github:blabla/from-github-2#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+      },
       devDependencies: {
         'is-negative': '^2.1.0',
         'is-positive': '^3.1.0',
@@ -97,6 +101,8 @@ test('outdated()', async () => {
             'linked-2': 'file:../linked-2',
           },
           specifiers: {
+            'from-github': 'github:blabla/from-github#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'from-github-2': 'github:blabla/from-github-2#d5f8d5500f7faf593d32e134c1b0043ff69151b4',
             'is-negative': '^2.1.0',
             'is-positive': '^3.1.0',
           },
@@ -131,6 +137,9 @@ test('outdated()', async () => {
           },
         },
       },
+    },
+    registries: {
+      default: 'https://registry.npmjs.org/',
     },
   })
   expect(outdatedPkgs).toStrictEqual([
@@ -211,6 +220,9 @@ test('outdated() should return deprecated package even if its current version is
     },
     prefix: 'project',
     wantedLockfile: lockfile,
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
   })
   expect(outdatedPkgs).toStrictEqual([
     {
@@ -328,6 +340,9 @@ test('using a matcher', async () => {
         },
       },
     },
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
   })
   expect(outdatedPkgs).toStrictEqual([
     {
@@ -396,6 +411,9 @@ test('outdated() aliased dependency', async () => {
           },
         },
       },
+    },
+    registries: {
+      default: 'https://registry.npmjs.org/',
     },
   })
   expect(outdatedPkgs).toStrictEqual([
@@ -486,6 +504,9 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
     },
     prefix: 'project',
     wantedLockfile: lockfile,
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
   })
   expect(outdatedPkgs).toStrictEqual([])
 })
@@ -503,6 +524,9 @@ test('outdated() should [] when there is no dependency', async () => {
     },
     prefix: 'project',
     wantedLockfile: null,
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
   })
   expect(outdatedPkgs).toStrictEqual([])
 })

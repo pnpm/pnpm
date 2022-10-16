@@ -2625,6 +2625,9 @@ importers:
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
+      '@pnpm/npm-resolver':
+        specifier: workspace:*
+        version: link:../npm-resolver
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../pick-registry-for-package
