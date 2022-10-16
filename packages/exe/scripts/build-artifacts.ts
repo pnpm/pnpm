@@ -29,5 +29,6 @@ const isM1Mac = process.platform === 'darwin' && process.arch === 'arm64'
 if (process.platform === 'linux' || isM1Mac) {
   build('macos-arm64')
   build('linux-arm64')
+  build('linuxstatic-arm64')
 }
 

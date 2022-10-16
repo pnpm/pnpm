@@ -1,0 +1,7 @@
+{
+  "pkg": {
+    "assets": ["dist/pnpmrc", "dist/scripts/*"],
+    "targets": ["node14-linuxstatic-arm64"],
+    "outputPath": "../artifacts/linuxstatic-arm64"
+  }
+}
