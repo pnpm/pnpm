@@ -100,9 +100,11 @@ export async function outdated (
           const { name: packageName } = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot)
           const name = dp.parse(relativeDepPath).name ?? packageName
 
+          // If the npm resolve parser cannot parse the spec of the dependency,
+          // it means that the package is not from a npm-compatible registry.
+          // In that case, we can't check whether the package is up-to-date
           if (
-            pkgSnapshot.resolution &&
-            (pkgSnapshot.resolution['type'] || pkgSnapshot.name && parsePref(allDeps[name], name, 'latest', pickRegistryForPackage(opts.registries, name)) == null)
+            parsePref(allDeps[alias], alias, 'latest', pickRegistryForPackage(opts.registries, name)) == null
           ) {
             if (current !== wanted) {
               outdated.push({
