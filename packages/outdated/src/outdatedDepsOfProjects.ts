@@ -4,7 +4,7 @@ import {
   readWantedLockfile,
 } from '@pnpm/lockfile-file'
 import { createMatcher } from '@pnpm/matcher'
-import { read as readModulesManifest } from '@pnpm/modules-yaml'
+import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
   IncludedDependencies,
   ProjectManifest,

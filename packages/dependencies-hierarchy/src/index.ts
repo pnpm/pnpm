@@ -12,7 +12,7 @@ import {
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
-import { read as readModulesYaml } from '@pnpm/modules-yaml'
+import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -61,7 +61,7 @@ export async function buildDependenciesHierarchy (
     throw new TypeError('opts.lockfileDir is required')
   }
   const modulesDir = await realpathMissing(path.join(maybeOpts.lockfileDir, 'node_modules'))
-  const modules = await readModulesYaml(modulesDir)
+  const modules = await readModulesManifest(modulesDir)
   const registries = normalizeRegistries({
     ...maybeOpts?.registries,
     ...modules?.registries,

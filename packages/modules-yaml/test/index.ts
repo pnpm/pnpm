@@ -1,11 +1,11 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
-import { read, write } from '@pnpm/modules-yaml'
+import { readModulesManifest, writeModulesManifest } from '@pnpm/modules-yaml'
 import readYamlFile from 'read-yaml-file'
 import isWindows from 'is-windows'
 import tempy from 'tempy'
 
-test('write() and read()', async () => {
+test('writeModulesManifest() and readModulesManifest()', async () => {
   const modulesDir = tempy.directory()
   const modulesYaml = {
     hoistedDependencies: {},
@@ -27,8 +27,8 @@ test('write() and read()', async () => {
     storeDir: '/.pnpm-store',
     virtualStoreDir: path.join(modulesDir, '.pnpm'),
   }
-  await write(modulesDir, modulesYaml)
-  expect(await read(modulesDir)).toEqual(modulesYaml)
+  await writeModulesManifest(modulesDir, modulesYaml)
+  expect(await readModulesManifest(modulesDir)).toEqual(modulesYaml)
 
   const raw = await readYamlFile<object>(path.join(modulesDir, '.modules.yaml'))
   expect(raw['virtualStoreDir']).toBeDefined()
@@ -36,7 +36,7 @@ test('write() and read()', async () => {
 })
 
 test('backward compatible read of .modules.yaml created with shamefully-hoist=true', async () => {
-  const modulesYaml = await read(path.join(__dirname, 'fixtures/old-shamefully-hoist'))
+  const modulesYaml = await readModulesManifest(path.join(__dirname, 'fixtures/old-shamefully-hoist'))
   if (modulesYaml == null) {
     fail('modulesYaml was nullish')
   }
@@ -49,7 +49,7 @@ test('backward compatible read of .modules.yaml created with shamefully-hoist=tr
 })
 
 test('backward compatible read of .modules.yaml created with shamefully-hoist=false', async () => {
-  const modulesYaml = await read(path.join(__dirname, 'fixtures/old-no-shamefully-hoist'))
+  const modulesYaml = await readModulesManifest(path.join(__dirname, 'fixtures/old-no-shamefully-hoist'))
   if (modulesYaml == null) {
     fail('modulesYaml was nullish')
   }

@@ -31,7 +31,7 @@ export interface Modules {
   injectedDeps?: Record<string, string[]>
 }
 
-export async function read (modulesDir: string): Promise<Modules | null> {
+export async function readModulesManifest (modulesDir: string): Promise<Modules | null> {
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   let modules!: Modules
   try {
@@ -90,7 +90,7 @@ const YAML_OPTS = {
   sortKeys: true,
 }
 
-export async function write (
+export async function writeModulesManifest (
   modulesDir: string,
   modules: Modules & { registries: Registries }
 ) {

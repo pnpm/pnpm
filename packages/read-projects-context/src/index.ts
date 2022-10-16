@@ -1,6 +1,6 @@
 import path from 'path'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
-import { Modules, read as readModulesYaml } from '@pnpm/modules-yaml'
+import { Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { DependenciesField, HoistedDependencies, Registries } from '@pnpm/types'
 import realpathMissing from 'realpath-missing'
@@ -34,7 +34,7 @@ export async function readProjectsContext<T> (
   }> {
   const relativeModulesDir = opts.modulesDir ?? 'node_modules'
   const rootModulesDir = await realpathMissing(path.join(opts.lockfileDir, relativeModulesDir))
-  const modules = await readModulesYaml(rootModulesDir)
+  const modules = await readModulesManifest(rootModulesDir)
   return {
     currentHoistPattern: modules?.hoistPattern,
     currentPublicHoistPattern: modules?.publicHoistPattern,

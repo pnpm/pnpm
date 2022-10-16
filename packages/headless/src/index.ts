@@ -46,7 +46,7 @@ import {
 import { prune } from '@pnpm/modules-cleaner'
 import {
   IncludedDependencies,
-  write as writeModulesYaml,
+  writeModulesManifest,
 } from '@pnpm/modules-yaml'
 import { HoistingLimits } from '@pnpm/real-hoist'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -515,7 +515,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
         injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))
       }
     }
-    await writeModulesYaml(rootModulesDir, {
+    await writeModulesManifest(rootModulesDir, {
       hoistedDependencies: newHoistedDependencies,
       hoistPattern: opts.hoistPattern,
       included: opts.include,

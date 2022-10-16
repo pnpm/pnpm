@@ -34,7 +34,7 @@ import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import { write as writeModulesYaml } from '@pnpm/modules-yaml'
+import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { removeBin } from '@pnpm/remove-bins'
@@ -1081,7 +1081,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))
           }
         }
-        return writeModulesYaml(ctx.rootModulesDir, {
+        return writeModulesManifest(ctx.rootModulesDir, {
           ...ctx.modulesFile,
           hoistedDependencies: result.newHoistedDependencies,
           hoistPattern: ctx.hoistPattern,

@@ -12,7 +12,7 @@ import {
 } from '@pnpm/core-loggers'
 import { headlessInstall } from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
-import { read as readModulesYaml } from '@pnpm/modules-yaml'
+import { readModulesManifest } from '@pnpm/modules-yaml'
 import { tempDir } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -341,7 +341,7 @@ test('run pre/postinstall scripts', async () => {
   expect(await exists(path.join(prefix, 'output.json'))).toBeFalsy()
 
   const nmPath = path.join(prefix, 'node_modules')
-  const modulesYaml = await readModulesYaml(nmPath)
+  const modulesYaml = await readModulesManifest(nmPath)
   expect(modulesYaml).toBeTruthy()
   expect(modulesYaml!.pendingBuilds).toStrictEqual(['.', '/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'])
 })

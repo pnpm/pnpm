@@ -18,7 +18,7 @@ import {
 } from '@pnpm/lockfile-utils'
 import { lockfileWalker, LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger, streamParser } from '@pnpm/logger'
-import { write as writeModulesYaml } from '@pnpm/modules-yaml'
+import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { ProjectManifest } from '@pnpm/types'
 import * as dp from 'dependency-path'
@@ -175,7 +175,7 @@ export async function rebuildProjects (
     }
   }
 
-  await writeModulesYaml(ctx.rootModulesDir, {
+  await writeModulesManifest(ctx.rootModulesDir, {
     prunedAt: new Date().toUTCString(),
     ...ctx.modulesFile,
     hoistedDependencies: ctx.hoistedDependencies,

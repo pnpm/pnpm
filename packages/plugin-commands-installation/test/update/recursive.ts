@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
-import * as modulesYaml from '@pnpm/modules-yaml'
+import { readModulesManifest } from '@pnpm/modules-yaml'
 import { install, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -114,7 +114,7 @@ test('recursive update prod dependencies only', async () => {
   ).toStrictEqual(
     ['/@pnpm.e2e/bar/100.0.0', '/@pnpm.e2e/foo/100.1.0']
   )
-  const modules = await modulesYaml.read('./node_modules')
+  const modules = await readModulesManifest('./node_modules')
   expect(modules?.included).toStrictEqual({
     dependencies: true,
     devDependencies: true,

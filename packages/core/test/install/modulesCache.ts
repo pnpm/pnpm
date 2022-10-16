@@ -1,5 +1,5 @@
 import path from 'path'
-import { write as writeModulesYaml } from '@pnpm/modules-yaml'
+import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
@@ -34,7 +34,7 @@ test('the modules cache is pruned when it expires', async () => {
   const prunedAt = new Date()
   prunedAt.setMinutes(prunedAt.getMinutes() - 3)
   modulesFile!.prunedAt = prunedAt.toString()
-  await writeModulesYaml(path.resolve('node_modules'), modulesFile as any) // eslint-disable-line
+  await writeModulesManifest(path.resolve('node_modules'), modulesFile as any) // eslint-disable-line
 
   await addDependenciesToPackage(manifest,
     ['is-negative@2.0.0'],
@@ -72,7 +72,7 @@ test('the modules cache is pruned when it expires and headless install is used',
   const prunedAt = new Date()
   prunedAt.setMinutes(prunedAt.getMinutes() - 3)
   modulesFile!.prunedAt = prunedAt.toString()
-  await writeModulesYaml(path.resolve('node_modules'), modulesFile as any) // eslint-disable-line
+  await writeModulesManifest(path.resolve('node_modules'), modulesFile as any) // eslint-disable-line
 
   await install(manifest, await testDefaults({ frozenLockfile: true, modulesCacheMaxAge: 2 }))
 

@@ -2,7 +2,7 @@ import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
-import { Modules, read as readModules } from '@pnpm/modules-yaml'
+import { Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'
 import exists from 'path-exists'
@@ -58,7 +58,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
   }
   async function getStoreInstance () {
     if (!cachedStore) {
-      const modulesYaml = await readModules(modules)
+      const modulesYaml = await readModulesManifest(modules)
       if (modulesYaml == null) {
         throw new Error(`Cannot find module store. No .modules.yaml found at "${modules}"`)
       }
@@ -71,7 +71,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
     return cachedStore
   }
   async function getVirtualStoreDir () {
-    const modulesYaml = await readModules(modules)
+    const modulesYaml = await readModulesManifest(modules)
     if (modulesYaml == null) {
       return path.join(modules, '.pnpm')
     }
@@ -142,7 +142,7 @@ export function assertProject (projectPath: string, encodedRegistryName?: string
         throw err
       }
     },
-    readModulesManifest: async () => readModules(modules),
+    readModulesManifest: async () => readModulesManifest(modules),
     async readLockfile (lockfileName: string = WANTED_LOCKFILE) {
       try {
         return await readYamlFile(path.join(projectPath, lockfileName))
