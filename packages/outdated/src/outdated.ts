@@ -6,12 +6,15 @@ import {
 } from '@pnpm/lockfile-file'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
+import { parsePref } from '@pnpm/npm-resolver'
+import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
   DependenciesField,
   DEPENDENCIES_FIELDS,
   IncludedDependencies,
   PackageManifest,
   ProjectManifest,
+  Registries,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import semver from 'semver'
@@ -40,6 +43,7 @@ export async function outdated (
     manifest: ProjectManifest
     match?: (dependencyName: string) => boolean
     prefix: string
+    registries: Registries
     wantedLockfile: Lockfile | null
   }
 ): Promise<OutdatedPackage[]> {
@@ -68,6 +72,7 @@ export async function outdated (
 
       await Promise.all(
         pkgs.map(async (alias) => {
+          if (!allDeps[alias]) return
           const ref = opts.wantedLockfile!.importers[importerId][depType]![alias]
 
           if (
@@ -95,11 +100,9 @@ export async function outdated (
           const { name: packageName } = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot)
           const name = dp.parse(relativeDepPath).name ?? packageName
 
-          // It might be not the best solution to check for pkgSnapshot.name
-          // TODO: add some other field to distinct packages not from the registry
           if (
             pkgSnapshot.resolution &&
-            (pkgSnapshot.resolution['type'] || pkgSnapshot.name && /^https?:\/\//.test(allDeps[name]))
+            (pkgSnapshot.resolution['type'] || pkgSnapshot.name && parsePref(allDeps[name], name, 'latest', pickRegistryForPackage(opts.registries, name)) == null)
           ) {
             if (current !== wanted) {
               outdated.push({

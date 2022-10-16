@@ -37,6 +37,9 @@
       "path": "../modules-yaml"
     },
     {
+      "path": "../npm-resolver"
+    },
+    {
       "path": "../pick-registry-for-package"
     },
     {

@@ -51,6 +51,7 @@ export async function outdatedDepsOfProjects (
       manifest,
       match,
       prefix: dir,
+      registries: opts.registries,
       wantedLockfile,
     })
   }))
