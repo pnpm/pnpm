@@ -1,5 +1,7 @@
 export type DependenciesField = 'optionalDependencies' | 'dependencies' | 'devDependencies'
 
+export type DependenciesManifestField = DependenciesField | 'peerDependencies'
+
 // NOTE: The order in this array is important.
 export const DEPENDENCIES_FIELDS: DependenciesField[] = [
   'optionalDependencies',

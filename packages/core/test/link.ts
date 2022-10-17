@@ -6,7 +6,7 @@ import {
   link,
 } from '@pnpm/core'
 import { fixtures } from '@pnpm/test-fixtures'
-import { prepareEmpty } from '@pnpm/prepare'
+import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { RootLog } from '@pnpm/core-loggers'
 import sinon from 'sinon'
@@ -208,6 +208,37 @@ test('throws error is package name is not defined', async () => {
     expect(err.message).toBe('Package in ../is-positive must have a name field to be linked')
     expect(err.code).toBe('ERR_PNPM_INVALID_PACKAGE_NAME')
   }
+})
+
+test('link with option targetDependenciesFieldMap', async () => {
+  const project = prepare({
+    devDependencies: {
+      '@pnpm.e2e/hello-world-js-bin': '*',
+    },
+  })
+
+  const linkedPkgName = 'hello-world-js-bin'
+  const linkedPkgPath = path.resolve('..', linkedPkgName)
+
+  f.copy(linkedPkgName, linkedPkgPath)
+  await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), await testDefaults({
+    dir: process.cwd(),
+    manifest: {
+      devDependencies: {
+        '@pnpm.e2e/hello-world-js-bin': '*',
+      },
+    },
+    targetDependenciesFieldMap: {
+      [`../${linkedPkgName}`]: 'devDependencies',
+    },
+  }))
+
+  await project.isExecutable('.bin/hello-world-js-bin')
+
+  const wantedLockfile = await project.readLockfile()
+  expect(wantedLockfile.devDependencies).toStrictEqual({
+    '@pnpm.e2e/hello-world-js-bin': 'link:../hello-world-js-bin',
+  })
 })
 
 // test.skip('relative link when an external lockfile is used', async () => {

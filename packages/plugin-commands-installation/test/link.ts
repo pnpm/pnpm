@@ -4,6 +4,7 @@ import readYamlFile from 'read-yaml-file'
 import { install, link } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { assertProject, isExecutable } from '@pnpm/assert-project'
+import { readProjectManifest } from '@pnpm/cli-utils'
 import { fixtures } from '@pnpm/test-fixtures'
 import PATH from 'path-name'
 import writePkg from 'write-pkg'
@@ -143,6 +144,56 @@ test('link a global package to the specified directory', async function () {
   process.env[PATH] = oldPath
 
   await project.has('global-package-with-bin')
+})
+
+test('do not change the type of the dependency when linking a global package', async function () {
+  prepare({
+    devDependencies: {
+      'global-package-with-bin': '*',
+    },
+  })
+  process.chdir('..')
+
+  const globalDir = path.resolve('global')
+  const globalBin = path.join(globalDir, 'bin')
+  const oldPath = process.env[PATH]
+  process.env[PATH] = `${globalBin}${path.delimiter}${oldPath ?? ''}`
+  await fs.mkdir(globalBin, { recursive: true })
+
+  await writePkg('global-package-with-bin', { name: 'global-package-with-bin', version: '1.0.0', bin: 'bin.js' })
+  await fs.writeFile('global-package-with-bin/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
+
+  process.chdir('global-package-with-bin')
+
+  // link to global
+  await link.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: {
+      global: true,
+    },
+    bin: globalBin,
+    dir: globalDir,
+  })
+
+  process.chdir('../project')
+
+  // link from global
+  await link.handler({
+    ...DEFAULT_OPTS,
+    cliOptions: {
+      global: true,
+    },
+    bin: globalBin,
+    dir: globalDir,
+  }, ['global-package-with-bin'])
+
+  const { manifest } = await readProjectManifest(process.cwd(), {})
+
+  process.env[PATH] = oldPath
+
+  expect(manifest.devDependencies).toStrictEqual({
+    'global-package-with-bin': '^1.0.0',
+  })
 })
 
 test('relative link', async () => {
