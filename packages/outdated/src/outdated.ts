@@ -49,7 +49,7 @@ export async function outdated (
 ): Promise<OutdatedPackage[]> {
   if (packageHasNoDeps(opts.manifest)) return []
   if (opts.wantedLockfile == null) {
-    throw new PnpmError('OUTDATED_NO_LOCKFILE', 'No lockfile in this directory. Run `pnpm install` to generate one.')
+    throw new PnpmError('OUTDATED_NO_LOCKFILE', `No lockfile in directory "${opts.lockfileDir}". Run \`pnpm install\` to generate one.`)
   }
   const allDeps = getAllDependenciesFromManifest(opts.manifest)
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
