@@ -27,8 +27,6 @@ const env = {
   [PATH]: __dirname,
 }
 
-const defaultWarning = expect.stringMatching(/Load npm builtin configs failed/)
-
 test('getConfig()', async () => {
   const { config } = await getConfig({
     cliOptions: {},
@@ -372,7 +370,6 @@ test('convert shamefully-flatten to hoist-pattern=* and warn', async () => {
   expect(config.hoistPattern).toStrictEqual(['*'])
   expect(config.shamefullyHoist).toBeTruthy()
   expect(warnings).toStrictEqual([
-    defaultWarning,
     'The "shamefully-flatten" setting has been renamed to "shamefully-hoist". ' +
     'Also, in most cases you won\'t need "shamefully-hoist". ' +
     'Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).',
@@ -723,7 +720,6 @@ test('warn user unknown settings in npmrc', async () => {
   })
 
   expect(warnings).toStrictEqual([
-    defaultWarning,
     'Your .npmrc file contains unknown setting: typo-setting, mistake-setting',
   ])
 
@@ -735,9 +731,7 @@ test('warn user unknown settings in npmrc', async () => {
     },
   })
 
-  expect(noWarnings).toStrictEqual([
-    defaultWarning,
-  ])
+  expect(noWarnings).toStrictEqual([])
 })
 
 test('getConfig() converts noproxy to noProxy', async () => {
