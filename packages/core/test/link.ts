@@ -210,7 +210,7 @@ test('throws error is package name is not defined', async () => {
   }
 })
 
-test('link should not change the type of the depedency', async () => {
+test('link should not change the type of the dependency', async () => {
   const project = prepare({
     devDependencies: {
       '@pnpm.e2e/hello-world-js-bin': '*',
