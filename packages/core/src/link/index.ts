@@ -15,6 +15,7 @@ import { logger, streamParser } from '@pnpm/logger'
 import {
   getPref,
   getSpecFromPackageManifest,
+  getDependencyTypeFromManifest,
   guessDependencyType,
   PackageSpecObject,
   updateProjectManifestObject,
@@ -37,7 +38,6 @@ import {
 type LinkFunctionOptions = LinkOptions & {
   linkToBin?: string
   dir: string
-  targetDependenciesFieldMap?: Record<string, DependenciesField>
 }
 
 export { LinkFunctionOptions }
@@ -75,19 +75,14 @@ export async function link (
       throw new PnpmError('INVALID_PACKAGE_NAME', `Package in ${linkFromPath} must have a name field to be linked`)
     }
 
-    let targetDependencyType: string
-    if (opts.targetDependenciesFieldMap && Object.keys(opts.targetDependenciesFieldMap).length > 0 && typeof linkFrom === 'string') {
-      targetDependencyType = opts.targetDependenciesFieldMap?.[linkFrom]
-    } else if (opts.targetDependenciesField) {
-      targetDependencyType = opts.targetDependenciesField
-    }
+    const targetDependencyType = getDependencyTypeFromManifest(opts.manifest, manifest.name) ?? opts.targetDependenciesField
 
     specsToUpsert.push({
       alias: manifest.name,
       pref: getPref(manifest.name, manifest.name, manifest.version, {
         pinnedVersion: opts.pinnedVersion,
       }),
-      saveType: (targetDependencyType! ?? (ctx.manifest && guessDependencyType(manifest.name, ctx.manifest))) as DependenciesField,
+      saveType: (targetDependencyType ?? (ctx.manifest && guessDependencyType(manifest.name, ctx.manifest))) as DependenciesField,
     })
 
     const packagePath = normalize(path.relative(opts.dir, linkFromPath))
@@ -116,8 +111,9 @@ export async function link (
   for (const { alias, manifest, path } of linkedPkgs) {
     // TODO: cover with test that linking reports with correct dependency types
     const stu = specsToUpsert.find((s) => s.alias === manifest.name)
+    const targetDependencyType = getDependencyTypeFromManifest(opts.manifest, manifest.name) ?? opts.targetDependenciesField
     await symlinkDirectRootDependency(path, destModules, alias, {
-      fromDependenciesField: stu?.saveType ?? opts.targetDependenciesFieldMap?.[path] ?? opts.targetDependenciesField,
+      fromDependenciesField: stu?.saveType ?? (targetDependencyType as DependenciesField),
       linkedPackage: manifest,
       prefix: opts.dir,
     })
@@ -130,7 +126,7 @@ export async function link (
   })
 
   let newPkg!: ProjectManifest
-  if (opts.targetDependenciesField ?? Object.keys(opts.targetDependenciesFieldMap ?? {}).length > 0) {
+  if (opts.targetDependenciesField) {
     newPkg = await updateProjectManifestObject(opts.dir, opts.manifest, specsToUpsert)
     for (const { alias } of specsToUpsert) {
       updatedWantedLockfile.importers[importerId].specifiers[alias] = getSpecFromPackageManifest(newPkg, alias)

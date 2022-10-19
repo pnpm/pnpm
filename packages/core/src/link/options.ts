@@ -22,7 +22,6 @@ interface StrictLinkOptions {
   storeDir: string
   reporter: ReporterFunction
   targetDependenciesField?: DependenciesField
-  targetDependenciesFieldMap?: Record<string, DependenciesField>
   dir: string
   preferSymlinkedExecutables: boolean
 

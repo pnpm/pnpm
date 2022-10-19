@@ -21,8 +21,6 @@ import {
   LinkFunctionOptions,
   WorkspacePackages,
 } from '@pnpm/core'
-import { getDependencyTypeFromManifest } from '@pnpm/manifest-utils'
-import { DependenciesManifestField } from '@pnpm/types'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import pick from 'ramda/src/pick'
@@ -162,9 +160,6 @@ export async function handler (
     }))
   )
 
-  const { manifest, writeProjectManifest } = await readProjectManifest(linkCwdDir, opts)
-  const targetDependenciesFieldMap: Record<string, DependenciesManifestField | undefined> = {}
-
   if (pkgNames.length > 0) {
     let globalPkgNames!: string[]
     if (opts.workspaceDir) {
@@ -183,13 +178,10 @@ export async function handler (
       globalPkgNames = pkgNames
     }
     const globalPkgPath = pathAbsolute(opts.dir)
-    globalPkgNames.forEach((pkgName) => {
-      const pkgPath = path.join(globalPkgPath, 'node_modules', pkgName)
-      pkgPaths.push(pkgPath)
-      const dependencyType = getDependencyTypeFromManifest(manifest, pkgName)
-      targetDependenciesFieldMap[pkgPath] = dependencyType ?? linkOpts.targetDependenciesField
-    })
+    globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(globalPkgPath, 'node_modules', pkgName)))
   }
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(linkCwdDir, opts)
 
   const linkConfig = await getConfig(
     { ...opts.cliOptions, dir: cwd },
@@ -203,7 +195,6 @@ export async function handler (
   const newManifest = await link(pkgPaths, path.join(linkCwdDir, 'node_modules'), {
     ...linkConfig,
     targetDependenciesField: linkOpts.targetDependenciesField,
-    targetDependenciesFieldMap,
     storeController: storeL.ctrl,
     storeDir: storeL.dir,
     manifest,

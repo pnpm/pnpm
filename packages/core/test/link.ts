@@ -210,7 +210,7 @@ test('throws error is package name is not defined', async () => {
   }
 })
 
-test('link with option targetDependenciesFieldMap', async () => {
+test('link should not change the type of the depedency', async () => {
   const project = prepare({
     devDependencies: {
       '@pnpm.e2e/hello-world-js-bin': '*',
@@ -227,9 +227,6 @@ test('link with option targetDependenciesFieldMap', async () => {
       devDependencies: {
         '@pnpm.e2e/hello-world-js-bin': '*',
       },
-    },
-    targetDependenciesFieldMap: {
-      [`../${linkedPkgName}`]: 'devDependencies',
     },
   }))
 
