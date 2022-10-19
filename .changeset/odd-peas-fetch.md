@@ -1,7 +1,6 @@
 ---
 "@pnpm/core": patch
 "@pnpm/manifest-utils": patch
-"@pnpm/plugin-commands-installation": patch
 "@pnpm/types": patch
 ---
 
