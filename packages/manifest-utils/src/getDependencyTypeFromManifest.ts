@@ -1,12 +1,12 @@
-import { ProjectManifest, DependenciesManifestField } from '@pnpm/types'
+import { ProjectManifest, DependenciesOrPeersField } from '@pnpm/types'
 
-export const getDependencyTypeFromManifest = (
-  manifest: Pick<ProjectManifest, DependenciesManifestField>,
+export function getDependencyTypeFromManifest (
+  manifest: Pick<ProjectManifest, DependenciesOrPeersField>,
   depName: string
-): DependenciesManifestField | null => {
+): DependenciesOrPeersField | null {
   if (manifest.optionalDependencies?.[depName]) return 'optionalDependencies'
-  else if (manifest.peerDependencies?.[depName]) return 'peerDependencies'
-  else if (manifest.dependencies?.[depName]) return 'dependencies'
-  else if (manifest.devDependencies?.[depName]) return 'devDependencies'
-  else return null
+  if (manifest.dependencies?.[depName]) return 'dependencies'
+  if (manifest.devDependencies?.[depName]) return 'devDependencies'
+  if (manifest.peerDependencies?.[depName]) return 'peerDependencies'
+  return null
 }

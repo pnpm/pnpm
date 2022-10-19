@@ -6,7 +6,7 @@ import {
   link,
 } from '@pnpm/core'
 import { fixtures } from '@pnpm/test-fixtures'
-import { prepare, prepareEmpty } from '@pnpm/prepare'
+import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { RootLog } from '@pnpm/core-loggers'
 import sinon from 'sinon'
@@ -211,11 +211,7 @@ test('throws error is package name is not defined', async () => {
 })
 
 test('link should not change the type of the dependency', async () => {
-  const project = prepare({
-    devDependencies: {
-      '@pnpm.e2e/hello-world-js-bin': '*',
-    },
-  })
+  const project = prepareEmpty()
 
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)

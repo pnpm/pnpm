@@ -1,7 +1,7 @@
-import { ProjectManifest, DependenciesManifestField } from '@pnpm/types'
+import { ProjectManifest, DependenciesOrPeersField } from '@pnpm/types'
 
 export function getSpecFromPackageManifest (
-  manifest: Pick<ProjectManifest, DependenciesManifestField>,
+  manifest: Pick<ProjectManifest, DependenciesOrPeersField>,
   depName: string
 ) {
   return manifest.optionalDependencies?.[depName] ??
