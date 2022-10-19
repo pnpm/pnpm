@@ -35,11 +35,10 @@ jobs:
         run: pnpm install
       - name: Publish Packages
         env:
-          "npm_config_//registry.npmjs.org/:_authToken": ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          pnpm publish --filter=@pnpm/exe --tag=next-7 --access=public
-          pnpm publish --filter=!pnpm --filter=!@pnpm/exe --access=public
-          pnpm publish --filter=pnpm --tag=next-7 --access=public
+          pnpm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
+          pnpm release
       - name: Copy Artifacts
         run: pnpm run copy-artifacts
       - name: Generate release description
