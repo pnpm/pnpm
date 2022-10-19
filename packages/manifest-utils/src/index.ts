@@ -7,6 +7,7 @@ import { getSpecFromPackageManifest } from './getSpecFromPackageManifest'
 
 export * from './getPref'
 export * from './updateProjectManifestObject'
+export * from './getDependencyTypeFromManifest'
 
 export { getSpecFromPackageManifest }
 

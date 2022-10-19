@@ -210,6 +210,30 @@ test('throws error is package name is not defined', async () => {
   }
 })
 
+test('link should not change the type of the dependency', async () => {
+  const project = prepareEmpty()
+
+  const linkedPkgName = 'hello-world-js-bin'
+  const linkedPkgPath = path.resolve('..', linkedPkgName)
+
+  f.copy(linkedPkgName, linkedPkgPath)
+  await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), await testDefaults({
+    dir: process.cwd(),
+    manifest: {
+      devDependencies: {
+        '@pnpm.e2e/hello-world-js-bin': '*',
+      },
+    },
+  }))
+
+  await project.isExecutable('.bin/hello-world-js-bin')
+
+  const wantedLockfile = await project.readLockfile()
+  expect(wantedLockfile.devDependencies).toStrictEqual({
+    '@pnpm.e2e/hello-world-js-bin': 'link:../hello-world-js-bin',
+  })
+})
+
 // test.skip('relative link when an external lockfile is used', async () => {
 //   const projects = prepare(t, [
 //     {

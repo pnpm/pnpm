@@ -15,6 +15,7 @@ import { logger, streamParser } from '@pnpm/logger'
 import {
   getPref,
   getSpecFromPackageManifest,
+  getDependencyTypeFromManifest,
   guessDependencyType,
   PackageSpecObject,
   updateProjectManifestObject,
@@ -74,12 +75,14 @@ export async function link (
       throw new PnpmError('INVALID_PACKAGE_NAME', `Package in ${linkFromPath} must have a name field to be linked`)
     }
 
+    const targetDependencyType = getDependencyTypeFromManifest(opts.manifest, manifest.name) ?? opts.targetDependenciesField
+
     specsToUpsert.push({
       alias: manifest.name,
       pref: getPref(manifest.name, manifest.name, manifest.version, {
         pinnedVersion: opts.pinnedVersion,
       }),
-      saveType: (opts.targetDependenciesField ?? (ctx.manifest && guessDependencyType(manifest.name, ctx.manifest))) as DependenciesField,
+      saveType: (targetDependencyType ?? (ctx.manifest && guessDependencyType(manifest.name, ctx.manifest))) as DependenciesField,
     })
 
     const packagePath = normalize(path.relative(opts.dir, linkFromPath))
@@ -108,8 +111,9 @@ export async function link (
   for (const { alias, manifest, path } of linkedPkgs) {
     // TODO: cover with test that linking reports with correct dependency types
     const stu = specsToUpsert.find((s) => s.alias === manifest.name)
+    const targetDependencyType = getDependencyTypeFromManifest(opts.manifest, manifest.name) ?? opts.targetDependenciesField
     await symlinkDirectRootDependency(path, destModules, alias, {
-      fromDependenciesField: stu?.saveType ?? opts.targetDependenciesField,
+      fromDependenciesField: stu?.saveType ?? (targetDependencyType as DependenciesField),
       linkedPackage: manifest,
       prefix: opts.dir,
     })
