@@ -1,5 +1,20 @@
 # @pnpm/cli-utils
 
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [e7fd8a84c]
+- Updated dependencies [844e82f3a]
+- Updated dependencies [844e82f3a]
+  - @pnpm/config@16.0.1
+  - @pnpm/types@8.8.0
+  - @pnpm/manifest-utils@4.1.0
+  - @pnpm/default-reporter@11.0.1
+  - @pnpm/cli-meta@4.0.1
+  - @pnpm/package-is-installable@7.0.1
+  - @pnpm/read-project-manifest@4.0.1
+
 ## 1.0.0
 
 ### Major Changes

@@ -1,5 +1,14 @@
 # @pnpm/create-cafs-store
 
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/cafs@5.0.1
+- @pnpm/fetcher-base@13.1.3
+- @pnpm/store-controller-types@14.1.4
+- @pnpm/fs.indexed-pkg-importer@2.0.1
+
 ## 3.0.0
 
 ### Major Changes

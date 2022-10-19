@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli-meta",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "Reads the metainfo of the currently running pnpm instance",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

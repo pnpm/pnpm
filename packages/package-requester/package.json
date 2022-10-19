@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "20.0.0",
+  "version": "20.0.1",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

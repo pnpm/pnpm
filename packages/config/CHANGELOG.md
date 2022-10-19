@@ -1,5 +1,15 @@
 # @pnpm/config
 
+## 16.0.1
+
+### Patch Changes
+
+- e7fd8a84c: Downgrade `@pnpm/npm-conf` to remove annoying builtin warning [#5518](https://github.com/pnpm/pnpm/issues/5518).
+- Updated dependencies [844e82f3a]
+  - @pnpm/types@8.8.0
+  - @pnpm/pnpmfile@4.0.1
+  - @pnpm/read-project-manifest@4.0.1
+
 ## 16.0.0
 
 ### Major Changes

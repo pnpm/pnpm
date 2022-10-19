@@ -1,5 +1,11 @@
 # @pnpm/prepare-package
 
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/read-package-json@7.0.1
+
 ## 3.0.0
 
 ### Major Changes

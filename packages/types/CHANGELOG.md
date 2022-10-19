@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 8.8.0
+
+### Minor Changes
+
+- 844e82f3a: New type exported: DependenciesOrPeersField
+
 ## 8.7.0
 
 ### Minor Changes

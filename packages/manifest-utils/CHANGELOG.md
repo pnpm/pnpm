@@ -1,5 +1,17 @@
 # @pnpm/manifest-utils
 
+## 4.1.0
+
+### Minor Changes
+
+- 844e82f3a: New function exported: `getDependencyTypeFromManifest()`.
+
+### Patch Changes
+
+- Updated dependencies [844e82f3a]
+  - @pnpm/types@8.8.0
+  - @pnpm/core-loggers@8.0.1
+
 ## 4.0.0
 
 ### Major Changes

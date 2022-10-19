@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/server",
-  "version": "14.0.0",
+  "version": "14.0.1",
   "description": "A pnpm installer server",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

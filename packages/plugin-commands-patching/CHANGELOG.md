@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-patching
 
+## 2.0.1
+
+### Patch Changes
+
+- Updated dependencies [e7fd8a84c]
+  - @pnpm/config@16.0.1
+  - @pnpm/cli-utils@1.0.1
+  - @pnpm/plugin-commands-installation@11.0.1
+  - @pnpm/store-connection-manager@5.0.1
+  - @pnpm/pick-registry-for-package@4.0.1
+  - @pnpm/read-package-json@7.0.1
+  - @pnpm/read-project-manifest@4.0.1
+
 ## 2.0.0
 
 ### Major Changes

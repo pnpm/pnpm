@@ -1,5 +1,13 @@
 # pnpm
 
+## 7.13.6
+
+### Patch Changes
+
+- Downgrade `@pnpm/npm-conf` to remove annoying builtin warning [#5518](https://github.com/pnpm/pnpm/issues/5518).
+- `pnpm link --global <pkg>` should not change the type of the dependency [#5478](https://github.com/pnpm/pnpm/issues/5478).
+- When the `pnpm outdated` command fails, print in which directory it failed.
+
 ## 7.13.5
 
 ### Patch Changes

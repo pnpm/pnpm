@@ -1,5 +1,22 @@
 # @pnpm/outdated
 
+## 11.0.1
+
+### Patch Changes
+
+- 768d41745: When the `pnpm outdated` command fails, print in which directory it failed.
+- Updated dependencies [844e82f3a]
+- Updated dependencies [844e82f3a]
+  - @pnpm/types@8.8.0
+  - @pnpm/manifest-utils@4.1.0
+  - dependency-path@9.2.7
+  - @pnpm/lockfile-file@6.0.1
+  - @pnpm/lockfile-utils@4.2.7
+  - @pnpm/modules-yaml@11.0.1
+  - @pnpm/npm-resolver@14.0.1
+  - @pnpm/pick-registry-for-package@4.0.1
+  - @pnpm/client@8.0.1
+
 ## 11.0.0
 
 ### Major Changes

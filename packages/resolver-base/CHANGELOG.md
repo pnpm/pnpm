@@ -1,5 +1,12 @@
 # @pnpm/resolver-base
 
+## 9.1.3
+
+### Patch Changes
+
+- Updated dependencies [844e82f3a]
+  - @pnpm/types@8.8.0
+
 ## 9.1.2
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/sort-packages",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "Sort packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

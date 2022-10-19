@@ -1,5 +1,15 @@
 # @pnpm/lockfile-utils
 
+## 4.2.7
+
+### Patch Changes
+
+- Updated dependencies [844e82f3a]
+  - @pnpm/types@8.8.0
+  - dependency-path@9.2.7
+  - @pnpm/lockfile-types@4.3.4
+  - @pnpm/resolver-base@9.1.3
+
 ## 4.2.6
 
 ### Patch Changes

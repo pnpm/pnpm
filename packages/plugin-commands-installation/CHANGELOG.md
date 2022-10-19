@@ -1,5 +1,30 @@
 # @pnpm/plugin-commands-installation
 
+## 11.0.1
+
+### Patch Changes
+
+- Updated dependencies [e7fd8a84c]
+- Updated dependencies [844e82f3a]
+- Updated dependencies [844e82f3a]
+- Updated dependencies [768d41745]
+- Updated dependencies [844e82f3a]
+  - @pnpm/config@16.0.1
+  - @pnpm/types@8.8.0
+  - @pnpm/core@7.0.1
+  - @pnpm/outdated@11.0.1
+  - @pnpm/manifest-utils@4.1.0
+  - @pnpm/cli-utils@1.0.1
+  - @pnpm/plugin-commands-rebuild@7.0.1
+  - @pnpm/store-connection-manager@5.0.1
+  - @pnpm/find-workspace-packages@5.0.1
+  - @pnpm/package-store@15.0.1
+  - @pnpm/pnpmfile@4.0.1
+  - @pnpm/read-project-manifest@4.0.1
+  - @pnpm/resolver-base@9.1.3
+  - @pnpm/sort-packages@4.0.1
+  - @pnpm/filter-workspace-packages@6.0.1
+
 ## 11.0.0
 
 ### Major Changes
