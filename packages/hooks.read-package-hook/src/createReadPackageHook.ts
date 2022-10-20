@@ -40,6 +40,11 @@ export function createReadPackageHook (
   if (!isEmpty(packageExtensions ?? {})) {
     hooks.push(createPackageExtender(packageExtensions!))
   }
+  if (Array.isArray(readPackageHook)) {
+    hooks.push(...readPackageHook)
+  } else if (readPackageHook) {
+    hooks.push(readPackageHook)
+  }
   if (
     peerDependencyRules != null &&
     (
@@ -49,11 +54,6 @@ export function createReadPackageHook (
     )
   ) {
     hooks.push(createPeerDependencyPatcher(peerDependencyRules))
-  }
-  if (Array.isArray(readPackageHook)) {
-    hooks.push(...readPackageHook)
-  } else if (readPackageHook) {
-    hooks.push(readPackageHook)
   }
 
   if (hooks.length === 0) {
