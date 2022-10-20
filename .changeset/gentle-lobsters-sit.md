@@ -3,4 +3,4 @@
 "pnpm": minor
 ---
 
-Add `pnpm doctor` command to do checks for know common issues
+Add `pnpm doctor` command to do checks for known common issues
