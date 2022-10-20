@@ -3001,6 +3001,9 @@ importers:
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../lockfile-file
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../read-project-manifest
@@ -3035,6 +3038,9 @@ importers:
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
+      '@types/sinon':
+        specifier: ^10.0.13
+        version: 10.0.13
       '@types/zkochan__table':
         specifier: npm:@types/table@6.0.0
         version: /@types/table/6.0.0
@@ -3044,6 +3050,9 @@ importers:
       nock:
         specifier: 13.2.9
         version: 13.2.9
+      sinon:
+        specifier: ^14.0.1
+        version: 14.0.1
       strip-ansi:
         specifier: ^6.0.1
         version: 6.0.1
@@ -16746,6 +16755,7 @@ packages:
 
   /w3c-hr-time/1.0.2:
     resolution: {integrity: sha512-z8P5DvDNjKDoFIHK7q8r8lackT6l+jo/Ye3HOle7l9nICP9lf1Ci25fy9vHd0JOWewkIFzXIEig3TdKT7JQ5fQ==}
+    deprecated: Use your platform's native performance.now() and performance.timeOrigin.
     dependencies:
       browser-process-hrtime: 1.0.0
 
