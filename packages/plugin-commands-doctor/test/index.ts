@@ -1,6 +1,13 @@
-import { doctor } from '@pnpm/plugin-commands-audit'
-import sinon from 'sinon'
+import { doctor } from '@pnpm/plugin-commands-doctor'
 import { logger } from '@pnpm/logger'
+
+beforeEach(() => {
+  jest.spyOn(logger, 'warn')
+})
+
+afterEach(() => {
+  (logger.warn as jest.Mock).mockRestore()
+})
 
 test('doctor --config', async () => {
   const oldExecPath = process.execPath
@@ -15,17 +22,15 @@ test('doctor --config', async () => {
     value: 'darwin',
   })
 
-  const reporter = sinon.spy(logger, 'warn')
-
   // In the scope of jest, require.resolve.paths('npm') cannot reach global npm path by default
   await doctor.handler({
     config: true,
   })
 
-  expect(reporter.calledWithMatch({
-    message: 'Load npm builtin configs failed. If the prefix builtin config does not work, you can use "pnpm config ls" to show builtin configs. And then use "pnpm config --global set <key> <value>" to migrate configs from builtin to global.',
+  expect(logger.warn).toHaveBeenCalledWith({
+    message: expect.stringMatching(/^Load npm builtin configs failed./),
     prefix: process.cwd(),
-  })).toBeTruthy()
+  })
 
   process.env = oldEnv
   process.execPath = oldExecPath

@@ -1,5 +1,4 @@
 ---
-"@pnpm/plugin-commands-audit": minor
 "pnpm": minor
 ---
 

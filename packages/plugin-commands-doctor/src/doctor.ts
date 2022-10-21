@@ -1,6 +1,7 @@
 import renderHelp from 'render-help'
 import { docsUrl } from '@pnpm/cli-utils'
 import { logger } from '@pnpm/logger'
+import loadNpmConf from '@pnpm/npm-conf'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -41,22 +42,19 @@ export async function handler (
     config: boolean
   }) {
   if (opts.config) {
-    const paths = require.resolve.paths('npm')
-    try {
-      require.resolve('npm', { paths: paths?.slice(-1) })
-    } catch (e) {
+    const { failedToLoadBuiltInConfig } = loadNpmConf()
+    if (
       // If error, means loading npm builtin config failed
-      if (
-        process.platform === 'darwin' &&
-        process.env.HOMEBREW_PREFIX &&
-        process.execPath.startsWith(process.env.HOMEBREW_PREFIX)
-      ) {
-        // Npm installed via brew may have prefix error, related: https://github.com/pnpm/pnpm/issues/5404
-        logger.warn({
-          message: 'Load npm builtin configs failed. If the prefix builtin config does not work, you can use "pnpm config ls" to show builtin configs. And then use "pnpm config --global set <key> <value>" to migrate configs from builtin to global.',
-          prefix: process.cwd(),
-        })
-      }
+      failedToLoadBuiltInConfig &&
+      // Npm installed via brew may have prefix error, related: https://github.com/pnpm/pnpm/issues/5404
+      process.platform === 'darwin' &&
+      process.env.HOMEBREW_PREFIX &&
+      process.execPath.startsWith(process.env.HOMEBREW_PREFIX)
+    ) {
+      logger.warn({
+        message: 'Load npm builtin configs failed. If the prefix builtin config does not work, you can use "pnpm config ls" to show builtin configs. And then use "pnpm config --global set <key> <value>" to migrate configs from builtin to global.',
+        prefix: process.cwd(),
+      })
     }
   }
 }
