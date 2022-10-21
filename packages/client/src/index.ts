@@ -4,13 +4,12 @@ import {
   ResolverFactoryOptions,
 } from '@pnpm/default-resolver'
 import { AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
-import { FetchFromRegistry, GetCredentials, RetryTimeoutOptions } from '@pnpm/fetching-types'
+import { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching-types'
 import type { CustomFetchers, GitFetcher, DirectoryFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import { createGitFetcher } from '@pnpm/git-fetcher'
 import { createTarballFetcher, TarballFetchers } from '@pnpm/tarball-fetcher'
-import getCredentialsByURI from 'credentials-by-uri'
-import mem from 'mem'
+import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 
 export { ResolveFunction }
 
@@ -31,17 +30,17 @@ export interface Client {
 
 export function createClient (opts: ClientOptions): Client {
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getCredentials = mem((registry: string) => getCredentialsByURI(opts.authConfig, registry, opts.userConfig))
+  const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
   return {
-    fetchers: createFetchers(fetchFromRegistry, getCredentials, opts, opts.customFetchers),
-    resolve: _createResolver(fetchFromRegistry, getCredentials, opts),
+    fetchers: createFetchers(fetchFromRegistry, getAuthHeader, opts, opts.customFetchers),
+    resolve: _createResolver(fetchFromRegistry, getAuthHeader, opts),
   }
 }
 
 export function createResolver (opts: ClientOptions) {
   const fetchFromRegistry = createFetchFromRegistry(opts)
-  const getCredentials = mem((registry: string) => getCredentialsByURI(opts.authConfig, registry))
-  return _createResolver(fetchFromRegistry, getCredentials, opts)
+  const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
+  return _createResolver(fetchFromRegistry, getAuthHeader, opts)
 }
 
 type Fetchers = {
@@ -51,12 +50,12 @@ type Fetchers = {
 
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
-  getCredentials: GetCredentials,
+  getAuthHeader: GetAuthHeader,
   opts: Pick<ClientOptions, 'retry' | 'gitShallowHosts'>,
   customFetchers?: CustomFetchers
 ): Fetchers {
   const defaultFetchers = {
-    ...createTarballFetcher(fetchFromRegistry, getCredentials, opts),
+    ...createTarballFetcher(fetchFromRegistry, getAuthHeader, opts),
     ...createGitFetcher(opts),
     ...createDirectoryFetcher(),
   }

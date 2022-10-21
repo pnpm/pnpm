@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "@pnpm/audit": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
@@ -51,7 +52,6 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/table": "^1.0.0",
     "chalk": "^4.1.2",
-    "credentials-by-uri": "^2.1.0",
     "mem": "^8.1.1",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "render-help": "^1.0.2"

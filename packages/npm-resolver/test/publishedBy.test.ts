@@ -15,8 +15,8 @@ const badDatesMeta = loadJsonFile.sync<any>(f.find('bad-dates.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const fetch = createFetchFromRegistry({})
-const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
-const createResolveFromNpm = createNpmResolver.bind(null, fetch, getCredentials)
+const getAuthHeader = () => undefined
+const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
 
 test('fall back to a newer version if there is no version published by the given date', async () => {
   nock(registry)

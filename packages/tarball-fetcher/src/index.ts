@@ -6,7 +6,7 @@ import {
 import type { Cafs } from '@pnpm/cafs-types'
 import {
   FetchFromRegistry,
-  GetCredentials,
+  GetAuthHeader,
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import {
@@ -29,7 +29,7 @@ export interface TarballFetchers {
 
 export function createTarballFetcher (
   fetchFromRegistry: FetchFromRegistry,
-  getCredentials: GetCredentials,
+  getAuthHeader: GetAuthHeader,
   opts: {
     timeout?: number
     retry?: RetryTimeoutOptions
@@ -43,7 +43,7 @@ export function createTarballFetcher (
 
   const remoteTarballFetcher = fetchFromTarball.bind(null, {
     download,
-    getCredentialsByURI: getCredentials,
+    getAuthHeaderByURI: getAuthHeader,
     offline: opts.offline,
   }) as FetchFunction
 
@@ -57,10 +57,7 @@ export function createTarballFetcher (
 async function fetchFromTarball (
   ctx: {
     download: DownloadFunction
-    getCredentialsByURI: (registry: string) => {
-      authHeaderValue: string | undefined
-      alwaysAuth: boolean | undefined
-    }
+    getAuthHeaderByURI: (registry: string) => string | undefined
     offline?: boolean
   },
   cafs: Cafs,
@@ -75,9 +72,8 @@ async function fetchFromTarball (
     throw new PnpmError('NO_OFFLINE_TARBALL',
       `A package is missing from the store but cannot download it in offline mode. The missing package may be downloaded from ${resolution.tarball}.`)
   }
-  const auth = resolution.registry ? ctx.getCredentialsByURI(resolution.registry) : undefined
   return ctx.download(resolution.tarball, {
-    auth,
+    getAuthHeaderByURI: ctx.getAuthHeaderByURI,
     cafs,
     integrity: resolution.integrity,
     manifest: opts.manifest,

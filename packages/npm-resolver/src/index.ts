@@ -2,7 +2,7 @@ import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import {
   FetchFromRegistry,
-  GetCredentials,
+  GetAuthHeader,
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
@@ -72,7 +72,7 @@ export interface ResolverFactoryOptions {
 
 export function createNpmResolver (
   fetchFromRegistry: FetchFromRegistry,
-  getCredentials: GetCredentials,
+  getAuthHeader: GetAuthHeader,
   opts: ResolverFactoryOptions
 ) {
   if (typeof opts.cacheDir !== 'string') {
@@ -86,13 +86,12 @@ export function createNpmResolver (
     cacheKey: (...args) => JSON.stringify(args),
     maxAge: 1000 * 20, // 20 seconds
   })
-  const getAuthHeaderValueByURI = (registry: string) => getCredentials(registry).authHeaderValue
   const metaCache = new LRU({
     max: 10000,
     ttl: 120 * 1000, // 2 minutes
   })
   return resolveNpm.bind(null, {
-    getAuthHeaderValueByURI,
+    getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
       fetch,
       filterMetadata: opts.filterMetadata,
