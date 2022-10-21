@@ -123,7 +123,6 @@ export type OutdatedCommandOptions = {
   table?: boolean
 } & Pick<Config,
 | 'allProjects'
-| 'alwaysAuth'
 | 'ca'
 | 'cacheDir'
 | 'cert'

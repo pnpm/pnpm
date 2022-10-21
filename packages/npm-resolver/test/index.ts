@@ -29,8 +29,8 @@ const registry = 'https://registry.npmjs.org/'
 const delay = async (time: number) => new Promise<void>((resolve) => setTimeout(() => resolve(), time))
 
 const fetch = createFetchFromRegistry({})
-const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
-const createResolveFromNpm = createNpmResolver.bind(null, fetch, getCredentials)
+const getAuthHeader = () => undefined
+const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
 
 async function retryLoadJsonFile<T> (filePath: string) {
   let retry = 0

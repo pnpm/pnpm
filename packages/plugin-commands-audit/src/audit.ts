@@ -1,4 +1,5 @@
 import { audit, AuditReport, AuditVulnerabilityCounts } from '@pnpm/audit'
+import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { Config, types as allTypes, UniversalOptions } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
@@ -9,7 +10,6 @@ import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import getCredentialsByURI from 'credentials-by-uri'
 import { fix } from './fix'
 
 // eslint-disable
@@ -124,7 +124,6 @@ export async function handler (
   | 'production'
   | 'dev'
   | 'optional'
-  | 'alwaysAuth'
   | 'userConfig'
   | 'rawConfig'
   >
@@ -139,9 +138,9 @@ export async function handler (
     optionalDependencies: opts.optional !== false,
   }
   let auditReport!: AuditReport
-  const getCredentials = (registry: string) => getCredentialsByURI(opts.rawConfig, registry, opts.userConfig)
+  const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.rawConfig, userSettings: opts.userConfig })
   try {
-    auditReport = await audit(lockfile, getCredentials, {
+    auditReport = await audit(lockfile, getAuthHeader, {
       agentOptions: {
         ca: opts.ca,
         cert: opts.cert,

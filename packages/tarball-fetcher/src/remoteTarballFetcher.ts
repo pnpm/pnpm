@@ -1,5 +1,4 @@
 import { IncomingMessage } from 'http'
-import urlLib from 'url'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError, PnpmError } from '@pnpm/error'
 import { FetchResult } from '@pnpm/fetcher-base'
@@ -43,10 +42,7 @@ export interface HttpResponse {
 }
 
 export type DownloadFunction = (url: string, opts: {
-  auth?: {
-    authHeaderValue: string | undefined
-    alwaysAuth: boolean | undefined
-  }
+  getAuthHeaderByURI: (registry: string) => string | undefined
   cafs: Cafs
   manifest?: DeferredManifestPromise
   registry?: string
@@ -83,10 +79,7 @@ export function createDownloader (
   }
 
   return async function download (url: string, opts: {
-    auth?: {
-      authHeaderValue: string | undefined
-      alwaysAuth: boolean | undefined
-    }
+    getAuthHeaderByURI: (registry: string) => string | undefined
     cafs: Cafs
     manifest?: DeferredManifestPromise
     registry?: string
@@ -94,13 +87,7 @@ export function createDownloader (
     onProgress?: (downloaded: number) => void
     integrity?: string
   }): Promise<FetchResult> {
-    // If a tarball is hosted on a different place than the manifest, only send
-    // credentials on `alwaysAuth`
-    const shouldAuth = (opts.auth != null) && (
-      opts.auth.alwaysAuth === true ||
-      !opts.registry ||
-      new urlLib.URL(url).host === new urlLib.URL(opts.registry).host
-    )
+    const authHeaderValue = opts.getAuthHeaderByURI(url)
 
     const op = retry.operation(retryOpts)
 
@@ -136,7 +123,6 @@ export function createDownloader (
 
     async function fetch (currentAttempt: number): Promise<FetchResult> {
       try {
-        const authHeaderValue = shouldAuth ? opts.auth?.authHeaderValue : undefined
         const res = await fetchFromRegistry(url, {
           authHeaderValue,
           // The fetch library can retry requests on bad HTTP responses.

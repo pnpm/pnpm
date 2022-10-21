@@ -82,7 +82,6 @@ test('a package that need authentication, legacy way', async () => {
 
   const authConfig = {
     _auth: 'Zm9vOmJhcg==', // base64 encoded foo:bar
-    'always-auth': true,
     registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], await testDefaults({}, {
@@ -145,7 +144,6 @@ test('a scoped package that need legacy authentication specific to scope', async
 
   const authConfig = {
     [`//localhost:${REGISTRY_MOCK_PORT}/:_auth`]: 'Zm9vOmJhcg==', // base64 encoded foo:bar
-    [`//localhost:${REGISTRY_MOCK_PORT}/:always-auth`]: true,
     '@private:registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
     registry: 'https://registry.npmjs.org/',
   }
@@ -186,7 +184,6 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
 
   const authConfig = {
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
-    [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:always-auth`]: true,
     registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], await testDefaults({
@@ -214,7 +211,6 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
 
   const authConfig = {
     [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:_authToken`]: data.token,
-    [`//127.0.0.1:${REGISTRY_MOCK_PORT}/:always-auth`]: true,
     registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
   }
   let opts = await testDefaults({

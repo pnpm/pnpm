@@ -12,7 +12,6 @@ const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 const TMP = tempy.directory()
 
 const DEFAULT_OPTS = {
-  alwaysAuth: false,
   ca: undefined,
   cacheDir: path.join(TMP, 'cache'),
   cert: undefined,

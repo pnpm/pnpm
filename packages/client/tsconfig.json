@@ -28,6 +28,9 @@
       "path": "../git-fetcher"
     },
     {
+      "path": "../network.auth-header"
+    },
+    {
       "path": "../resolver-base"
     },
     {

@@ -365,8 +365,7 @@ function reportAuthError (
       key.endsWith('_auth') ||
       key.endsWith('_authToken') ||
       key.endsWith('username') ||
-      key.endsWith('_password') ||
-      key.endsWith('always-auth')
+      key.endsWith('_password')
     ) {
       foundSettings.push(`${key}=${hideSecureInfo(key, value)}`)
     }

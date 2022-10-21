@@ -13,7 +13,4 @@ export type FetchFromRegistry = (
   }
 ) => Promise<Response>
 
-export type GetCredentials = (registry: string) => {
-  authHeaderValue: string | undefined
-  alwaysAuth: boolean | undefined
-}
+export type GetAuthHeader = (uri: string) => string | undefined

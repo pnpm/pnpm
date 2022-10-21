@@ -214,6 +214,22 @@ importers:
         specifier: 13.2.9
         version: 13.2.9
 
+  packages/network.auth-header:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../error
+      nerf-dart:
+        specifier: 1.0.0
+        version: 1.0.0
+    devDependencies:
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: 'link:'
+      safe-buffer:
+        specifier: 5.2.1
+        version: 5.2.1
+
   packages/build-modules:
     dependencies:
       '@pnpm/calc-dep-state':
@@ -416,6 +432,9 @@ importers:
 
   packages/client:
     dependencies:
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../network.auth-header
       '@pnpm/default-resolver':
         specifier: workspace:*
         version: link:../default-resolver
@@ -437,12 +456,6 @@ importers:
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: link:../tarball-fetcher
-      credentials-by-uri:
-        specifier: ^2.1.0
-        version: 2.1.0
-      mem:
-        specifier: ^8.1.1
-        version: 8.1.1
     devDependencies:
       '@pnpm/client':
         specifier: workspace:*
@@ -2986,6 +2999,9 @@ importers:
       '@pnpm/audit':
         specifier: workspace:*
         version: link:../audit
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../network.auth-header
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../cli-utils
@@ -3013,9 +3029,6 @@ importers:
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
-      credentials-by-uri:
-        specifier: ^2.1.0
-        version: 2.1.0
       mem:
         specifier: ^8.1.1
         version: 8.1.1
@@ -6392,14 +6405,14 @@ packages:
       '@jest/test-result': 29.1.2
       '@jest/transform': 29.1.2_@babel+types@7.19.3
       '@jest/types': 29.1.2
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       ci-info: 3.5.0
       exit: 0.1.2
       graceful-fs: 4.2.10
       jest-changed-files: 29.0.0
-      jest-config: 29.1.2_2bpsusnajtsxcfljrp4g4m4x6u
+      jest-config: 29.1.2_umh5qgof6v332qbluj233ooouq
       jest-haste-map: 29.1.2
       jest-message-util: 29.1.2
       jest-regex-util: 29.0.0
@@ -6602,7 +6615,7 @@ packages:
       '@jest/schemas': 29.0.0
       '@types/istanbul-lib-coverage': 2.0.4
       '@types/istanbul-reports': 3.0.1
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       '@types/yargs': 17.0.13
       chalk: 4.1.2
     dev: true
@@ -6848,11 +6861,6 @@ packages:
       - typanion
     dev: true
 
-  /@pnpm/constants/5.0.0:
-    resolution: {integrity: sha512-VhUGKR5jvAtoBHgHAB3Kfc9g42ocVUws9iOafGAQ+xjR8uLokUCReXDpLXRRtrqw8N8yyh3gLNpCJs/AYadA1g==}
-    engines: {node: '>=12.17'}
-    dev: false
-
   /@pnpm/constants/6.1.0:
     resolution: {integrity: sha512-L6AiU3OXv9kjKGTJN9j8n1TeJGDcLX9atQlZvAkthlvbXjvKc5SKNWESc/eXhr5nEfuMWhQhiKHDJCpYejmeCQ==}
     engines: {node: '>=14.19'}
@@ -6982,13 +6990,6 @@ packages:
       npm-packlist: 5.1.3
       ramda: /@pnpm/ramda/0.28.1
     dev: true
-
-  /@pnpm/error/2.1.0:
-    resolution: {integrity: sha512-IxtPG61WgxsDNbtWW+128RiRo6WHhm7Dm2vm77xxC/zEi/uQ35Uf59olhVT3m2/ETDw/iz7Lv1RpvPYTsglX9g==}
-    engines: {node: '>=12.17'}
-    dependencies:
-      '@pnpm/constants': 5.0.0
-    dev: false
 
   /@pnpm/error/4.0.0:
     resolution: {integrity: sha512-NI4DFCMF6xb1SA0bZiiV5KrMCaJM2QmPJFC6p78FXujn7FpiRSWhT9r032wpuQumsl7DEmN4s3wl/P8TA+bL8w==}
@@ -8023,7 +8024,7 @@ packages:
     resolution: {integrity: sha512-l6NQsDDyQUVeoTynNpC9uRvCUint/gSUXQA2euwmTuWGvPY5LSDUu6tkCtJB2SvGQlJQzLaKqcGZP4//7EDveA==}
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 14.18.32
+      '@types/node': 18.8.5
     dev: true
 
   /@types/graceful-fs/4.1.5:
@@ -9898,14 +9899,6 @@ packages:
   /create-require/1.1.1:
     resolution: {integrity: sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==}
     dev: true
-
-  /credentials-by-uri/2.1.0:
-    resolution: {integrity: sha512-Ia57VrZYcs4YTPUB4Pirjf3MYsSdc7mAYGC99lUKii0KsohmZgpPvVOeqW1NWBCRg3HVrLOtSreLqkmFIUi8WQ==}
-    engines: {node: '>=10'}
-    dependencies:
-      '@pnpm/error': 2.1.0
-      nerf-dart: 1.0.0
-    dev: false
 
   /cross-env/7.0.3:
     resolution: {integrity: sha512-+/HKd6EgcQCJGh2PSjZuUitQBQynKor4wrFbRg4DtAgS1aWO+gU52xpH7M9ScGgXSYmAVS9bIJ8EzuaGw0oNAw==}
@@ -12436,7 +12429,7 @@ packages:
       - ts-node
     dev: true
 
-  /jest-config/29.1.2_2bpsusnajtsxcfljrp4g4m4x6u:
+  /jest-config/29.1.2_62226uqvmdh4n5ozoaflu2xbzq:
     resolution: {integrity: sha512-EC3Zi86HJUOz+2YWQcJYQXlf0zuBhJoeyxLM6vb6qJsVmpP7KcCP1JnyF0iaqTaXdBP8Rlwsvs7hnKWQWWLwwA==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     peerDependencies:
@@ -12451,7 +12444,7 @@ packages:
       '@babel/core': 7.19.3
       '@jest/test-sequencer': 29.1.2
       '@jest/types': 29.1.2
-      '@types/node': 18.8.4
+      '@types/node': 14.18.29
       babel-jest: 29.1.2_rbxuy635u6cfvllmi4ba4h7ksu
       chalk: 4.1.2
       ci-info: 3.5.0
@@ -12477,7 +12470,7 @@ packages:
       - supports-color
     dev: true
 
-  /jest-config/29.1.2_62226uqvmdh4n5ozoaflu2xbzq:
+  /jest-config/29.1.2_umh5qgof6v332qbluj233ooouq:
     resolution: {integrity: sha512-EC3Zi86HJUOz+2YWQcJYQXlf0zuBhJoeyxLM6vb6qJsVmpP7KcCP1JnyF0iaqTaXdBP8Rlwsvs7hnKWQWWLwwA==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     peerDependencies:
@@ -12492,7 +12485,7 @@ packages:
       '@babel/core': 7.19.3
       '@jest/test-sequencer': 29.1.2
       '@jest/types': 29.1.2
-      '@types/node': 14.18.29
+      '@types/node': 18.8.5
       babel-jest: 29.1.2_rbxuy635u6cfvllmi4ba4h7ksu
       chalk: 4.1.2
       ci-info: 3.5.0
@@ -12764,7 +12757,7 @@ packages:
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     dependencies:
       '@jest/types': 29.1.2
-      '@types/node': 18.8.4
+      '@types/node': 18.8.5
       chalk: 4.1.2
       ci-info: 3.5.0
       graceful-fs: 4.2.10
@@ -17212,7 +17205,6 @@ time:
   /cmd-extension/1.0.2: '2021-09-28T21:08:51.481Z'
   /comver-to-semver/1.0.0: '2021-04-04T23:59:39.895Z'
   /concat-stream/2.0.0: '2018-12-21T14:22:15.876Z'
-  /credentials-by-uri/2.1.0: '2021-12-25T22:13:49.239Z'
   /cross-env/7.0.3: '2020-12-01T20:25:26.541Z'
   /cross-spawn/7.0.3: '2020-05-25T15:35:07.209Z'
   /cross-var-no-babel/1.2.0: '2017-11-12T10:58:04.011Z'
@@ -17266,6 +17258,7 @@ time:
   /mdast-util-to-string/2.0.0: '2020-11-11T09:15:26.835Z'
   /mem/8.1.1: '2021-04-20T15:49:07.407Z'
   /micromatch/4.0.5: '2022-03-24T19:31:47.722Z'
+  /nerf-dart/1.0.0: '2015-08-20T12:22:17.009Z'
   /nock/13.2.9: '2022-07-19T18:34:55.582Z'
   /node-fetch/3.0.0-beta.9: '2020-09-05T12:52:27.791Z'
   /node-gyp/9.2.0: '2022-10-04T10:40:24.552Z'
@@ -17314,6 +17307,7 @@ time:
   /root-link-target/3.1.0: '2021-02-11T22:54:37.968Z'
   /run-groups/3.0.1: '2020-06-06T16:33:09.423Z'
   /rxjs/7.5.7: '2022-09-25T18:42:55.719Z'
+  /safe-buffer/5.2.1: '2020-05-10T16:37:30.776Z'
   /safe-execa/0.1.2: '2022-07-18T01:09:17.517Z'
   /safe-promise-defer/1.0.1: '2022-06-18T13:48:40.297Z'
   /sanitize-filename/1.6.3: '2019-08-26T02:10:56.988Z'

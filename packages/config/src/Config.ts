@@ -103,8 +103,6 @@ export interface Config {
   tag?: string
   updateNotifier?: boolean
 
-  alwaysAuth?: boolean
-
   // pnpm specific configs
   cacheDir: string
   configDir: string

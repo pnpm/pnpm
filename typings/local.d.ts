@@ -137,6 +137,11 @@ declare module 'decompress-maybe' {
   export = anything
 }
 
+declare module 'nerf-dart' {
+  const anything: any
+  export = anything
+}
+
 declare module 'patch-package/dist/applyPatches' {
   export function applyPatch (opts: any): boolean
 }
