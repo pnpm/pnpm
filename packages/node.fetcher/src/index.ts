@@ -31,8 +31,8 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     await downloadAndUnpackZip(fetch, tarball, targetDir, pkgName)
     return
   }
-  const getCredentials = () => ({ authHeaderValue: undefined, alwaysAuth: undefined })
-  const { tarball: fetchTarball } = createFetcher(fetch, getCredentials, {
+  const getAuthHeader = () => undefined
+  const { tarball: fetchTarball } = createFetcher(fetch, getAuthHeader, {
     retry: opts.retry,
     timeout: opts.fetchTimeout,
   })

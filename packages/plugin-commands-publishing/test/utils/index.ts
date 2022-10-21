@@ -3,7 +3,6 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 export const DEFAULT_OPTS = {
-  alwaysAuth: false,
   argv: {
     original: [],
   },

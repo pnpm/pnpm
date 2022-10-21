@@ -3,6 +3,11 @@ declare module '@pnpm/tabtab' {
   export = anything;
 }
 
+declare module 'is-windows' {
+  const anything: any;
+  export = anything;
+}
+
 declare module 'hyperdrive-schemas' {
   const anything: any;
   export = anything;
@@ -164,6 +169,15 @@ declare module 'decompress-maybe' {
 declare module 'stream-cache' {
   const anything: any;
   export = anything;
+}
+
+declare module 'nerf-dart' {
+  const anything: any
+  export = anything
+}
+
+declare module 'patch-package/dist/applyPatches' {
+  export function applyPatch (opts: any): boolean
 }
 
 declare module 'mdast-util-to-string' {

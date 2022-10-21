@@ -1,4 +1,5 @@
 import audit, { AuditReport, AuditVulnerabilityCounts } from '@pnpm/audit'
+import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { Config, types as allTypes, UniversalOptions } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
@@ -124,6 +125,8 @@ export async function handler (
   | 'production'
   | 'dev'
   | 'optional'
+  | 'userConfig'
+  | 'rawConfig'
   >
 ) {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })
@@ -136,8 +139,9 @@ export async function handler (
     optionalDependencies: opts.optional !== false,
   }
   let auditReport!: AuditReport
+  const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.rawConfig, userSettings: opts.userConfig })
   try {
-    auditReport = await audit(lockfile, {
+    auditReport = await audit(lockfile, getAuthHeader, {
       agentOptions: {
         ca: opts.ca,
         cert: opts.cert,

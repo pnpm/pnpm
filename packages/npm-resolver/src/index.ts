@@ -2,7 +2,7 @@ import path from 'path'
 import PnpmError from '@pnpm/error'
 import {
   FetchFromRegistry,
-  GetCredentials,
+  GetAuthHeader,
   RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import resolveWorkspaceRange from '@pnpm/resolve-workspace-range'
@@ -65,7 +65,7 @@ export interface ResolverFactoryOptions {
 
 export default function createResolver (
   fetchFromRegistry: FetchFromRegistry,
-  getCredentials: GetCredentials,
+  getAuthHeader: GetAuthHeader,
   opts: ResolverFactoryOptions
 ) {
   if (typeof opts.cacheDir !== 'string') { // eslint-disable-line
@@ -79,13 +79,12 @@ export default function createResolver (
     cacheKey: (...args) => JSON.stringify(args),
     maxAge: 1000 * 20, // 20 seconds
   })
-  const getAuthHeaderValueByURI = (registry: string) => getCredentials(registry).authHeaderValue
   const metaCache = new LRU({
     max: 10000,
     maxAge: 120 * 1000, // 2 minutes
   }) as any // eslint-disable-line @typescript-eslint/no-explicit-any
   return resolveNpm.bind(null, {
-    getAuthHeaderValueByURI,
+    getAuthHeaderValueByURI: getAuthHeader,
     pickPackage: pickPackage.bind(null, {
       fetch,
       metaCache,

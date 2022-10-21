@@ -73,7 +73,10 @@ describe('audit', () => {
 
   test('an error is thrown if the audit endpoint responds with a non-OK code', async () => {
     const registry = 'http://registry.registry/'
-    nock(registry)
+    const getAuthHeader = () => undefined
+    nock(registry, {
+      badheaders: ['authorization'],
+    })
       .post('/-/npm/v1/security/audits')
       .reply(500, { message: 'Something bad happened' })
 
@@ -82,7 +85,9 @@ describe('audit', () => {
       await audit({
         importers: {},
         lockfileVersion: 5,
-      }, {
+      },
+      getAuthHeader,
+      {
         registry,
         retry: {
           retries: 0,

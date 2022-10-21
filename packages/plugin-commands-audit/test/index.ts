@@ -115,3 +115,41 @@ test('audit does not exit with code 1 if the registry responds with a non-200 re
   expect(exitCode).toBe(0)
   expect(stripAnsi(output)).toBe(`The audit endpoint (at ${registries.default}-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}`)
 })
+
+test('audit sends authToken', async () => {
+  nock(registries.default, {
+    reqheaders: { authorization: 'Bearer 123' },
+  })
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.NO_VULN_RESP)
+
+  const { output, exitCode } = await audit.handler({
+    dir: path.join(__dirname, '../../../fixtures/has-outdated-deps'),
+    userConfig: {},
+    rawConfig: {
+      registry: registries.default,
+      [`${registries.default.replace(/^https?:/, '')}:_authToken`]: '123',
+    },
+    registries,
+  })
+
+  expect(stripAnsi(output)).toBe('No known vulnerabilities found\n')
+  expect(exitCode).toBe(0)
+})
+
+test('audit endpoint does not exist', async () => {
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(404, {})
+
+  await expect(audit.handler({
+    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
+    dev: true,
+    fetchRetries: 0,
+    ignoreRegistryErrors: false,
+    production: false,
+    userConfig: {},
+    rawConfig,
+    registries,
+  })).rejects.toThrow(AuditEndpointNotExistsError)
+})

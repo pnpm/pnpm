@@ -36,10 +36,9 @@
     "@pnpm/fetch": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/git-fetcher": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/tarball-fetcher": "workspace:*",
-    "credentials-by-uri": "^2.1.0",
-    "mem": "^8.1.1"
+    "@pnpm/tarball-fetcher": "workspace:*"
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",

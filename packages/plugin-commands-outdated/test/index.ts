@@ -19,7 +19,6 @@ const hasNoLockfileFixture = path.join(fixtures, 'has-no-lockfile')
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 const OUTDATED_OPTIONS = {
-  alwaysAuth: false,
   cacheDir: 'cache',
   fetchRetries: 1,
   fetchRetryFactor: 1,
