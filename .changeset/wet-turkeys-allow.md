@@ -1,5 +1,4 @@
 ---
-"@pnpm/default-reporter": patch
 "pnpm": patch
 ---
 
