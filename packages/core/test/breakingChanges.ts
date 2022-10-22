@@ -100,7 +100,7 @@ async function saveModulesYaml (pnpmVersion: string, storeDir: string) {
   await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstoreDir: ${storeDir}`)
 }
 
-test(`fail on non-compatible ${WANTED_LOCKFILE}`, async () => {
+test.skip(`fail on non-compatible ${WANTED_LOCKFILE}`, async () => {
   if (isCI) {
     console.log('this test will always fail on CI servers')
     return
