@@ -86,6 +86,7 @@ export interface Config {
   preferSymlinkedExecutables?: boolean
   resolutionMode?: 'highest' | 'time-based'
   registrySupportsTimeField?: boolean
+  failedToLoadBuiltInConfig: boolean
 
   // proxy
   httpProxy?: string

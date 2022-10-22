@@ -79,6 +79,9 @@
       "path": "../plugin-commands-deploy"
     },
     {
+      "path": "../plugin-commands-doctor"
+    },
+    {
       "path": "../plugin-commands-env"
     },
     {

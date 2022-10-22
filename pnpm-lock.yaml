@@ -491,8 +491,8 @@ importers:
         specifier: workspace:*
         version: link:../matcher
       '@pnpm/npm-conf':
-        specifier: 2.0.0
-        version: 2.0.0
+        specifier: 2.0.2
+        version: 2.0.2
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../pnpmfile
@@ -3113,6 +3113,25 @@ importers:
         specifier: 3.1.0
         version: 3.1.0_typanion@3.12.0
 
+  packages/plugin-commands-doctor:
+    dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../cli-utils
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../config
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      render-help:
+        specifier: ^1.0.2
+        version: 1.0.2
+    devDependencies:
+      '@pnpm/plugin-commands-doctor':
+        specifier: workspace:*
+        version: 'link:'
+
   packages/plugin-commands-env:
     dependencies:
       '@pnpm/cli-utils':
@@ -4289,6 +4308,9 @@ importers:
       '@pnpm/plugin-commands-deploy':
         specifier: workspace:*
         version: link:../plugin-commands-deploy
+      '@pnpm/plugin-commands-doctor':
+        specifier: workspace:*
+        version: link:../plugin-commands-doctor
       '@pnpm/plugin-commands-env':
         specifier: workspace:*
         version: link:../plugin-commands-env
@@ -7430,14 +7452,6 @@ packages:
       normalize-registry-url: 2.0.0
     dev: true
 
-  /@pnpm/npm-conf/2.0.0:
-    resolution: {integrity: sha512-Ot3xJvdbRQ3fwtDeRYMik/97BbCKij9ZupSgY1tJLCzPPgYRTIIjwdOBHQX2qGbwqNeKd6EneMyKAAsUMO09Bw==}
-    engines: {node: '>=12'}
-    dependencies:
-      '@pnpm/network.ca-file': 1.0.1
-      config-chain: 1.1.13
-    dev: false
-
   /@pnpm/npm-conf/2.0.1:
     resolution: {integrity: sha512-3+0d2togeuHF4WNfjMLK0MPiM2nqX31dYoaQhLTl5fNmFzn2iciB/MGs1LNMM34bcty6PYoSq0sFI77GfJ1D8g==}
     engines: {node: '>=12'}
@@ -7445,6 +7459,14 @@ packages:
       '@pnpm/network.ca-file': 1.0.1
       config-chain: 1.1.13
     dev: true
+
+  /@pnpm/npm-conf/2.0.2:
+    resolution: {integrity: sha512-vp0T6HQcklEpSILEutr8o4Gxf3lIPJtxbDT1kGNyYo0ZVL1UGgazeaGr9rc4ut8veI7tiVCBr7cJbDgym/q3Kg==}
+    engines: {node: '>=12'}
+    dependencies:
+      '@pnpm/network.ca-file': 1.0.1
+      config-chain: 1.1.13
+    dev: false
 
   /@pnpm/npm-lifecycle/2.0.0-1_typanion@3.12.0:
     resolution: {integrity: sha512-eUeRVUxnr9xP50ESMuRDrWYN/AQmaV2g/Wvs3ckHBx7XFJw8ljix66L7R1S1FoUqxNn0BeyPeIE9ANwn/syIAQ==}
@@ -16739,6 +16761,7 @@ packages:
 
   /w3c-hr-time/1.0.2:
     resolution: {integrity: sha512-z8P5DvDNjKDoFIHK7q8r8lackT6l+jo/Ye3HOle7l9nICP9lf1Ci25fy9vHd0JOWewkIFzXIEig3TdKT7JQ5fQ==}
+    deprecated: Use your platform's native performance.now() and performance.timeOrigin.
     dependencies:
       browser-process-hrtime: 1.0.0
 
@@ -17127,7 +17150,7 @@ time:
   /@pnpm/meta-updater/0.2.1: '2022-10-17T23:32:30.921Z'
   /@pnpm/network.agent/0.0.3: '2022-06-12T19:51:53.044Z'
   /@pnpm/nopt/0.2.1: '2021-06-01T19:45:54.552Z'
-  /@pnpm/npm-conf/2.0.0: '2022-07-31T00:06:52.248Z'
+  /@pnpm/npm-conf/2.0.2: '2022-10-21T14:43:04.271Z'
   /@pnpm/npm-lifecycle/2.0.0-1: '2022-02-21T22:36:47.308Z'
   /@pnpm/npm-package-arg/1.0.0: '2022-06-28T12:48:31.287Z'
   /@pnpm/os.env.path-extender/0.2.7: '2022-10-17T23:03:23.674Z'
