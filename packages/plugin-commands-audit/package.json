@@ -42,12 +42,12 @@
   },
   "dependencies": {
     "@pnpm/audit": "workspace:*",
-    "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/table": "^1.0.0",

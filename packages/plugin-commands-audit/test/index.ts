@@ -134,7 +134,7 @@ test('audit does not exit with code 1 if the registry responds with a non-200 re
   expect(stripAnsi(output)).toBe(`The audit endpoint (at ${registries.default}-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}`)
 })
 
-test('audit sends authToken if alwaysAuth is true', async () => {
+test('audit sends authToken', async () => {
   nock(registries.default, {
     reqheaders: { authorization: 'Bearer 123' },
   })
@@ -146,7 +146,6 @@ test('audit sends authToken if alwaysAuth is true', async () => {
     userConfig: {},
     rawConfig: {
       registry: registries.default,
-      'always-auth': true,
       [`${registries.default.replace(/^https?:/, '')}:_authToken`]: '123',
     },
     registries,

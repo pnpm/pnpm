@@ -6,7 +6,6 @@ export const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 const tmp = tempDir()
 
 export const DEFAULT_OPTS = {
-  alwaysAuth: false,
   argv: {
     original: [],
   },

@@ -482,7 +482,6 @@ test('prints authorization error with auth settings', (done) => {
     _auth: '0123456789',
     _authToken: '0123456789',
     _password: '0123456789',
-    'always-auth': false,
     username: 'nagy.gabor',
   }
   const output$ = toOutput$({
@@ -512,7 +511,6 @@ ${ERROR_PAD}@foo:registry=https://foo.bar
 ${ERROR_PAD}_auth=0123[hidden]
 ${ERROR_PAD}_authToken=0123[hidden]
 ${ERROR_PAD}_password=[hidden]
-${ERROR_PAD}always-auth=false
 ${ERROR_PAD}username=nagy.gabor`)
     },
   })

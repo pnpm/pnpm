@@ -17,7 +17,6 @@ async function main() {
     store,
   })
   const fetchers = createFetcher({
-    alwaysAuth: true,
     registry,
     strictSsl: true,
     rawConfig,

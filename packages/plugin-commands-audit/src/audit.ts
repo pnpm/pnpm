@@ -124,7 +124,6 @@ export async function handler (
   | 'production'
   | 'dev'
   | 'optional'
-  | 'alwaysAuth'
   | 'userConfig'
   | 'rawConfig'
   >
