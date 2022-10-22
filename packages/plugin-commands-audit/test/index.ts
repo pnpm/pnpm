@@ -1,11 +1,15 @@
 import path from 'path'
 import { audit } from '@pnpm/plugin-commands-audit'
+import { AuditEndpointNotExistsError } from '@pnpm/audit'
 import nock from 'nock'
 import stripAnsi from 'strip-ansi'
 import * as responses from './utils/responses'
 
 const registries = {
   default: 'https://registry.npmjs.org/',
+}
+const rawConfig = {
+  registry: registries.default,
 }
 
 test('audit', async () => {
@@ -15,6 +19,8 @@ test('audit', async () => {
 
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
+    userConfig: {},
+    rawConfig,
     registries,
   })
   expect(exitCode).toBe(1)
@@ -30,6 +36,8 @@ test('audit --dev', async () => {
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     dev: true,
     production: false,
+    userConfig: {},
+    rawConfig,
     registries,
   })
 
@@ -45,6 +53,8 @@ test('audit --audit-level', async () => {
   const { output, exitCode } = await audit.handler({
     auditLevel: 'moderate',
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
+    userConfig: {},
+    rawConfig,
     registries,
   })
 
@@ -59,6 +69,8 @@ test('audit: no vulnerabilities', async () => {
 
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, '../../../fixtures/has-outdated-deps'),
+    userConfig: {},
+    rawConfig,
     registries,
   })
 
@@ -74,6 +86,8 @@ test('audit --json', async () => {
   const { output, exitCode } = await audit.handler({
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     json: true,
+    userConfig: {},
+    rawConfig,
     registries,
   })
 
@@ -91,6 +105,8 @@ test.skip('audit does not exit with code 1 if the found vulnerabilities are havi
     auditLevel: 'high',
     dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
     dev: true,
+    userConfig: {},
+    rawConfig,
     registries,
   })
 
@@ -109,6 +125,8 @@ test('audit does not exit with code 1 if the registry responds with a non-200 re
     fetchRetries: 0,
     ignoreRegistryErrors: true,
     production: false,
+    userConfig: {},
+    rawConfig,
     registries,
   })
 

@@ -10,6 +10,9 @@ const f = fixtures(__dirname)
 const registries = {
   default: 'https://registry.npmjs.org/',
 }
+const rawConfig = {
+  registry: registries.default,
+}
 
 test('overrides are added for vulnerable dependencies', async () => {
   const tmp = f.prepare('has-vulnerabilities')
@@ -22,6 +25,8 @@ test('overrides are added for vulnerable dependencies', async () => {
     auditLevel: 'moderate',
     dir: tmp,
     fix: true,
+    userConfig: {},
+    rawConfig,
     registries,
   })
 
@@ -44,6 +49,8 @@ test('no overrides are added if no vulnerabilities are found', async () => {
     auditLevel: 'moderate',
     dir: tmp,
     fix: true,
+    userConfig: {},
+    rawConfig,
     registries,
   })
 
