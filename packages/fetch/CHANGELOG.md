@@ -1,5 +1,12 @@
 # @pnpm/fetch
 
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [804de211e]
+  - @pnpm/fetching-types@4.0.0
+
 ## 6.0.1
 
 ### Patch Changes

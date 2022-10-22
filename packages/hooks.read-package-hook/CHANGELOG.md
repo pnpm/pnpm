@@ -1,5 +1,11 @@
 # @pnpm/hooks.read-package-hook
 
+## 2.0.2
+
+### Patch Changes
+
+- 0fe927215: The custom hooks should be executed after the peer dependency patcher hook.
+
 ## 2.0.1
 
 ### Patch Changes

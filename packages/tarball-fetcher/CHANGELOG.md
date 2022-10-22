@@ -1,5 +1,16 @@
 # @pnpm/tarball-fetcher
 
+## 13.0.0
+
+### Major Changes
+
+- 804de211e: GetCredentials function replaced with GetAuthHeader.
+
+### Patch Changes
+
+- Updated dependencies [804de211e]
+  - @pnpm/fetching-types@4.0.0
+
 ## 12.0.1
 
 ### Patch Changes

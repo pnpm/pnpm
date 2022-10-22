@@ -1,5 +1,17 @@
 # @pnpm/client
 
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [804de211e]
+- Updated dependencies [804de211e]
+  - @pnpm/default-resolver@17.0.0
+  - @pnpm/fetching-types@4.0.0
+  - @pnpm/tarball-fetcher@13.0.0
+  - @pnpm/network.auth-header@1.0.0
+  - @pnpm/fetch@6.0.2
+
 ## 8.0.1
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-audit
 
+## 7.0.2
+
+### Patch Changes
+
+- Updated dependencies [804de211e]
+- Updated dependencies [804de211e]
+- Updated dependencies [bea0acdfc]
+  - @pnpm/audit@5.0.0
+  - @pnpm/network.auth-header@1.0.0
+  - @pnpm/config@16.0.2
+  - @pnpm/cli-utils@1.0.2
+
 ## 7.0.1
 
 ### Patch Changes

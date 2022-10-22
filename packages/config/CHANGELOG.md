@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 16.0.2
+
+### Patch Changes
+
+- bea0acdfc: Add `pnpm doctor` command to do checks for known common issues
+  - @pnpm/pnpmfile@4.0.2
+
 ## 16.0.1
 
 ### Patch Changes

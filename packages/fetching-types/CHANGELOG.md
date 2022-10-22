@@ -1,5 +1,11 @@
 # @pnpm/fetching-types
 
+## 4.0.0
+
+### Major Changes
+
+- 804de211e: GetCredentials function replaced with GetAuthHeader.
+
 ## 3.0.0
 
 ### Major Changes

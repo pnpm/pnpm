@@ -1,5 +1,13 @@
 # @pnpm/node.fetcher
 
+## 2.0.2
+
+### Patch Changes
+
+- Updated dependencies [804de211e]
+  - @pnpm/fetching-types@4.0.0
+  - @pnpm/tarball-fetcher@13.0.0
+
 ## 2.0.1
 
 ### Patch Changes

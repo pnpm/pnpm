@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching-types",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "Types for fetching",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -1,5 +1,11 @@
 # @pnpm/server
 
+## 14.0.2
+
+### Patch Changes
+
+- @pnpm/fetch@6.0.2
+
 ## 14.0.1
 
 ### Patch Changes

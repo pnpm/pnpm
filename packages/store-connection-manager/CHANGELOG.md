@@ -1,5 +1,15 @@
 # @pnpm/store-connection-manager
 
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [bea0acdfc]
+  - @pnpm/config@16.0.2
+  - @pnpm/client@8.0.2
+  - @pnpm/package-store@15.0.1
+  - @pnpm/server@14.0.2
+
 ## 5.0.1
 
 ### Patch Changes

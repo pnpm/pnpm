@@ -1,5 +1,18 @@
 # @pnpm/default-resolver
 
+## 17.0.0
+
+### Major Changes
+
+- 804de211e: GetCredentials function replaced with GetAuthHeader.
+
+### Patch Changes
+
+- Updated dependencies [804de211e]
+  - @pnpm/fetching-types@4.0.0
+  - @pnpm/npm-resolver@15.0.0
+  - @pnpm/git-resolver@7.0.2
+
 ## 16.0.1
 
 ### Patch Changes
