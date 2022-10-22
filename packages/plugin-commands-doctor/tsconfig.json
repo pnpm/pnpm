@@ -11,6 +11,9 @@
   "references": [
     {
       "path": "../cli-utils"
+    },
+    {
+      "path": "../config"
     }
   ]
 }

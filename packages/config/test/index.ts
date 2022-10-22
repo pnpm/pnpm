@@ -929,3 +929,15 @@ test('return a warning when the .npmrc has an env variable that does not exist',
 
   expect(warnings).toEqual(expect.arrayContaining(expected))
 })
+
+test('getConfig() returns failedToLoadBuiltInConfig', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.failedToLoadBuiltInConfig).toBeDefined()
+})

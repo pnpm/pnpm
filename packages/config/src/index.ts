@@ -181,7 +181,7 @@ export async function getConfig (
     cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
-  const { config: npmConfig, warnings } = loadNpmConf(cliOptions, rcOptionsTypes, {
+  const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, {
     'auto-install-peers': false,
     bail: true,
     color: 'auto',
@@ -525,6 +525,8 @@ export async function getConfig (
     pnpmConfig.hooks = requireHooks(pnpmConfig.lockfileDir ?? pnpmConfig.dir, pnpmConfig)
   }
   pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.lockfileDir ?? pnpmConfig.dir) ?? undefined
+
+  pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig
 
   return { config: pnpmConfig, warnings }
 }

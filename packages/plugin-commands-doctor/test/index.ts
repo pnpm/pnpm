@@ -9,7 +9,7 @@ afterEach(() => {
   (logger.warn as jest.Mock).mockRestore()
 })
 
-test('doctor --config', async () => {
+test('doctor', async () => {
   const oldExecPath = process.execPath
   const oldPlatform = process.platform
   const oldEnv = process.env
@@ -24,7 +24,7 @@ test('doctor --config', async () => {
 
   // In the scope of jest, require.resolve.paths('npm') cannot reach global npm path by default
   await doctor.handler({
-    config: true,
+    failedToLoadBuiltInConfig: true,
   })
 
   expect(logger.warn).toHaveBeenCalledWith({
