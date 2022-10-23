@@ -31,9 +31,6 @@ export function createReadPackageHook (
   }
 ): ReadPackageHook | undefined {
   const hooks: ReadPackageHook[] = []
-  if (!isEmpty(overrides ?? {})) {
-    hooks.push(createVersionsOverrider(overrides!, lockfileDir))
-  }
   if (!ignoreCompatibilityDb) {
     hooks.push(createPackageExtender(fromPairs(compatPackageExtensions)))
   }
@@ -44,6 +41,9 @@ export function createReadPackageHook (
     hooks.push(...readPackageHook)
   } else if (readPackageHook) {
     hooks.push(readPackageHook)
+  }
+  if (!isEmpty(overrides ?? {})) {
+    hooks.push(createVersionsOverrider(overrides!, lockfileDir))
   }
   if (
     peerDependencyRules != null &&
