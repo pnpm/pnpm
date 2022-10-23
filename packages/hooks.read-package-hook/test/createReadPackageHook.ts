@@ -45,3 +45,30 @@ test('createReadPackageHook() runs the custom hook before the peer rules hook', 
     },
   })
 })
+
+test('createReadPackageHook() runs the custom hook before the version overrider', async () => {
+  const hook = jest.fn((manifest) => ({
+    ...manifest,
+    dependencies: {
+      ...manifest.dependencies,
+      react: '18',
+    },
+  }))
+  const readPackageHook = createReadPackageHook({
+    ignoreCompatibilityDb: true,
+    lockfileDir: '/foo',
+    readPackageHook: [hook],
+    overrides: {
+      react: '16',
+    },
+  })
+  const manifest = {}
+  const dir = '/bar'
+  const updatedManifest = await readPackageHook!(manifest, dir)
+  expect(hook).toBeCalledWith(manifest, dir)
+  expect(updatedManifest).toStrictEqual({
+    dependencies: {
+      react: '16',
+    },
+  })
+})
