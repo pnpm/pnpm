@@ -53,6 +53,30 @@ test('no projects found', async () => {
   }
 })
 
+test('using workspace location patterns from workspaces field of the root package.json file', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        workspaces: ['project1'],
+      },
+    },
+    {
+      name: 'project1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project2',
+      version: '1.0.0',
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', {})
+
+  const { stdout } = execPnpmSync(['list', '-r', '--parseable', '--depth=-1'])
+  expect(stdout.toString()).toMatch('project1')
+})
+
 test('incorrect workspace manifest', async () => {
   preparePackages([
     {

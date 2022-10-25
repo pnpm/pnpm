@@ -187,6 +187,7 @@ export async function main (inputArgv: string[]) {
 
     const filterResults = await filterPackagesFromDir(wsDir, filters, {
       engineStrict: config.engineStrict,
+      fallbackPatterns: config.rootProjectManifest?.workspaces,
       patterns: cliOptions['workspace-packages'],
       linkWorkspacePackages: !!config.linkWorkspacePackages,
       prefix: process.cwd(),

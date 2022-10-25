@@ -13,6 +13,7 @@ export async function findWorkspacePackages (
     engineStrict?: boolean
     nodeVersion?: string
     patterns?: string[]
+    fallbackPatterns?: string[]
   }
 ): Promise<Project[]> {
   const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
@@ -23,11 +24,17 @@ export async function findWorkspacePackages (
   return pkgs
 }
 
-export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?: { patterns?: string[] }): Promise<Project[]> {
+export async function findWorkspacePackagesNoCheck (
+  workspaceRoot: string,
+  opts?: {
+    fallbackPatterns?: string[]
+    patterns?: string[]
+  }
+): Promise<Project[]> {
   let patterns = opts?.patterns
   if (patterns == null) {
     const packagesManifest = await requirePackagesManifest(workspaceRoot)
-    patterns = packagesManifest?.packages ?? undefined
+    patterns = packagesManifest?.packages ?? opts?.fallbackPatterns
   }
   const pkgs = await findPackages(workspaceRoot, {
     ignore: [

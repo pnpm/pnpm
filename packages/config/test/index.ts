@@ -955,7 +955,7 @@ test('return a warning if a package.json has workspaces field but there is no pn
   })
 
   expect(warnings).toStrictEqual([
-    'The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.',
+    'The "workspaces" field in package.json is ignored by pnpm unless you create an empty "pnpm-workspace.yaml" file in the root of your monorepo.',
   ])
 })
 

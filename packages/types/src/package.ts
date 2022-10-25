@@ -137,6 +137,7 @@ export type ProjectManifest = BaseManifest & {
   }
   private?: boolean
   resolutions?: Record<string, string>
+  workspaces?: string[]
 }
 
 export type PackageManifest = DependencyManifest & {
