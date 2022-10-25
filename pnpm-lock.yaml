@@ -214,22 +214,6 @@ importers:
         specifier: 13.2.9
         version: 13.2.9
 
-  packages/network.auth-header:
-    dependencies:
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../error
-      nerf-dart:
-        specifier: 1.0.0
-        version: 1.0.0
-    devDependencies:
-      '@pnpm/network.auth-header':
-        specifier: workspace:*
-        version: 'link:'
-      safe-buffer:
-        specifier: 5.2.1
-        version: 5.2.1
-
   packages/build-modules:
     dependencies:
       '@pnpm/calc-dep-state':
@@ -432,9 +416,6 @@ importers:
 
   packages/client:
     dependencies:
-      '@pnpm/network.auth-header':
-        specifier: workspace:*
-        version: link:../network.auth-header
       '@pnpm/default-resolver':
         specifier: workspace:*
         version: link:../default-resolver
@@ -450,6 +431,9 @@ importers:
       '@pnpm/git-fetcher':
         specifier: workspace:*
         version: link:../git-fetcher
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../network.auth-header
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../resolver-base
@@ -539,6 +523,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../privatePackages/prepare
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../privatePackages/test-fixtures
       '@types/is-windows':
         specifier: ^1.0.0
         version: 1.0.0
@@ -2422,6 +2409,22 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
 
+  packages/network.auth-header:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../error
+      nerf-dart:
+        specifier: 1.0.0
+        version: 1.0.0
+    devDependencies:
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: 'link:'
+      safe-buffer:
+        specifier: 5.2.1
+        version: 5.2.1
+
   packages/node.fetcher:
     dependencies:
       '@pnpm/create-cafs-store':
@@ -2999,9 +3002,6 @@ importers:
       '@pnpm/audit':
         specifier: workspace:*
         version: link:../audit
-      '@pnpm/network.auth-header':
-        specifier: workspace:*
-        version: link:../network.auth-header
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../cli-utils
@@ -3017,6 +3017,9 @@ importers:
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../lockfile-file
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../network.auth-header
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../read-project-manifest
