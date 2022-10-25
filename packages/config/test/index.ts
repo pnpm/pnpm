@@ -7,6 +7,7 @@ import { getConfig } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import loadNpmConf from '@pnpm/npm-conf'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
 
 import symlinkDir from 'symlink-dir'
 
@@ -26,6 +27,7 @@ const env = {
   PNPM_HOME: __dirname,
   [PATH]: __dirname,
 }
+const f = fixtures(__dirname)
 
 test('getConfig()', async () => {
   const { config } = await getConfig({
@@ -940,4 +942,32 @@ test('getConfig() returns failedToLoadBuiltInConfig', async () => {
   })
 
   expect(config.failedToLoadBuiltInConfig).toBeDefined()
+})
+
+test('return a warning if a package.json has workspaces field but there is no pnpm-workspaces.yaml file', async () => {
+  const prefix = f.find('pkg-using-workspaces')
+  const { warnings } = await getConfig({
+    cliOptions: { dir: prefix },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(warnings).toStrictEqual([
+    'The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.',
+  ])
+})
+
+test('do not return a warning if a package.json has workspaces field and there is a pnpm-workspace.yaml file', async () => {
+  const prefix = f.find('pkg-using-workspaces')
+  const { warnings } = await getConfig({
+    cliOptions: { dir: prefix },
+    workspaceDir: prefix,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(warnings).toStrictEqual([])
 })
