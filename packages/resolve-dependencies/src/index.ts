@@ -332,8 +332,8 @@ async function finishLockfileUpdates (
 
     // TODO: try to cover with unit test the case when entry is no longer available in lockfile
     // It is an edge that probably happens if the entry is removed during lockfile prune
-    if (requiresBuild && newLockfile.packages![depPath]) {
-      newLockfile.packages![depPath].requiresBuild = true
+    if (requiresBuild && newLockfile.packages?.[depPath]) {
+      newLockfile.packages[depPath].requiresBuild = true
     }
   }))
 }
