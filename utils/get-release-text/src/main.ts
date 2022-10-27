@@ -79,20 +79,40 @@ function getChangelogEntry (changelog: string, version: string) {
         <a href="https://bit.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://nhost.io/?utm_source=pnpm&utm_medium=release_notes#gh-light-mode-only" target="_blank">
-          <img src="https://pnpm.io/img/users/nhost.svg" width="180">
-        </a>
-        <a href="https://nhost.io/?utm_source=pnpm&utm_medium=release_notes#gh-dark-mode-only" target="_blank">
-          <img src="https://pnpm.io/img/users/nhost_light.svg" width="180">
-        </a>
+        <picture>
+          <source
+            media="(prefers-color-scheme: light)"
+            srcset="https://pnpm.io/img/users/nhost.svg"
+          />
+          <source
+            media="(prefers-color-scheme: dark)"
+            srcset="https://pnpm.io/img/users/nhost_light.svg"
+          />
+          <a
+            href="https://nhost.io/?utm_source=pnpm&utm_medium=release_notes"
+            target="_blank"
+          >
+            <img src="https://pnpm.io/img/users/nhost.svg" width="180" />
+          </a>
+        </picture>
       </td>
       <td align="center" valign="middle">
-        <a href="https://novu.co/?utm_source=pnpm&utm_medium=release_notes#gh-light-mode-only" target="_blank">
-          <img src="https://pnpm.io/img/users/novu.svg" width="180">
-        </a>
-        <a href="https://novu.co/?utm_source=pnpm&utm_medium=release_notes#gh-dark-mode-only" target="_blank">
-          <img src="https://pnpm.io/img/users/novu_light.svg" width="180">
-        </a>
+        <picture>
+          <source
+            media="(prefers-color-scheme: light)"
+            srcset="https://pnpm.io/img/users/novu.svg"
+          />
+          <source
+            media="(prefers-color-scheme: dark)"
+            srcset="https://pnpm.io/img/users/novu_light.svg"
+          />
+          <a
+            href="https://novu.co/?utm_source=pnpm&utm_medium=release_notes"
+            target="_blank"
+          >
+            <img src="https://pnpm.io/img/users/novu.svg" width="180" />
+          </a>
+        </picture>
       </td>
     </tr>
   </tbody>
@@ -104,12 +124,22 @@ function getChangelogEntry (changelog: string, version: string) {
   <tbody>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=release_notes#gh-light-mode-only" target="_blank">
-          <img src="https://pnpm.io/img/users/prisma.svg" width="180">
-        </a>
-        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=release_notes#gh-dark-mode-only" target="_blank">
-          <img src="https://pnpm.io/img/users/prisma_light.svg" width="180">
-        </a>
+        <picture>
+          <source
+            media="(prefers-color-scheme: light)"
+            srcset="https://pnpm.io/img/users/prisma.svg"
+          />
+          <source
+            media="(prefers-color-scheme: dark)"
+            srcset="https://pnpm.io/img/users/prisma_light.svg"
+          />
+          <a
+            href="https://prisma.io/?utm_source=pnpm&utm_medium=release_notes"
+            target="_blank"
+          >
+            <img src="https://pnpm.io/img/users/prisma.svg" width="180" />
+          </a>
+        </picture>
       </td>
       <td align="center" valign="middle">
         <a href="https://leniolabs.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
@@ -117,12 +147,22 @@ function getChangelogEntry (changelog: string, version: string) {
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://vercel.com/?utm_source=pnpm&utm_medium=release_notes#gh-light-mode-only" target="_blank">
-          <img src="https://pnpm.io/img/users/vercel.svg" width="180">
-        </a>
-        <a href="https://vercel.com/?utm_source=pnpm&utm_medium=release_notes#gh-dark-mode-only" target="_blank">
-          <img src="https://pnpm.io/img/users/vercel_light.svg" width="180">
-        </a>
+        <picture>
+          <source
+          media="(prefers-color-scheme: light)"
+          srcset="https://pnpm.io/img/users/vercel.svg"
+          />
+          <source
+            media="(prefers-color-scheme: dark)"
+            srcset="https://pnpm.io/img/users/vercel_light.svg"
+          />
+          <a
+            href="https://vercel.com/?utm_source=pnpm&utm_medium=release_notes"
+            target="_blank"
+          >
+            <img src="https://pnpm.io/img/users/vercel.svg" width="180" />
+          </a>
+        </picture>
       </td>
     </tr>
     <tr>
@@ -132,12 +172,22 @@ function getChangelogEntry (changelog: string, version: string) {
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://doppler.com/?utm_source=pnpm&utm_medium=release_notes#gh-light-mode-only" target="_blank">
-          <img src="https://pnpm.io/img/users/doppler.svg" width="280">
-        </a>
-        <a href="https://doppler.com/?utm_source=pnpm&utm_medium=release_notes#gh-dark-mode-only" target="_blank">
-          <img src="https://pnpm.io/img/users/doppler_light.svg" width="280">
-        </a>
+        <picture>
+          <source
+          media="(prefers-color-scheme: light)"
+          srcset="https://pnpm.io/img/users/doppler.svg"
+          />
+          <source
+            media="(prefers-color-scheme: dark)"
+            srcset="https://pnpm.io/img/users/doppler_light.svg"
+          />
+          <a
+            href="https://doppler.com/?utm_source=pnpm&utm_medium=release_notes"
+            target="_blank"
+          >
+            <img src="https://pnpm.io/img/users/doppler.svg" width="280" />
+          </a>
+        </picture>
       </td>
     </tr>
   </tbody>
