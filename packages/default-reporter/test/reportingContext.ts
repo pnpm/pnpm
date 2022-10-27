@@ -66,3 +66,34 @@ test('do not print info if not fresh install', (done) => {
     subscription.unsubscribe()
   }, 10)
 })
+
+test('do not print info if dlx is the executed command', (done) => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['dlx'],
+    },
+    streamParser: createStreamParser(),
+  })
+
+  contextLogger.debug({
+    currentLockfileExists: false,
+    storeDir: '~/.pnpm-store/v3',
+    virtualStoreDir: 'node_modules/.pnpm',
+  })
+  packageImportMethodLogger.debug({
+    method: 'hardlink',
+  })
+
+  const subscription = output$.subscribe({
+    complete: () => done(),
+    error: done,
+    next: (msg) => {
+      expect(msg).toBeFalsy()
+    },
+  })
+
+  setTimeout(() => {
+    done()
+    subscription.unsubscribe()
+  }, 10)
+})

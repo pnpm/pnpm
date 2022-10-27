@@ -93,9 +93,12 @@ export function reporterForClient (
     reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
     reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
     reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
-    reportContext(log$, { cwd }),
     reportUpdateCheck(log$.updateCheck, opts),
   ]
+
+  if (opts.cmd !== 'dlx') {
+    outputs.push(reportContext(log$, { cwd }))
+  }
 
   if (PRINT_EXECUTION_TIME_IN_COMMANDS[opts.cmd]) {
     outputs.push(reportExecutionTime(log$.executionTime))
