@@ -118,7 +118,7 @@ export async function handler (
 ) {
   if (opts.gitChecks !== false && await isGitRepo()) {
     if (!(await isWorkingTreeClean())) {
-      throw new PnpmError('GIT_NOT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.', {
+      throw new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.', {
         hint: GIT_CHECKS_HINT,
       })
     }
