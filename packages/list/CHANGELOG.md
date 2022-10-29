@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 8.0.2
+
+### Patch Changes
+
+- f36549165: `pnpm list --long --json` should print licenses and authors of packagese [#5533](https://github.com/pnpm/pnpm/pull/5533).
+
 ## 8.0.1
 
 ### Patch Changes

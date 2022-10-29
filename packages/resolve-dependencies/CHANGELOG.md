@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 29.0.3
+
+### Patch Changes
+
+- 3c36e7e02: Don't crash on lockfile with no packages field [#5553](https://github.com/pnpm/pnpm/issues/5553).
+
 ## 29.0.2
 
 ### Patch Changes

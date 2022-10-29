@@ -1,5 +1,16 @@
 # pnpm
 
+## 7.14.1
+
+### Patch Changes
+
+- `pnpm list --long --json` should print licenses and authors of packages [#5533](https://github.com/pnpm/pnpm/pull/5533).
+- Don't crash on lockfile with no packages field [#5553](https://github.com/pnpm/pnpm/issues/5553).
+- Version overrider should have higher priority then custom read package hook from `.pnpmfile.cjs`.
+- Don't print context information when running install for the `pnpm dlx` command.
+- Print a warning if a `package.json` has a workspaces field but there is no `pnpm-workspace.yaml` file [#5363](https://github.com/pnpm/pnpm/issues/5363).
+- It should be possible to set a custom home directory for pnpm by changing the PNPM_HOME environment variable.
+
 ## 7.14.0
 
 ### Minor Changes

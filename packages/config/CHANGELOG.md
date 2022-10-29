@@ -1,5 +1,13 @@
 # @pnpm/config
 
+## 16.0.3
+
+### Patch Changes
+
+- aacb83f73: Print a warning if a package.json has a workspaces field but there is no pnpm-workspace.yaml file [#5363](https://github.com/pnpm/pnpm/issues/5363).
+- a14ad09e6: It should be possible to set a custom home directory for pnpm by changing the PNPM_HOME environment variable.
+  - @pnpm/pnpmfile@4.0.3
+
 ## 16.0.2
 
 ### Patch Changes

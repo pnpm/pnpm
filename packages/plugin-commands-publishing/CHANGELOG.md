@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-publishing
 
+## 6.0.3
+
+### Patch Changes
+
+- e9cad1939: Remove double negative error code name in ERR_PNPM_GIT_NOT_UNCLEAN
+- Updated dependencies [aacb83f73]
+- Updated dependencies [a14ad09e6]
+  - @pnpm/config@16.0.3
+  - @pnpm/cli-utils@1.0.3
+
 ## 6.0.2
 
 ### Patch Changes

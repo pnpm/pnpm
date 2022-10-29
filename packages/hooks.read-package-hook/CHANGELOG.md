@@ -1,5 +1,11 @@
 # @pnpm/hooks.read-package-hook
 
+## 2.0.3
+
+### Patch Changes
+
+- da22f0c1f: Version overrider should have higher priority then custom read package hook from `.pnpmfile.cjs`.
+
 ## 2.0.2
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/default-reporter
 
+## 11.0.3
+
+### Patch Changes
+
+- 0018cd03e: Don't print context information when running install for the `pnpm dlx` command.
+- Updated dependencies [aacb83f73]
+- Updated dependencies [a14ad09e6]
+  - @pnpm/config@16.0.3
+
 ## 11.0.2
 
 ### Patch Changes

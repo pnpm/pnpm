@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "8.0.1",
+  "version": "8.0.2",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
