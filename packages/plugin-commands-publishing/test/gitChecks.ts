@@ -99,7 +99,7 @@ test('publish: fails git check if branch is not clean', async () => {
       dir: process.cwd(),
     }, [])
   ).rejects.toThrow(
-    new PnpmError('GIT_NOT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.')
+    new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.')
   )
 })
 
