@@ -972,7 +972,7 @@ test('do not return a warning if a package.json has workspaces field and there i
   expect(warnings).toStrictEqual([])
 })
 
-test('Read PNPM_HOME defined in environment variables', async () => {
+test('read PNPM_HOME defined in environment variables', async () => {
   const oldEnv = process.env
   const homeDir = './specified-dir'
   process.env = {

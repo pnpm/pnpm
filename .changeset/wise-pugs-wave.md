@@ -1,5 +1,6 @@
 ---
 "@pnpm/config": patch
+"pnpm": patch
 ---
 
-Fix pnpmHomeDir should read PNPM_HOME defined in environment variables
+It should be possible to set a custom home directory for pnpm by changing the PNPM_HOME environment variable.
