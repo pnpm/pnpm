@@ -11,6 +11,7 @@ import {
 } from '@pnpm/licenses'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
+import { getPkgInfo } from './getPkgInfo'
 import { renderLicences } from './outputRenderer'
 import { licensesRecursive } from './recursive'
 
@@ -180,6 +181,7 @@ export async function handler (
       retries: opts.fetchRetries,
     },
     timeout: opts.fetchTimeout,
+    getPackageInfo: getPkgInfo,
   })
 
   if (licensePackages.length === 0) return { output: '', exitCode: 0 }

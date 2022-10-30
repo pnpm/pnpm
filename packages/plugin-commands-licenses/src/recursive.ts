@@ -13,6 +13,7 @@ import { renderLicencesInWorkspace } from './outputRenderer'
 import {
   LicensesCommandOptions,
 } from './licenses'
+import { getPkgInfo } from './getPkgInfo'
 
 export interface LicensesInWorkspace extends LicensePackage {
   belongsTo: DependenciesField
@@ -31,6 +32,7 @@ export async function licensesRecursive (
   const rootManifest = pkgs.find(({ dir }) => dir === opts.lockfileDir ?? opts.dir)
   const LicensePackagesByProject = await licensesDepsOfProjects(pkgs, params, {
     ...opts,
+    getPackageInfo: getPkgInfo,
     fullMetadata: opts.long,
     ignoreDependencies: new Set(rootManifest?.manifest?.pnpm?.updateConfig?.ignoreDependencies ?? []),
     retry: {

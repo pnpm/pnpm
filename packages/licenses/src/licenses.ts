@@ -15,7 +15,6 @@ import {
   Registries,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import { getPkgInfo } from './getPkgInfo'
 
 export interface LicensePackage {
   alias: string
@@ -29,14 +28,37 @@ export interface LicensePackage {
   packageDirectory?: string
 }
 
+export type GetPackageInfoFunction = (
+  pkg: {
+    alias: string
+    name: string
+    version: string
+    prefix: string
+  }
+) => Promise<{
+  packageManifest: PackageManifest
+  packageInfo: {
+    alias: string
+    from: string
+    path: string
+    version: string
+    description?: string
+    license: string
+    licenseContents?: string
+    author?: string
+    homepage?: string
+    repository?: string
+  }
+}>
+
 export async function licences (
   opts: {
-    compatible?: boolean
     currentLockfile: Lockfile | null
     ignoreDependencies?: Set<string>
     include?: IncludedDependencies
     lockfileDir: string
     manifest: ProjectManifest
+    getPackageInfo: GetPackageInfoFunction
     match?: (dependencyName: string) => boolean
     prefix: string
     registries: Registries
@@ -88,7 +110,8 @@ export async function licences (
           const name = dp.parse(relativeDepPath).name ?? packageName
 
           // Fetch the most recent package by the give name
-          const { packageManifest, packageInfo } = await getPkgInfo({
+          const fetchPackageInfo = opts.getPackageInfo
+          const { packageManifest, packageInfo } = await fetchPackageInfo({
             alias,
             name,
             version: packageVersion,

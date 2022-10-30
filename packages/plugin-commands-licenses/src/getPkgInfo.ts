@@ -92,7 +92,21 @@ export async function getPkgInfo (
     version: string
     prefix: string
   }
-) {
+): Promise<{
+    packageManifest: PackageManifest
+    packageInfo: {
+      alias: string
+      from: string
+      path: string
+      version: string
+      description?: string
+      license: string
+      licenseContents?: string
+      author?: string
+      homepage?: string
+      repository?: string
+    }
+  }> {
   let manifest
   let packageModulePath
   let licenseInfo: LicenseInfo

@@ -11,7 +11,7 @@ import {
   Registries,
 } from '@pnpm/types'
 import unnest from 'ramda/src/unnest'
-import { licences, LicensePackage } from './licenses'
+import { GetPackageInfoFunction, licences, LicensePackage } from './licenses'
 import { ClientOptions } from '@pnpm/client'
 
 interface GetManifestOpts {
@@ -30,9 +30,9 @@ export async function licensesDepsOfProjects (
   pkgs: Array<{ dir: string, manifest: ProjectManifest }>,
   args: string[],
   opts: Omit<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir' | 'virtualStoreDir'> & {
-    compatible?: boolean
     ignoreDependencies?: Set<string>
     include: IncludedDependencies
+    getPackageInfo: GetPackageInfoFunction
   } & Partial<Pick<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir' | 'virtualStoreDir'>>
 ): Promise<LicensePackage[][]> {
   if (!opts.lockfileDir) {
@@ -52,7 +52,7 @@ export async function licensesDepsOfProjects (
   return Promise.all(pkgs.map(async ({ dir, manifest }) => {
     const match = (args.length > 0) && createMatcher(args) || undefined
     return licences({
-      compatible: opts.compatible,
+      getPackageInfo: opts.getPackageInfo,
       currentLockfile,
       ignoreDependencies: opts.ignoreDependencies,
       include: opts.include,
