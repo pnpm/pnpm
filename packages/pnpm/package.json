@@ -45,6 +45,7 @@
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/plugin-commands-init": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/plugin-commands-licenses": "workspace:*",
     "@pnpm/plugin-commands-listing": "workspace:*",
     "@pnpm/plugin-commands-outdated": "workspace:*",
     "@pnpm/plugin-commands-patching": "workspace:*",

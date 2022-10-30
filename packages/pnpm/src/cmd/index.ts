@@ -6,6 +6,7 @@ import { env } from '@pnpm/plugin-commands-env'
 import { deploy } from '@pnpm/plugin-commands-deploy'
 import { add, fetch, install, link, prune, remove, unlink, update, importCommand } from '@pnpm/plugin-commands-installation'
 import { list, ll, why } from '@pnpm/plugin-commands-listing'
+import { licenses } from '@pnpm/plugin-commands-licenses'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { patch, patchCommit } from '@pnpm/plugin-commands-patching'
@@ -112,6 +113,7 @@ const commands: CommandDefinition[] = [
   link,
   list,
   ll,
+  licenses,
   outdated,
   pack,
   patch,

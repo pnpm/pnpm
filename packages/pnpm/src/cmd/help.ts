@@ -89,6 +89,10 @@ function getHelpText () {
             description: 'Check for outdated packages',
             name: 'outdated',
           },
+          {
+            description: 'Check licenses in consumed packages',
+            name: 'licenses',
+          },
         ],
       },
       {
