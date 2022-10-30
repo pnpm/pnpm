@@ -16,7 +16,7 @@ export async function readPkg (pkgPath: string) {
  */
 const LICENSE_FILES = ['./LICENSE', './LICENCE']
 
-export type LicenseInfo = {
+export interface LicenseInfo {
   name: string
   licenseFile?: string
 }

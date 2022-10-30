@@ -40,7 +40,7 @@ export function renderPackageName ({ belongsTo, packageName }: LicensePackage) {
 }
 
 export function renderPackageLicense ({ license }: LicensePackage) {
-  const output = license ?? 'unknown'
+  const output = license ?? 'Unknown'
   return output as string
 }
 
@@ -55,13 +55,6 @@ export function renderDetails ({ packageManifest, author }: LicensePackage) {
   }
   return outputs.join('\n')
 }
-
-/**
- *
- * @param licensesMap
- * @param opts
- * @returns
- */
 export function renderLicences (licensesMap: LicensePackage[], opts: { long?: boolean, json?: boolean }) {
   if (opts.json) {
     return { output: renderLicensesJson(licensesMap), exitCode: 1 }
@@ -100,7 +93,7 @@ function renderLicensesJson (licensePackages: readonly LicensePackage[]) {
   return JSON.stringify(groupedByLicense, null, 2)
 }
 
-export type LicensePackageJson = {
+export interface LicensePackageJson {
   name: string
   license: string
   vendorName: string

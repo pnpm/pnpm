@@ -2,23 +2,15 @@ import {
   docsUrl,
   readDepNameCompletions,
   readProjectManifestOnly,
-  TABLE_OPTIONS,
 } from '@pnpm/cli-utils'
-// import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import {
   licensesDepsOfProjects,
-  LicensePackage,
 } from '@pnpm/licenses'
-import { table } from '@zkochan/table'
-import chalk from 'chalk'
 import pick from 'ramda/src/pick'
-// import sortWith from 'ramda/src/sortWith'
 import renderHelp from 'render-help'
-import stripAnsi from 'strip-ansi'
-import wrapAnsi from 'wrap-ansi'
 import { renderLicences } from './outputRenderer'
 import { licensesRecursive } from './recursive'
 
