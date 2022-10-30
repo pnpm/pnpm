@@ -4,10 +4,7 @@
     "outDir": "lib",
     "rootDir": "src"
   },
-  "include": [
-    "src/**/*.ts",
-    "../../typings/**/*.d.ts"
-  ],
+  "include": ["src/**/*.ts", "../../typings/**/*.d.ts"],
   "references": [
     {
       "path": "../../privatePackages/prepare"

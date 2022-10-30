@@ -16,7 +16,7 @@
     "registry-mock": "registry-mock",
     "test:jest": "jest",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
-    "_test": "jest -u",
+    "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
