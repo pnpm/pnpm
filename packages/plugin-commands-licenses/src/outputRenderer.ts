@@ -11,16 +11,21 @@ import { groupBy, sortWith } from 'ramda'
  * @param licensePackages
  * @returns
  */
-function sortLicensesPackages (licensePackages: readonly LicensePackage[]) {
+function sortLicensesPackages(licensePackages: readonly LicensePackage[]) {
   return sortWith(
     [
-      (o1: LicensePackage, o2: LicensePackage) => o1.license.localeCompare(o2.license),
+      (o1: LicensePackage, o2: LicensePackage) =>
+        o1.license.localeCompare(o2.license),
     ],
     licensePackages
   )
 }
 
-export function getCellWidth (data: string[][], columnNumber: number, maxWidth: number) {
+export function getCellWidth(
+  data: string[][],
+  columnNumber: number,
+  maxWidth: number
+) {
   const maxCellWidth = data.reduce((cellWidth, row) => {
     const cellLines = stripAnsi(row[columnNumber])?.split('\n') ?? []
     const currentCellWidth = cellLines.reduce((lineWidth, line) => {
@@ -31,20 +36,23 @@ export function getCellWidth (data: string[][], columnNumber: number, maxWidth: 
   return Math.min(maxWidth, maxCellWidth)
 }
 
-export function renderPackageName ({ belongsTo, packageName }: LicensePackage) {
+export function renderPackageName({ belongsTo, packageName }: LicensePackage) {
   switch (belongsTo) {
-  case 'devDependencies': return `${packageName} ${chalk.dim('(dev)')}`
-  case 'optionalDependencies': return `${packageName} ${chalk.dim('(optional)')}`
-  default: return packageName as string
+    case 'devDependencies':
+      return `${packageName} ${chalk.dim('(dev)')}`
+    case 'optionalDependencies':
+      return `${packageName} ${chalk.dim('(optional)')}`
+    default:
+      return packageName as string
   }
 }
 
-export function renderPackageLicense ({ license }: LicensePackage) {
+export function renderPackageLicense({ license }: LicensePackage) {
   const output = license ?? 'Unknown'
   return output as string
 }
 
-export function renderDetails ({ packageManifest, author }: LicensePackage) {
+export function renderDetails({ packageManifest, author }: LicensePackage) {
   if (packageManifest == null) return ''
   const outputs = []
   if (author) {
@@ -55,38 +63,49 @@ export function renderDetails ({ packageManifest, author }: LicensePackage) {
   }
   return outputs.join('\n')
 }
-export function renderLicences (licensesMap: LicensePackage[], opts: { long?: boolean, json?: boolean }) {
+export function renderLicences(
+  licensesMap: LicensePackage[],
+  opts: { long?: boolean; json?: boolean }
+) {
   if (opts.json) {
-    return { output: renderLicensesJson(licensesMap), exitCode: 1 }
+    return { output: renderLicensesJson(licensesMap), exitCode: 0 }
   }
 
-  return { output: renderLicensesTable(licensesMap, opts), exitCode: 1 }
+  return { output: renderLicensesTable(licensesMap, opts), exitCode: 0 }
 }
 
-export function renderLicencesInWorkspace (licensesMap: Record<string, LicensesInWorkspace>, opts: { long?: boolean, json?: boolean }) {
+export function renderLicencesInWorkspace(
+  licensesMap: Record<string, LicensesInWorkspace>,
+  opts: { long?: boolean; json?: boolean }
+) {
   if (opts.json) {
-    return { output: renderLicencesJsonInWorkspace(licensesMap, opts), exitCode: 1 }
+    return {
+      output: renderLicencesJsonInWorkspace(licensesMap, opts),
+      exitCode: 0,
+    }
   }
 
-  return { output: renderLicensesTableInWorkspace(licensesMap, opts), exitCode: 1 }
+  return {
+    output: renderLicensesTableInWorkspace(licensesMap, opts),
+    exitCode: 0,
+  }
 }
 
-function renderLicensesJson (licensePackages: readonly LicensePackage[]) {
+function renderLicensesJson(licensePackages: readonly LicensePackage[]) {
   const data = [
-    ...licensePackages
-      .map((licensePkg) => {
-        return {
-          name: licensePkg.packageName,
-          path: licensePkg.packageDirectory,
-          license: licensePkg.license,
-          licenseContents: licensePkg.licenseContents,
-          vendorName: licensePkg.author,
-          vendorUrl: licensePkg.packageManifest?.homepage,
-        } as LicensePackageJson
-      }),
+    ...licensePackages.map((licensePkg) => {
+      return {
+        name: licensePkg.packageName,
+        path: licensePkg.packageDirectory,
+        license: licensePkg.license,
+        licenseContents: licensePkg.licenseContents,
+        vendorName: licensePkg.author,
+        vendorUrl: licensePkg.packageManifest?.homepage,
+      } as LicensePackageJson
+    }),
   ].flat()
 
-  // Group the package by license  const byGrade = R.groupBy(function(student) {
+  // Group the package by license
   const groupByLicense = groupBy((item: LicensePackageJson) => item.license)
   const groupedByLicense = groupByLicense(data)
 
@@ -101,19 +120,21 @@ export interface LicensePackageJson {
   path: string
 }
 
-function renderLicencesJsonInWorkspace (licensesMap: Record<string, LicensesInWorkspace>, opts: { long?: boolean, json?: boolean }) {
+function renderLicencesJsonInWorkspace(
+  licensesMap: Record<string, LicensesInWorkspace>,
+  opts: { long?: boolean; json?: boolean }
+) {
   const data = [
-    ...Object.values(licensesMap)
-      .map((licensePkg) => {
-        return {
-          name: licensePkg.packageName,
-          path: licensePkg.packageDirectory,
-          license: licensePkg.license,
-          licenseContents: licensePkg.licenseContents,
-          vendorName: licensePkg.author,
-          vendorUrl: licensePkg.packageManifest?.homepage,
-        } as LicensePackageJson
-      }),
+    ...Object.values(licensesMap).map((licensePkg) => {
+      return {
+        name: licensePkg.packageName,
+        path: licensePkg.packageDirectory,
+        license: licensePkg.license,
+        licenseContents: licensePkg.licenseContents,
+        vendorName: licensePkg.author,
+        vendorUrl: licensePkg.packageManifest?.homepage,
+      } as LicensePackageJson
+    }),
   ].flat()
 
   // Group the package by license  const byGrade = R.groupBy(function(student) {
@@ -123,16 +144,13 @@ function renderLicencesJsonInWorkspace (licensesMap: Record<string, LicensesInWo
   return JSON.stringify(groupedByLicense, null, 2)
 }
 
-function renderLicensesTableInWorkspace (licensesMap: Record<string, LicensesInWorkspace>, opts: { long?: boolean }) {
-  const columnNames = [
-    'Package',
-    'License',
-  ]
+function renderLicensesTableInWorkspace(
+  licensesMap: Record<string, LicensesInWorkspace>,
+  opts: { long?: boolean }
+) {
+  const columnNames = ['Package', 'License']
 
-  const columnFns = [
-    renderPackageName,
-    renderPackageLicense,
-  ]
+  const columnFns = [renderPackageName, renderPackageLicense]
 
   if (opts.long) {
     columnNames.push('Details')
@@ -145,8 +163,9 @@ function renderLicensesTableInWorkspace (licensesMap: Record<string, LicensesInW
 
   const data = [
     columnNames,
-    ...sortLicensesPackages(Object.values(licensesMap))
-      .map((licensePkg) => columnFns.map((fn) => fn(licensePkg))),
+    ...sortLicensesPackages(Object.values(licensesMap)).map((licensePkg) =>
+      columnFns.map((fn) => fn(licensePkg))
+    ),
   ]
   return table(data, {
     ...TABLE_OPTIONS,
@@ -156,16 +175,13 @@ function renderLicensesTableInWorkspace (licensesMap: Record<string, LicensesInW
   })
 }
 
-function renderLicensesTable (licensePackages: readonly LicensePackage[], opts: { long?: boolean }) {
-  const columnNames = [
-    'Package',
-    'License',
-  ]
+function renderLicensesTable(
+  licensePackages: readonly LicensePackage[],
+  opts: { long?: boolean }
+) {
+  const columnNames = ['Package', 'License']
 
-  const columnFns = [
-    renderPackageName,
-    renderPackageLicense,
-  ]
+  const columnFns = [renderPackageName, renderPackageLicense]
 
   if (opts.long) {
     columnNames.push('Details')
@@ -176,9 +192,13 @@ function renderLicensesTable (licensePackages: readonly LicensePackage[], opts: 
   for (let i = 0; i < columnNames.length; i++)
     columnNames[i] = chalk.blueBright(columnNames[i])
 
-  return table([
-    columnNames,
-    ...sortLicensesPackages(licensePackages)
-      .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
-  ], TABLE_OPTIONS)
+  return table(
+    [
+      columnNames,
+      ...sortLicensesPackages(licensePackages).map((outdatedPkg) =>
+        columnFns.map((fn) => fn(outdatedPkg))
+      ),
+    ],
+    TABLE_OPTIONS
+  )
 }

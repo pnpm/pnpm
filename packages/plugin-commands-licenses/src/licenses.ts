@@ -4,29 +4,34 @@ import {
   readProjectManifestOnly,
 } from '@pnpm/cli-utils'
 import { CompletionFunc } from '@pnpm/command'
-import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { Config, types as allTypes } from '@pnpm/config'
 import {
-  licensesDepsOfProjects,
-} from '@pnpm/licenses'
+  FILTERING,
+  OPTIONS,
+  UNIVERSAL_OPTIONS,
+} from '@pnpm/common-cli-options-help'
+import { Config, types as allTypes } from '@pnpm/config'
+import { licensesDepsOfProjects } from '@pnpm/licenses'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { getPkgInfo } from './getPkgInfo'
 import { renderLicences } from './outputRenderer'
 import { licensesRecursive } from './recursive'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes() {
   return {
-    ...pick([
-      'depth',
-      'dev',
-      'global-dir',
-      'global',
-      'json',
-      'long',
-      'optional',
-      'production',
-    ], allTypes),
+    ...pick(
+      [
+        'depth',
+        'dev',
+        'global-dir',
+        'global',
+        'json',
+        'long',
+        'optional',
+        'production',
+      ],
+      allTypes
+    ),
     compatible: Boolean,
     table: Boolean,
   }
@@ -44,7 +49,7 @@ export const shorthands = {
 
 export const commandNames = ['licenses']
 
-export function help () {
+export function help() {
   return renderHelp({
     description: `Check for licenses packages. The check can be limited to a subset of the installed packages by providing arguments (patterns are supported).
 
@@ -58,16 +63,19 @@ pnpm licenses gulp-* @babel/core`,
 
         list: [
           {
-            description: 'Print only versions that satisfy specs in package.json',
+            description:
+              'Print only versions that satisfy specs in package.json',
             name: '--compatible',
           },
           {
-            description: 'By default, details about the outdated packages (such as a link to the repo) are not displayed. \
+            description:
+              'By default, details about the outdated packages (such as a link to the repo) are not displayed. \
 To display the details, pass this option.',
             name: '--long',
           },
           {
-            description: 'Check for outdated dependencies in every package found in subdirectories \
+            description:
+              'Check for outdated dependencies in every package found in subdirectories \
 or in every workspace package, when executed inside a workspace. \
 For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--recursive',
@@ -78,7 +86,8 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--json',
           },
           {
-            description: 'Prints the outdated packages in a list. Good for small consoles',
+            description:
+              'Prints the outdated packages in a list. Good for small consoles',
             name: '--no-table',
           },
           {
@@ -115,41 +124,43 @@ export type LicensesCommandOptions = {
   long?: boolean
   recursive?: boolean
   table?: boolean
-} & Pick<Config,
-| 'allProjects'
-| 'ca'
-| 'cacheDir'
-| 'cert'
-| 'dev'
-| 'dir'
-| 'engineStrict'
-| 'fetchRetries'
-| 'fetchRetryFactor'
-| 'fetchRetryMaxtimeout'
-| 'fetchRetryMintimeout'
-| 'fetchTimeout'
-| 'global'
-| 'httpProxy'
-| 'httpsProxy'
-| 'key'
-| 'localAddress'
-| 'lockfileDir'
-| 'networkConcurrency'
-| 'noProxy'
-| 'offline'
-| 'optional'
-| 'production'
-| 'rawConfig'
-| 'registries'
-| 'selectedProjectsGraph'
-| 'strictSsl'
-| 'tag'
-| 'userAgent'
-| 'virtualStoreDir'
-| 'modulesDir'
-> & Partial<Pick<Config, 'userConfig'>>
+} & Pick<
+  Config,
+  | 'allProjects'
+  | 'ca'
+  | 'cacheDir'
+  | 'cert'
+  | 'dev'
+  | 'dir'
+  | 'engineStrict'
+  | 'fetchRetries'
+  | 'fetchRetryFactor'
+  | 'fetchRetryMaxtimeout'
+  | 'fetchRetryMintimeout'
+  | 'fetchTimeout'
+  | 'global'
+  | 'httpProxy'
+  | 'httpsProxy'
+  | 'key'
+  | 'localAddress'
+  | 'lockfileDir'
+  | 'networkConcurrency'
+  | 'noProxy'
+  | 'offline'
+  | 'optional'
+  | 'production'
+  | 'rawConfig'
+  | 'registries'
+  | 'selectedProjectsGraph'
+  | 'strictSsl'
+  | 'tag'
+  | 'userAgent'
+  | 'virtualStoreDir'
+  | 'modulesDir'
+> &
+  Partial<Pick<Config, 'userConfig'>>
 
-export async function handler (
+export async function handler(
   opts: LicensesCommandOptions,
   params: string[] = []
 ) {
@@ -158,8 +169,11 @@ export async function handler (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  if (opts.recursive && (opts.selectedProjectsGraph != null)) {
-    const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
+
+  if (opts.recursive && opts.selectedProjectsGraph != null) {
+    const pkgs = Object.values(opts.selectedProjectsGraph).map(
+      (wsPkg) => wsPkg.package
+    )
     return licensesRecursive(pkgs, params, { ...opts, include })
   }
   const manifest = await readProjectManifestOnly(opts.dir, opts)
@@ -172,7 +186,9 @@ export async function handler (
   const [licensePackages] = await licensesDepsOfProjects(packages, params, {
     ...opts,
     fullMetadata: opts.long,
-    ignoreDependencies: new Set(manifest?.pnpm?.updateConfig?.ignoreDependencies ?? []),
+    ignoreDependencies: new Set(
+      manifest?.pnpm?.updateConfig?.ignoreDependencies ?? []
+    ),
     include,
     retry: {
       factor: opts.fetchRetryFactor,
