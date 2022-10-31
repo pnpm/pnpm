@@ -96,6 +96,7 @@ function renderLicensesJson(licensePackages: readonly LicensePackage[]) {
     ...licensePackages.map((licensePkg) => {
       return {
         name: licensePkg.packageName,
+        version: licensePkg.version,
         path: licensePkg.packageDirectory,
         license: licensePkg.license,
         licenseContents: licensePkg.licenseContents,
@@ -128,6 +129,7 @@ function renderLicencesJsonInWorkspace(
     ...Object.values(licensesMap).map((licensePkg) => {
       return {
         name: licensePkg.packageName,
+        version: licensePkg.version,
         path: licensePkg.packageDirectory,
         license: licensePkg.license,
         licenseContents: licensePkg.licenseContents,
