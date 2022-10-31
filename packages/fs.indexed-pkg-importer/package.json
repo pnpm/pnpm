@@ -22,7 +22,7 @@
     "p-limit": "^3.1.0",
     "path-exists": "^4.0.0",
     "path-temp": "^2.0.0",
-    "rename-overwrite": "^4.0.2",
+    "rename-overwrite": "^4.0.3",
     "sanitize-filename": "^1.6.3"
   },
   "devDependencies": {
