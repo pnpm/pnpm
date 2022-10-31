@@ -39,7 +39,7 @@
   },
   "devDependencies": {
     "@pnpm/package-is-installable": "workspace:*",
-    "@types/semver": "7.3.12"
+    "@types/semver": "7.3.13"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

@@ -43,7 +43,7 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "patch-package": "^6.4.7",
+    "patch-package": "^6.5.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "run-groups": "^3.0.1"
   },

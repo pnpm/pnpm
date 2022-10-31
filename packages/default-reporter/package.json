@@ -56,7 +56,7 @@
     "@pnpm/default-reporter": "workspace:*",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.15",
-    "@types/semver": "7.3.12",
+    "@types/semver": "7.3.13",
     "ghooks": "2.0.4",
     "load-json-file": "^6.2.0",
     "normalize-newline": "3.0.0"

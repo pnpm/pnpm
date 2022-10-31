@@ -16,7 +16,7 @@
     "bin"
   ],
   "optionalDependencies": {
-    "node-gyp": "^9.2.0"
+    "node-gyp": "^9.3.0"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
@@ -67,7 +67,7 @@
     "@types/is-windows": "^1.0.0",
     "@types/pnpm__byline": "npm:@types/byline@^4.2.33",
     "@types/ramda": "0.28.15",
-    "@types/semver": "7.3.12",
+    "@types/semver": "7.3.13",
     "@types/which": "^2.0.1",
     "@zkochan/retry": "^0.2.0",
     "@zkochan/rimraf": "^2.1.2",
@@ -78,7 +78,7 @@
     "delay": "^5.0.0",
     "dependency-path": "workspace:*",
     "dir-is-case-sensitive": "^2.0.0",
-    "esbuild": "^0.15.10",
+    "esbuild": "^0.15.12",
     "execa": "npm:safe-execa@^0.1.2",
     "exists-link": "2.0.0",
     "is-ci": "^3.0.1",
