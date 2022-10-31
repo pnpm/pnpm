@@ -48,6 +48,7 @@
     "eslint": "^8.26.0",
     "husky": "^8.0.1",
     "jest": "^29.2.2",
+    "keyv": "4.5.0",
     "lcov-result-merger": "^3.3.0",
     "npm-run-all": "^4.1.5",
     "publish-packed": "^4.1.1",
