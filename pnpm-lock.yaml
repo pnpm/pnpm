@@ -13,6 +13,7 @@ overrides:
   js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.6
   nopt@5: npm:@pnpm/nopt@^0.2.1
   clipanion: 3.2.0-rc.6
+  got: ^11.8.5
 
 packageExtensionsChecksum: 66c6aa53b7057053eae6c4a5ea9612f3
 
