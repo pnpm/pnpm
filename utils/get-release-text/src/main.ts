@@ -87,12 +87,23 @@ function getChangelogEntry (changelog: string, version: string) {
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://novu.co/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/novu.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/novu_light.svg" />
             <img src="https://pnpm.io/img/users/novu.svg" width="180" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/prisma.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/prisma_light.svg" />
+            <img src="https://pnpm.io/img/users/prisma.svg" width="180" />
           </picture>
         </a>
       </td>
@@ -105,15 +116,6 @@ function getChangelogEntry (changelog: string, version: string) {
 <table>
   <tbody>
     <tr>
-      <td align="center" valign="middle">
-        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/prisma.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/prisma_light.svg" />
-            <img src="https://pnpm.io/img/users/prisma.svg" width="180" />
-          </picture>
-        </a>
-      </td>
       <td align="center" valign="middle">
         <a href="https://leniolabs.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <img src="https://pnpm.io/img/users/leniolabs.jpg" width="80">

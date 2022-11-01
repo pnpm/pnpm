@@ -39,12 +39,36 @@ To quote the [Rush](https://rushjs.io/) team:
         <a href="https://bit.dev/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://nhost.io/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/nhost.svg" width="180"></a>
-      </td>
-      <td align="center" valign="middle">
-        <a href="https://novu.co/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/novu.svg" width="180"></a>
+        <a href="https://nhost.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/nhost.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/nhost_light.svg" />
+            <img src="https://pnpm.io/img/users/nhost.svg" width="180" />
+          </picture>
+        </a>
       </td>
     </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://novu.co/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/novu.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/novu_light.svg" />
+            <img src="https://pnpm.io/img/users/novu.svg" width="180" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/prisma.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/prisma_light.svg" />
+            <img src="https://pnpm.io/img/users/prisma.svg" width="180" />
+          </picture>
+        </a>
+      </td>
+    </tr>
+  </tbody>
 </table>
 
 ## Silver Sponsors
@@ -53,18 +77,17 @@ To quote the [Rush](https://rushjs.io/) team:
   <tbody>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <img src="https://pnpm.io/img/users/prisma.svg" width="180">
-        </a>
-      </td>
-      <td align="center" valign="middle">
         <a href="https://leniolabs.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <img src="https://pnpm.io/img/users/leniolabs.jpg" width="80">
         </a>
       </td>
       <td align="center" valign="middle">
         <a href="https://vercel.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <img src="https://pnpm.io/img/users/vercel.svg" width="180">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/vercel.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/vercel_light.svg" />
+            <img src="https://pnpm.io/img/users/vercel.svg" width="180" />
+          </picture>
         </a>
       </td>
     </tr>
@@ -75,8 +98,12 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://doppler.com/?utm_source=pnpm&utm_medium=readme#gh-light-mode-only" target="_blank">
-          <img src="https://pnpm.io/img/users/doppler.svg" width="280">
+        <a href="https://doppler.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/doppler.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/doppler_light.svg" />
+            <img src="https://pnpm.io/img/users/doppler.svg" width="280" />
+          </picture>
         </a>
       </td>
     </tr>
