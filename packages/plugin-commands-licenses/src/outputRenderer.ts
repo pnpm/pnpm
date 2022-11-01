@@ -80,7 +80,7 @@ function renderLicensesJson (licensePackages: readonly LicensePackage[]) {
       return {
         name: licensePkg.packageName,
         version: licensePkg.version,
-        path: licensePkg.packageDirectory,
+        path: licensePkg.packageDir,
         license: licensePkg.license,
         licenseContents: licensePkg.licenseContents,
         vendorName: licensePkg.author,
@@ -126,8 +126,7 @@ function renderLicensesTable (
       columnNames,
       ...sortLicensesPackages(licensePackages).map((licensePkg) => {
         return columnFns.map((fn) => fn(licensePkg))
-      }
-      ),
+      }),
     ],
     TABLE_OPTIONS
   )

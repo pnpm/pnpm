@@ -71,7 +71,7 @@ describe('licences', () => {
         license: 'MIT',
         licenseContents: undefined,
         author: 'Package Author',
-        packageDirectory: '/opt/pnpm/.pnpm/bar@1.0.0/node_modules',
+        packageDir: '/opt/pnpm/.pnpm/bar@1.0.0/node_modules',
       },
       {
         belongsTo: 'dependencies',
@@ -81,7 +81,7 @@ describe('licences', () => {
         license: 'Unknown',
         licenseContents: 'The MIT License',
         author: 'Package Author',
-        packageDirectory: '/opt/pnpm/.pnpm/foo@1.0.0/node_modules',
+        packageDir: '/opt/pnpm/.pnpm/foo@1.0.0/node_modules',
       },
     ])
   })

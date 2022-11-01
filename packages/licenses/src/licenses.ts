@@ -1,7 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import {
-  Lockfile,
-} from '@pnpm/lockfile-file'
+import { Lockfile } from '@pnpm/lockfile-file'
 import {
   DependenciesField,
   IncludedDependencies,
@@ -10,7 +8,10 @@ import {
   Registries,
 } from '@pnpm/types'
 import { getPkgInfo } from './getPkgInfo'
-import { LicenseNode, lockfileToLicenseNodeTree } from './lockfileToLicenseNodeTree'
+import {
+  LicenseNode,
+  lockfileToLicenseNodeTree,
+} from './lockfileToLicenseNodeTree'
 
 export interface LicensePackage {
   belongsTo: DependenciesField
@@ -20,16 +21,14 @@ export interface LicensePackage {
   license: string
   licenseContents?: string
   author?: string
-  packageDirectory?: string
+  packageDir?: string
 }
 
-export type GetPackageInfoFunction = (
-  pkg: {
-    name: string
-    version: string
-    prefix: string
-  }
-) => Promise<{
+export type GetPackageInfoFunction = (pkg: {
+  name: string
+  version: string
+  prefix: string
+}) => Promise<{
   packageManifest: PackageManifest
   packageInfo: {
     from: string
@@ -49,10 +48,11 @@ export type GetPackageInfoFunction = (
  * @param licenseNode
  * @returns LicensePackage[]
  */
-function getDependenciesFromLicenseNode (licenseNode: LicenseNode): LicensePackage[] {
+function getDependenciesFromLicenseNode (
+  licenseNode: LicenseNode
+): LicensePackage[] {
   if (!licenseNode.dependencies) {
-    return [
-    ]
+    return []
   }
 
   let dependencies: LicensePackage[] = []
@@ -71,7 +71,7 @@ function getDependenciesFromLicenseNode (licenseNode: LicenseNode): LicensePacka
         license: dependencyNode.license as string,
         licenseContents: dependencyNode.licenseContents,
         author: dependencyNode.vendorName as string,
-        packageDirectory: dependencyNode.path,
+        packageDir: dependencyNode.path,
       },
     ]
   }
@@ -79,22 +79,23 @@ function getDependenciesFromLicenseNode (licenseNode: LicenseNode): LicensePacka
   return dependencies
 }
 
-export async function licences (
-  opts: {
-    getPackageInfo?: GetPackageInfoFunction
-    ignoreDependencies?: Set<string>
-    include?: IncludedDependencies
-    lockfileDir: string
-    manifest: ProjectManifest
-    prefix: string
-    virtualStoreDir: string
-    modulesDir?: string
-    registries: Registries
-    wantedLockfile: Lockfile | null
-  }
-): Promise<LicensePackage[]> {
+export async function licences (opts: {
+  getPackageInfo?: GetPackageInfoFunction
+  ignoreDependencies?: Set<string>
+  include?: IncludedDependencies
+  lockfileDir: string
+  manifest: ProjectManifest
+  prefix: string
+  virtualStoreDir: string
+  modulesDir?: string
+  registries: Registries
+  wantedLockfile: Lockfile | null
+}): Promise<LicensePackage[]> {
   if (opts.wantedLockfile == null) {
-    throw new PnpmError('LICENSES_NO_LOCKFILE', `No lockfile in directory "${opts.lockfileDir}". Run \`pnpm install\` to generate one.`)
+    throw new PnpmError(
+      'LICENSES_NO_LOCKFILE',
+      `No lockfile in directory "${opts.lockfileDir}". Run \`pnpm install\` to generate one.`
+    )
   }
 
   const licenseNodeTree = await lockfileToLicenseNodeTree(opts.wantedLockfile, {
@@ -117,5 +118,7 @@ export async function licences (
 
   // Get all non-duplicate dependencies of the project
   const projectDependencies = Array.from(licensePackages.values())
-  return Array.from(projectDependencies).sort((pkg1, pkg2) => pkg1.packageName.localeCompare(pkg2.packageName))
+  return Array.from(projectDependencies).sort((pkg1, pkg2) =>
+    pkg1.packageName.localeCompare(pkg2.packageName)
+  )
 }
