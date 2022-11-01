@@ -7,10 +7,10 @@
   "include": ["src/**/*.ts", "../../typings/**/*.d.ts"],
   "references": [
     {
-      "path": "../dependency-path"
+      "path": "../constants"
     },
     {
-      "path": "../constants"
+      "path": "../dependency-path"
     },
     {
       "path": "../error"
