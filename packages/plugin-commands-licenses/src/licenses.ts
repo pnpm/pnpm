@@ -4,20 +4,21 @@ import {
   readProjectManifestOnly,
 } from '@pnpm/cli-utils'
 import { CompletionFunc } from '@pnpm/command'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { readWantedLockfile } from '@pnpm/lockfile-file'
 import {
   FILTERING,
   OPTIONS,
   UNIVERSAL_OPTIONS,
 } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
-import { licensesDepsOfProjects } from '@pnpm/licenses'
+import { PnpmError } from '@pnpm/error'
+import { licences } from '@pnpm/licenses'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { getPkgInfo } from './getPkgInfo'
 import { renderLicences } from './outputRenderer'
-import { licensesRecursive } from './recursive'
 
-export function rcOptionsTypes() {
+export function rcOptionsTypes () {
   return {
     ...pick(
       [
@@ -49,7 +50,7 @@ export const shorthands = {
 
 export const commandNames = ['licenses']
 
-export function help() {
+export function help () {
   return renderHelp({
     description: `Check for licenses packages. The check can be limited to a subset of the installed packages by providing arguments (patterns are supported).
 
@@ -64,22 +65,9 @@ pnpm licenses gulp-* @babel/core`,
         list: [
           {
             description:
-              'Print only versions that satisfy specs in package.json',
-            name: '--compatible',
-          },
-          {
-            description:
               'By default, details about the outdated packages (such as a link to the repo) are not displayed. \
 To display the details, pass this option.',
             name: '--long',
-          },
-          {
-            description:
-              'Check for outdated dependencies in every package found in subdirectories \
-or in every workspace package, when executed inside a workspace. \
-For options that may be used with `-r`, see "pnpm help recursive"',
-            name: '--recursive',
-            shortAlias: '-r',
           },
           {
             description: 'Show information in JSON format',
@@ -123,81 +111,69 @@ export type LicensesCommandOptions = {
   compatible?: boolean
   long?: boolean
   recursive?: boolean
-  table?: boolean
+  json?: boolean
 } & Pick<
-  Config,
-  | 'allProjects'
-  | 'ca'
-  | 'cacheDir'
-  | 'cert'
-  | 'dev'
-  | 'dir'
-  | 'engineStrict'
-  | 'fetchRetries'
-  | 'fetchRetryFactor'
-  | 'fetchRetryMaxtimeout'
-  | 'fetchRetryMintimeout'
-  | 'fetchTimeout'
-  | 'global'
-  | 'httpProxy'
-  | 'httpsProxy'
-  | 'key'
-  | 'localAddress'
-  | 'lockfileDir'
-  | 'networkConcurrency'
-  | 'noProxy'
-  | 'offline'
-  | 'optional'
-  | 'production'
-  | 'rawConfig'
-  | 'registries'
-  | 'selectedProjectsGraph'
-  | 'strictSsl'
-  | 'tag'
-  | 'userAgent'
-  | 'virtualStoreDir'
-  | 'modulesDir'
+Config,
+| 'allProjects'
+| 'ca'
+| 'cacheDir'
+| 'cert'
+| 'dev'
+| 'dir'
+| 'engineStrict'
+| 'fetchRetries'
+| 'fetchRetryFactor'
+| 'fetchRetryMaxtimeout'
+| 'fetchRetryMintimeout'
+| 'fetchTimeout'
+| 'global'
+| 'httpProxy'
+| 'httpsProxy'
+| 'key'
+| 'localAddress'
+| 'lockfileDir'
+| 'networkConcurrency'
+| 'noProxy'
+| 'offline'
+| 'optional'
+| 'production'
+| 'rawConfig'
+| 'registries'
+| 'selectedProjectsGraph'
+| 'strictSsl'
+| 'tag'
+| 'userAgent'
+| 'virtualStoreDir'
+| 'modulesDir'
 > &
-  Partial<Pick<Config, 'userConfig'>>
+Partial<Pick<Config, 'userConfig'>>
 
-export async function handler(
+export async function handler (
   opts: LicensesCommandOptions,
   params: string[] = []
 ) {
+  const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })
+  if (lockfile == null) {
+    throw new PnpmError('LICENSES_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found: Cannot check a project without a lockfile`)
+  }
+
   const include = {
     dependencies: opts.production !== false,
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
 
-  if (opts.recursive && opts.selectedProjectsGraph != null) {
-    const pkgs = Object.values(opts.selectedProjectsGraph).map(
-      (wsPkg) => wsPkg.package
-    )
-    return licensesRecursive(pkgs, params, { ...opts, include })
-  }
   const manifest = await readProjectManifestOnly(opts.dir, opts)
-  const packages = [
-    {
-      dir: opts.dir,
-      manifest,
-    },
-  ]
-  const [licensePackages] = await licensesDepsOfProjects(packages, params, {
-    ...opts,
-    fullMetadata: opts.long,
-    ignoreDependencies: new Set(
-      manifest?.pnpm?.updateConfig?.ignoreDependencies ?? []
-    ),
+
+  const licensePackages = await licences({
     include,
-    retry: {
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-      retries: opts.fetchRetries,
-    },
-    timeout: opts.fetchTimeout,
-    getPackageInfo: getPkgInfo,
+    lockfileDir: opts.dir,
+    prefix: opts.dir,
+    virtualStoreDir: opts.virtualStoreDir ?? '.',
+    modulesDir: opts.modulesDir,
+    registries: opts.registries,
+    wantedLockfile: lockfile,
+    manifest,
   })
 
   if (licensePackages.length === 0) return { output: '', exitCode: 0 }

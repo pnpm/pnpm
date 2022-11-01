@@ -1,2 +1,1 @@
-export { licensesDepsOfProjects } from './licensesDepsOfProjects'
-export { LicensePackage } from './licenses'
+export { LicensePackage, licences } from './licenses'

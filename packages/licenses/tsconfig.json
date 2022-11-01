@@ -10,12 +10,6 @@
   ],
   "references": [
     {
-      "path": "../client"
-    },
-    {
-      "path": "../constants"
-    },
-    {
       "path": "../dependency-path"
     },
     {
@@ -25,22 +19,13 @@
       "path": "../lockfile-file"
     },
     {
+      "path": "../lockfile-types"
+    },
+    {
       "path": "../lockfile-utils"
     },
     {
-      "path": "../manifest-utils"
-    },
-    {
-      "path": "../matcher"
-    },
-    {
-      "path": "../modules-yaml"
-    },
-    {
-      "path": "../npm-resolver"
-    },
-    {
-      "path": "../pick-registry-for-package"
+      "path": "../lockfile-walker"
     },
     {
       "path": "../read-package-json"

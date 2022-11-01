@@ -31,6 +31,11 @@ function coerceToString (field: unknown): string | null {
   return typeof field === 'string' || field === string ? string : null
 }
 
+/**
+ *
+ * @param field
+ * @returns
+ */
 function parseLicenseManifestField (field: unknown) {
   if (Array.isArray(field)) {
     const licenses = field
@@ -85,9 +90,13 @@ async function parseLicense (packageInfo: {
   return { name: license ?? 'Unknown' }
 }
 
+/**
+ *
+ * @param pkg
+ * @returns
+ */
 export async function getPkgInfo (
   pkg: {
-    alias: string
     name: string
     version: string
     prefix: string
@@ -95,7 +104,6 @@ export async function getPkgInfo (
 ): Promise<{
     packageManifest: PackageManifest
     packageInfo: {
-      alias: string
       from: string
       path: string
       version: string
@@ -110,15 +118,20 @@ export async function getPkgInfo (
   let manifest
   let packageModulePath
   let licenseInfo: LicenseInfo
+
+  if (pkg.name.length === 0) {
+    throw new Error('Missing package name')
+  }
+
   try {
-    packageModulePath = path.join(pkg.prefix, 'node_modules', pkg.name)
+    packageModulePath = path.join(pkg.prefix, pkg.name)
     const packageManifestPath = path.join(packageModulePath, 'package.json')
     manifest = await readPkg(packageManifestPath)
 
     licenseInfo = await parseLicense({ manifest, path: packageModulePath })
 
     manifest.license = licenseInfo.name
-  } catch (err: any) { // eslint-disable-line
+  } catch (err: unknown) {
     // This will probably never happen
     throw new Error(`Failed to fetch manifest data for ${pkg.name}`)
   }
@@ -126,7 +139,6 @@ export async function getPkgInfo (
   return {
     packageManifest: manifest,
     packageInfo: {
-      alias: pkg.alias,
       from: pkg.name,
       path: packageModulePath,
       version: pkg.version,

@@ -1809,39 +1809,24 @@ importers:
 
   packages/licenses:
     dependencies:
-      '@pnpm/client':
-        specifier: workspace:*
-        version: link:../client
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../constants
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../lockfile-file
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../lockfile-types
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../lockfile-utils
+      '@pnpm/lockfile-walker':
+        specifier: workspace:*
+        version: link:../lockfile-walker
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
-      '@pnpm/manifest-utils':
-        specifier: workspace:*
-        version: link:../manifest-utils
-      '@pnpm/matcher':
-        specifier: workspace:*
-        version: link:../matcher
-      '@pnpm/modules-yaml':
-        specifier: workspace:*
-        version: link:../modules-yaml
-      '@pnpm/npm-resolver':
-        specifier: workspace:*
-        version: link:../npm-resolver
-      '@pnpm/pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../pick-registry-for-package
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../read-package-json
@@ -1854,22 +1839,16 @@ importers:
       p-limit:
         specifier: ^3.1.0
         version: 3.1.0
-      ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
-        version: /@pnpm/ramda/0.28.1
-      semver:
-        specifier: ^7.3.8
-        version: 7.3.8
     devDependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../constants
       '@pnpm/licenses':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
-      '@types/semver':
-        specifier: 7.3.12
-        version: 7.3.12
       npm-run-all:
         specifier: ^4.1.5
         version: 4.1.5
@@ -3555,9 +3534,6 @@ importers:
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../cli-utils
-      '@pnpm/colorize-semver-diff':
-        specifier: ^1.0.1
-        version: 1.0.1
       '@pnpm/command':
         specifier: workspace:*
         version: link:../command
@@ -3567,9 +3543,9 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../config
-      '@pnpm/default-resolver':
+      '@pnpm/constants':
         specifier: workspace:*
-        version: link:../default-resolver
+        version: link:../constants
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
@@ -3579,36 +3555,12 @@ importers:
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../lockfile-file
-      '@pnpm/matcher':
-        specifier: workspace:*
-        version: link:../matcher
-      '@pnpm/modules-yaml':
-        specifier: workspace:*
-        version: link:../modules-yaml
-      '@pnpm/read-package-json':
-        specifier: workspace:*
-        version: link:../read-package-json
-      '@pnpm/semver-diff':
-        specifier: ^1.1.0
-        version: 1.1.0
-      '@pnpm/store-path':
-        specifier: workspace:*
-        version: link:../store-path
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
       '@zkochan/table':
         specifier: ^1.0.0
         version: 1.0.0
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
-      lru-cache:
-        specifier: ^7.14.0
-        version: 7.14.0
-      p-limit:
-        specifier: ^3.1.0
-        version: 3.1.0
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda/0.28.1
@@ -3618,13 +3570,7 @@ importers:
       strip-ansi:
         specifier: ^6.0.1
         version: 6.0.1
-      wrap-ansi:
-        specifier: ^7.0.0
-        version: 7.0.0
     devDependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../constants
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../filter-workspace-packages
@@ -3637,9 +3583,15 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../privatePackages/prepare
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../read-package-json
       '@pnpm/registry-mock':
         specifier: 3.1.0
         version: 3.1.0_typanion@3.12.0
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../types
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -8430,10 +8382,6 @@ packages:
 
   /@types/semver/6.2.3:
     resolution: {integrity: sha512-KQf+QAMWKMrtBMsB8/24w53tEsxllMj6TuA80TT/5igJalLI/zm0L3oXRbIAl4Ohfc85gyHX/jhMwsVkmhLU4A==}
-
-  /@types/semver/7.3.12:
-    resolution: {integrity: sha512-WwA1MW0++RfXmCr12xeYOOC5baSC9mSb0ZqCquFzKhcoF4TvHu5MKOuXsncgZcpVFhB1pXd5hZmM0ryAoCp12A==}
-    dev: true
 
   /@types/semver/7.3.13:
     resolution: {integrity: sha512-21cFJr9z3g5dW8B0CVI9g2O9beqaThGQ6ZFBqHfwhzLDKUxaqTIy3vnfah/UPkfOiF2pLq+tGz+W8RyCskuslw==}
@@ -17387,7 +17335,6 @@ time:
   /@types/ramda/0.28.15: '2022-07-09T08:02:32.716Z'
   /@types/retry/0.12.2: '2022-04-26T19:32:23.281Z'
   /@types/rimraf/3.0.2: '2021-08-18T21:02:03.570Z'
-  /@types/semver/7.3.12: '2022-08-11T21:32:18.856Z'
   /@types/semver/7.3.13: '2022-10-26T20:03:07.384Z'
   /@types/signal-exit/3.0.1: '2021-07-06T17:09:42.542Z'
   /@types/sinon/10.0.13: '2022-07-20T05:32:19.345Z'

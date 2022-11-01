@@ -1,23 +1,18 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
-  getLockfileImporterId,
   Lockfile,
 } from '@pnpm/lockfile-file'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
-import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import {
   DependenciesField,
-  DEPENDENCIES_FIELDS,
   IncludedDependencies,
   PackageManifest,
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
-import * as dp from 'dependency-path'
+import { getPkgInfo } from './getPkgInfo'
+import { LicenseNode, lockfileToLicenseNodeTree } from './lockfileToLicenseNodeTree'
 
 export interface LicensePackage {
-  alias: string
   belongsTo: DependenciesField
   version: string
   packageManifest?: PackageManifest
@@ -30,7 +25,6 @@ export interface LicensePackage {
 
 export type GetPackageInfoFunction = (
   pkg: {
-    alias: string
     name: string
     version: string
     prefix: string
@@ -38,7 +32,6 @@ export type GetPackageInfoFunction = (
 ) => Promise<{
   packageManifest: PackageManifest
   packageInfo: {
-    alias: string
     from: string
     path: string
     version: string
@@ -51,98 +44,78 @@ export type GetPackageInfoFunction = (
   }
 }>
 
+/**
+ * @private
+ * @param licenseNode
+ * @returns LicensePackage[]
+ */
+function getDependenciesFromLicenseNode (licenseNode: LicenseNode): LicensePackage[] {
+  if (!licenseNode.dependencies) {
+    return [
+    ]
+  }
+
+  let dependencies: LicensePackage[] = []
+  for (const dependencyName in licenseNode.dependencies) {
+    const dependencyNode = licenseNode.dependencies[dependencyName]
+    const dependenciesOfNode = getDependenciesFromLicenseNode(dependencyNode)
+
+    dependencies = [
+      ...dependencies,
+      ...dependenciesOfNode,
+      {
+        belongsTo: dependencyNode.dev ? 'devDependencies' : 'dependencies',
+        version: dependencyNode.version as string,
+        packageManifest: dependencyNode.packageManifest,
+        packageName: dependencyName,
+        license: dependencyNode.license as string,
+        licenseContents: dependencyNode.licenseContents,
+        author: dependencyNode.vendorName as string,
+        packageDirectory: dependencyNode.path,
+      },
+    ]
+  }
+
+  return dependencies
+}
+
 export async function licences (
   opts: {
-    currentLockfile: Lockfile | null
+    getPackageInfo?: GetPackageInfoFunction
     ignoreDependencies?: Set<string>
     include?: IncludedDependencies
     lockfileDir: string
     manifest: ProjectManifest
-    getPackageInfo: GetPackageInfoFunction
-    match?: (dependencyName: string) => boolean
     prefix: string
+    virtualStoreDir: string
+    modulesDir?: string
     registries: Registries
     wantedLockfile: Lockfile | null
   }
 ): Promise<LicensePackage[]> {
-  if (packageHasNoDeps(opts.manifest)) return []
   if (opts.wantedLockfile == null) {
     throw new PnpmError('LICENSES_NO_LOCKFILE', `No lockfile in directory "${opts.lockfileDir}". Run \`pnpm install\` to generate one.`)
   }
-  const allDeps = getAllDependenciesFromManifest(opts.manifest)
-  const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
-  const licenses: LicensePackage[] = []
 
-  await Promise.all(
-    DEPENDENCIES_FIELDS.map(async (depType) => {
-      if (
-        opts.include?.[depType] === false ||
-        (opts.wantedLockfile!.importers[importerId][depType] == null)
-      ) return
+  const licenseNodeTree = await lockfileToLicenseNodeTree(opts.wantedLockfile, {
+    dir: opts.lockfileDir,
+    modulesDir: opts.modulesDir,
+    virtualStoreDir: opts.virtualStoreDir,
+    include: opts.include,
+    getPackageInfo: opts.getPackageInfo ?? getPkgInfo,
+  })
 
-      let pkgs = Object.keys(opts.wantedLockfile!.importers[importerId][depType]!)
-      if (opts.match != null) {
-        pkgs = pkgs.filter((pkgName) => opts.match!(pkgName))
-      }
+  const licensePackages = new Map<string, LicensePackage>()
+  for (const dependencyName in licenseNodeTree.dependencies) {
+    const licenseNode = licenseNodeTree.dependencies[dependencyName]
+    const dependenciesOfNode = getDependenciesFromLicenseNode(licenseNode)
 
-      await Promise.all(
-        pkgs.map(async (alias) => {
-          if (!allDeps[alias]) return
-          const ref = opts.wantedLockfile!.importers[importerId][depType]![alias]
-          if (
-            ref.startsWith('file:') || // ignoring linked packages. (For backward compatibility)
-            opts.ignoreDependencies?.has(alias)
-          ) {
-            return
-          }
-
-          const relativeDepPath = dp.refToRelative(ref, alias)
-
-          // ignoring linked packages
-          if (relativeDepPath === null) return
-
-          const pkgSnapshot = opts.wantedLockfile!.packages?.[relativeDepPath]
-          if (pkgSnapshot == null) {
-            throw new Error(`Invalid ${WANTED_LOCKFILE} file. ${relativeDepPath} not found in packages field`)
-          }
-
-          const { name: packageName, version: packageVersion } = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot)
-          const name = dp.parse(relativeDepPath).name ?? packageName
-
-          // Fetch the most recent package by the give name
-          const fetchPackageInfo = opts.getPackageInfo
-          const { packageManifest, packageInfo } = await fetchPackageInfo({
-            alias,
-            name,
-            version: packageVersion,
-            prefix: opts.prefix,
-          })
-
-          licenses.push({
-            alias,
-            belongsTo: depType,
-            version: packageVersion,
-            packageManifest,
-            packageName,
-            license: packageInfo.license,
-            licenseContents: packageInfo.licenseContents,
-            author: packageInfo.author,
-            packageDirectory: packageInfo.path,
-          })
-        })
-      )
+    dependenciesOfNode.forEach((dependencyNode) => {
+      licensePackages.set(dependencyNode.packageName, dependencyNode)
     })
-  )
+  }
 
-  return licenses.sort((pkg1, pkg2) => pkg1.packageName.localeCompare(pkg2.packageName))
-}
-
-function packageHasNoDeps (manifest: ProjectManifest) {
-  return ((manifest.dependencies == null) || isEmpty(manifest.dependencies)) &&
-    ((manifest.devDependencies == null) || isEmpty(manifest.devDependencies)) &&
-    ((manifest.optionalDependencies == null) || isEmpty(manifest.optionalDependencies))
-}
-
-function isEmpty (obj: object) {
-  return Object.keys(obj).length === 0
+  // Get all non-duplicate dependencies of the project
+  const projectDependencies = Array.from(licensePackages.values())
+  return Array.from(projectDependencies).sort((pkg1, pkg2) => pkg1.packageName.localeCompare(pkg2.packageName))
 }

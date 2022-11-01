@@ -28,9 +28,6 @@
       "path": "../constants"
     },
     {
-      "path": "../default-resolver"
-    },
-    {
       "path": "../error"
     },
     {
@@ -43,22 +40,7 @@
       "path": "../lockfile-file"
     },
     {
-      "path": "../matcher"
-    },
-    {
-      "path": "../modules-yaml"
-    },
-    {
       "path": "../plugin-commands-installation"
-    },
-    {
-      "path": "../read-package-json"
-    },
-    {
-      "path": "../store-path"
-    },
-    {
-      "path": "../types"
     }
   ]
 }

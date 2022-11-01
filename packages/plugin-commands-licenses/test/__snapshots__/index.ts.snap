@@ -1,0 +1,360 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`pnpm licenses: output as json: show-packages-in-json 1`] = `
+"{
+  "MIT": [
+    {
+      "name": "@next/env",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@next+env@13.0.0/node_modules/@next/env",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "@next/swc-android-arm-eabi",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@next+swc-android-arm-eabi@13.0.0/node_modules/@next/swc-android-arm-eabi",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "@next/swc-android-arm64",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@next+swc-android-arm64@13.0.0/node_modules/@next/swc-android-arm64",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "@next/swc-darwin-arm64",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@next+swc-darwin-arm64@13.0.0/node_modules/@next/swc-darwin-arm64",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "@next/swc-darwin-x64",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@next+swc-darwin-x64@13.0.0/node_modules/@next/swc-darwin-x64",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "@next/swc-freebsd-x64",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@next+swc-freebsd-x64@13.0.0/node_modules/@next/swc-freebsd-x64",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "@next/swc-linux-arm-gnueabihf",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@next+swc-linux-arm-gnueabihf@13.0.0/node_modules/@next/swc-linux-arm-gnueabihf",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "@next/swc-linux-arm64-gnu",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@next+swc-linux-arm64-gnu@13.0.0/node_modules/@next/swc-linux-arm64-gnu",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "@next/swc-linux-arm64-musl",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@next+swc-linux-arm64-musl@13.0.0/node_modules/@next/swc-linux-arm64-musl",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "@next/swc-linux-x64-gnu",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@next+swc-linux-x64-gnu@13.0.0/node_modules/@next/swc-linux-x64-gnu",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "@next/swc-linux-x64-musl",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@next+swc-linux-x64-musl@13.0.0/node_modules/@next/swc-linux-x64-musl",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "@next/swc-win32-arm64-msvc",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@next+swc-win32-arm64-msvc@13.0.0/node_modules/@next/swc-win32-arm64-msvc",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "@next/swc-win32-ia32-msvc",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@next+swc-win32-ia32-msvc@13.0.0/node_modules/@next/swc-win32-ia32-msvc",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "@next/swc-win32-x64-msvc",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@next+swc-win32-x64-msvc@13.0.0/node_modules/@next/swc-win32-x64-msvc",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "@swc/helpers",
+      "version": "0.4.11",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/@swc+helpers@0.4.11/node_modules/@swc/helpers",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "caniuse-lite",
+      "version": "1.0.30001426",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/caniuse-lite@1.0.30001426/node_modules/caniuse-lite",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "client-only",
+      "version": "0.0.1",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/client-only@0.0.1/node_modules/client-only",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "nanoid",
+      "version": "3.3.4",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/nanoid@3.3.4/node_modules/nanoid",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "next",
+      "version": "13.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/next@13.0.0/node_modules/next",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "picocolors",
+      "version": "1.0.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/picocolors@1.0.0/node_modules/picocolors",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "postcss",
+      "version": "8.4.14",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/postcss@8.4.14/node_modules/postcss",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "source-map-js",
+      "version": "1.0.2",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/source-map-js@1.0.2/node_modules/source-map-js",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "styled-jsx",
+      "version": "5.1.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/styled-jsx@5.1.0/node_modules/styled-jsx",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "tslib",
+      "version": "2.4.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/tslib@2.4.0/node_modules/tslib",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "typescript",
+      "version": "4.8.4",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/typescript@4.8.4/node_modules/typescript",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    },
+    {
+      "name": "use-sync-external-store",
+      "version": "1.2.0",
+      "path": "/Users/weyertdeboer/Development/Projects/Opensource/pnpm/packages/plugin-commands-licenses/test/fixtures/has-licenses/use-sync-external-store@1.2.0/node_modules/use-sync-external-store",
+      "license": "MIT",
+      "vendorName": "Jane Doe",
+      "vendorUrl": "https://pnpm.io"
+    }
+  ]
+}"
+`;
+
+exports[`pnpm licenses: show details: show-packages-details 1`] = `
+"┌───────────────────────────────┬─────────┬─────────────────┐
+│ Package                       │ License │ Details         │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @next/env                     │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @next/swc-android-arm-eabi    │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @next/swc-android-arm64       │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @next/swc-darwin-arm64        │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @next/swc-darwin-x64          │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @next/swc-freebsd-x64         │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @next/swc-linux-arm-gnueabihf │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @next/swc-linux-arm64-gnu     │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @next/swc-linux-arm64-musl    │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @next/swc-linux-x64-gnu       │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @next/swc-linux-x64-musl      │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @next/swc-win32-arm64-msvc    │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @next/swc-win32-ia32-msvc     │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @next/swc-win32-x64-msvc      │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ @swc/helpers                  │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ caniuse-lite                  │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ client-only                   │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ nanoid                        │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ next                          │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ picocolors                    │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ postcss                       │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ source-map-js                 │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ styled-jsx                    │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ tslib                         │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ typescript (dev)              │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+├───────────────────────────────┼─────────┼─────────────────┤
+│ use-sync-external-store       │ MIT     │ Jane Doe        │
+│                               │         │ https://pnpm.io │
+└───────────────────────────────┴─────────┴─────────────────┘
+"
+`;
+
+exports[`pnpm licenses: show-packages 1`] = `
+"┌───────────────────────────────┬─────────┐
+│ Package                       │ License │
+├───────────────────────────────┼─────────┤
+│ @next/env                     │ MIT     │
+├───────────────────────────────┼─────────┤
+│ @next/swc-android-arm-eabi    │ MIT     │
+├───────────────────────────────┼─────────┤
+│ @next/swc-android-arm64       │ MIT     │
+├───────────────────────────────┼─────────┤
+│ @next/swc-darwin-arm64        │ MIT     │
+├───────────────────────────────┼─────────┤
+│ @next/swc-darwin-x64          │ MIT     │
+├───────────────────────────────┼─────────┤
+│ @next/swc-freebsd-x64         │ MIT     │
+├───────────────────────────────┼─────────┤
+│ @next/swc-linux-arm-gnueabihf │ MIT     │
+├───────────────────────────────┼─────────┤
+│ @next/swc-linux-arm64-gnu     │ MIT     │
+├───────────────────────────────┼─────────┤
+│ @next/swc-linux-arm64-musl    │ MIT     │
+├───────────────────────────────┼─────────┤
+│ @next/swc-linux-x64-gnu       │ MIT     │
+├───────────────────────────────┼─────────┤
+│ @next/swc-linux-x64-musl      │ MIT     │
+├───────────────────────────────┼─────────┤
+│ @next/swc-win32-arm64-msvc    │ MIT     │
+├───────────────────────────────┼─────────┤
+│ @next/swc-win32-ia32-msvc     │ MIT     │
+├───────────────────────────────┼─────────┤
+│ @next/swc-win32-x64-msvc      │ MIT     │
+├───────────────────────────────┼─────────┤
+│ @swc/helpers                  │ MIT     │
+├───────────────────────────────┼─────────┤
+│ caniuse-lite                  │ MIT     │
+├───────────────────────────────┼─────────┤
+│ client-only                   │ MIT     │
+├───────────────────────────────┼─────────┤
+│ nanoid                        │ MIT     │
+├───────────────────────────────┼─────────┤
+│ next                          │ MIT     │
+├───────────────────────────────┼─────────┤
+│ picocolors                    │ MIT     │
+├───────────────────────────────┼─────────┤
+│ postcss                       │ MIT     │
+├───────────────────────────────┼─────────┤
+│ source-map-js                 │ MIT     │
+├───────────────────────────────┼─────────┤
+│ styled-jsx                    │ MIT     │
+├───────────────────────────────┼─────────┤
+│ tslib                         │ MIT     │
+├───────────────────────────────┼─────────┤
+│ typescript (dev)              │ MIT     │
+├───────────────────────────────┼─────────┤
+│ use-sync-external-store       │ MIT     │
+└───────────────────────────────┴─────────┘
+"
+`;
