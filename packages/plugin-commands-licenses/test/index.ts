@@ -1,14 +1,14 @@
 /// <reference path="../../../typings/index.d.ts" />
-import path from "path";
-import { licenses } from "@pnpm/plugin-commands-licenses";
-import { REGISTRY_MOCK_PORT } from "@pnpm/registry-mock";
-import stripAnsi from "strip-ansi";
-import { PackageManifest } from "@pnpm/types";
+import path from 'path'
+import { licenses } from '@pnpm/plugin-commands-licenses'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import stripAnsi from 'strip-ansi'
+import { PackageManifest } from '@pnpm/types'
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`;
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 const LICENSES_OPTIONS = {
-  cacheDir: "cache",
+  cacheDir: 'cache',
   fetchRetries: 1,
   fetchRetryFactor: 1,
   fetchRetryMaxtimeout: 60,
@@ -19,67 +19,67 @@ const LICENSES_OPTIONS = {
   rawConfig: { registry: REGISTRY_URL },
   registries: { default: REGISTRY_URL },
   strictSsl: false,
-  tag: "latest",
-  userAgent: "",
+  tag: 'latest',
+  userAgent: '',
   userConfig: {},
-};
+}
 
-jest.mock("@pnpm/read-package-json", () => ({
+jest.mock('@pnpm/read-package-json', () => ({
   readPackageJson: async (pkgPath: string) => {
     // mock the readPackageJson-call used in getPkgInfo to ensure
     // it returns a PackageManifest as in the tests we don't actually
     // have a content store or node_modules directory to fetch the
     // package.json files from
     return {
-      license: "MIT",
-      homepage: "https://pnpm.io",
-      author: "Jane Doe",
-    } as PackageManifest;
+      license: 'MIT',
+      homepage: 'https://pnpm.io',
+      author: 'Jane Doe',
+    } as PackageManifest
   },
-}));
+}))
 
-test("pnpm licenses", async () => {
+test('pnpm licenses', async () => {
   const { output, exitCode } = await licenses.handler({
     ...LICENSES_OPTIONS,
-    dir: path.resolve("./test/fixtures/has-licenses"),
+    dir: path.resolve('./test/fixtures/has-licenses'),
     long: false,
-  });
+  })
 
-  expect(exitCode).toBe(0);
-  expect(stripAnsi(output)).toMatchSnapshot("show-packages");
-});
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toMatchSnapshot('show-packages')
+})
 
-test("pnpm licenses: show details", async () => {
+test('pnpm licenses: show details', async () => {
   const { output, exitCode } = await licenses.handler({
     ...LICENSES_OPTIONS,
-    dir: path.resolve("./test/fixtures/has-licenses"),
+    dir: path.resolve('./test/fixtures/has-licenses'),
     long: true,
-  });
+  })
 
-  expect(exitCode).toBe(0);
-  expect(stripAnsi(output)).toMatchSnapshot("show-packages-details");
-});
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toMatchSnapshot('show-packages-details')
+})
 
-test("pnpm licenses: output as json", async () => {
+test('pnpm licenses: output as json', async () => {
   const { output, exitCode } = await licenses.handler({
     ...LICENSES_OPTIONS,
-    dir: path.resolve("./test/fixtures/has-licenses"),
+    dir: path.resolve('./test/fixtures/has-licenses'),
     long: false,
     json: true,
-  });
+  })
 
-  expect(exitCode).toBe(0);
-  expect(stripAnsi(output)).toMatchSnapshot("show-packages-in-json");
-});
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toMatchSnapshot('show-packages-in-json')
+})
 
-test("pnpm licenses: show details", async () => {
+test('pnpm licenses: show details', async () => {
   await expect(
     licenses.handler({
       ...LICENSES_OPTIONS,
-      dir: path.resolve("./test/fixtures/invalid"),
+      dir: path.resolve('./test/fixtures/invalid'),
       long: true,
     })
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     '"No pnpm-lock.yaml found: Cannot check a project without a lockfile"'
-  );
-});
+  )
+})
