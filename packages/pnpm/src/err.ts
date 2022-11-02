@@ -11,7 +11,11 @@ export function errorHandler (error: Error) {
     return
   }
   if (error.name != null && error.name !== 'pnpm' && !error.name.startsWith('pnpm:')) {
-    error.name = 'pnpm'
+    try {
+      error.name = 'pnpm'
+    } catch {
+      // Sometimes the name property is read-only
+    }
   }
 
   // bole passes only the name, message and stack of an error
