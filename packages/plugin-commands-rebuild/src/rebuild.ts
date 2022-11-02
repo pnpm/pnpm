@@ -117,6 +117,7 @@ export async function handler (
       ],
       rebuildOpts
     )
+    return
   }
   await rebuildSelectedPkgs(
     [
