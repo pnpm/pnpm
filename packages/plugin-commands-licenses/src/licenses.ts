@@ -65,18 +65,13 @@ pnpm licenses gulp-* @babel/core`,
         list: [
           {
             description:
-              'By default, details about the outdated packages (such as a link to the repo) are not displayed. \
+              'By default, details about the packages (such as a link to the repo) are not displayed. \
 To display the details, pass this option.',
             name: '--long',
           },
           {
             description: 'Show information in JSON format',
             name: '--json',
-          },
-          {
-            description:
-              'Prints the outdated packages in a list. Good for small consoles',
-            name: '--no-table',
           },
           {
             description: 'Check only "dependencies" and "optionalDependencies"',
@@ -99,7 +94,7 @@ To display the details, pass this option.',
       FILTERING,
     ],
     url: docsUrl('licenses'),
-    usages: ['pnpm licenses [<pkg> ...]'],
+    usages: ['pnpm licenses [options]'],
   })
 }
 
@@ -152,9 +147,14 @@ export async function handler (
   opts: LicensesCommandOptions,
   params: string[] = []
 ) {
-  const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })
+  const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, {
+    ignoreIncompatible: true,
+  })
   if (lockfile == null) {
-    throw new PnpmError('LICENSES_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found: Cannot check a project without a lockfile`)
+    throw new PnpmError(
+      'LICENSES_NO_LOCKFILE',
+      `No ${WANTED_LOCKFILE} found: Cannot check a project without a lockfile`
+    )
   }
 
   const include = {
@@ -176,7 +176,8 @@ export async function handler (
     manifest,
   })
 
-  if (licensePackages.length === 0) return { output: '', exitCode: 0 }
+  if (licensePackages.length === 0)
+    return { output: 'No packages found', exitCode: 0 }
 
   return renderLicences(licensePackages, opts)
 }

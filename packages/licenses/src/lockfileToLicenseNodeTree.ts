@@ -27,11 +27,7 @@ export interface LicenseNode {
 export type LicenseNodeTree = Omit<
 LicenseNode,
 'path' | 'license' | 'vendorName' | 'vendorUrl' | 'packageManifest'
-> & {
-  install: string[]
-  remove: string[]
-  metadata: Object
-}
+>
 
 export interface LicenseExtractOptions {
   virtualStoreDir: string
@@ -40,9 +36,6 @@ export interface LicenseExtractOptions {
   getPackageInfo: GetPackageInfoFunction
 }
 
-/**
- * private
- */
 export async function lockfileToLicenseNode (
   step: LockfileWalkerStep,
   options: LicenseExtractOptions
@@ -127,9 +120,7 @@ export async function lockfileToLicenseNodeTree (
       getPackageInfo: opts.getPackageInfo,
     })
 
-    // For some reason the registry responds with 500 if the keys in dependencies have slashes
-    // see issue: https://github.com/pnpm/pnpm/issues/2848
-    const depName = importerWalker.importerId.replace(/\//g, '__')
+    const depName = importerWalker.importerId
     dependencies[depName] = {
       dependencies: importerDeps,
       requires: toRequires(importerDeps),
@@ -142,10 +133,7 @@ export async function lockfileToLicenseNodeTree (
     version: undefined,
     dependencies,
     dev: false,
-    install: [],
     integrity: undefined,
-    metadata: {},
-    remove: [],
     requires: toRequires(dependencies),
   }
 
