@@ -5,7 +5,7 @@ import { addDependenciesToPackage, install } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
-const skipOnNode17 = process.version.split('.')[0] === 'v17' ? test.skip : test
+const skipOnNode17 = ['v14', 'v16'].includes(process.version.split('.')[0]) ? test : test.skip
 
 test('a package that need authentication', async () => {
   const project = prepareEmpty()
