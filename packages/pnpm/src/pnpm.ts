@@ -67,7 +67,7 @@ const argv = process.argv.slice(2)
 })()
 
 async function runPnpm () {
-  const { errorHandler } = await import('./err')
+  const { errorHandler } = await import('./errorHandler')
   try {
     const { main } = await import('./main')
     await main(argv)

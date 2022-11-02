@@ -25,6 +25,8 @@ import isEmpty from 'ramda/src/isEmpty'
 import stripAnsi from 'strip-ansi'
 import which from 'which'
 
+export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
+
 loudRejection()
 
 const DEPRECATED_OPTIONS = new Set([
@@ -137,7 +139,7 @@ export async function main (inputArgv: string[]) {
       config,
     })
   }
-  global['reporterInitialized'] = reporterType
+  global[REPORTER_INITIALIZED] = reporterType
 
   const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && cliParams.includes(packageManager.name)
 
@@ -290,9 +292,6 @@ export async function main (inputArgv: string[]) {
     exitCode = 1
   }
   if (exitCode) {
-    // In this case, the non-zero exit code is expected,
-    // so there is no need to write a debug file.
-    global['writeDebugLogFile'] = false
     process.exitCode = exitCode
   }
 }

@@ -1,12 +1,13 @@
 import { logger } from '@pnpm/logger'
+import { REPORTER_INITIALIZED } from './main'
 
 export function errorHandler (error: Error) {
-  if (!global['reporterInitialized']) {
+  if (!global[REPORTER_INITIALIZED]) {
     console.log(error)
     process.exitCode = 1
     return
   }
-  if (global['reporterInitialized'] === 'silent') {
+  if (global[REPORTER_INITIALIZED] === 'silent') {
     process.exitCode = 1
     return
   }
