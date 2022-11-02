@@ -9,13 +9,13 @@ const getPackageInfo: GetPackageInfoFunction = async (pkg) => {
     packageManifest: {} as unknown as PackageManifest,
     packageInfo: {
       from: pkg.name,
-      path: pkg.prefix,
       version: pkg.version,
       description: 'Package Description',
       license: pkg.name === 'bar' ? 'MIT' : 'Unknown',
       licenseContents: pkg.name === 'bar' ? undefined : 'The MIT License',
       author: 'Package Author',
       homepage: 'Homepage',
+      path: `/path/to/package/${pkg.name}@${pkg.version}/node_modules`,
       repository: 'https://github.com/pnpm/pnpm.git',
     },
   }
@@ -71,7 +71,7 @@ describe('licences', () => {
         license: 'MIT',
         licenseContents: undefined,
         author: 'Package Author',
-        packageDir: '/opt/pnpm/.pnpm/bar@1.0.0/node_modules',
+        packageDir: '/path/to/package/bar@1.0.0/node_modules',
       },
       {
         belongsTo: 'dependencies',
@@ -81,7 +81,7 @@ describe('licences', () => {
         license: 'Unknown',
         licenseContents: 'The MIT License',
         author: 'Package Author',
-        packageDir: '/opt/pnpm/.pnpm/foo@1.0.0/node_modules',
+        packageDir: '/path/to/package/foo@1.0.0/node_modules',
       },
     ])
   })
