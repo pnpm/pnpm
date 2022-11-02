@@ -61,15 +61,20 @@ test('pnpm licenses: show details', async () => {
 })
 
 test('pnpm licenses: output as json', async () => {
+  const workspaceDir = path.resolve('./test/fixtures/has-licenses')
   const { output, exitCode } = await licenses.handler({
     ...LICENSES_OPTIONS,
-    dir: path.resolve('./test/fixtures/has-licenses'),
+    dir: workspaceDir,
     long: false,
     json: true,
   })
 
   expect(exitCode).toBe(0)
-  expect(stripAnsi(output)).toMatchSnapshot('show-packages-in-json')
+  const parsedOutput = JSON.parse(output)
+  expect(Object.keys(parsedOutput)).toMatchSnapshot('found-license-types')
+  const packagesWithMIT = parsedOutput['MIT']
+  expect(packagesWithMIT.length).toBeGreaterThan(0)
+  expect(Object.keys(packagesWithMIT[0])).toEqual(['name', 'version', 'path', 'license', 'vendorName', 'vendorUrl'])
 })
 
 test('pnpm licenses: show details', async () => {
