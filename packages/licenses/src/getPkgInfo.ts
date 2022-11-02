@@ -32,9 +32,10 @@ function coerceToString (field: unknown): string | null {
 }
 
 /**
- *
- * @param field
- * @returns
+ * Parses the value of the license-property of a
+ * package manifest and return it as a string
+ * @param field the value to parse
+ * @returns string
  */
 function parseLicenseManifestField (field: unknown) {
   if (Array.isArray(field)) {
@@ -59,9 +60,16 @@ function parseLicenseManifestField (field: unknown) {
 }
 
 /**
+ * Reads the license field or LICENSE file from
+ * the directory of the given package manifest
  *
- * @param {*} packageInfo
- * @returns
+ * If the package.json file is missing the `license`-property
+ * the root of the manifest directory will be scanned for
+ * files named listed in the array LICENSE_FILES and the
+ * contents will be returned.
+ *
+ * @param {*} packageInfo the package to check
+ * @returns Promise<LicenseInfo>
  */
 async function parseLicense (packageInfo: {
   manifest: PackageManifest
@@ -80,7 +88,8 @@ async function parseLicense (packageInfo: {
           licenseFile: licenseContents.toString('utf-8'),
         }
       } catch (err) {
-        // NOOP
+        // Silently ignore the error when failed
+        // to read the contents of a license file
       }
     }
   }

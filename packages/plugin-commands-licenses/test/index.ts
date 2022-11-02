@@ -75,6 +75,10 @@ test('pnpm licenses: output as json', async () => {
   const packagesWithMIT = parsedOutput['MIT']
   expect(packagesWithMIT.length).toBeGreaterThan(0)
   expect(Object.keys(packagesWithMIT[0])).toEqual(['name', 'version', 'path', 'license', 'vendorName', 'vendorUrl'])
+  packagesWithMIT.forEach((pkg: { name: string, version: string, path: string }) => {
+    const expectedPkgPath = path.join(workspaceDir, `${pkg.name}@${pkg.version}`.replace('/', '+'), 'node_modules', pkg.name)
+    expect(pkg.path).toBe(expectedPkgPath)
+  })
 })
 
 test('pnpm licenses: show details', async () => {

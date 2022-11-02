@@ -72,7 +72,7 @@ function getDependenciesFromLicenseNode (
         license: dependencyNode.license as string,
         licenseContents: dependencyNode.licenseContents,
         author: dependencyNode.vendorName as string,
-        packageDir: dependencyNode.path,
+        packageDir: dependencyNode.dir,
       },
     ]
   }

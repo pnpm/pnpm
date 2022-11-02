@@ -5,11 +5,6 @@ import stripAnsi from 'strip-ansi'
 import { table } from '@zkochan/table'
 import { groupBy, sortWith } from 'ramda'
 
-/**
- *
- * @param licensePackages
- * @returns
- */
 function sortLicensesPackages (licensePackages: readonly LicensePackage[]) {
   return sortWith(
     [
