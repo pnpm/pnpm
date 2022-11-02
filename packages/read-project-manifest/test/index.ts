@@ -119,7 +119,11 @@ test('fail on invalid JSON', async () => {
   expect(err).toBeTruthy()
   expect(err['code']).toBe('ERR_PNPM_JSON_PARSE')
 
-  expect(err.message).toContain('Unexpected string in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in ')
+  const nodeMajorVersion = parseInt(process.version.slice(1).split('.')[0])
+  const expectedMessage = nodeMajorVersion >= 19
+    ? 'Expected \',\' or \'}\' after property value in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in'
+    : 'Unexpected string in JSON at position 20 while parsing \'{  "name": "foo"  "version": "1.0.0"}\' in '
+  expect(err.message).toContain(expectedMessage)
 })
 
 test('fail on invalid JSON5', async () => {
