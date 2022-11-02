@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-doctor",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Commands for checks of known common issues ",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

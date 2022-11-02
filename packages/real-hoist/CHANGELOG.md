@@ -1,5 +1,11 @@
 # @pnpm/real-hoist
 
+## 1.0.2
+
+### Patch Changes
+
+- 0da2f0412: Update dependencies.
+
 ## 1.0.1
 
 ### Patch Changes

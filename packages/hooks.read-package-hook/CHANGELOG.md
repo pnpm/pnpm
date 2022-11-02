@@ -1,5 +1,11 @@
 # @pnpm/hooks.read-package-hook
 
+## 2.0.4
+
+### Patch Changes
+
+- 0da2f0412: Update dependencies.
+
 ## 2.0.3
 
 ### Patch Changes

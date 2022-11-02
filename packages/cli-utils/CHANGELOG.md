@@ -1,5 +1,12 @@
 # @pnpm/cli-utils
 
+## 1.0.4
+
+### Patch Changes
+
+- @pnpm/config@16.0.4
+- @pnpm/default-reporter@11.0.4
+
 ## 1.0.3
 
 ### Patch Changes

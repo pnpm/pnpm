@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 19.0.2
+
+### Patch Changes
+
+- Updated dependencies [0da2f0412]
+  - @pnpm/real-hoist@1.0.2
+
 ## 19.0.1
 
 ### Patch Changes

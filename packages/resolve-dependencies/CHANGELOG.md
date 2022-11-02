@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 29.0.4
+
+### Patch Changes
+
+- 0da2f0412: Update dependencies.
+
 ## 29.0.3
 
 ### Patch Changes

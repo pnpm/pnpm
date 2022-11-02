@@ -1,5 +1,12 @@
 # pnpm
 
+## 7.14.2
+
+### Patch Changes
+
+- Don't fail if cannot override the name field of the error object [#5572](https://github.com/pnpm/pnpm/issues/5572).
+- Don't fail on rename across devices.
+
 ## 7.14.1
 
 ### Patch Changes

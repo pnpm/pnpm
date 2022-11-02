@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 7.0.4
+
+### Patch Changes
+
+- Updated dependencies [0da2f0412]
+  - @pnpm/hooks.read-package-hook@2.0.4
+  - @pnpm/resolve-dependencies@29.0.4
+  - @pnpm/headless@19.0.2
+
 ## 7.0.3
 
 ### Patch Changes
