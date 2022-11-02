@@ -89,9 +89,8 @@ async function parseLicense (packageInfo: {
 }
 
 /**
- *
- * @param pkg
- * @returns
+ * Returns the package manifest information for a give package name and path
+ * @param pkg the package details to lookup info for
  */
 export async function getPkgInfo (pkg: {
   name: string
@@ -128,7 +127,12 @@ export async function getPkgInfo (pkg: {
 
     manifest.license = licenseInfo.name
   } catch (err: unknown) {
-    // This will probably never happen
+    // An error can be thrown when we try to fetch package information for a
+    // package that is listed in the PNPM lock file but the package is not installed
+    // in the modules directory
+    //
+    // Typically, this appears to be the case for optional dependency, e.g.
+    // a package that is only installed for a specific platform
     throw new Error(`Failed to fetch manifest data for ${pkg.name}`)
   }
 
