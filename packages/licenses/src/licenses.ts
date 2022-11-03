@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { Lockfile } from '@pnpm/lockfile-file'
+import { Lockfile, PackageSnapshot } from '@pnpm/lockfile-file'
 import {
   DependenciesField,
   IncludedDependencies,
@@ -24,11 +24,20 @@ export interface LicensePackage {
   packageDir?: string
 }
 
-export type GetPackageInfoFunction = (pkg: {
-  name: string
-  version: string
-  prefix: string
-}) => Promise<{
+export type GetPackageInfoFunction = (
+  pkg: {
+    name?: string
+    version?: string
+    depPath: string
+    snapshot: PackageSnapshot
+  },
+  opts: {
+    storeDir: string
+    virtualStoreDir: string
+    dir: string
+    modulesDir: string
+  }
+) => Promise<{
   packageManifest: PackageManifest
   packageInfo: {
     from: string
@@ -87,6 +96,7 @@ export async function licences (opts: {
   lockfileDir: string
   manifest: ProjectManifest
   prefix: string
+  storeDir: string
   virtualStoreDir: string
   modulesDir?: string
   registries: Registries
@@ -102,6 +112,7 @@ export async function licences (opts: {
   const licenseNodeTree = await lockfileToLicenseNodeTree(opts.wantedLockfile, {
     dir: opts.lockfileDir,
     modulesDir: opts.modulesDir,
+    storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
     include: opts.include,
     getPackageInfo: opts.getPackageInfo ?? getPkgInfo,

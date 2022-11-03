@@ -3,6 +3,7 @@ import {
   readDepNameCompletions,
   readProjectManifestOnly,
 } from '@pnpm/cli-utils'
+import { getStorePath } from '@pnpm/store-path'
 import { CompletionFunc } from '@pnpm/command'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
@@ -21,16 +22,7 @@ import { renderLicences } from './outputRenderer'
 export function rcOptionsTypes () {
   return {
     ...pick(
-      [
-        'depth',
-        'dev',
-        'global-dir',
-        'global',
-        'json',
-        'long',
-        'optional',
-        'production',
-      ],
+      ['dev', 'global-dir', 'global', 'json', 'long', 'optional', 'production'],
       allTypes
     ),
     compatible: Boolean,
@@ -138,8 +130,10 @@ Config,
 | 'strictSsl'
 | 'tag'
 | 'userAgent'
+| 'storeDir'
 | 'virtualStoreDir'
 | 'modulesDir'
+| 'pnpmHomeDir'
 > &
 Partial<Pick<Config, 'userConfig'>>
 
@@ -165,10 +159,18 @@ export async function handler (
 
   const manifest = await readProjectManifestOnly(opts.dir, opts)
 
+  // Get the store path for when opts.storeDir is undefined
+  const fallbackstorePath = await getStorePath({
+    pkgRoot: opts.dir,
+    storePath: opts.storeDir,
+    pnpmHomeDir: opts.pnpmHomeDir,
+  })
+
   const licensePackages = await licences({
     include,
     lockfileDir: opts.dir,
     prefix: opts.dir,
+    storeDir: opts.storeDir ?? fallbackstorePath,
     virtualStoreDir: opts.virtualStoreDir ?? '.',
     modulesDir: opts.modulesDir,
     registries: opts.registries,

@@ -1,4 +1,3 @@
-import path from 'path'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import {
@@ -6,7 +5,6 @@ import {
   LockfileWalkerStep,
 } from '@pnpm/lockfile-walker'
 import { DependenciesField, PackageManifest } from '@pnpm/types'
-import * as dp from 'dependency-path'
 import { GetPackageInfoFunction } from './licenses'
 
 export interface LicenseNode {
@@ -30,6 +28,7 @@ LicenseNode,
 >
 
 export interface LicenseExtractOptions {
+  storeDir: string
   virtualStoreDir: string
   modulesDir?: string
   dir: string
@@ -45,20 +44,22 @@ export async function lockfileToLicenseNode (
     const { depPath, pkgSnapshot, next } = dependency
     const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
 
-    const modules = path.join(
-      options.dir,
-      options.virtualStoreDir,
-      dp.depPathToFilename(depPath),
-      options.modulesDir ?? 'node_modules'
-    )
-
     let packageDetails
     try {
-      packageDetails = await options.getPackageInfo({
-        name,
-        version,
-        prefix: modules,
-      })
+      packageDetails = await options.getPackageInfo(
+        {
+          name,
+          version,
+          depPath,
+          snapshot: pkgSnapshot,
+        },
+        {
+          storeDir: options.storeDir,
+          virtualStoreDir: options.virtualStoreDir,
+          dir: options.dir,
+          modulesDir: options.modulesDir ?? 'node_modules',
+        }
+      )
     } catch (err: unknown) {}
 
     if (packageDetails) {
@@ -114,6 +115,7 @@ export async function lockfileToLicenseNodeTree (
 
   for (const importerWalker of importerWalkers) {
     const importerDeps = await lockfileToLicenseNode(importerWalker.step, {
+      storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
       modulesDir: opts.modulesDir,
       dir: opts.dir,

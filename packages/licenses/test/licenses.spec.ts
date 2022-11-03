@@ -4,18 +4,18 @@ import { PackageManifest, ProjectManifest, Registries } from '@pnpm/types'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { GetPackageInfoFunction } from '../lib/licenses'
 
-const getPackageInfo: GetPackageInfoFunction = async (pkg) => {
+const getPackageInfo: GetPackageInfoFunction = async (pkg, _opts) => {
   return {
     packageManifest: {} as unknown as PackageManifest,
     packageInfo: {
-      from: pkg.name,
-      version: pkg.version,
+      from: pkg.name!,
+      version: pkg.version!,
       description: 'Package Description',
       license: pkg.name === 'bar' ? 'MIT' : 'Unknown',
       licenseContents: pkg.name === 'bar' ? undefined : 'The MIT License',
       author: 'Package Author',
       homepage: 'Homepage',
-      path: `/path/to/package/${pkg.name}@${pkg.version}/node_modules`,
+      path: `/path/to/package/${pkg.name!}@${pkg.version!}/node_modules`,
       repository: 'https://github.com/pnpm/pnpm.git',
     },
   }
@@ -60,6 +60,7 @@ describe('licences', () => {
       registries: {} as Registries,
       wantedLockfile: lockfile,
       getPackageInfo,
+      storeDir: '/opt/.pnpm',
     })
 
     expect(licensePackages).toEqual([

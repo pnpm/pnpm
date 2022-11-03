@@ -1810,6 +1810,9 @@ importers:
 
   packages/licenses:
     dependencies:
+      '@pnpm/cafs':
+        specifier: workspace:*
+        version: link:../cafs
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
@@ -1834,12 +1837,18 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
-      dependency-path:
-        specifier: workspace:*
-        version: link:../dependency-path
+      dint:
+        specifier: ^5.1.0
+        version: 5.1.0
+      load-json-file:
+        specifier: ^6.2.0
+        version: 6.2.0
       p-limit:
         specifier: ^3.1.0
         version: 3.1.0
+      path-absolute:
+        specifier: ^1.0.1
+        version: 1.0.1
     devDependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -3556,6 +3565,9 @@ importers:
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../lockfile-file
+      '@pnpm/store-path':
+        specifier: workspace:*
+        version: link:../store-path
       '@zkochan/table':
         specifier: ^1.0.0
         version: 1.0.0
@@ -3581,18 +3593,12 @@ importers:
       '@pnpm/plugin-commands-licenses':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../privatePackages/prepare
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../read-package-json
       '@pnpm/registry-mock':
         specifier: 3.1.0
         version: 3.1.0_typanion@3.12.0
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -3602,6 +3608,9 @@ importers:
       '@types/zkochan__table':
         specifier: npm:@types/table@6.0.0
         version: /@types/table/6.0.0
+      tempy:
+        specifier: ^1.0.1
+        version: 1.0.1
 
   packages/plugin-commands-listing:
     dependencies:
