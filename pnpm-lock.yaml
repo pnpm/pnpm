@@ -1837,9 +1837,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
-      dint:
-        specifier: ^5.1.0
-        version: 5.1.0
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0

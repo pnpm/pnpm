@@ -39,7 +39,6 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-limit": "^3.1.0",
-    "dint": "^5.1.0",
     "load-json-file": "^6.2.0",
     "path-absolute": "^1.0.1",
     "@pnpm/cafs": "workspace:*",
