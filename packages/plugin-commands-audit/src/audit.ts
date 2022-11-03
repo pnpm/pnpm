@@ -35,11 +35,11 @@ export function cliOptionsTypes () {
     ...pick([
       'dev',
       'json',
-      'only',
       'optional',
       'production',
       'registry',
     ], allTypes),
+    only: [String, Array],
     'audit-level': ['low', 'moderate', 'high', 'critical'],
     fix: Boolean,
     'ignore-registry-errors': Boolean,
@@ -68,6 +68,10 @@ export function help () {
           {
             description: 'Output audit report in JSON format',
             name: '--json',
+          },
+          {
+            description: 'Limit results to ones that include these names in the path',
+            name: '--only',
           },
           {
             description: 'Only print advisories with severity greater than or equal to one of the following: low|moderate|high|critical. Default: low',
@@ -99,10 +103,28 @@ export function help () {
   })
 }
 
+const formatPath = (path: string, lockFileDir: string, importers: string[]) => {
+  let parts = path.split('>')
+  parts = parts.filter(part => {
+    if (part === '.') return false
+    return true
+  }).map(part => {
+    // flip __ back to slashes
+    const pathName = part.replace(/__/g, '/')
+    if (importers.includes(pathName)) {
+      return './' + pathName
+    } else {
+      return pathName
+    }
+  })
+  return parts.join(' > ')
+}
+
 export async function handler (
   opts: Pick<UniversalOptions, 'dir'> & {
     auditLevel?: 'low' | 'moderate' | 'high' | 'critical'
     fix?: boolean
+    only: string[]
     ignoreRegistryErrors?: boolean
     json?: boolean
     lockfileDir?: string
@@ -190,8 +212,8 @@ The added overrides:
 ${JSON.stringify(newOverrides, null, 2)}`,
     }
   }
-  const vulnerabilities = auditReport.metadata.vulnerabilities
-  const totalVulnerabilityCount = Object.values(vulnerabilities)
+  const vulnerabilities = Object.values(auditReport.metadata.vulnerabilities)
+  const totalVulnerabilityCount = vulnerabilities
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
   if (opts.json) {
     return {
@@ -203,6 +225,16 @@ ${JSON.stringify(newOverrides, null, 2)}`,
   let output = ''
   const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
   const advisories = Object.values(auditReport.advisories)
+    .map(advisory => {
+      return {
+        ...advisory,
+        paths: advisory.findings?.map(finding => finding.paths.map(p => formatPath(p, opts.lockfileDir ?? opts.dir, Object.keys(lockfile.importers))).join(', ')).join(', '),
+      }
+    })
+    .filter(({ paths }) => {
+      if (!opts.only || opts.only.length === 0) return true
+      return opts.only.every(filter => paths.includes(filter))
+    })
     .filter(({ severity }) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
     .sort((a1, a2) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])
   for (const advisory of advisories) {
@@ -211,18 +243,20 @@ ${JSON.stringify(newOverrides, null, 2)}`,
       ['Package', advisory.module_name],
       ['Vulnerable versions', advisory.vulnerable_versions],
       ['Patched versions', advisory.patched_versions],
+      ['Paths', advisory.paths],
       ['More info', advisory.url],
     ], TABLE_OPTIONS)
   }
+
   return {
     exitCode: output ? 1 : 0,
-    output: `${output}${reportSummary(auditReport.metadata.vulnerabilities, totalVulnerabilityCount)}`,
+    output: `${output}${reportSummary(auditReport.metadata.vulnerabilities, totalVulnerabilityCount, advisories.length)}`,
   }
 }
 
-function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number) {
+function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number, totalDisplayedLength: number) {
   if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found\n'
-  return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
+  return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found${totalVulnerabilityCount !== totalDisplayedLength ? `, displaying only ${chalk.red(totalDisplayedLength)} due to filter` : ''}\nSeverity: ${
     Object.entries(vulnerabilities)
       .filter(([auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
       .map(([auditLevel, vulnerabilitiesCount]: [string, number]) => AUDIT_COLOR[auditLevel](`${vulnerabilitiesCount} ${auditLevel}`))
