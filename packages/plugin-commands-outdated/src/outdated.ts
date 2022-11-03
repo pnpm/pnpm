@@ -39,6 +39,7 @@ export function rcOptionsTypes () {
     ], allTypes),
     compatible: Boolean,
     table: Boolean,
+    format: ['json'],
   }
 }
 
@@ -121,6 +122,7 @@ export type OutdatedCommandOptions = {
   long?: boolean
   recursive?: boolean
   table?: boolean
+  format?: 'json'
 } & Pick<Config,
 | 'allProjects'
 | 'ca'
@@ -189,6 +191,10 @@ export async function handler (
 
   if (outdatedPackages.length === 0) return { output: '', exitCode: 0 }
 
+  if (opts.format === 'json') {
+    return { output: renderOutdatedJSON(outdatedPackages, opts), exitCode: 1 }
+  }
+
   if (opts.table !== false) {
     return { output: renderOutdatedTable(outdatedPackages, opts), exitCode: 1 }
   } else {
@@ -244,6 +250,37 @@ ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
     .join('\n\n') + '\n'
 }
 
+function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
+  const outdatedPackagesJSON = {} as {
+    [outdatedPackageName: string]: {
+      current: string
+      latest: string
+      dependencyKind?: 'dev' | 'optional'
+      details?: string
+    }
+  }
+  for (const outdatedPkg of sortOutdatedPackages(outdatedPackages)) {
+    const { packageName, belongsTo } = outdatedPkg
+    outdatedPackagesJSON[packageName] = {
+      current: renderCurrent(outdatedPkg),
+      latest: renderLatest(outdatedPkg, true),
+    }
+
+    if (opts.long) {
+      outdatedPackagesJSON[packageName].details = renderLatest(outdatedPkg, true)
+    }
+
+    if (belongsTo === 'devDependencies') {
+      outdatedPackagesJSON[packageName].dependencyKind = 'dev'
+    }
+    if (belongsTo === 'optionalDependencies') {
+      outdatedPackagesJSON[packageName].dependencyKind = 'optional'
+    }
+  }
+
+  return JSON.stringify(outdatedPackagesJSON, null, '\t')
+}
+
 function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[]) {
   return sortWith(
     DEFAULT_COMPARATORS,
@@ -289,26 +326,32 @@ export function renderCurrent ({ current, wanted }: OutdatedPackage) {
   return `${output} (wanted ${wanted})`
 }
 
-export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
+export function renderLatest (outdatedPkg: OutdatedWithVersionDiff, withoutChalk = false): string {
   const { latestManifest, change, diff } = outdatedPkg
   if (latestManifest == null) return ''
   if (change === null || (diff == null)) {
     return latestManifest.deprecated
-      ? chalk.redBright.bold('Deprecated')
+      ? withoutChalk ? 'Deprecated' : chalk.redBright.bold('Deprecated')
       : latestManifest.version
+  }
+
+  if (withoutChalk) {
+    return diff.flat().join('.')
   }
 
   return colorizeSemverDiff({ change, diff })
 }
 
-export function renderDetails ({ latestManifest }: OutdatedPackage) {
+export function renderDetails ({ latestManifest }: OutdatedPackage, withoutChalk = false) {
   if (latestManifest == null) return ''
   const outputs = []
   if (latestManifest.deprecated) {
-    outputs.push(wrapAnsi(chalk.redBright(latestManifest.deprecated), 40))
+    const detail = latestManifest.deprecated
+    outputs.push(wrapAnsi(withoutChalk ? detail : chalk.redBright(detail), 40))
   }
   if (latestManifest.homepage) {
-    outputs.push(chalk.underline(latestManifest.homepage))
+    const detail = latestManifest.homepage
+    outputs.push(withoutChalk ? detail : chalk.underline(detail))
   }
   return outputs.join('\n')
 }
