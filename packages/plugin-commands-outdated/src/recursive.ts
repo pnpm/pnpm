@@ -76,6 +76,10 @@ export async function outdatedRecursive (
 
   if (isEmpty(outdatedMap)) return { output: '', exitCode: 0 }
 
+  if (opts.format === 'json') {
+    return { output: renderOutdatedJSON(outdatedMap, opts), exitCode: 1 }
+  }
+
   if (opts.table !== false) {
     return { output: renderOutdatedTable(outdatedMap, opts), exitCode: 1 }
   }
@@ -151,6 +155,39 @@ ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
       return info
     })
     .join('\n\n') + '\n'
+}
+
+function renderOutdatedJSON (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+  const outdatedPackagesJSON = {} as {
+    [outdatedPackageName: string]: {
+      current: string
+      latest: string
+      dependentPackages: string[]
+      dependencyKind?: 'dev' | 'optional'
+      details?: string
+    }
+  }
+  for (const outdatedPkg of sortOutdatedPackages(Object.values(outdatedMap))) {
+    const { packageName, belongsTo } = outdatedPkg
+    outdatedPackagesJSON[packageName] = {
+      current: renderCurrent(outdatedPkg),
+      latest: renderLatest(outdatedPkg, true),
+      dependentPackages: dependentPackages(outdatedPkg).split(',').map((dependentPackage) => dependentPackage.trim()),
+    }
+
+    if (opts.long) {
+      outdatedPackagesJSON[packageName].details = renderDetails(outdatedPkg, true)
+    }
+
+    if (belongsTo === 'devDependencies') {
+      outdatedPackagesJSON[packageName].dependencyKind = 'dev'
+    }
+    if (belongsTo === 'optionalDependencies') {
+      outdatedPackagesJSON[packageName].dependencyKind = 'optional'
+    }
+  }
+
+  return JSON.stringify(outdatedPackagesJSON, null, '\t')
 }
 
 function dependentPackages ({ dependentPkgs }: OutdatedInWorkspace) {
