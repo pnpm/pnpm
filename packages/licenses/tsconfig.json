@@ -4,13 +4,16 @@
     "outDir": "lib",
     "rootDir": "src"
   },
-  "include": ["src/**/*.ts", "../../typings/**/*.d.ts"],
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
   "references": [
     {
-      "path": "../constants"
+      "path": "../cafs"
     },
     {
-      "path": "../dependency-path"
+      "path": "../constants"
     },
     {
       "path": "../error"

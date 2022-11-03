@@ -4,11 +4,11 @@
     "outDir": "lib",
     "rootDir": "src"
   },
-  "include": ["src/**/*.ts", "../../typings/**/*.d.ts"],
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
   "references": [
-    {
-      "path": "../../privatePackages/prepare"
-    },
     {
       "path": "../cli-utils"
     },
@@ -43,7 +43,7 @@
       "path": "../read-package-json"
     },
     {
-      "path": "../types"
+      "path": "../store-path"
     }
   ]
 }
