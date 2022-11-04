@@ -100,7 +100,7 @@ export async function runLifecycleHook (
         // Preventing the pnpm reporter from overriding the project's script output
         return
       }
-      const code = arguments[3]
+      const code = arguments[3] ?? 1
       lifecycleLogger.debug({
         depPath: opts.depPath,
         exitCode: code,

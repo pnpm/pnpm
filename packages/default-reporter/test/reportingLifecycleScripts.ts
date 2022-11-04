@@ -739,6 +739,52 @@ ${STATUS_INDENTATION} ${STATUS_FAILED}`)
   })
 })
 
+test('do not fail if the debug log has no output', (done) => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    reportingOptions: { outputMaxWidth: 79 },
+    streamParser: createStreamParser(),
+  })
+
+  const wd = path.resolve(process.cwd(), 'node_modules', '.registry.npmjs.org', 'foo', '1.0.0', 'node_modules', 'foo')
+
+  lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
+    optional: false,
+    script: 'node foo',
+    stage: 'install',
+    wd,
+  })
+  lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
+    line: undefined as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    stage: 'install',
+    stdio: 'stdout',
+    wd,
+  })
+  lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
+    exitCode: 1,
+    optional: false,
+    stage: 'install',
+    wd,
+  })
+
+  expect.assertions(1)
+
+  output$.pipe(skip(1), take(1), map(normalizeNewline)).subscribe({
+    complete: () => done(),
+    error: done,
+    next: (output: string) => {
+      expect(replaceTimeWith1Sec(output)).toBe(`\
+${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s
+.../foo/1.0.0/node_modules/foo ${INSTALL}$ node foo
+${OUTPUT_INDENTATION} 
+${STATUS_INDENTATION} ${STATUS_FAILED}`)
+    },
+  })
+})
+
 // Many libs use stderr for logging, so showing all stderr adds not much value
 test['skip']('prints lifecycle progress', (done) => {
   const output$ = toOutput$({
