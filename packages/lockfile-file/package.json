@@ -52,6 +52,7 @@
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/merge-lockfile-changes": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "1.0.0",
     "@zkochan/rimraf": "^2.1.2",
     "comver-to-semver": "^1.0.0",
     "dependency-path": "workspace:*",

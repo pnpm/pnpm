@@ -2,6 +2,7 @@ import path from 'path'
 import { packageIsInstallable } from '@pnpm/cli-utils'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { Project } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import { findPackages } from 'find-packages'
 import readYamlFile from 'read-yaml-file'
 
@@ -37,7 +38,7 @@ export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?
     includeRoot: true,
     patterns,
   })
-  pkgs.sort((pkg1: { dir: string }, pkg2: { dir: string }) => pkg1.dir.localeCompare(pkg2.dir))
+  pkgs.sort((pkg1: { dir: string }, pkg2: { dir: string }) => lexCompare(pkg1.dir, pkg2.dir))
   return pkgs
 }
 
