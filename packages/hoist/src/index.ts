@@ -10,6 +10,7 @@ import { logger } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import { HoistedDependencies } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import * as dp from 'dependency-path'
 
 const hoistLogger = logger('hoist')
@@ -171,7 +172,7 @@ async function hoistGraph (
     // sort by depth and then alphabetically
     .sort((a, b) => {
       const depthDiff = a.depth - b.depth
-      return depthDiff === 0 ? a.depPath.localeCompare(b.depPath) : depthDiff
+      return depthDiff === 0 ? lexCompare(a.depPath, b.depPath) : depthDiff
     })
     // build the alias map and the id map
     .forEach((depNode) => {

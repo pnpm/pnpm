@@ -32,6 +32,7 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "1.0.0",
     "find-packages": "workspace:*",
     "read-yaml-file": "^2.1.0"
   },

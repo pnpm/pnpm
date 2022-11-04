@@ -1,3 +1,4 @@
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import sortKeys from 'sort-keys'
 import { LockfileFile } from './write'
 
@@ -53,10 +54,7 @@ function compareWithPriority (priority: Record<string, number>, left: string, ri
   if (leftPriority && rightPriority) return leftPriority - rightPriority
   if (leftPriority) return -1
   if (rightPriority) return 1
-  // We want deterministic sorting, so we can't use .localCompare here.
-  // comparing strings with < and > will produce the same result on each machine.
-  // An alternative solution could be to use a specific culture for compare, using Intl.Collator
-  return left < right ? -1 : (left > right ? 1 : 0)
+  return lexCompare(left, right)
 }
 
 export function sortLockfileKeys (lockfile: LockfileFile) {

@@ -1,6 +1,7 @@
 import path from 'path'
 import { readExactProjectManifest } from '@pnpm/read-project-manifest'
 import { ProjectManifest } from '@pnpm/types'
+import { lexCompare } from '@pnpm/util.lex-comparator'
 import fastGlob from 'fast-glob'
 import pFilter from 'p-filter'
 
@@ -48,7 +49,7 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
         paths
           .map(manifestPath => path.join(root, manifestPath))
           .sort((path1, path2) =>
-            path.dirname(path1).localeCompare(path.dirname(path2))
+            lexCompare(path.dirname(path1), path.dirname(path2))
           )
       ),
       async manifestPath => {

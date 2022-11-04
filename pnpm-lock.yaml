@@ -1314,6 +1314,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
+      '@pnpm/util.lex-comparator':
+        specifier: 1.0.0
+        version: 1.0.0
       fast-glob:
         specifier: ^3.2.12
         version: 3.2.12
@@ -1349,6 +1352,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
+      '@pnpm/util.lex-comparator':
+        specifier: 1.0.0
+        version: 1.0.0
       find-packages:
         specifier: workspace:*
         version: link:../find-packages
@@ -1726,6 +1732,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
+      '@pnpm/util.lex-comparator':
+        specifier: 1.0.0
+        version: 1.0.0
       dependency-path:
         specifier: workspace:*
         version: link:../dependency-path
@@ -2020,6 +2029,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
+      '@pnpm/util.lex-comparator':
+        specifier: 1.0.0
+        version: 1.0.0
       '@zkochan/rimraf':
         specifier: ^2.1.2
         version: 2.1.2
@@ -7835,6 +7847,11 @@ packages:
     resolution: {integrity: sha512-IKUpbWRHDB9C4Yy4UeBpeYhU7eIsLj50jF5HNRUkbJnM0CWHPLxX9TGCI+ov8pgGeTP1t1g0GPDHD6en9D8LxQ==}
     engines: {node: '>=14.6'}
     dev: true
+
+  /@pnpm/util.lex-comparator/1.0.0:
+    resolution: {integrity: sha512-3aBQPHntVgk5AweBWZn+1I/fqZ9krK/w01197aYVkAJQGftb+BVWgEepxY5GChjSW12j52XX+CmfynYZ/p0DFQ==}
+    engines: {node: '>=12.22.0'}
+    dev: false
 
   /@pnpm/which-version-is-pinned/4.0.0:
     resolution: {integrity: sha512-XqZqdxgX7vqxiMX+REsN6lfZ9TR2FQhhaaClA6ymFAVjhuMzJidDDVibqAx5nlfoSqeBklJEZxYXYnU7LjghlA==}
@@ -16967,6 +16984,7 @@ time:
   /@pnpm/registry-mock/3.1.0: '2022-10-13T19:59:17.408Z'
   /@pnpm/semver-diff/1.1.0: '2021-11-16T12:40:59.941Z'
   /@pnpm/tabtab/0.1.2: '2021-03-05T17:31:19.932Z'
+  /@pnpm/util.lex-comparator/1.0.0: '2022-11-04T01:03:46.134Z'
   /@types/adm-zip/0.4.34: '2021-04-04T18:01:23.318Z'
   /@types/archy/0.0.32: '2021-07-06T18:11:33.301Z'
   /@types/byline/4.2.33: '2021-07-06T18:22:06.440Z'

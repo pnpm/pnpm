@@ -47,6 +47,7 @@
     "@pnpm/matcher": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "1.0.0",
     "dependency-path": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },

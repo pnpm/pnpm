@@ -32,6 +32,7 @@
   "dependencies": {
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "1.0.0",
     "fast-glob": "^3.2.12",
     "p-filter": "^2.1.0"
   },
