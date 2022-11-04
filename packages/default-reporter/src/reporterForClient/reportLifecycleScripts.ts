@@ -266,7 +266,7 @@ function formatLine (maxWidth: number, logObj: LifecycleLog) {
 }
 
 function cutLine (line: string, maxLength: number) {
-  return stripAnsi(line).slice(0, maxLength)
+  return stripAnsi(line)?.slice(0, maxLength) || ''
 }
 
 function aggregateOutput (source: Rx.Observable<LifecycleLog>) {
