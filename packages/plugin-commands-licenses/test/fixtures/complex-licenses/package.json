@@ -15,7 +15,8 @@
     "yarn": "3.2.4"
   },
   "dependencies": {
-    "next": "^13.0.0"
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "typescript": "^4.8.4"
