@@ -153,6 +153,36 @@ Dependent: project-2
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      format: 'json',
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output as unknown as string)).toBe(`{
+\t"is-negative": {
+\t\t"current": "1.0.0",
+\t\t"latest": "2.1.0",
+\t\t"dependentPackages": [
+\t\t\t"project-3"
+\t\t],
+\t\t"dependencyKind": "dev"
+\t},
+\t"is-positive": {
+\t\t"current": "2.0.0",
+\t\t"latest": "3.1.0",
+\t\t"dependentPackages": [
+\t\t\t"project-2"
+\t\t]
+\t}
+}`)
+  }
+
+  {
+    const { output, exitCode } = await outdated.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
       long: true,
       recursive: true,
       selectedProjectsGraph,
