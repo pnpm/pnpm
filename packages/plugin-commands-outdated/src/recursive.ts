@@ -7,7 +7,6 @@ import {
   DependenciesField,
   IncludedDependencies,
   ProjectManifest,
-  PackageManifest,
 } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
@@ -16,6 +15,7 @@ import sortWith from 'ramda/src/sortWith'
 import {
   getCellWidth,
   OutdatedCommandOptions,
+  OutdatedPackageJSONOutput,
   renderCurrent,
   renderDetails,
   renderLatest,
@@ -162,32 +162,28 @@ ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
     .join('\n\n') + '\n'
 }
 
-function renderOutdatedJSON (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
-  const outdatedPackagesJSON = {} as {
-    [outdatedPackageName: string]: {
-      current?: string
-      latestVersion?: string
-      deprecated: boolean
-      dependentPackages: string[]
-      dependencyType: DependenciesField
-      latestManifest?: PackageManifest
-    }
-  }
-  for (const outdatedPkg of sortOutdatedPackages(Object.values(outdatedMap))) {
-    const { packageName, belongsTo } = outdatedPkg
-    outdatedPackagesJSON[packageName] = {
-      current: outdatedPkg.current,
-      latestVersion: outdatedPkg.latestManifest?.version,
-      deprecated: !!outdatedPkg.latestManifest?.deprecated,
-      dependencyType: belongsTo,
-      dependentPackages: dependentPackages(outdatedPkg).split(',').map((dependentPackage) => dependentPackage.trim()),
-    }
+export interface OutdatedPackageInWorkspaceJSONOutput extends OutdatedPackageJSONOutput {
+  dependentPackages: Array<{ name: string, location: string }>
+}
 
-    if (opts.long) {
-      outdatedPackagesJSON[packageName].latestManifest = outdatedPkg.latestManifest
-    }
-  }
-
+function renderOutdatedJSON (
+  outdatedMap: Record<string, OutdatedInWorkspace>,
+  opts: { long?: boolean }
+): string {
+  const outdatedPackagesJSON: Record<string, OutdatedPackageInWorkspaceJSONOutput> = sortOutdatedPackages(Object.values(outdatedMap))
+    .reduce((acc, outdatedPkg) => {
+      acc[outdatedPkg.packageName] = {
+        currentVersion: outdatedPkg.current,
+        latestVersion: outdatedPkg.latestManifest?.version,
+        isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
+        dependencyType: outdatedPkg.belongsTo,
+        dependentPackages: outdatedPkg.dependentPkgs.map(({ manifest, location }) => ({ name: manifest.name, location })),
+      }
+      if (opts.long) {
+        acc[outdatedPkg.packageName].latestManifest = outdatedPkg.latestManifest
+      }
+      return acc
+    }, {})
   return JSON.stringify(outdatedPackagesJSON, null, '\t')
 }
 

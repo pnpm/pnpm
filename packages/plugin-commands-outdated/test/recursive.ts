@@ -1,3 +1,4 @@
+import path from 'path'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { install } from '@pnpm/plugin-commands-installation'
 import { outdated } from '@pnpm/plugin-commands-outdated'
@@ -161,21 +162,27 @@ Dependent: project-2
     expect(exitCode).toBe(1)
     expect(stripAnsi(output as unknown as string)).toBe(JSON.stringify({
       'is-negative': {
-        current: '1.0.0',
+        currentVersion: '1.0.0',
         latestVersion: '2.1.0',
-        deprecated: false,
+        isDeprecated: false,
         dependencyType: 'devDependencies',
         dependentPackages: [
-          'project-3',
+          {
+            name: 'project-3',
+            location: path.resolve('project-3'),
+          },
         ],
       },
       'is-positive': {
-        current: '2.0.0',
+        currentVersion: '2.0.0',
         latestVersion: '3.1.0',
-        deprecated: false,
+        isDeprecated: false,
         dependencyType: 'dependencies',
         dependentPackages: [
-          'project-2',
+          {
+            name: 'project-2',
+            location: path.resolve('project-2'),
+          },
         ],
       },
     }, null, '\t'))

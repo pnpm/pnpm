@@ -255,22 +255,24 @@ ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
     .join('\n\n') + '\n'
 }
 
+export interface OutdatedPackageJSONOutput {
+  currentVersion?: string
+  latestVersion?: string
+  isDeprecated: boolean
+  dependencyType: DependenciesField
+  latestManifest?: PackageManifest
+}
+
 function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
   const outdatedPackagesJSON = {} as {
-    [outdatedPackageName: string]: {
-      current?: string
-      latestVersion?: string
-      deprecated: boolean
-      dependencyType: DependenciesField
-      latestManifest?: PackageManifest
-    }
+    [outdatedPackageName: string]: OutdatedPackageJSONOutput
   }
   for (const outdatedPkg of sortOutdatedPackages(outdatedPackages)) {
     const { packageName, belongsTo } = outdatedPkg
     outdatedPackagesJSON[packageName] = {
-      current: outdatedPkg.current,
+      currentVersion: outdatedPkg.current,
       latestVersion: outdatedPkg.latestManifest?.version,
-      deprecated: !!outdatedPkg.latestManifest?.deprecated,
+      isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
       dependencyType: belongsTo,
     }
 
@@ -343,12 +345,10 @@ export function renderDetails ({ latestManifest }: OutdatedPackage) {
   if (latestManifest == null) return ''
   const outputs = []
   if (latestManifest.deprecated) {
-    const detail = latestManifest.deprecated
-    outputs.push(wrapAnsi(chalk.redBright(detail), 40))
+    outputs.push(wrapAnsi(chalk.redBright(latestManifest.deprecated), 40))
   }
   if (latestManifest.homepage) {
-    const detail = latestManifest.homepage
-    outputs.push(chalk.underline(detail))
+    outputs.push(chalk.underline(latestManifest.homepage))
   }
   return outputs.join('\n')
 }
