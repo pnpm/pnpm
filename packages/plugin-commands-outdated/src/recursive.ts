@@ -77,8 +77,12 @@ export async function outdatedRecursive (
 
   if (isEmpty(outdatedMap)) return { output: '', exitCode: 0 }
 
-  if (opts.format === 'json') {
-    return { output: renderOutdatedJSON(outdatedMap, opts), exitCode: 1 }
+  if (opts.format) {
+    switch (opts.format) {
+    case 'table': return { output: renderOutdatedTable(outdatedMap, opts), exitCode: 1 }
+    case 'list': return { output: renderOutdatedList(outdatedMap, opts), exitCode: 1 }
+    case 'json': return { output: renderOutdatedJSON(outdatedMap, opts), exitCode: 1 }
+    }
   }
 
   if (opts.table !== false) {

@@ -40,7 +40,7 @@ export function rcOptionsTypes () {
     ], allTypes),
     compatible: Boolean,
     table: Boolean,
-    format: ['json'],
+    format: ['table', 'list', 'json'],
   }
 }
 
@@ -123,7 +123,7 @@ export type OutdatedCommandOptions = {
   long?: boolean
   recursive?: boolean
   table?: boolean
-  format?: 'json'
+  format?: 'table' | 'list' | 'json'
 } & Pick<Config,
 | 'allProjects'
 | 'ca'
@@ -192,8 +192,12 @@ export async function handler (
 
   if (outdatedPackages.length === 0) return { output: '', exitCode: 0 }
 
-  if (opts.format === 'json') {
-    return { output: renderOutdatedJSON(outdatedPackages, opts), exitCode: 1 }
+  if (opts.format) {
+    switch (opts.format) {
+    case 'table': return { output: renderOutdatedTable(outdatedPackages, opts), exitCode: 1 }
+    case 'list': return { output: renderOutdatedList(outdatedPackages, opts), exitCode: 1 }
+    case 'json': return { output: renderOutdatedJSON(outdatedPackages, opts), exitCode: 1 }
+    }
   }
 
   if (opts.table !== false) {
