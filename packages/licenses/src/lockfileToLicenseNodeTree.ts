@@ -88,10 +88,10 @@ export async function lockfileToLicenseNode (
       version,
       license: packageInfo.license,
       licenseContents: packageInfo.licenseContents,
-      vendorName: packageInfo.vendorName ?? 'missing',
-      vendorUrl: packageInfo.vendorUrl ?? 'missing',
-      repository: packageInfo.vendorRepository ?? 'missing',
-      dir: packageInfo.path ?? 'missing',
+      vendorName: packageInfo.vendorName,
+      vendorUrl: packageInfo.vendorUrl,
+      repository: packageInfo.vendorRepository,
+      dir: packageInfo.path as string,
     }
 
     if (Object.keys(subdeps).length > 0) {
