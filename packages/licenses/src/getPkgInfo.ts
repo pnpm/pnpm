@@ -1,10 +1,11 @@
 import path from 'path'
+import fs from 'fs'
 import pathAbsolute from 'path-absolute'
 import { readFile } from 'fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
+import { depPathToFilename } from 'dependency-path'
 import pLimit from 'p-limit'
 import { PackageManifest } from '@pnpm/types'
-import { PackageSnapshot } from '@pnpm/lockfile-utils'
 import {
   getFilePathByModeInCafs,
   getFilePathInCafs,
@@ -12,6 +13,10 @@ import {
   PackageFilesIndex,
 } from '@pnpm/cafs'
 import loadJsonFile from 'load-json-file'
+import { PnpmError } from '@pnpm/error'
+import { GetPackageInfoFunction, LicensePackage } from './licenses'
+import { pkgSnapshotToResolution, Resolution } from '@pnpm/lockfile-utils'
+import { fetchFromDir } from '@pnpm/directory-fetcher'
 
 const limitPkgReads = pLimit(4)
 
@@ -23,7 +28,17 @@ export async function readPkg (pkgPath: string) {
  * @const
  * List of typical names for license files
  */
-const LICENSE_FILES = ['LICENSE', 'LICENCE', 'LICENSE.md', 'LICENCE.md']
+const LICENSE_FILES = [
+  'LICENSE',
+  'LICENCE',
+  'LICENSE.md',
+  'LICENCE.md',
+  'LICENSE.txt',
+  'LICENCE.txt',
+  'MIT-LICENSE.txt',
+  'MIT-LICENSE.md',
+  'MIT-LICENSE',
+]
 
 export interface LicenseInfo {
   name: string
@@ -40,6 +55,22 @@ function coerceToString (field: unknown): string | null {
   return typeof field === 'string' || field === string ? string : null
 }
 
+async function fileExists (file: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    fs.access(file, (err) => {
+      if (err == null) {
+        resolve(true)
+        return
+      }
+      if (err.code === 'ENOENT') {
+        resolve(false)
+        return
+      }
+      reject(err)
+    })
+  })
+}
+
 /**
  * Parses the value of the license-property of a
  * package manifest and return it as a string
@@ -50,7 +81,7 @@ function parseLicenseManifestField (field: unknown) {
   if (Array.isArray(field)) {
     const licenses = field
     const licenseTypes = licenses.reduce((listOfLicenseTypes, license) => {
-      const type = coerceToString(license.type)
+      const type = coerceToString(license.type) ?? coerceToString(license.name)
       if (type) {
         listOfLicenseTypes.push(type)
       }
@@ -83,27 +114,37 @@ function parseLicenseManifestField (field: unknown) {
 async function parseLicense (
   packageInfo: {
     manifest: PackageManifest
-    files: Record<string, PackageFileInfo>
+    files: { local: true, files: Record<string, string> } | { local: false, files: Record<string, PackageFileInfo> }
   },
   opts: { cafsDir: string }
 ): Promise<LicenseInfo> {
-  const license = parseLicenseManifestField(packageInfo.manifest.license)
+  let licenseField: unknown = packageInfo.manifest.license
+  if ('licenses' in packageInfo.manifest) {
+    licenseField = (packageInfo.manifest as PackageManifest & {
+      licenses: unknown
+    }).licenses
+  }
+  const license = parseLicenseManifestField(licenseField)
 
   // check if we discovered a license, if not attempt to parse the LICENSE file
   if (!license || /see license/i.test(license)) {
     for (const filename of LICENSE_FILES) {
       try {
-        const licensePackageFileInfo = packageInfo.files[filename]
-        if (!licensePackageFileInfo) continue
-
-        const licenseContents = await fetchFileFromStore(
-          { integrity: licensePackageFileInfo.integrity },
-          opts
-        )
+        let licenseContents: Buffer | undefined
+        if (packageInfo.files.local) {
+          const licensePackageFileInfo = packageInfo.files.files[filename]
+          licenseContents = await readFile(licensePackageFileInfo)
+        } else {
+          const licensePackageFileInfo = packageInfo.files.files[filename]
+          licenseContents = await readLicenseFileFromCafs(
+            opts.cafsDir,
+            licensePackageFileInfo.integrity
+          )
+        }
 
         return {
           name: 'Unknown',
-          licenseFile: licenseContents.toString('utf-8'),
+          licenseFile: licenseContents?.toString('utf-8'),
         }
       } catch (err) {
         // Silently ignore the error when failed
@@ -121,15 +162,14 @@ async function parseLicense (
  * @param opts the options
  * @returns Promise<Buffer>
  */
-async function fetchFileFromStore (
-  file: {
-    integrity: string
-  },
-  opts: {
-    cafsDir: string
+async function readLicenseFileFromCafs (cafsDir: string, fileIntegrity: string) {
+  const fileName = getFilePathByModeInCafs(cafsDir, fileIntegrity, 0)
+
+  const licenseFileExists = fileExists(fileName)
+  if (!licenseFileExists) {
+    return
   }
-) {
-  const fileName = getFilePathByModeInCafs(opts.cafsDir, file.integrity, 0)
+
   const fileContents = await readFile(fileName)
   return fileContents
 }
@@ -141,127 +181,167 @@ async function fetchFileFromStore (
  * @param opts options for fetching package file index
  * @returns
  */
-export async function getPackageFileIndex (
-  packageIntegrity: string,
-  opts: { cafsDir: string }
-) {
-  // Retrieve all the index file of all files included in the package
-  const packageManifestContents = await getFilePathInCafs(
-    opts.cafsDir,
-    packageIntegrity,
-    'index'
-  )
+export async function readPackageIndexFile (
+  packageResolution: Resolution,
+  packageRef: string,
+  opts: { cafsDir: string, storeDir: string, lockfileDir: string }
+): Promise<{
+    local: false
+    files: Record<string, PackageFileInfo>
+  } | {
+    local: true
+    files: Record<string, string>
+  }> {
+  const isPackageWithIntegrity = 'integrity' in packageResolution
 
-  const { files } = await loadJsonFile<PackageFilesIndex>(
-    packageManifestContents
-  )
+  let pkgIndexFilePath
+  if (isPackageWithIntegrity) {
+    // Retrieve all the index file of all files included in the package
+    pkgIndexFilePath = await getFilePathInCafs(
+      opts.cafsDir,
+      packageResolution.integrity as string,
+      'index'
+    )
+  } else if (packageResolution.type === 'directory') {
+    // If the package resolution is of type 'directory' it means
+    // this is a workspace project and we need to do things differently
+    const targetRelative = depPathToFilename(packageRef)
+    const target = path.join(opts.storeDir, targetRelative)
+    pkgIndexFilePath = path.join(target, 'integrity.json')
+  } else if (!packageResolution.type && packageResolution.tarball) {
+    // If the package resolution has a tarball then we need to clean up
+    // the call to depPathToFilename as it adds '_[hash]' part to the
+    // directory for the package in the content-addressable store
+    const pathToDependency = depPathToFilename(packageRef)
+    const [packageDirInStore] = pathToDependency.split('_')
+    pkgIndexFilePath = path.join(opts.storeDir, packageDirInStore, 'integrity.json')
+  } else {
+    throw new PnpmError('UNSUPPORTED_PACKAGE_TYPE', `Unsupported package resolution type for ${packageRef}`)
+  }
 
-  return files
+  // If the package resolution is of type directory we need to do things
+  // differently and generate our own package index file
+  const isLocalPkg = packageResolution.type === 'directory'
+  if (isLocalPkg) {
+    const localInfo = await fetchFromDir(path.join(opts.lockfileDir, packageResolution.directory), {})
+    return {
+      local: true,
+      files: localInfo.filesIndex,
+    }
+  } else {
+    // Check if the package index file exists
+    const pkgIndexFileExists = await fileExists(pkgIndexFilePath)
+    if (!pkgIndexFileExists) {
+      throw new PnpmError(
+        'MISSING_PACKAGE_INDEX_FILE',
+        `Failed to find package index file for ${packageRef}, please consider running 'pnpm install'`
+      )
+    }
+
+    const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
+    return {
+      local: false,
+      files,
+    }
+  }
 }
 
 /**
  * Returns the package manifest information for a give package name and path
  * @param pkg the package details to lookup info for
  */
-export async function getPkgInfo (
-  pkg: {
-    name?: string
-    version?: string
-    depPath: string
-    snapshot: PackageSnapshot
-  },
-  opts: {
-    storeDir: string
-    virtualStoreDir: string
-    dir: string
-    modulesDir?: string
-  }
-): Promise<{
-    packageManifest: PackageManifest
-    packageInfo: {
-      from: string
-      path: string
-      version: string
-      description?: string
-      license: string
-      licenseContents?: string
-      author?: string
-      homepage?: string
-      repository?: string
+export const getPkgInfo: GetPackageInfoFunction = async (
+  pkg,
+  opts
+): Promise<
+{
+  from: string
+  description?: string
+} & Omit<LicensePackage, 'belongsTo'>
+> => {
+  const cafsDir = path.join(opts.storeDir, 'files')
+
+  // Retrieve file index for the requested package
+  const packageResolution = pkgSnapshotToResolution(
+    pkg.depPath,
+    pkg.snapshot,
+    pkg.registries
+  )
+
+  const packageFileIndexInfo = await readPackageIndexFile(
+    packageResolution as Resolution,
+    pkg.depPath,
+    {
+      cafsDir,
+      storeDir: opts.storeDir,
+      lockfileDir: opts.dir,
     }
-  }> {
-  let manifest
-  let packageModulePath
-  let licenseInfo: LicenseInfo
+  )
 
-  try {
-    const cafsDir = path.join(opts.storeDir, 'files')
-
-    // Retrieve file index for the requested package
-    const packageFileIndex = await getPackageFileIndex(
-      pkg.snapshot.resolution['integrity'],
-      { cafsDir }
-    )
-
-    // Fetch the package manifest
+  // Fetch the package manifest
+  let packageManifestDir: string = ''
+  if (packageFileIndexInfo.local) {
+    packageManifestDir = packageFileIndexInfo.files['package.json']
+  } else {
+    const packageFileIndex = packageFileIndexInfo.files as Record<string, PackageFileInfo>
     const packageManifestFile = packageFileIndex['package.json']
-    const packageManifestDir = await getFilePathByModeInCafs(
+    packageManifestDir = await getFilePathByModeInCafs(
       cafsDir,
       packageManifestFile.integrity,
-      0
+      packageManifestFile.mode
     )
-    const packageManifest = await readPkg(packageManifestDir)
-
-    // Determine the path to the package as known by the user
-    const modulesDir = opts.modulesDir ?? 'node_modules'
-    const virtualStoreDir = pathAbsolute(
-      opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'),
-      opts.dir
-    )
-    packageModulePath = path.join(
-      virtualStoreDir,
-      modulesDir,
-      packageManifest.name
-    )
-
-    manifest = packageManifest
-    licenseInfo = await parseLicense(
-      { manifest, files: packageFileIndex },
-      { cafsDir }
-    )
-    manifest.license = licenseInfo.name
-  } catch (err: unknown) {
-    // An error can be thrown when we try to fetch package information for a
-    // package that is listed in the PNPM lock file but the package is not installed
-    // in the modules directory
-    //
-    // Typically, this appears to be the case for optional dependency, e.g.
-    // a package that is only installed for a specific platform
-    throw new Error('Failed to fetch manifest data')
   }
 
-  return {
-    packageManifest: manifest,
-    packageInfo: {
-      from: manifest.name,
-      path: packageModulePath,
-      version: manifest.version,
-      description: manifest.description,
-      license: licenseInfo.name,
-      licenseContents: licenseInfo.licenseFile,
-      author:
-        (manifest.author &&
-          (typeof manifest.author === 'string'
-            ? manifest.author
-            : (manifest.author as { name: string }).name)) ??
-        undefined,
-      homepage: manifest.homepage,
-      repository:
-        (manifest.repository &&
-          (typeof manifest.repository === 'string'
-            ? manifest.repository
-            : manifest.repository.url)) ??
-        undefined,
-    },
+  const packageManifestExists = await fileExists(packageManifestDir)
+  if (!packageManifestExists) {
+    throw new PnpmError(
+      'MISSING_PACKAGE_MANIFEST',
+      'Failed to find package manifest file'
+    )
   }
+
+  const manifest = await readPkg(packageManifestDir)
+
+  // Determine the path to the package as known by the user
+  const modulesDir = opts.modulesDir ?? 'node_modules'
+  const virtualStoreDir = pathAbsolute(
+    opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'),
+    opts.dir
+  )
+
+  const packageModulePath = path.join(
+    virtualStoreDir,
+    modulesDir,
+    manifest.name
+  )
+
+  const licenseInfo = await parseLicense(
+    { manifest, files: packageFileIndexInfo },
+    { cafsDir }
+  )
+
+  const packageInfo = {
+    from: manifest.name,
+    path: packageModulePath,
+    name: manifest.name,
+    version: manifest.version,
+    description: manifest.description,
+    license: licenseInfo.name,
+    licenseContents: licenseInfo.licenseFile,
+    vendorName:
+      (manifest.author &&
+        (typeof manifest.author === 'string'
+          ? manifest.author
+          : (manifest.author as { name: string }).name)) ??
+      undefined,
+    vendorUrl: manifest.homepage,
+    repository:
+      (manifest.repository &&
+        (typeof manifest.repository === 'string'
+          ? manifest.repository
+          : manifest.repository.url)) ??
+      undefined,
+  }
+
+  return packageInfo
 }

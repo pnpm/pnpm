@@ -16,6 +16,12 @@
       "path": "../constants"
     },
     {
+      "path": "../dependency-path"
+    },
+    {
+      "path": "../directory-fetcher"
+    },
+    {
       "path": "../error"
     },
     {
@@ -29,6 +35,9 @@
     },
     {
       "path": "../lockfile-walker"
+    },
+    {
+      "path": "../package-is-installable"
     },
     {
       "path": "../read-package-json"

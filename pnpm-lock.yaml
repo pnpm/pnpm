@@ -1813,6 +1813,9 @@ importers:
       '@pnpm/cafs':
         specifier: workspace:*
         version: link:../cafs
+      '@pnpm/directory-fetcher':
+        specifier: workspace:*
+        version: link:../directory-fetcher
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
@@ -1831,12 +1834,18 @@ importers:
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
+      '@pnpm/package-is-installable':
+        specifier: workspace:*
+        version: link:../package-is-installable
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../read-package-json
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
+      dependency-path:
+        specifier: workspace:*
+        version: link:../dependency-path
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0

@@ -37,6 +37,9 @@
   },
   "dependencies": {
     "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/package-is-installable": "workspace:*",
+    "@pnpm/directory-fetcher": "workspace:*",
+    "dependency-path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-limit": "^3.1.0",
     "load-json-file": "^6.2.0",

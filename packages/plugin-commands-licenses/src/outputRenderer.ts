@@ -30,7 +30,7 @@ export function getCellWidth (
   return Math.min(maxWidth, maxCellWidth)
 }
 
-export function renderPackageName ({ belongsTo, packageName }: LicensePackage) {
+export function renderPackageName ({ belongsTo, name: packageName }: LicensePackage) {
   switch (belongsTo) {
   case 'devDependencies':
     return `${packageName} ${chalk.dim('(dev)')}`
@@ -47,14 +47,12 @@ export function renderPackageLicense ({ license }: LicensePackage) {
 }
 
 export function renderDetails (licensePackage: LicensePackage) {
-  const { packageManifest, author } = licensePackage
-  if (packageManifest == null) return ''
   const outputs = []
-  if (author) {
-    outputs.push(author)
+  if (licensePackage.vendorName) {
+    outputs.push(licensePackage.vendorName)
   }
-  if (packageManifest.homepage) {
-    outputs.push(chalk.underline(packageManifest.homepage))
+  if (licensePackage.vendorUrl) {
+    outputs.push(chalk.underline(licensePackage.vendorUrl))
   }
   return outputs.join('\n')
 }
@@ -73,13 +71,13 @@ function renderLicensesJson (licensePackages: readonly LicensePackage[]) {
   const data = [
     ...licensePackages.map((licensePkg) => {
       return {
-        name: licensePkg.packageName,
+        name: licensePkg.name,
         version: licensePkg.version,
-        path: licensePkg.packageDir,
+        path: licensePkg.path,
         license: licensePkg.license,
         licenseContents: licensePkg.licenseContents,
-        vendorName: licensePkg.author,
-        vendorUrl: licensePkg.packageManifest?.homepage,
+        vendorName: licensePkg.vendorName,
+        vendorUrl: licensePkg.vendorUrl,
       } as LicensePackageJson
     }),
   ].flat()

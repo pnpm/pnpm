@@ -1,10 +1,11 @@
 import { Lockfile } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { packageIsInstallable } from '@pnpm/package-is-installable'
 import {
   lockfileWalkerGroupImporterSteps,
   LockfileWalkerStep,
 } from '@pnpm/lockfile-walker'
-import { DependenciesField, PackageManifest } from '@pnpm/types'
+import { DependenciesField, Registries } from '@pnpm/types'
 import { GetPackageInfoFunction } from './licenses'
 
 export interface LicenseNode {
@@ -12,10 +13,10 @@ export interface LicenseNode {
   version?: string
   license: string
   licenseContents?: string
-  packageManifest: PackageManifest
   dir: string
   vendorName?: string
   vendorUrl?: string
+  repository?: string
   integrity?: string
   requires?: Record<string, string>
   dependencies?: { [name: string]: LicenseNode }
@@ -24,7 +25,7 @@ export interface LicenseNode {
 
 export type LicenseNodeTree = Omit<
 LicenseNode,
-'dir' | 'license' | 'vendorName' | 'vendorUrl' | 'packageManifest'
+'dir' | 'license' | 'licenseContents' | 'vendorName' | 'vendorUrl' | 'repository'
 >
 
 export interface LicenseExtractOptions {
@@ -32,6 +33,7 @@ export interface LicenseExtractOptions {
   virtualStoreDir: string
   modulesDir?: string
   dir: string
+  registries: Registries
   getPackageInfo: GetPackageInfoFunction
 }
 
@@ -44,49 +46,61 @@ export async function lockfileToLicenseNode (
     const { depPath, pkgSnapshot, next } = dependency
     const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
 
-    let packageDetails
-    try {
-      packageDetails = await options.getPackageInfo(
-        {
-          name,
-          version,
-          depPath,
-          snapshot: pkgSnapshot,
-        },
-        {
-          storeDir: options.storeDir,
-          virtualStoreDir: options.virtualStoreDir,
-          dir: options.dir,
-          modulesDir: options.modulesDir ?? 'node_modules',
-        }
-      )
-    } catch (err: unknown) {}
+    const packageInstallable = packageIsInstallable(pkgSnapshot.id ?? depPath, {
+      name,
+      version,
+      cpu: pkgSnapshot.cpu,
+      os: pkgSnapshot.os,
+      libc: pkgSnapshot.libc,
+    }, {
+      optional: pkgSnapshot.optional ?? false,
+      lockfileDir: options.dir,
+    })
 
-    if (packageDetails) {
-      const subdeps = await lockfileToLicenseNode(next(), options)
-
-      const { packageInfo, packageManifest } = packageDetails
-      const dep: LicenseNode = {
-        name,
-        dev: pkgSnapshot.dev === true,
-        integrity: pkgSnapshot.resolution['integrity'],
-        version,
-        packageManifest,
-        license: packageInfo.license,
-        licenseContents: packageInfo.licenseContents,
-        vendorName: packageInfo.author,
-        vendorUrl: packageInfo.homepage,
-        dir: packageInfo.path,
-      }
-
-      if (Object.keys(subdeps).length > 0) {
-        dep.dependencies = subdeps
-        dep.requires = toRequires(subdeps)
-      }
-
-      // If the package details could be fetched, we consider it part of the tree
-      dependencies[name] = dep
+    // If the package is not installable on the given platform, we ignore the
+    // package, typically the case for platform prebuild packages
+    if (!packageInstallable) {
+      continue
     }
+
+    const packageInfo = await options.getPackageInfo(
+      {
+        name,
+        version,
+        depPath,
+        snapshot: pkgSnapshot,
+        registries: options.registries,
+      },
+      {
+        storeDir: options.storeDir,
+        virtualStoreDir: options.virtualStoreDir,
+        dir: options.dir,
+        modulesDir: options.modulesDir ?? 'node_modules',
+      }
+    )
+
+    const subdeps = await lockfileToLicenseNode(next(), options)
+
+    const dep: LicenseNode = {
+      name,
+      dev: pkgSnapshot.dev === true,
+      integrity: pkgSnapshot.resolution['integrity'],
+      version,
+      license: packageInfo.license,
+      licenseContents: packageInfo.licenseContents,
+      vendorName: packageInfo.vendorName ?? 'missing',
+      vendorUrl: packageInfo.vendorUrl ?? 'missing',
+      repository: packageInfo.vendorRepository ?? 'missing',
+      dir: packageInfo.path ?? 'missing',
+    }
+
+    if (Object.keys(subdeps).length > 0) {
+      dep.dependencies = subdeps
+      dep.requires = toRequires(subdeps)
+    }
+
+    // If the package details could be fetched, we consider it part of the tree
+    dependencies[name] = dep
   }
 
   return dependencies
@@ -119,6 +133,7 @@ export async function lockfileToLicenseNodeTree (
       virtualStoreDir: opts.virtualStoreDir,
       modulesDir: opts.modulesDir,
       dir: opts.dir,
+      registries: opts.registries,
       getPackageInfo: opts.getPackageInfo,
     })
 

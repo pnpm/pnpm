@@ -3,7 +3,6 @@ import { Lockfile, PackageSnapshot } from '@pnpm/lockfile-file'
 import {
   DependenciesField,
   IncludedDependencies,
-  PackageManifest,
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
@@ -16,12 +15,13 @@ import {
 export interface LicensePackage {
   belongsTo: DependenciesField
   version: string
-  packageManifest?: PackageManifest
-  packageName: string
+  name: string
   license: string
   licenseContents?: string
-  author?: string
-  packageDir?: string
+  vendorName?: string
+  vendorUrl?: string
+  vendorRepository?: string
+  path?: string
 }
 
 export type GetPackageInfoFunction = (
@@ -30,6 +30,7 @@ export type GetPackageInfoFunction = (
     version?: string
     depPath: string
     snapshot: PackageSnapshot
+    registries: Registries
   },
   opts: {
     storeDir: string
@@ -38,19 +39,9 @@ export type GetPackageInfoFunction = (
     modulesDir: string
   }
 ) => Promise<{
-  packageManifest: PackageManifest
-  packageInfo: {
-    from: string
-    path: string
-    version: string
-    description?: string
-    license: string
-    licenseContents?: string
-    author?: string
-    homepage?: string
-    repository?: string
-  }
-}>
+  from: string
+  description?: string
+} & Omit<LicensePackage, 'belongsTo'>>
 
 /**
  * @private
@@ -76,12 +67,13 @@ function getDependenciesFromLicenseNode (
       {
         belongsTo: dependencyNode.dev ? 'devDependencies' : 'dependencies',
         version: dependencyNode.version as string,
-        packageManifest: dependencyNode.packageManifest,
-        packageName: dependencyName,
+        name: dependencyName,
         license: dependencyNode.license as string,
         licenseContents: dependencyNode.licenseContents,
-        author: dependencyNode.vendorName as string,
-        packageDir: dependencyNode.dir,
+        vendorName: dependencyNode.vendorName as string,
+        vendorUrl: dependencyNode.vendorUrl as string,
+        vendorRepository: dependencyNode.repository as string,
+        path: dependencyNode.dir,
       },
     ]
   }
@@ -95,7 +87,6 @@ export async function licences (opts: {
   include?: IncludedDependencies
   lockfileDir: string
   manifest: ProjectManifest
-  prefix: string
   storeDir: string
   virtualStoreDir: string
   modulesDir?: string
@@ -115,6 +106,7 @@ export async function licences (opts: {
     storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
     include: opts.include,
+    registries: opts.registries,
     getPackageInfo: opts.getPackageInfo ?? getPkgInfo,
   })
 
@@ -124,13 +116,13 @@ export async function licences (opts: {
     const dependenciesOfNode = getDependenciesFromLicenseNode(licenseNode)
 
     dependenciesOfNode.forEach((dependencyNode) => {
-      licensePackages.set(dependencyNode.packageName, dependencyNode)
+      licensePackages.set(dependencyNode.name, dependencyNode)
     })
   }
 
   // Get all non-duplicate dependencies of the project
   const projectDependencies = Array.from(licensePackages.values())
   return Array.from(projectDependencies).sort((pkg1, pkg2) =>
-    pkg1.packageName.localeCompare(pkg2.packageName)
+    pkg1.name.localeCompare(pkg2.name)
   )
 }

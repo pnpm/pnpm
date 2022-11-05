@@ -101,35 +101,12 @@ export type LicensesCommandOptions = {
   json?: boolean
 } & Pick<
 Config,
-| 'allProjects'
-| 'ca'
-| 'cacheDir'
-| 'cert'
 | 'dev'
 | 'dir'
-| 'engineStrict'
-| 'fetchRetries'
-| 'fetchRetryFactor'
-| 'fetchRetryMaxtimeout'
-| 'fetchRetryMintimeout'
-| 'fetchTimeout'
-| 'global'
-| 'httpProxy'
-| 'httpsProxy'
-| 'key'
-| 'localAddress'
 | 'lockfileDir'
-| 'networkConcurrency'
-| 'noProxy'
-| 'offline'
+| 'registries'
 | 'optional'
 | 'production'
-| 'rawConfig'
-| 'registries'
-| 'selectedProjectsGraph'
-| 'strictSsl'
-| 'tag'
-| 'userAgent'
 | 'storeDir'
 | 'virtualStoreDir'
 | 'modulesDir'
@@ -157,10 +134,9 @@ export async function handler (
     optionalDependencies: opts.optional !== false,
   }
 
-  const manifest = await readProjectManifestOnly(opts.dir, opts)
+  const manifest = await readProjectManifestOnly(opts.dir, {})
 
-  // Get the store path for when opts.storeDir is undefined
-  const fallbackstorePath = await getStorePath({
+  const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
     pnpmHomeDir: opts.pnpmHomeDir,
@@ -169,8 +145,7 @@ export async function handler (
   const licensePackages = await licences({
     include,
     lockfileDir: opts.dir,
-    prefix: opts.dir,
-    storeDir: opts.storeDir ?? fallbackstorePath,
+    storeDir,
     virtualStoreDir: opts.virtualStoreDir ?? '.',
     modulesDir: opts.modulesDir,
     registries: opts.registries,
@@ -179,7 +154,7 @@ export async function handler (
   })
 
   if (licensePackages.length === 0)
-    return { output: 'No packages found', exitCode: 0 }
+    return { output: 'No licenses in packages found', exitCode: 0 }
 
   return renderLicences(licensePackages, opts)
 }

@@ -1,24 +1,28 @@
 import { licences } from '@pnpm/licenses'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { PackageManifest, ProjectManifest, Registries } from '@pnpm/types'
+import { ProjectManifest, Registries } from '@pnpm/types'
 import { Lockfile } from '@pnpm/lockfile-file'
-import { GetPackageInfoFunction } from '../lib/licenses'
+import { GetPackageInfoFunction, LicensePackage } from '../lib/licenses'
 
-const getPackageInfo: GetPackageInfoFunction = async (pkg, _opts) => {
-  return {
-    packageManifest: {} as unknown as PackageManifest,
-    packageInfo: {
-      from: pkg.name!,
-      version: pkg.version!,
-      description: 'Package Description',
-      license: pkg.name === 'bar' ? 'MIT' : 'Unknown',
-      licenseContents: pkg.name === 'bar' ? undefined : 'The MIT License',
-      author: 'Package Author',
-      homepage: 'Homepage',
-      path: `/path/to/package/${pkg.name!}@${pkg.version!}/node_modules`,
-      repository: 'https://github.com/pnpm/pnpm.git',
-    },
+const getPackageInfo: GetPackageInfoFunction = async (pkg, _opts): Promise<
+{
+  from: string
+  description?: string
+} & Omit<LicensePackage, 'belongsTo'>
+> => {
+  const packageInfo = {
+    from: pkg.name!,
+    name: pkg.name!,
+    version: pkg.version!,
+    description: 'Package Description',
+    license: pkg.name === 'bar' ? 'MIT' : 'Unknown',
+    licenseContents: pkg.name === 'bar' ? undefined : 'The MIT License',
+    vendorName: 'Package Author',
+    vendorUrl: 'Homepage',
+    vendorRepository: 'Repository',
+    path: `/path/to/package/${pkg.name!}@${pkg.version!}/node_modules`,
   }
+  return packageInfo
 }
 
 describe('licences', () => {
@@ -55,7 +59,6 @@ describe('licences', () => {
     const licensePackages = await licences({
       lockfileDir: '/opt/pnpm',
       manifest: {} as ProjectManifest,
-      prefix: '/opt/pnpm',
       virtualStoreDir: '/.pnpm',
       registries: {} as Registries,
       wantedLockfile: lockfile,
@@ -67,23 +70,25 @@ describe('licences', () => {
       {
         belongsTo: 'dependencies',
         version: '1.0.0',
-        packageManifest: {},
-        packageName: 'bar',
+        name: 'bar',
         license: 'MIT',
         licenseContents: undefined,
-        author: 'Package Author',
-        packageDir: '/path/to/package/bar@1.0.0/node_modules',
+        vendorName: 'Package Author',
+        vendorUrl: 'Homepage',
+        vendorRepository: 'Repository',
+        path: '/path/to/package/bar@1.0.0/node_modules',
       },
       {
         belongsTo: 'dependencies',
         version: '1.0.0',
-        packageManifest: {},
-        packageName: 'foo',
+        name: 'foo',
         license: 'Unknown',
         licenseContents: 'The MIT License',
-        author: 'Package Author',
-        packageDir: '/path/to/package/foo@1.0.0/node_modules',
+        vendorName: 'Package Author',
+        vendorUrl: 'Homepage',
+        vendorRepository: 'Repository',
+        path: '/path/to/package/foo@1.0.0/node_modules',
       },
-    ])
+    ] as LicensePackage[])
   })
 })

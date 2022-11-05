@@ -106,7 +106,7 @@ test('pnpm licenses: output as json', async () => {
 
   expect(exitCode).toBe(0)
   expect(output).not.toHaveLength(0)
-  expect(output).not.toBe('No packages found')
+  expect(output).not.toBe('No licenses in packages found')
   const parsedOutput = JSON.parse(output)
   expect(Object.keys(parsedOutput)).toMatchSnapshot('found-license-types')
   const packagesWithMIT = parsedOutput['MIT']

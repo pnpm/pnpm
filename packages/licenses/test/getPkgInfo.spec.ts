@@ -1,5 +1,8 @@
-import { PackageSnapshot } from '@pnpm/lockfile-file'
 import { getPkgInfo } from '../lib/getPkgInfo'
+
+export const DEFAULT_REGISTRIES = {
+  default: 'https://registry.npmjs.org/',
+}
 
 describe('licences', () => {
   test('getPkgInfo() should throw error when package info can not be fetched', async () => {
@@ -7,9 +10,14 @@ describe('licences', () => {
       getPkgInfo(
         {
           name: 'bogus-package',
-          version: '0.0.0',
-          depPath: 'dep-path',
-          snapshot: {} as PackageSnapshot,
+          version: '1.0.0',
+          depPath: '/bogus-package/1.0.0',
+          snapshot: {
+            resolution: {
+              integrity: 'integrity-sha',
+            },
+          },
+          registries: DEFAULT_REGISTRIES,
         },
         {
           storeDir: 'store-dir',
@@ -18,6 +26,6 @@ describe('licences', () => {
           dir: 'workspace-dir',
         }
       )
-    ).rejects.toThrow('Failed to fetch manifest data')
+    ).rejects.toThrow('Failed to find package index file for /bogus-package/1.0.0, please consider running \'pnpm install\'')
   })
 })
