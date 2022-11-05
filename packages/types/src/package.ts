@@ -134,6 +134,7 @@ export type ProjectManifest = BaseManifest & {
     updateConfig?: {
       ignoreDependencies?: string[]
     }
+    allowList?: string[]
   }
   private?: boolean
   resolutions?: Record<string, string>
