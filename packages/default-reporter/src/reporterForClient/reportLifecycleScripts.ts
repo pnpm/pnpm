@@ -266,6 +266,7 @@ function formatLine (maxWidth: number, logObj: LifecycleLog) {
 }
 
 function cutLine (line: string, maxLength: number) {
+  if (!line) return '' // This actually should never happen but it is better to be safe
   return stripAnsi(line).slice(0, maxLength)
 }
 
