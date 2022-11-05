@@ -184,7 +184,7 @@ function renderOutdatedJSON (
       }
       return acc
     }, {})
-  return JSON.stringify(outdatedPackagesJSON, null, '\t')
+  return JSON.stringify(outdatedPackagesJSON, null, 2)
 }
 
 function dependentPackages ({ dependentPkgs }: OutdatedInWorkspace) {

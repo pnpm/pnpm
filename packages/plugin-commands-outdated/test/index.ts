@@ -224,7 +224,7 @@ test('pnpm outdated: format json', async () => {
         isDeprecated: false,
         dependencyType: 'devDependencies',
       },
-    }, null, '\t'))
+    }, null, 2))
   }
 })
 

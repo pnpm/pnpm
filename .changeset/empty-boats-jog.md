@@ -1,5 +1,6 @@
 ---
 "@pnpm/plugin-commands-outdated": minor
+"pnpm": minor
 ---
 
-support --format json option to output outdated packages as a JSON format with outdated command
+Support `--format json` option to output outdated packages in JSON format with `outdated` command [#2705](https://github.com/pnpm/pnpm/issues/2705).

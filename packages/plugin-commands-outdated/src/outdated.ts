@@ -264,24 +264,20 @@ export interface OutdatedPackageJSONOutput {
 }
 
 function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
-  const outdatedPackagesJSON = {} as {
-    [outdatedPackageName: string]: OutdatedPackageJSONOutput
-  }
-  for (const outdatedPkg of sortOutdatedPackages(outdatedPackages)) {
-    const { packageName, belongsTo } = outdatedPkg
-    outdatedPackagesJSON[packageName] = {
-      currentVersion: outdatedPkg.current,
-      latestVersion: outdatedPkg.latestManifest?.version,
-      isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
-      dependencyType: belongsTo,
-    }
-
-    if (opts.long) {
-      outdatedPackagesJSON[packageName].latestManifest = outdatedPkg.latestManifest
-    }
-  }
-
-  return JSON.stringify(outdatedPackagesJSON, null, '\t')
+  const outdatedPackagesJSON: Record<string, OutdatedPackageJSONOutput> = sortOutdatedPackages(outdatedPackages)
+    .reduce((acc, outdatedPkg) => {
+      acc[outdatedPkg.packageName] = {
+        currentVersion: outdatedPkg.current,
+        latestVersion: outdatedPkg.latestManifest?.version,
+        isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
+        dependencyType: outdatedPkg.belongsTo,
+      }
+      if (opts.long) {
+        acc[outdatedPkg.packageName].latestManifest = outdatedPkg.latestManifest
+      }
+      return acc
+    }, {})
+  return JSON.stringify(outdatedPackagesJSON, null, 2)
 }
 
 function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[]) {

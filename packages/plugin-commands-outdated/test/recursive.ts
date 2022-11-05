@@ -185,7 +185,7 @@ Dependent: project-2
           },
         ],
       },
-    }, null, '\t'))
+    }, null, 2))
   }
 
   {
