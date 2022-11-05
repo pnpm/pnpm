@@ -159,23 +159,23 @@ Dependent: project-2
     })
 
     expect(exitCode).toBe(1)
-    expect(stripAnsi(output as unknown as string)).toBe(`{
-\t"is-negative": {
-\t\t"current": "1.0.0",
-\t\t"latest": "2.1.0",
-\t\t"dependentPackages": [
-\t\t\t"project-3"
-\t\t],
-\t\t"dependencyKind": "dev"
-\t},
-\t"is-positive": {
-\t\t"current": "2.0.0",
-\t\t"latest": "3.1.0",
-\t\t"dependentPackages": [
-\t\t\t"project-2"
-\t\t]
-\t}
-}`)
+    expect(stripAnsi(output as unknown as string)).toBe(JSON.stringify({
+      'is-negative': {
+        current: '1.0.0',
+        latest: '2.1.0',
+        dependentPackages: [
+          'project-3',
+        ],
+        dependencyKind: 'dev',
+      },
+      'is-positive': {
+        current: '2.0.0',
+        latest: '3.1.0',
+        dependentPackages: [
+          'project-2',
+        ],
+      },
+    }, null, '\t'))
   }
 
   {
