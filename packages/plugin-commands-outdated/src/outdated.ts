@@ -263,11 +263,11 @@ function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts:
     const { packageName, belongsTo } = outdatedPkg
     outdatedPackagesJSON[packageName] = {
       current: renderCurrent(outdatedPkg),
-      latest: renderLatest(outdatedPkg, true),
+      latest: extractLatest(outdatedPkg),
     }
 
     if (opts.long) {
-      outdatedPackagesJSON[packageName].details = renderLatest(outdatedPkg, true)
+      outdatedPackagesJSON[packageName].details = extractDetails(outdatedPkg)
     }
 
     if (belongsTo === 'devDependencies') {
@@ -326,32 +326,54 @@ export function renderCurrent ({ current, wanted }: OutdatedPackage) {
   return `${output} (wanted ${wanted})`
 }
 
-export function renderLatest (outdatedPkg: OutdatedWithVersionDiff, withoutChalk = false): string {
+export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
   const { latestManifest, change, diff } = outdatedPkg
   if (latestManifest == null) return ''
   if (change === null || (diff == null)) {
     return latestManifest.deprecated
-      ? withoutChalk ? 'Deprecated' : chalk.redBright.bold('Deprecated')
+      ? chalk.redBright.bold('Deprecated')
       : latestManifest.version
-  }
-
-  if (withoutChalk) {
-    return diff.flat().join('.')
   }
 
   return colorizeSemverDiff({ change, diff })
 }
 
-export function renderDetails ({ latestManifest }: OutdatedPackage, withoutChalk = false) {
+export function extractLatest (outdatedPkg: OutdatedWithVersionDiff): string {
+  const { latestManifest, change, diff } = outdatedPkg
+  if (latestManifest == null) return ''
+  if (change === null || (diff == null)) {
+    return latestManifest.deprecated
+      ? 'Deprecated'
+      : latestManifest.version
+  }
+
+  return diff.flat().join('.')
+}
+
+export function renderDetails ({ latestManifest }: OutdatedPackage) {
   if (latestManifest == null) return ''
   const outputs = []
   if (latestManifest.deprecated) {
     const detail = latestManifest.deprecated
-    outputs.push(wrapAnsi(withoutChalk ? detail : chalk.redBright(detail), 40))
+    outputs.push(wrapAnsi(chalk.redBright(detail), 40))
   }
   if (latestManifest.homepage) {
     const detail = latestManifest.homepage
-    outputs.push(withoutChalk ? detail : chalk.underline(detail))
+    outputs.push(chalk.underline(detail))
+  }
+  return outputs.join('\n')
+}
+
+export function extractDetails ({ latestManifest }: OutdatedPackage) {
+  if (latestManifest == null) return ''
+  const outputs = []
+  if (latestManifest.deprecated) {
+    const detail = latestManifest.deprecated
+    outputs.push(detail)
+  }
+  if (latestManifest.homepage) {
+    const detail = latestManifest.homepage
+    outputs.push(detail)
   }
   return outputs.join('\n')
 }

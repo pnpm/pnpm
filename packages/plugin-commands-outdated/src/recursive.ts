@@ -13,6 +13,8 @@ import chalk from 'chalk'
 import isEmpty from 'ramda/src/isEmpty'
 import sortWith from 'ramda/src/sortWith'
 import {
+  extractDetails,
+  extractLatest,
   getCellWidth,
   OutdatedCommandOptions,
   renderCurrent,
@@ -171,12 +173,12 @@ function renderOutdatedJSON (outdatedMap: Record<string, OutdatedInWorkspace>, o
     const { packageName, belongsTo } = outdatedPkg
     outdatedPackagesJSON[packageName] = {
       current: renderCurrent(outdatedPkg),
-      latest: renderLatest(outdatedPkg, true),
+      latest: extractLatest(outdatedPkg),
       dependentPackages: dependentPackages(outdatedPkg).split(',').map((dependentPackage) => dependentPackage.trim()),
     }
 
     if (opts.long) {
-      outdatedPackagesJSON[packageName].details = renderDetails(outdatedPkg, true)
+      outdatedPackagesJSON[packageName].details = extractDetails(outdatedPkg)
     }
 
     if (belongsTo === 'devDependencies') {
