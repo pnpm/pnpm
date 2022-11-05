@@ -1,10 +1,11 @@
 import { AuditReport, AuditAdvisory } from '@pnpm/audit'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
+import { difference } from 'ramda'
 import fromPairs from 'ramda/src/fromPairs'
 
 export async function fix (dir: string, auditReport: AuditReport) {
   const { manifest, writeProjectManifest } = await readProjectManifest(dir)
-  const vulnOverrides = createOverrides(Object.values(auditReport.advisories), manifest.pnpm?.allowList)
+  const vulnOverrides = createOverrides(Object.values(auditReport.advisories), manifest.pnpm?.auditConfig?.ignoreCves)
   if (Object.values(vulnOverrides).length === 0) return vulnOverrides
   await writeProjectManifest({
     ...manifest,
@@ -20,8 +21,11 @@ export async function fix (dir: string, auditReport: AuditReport) {
 }
 
 function createOverrides (advisories: AuditAdvisory[], allowList?: string[]) {
+  if (allowList) {
+    advisories = advisories.filter(({ cves }) => allowList ? difference(allowList, cves).length === allowList.length : false)
+  }
   return fromPairs(
-    advisories.filter(({ cves }) => allowList ? !allowList.join(',').includes(cves.join(',')) : true)
+    advisories
     .filter(({ vulnerable_versions, patched_versions }) => vulnerable_versions !== '>=0.0.0' && patched_versions !== '<0.0.0') // eslint-disable-line
       .map((advisory) => [
         `${advisory.module_name}@${advisory.vulnerable_versions}`,

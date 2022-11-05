@@ -59,7 +59,7 @@ test('no overrides are added if no vulnerabilities are found', async () => {
 })
 
 test('CVEs found in the allow list are not added as overrides', async () => {
-  const tmp = f.prepare('has-allowlist')
+  const tmp = f.prepare('has-auditconfig')
 
   nock(registries.default)
     .post('/-/npm/v1/security/audits')
@@ -78,6 +78,7 @@ test('CVEs found in the allow list are not added as overrides', async () => {
 
   const manifest = await loadJsonFile<ProjectManifest>(path.join(tmp, 'package.json'))
   expect(manifest.pnpm?.overrides?.['axios@<=0.18.0']).toBeFalsy()
-  expect(manifest.pnpm?.overrides?.['axios@<=0.21.1']).toBeFalsy()
+  expect(manifest.pnpm?.overrides?.['axios@<0.21.1']).toBeFalsy()
+  expect(manifest.pnpm?.overrides?.['minimist@<0.2.1']).toBeFalsy()
   expect(manifest.pnpm?.overrides?.['url-parse@<1.5.6']).toBeTruthy()
 })
