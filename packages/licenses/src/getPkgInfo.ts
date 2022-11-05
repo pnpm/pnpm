@@ -108,19 +108,19 @@ function parseLicenseManifestField (field: unknown) {
  * files named listed in the array LICENSE_FILES and the
  * contents will be returned.
  *
- * @param {*} packageInfo the package to check
+ * @param {*} pkg the package to check
  * @returns Promise<LicenseInfo>
  */
 async function parseLicense (
-  packageInfo: {
+  pkg: {
     manifest: PackageManifest
     files: { local: true, files: Record<string, string> } | { local: false, files: Record<string, PackageFileInfo> }
   },
   opts: { cafsDir: string }
 ): Promise<LicenseInfo> {
-  let licenseField: unknown = packageInfo.manifest.license
-  if ('licenses' in packageInfo.manifest) {
-    licenseField = (packageInfo.manifest as PackageManifest & {
+  let licenseField: unknown = pkg.manifest.license
+  if ('licenses' in pkg.manifest) {
+    licenseField = (pkg.manifest as PackageManifest & {
       licenses: unknown
     }).licenses
   }
@@ -131,11 +131,11 @@ async function parseLicense (
     for (const filename of LICENSE_FILES) {
       try {
         let licenseContents: Buffer | undefined
-        if (packageInfo.files.local) {
-          const licensePackageFileInfo = packageInfo.files.files[filename]
+        if (pkg.files.local) {
+          const licensePackageFileInfo = pkg.files.files[filename]
           licenseContents = await readFile(licensePackageFileInfo)
         } else {
-          const licensePackageFileInfo = packageInfo.files.files[filename]
+          const licensePackageFileInfo = pkg.files.files[filename]
           licenseContents = await readLicenseFileFromCafs(
             opts.cafsDir,
             licensePackageFileInfo.integrity
