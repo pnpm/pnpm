@@ -208,17 +208,20 @@ test('pnpm outdated: format json', async () => {
     expect(stripAnsi(output)).toBe(JSON.stringify({
       '@pnpm.e2e/deprecated': {
         current: '1.0.0',
-        latest: 'Deprecated',
+        latestVersion: '1.0.0',
+        deprecated: true,
         dependencyType: 'dependencies',
       },
       'is-negative': {
         current: '1.0.0',
-        latest: '2.1.0',
+        latestVersion: '2.1.0',
+        deprecated: false,
         dependencyType: 'dependencies',
       },
       'is-positive': {
         current: '1.0.0',
-        latest: '3.1.0',
+        latestVersion: '3.1.0',
+        deprecated: false,
         dependencyType: 'devDependencies',
       },
     }, null, '\t'))

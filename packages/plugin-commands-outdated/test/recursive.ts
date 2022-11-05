@@ -162,7 +162,8 @@ Dependent: project-2
     expect(stripAnsi(output as unknown as string)).toBe(JSON.stringify({
       'is-negative': {
         current: '1.0.0',
-        latest: '2.1.0',
+        latestVersion: '2.1.0',
+        deprecated: false,
         dependencyType: 'devDependencies',
         dependentPackages: [
           'project-3',
@@ -170,7 +171,8 @@ Dependent: project-2
       },
       'is-positive': {
         current: '2.0.0',
-        latest: '3.1.0',
+        latestVersion: '3.1.0',
+        deprecated: false,
         dependencyType: 'dependencies',
         dependentPackages: [
           'project-2',

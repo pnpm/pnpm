@@ -13,7 +13,7 @@ import {
   OutdatedPackage,
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import { DependenciesField } from '@pnpm/types'
+import { DependenciesField, PackageManifest } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
@@ -254,22 +254,24 @@ ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
 function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
   const outdatedPackagesJSON = {} as {
     [outdatedPackageName: string]: {
-      current: string
-      latest: string
+      current?: string
+      latestVersion?: string
+      deprecated: boolean
       dependencyType: DependenciesField
-      details?: string
+      latestManifest?: PackageManifest
     }
   }
   for (const outdatedPkg of sortOutdatedPackages(outdatedPackages)) {
     const { packageName, belongsTo } = outdatedPkg
     outdatedPackagesJSON[packageName] = {
-      current: renderCurrent(outdatedPkg),
-      latest: extractLatest(outdatedPkg),
+      current: outdatedPkg.current,
+      latestVersion: outdatedPkg.latestManifest?.version,
+      deprecated: !!outdatedPkg.latestManifest?.deprecated,
       dependencyType: belongsTo,
     }
 
     if (opts.long) {
-      outdatedPackagesJSON[packageName].details = extractDetails(outdatedPkg)
+      outdatedPackagesJSON[packageName].latestManifest = outdatedPkg.latestManifest
     }
   }
 
@@ -333,18 +335,6 @@ export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
   return colorizeSemverDiff({ change, diff })
 }
 
-export function extractLatest (outdatedPkg: OutdatedWithVersionDiff): string {
-  const { latestManifest, change, diff } = outdatedPkg
-  if (latestManifest == null) return ''
-  if (change === null || (diff == null)) {
-    return latestManifest.deprecated
-      ? 'Deprecated'
-      : latestManifest.version
-  }
-
-  return diff.flat().join('.')
-}
-
 export function renderDetails ({ latestManifest }: OutdatedPackage) {
   if (latestManifest == null) return ''
   const outputs = []
@@ -355,20 +345,6 @@ export function renderDetails ({ latestManifest }: OutdatedPackage) {
   if (latestManifest.homepage) {
     const detail = latestManifest.homepage
     outputs.push(chalk.underline(detail))
-  }
-  return outputs.join('\n')
-}
-
-export function extractDetails ({ latestManifest }: OutdatedPackage) {
-  if (latestManifest == null) return ''
-  const outputs = []
-  if (latestManifest.deprecated) {
-    const detail = latestManifest.deprecated
-    outputs.push(detail)
-  }
-  if (latestManifest.homepage) {
-    const detail = latestManifest.homepage
-    outputs.push(detail)
   }
   return outputs.join('\n')
 }

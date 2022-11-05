@@ -7,14 +7,13 @@ import {
   DependenciesField,
   IncludedDependencies,
   ProjectManifest,
+  PackageManifest,
 } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import isEmpty from 'ramda/src/isEmpty'
 import sortWith from 'ramda/src/sortWith'
 import {
-  extractDetails,
-  extractLatest,
   getCellWidth,
   OutdatedCommandOptions,
   renderCurrent,
@@ -162,24 +161,26 @@ ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
 function renderOutdatedJSON (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
   const outdatedPackagesJSON = {} as {
     [outdatedPackageName: string]: {
-      current: string
-      latest: string
+      current?: string
+      latestVersion?: string
+      deprecated: boolean
       dependentPackages: string[]
       dependencyType: DependenciesField
-      details?: string
+      latestManifest?: PackageManifest
     }
   }
   for (const outdatedPkg of sortOutdatedPackages(Object.values(outdatedMap))) {
     const { packageName, belongsTo } = outdatedPkg
     outdatedPackagesJSON[packageName] = {
-      current: renderCurrent(outdatedPkg),
-      latest: extractLatest(outdatedPkg),
+      current: outdatedPkg.current,
+      latestVersion: outdatedPkg.latestManifest?.version,
+      deprecated: !!outdatedPkg.latestManifest?.deprecated,
       dependencyType: belongsTo,
       dependentPackages: dependentPackages(outdatedPkg).split(',').map((dependentPackage) => dependentPackage.trim()),
     }
 
     if (opts.long) {
-      outdatedPackagesJSON[packageName].details = extractDetails(outdatedPkg)
+      outdatedPackagesJSON[packageName].latestManifest = outdatedPkg.latestManifest
     }
   }
 
