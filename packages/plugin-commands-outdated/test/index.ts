@@ -221,32 +221,6 @@ test('pnpm outdated: format json', async () => {
 \t}
 }`)
   }
-
-  {
-    const { output, exitCode } = await outdated.handler({
-      ...OUTDATED_OPTIONS,
-      dir: process.cwd(),
-      long: true,
-      table: false,
-    })
-
-    expect(exitCode).toBe(1)
-    expect(stripAnsi(output)).toBe(`@pnpm.e2e/deprecated
-1.0.0 => Deprecated
-This package is deprecated. Lorem ipsum
-dolor sit amet, consectetur adipiscing
-elit.
-https://foo.bar/qar
-
-is-negative
-1.0.0 => 2.1.0
-https://github.com/kevva/is-negative#readme
-
-is-positive (dev)
-1.0.0 => 3.1.0
-https://github.com/kevva/is-positive#readme
-`)
-  }
 })
 
 test('pnpm outdated: only current lockfile is available', async () => {
