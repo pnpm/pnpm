@@ -311,6 +311,7 @@ export const getPkgInfo: GetPackageInfoFunction = async (
 
   const packageModulePath = path.join(
     virtualStoreDir,
+    depPathToFilename(pkg.depPath),
     modulesDir,
     manifest.name
   )
