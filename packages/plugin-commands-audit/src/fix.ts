@@ -20,13 +20,13 @@ export async function fix (dir: string, auditReport: AuditReport) {
   return vulnOverrides
 }
 
-function createOverrides (advisories: AuditAdvisory[], allowList?: string[]) {
-  if (allowList) {
-    advisories = advisories.filter(({ cves }) => allowList ? difference(allowList, cves).length === allowList.length : false)
+function createOverrides (advisories: AuditAdvisory[], ignoreCves?: string[]) {
+  if (ignoreCves) {
+    advisories = advisories.filter(({ cves }) => difference(cves, ignoreCves).length > 0)
   }
   return fromPairs(
     advisories
-    .filter(({ vulnerable_versions, patched_versions }) => vulnerable_versions !== '>=0.0.0' && patched_versions !== '<0.0.0') // eslint-disable-line
+      .filter(({ vulnerable_versions, patched_versions }) => vulnerable_versions !== '>=0.0.0' && patched_versions !== '<0.0.0') // eslint-disable-line
       .map((advisory) => [
         `${advisory.module_name}@${advisory.vulnerable_versions}`,
         advisory.patched_versions,

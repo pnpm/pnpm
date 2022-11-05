@@ -2,6 +2,7 @@ import path from 'path'
 import { fixtures } from '@pnpm/test-fixtures'
 import { ProjectManifest } from '@pnpm/types'
 import { audit } from '@pnpm/plugin-commands-audit'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import * as responses from './utils/responses'
@@ -59,7 +60,22 @@ test('no overrides are added if no vulnerabilities are found', async () => {
 })
 
 test('CVEs found in the allow list are not added as overrides', async () => {
-  const tmp = f.prepare('has-auditconfig')
+  const tmp = f.prepare('has-vulnerabilities')
+  {
+    const { manifest, writeProjectManifest } = await readProjectManifest(tmp)
+    manifest.pnpm = {
+      ...manifest.pnpm,
+      auditConfig: {
+        ignoreCves: [
+          'CVE-2019-10742',
+          'CVE-2020-28168',
+          'CVE-2021-3749',
+          'CVE-2020-7598',
+        ],
+      },
+    }
+    await writeProjectManifest(manifest)
+  }
 
   nock(registries.default)
     .post('/-/npm/v1/security/audits')
