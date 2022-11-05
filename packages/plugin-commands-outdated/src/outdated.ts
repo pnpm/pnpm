@@ -13,6 +13,7 @@ import {
   OutdatedPackage,
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
+import { DependenciesField } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
@@ -255,7 +256,7 @@ function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts:
     [outdatedPackageName: string]: {
       current: string
       latest: string
-      dependencyKind?: 'dev' | 'optional'
+      dependencyType: DependenciesField
       details?: string
     }
   }
@@ -264,17 +265,11 @@ function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts:
     outdatedPackagesJSON[packageName] = {
       current: renderCurrent(outdatedPkg),
       latest: extractLatest(outdatedPkg),
+      dependencyType: belongsTo,
     }
 
     if (opts.long) {
       outdatedPackagesJSON[packageName].details = extractDetails(outdatedPkg)
-    }
-
-    if (belongsTo === 'devDependencies') {
-      outdatedPackagesJSON[packageName].dependencyKind = 'dev'
-    }
-    if (belongsTo === 'optionalDependencies') {
-      outdatedPackagesJSON[packageName].dependencyKind = 'optional'
     }
   }
 

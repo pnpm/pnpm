@@ -209,15 +209,17 @@ test('pnpm outdated: format json', async () => {
       '@pnpm.e2e/deprecated': {
         current: '1.0.0',
         latest: 'Deprecated',
+        dependencyType: 'dependencies',
       },
       'is-negative': {
         current: '1.0.0',
         latest: '2.1.0',
+        dependencyType: 'dependencies',
       },
       'is-positive': {
         current: '1.0.0',
         latest: '3.1.0',
-        dependencyKind: 'dev',
+        dependencyType: 'devDependencies',
       },
     }, null, '\t'))
   }

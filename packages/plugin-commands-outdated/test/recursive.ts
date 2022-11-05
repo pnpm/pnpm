@@ -163,14 +163,15 @@ Dependent: project-2
       'is-negative': {
         current: '1.0.0',
         latest: '2.1.0',
+        dependencyType: 'devDependencies',
         dependentPackages: [
           'project-3',
         ],
-        dependencyKind: 'dev',
       },
       'is-positive': {
         current: '2.0.0',
         latest: '3.1.0',
+        dependencyType: 'dependencies',
         dependentPackages: [
           'project-2',
         ],

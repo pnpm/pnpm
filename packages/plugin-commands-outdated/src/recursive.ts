@@ -165,7 +165,7 @@ function renderOutdatedJSON (outdatedMap: Record<string, OutdatedInWorkspace>, o
       current: string
       latest: string
       dependentPackages: string[]
-      dependencyKind?: 'dev' | 'optional'
+      dependencyType: DependenciesField
       details?: string
     }
   }
@@ -174,18 +174,12 @@ function renderOutdatedJSON (outdatedMap: Record<string, OutdatedInWorkspace>, o
     outdatedPackagesJSON[packageName] = {
       current: renderCurrent(outdatedPkg),
       latest: extractLatest(outdatedPkg),
+      dependencyType: belongsTo,
       dependentPackages: dependentPackages(outdatedPkg).split(',').map((dependentPackage) => dependentPackage.trim()),
     }
 
     if (opts.long) {
       outdatedPackagesJSON[packageName].details = extractDetails(outdatedPkg)
-    }
-
-    if (belongsTo === 'devDependencies') {
-      outdatedPackagesJSON[packageName].dependencyKind = 'dev'
-    }
-    if (belongsTo === 'optionalDependencies') {
-      outdatedPackagesJSON[packageName].dependencyKind = 'optional'
     }
   }
 
