@@ -76,17 +76,32 @@ export async function outdatedRecursive (
     })
   }
 
-  if (isEmpty(outdatedMap)) return { output: '', exitCode: 0 }
-
+  let output!: string
   switch (opts.format ?? 'table') {
-  case 'table': return { output: renderOutdatedTable(outdatedMap, opts), exitCode: 1 }
-  case 'list': return { output: renderOutdatedList(outdatedMap, opts), exitCode: 1 }
-  case 'json': return { output: renderOutdatedJSON(outdatedMap, opts), exitCode: 1 }
-  default: throw new PnpmError('BAD_OUTDATED_FORMAT', `Unsupported format: ${opts.format?.toString() ?? 'undefined'}`)
+  case 'table': {
+    output = renderOutdatedTable(outdatedMap, opts)
+    break
+  }
+  case 'list': {
+    output = renderOutdatedList(outdatedMap, opts)
+    break
+  }
+  case 'json': {
+    output = renderOutdatedJSON(outdatedMap, opts)
+    break
+  }
+  default: {
+    throw new PnpmError('BAD_OUTDATED_FORMAT', `Unsupported format: ${opts.format?.toString() ?? 'undefined'}`)
+  }
+  }
+  return {
+    output,
+    exitCode: isEmpty(outdatedMap) ? 0 : 1,
   }
 }
 
 function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+  if (isEmpty(outdatedMap)) return ''
   const columnNames = [
     'Package',
     'Current',
@@ -129,6 +144,7 @@ function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, 
 }
 
 function renderOutdatedList (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+  if (isEmpty(outdatedMap)) return ''
   return sortOutdatedPackages(Object.values(outdatedMap))
     .map((outdatedPkg) => {
       let info = `${chalk.bold(renderPackageName(outdatedPkg))}

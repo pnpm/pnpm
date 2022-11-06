@@ -192,17 +192,32 @@ export async function handler (
     timeout: opts.fetchTimeout,
   })
 
-  if (outdatedPackages.length === 0) return { output: '', exitCode: 0 }
-
+  let output!: string
   switch (opts.format ?? 'table') {
-  case 'table': return { output: renderOutdatedTable(outdatedPackages, opts), exitCode: 1 }
-  case 'list': return { output: renderOutdatedList(outdatedPackages, opts), exitCode: 1 }
-  case 'json': return { output: renderOutdatedJSON(outdatedPackages, opts), exitCode: 1 }
-  default: throw new PnpmError('BAD_OUTDATED_FORMAT', `Unsupported format: ${opts.format?.toString() ?? 'undefined'}`)
+  case 'table': {
+    output = renderOutdatedTable(outdatedPackages, opts)
+    break
+  }
+  case 'list': {
+    output = renderOutdatedList(outdatedPackages, opts)
+    break
+  }
+  case 'json': {
+    output = renderOutdatedJSON(outdatedPackages, opts)
+    break
+  }
+  default: {
+    throw new PnpmError('BAD_OUTDATED_FORMAT', `Unsupported format: ${opts.format?.toString() ?? 'undefined'}`)
+  }
+  }
+  return {
+    output,
+    exitCode: outdatedPackages.length === 0 ? 0 : 1,
   }
 }
 
 function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
+  if (outdatedPackages.length === 0) return ''
   const columnNames = [
     'Package',
     'Current',
@@ -232,6 +247,7 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
 }
 
 function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
+  if (outdatedPackages.length === 0) return ''
   return sortOutdatedPackages(outdatedPackages)
     .map((outdatedPkg) => {
       let info = `${chalk.bold(renderPackageName(outdatedPkg))}
