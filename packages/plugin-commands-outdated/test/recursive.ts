@@ -245,6 +245,36 @@ https://github.com/kevva/is-positive#readme
   }
 })
 
+test('pnpm recursive outdated: format json when there are no outdated dependencies', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { output, exitCode } = await outdated.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    format: 'json',
+    recursive: true,
+    selectedProjectsGraph,
+  })
+
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toBe('{}')
+})
+
 test('pnpm recursive outdated in workspace with shared lockfile', async () => {
   preparePackages([
     {
