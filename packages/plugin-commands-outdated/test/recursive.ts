@@ -1,3 +1,4 @@
+import path from 'path'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { install } from '@pnpm/plugin-commands-installation'
 import { outdated } from '@pnpm/plugin-commands-outdated'
@@ -123,9 +124,9 @@ test('pnpm recursive outdated', async () => {
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
+      format: 'list',
       recursive: true,
       selectedProjectsGraph,
-      table: false,
     })
 
     expect(exitCode).toBe(1)
@@ -153,10 +154,51 @@ Dependent: project-2
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      format: 'json',
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output as unknown as string)).toBe(JSON.stringify({
+      'is-negative': {
+        current: '1.0.0',
+        latest: '2.1.0',
+        wanted: '1.0.0',
+        isDeprecated: false,
+        dependencyType: 'devDependencies',
+        dependentPackages: [
+          {
+            name: 'project-3',
+            location: path.resolve('project-3'),
+          },
+        ],
+      },
+      'is-positive': {
+        current: '2.0.0',
+        latest: '3.1.0',
+        wanted: '2.0.0',
+        isDeprecated: false,
+        dependencyType: 'dependencies',
+        dependentPackages: [
+          {
+            name: 'project-2',
+            location: path.resolve('project-2'),
+          },
+        ],
+      },
+    }, null, 2))
+  }
+
+  {
+    const { output, exitCode } = await outdated.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      format: 'list',
       long: true,
       recursive: true,
       selectedProjectsGraph,
-      table: false,
     })
 
     expect(exitCode).toBe(1)
@@ -203,6 +245,36 @@ https://github.com/kevva/is-positive#readme
 └─────────────┴─────────┴────────┴──────────────────────┘
 `)
   }
+})
+
+test('pnpm recursive outdated: format json when there are no outdated dependencies', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  const { output, exitCode } = await outdated.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    format: 'json',
+    recursive: true,
+    selectedProjectsGraph,
+  })
+
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toBe('{}')
 })
 
 test('pnpm recursive outdated in workspace with shared lockfile', async () => {

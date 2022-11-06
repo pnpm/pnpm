@@ -1,4 +1,5 @@
 import { TABLE_OPTIONS } from '@pnpm/cli-utils'
+import { PnpmError } from '@pnpm/error'
 import {
   outdatedDepsOfProjects,
   OutdatedPackage,
@@ -15,6 +16,7 @@ import sortWith from 'ramda/src/sortWith'
 import {
   getCellWidth,
   OutdatedCommandOptions,
+  OutdatedPackageJSONOutput,
   renderCurrent,
   renderDetails,
   renderLatest,
@@ -74,15 +76,32 @@ export async function outdatedRecursive (
     })
   }
 
-  if (isEmpty(outdatedMap)) return { output: '', exitCode: 0 }
-
-  if (opts.table !== false) {
-    return { output: renderOutdatedTable(outdatedMap, opts), exitCode: 1 }
+  let output!: string
+  switch (opts.format ?? 'table') {
+  case 'table': {
+    output = renderOutdatedTable(outdatedMap, opts)
+    break
   }
-  return { output: renderOutdatedList(outdatedMap, opts), exitCode: 1 }
+  case 'list': {
+    output = renderOutdatedList(outdatedMap, opts)
+    break
+  }
+  case 'json': {
+    output = renderOutdatedJSON(outdatedMap, opts)
+    break
+  }
+  default: {
+    throw new PnpmError('BAD_OUTDATED_FORMAT', `Unsupported format: ${opts.format?.toString() ?? 'undefined'}`)
+  }
+  }
+  return {
+    output,
+    exitCode: isEmpty(outdatedMap) ? 0 : 1,
+  }
 }
 
 function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+  if (isEmpty(outdatedMap)) return ''
   const columnNames = [
     'Package',
     'Current',
@@ -125,6 +144,7 @@ function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, 
 }
 
 function renderOutdatedList (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+  if (isEmpty(outdatedMap)) return ''
   return sortOutdatedPackages(Object.values(outdatedMap))
     .map((outdatedPkg) => {
       let info = `${chalk.bold(renderPackageName(outdatedPkg))}
@@ -151,6 +171,32 @@ ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
       return info
     })
     .join('\n\n') + '\n'
+}
+
+export interface OutdatedPackageInWorkspaceJSONOutput extends OutdatedPackageJSONOutput {
+  dependentPackages: Array<{ name: string, location: string }>
+}
+
+function renderOutdatedJSON (
+  outdatedMap: Record<string, OutdatedInWorkspace>,
+  opts: { long?: boolean }
+): string {
+  const outdatedPackagesJSON: Record<string, OutdatedPackageInWorkspaceJSONOutput> = sortOutdatedPackages(Object.values(outdatedMap))
+    .reduce((acc, outdatedPkg) => {
+      acc[outdatedPkg.packageName] = {
+        current: outdatedPkg.current,
+        latest: outdatedPkg.latestManifest?.version,
+        wanted: outdatedPkg.wanted,
+        isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
+        dependencyType: outdatedPkg.belongsTo,
+        dependentPackages: outdatedPkg.dependentPkgs.map(({ manifest, location }) => ({ name: manifest.name, location })),
+      }
+      if (opts.long) {
+        acc[outdatedPkg.packageName].latestManifest = outdatedPkg.latestManifest
+      }
+      return acc
+    }, {})
+  return JSON.stringify(outdatedPackagesJSON, null, 2)
 }
 
 function dependentPackages ({ dependentPkgs }: OutdatedInWorkspace) {

@@ -6,16 +6,17 @@ import { PnpmError } from '@pnpm/error'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { prepare, tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { fixtures } from '@pnpm/test-fixtures'
 import stripAnsi from 'strip-ansi'
 
-const fixtures = path.join(__dirname, '../../../fixtures')
-const hasOutdatedDepsFixture = path.join(fixtures, 'has-outdated-deps')
-const has2OutdatedDepsFixture = path.join(fixtures, 'has-2-outdated-deps')
-const hasOutdatedDepsFixtureAndExternalLockfile = path.join(fixtures, 'has-outdated-deps-and-external-shrinkwrap', 'pkg')
-const hasNotOutdatedDepsFixture = path.join(fixtures, 'has-not-outdated-deps')
-const hasMajorOutdatedDepsFixture = path.join(fixtures, 'has-major-outdated-deps')
-const hasNoLockfileFixture = path.join(fixtures, 'has-no-lockfile')
-const withPnpmUpdateIgnore = path.join(fixtures, 'with-pnpm-update-ignore')
+const f = fixtures(__dirname)
+const hasOutdatedDepsFixture = f.find('has-outdated-deps')
+const has2OutdatedDepsFixture = f.find('has-2-outdated-deps')
+const hasOutdatedDepsFixtureAndExternalLockfile = path.join(f.find('has-outdated-deps-and-external-shrinkwrap'), 'pkg')
+const hasNotOutdatedDepsFixture = f.find('has-not-outdated-deps')
+const hasMajorOutdatedDepsFixture = f.find('has-major-outdated-deps')
+const hasNoLockfileFixture = f.find('has-no-lockfile')
+const withPnpmUpdateIgnore = f.find('with-pnpm-update-ignore')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -148,7 +149,7 @@ test('pnpm outdated: no table', async () => {
     const { output, exitCode } = await outdated.handler({
       ...OUTDATED_OPTIONS,
       dir: process.cwd(),
-      table: false,
+      format: 'list',
     })
 
     expect(exitCode).toBe(1)
@@ -167,8 +168,8 @@ is-positive (dev)
     const { output, exitCode } = await outdated.handler({
       ...OUTDATED_OPTIONS,
       dir: process.cwd(),
+      format: 'list',
       long: true,
-      table: false,
     })
 
     expect(exitCode).toBe(1)
@@ -188,6 +189,60 @@ is-positive (dev)
 https://github.com/kevva/is-positive#readme
 `)
   }
+})
+
+test('pnpm outdated: format json', async () => {
+  tempDir()
+
+  await fs.mkdir(path.resolve('node_modules/.pnpm'), { recursive: true })
+  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+
+  {
+    const { output, exitCode } = await outdated.handler({
+      ...OUTDATED_OPTIONS,
+      dir: process.cwd(),
+      format: 'json',
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toBe(JSON.stringify({
+      '@pnpm.e2e/deprecated': {
+        current: '1.0.0',
+        latest: '1.0.0',
+        wanted: '1.0.0',
+        isDeprecated: true,
+        dependencyType: 'dependencies',
+      },
+      'is-negative': {
+        current: '1.0.0',
+        latest: '2.1.0',
+        wanted: '1.0.0',
+        isDeprecated: false,
+        dependencyType: 'dependencies',
+      },
+      'is-positive': {
+        current: '1.0.0',
+        latest: '3.1.0',
+        wanted: '1.0.0',
+        isDeprecated: false,
+        dependencyType: 'devDependencies',
+      },
+    }, null, 2))
+  }
+})
+
+test('pnpm outdated: format json when there are no outdated dependencies', async () => {
+  prepare()
+
+  const { output, exitCode } = await outdated.handler({
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+    format: 'json',
+  })
+
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toBe('{}')
 })
 
 test('pnpm outdated: only current lockfile is available', async () => {

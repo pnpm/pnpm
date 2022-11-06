@@ -8,11 +8,13 @@ import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
+import { PnpmError } from '@pnpm/error'
 import {
   outdatedDepsOfProjects,
   OutdatedPackage,
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
+import { DependenciesField, PackageManifest } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
@@ -38,7 +40,7 @@ export function rcOptionsTypes () {
       'production',
     ], allTypes),
     compatible: Boolean,
-    table: Boolean,
+    format: ['table', 'list', 'json'],
   }
 }
 
@@ -50,6 +52,9 @@ export const cliOptionsTypes = () => ({
 export const shorthands = {
   D: '--dev',
   P: '--production',
+  table: '--format=table',
+  'no-table': '--format=list',
+  json: '--format=json',
 }
 
 export const commandNames = ['outdated']
@@ -120,7 +125,7 @@ export type OutdatedCommandOptions = {
   compatible?: boolean
   long?: boolean
   recursive?: boolean
-  table?: boolean
+  format?: 'table' | 'list' | 'json'
 } & Pick<Config,
 | 'allProjects'
 | 'ca'
@@ -187,16 +192,32 @@ export async function handler (
     timeout: opts.fetchTimeout,
   })
 
-  if (outdatedPackages.length === 0) return { output: '', exitCode: 0 }
-
-  if (opts.table !== false) {
-    return { output: renderOutdatedTable(outdatedPackages, opts), exitCode: 1 }
-  } else {
-    return { output: renderOutdatedList(outdatedPackages, opts), exitCode: 1 }
+  let output!: string
+  switch (opts.format ?? 'table') {
+  case 'table': {
+    output = renderOutdatedTable(outdatedPackages, opts)
+    break
+  }
+  case 'list': {
+    output = renderOutdatedList(outdatedPackages, opts)
+    break
+  }
+  case 'json': {
+    output = renderOutdatedJSON(outdatedPackages, opts)
+    break
+  }
+  default: {
+    throw new PnpmError('BAD_OUTDATED_FORMAT', `Unsupported format: ${opts.format?.toString() ?? 'undefined'}`)
+  }
+  }
+  return {
+    output,
+    exitCode: outdatedPackages.length === 0 ? 0 : 1,
   }
 }
 
 function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
+  if (outdatedPackages.length === 0) return ''
   const columnNames = [
     'Package',
     'Current',
@@ -226,6 +247,7 @@ function renderOutdatedTable (outdatedPackages: readonly OutdatedPackage[], opts
 }
 
 function renderOutdatedList (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
+  if (outdatedPackages.length === 0) return ''
   return sortOutdatedPackages(outdatedPackages)
     .map((outdatedPkg) => {
       let info = `${chalk.bold(renderPackageName(outdatedPkg))}
@@ -242,6 +264,33 @@ ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
       return info
     })
     .join('\n\n') + '\n'
+}
+
+export interface OutdatedPackageJSONOutput {
+  current?: string
+  latest?: string
+  wanted: string
+  isDeprecated: boolean
+  dependencyType: DependenciesField
+  latestManifest?: PackageManifest
+}
+
+function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts: { long?: boolean }) {
+  const outdatedPackagesJSON: Record<string, OutdatedPackageJSONOutput> = sortOutdatedPackages(outdatedPackages)
+    .reduce((acc, outdatedPkg) => {
+      acc[outdatedPkg.packageName] = {
+        current: outdatedPkg.current,
+        latest: outdatedPkg.latestManifest?.version,
+        wanted: outdatedPkg.wanted,
+        isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
+        dependencyType: outdatedPkg.belongsTo,
+      }
+      if (opts.long) {
+        acc[outdatedPkg.packageName].latestManifest = outdatedPkg.latestManifest
+      }
+      return acc
+    }, {})
+  return JSON.stringify(outdatedPackagesJSON, null, 2)
 }
 
 function sortOutdatedPackages (outdatedPackages: readonly OutdatedPackage[]) {
