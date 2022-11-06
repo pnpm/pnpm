@@ -148,7 +148,7 @@ test('pnpm outdated: no table', async () => {
     const { output, exitCode } = await outdated.handler({
       ...OUTDATED_OPTIONS,
       dir: process.cwd(),
-      table: false,
+      format: 'list',
     })
 
     expect(exitCode).toBe(1)
@@ -167,8 +167,8 @@ is-positive (dev)
     const { output, exitCode } = await outdated.handler({
       ...OUTDATED_OPTIONS,
       dir: process.cwd(),
+      format: 'list',
       long: true,
-      table: false,
     })
 
     expect(exitCode).toBe(1)

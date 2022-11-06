@@ -1,4 +1,5 @@
 import { TABLE_OPTIONS } from '@pnpm/cli-utils'
+import { PnpmError } from '@pnpm/error'
 import {
   outdatedDepsOfProjects,
   OutdatedPackage,
@@ -77,18 +78,12 @@ export async function outdatedRecursive (
 
   if (isEmpty(outdatedMap)) return { output: '', exitCode: 0 }
 
-  if (opts.format) {
-    switch (opts.format) {
-    case 'table': return { output: renderOutdatedTable(outdatedMap, opts), exitCode: 1 }
-    case 'list': return { output: renderOutdatedList(outdatedMap, opts), exitCode: 1 }
-    case 'json': return { output: renderOutdatedJSON(outdatedMap, opts), exitCode: 1 }
-    }
+  switch (opts.format ?? 'table') {
+  case 'table': return { output: renderOutdatedTable(outdatedMap, opts), exitCode: 1 }
+  case 'list': return { output: renderOutdatedList(outdatedMap, opts), exitCode: 1 }
+  case 'json': return { output: renderOutdatedJSON(outdatedMap, opts), exitCode: 1 }
+  default: throw new PnpmError('BAD_OUTDATED_FORMAT', `Unsupported format: ${opts.format?.toString() ?? 'undefined'}`)
   }
-
-  if (opts.table !== false) {
-    return { output: renderOutdatedTable(outdatedMap, opts), exitCode: 1 }
-  }
-  return { output: renderOutdatedList(outdatedMap, opts), exitCode: 1 }
 }
 
 function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {

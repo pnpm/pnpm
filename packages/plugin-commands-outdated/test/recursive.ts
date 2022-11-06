@@ -124,9 +124,9 @@ test('pnpm recursive outdated', async () => {
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
+      format: 'list',
       recursive: true,
       selectedProjectsGraph,
-      table: false,
     })
 
     expect(exitCode).toBe(1)
@@ -193,10 +193,10 @@ Dependent: project-2
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
+      format: 'list',
       long: true,
       recursive: true,
       selectedProjectsGraph,
-      table: false,
     })
 
     expect(exitCode).toBe(1)

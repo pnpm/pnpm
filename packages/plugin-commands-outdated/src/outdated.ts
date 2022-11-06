@@ -8,6 +8,7 @@ import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
+import { PnpmError } from '@pnpm/error'
 import {
   outdatedDepsOfProjects,
   OutdatedPackage,
@@ -39,7 +40,6 @@ export function rcOptionsTypes () {
       'production',
     ], allTypes),
     compatible: Boolean,
-    table: Boolean,
     format: ['table', 'list', 'json'],
   }
 }
@@ -52,6 +52,9 @@ export const cliOptionsTypes = () => ({
 export const shorthands = {
   D: '--dev',
   P: '--production',
+  table: '--format=table',
+  'no-table': '--format=list',
+  json: '--format=json',
 }
 
 export const commandNames = ['outdated']
@@ -122,7 +125,6 @@ export type OutdatedCommandOptions = {
   compatible?: boolean
   long?: boolean
   recursive?: boolean
-  table?: boolean
   format?: 'table' | 'list' | 'json'
 } & Pick<Config,
 | 'allProjects'
@@ -192,18 +194,11 @@ export async function handler (
 
   if (outdatedPackages.length === 0) return { output: '', exitCode: 0 }
 
-  if (opts.format) {
-    switch (opts.format) {
-    case 'table': return { output: renderOutdatedTable(outdatedPackages, opts), exitCode: 1 }
-    case 'list': return { output: renderOutdatedList(outdatedPackages, opts), exitCode: 1 }
-    case 'json': return { output: renderOutdatedJSON(outdatedPackages, opts), exitCode: 1 }
-    }
-  }
-
-  if (opts.table !== false) {
-    return { output: renderOutdatedTable(outdatedPackages, opts), exitCode: 1 }
-  } else {
-    return { output: renderOutdatedList(outdatedPackages, opts), exitCode: 1 }
+  switch (opts.format ?? 'table') {
+  case 'table': return { output: renderOutdatedTable(outdatedPackages, opts), exitCode: 1 }
+  case 'list': return { output: renderOutdatedList(outdatedPackages, opts), exitCode: 1 }
+  case 'json': return { output: renderOutdatedJSON(outdatedPackages, opts), exitCode: 1 }
+  default: throw new PnpmError('BAD_OUTDATED_FORMAT', `Unsupported format: ${opts.format?.toString() ?? 'undefined'}`)
   }
 }
 
