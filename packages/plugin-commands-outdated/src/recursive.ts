@@ -184,8 +184,9 @@ function renderOutdatedJSON (
   const outdatedPackagesJSON: Record<string, OutdatedPackageInWorkspaceJSONOutput> = sortOutdatedPackages(Object.values(outdatedMap))
     .reduce((acc, outdatedPkg) => {
       acc[outdatedPkg.packageName] = {
-        currentVersion: outdatedPkg.current,
-        latestVersion: outdatedPkg.latestManifest?.version,
+        current: outdatedPkg.current,
+        latest: outdatedPkg.latestManifest?.version,
+        wanted: outdatedPkg.wanted,
         isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
         dependencyType: outdatedPkg.belongsTo,
         dependentPackages: outdatedPkg.dependentPkgs.map(({ manifest, location }) => ({ name: manifest.name, location })),

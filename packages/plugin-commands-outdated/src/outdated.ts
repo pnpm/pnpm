@@ -267,8 +267,9 @@ ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
 }
 
 export interface OutdatedPackageJSONOutput {
-  currentVersion?: string
-  latestVersion?: string
+  current?: string
+  latest?: string
+  wanted: string
   isDeprecated: boolean
   dependencyType: DependenciesField
   latestManifest?: PackageManifest
@@ -278,8 +279,9 @@ function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts:
   const outdatedPackagesJSON: Record<string, OutdatedPackageJSONOutput> = sortOutdatedPackages(outdatedPackages)
     .reduce((acc, outdatedPkg) => {
       acc[outdatedPkg.packageName] = {
-        currentVersion: outdatedPkg.current,
-        latestVersion: outdatedPkg.latestManifest?.version,
+        current: outdatedPkg.current,
+        latest: outdatedPkg.latestManifest?.version,
+        wanted: outdatedPkg.wanted,
         isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
         dependencyType: outdatedPkg.belongsTo,
       }
