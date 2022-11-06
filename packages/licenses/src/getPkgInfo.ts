@@ -1,5 +1,4 @@
 import path from 'path'
-import fs from 'fs'
 import pathAbsolute from 'path-absolute'
 import { readFile } from 'fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
@@ -55,22 +54,6 @@ function coerceToString (field: unknown): string | null {
   return typeof field === 'string' || field === string ? string : null
 }
 
-async function fileExists (file: string): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    fs.access(file, (err) => {
-      if (err == null) {
-        resolve(true)
-        return
-      }
-      if (err.code === 'ENOENT') {
-        resolve(false)
-        return
-      }
-      reject(err)
-    })
-  })
-}
-
 /**
  * Parses the value of the license-property of a
  * package manifest and return it as a string
@@ -114,15 +97,19 @@ function parseLicenseManifestField (field: unknown) {
 async function parseLicense (
   pkg: {
     manifest: PackageManifest
-    files: { local: true, files: Record<string, string> } | { local: false, files: Record<string, PackageFileInfo> }
+    files:
+    | { local: true, files: Record<string, string> }
+    | { local: false, files: Record<string, PackageFileInfo> }
   },
   opts: { cafsDir: string }
 ): Promise<LicenseInfo> {
   let licenseField: unknown = pkg.manifest.license
   if ('licenses' in pkg.manifest) {
-    licenseField = (pkg.manifest as PackageManifest & {
-      licenses: unknown
-    }).licenses
+    licenseField = (
+      pkg.manifest as PackageManifest & {
+        licenses: unknown
+      }
+    ).licenses
   }
   const license = parseLicenseManifestField(licenseField)
 
@@ -165,13 +152,13 @@ async function parseLicense (
 async function readLicenseFileFromCafs (cafsDir: string, fileIntegrity: string) {
   const fileName = getFilePathByModeInCafs(cafsDir, fileIntegrity, 0)
 
-  const licenseFileExists = fileExists(fileName)
-  if (!licenseFileExists) {
-    return
+  try {
+    const fileContents = await readFile(fileName)
+    return fileContents
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'ENOENT') return undefined
+    throw err
   }
-
-  const fileContents = await readFile(fileName)
-  return fileContents
 }
 
 /**
@@ -185,13 +172,16 @@ export async function readPackageIndexFile (
   packageResolution: Resolution,
   packageRef: string,
   opts: { cafsDir: string, storeDir: string, lockfileDir: string }
-): Promise<{
+): Promise<
+  | {
     local: false
     files: Record<string, PackageFileInfo>
-  } | {
+  }
+  | {
     local: true
     files: Record<string, string>
-  }> {
+  }
+  > {
   const isPackageWithIntegrity = 'integrity' in packageResolution
 
   let pkgIndexFilePath
@@ -214,34 +204,46 @@ export async function readPackageIndexFile (
     // directory for the package in the content-addressable store
     const pathToDependency = depPathToFilename(packageRef)
     const [packageDirInStore] = pathToDependency.split('_')
-    pkgIndexFilePath = path.join(opts.storeDir, packageDirInStore, 'integrity.json')
+    pkgIndexFilePath = path.join(
+      opts.storeDir,
+      packageDirInStore,
+      'integrity.json'
+    )
   } else {
-    throw new PnpmError('UNSUPPORTED_PACKAGE_TYPE', `Unsupported package resolution type for ${packageRef}`)
+    throw new PnpmError(
+      'UNSUPPORTED_PACKAGE_TYPE',
+      `Unsupported package resolution type for ${packageRef}`
+    )
   }
 
   // If the package resolution is of type directory we need to do things
   // differently and generate our own package index file
   const isLocalPkg = packageResolution.type === 'directory'
   if (isLocalPkg) {
-    const localInfo = await fetchFromDir(path.join(opts.lockfileDir, packageResolution.directory), {})
+    const localInfo = await fetchFromDir(
+      path.join(opts.lockfileDir, packageResolution.directory),
+      {}
+    )
     return {
       local: true,
       files: localInfo.filesIndex,
     }
   } else {
-    // Check if the package index file exists
-    const pkgIndexFileExists = await fileExists(pkgIndexFilePath)
-    if (!pkgIndexFileExists) {
-      throw new PnpmError(
-        'MISSING_PACKAGE_INDEX_FILE',
-        `Failed to find package index file for ${packageRef}, please consider running 'pnpm install'`
-      )
-    }
+    try {
+      const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
+      return {
+        local: false,
+        files,
+      }
+    } catch (err: any) {  // eslint-disable-line
+      if (err.code === 'ENOENT') {
+        throw new PnpmError(
+          'MISSING_PACKAGE_INDEX_FILE',
+          `Failed to find package index file for ${packageRef}, please consider running 'pnpm install'`
+        )
+      }
 
-    const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
-    return {
-      local: false,
-      files,
+      throw err
     }
   }
 }
@@ -283,7 +285,10 @@ export const getPkgInfo: GetPackageInfoFunction = async (
   if (packageFileIndexInfo.local) {
     packageManifestDir = packageFileIndexInfo.files['package.json']
   } else {
-    const packageFileIndex = packageFileIndexInfo.files as Record<string, PackageFileInfo>
+    const packageFileIndex = packageFileIndexInfo.files as Record<
+    string,
+    PackageFileInfo
+    >
     const packageManifestFile = packageFileIndex['package.json']
     packageManifestDir = await getFilePathByModeInCafs(
       cafsDir,
@@ -292,15 +297,18 @@ export const getPkgInfo: GetPackageInfoFunction = async (
     )
   }
 
-  const packageManifestExists = await fileExists(packageManifestDir)
-  if (!packageManifestExists) {
-    throw new PnpmError(
-      'MISSING_PACKAGE_MANIFEST',
-      'Failed to find package manifest file'
-    )
+  let manifest
+  try {
+    manifest = await readPkg(packageManifestDir)
+  } catch (err: any) {  // eslint-disable-line
+    if (err.code === 'ENOENT') {
+      throw new PnpmError(
+        'MISSING_PACKAGE_MANIFEST',
+        'Failed to find package manifest file'
+      )
+    }
+    throw err
   }
-
-  const manifest = await readPkg(packageManifestDir)
 
   // Determine the path to the package as known by the user
   const modulesDir = opts.modulesDir ?? 'node_modules'

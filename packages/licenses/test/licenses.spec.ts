@@ -22,6 +22,7 @@ const getPackageInfo: GetPackageInfoFunction = async (pkg, _opts): Promise<
     vendorRepository: 'Repository',
     path: `/path/to/package/${pkg.name!}@${pkg.version!}/node_modules`,
   }
+
   return packageInfo
 }
 
