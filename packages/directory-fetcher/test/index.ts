@@ -1,9 +1,15 @@
 /// <reference path="../../../typings/index.d.ts"/>
 import path from 'path'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
+// @ts-expect-error
+import { debug } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
 
 const f = fixtures(__dirname)
+jest.mock('@pnpm/logger', () => {
+  const debug = jest.fn()
+  return ({ debug, logger: () => ({ debug }) })
+})
 
 test('fetch including only package files', async () => {
   process.chdir(f.find('simple-pkg'))
@@ -81,6 +87,7 @@ test('fetch a directory that has no package.json', async () => {
 })
 
 test('fetch does not fail on package with broken symlink', async () => {
+  debug.mockClear()
   process.chdir(f.find('pkg-with-broken-symlink'))
   const fetcher = createDirectoryFetcher()
 
@@ -101,4 +108,5 @@ test('fetch does not fail on package with broken symlink', async () => {
     'index.js',
     'package.json',
   ])
+  expect(debug).toHaveBeenCalledWith({ brokenSymlink: path.resolve('not-exists') })
 })

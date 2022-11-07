@@ -1047,6 +1047,9 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../read-project-manifest
