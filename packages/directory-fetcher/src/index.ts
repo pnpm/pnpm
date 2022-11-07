@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import { promises as fs, Stats } from 'fs'
 import path from 'path'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
@@ -65,7 +65,14 @@ async function _fetchAllFilesFromDir (
     .filter((file) => file !== 'node_modules')
     .map(async (file) => {
       const filePath = path.join(dir, file)
-      const stat = await fs.stat(filePath)
+      let stat: Stats
+      try {
+        stat = await fs.stat(filePath)
+      } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        // Broken symlinks are skipped
+        if (err.code === 'ENOENT') return
+        throw err
+      }
       const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
       if (stat.isDirectory()) {
         const subFilesIndex = await _fetchAllFilesFromDir(filePath, relativeSubdir)

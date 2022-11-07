@@ -79,3 +79,26 @@ test('fetch a directory that has no package.json', async () => {
     'index.js',
   ])
 })
+
+test('fetch does not fail on package with broken symlink', async () => {
+  process.chdir(f.find('pkg-with-broken-symlink'))
+  const fetcher = createDirectoryFetcher()
+
+  // eslint-disable-next-line
+  const fetchResult = await fetcher.directory({} as any, {
+    directory: '.',
+    type: 'directory',
+  }, {
+    lockfileDir: process.cwd(),
+  })
+
+  expect(fetchResult.local).toBe(true)
+  expect(fetchResult.packageImportMethod).toBe('hardlink')
+  expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
+
+  // Only those files are included which would get published
+  expect(Object.keys(fetchResult.filesIndex).sort()).toStrictEqual([
+    'index.js',
+    'package.json',
+  ])
+})
