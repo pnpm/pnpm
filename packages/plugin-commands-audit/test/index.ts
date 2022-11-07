@@ -1,10 +1,13 @@
 import path from 'path'
+import { fixtures } from '@pnpm/test-fixtures'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { AuditEndpointNotExistsError } from '@pnpm/audit'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 import nock from 'nock'
 import stripAnsi from 'strip-ansi'
 import * as responses from './utils/responses'
 
+const f = fixtures(path.join(__dirname, 'fixtures'))
 const registries = {
   default: 'https://registry.npmjs.org/',
 }
@@ -170,4 +173,38 @@ test('audit endpoint does not exist', async () => {
     rawConfig,
     registries,
   })).rejects.toThrow(AuditEndpointNotExistsError)
+})
+
+test('CVEs in ignoreCves do not show up in an audit', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+  {
+    const { manifest, writeProjectManifest } = await readProjectManifest(tmp)
+    manifest.pnpm = {
+      ...manifest.pnpm,
+      auditConfig: {
+        ignoreCves: [
+          'CVE-2019-10742',
+          'CVE-2020-28168',
+          'CVE-2021-3749',
+          'CVE-2020-7598',
+        ],
+      },
+    }
+    await writeProjectManifest(manifest)
+  }
+
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.ALL_VULN_RESP)
+
+  const { exitCode, output } = await audit.handler({
+    auditLevel: 'moderate',
+    dir: tmp,
+    userConfig: {},
+    rawConfig,
+    registries,
+  })
+
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toMatchSnapshot()
 })

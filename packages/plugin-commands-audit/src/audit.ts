@@ -5,10 +5,12 @@ import { Config, types as allTypes, UniversalOptions } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
+import { difference } from 'ramda'
 import renderHelp from 'render-help'
 import { fix } from './fix'
 
@@ -202,7 +204,13 @@ ${JSON.stringify(newOverrides, null, 2)}`,
 
   let output = ''
   const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
-  const advisories = Object.values(auditReport.advisories)
+  const { manifest } = await readProjectManifest(opts.dir)
+  const ignoreCves = manifest.pnpm?.auditConfig?.ignoreCves
+  let advisories = Object.values(auditReport.advisories)
+  if (ignoreCves) {
+    advisories = advisories.filter(({ cves }) => difference(cves, ignoreCves).length > 0)
+  }
+  advisories
     .filter(({ severity }) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
     .sort((a1, a2) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])
   for (const advisory of advisories) {
