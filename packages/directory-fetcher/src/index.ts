@@ -1,9 +1,12 @@
-import { promises as fs } from 'fs'
+import { promises as fs, Stats } from 'fs'
 import path from 'path'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
+import { logger } from '@pnpm/logger'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import fromPairs from 'ramda/src/fromPairs'
 import packlist from 'npm-packlist'
+
+const directoryFetcherLogger = logger('directory-fetcher')
 
 export interface CreateDirectoryFetcherOptions {
   includeOnlyPackageFiles?: boolean
@@ -65,7 +68,17 @@ async function _fetchAllFilesFromDir (
     .filter((file) => file !== 'node_modules')
     .map(async (file) => {
       const filePath = path.join(dir, file)
-      const stat = await fs.stat(filePath)
+      let stat: Stats
+      try {
+        stat = await fs.stat(filePath)
+      } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+        // Broken symlinks are skipped
+        if (err.code === 'ENOENT') {
+          directoryFetcherLogger.debug({ brokenSymlink: filePath })
+          return
+        }
+        throw err
+      }
       const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
       if (stat.isDirectory()) {
         const subFilesIndex = await _fetchAllFilesFromDir(filePath, relativeSubdir)
