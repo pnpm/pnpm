@@ -314,6 +314,7 @@ export const getPkgInfo: GetPackageInfoFunction = async (
     opts.dir
   )
 
+  // TODO: fix issue that path is only correct when using node-linked=isolated
   const packageModulePath = path.join(
     virtualStoreDir,
     depPathToFilename(pkg.depPath),
