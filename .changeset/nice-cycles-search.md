@@ -1,5 +1,5 @@
 ---
-'@pnpm/licenses': major
+'@pnpm/license-scanner': major
 '@pnpm/plugin-commands-licenses': major
 ---
 

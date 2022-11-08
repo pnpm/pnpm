@@ -25,7 +25,7 @@
   "keywords": [
     "pnpm7",
     "pnpm",
-    "outdated"
+    "licenses"
   ],
   "license": "MIT",
   "bugs": {
@@ -46,7 +46,7 @@
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
-    "@pnpm/licenses": "workspace:*",
+    "@pnpm/license-scanner": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "chalk": "^4.1.2",
     "strip-ansi": "^6.0.1",

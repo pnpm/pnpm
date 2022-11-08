@@ -18,9 +18,9 @@ export interface LicensePackage {
   name: string
   license: string
   licenseContents?: string
-  vendorName?: string
-  vendorUrl?: string
-  vendorRepository?: string
+  author?: string
+  homepage?: string
+  repository?: string
   path?: string
 }
 
@@ -70,9 +70,9 @@ function getDependenciesFromLicenseNode (
         name: dependencyName,
         license: dependencyNode.license as string,
         licenseContents: dependencyNode.licenseContents,
-        vendorName: dependencyNode.vendorName as string,
-        vendorUrl: dependencyNode.vendorUrl as string,
-        vendorRepository: dependencyNode.repository as string,
+        author: dependencyNode.author as string,
+        homepage: dependencyNode.homepage as string,
+        repository: dependencyNode.repository as string,
         path: dependencyNode.dir,
       },
     ]
@@ -81,7 +81,7 @@ function getDependenciesFromLicenseNode (
   return dependencies
 }
 
-export async function licences (opts: {
+export async function findDependencyLicenses (opts: {
   getPackageInfo?: GetPackageInfoFunction
   ignoreDependencies?: Set<string>
   include?: IncludedDependencies

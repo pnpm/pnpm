@@ -14,8 +14,8 @@ export interface LicenseNode {
   license: string
   licenseContents?: string
   dir: string
-  vendorName?: string
-  vendorUrl?: string
+  author?: string
+  homepage?: string
   repository?: string
   integrity?: string
   requires?: Record<string, string>
@@ -25,7 +25,7 @@ export interface LicenseNode {
 
 export type LicenseNodeTree = Omit<
 LicenseNode,
-'dir' | 'license' | 'licenseContents' | 'vendorName' | 'vendorUrl' | 'repository'
+'dir' | 'license' | 'licenseContents' | 'author' | 'homepages' | 'repository'
 >
 
 export interface LicenseExtractOptions {
@@ -88,9 +88,9 @@ export async function lockfileToLicenseNode (
       version,
       license: packageInfo.license,
       licenseContents: packageInfo.licenseContents,
-      vendorName: packageInfo.vendorName,
-      vendorUrl: packageInfo.vendorUrl,
-      repository: packageInfo.vendorRepository,
+      author: packageInfo.author,
+      homepage: packageInfo.homepage,
+      repository: packageInfo.repository,
       dir: packageInfo.path as string,
     }
 

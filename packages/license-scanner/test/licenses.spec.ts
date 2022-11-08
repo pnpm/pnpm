@@ -1,14 +1,14 @@
-import { licences } from '@pnpm/licenses'
+import { findDependencyLicenses } from '@pnpm/license-scanner'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { ProjectManifest, Registries } from '@pnpm/types'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { GetPackageInfoFunction, LicensePackage } from '../lib/licenses'
 
 const getPackageInfo: GetPackageInfoFunction = async (pkg, _opts): Promise<
-{
-  from: string
-  description?: string
-} & Omit<LicensePackage, 'belongsTo'>
+  {
+    from: string
+    description?: string
+  } & Omit<LicensePackage, 'belongsTo'>
 > => {
   const packageInfo = {
     from: pkg.name!,
@@ -17,9 +17,9 @@ const getPackageInfo: GetPackageInfoFunction = async (pkg, _opts): Promise<
     description: 'Package Description',
     license: pkg.name === 'bar' ? 'MIT' : 'Unknown',
     licenseContents: pkg.name === 'bar' ? undefined : 'The MIT License',
-    vendorName: 'Package Author',
-    vendorUrl: 'Homepage',
-    vendorRepository: 'Repository',
+    author: 'Package Author',
+    homepage: 'Homepage',
+    repository: 'Repository',
     path: `/path/to/package/${pkg.name!}@${pkg.version!}/node_modules`,
   }
 
@@ -27,7 +27,7 @@ const getPackageInfo: GetPackageInfoFunction = async (pkg, _opts): Promise<
 }
 
 describe('licences', () => {
-  test('licences()', async () => {
+  test('findDependencyLicenses()', async () => {
     const lockfile: Lockfile = {
       importers: {
         '.': {
@@ -57,7 +57,7 @@ describe('licences', () => {
       },
     }
 
-    const licensePackages = await licences({
+    const licensePackages = await findDependencyLicenses({
       lockfileDir: '/opt/pnpm',
       manifest: {} as ProjectManifest,
       virtualStoreDir: '/.pnpm',
@@ -74,9 +74,9 @@ describe('licences', () => {
         name: 'bar',
         license: 'MIT',
         licenseContents: undefined,
-        vendorName: 'Package Author',
-        vendorUrl: 'Homepage',
-        vendorRepository: 'Repository',
+        author: 'Package Author',
+        homepage: 'Homepage',
+        repository: 'Repository',
         path: '/path/to/package/bar@1.0.0/node_modules',
       },
       {
@@ -85,9 +85,9 @@ describe('licences', () => {
         name: 'foo',
         license: 'Unknown',
         licenseContents: 'The MIT License',
-        vendorName: 'Package Author',
-        vendorUrl: 'Homepage',
-        vendorRepository: 'Repository',
+        author: 'Package Author',
+        homepage: 'Homepage',
+        repository: 'Repository',
         path: '/path/to/package/foo@1.0.0/node_modules',
       },
     ] as LicensePackage[])

@@ -14,12 +14,12 @@ import {
 } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { licences } from '@pnpm/licenses'
+import { findDependencyLicenses } from '@pnpm/license-scanner'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { renderLicences } from './outputRenderer'
 
-export function rcOptionsTypes () {
+export function rcOptionsTypes() {
   return {
     ...pick(
       ['dev', 'global-dir', 'global', 'json', 'long', 'optional', 'production'],
@@ -42,7 +42,7 @@ export const shorthands = {
 
 export const commandNames = ['licenses']
 
-export function help () {
+export function help() {
   return renderHelp({
     description: `Check for licenses packages. The check can be limited to a subset of the installed packages by providing arguments (patterns are supported).
 
@@ -100,21 +100,21 @@ export type LicensesCommandOptions = {
   recursive?: boolean
   json?: boolean
 } & Pick<
-Config,
-| 'dev'
-| 'dir'
-| 'lockfileDir'
-| 'registries'
-| 'optional'
-| 'production'
-| 'storeDir'
-| 'virtualStoreDir'
-| 'modulesDir'
-| 'pnpmHomeDir'
+  Config,
+  | 'dev'
+  | 'dir'
+  | 'lockfileDir'
+  | 'registries'
+  | 'optional'
+  | 'production'
+  | 'storeDir'
+  | 'virtualStoreDir'
+  | 'modulesDir'
+  | 'pnpmHomeDir'
 > &
-Partial<Pick<Config, 'userConfig'>>
+  Partial<Pick<Config, 'userConfig'>>
 
-export async function handler (
+export async function handler(
   opts: LicensesCommandOptions,
   params: string[] = []
 ) {
@@ -142,7 +142,7 @@ export async function handler (
     pnpmHomeDir: opts.pnpmHomeDir,
   })
 
-  const licensePackages = await licences({
+  const licensePackages = await findDependencyLicenses({
     include,
     lockfileDir: opts.dir,
     storeDir,

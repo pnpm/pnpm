@@ -337,13 +337,13 @@ export const getPkgInfo: GetPackageInfoFunction = async (
     description: manifest.description,
     license: licenseInfo.name,
     licenseContents: licenseInfo.licenseFile,
-    vendorName:
+    author:
       (manifest.author &&
         (typeof manifest.author === 'string'
           ? manifest.author
           : (manifest.author as { name: string }).name)) ??
       undefined,
-    vendorUrl: manifest.homepage,
+    homepage: manifest.homepage,
     repository:
       (manifest.repository &&
         (typeof manifest.repository === 'string'

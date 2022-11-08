@@ -1859,15 +1859,12 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../constants
-      '@pnpm/licenses':
+      '@pnpm/license-scanner':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
-      npm-run-all:
-        specifier: ^4.1.5
-        version: 4.1.5
 
   packages/lifecycle:
     dependencies:
@@ -3565,7 +3562,7 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
-      '@pnpm/licenses':
+      '@pnpm/license-scanner':
         specifier: workspace:*
         version: link:../licenses
       '@pnpm/lockfile-file':
