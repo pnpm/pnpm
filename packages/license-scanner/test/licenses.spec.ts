@@ -5,10 +5,10 @@ import { Lockfile } from '@pnpm/lockfile-file'
 import { GetPackageInfoFunction, LicensePackage } from '../lib/licenses'
 
 const getPackageInfo: GetPackageInfoFunction = async (pkg, _opts): Promise<
-  {
-    from: string
-    description?: string
-  } & Omit<LicensePackage, 'belongsTo'>
+{
+  from: string
+  description?: string
+} & Omit<LicensePackage, 'belongsTo'>
 > => {
   const packageInfo = {
     from: pkg.name!,

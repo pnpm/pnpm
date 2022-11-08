@@ -31,9 +31,6 @@
       "path": "../filter-workspace-packages"
     },
     {
-      "path": "../licenses"
-    },
-    {
       "path": "../lockfile-file"
     },
     {

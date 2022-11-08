@@ -1808,7 +1808,7 @@ importers:
         specifier: 4.0.0-rc.27
         version: 4.0.0-rc.27_typanion@3.12.0
 
-  packages/licenses:
+  packages/license-scanner:
     dependencies:
       '@pnpm/cafs':
         specifier: workspace:*
@@ -3564,7 +3564,7 @@ importers:
         version: link:../error
       '@pnpm/license-scanner':
         specifier: workspace:*
-        version: link:../licenses
+        version: link:../license-scanner
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../lockfile-file

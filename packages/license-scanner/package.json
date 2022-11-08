@@ -21,7 +21,7 @@
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/licenses",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/license-scanner",
   "keywords": [
     "pnpm7",
     "pnpm",
@@ -31,29 +31,29 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/licenses#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/license-scanner#readme",
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
-    "@pnpm/read-package-json": "workspace:*",
-    "@pnpm/package-is-installable": "workspace:*",
-    "@pnpm/directory-fetcher": "workspace:*",
-    "dependency-path": "workspace:*",
-    "@pnpm/types": "workspace:*",
-    "p-limit": "^3.1.0",
-    "load-json-file": "^6.2.0",
-    "path-absolute": "^1.0.1",
     "@pnpm/cafs": "workspace:*",
+    "@pnpm/directory-fetcher": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/lockfile-walker": "workspace:*",
-    "@pnpm/error": "workspace:*",
-    "@pnpm/lockfile-file": "workspace:*"
+    "@pnpm/package-is-installable": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "dependency-path": "workspace:*",
+    "load-json-file": "^6.2.0",
+    "p-limit": "^3.1.0",
+    "path-absolute": "^1.0.1"
   },
   "devDependencies": {
-    "@pnpm/license-scanner": "workspace:*",
     "@pnpm/constants": "workspace:*",
+    "@pnpm/license-scanner": "workspace:*",
     "@types/ramda": "0.28.15"
   },
   "funding": "https://opencollective.com/pnpm",

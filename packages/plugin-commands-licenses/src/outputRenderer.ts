@@ -5,7 +5,7 @@ import stripAnsi from 'strip-ansi'
 import { table } from '@zkochan/table'
 import { groupBy, sortWith } from 'ramda'
 
-function sortLicensesPackages(licensePackages: readonly LicensePackage[]) {
+function sortLicensesPackages (licensePackages: readonly LicensePackage[]) {
   return sortWith(
     [
       (o1: LicensePackage, o2: LicensePackage) =>
@@ -15,7 +15,7 @@ function sortLicensesPackages(licensePackages: readonly LicensePackage[]) {
   )
 }
 
-export function getCellWidth(
+export function getCellWidth (
   data: string[][],
   columnNumber: number,
   maxWidth: number
@@ -30,23 +30,23 @@ export function getCellWidth(
   return Math.min(maxWidth, maxCellWidth)
 }
 
-export function renderPackageName({ belongsTo, name: packageName }: LicensePackage) {
+export function renderPackageName ({ belongsTo, name: packageName }: LicensePackage) {
   switch (belongsTo) {
-    case 'devDependencies':
-      return `${packageName} ${chalk.dim('(dev)')}`
-    case 'optionalDependencies':
-      return `${packageName} ${chalk.dim('(optional)')}`
-    default:
-      return packageName as string
+  case 'devDependencies':
+    return `${packageName} ${chalk.dim('(dev)')}`
+  case 'optionalDependencies':
+    return `${packageName} ${chalk.dim('(optional)')}`
+  default:
+    return packageName as string
   }
 }
 
-export function renderPackageLicense({ license }: LicensePackage) {
+export function renderPackageLicense ({ license }: LicensePackage) {
   const output = license ?? 'Unknown'
   return output as string
 }
 
-export function renderDetails(licensePackage: LicensePackage) {
+export function renderDetails (licensePackage: LicensePackage) {
   const outputs = []
   if (licensePackage.author) {
     outputs.push(licensePackage.author)
@@ -56,7 +56,7 @@ export function renderDetails(licensePackage: LicensePackage) {
   }
   return outputs.join('\n')
 }
-export function renderLicences(
+export function renderLicences (
   licensesMap: LicensePackage[],
   opts: { long?: boolean, json?: boolean }
 ) {
@@ -67,7 +67,7 @@ export function renderLicences(
   return { output: renderLicensesTable(licensesMap, opts), exitCode: 0 }
 }
 
-function renderLicensesJson(licensePackages: readonly LicensePackage[]) {
+function renderLicensesJson (licensePackages: readonly LicensePackage[]) {
   const data = [
     ...licensePackages.map((licensePkg) => {
       return {
@@ -97,7 +97,7 @@ export interface LicensePackageJson {
   path: string
 }
 
-function renderLicensesTable(
+function renderLicensesTable (
   licensePackages: readonly LicensePackage[],
   opts: { long?: boolean }
 ) {
