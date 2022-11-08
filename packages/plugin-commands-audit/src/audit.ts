@@ -210,7 +210,7 @@ ${JSON.stringify(newOverrides, null, 2)}`,
   if (ignoreCves) {
     advisories = advisories.filter(({ cves }) => difference(cves, ignoreCves).length > 0)
   }
-  advisories
+  advisories = advisories
     .filter(({ severity }) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
     .sort((a1, a2) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])
   for (const advisory of advisories) {

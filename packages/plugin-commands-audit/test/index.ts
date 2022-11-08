@@ -175,7 +175,7 @@ test('audit endpoint does not exist', async () => {
   })).rejects.toThrow(AuditEndpointNotExistsError)
 })
 
-test('CVEs in ignoreCves do not show up in an audit', async () => {
+test('audit: CVEs in ignoreCves do not show up', async () => {
   const tmp = f.prepare('has-vulnerabilities')
   {
     const { manifest, writeProjectManifest } = await readProjectManifest(tmp)
