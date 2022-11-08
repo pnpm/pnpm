@@ -19,7 +19,7 @@ import { fetchFromDir } from '@pnpm/directory-fetcher'
 
 const limitPkgReads = pLimit(4)
 
-export async function readPkg (pkgPath: string) {
+export async function readPkg(pkgPath: string) {
   return limitPkgReads(async () => readPackageJson(pkgPath))
 }
 
@@ -49,7 +49,7 @@ export interface LicenseInfo {
  * @param field the string to be converted
  * @returns string | null
  */
-function coerceToString (field: unknown): string | null {
+function coerceToString(field: unknown): string | null {
   const string = String(field)
   return typeof field === 'string' || field === string ? string : null
 }
@@ -60,7 +60,7 @@ function coerceToString (field: unknown): string | null {
  * @param field the value to parse
  * @returns string
  */
-function parseLicenseManifestField (field: unknown) {
+function parseLicenseManifestField(field: unknown) {
   if (Array.isArray(field)) {
     const licenses = field
     const licenseTypes = licenses.reduce((listOfLicenseTypes, license) => {
@@ -95,7 +95,7 @@ function parseLicenseManifestField (field: unknown) {
  * @param {*} opts the options for parsing licenses
  * @returns Promise<LicenseInfo>
  */
-async function parseLicense (
+async function parseLicense(
   pkg: {
     manifest: PackageManifest
     files:
@@ -116,27 +116,28 @@ async function parseLicense (
 
   // check if we discovered a license, if not attempt to parse the LICENSE file
   if (!license || /see license/i.test(license)) {
+    const { files: pkgFileIndex } = pkg.files
     for (const filename of LICENSE_FILES) {
-      try {
-        let licenseContents: Buffer | undefined
-        if (pkg.files.local) {
-          const licensePackageFileInfo = pkg.files.files[filename]
-          licenseContents = await readFile(licensePackageFileInfo)
-        } else {
-          const licensePackageFileInfo = pkg.files.files[filename]
-          licenseContents = await readLicenseFileFromCafs(
-            opts.cafsDir,
-            licensePackageFileInfo.integrity
-          )
-        }
+      // check if the a file with the expected name exists in the file index
+      if (!(filename in pkgFileIndex)) {
+        console.warn(`License ffile ${filename} is not found in package file index`)
+        continue
+      }
 
-        return {
-          name: 'Unknown',
-          licenseFile: licenseContents?.toString('utf-8'),
-        }
-      } catch (err) {
-        // Silently ignore the error when failed
-        // to read the contents of a license file
+      const licensePackageFileInfo = pkgFileIndex[filename]
+      let licenseContents: Buffer | undefined
+      if (pkg.files.local) {
+        licenseContents = await readFile(licensePackageFileInfo as string)
+      } else {
+        licenseContents = await readLicenseFileFromCafs(
+          opts.cafsDir,
+          (licensePackageFileInfo as PackageFileInfo).integrity
+        )
+      }
+
+      return {
+        name: 'Unknown',
+        licenseFile: licenseContents?.toString('utf-8'),
       }
     }
   }
@@ -150,7 +151,7 @@ async function parseLicense (
  * @param opts the options for reading file
  * @returns Promise<Buffer>
  */
-async function readLicenseFileFromCafs (cafsDir: string, fileIntegrity: string) {
+async function readLicenseFileFromCafs(cafsDir: string, fileIntegrity: string) {
   const fileName = getFilePathByModeInCafs(cafsDir, fileIntegrity, 0)
   const fileContents = await readFile(fileName)
   return fileContents
@@ -163,7 +164,7 @@ async function readLicenseFileFromCafs (cafsDir: string, fileIntegrity: string) 
  * @param packageRef the package reference
  * @param opts options for fetching package file index
  */
-export async function readPackageIndexFile (
+export async function readPackageIndexFile(
   packageResolution: Resolution,
   packageRef: string,
   opts: { cafsDir: string, storeDir: string, lockfileDir: string }
@@ -176,7 +177,7 @@ export async function readPackageIndexFile (
     local: true
     files: Record<string, string>
   }
-  > {
+> {
   const isPackageWithIntegrity = 'integrity' in packageResolution
 
   let pkgIndexFilePath
@@ -253,10 +254,10 @@ export const getPkgInfo: GetPackageInfoFunction = async (
   pkg,
   opts
 ): Promise<
-{
-  from: string
-  description?: string
-} & Omit<LicensePackage, 'belongsTo'>
+  {
+    from: string
+    description?: string
+  } & Omit<LicensePackage, 'belongsTo'>
 > => {
   const cafsDir = path.join(opts.storeDir, 'files')
 
@@ -283,8 +284,8 @@ export const getPkgInfo: GetPackageInfoFunction = async (
     packageManifestDir = packageFileIndexInfo.files['package.json']
   } else {
     const packageFileIndex = packageFileIndexInfo.files as Record<
-    string,
-    PackageFileInfo
+      string,
+      PackageFileInfo
     >
     const packageManifestFile = packageFileIndex['package.json']
     packageManifestDir = await getFilePathByModeInCafs(
