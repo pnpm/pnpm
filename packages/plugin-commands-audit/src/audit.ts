@@ -5,7 +5,6 @@ import { Config, types as allTypes, UniversalOptions } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
-import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
@@ -128,6 +127,7 @@ export async function handler (
   | 'optional'
   | 'userConfig'
   | 'rawConfig'
+  | 'rootProjectManifest'
   >
 ) {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })
@@ -204,9 +204,8 @@ ${JSON.stringify(newOverrides, null, 2)}`,
 
   let output = ''
   const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
-  const { manifest } = await readProjectManifest(opts.dir)
-  const ignoreCves = manifest.pnpm?.auditConfig?.ignoreCves
   let advisories = Object.values(auditReport.advisories)
+  const ignoreCves = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreCves
   if (ignoreCves) {
     advisories = advisories.filter(({ cves }) => difference(cves, ignoreCves).length > 0)
   }

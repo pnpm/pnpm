@@ -2,7 +2,6 @@ import path from 'path'
 import { fixtures } from '@pnpm/test-fixtures'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { AuditEndpointNotExistsError } from '@pnpm/audit'
-import { readProjectManifest } from '@pnpm/read-project-manifest'
 import nock from 'nock'
 import stripAnsi from 'strip-ansi'
 import * as responses from './utils/responses'
@@ -177,21 +176,6 @@ test('audit endpoint does not exist', async () => {
 
 test('audit: CVEs in ignoreCves do not show up', async () => {
   const tmp = f.prepare('has-vulnerabilities')
-  {
-    const { manifest, writeProjectManifest } = await readProjectManifest(tmp)
-    manifest.pnpm = {
-      ...manifest.pnpm,
-      auditConfig: {
-        ignoreCves: [
-          'CVE-2019-10742',
-          'CVE-2020-28168',
-          'CVE-2021-3749',
-          'CVE-2020-7598',
-        ],
-      },
-    }
-    await writeProjectManifest(manifest)
-  }
 
   nock(registries.default)
     .post('/-/npm/v1/security/audits')
@@ -203,6 +187,18 @@ test('audit: CVEs in ignoreCves do not show up', async () => {
     userConfig: {},
     rawConfig,
     registries,
+    rootProjectManifest: {
+      pnpm: {
+        auditConfig: {
+          ignoreCves: [
+            'CVE-2019-10742',
+            'CVE-2020-28168',
+            'CVE-2021-3749',
+            'CVE-2020-7598',
+          ],
+        },
+      },
+    },
   })
 
   expect(exitCode).toBe(1)
