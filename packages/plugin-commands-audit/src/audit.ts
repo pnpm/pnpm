@@ -9,6 +9,7 @@ import { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
+import { difference } from 'ramda'
 import renderHelp from 'render-help'
 import { fix } from './fix'
 
@@ -126,6 +127,7 @@ export async function handler (
   | 'optional'
   | 'userConfig'
   | 'rawConfig'
+  | 'rootProjectManifest'
   >
 ) {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })
@@ -202,7 +204,12 @@ ${JSON.stringify(newOverrides, null, 2)}`,
 
   let output = ''
   const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
-  const advisories = Object.values(auditReport.advisories)
+  let advisories = Object.values(auditReport.advisories)
+  const ignoreCves = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreCves
+  if (ignoreCves) {
+    advisories = advisories.filter(({ cves }) => difference(cves, ignoreCves).length > 0)
+  }
+  advisories = advisories
     .filter(({ severity }) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
     .sort((a1, a2) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])
   for (const advisory of advisories) {
