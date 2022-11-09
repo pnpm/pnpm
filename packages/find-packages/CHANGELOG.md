@@ -1,5 +1,14 @@
 # find-packages
 
+## 10.0.2
+
+### Patch Changes
+
+- 2e9790722: Use deterministic sorting.
+- Updated dependencies [702e847c1]
+  - @pnpm/types@8.9.0
+  - @pnpm/read-project-manifest@4.0.2
+
 ## 10.0.1
 
 ### Patch Changes

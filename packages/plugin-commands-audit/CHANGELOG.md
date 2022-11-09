@@ -1,5 +1,36 @@
 # @pnpm/plugin-commands-audit
 
+## 7.1.0
+
+### Minor Changes
+
+- 702e847c1: A new setting supported for ignoring vulnerabilities by their CVEs. The ignored CVEs may be listed in the `pnpm.auditConfig.ignoreCves` field of `package.json`. For instance:
+
+  ```
+  {
+    "pnpm": {
+      "auditConfig": {
+        "ignoreCves": [
+          "CVE-2019-10742",
+          "CVE-2020-28168",
+          "CVE-2021-3749",
+          "CVE-2020-7598"
+        ]
+      }
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [702e847c1]
+  - @pnpm/types@8.9.0
+  - @pnpm/cli-utils@1.0.5
+  - @pnpm/audit@5.0.1
+  - @pnpm/config@16.0.5
+  - @pnpm/lockfile-file@6.0.2
+  - @pnpm/read-project-manifest@4.0.2
+
 ## 7.0.4
 
 ### Patch Changes

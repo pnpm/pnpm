@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-bins",
-  "version": "7.0.1",
+  "version": "7.0.2",
   "description": "Returns bins of a package",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

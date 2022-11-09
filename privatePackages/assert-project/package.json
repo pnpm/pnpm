@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-project",
   "description": "Utils for testing projects that use pnpm",
-  "version": "2.3.13",
+  "version": "2.3.14",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",

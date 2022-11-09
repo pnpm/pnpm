@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.resolver",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "Resolves a Node.js version specifier to an exact Node.js version",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",

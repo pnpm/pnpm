@@ -1,5 +1,18 @@
 # @pnpm/directory-fetcher
 
+## 5.0.0
+
+### Major Changes
+
+- 6710d9dd9: @pnpm/logger added to peer dependencies.
+
+### Patch Changes
+
+- 6710d9dd9: Installation shouldn't fail when the injected dependency has broken symlinks. The broken symlinks should be just skipped [#5598](https://github.com/pnpm/pnpm/issues/5598).
+  - @pnpm/fetcher-base@13.1.4
+  - @pnpm/read-project-manifest@4.0.2
+  - @pnpm/resolver-base@9.1.4
+
 ## 4.0.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-types",
-  "version": "4.3.4",
+  "version": "4.3.5",
   "description": "Types for the pnpm-lock.yaml lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

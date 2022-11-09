@@ -1,5 +1,16 @@
 # @pnpm/default-reporter
 
+## 11.0.5
+
+### Patch Changes
+
+- a4c58d424: The reporter should not crash when the CLI process is kill during lifecycle scripts execution [#5588](https://github.com/pnpm/pnpm/pull/5588).
+- Updated dependencies [702e847c1]
+  - @pnpm/types@8.9.0
+  - @pnpm/config@16.0.5
+  - @pnpm/core-loggers@8.0.2
+  - @pnpm/render-peer-issues@3.0.2
+
 ## 11.0.4
 
 ### Patch Changes

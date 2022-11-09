@@ -1,5 +1,39 @@
 # pnpm
 
+## 7.15.0
+
+### Minor Changes
+
+- Support `--format=json` option to output outdated packages in JSON format with `outdated` command [#2705](https://github.com/pnpm/pnpm/issues/2705).
+
+  ```bash
+  pnpm outdated --format=json
+  #or
+  pnpm outdated --json
+  ```
+
+- A new setting supported for ignoring vulnerabilities by their CVEs. The ignored CVEs may be listed in the `pnpm.auditConfig.ignoreCves` field of `package.json`. For instance:
+
+  ```
+  {
+    "pnpm": {
+      "auditConfig": {
+        "ignoreCves": [
+          "CVE-2019-10742",
+          "CVE-2020-28168",
+          "CVE-2021-3749",
+          "CVE-2020-7598"
+        ]
+      }
+    }
+  }
+  ```
+
+### Patch Changes
+
+- The reporter should not crash when the CLI process is kill during lifecycle scripts execution [#5588](https://github.com/pnpm/pnpm/pull/5588).
+- Installation shouldn't fail when the injected dependency has broken symlinks. The broken symlinks should be just skipped [#5598](https://github.com/pnpm/pnpm/issues/5598).
+
 ## 7.14.2
 
 ### Patch Changes

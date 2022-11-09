@@ -1,5 +1,19 @@
 # @pnpm/hoist
 
+## 7.0.2
+
+### Patch Changes
+
+- 2e9790722: Use deterministic sorting.
+- Updated dependencies [702e847c1]
+  - @pnpm/types@8.9.0
+  - dependency-path@9.2.8
+  - @pnpm/link-bins@8.0.2
+  - @pnpm/lockfile-types@4.3.5
+  - @pnpm/lockfile-utils@4.2.8
+  - @pnpm/lockfile-walker@6.0.2
+  - @pnpm/symlink-dependency@6.0.2
+
 ## 7.0.1
 
 ### Patch Changes

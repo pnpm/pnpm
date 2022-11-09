@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/prune-lockfile",
-  "version": "4.0.17",
+  "version": "4.0.18",
   "description": "Prune a pnpm-lock.yaml",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

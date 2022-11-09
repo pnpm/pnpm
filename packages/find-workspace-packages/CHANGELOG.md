@@ -1,5 +1,16 @@
 # @pnpm/find-workspace-packages
 
+## 5.0.5
+
+### Patch Changes
+
+- 2e9790722: Use deterministic sorting.
+- Updated dependencies [2e9790722]
+- Updated dependencies [702e847c1]
+  - find-packages@10.0.2
+  - @pnpm/types@8.9.0
+  - @pnpm/cli-utils@1.0.5
+
 ## 5.0.4
 
 ### Patch Changes

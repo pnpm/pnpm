@@ -1,5 +1,15 @@
 # @pnpm/list
 
+## 8.0.3
+
+### Patch Changes
+
+- Updated dependencies [702e847c1]
+  - @pnpm/types@8.9.0
+  - dependencies-hierarchy@12.0.2
+  - @pnpm/read-package-json@7.0.2
+  - @pnpm/read-project-manifest@4.0.2
+
 ## 8.0.2
 
 ### Patch Changes

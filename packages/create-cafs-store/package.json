@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/create-cafs-store",
   "description": "Create a CAFS store controller",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

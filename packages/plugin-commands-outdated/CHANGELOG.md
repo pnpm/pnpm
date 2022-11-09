@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-outdated
 
+## 8.0.0
+
+### Major Changes
+
+- 46852d4b8: To select the output format, the format option should be used. The table boolean option is removed.
+
+### Minor Changes
+
+- 46852d4b8: Support `--format=json` option to output outdated packages in JSON format with `outdated` command [#2705](https://github.com/pnpm/pnpm/issues/2705).
+
+  ```bash
+  pnpm outdated --format=json
+  #or
+  pnpm outdated --json
+  ```
+
+### Patch Changes
+
+- Updated dependencies [702e847c1]
+  - @pnpm/types@8.9.0
+  - @pnpm/cli-utils@1.0.5
+  - @pnpm/config@16.0.5
+  - @pnpm/lockfile-file@6.0.2
+  - @pnpm/modules-yaml@11.0.2
+  - @pnpm/outdated@11.0.3
+  - @pnpm/default-resolver@17.0.1
+
 ## 7.0.4
 
 ### Patch Changes

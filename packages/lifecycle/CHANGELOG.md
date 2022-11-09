@@ -1,5 +1,19 @@
 # @pnpm/lifecycle
 
+## 14.0.2
+
+### Patch Changes
+
+- a4c58d424: Never log a lifecycle exit debug log without an exit code [#5588](https://github.com/pnpm/pnpm/pull/5588).
+- Updated dependencies [6710d9dd9]
+- Updated dependencies [702e847c1]
+- Updated dependencies [6710d9dd9]
+  - @pnpm/directory-fetcher@5.0.0
+  - @pnpm/types@8.9.0
+  - @pnpm/core-loggers@8.0.2
+  - @pnpm/read-package-json@7.0.2
+  - @pnpm/store-controller-types@14.1.5
+
 ## 14.0.1
 
 ### Patch Changes
