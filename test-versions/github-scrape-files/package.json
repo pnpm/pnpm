@@ -1,0 +1,11 @@
+{
+  "name": "github-scrape-files",
+  "version": "1.0.0",
+  "type": "module",
+  "author": "milahu",
+  "license": "MIT",
+  "dependencies": {
+    "@octokit/rest": "^18.12.0",
+    "node-fetch": "^3.2.3"
+  }
+}
