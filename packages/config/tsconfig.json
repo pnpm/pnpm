@@ -1,6 +1,7 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
+    "composite": true,
     "outDir": "lib",
     "rootDir": "src"
   },
