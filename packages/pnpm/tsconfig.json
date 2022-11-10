@@ -1,6 +1,7 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
+    "module": "es2020",
     "composite": false,
     "declaration": false,
     "outDir": "lib",
