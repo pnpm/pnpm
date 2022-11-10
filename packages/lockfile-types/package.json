@@ -36,6 +36,8 @@
   },
   "exports": {
     "./lib/index.d.ts": "./lib/index.d.ts",
+    "./src/index.ts": "./src/index.ts",
+    "./src/version/*": "./src/version/*",
     "./tsconfig.json": "./tsconfig.json",
     "./package.json": "./package.json",
     ".": "./lib/index.js"
