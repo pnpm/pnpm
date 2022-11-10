@@ -1,6 +1,7 @@
 import { DependenciesMeta } from '@pnpm/types'
 
 export const lockfileVersion = 5.3;
+export const lockfileName = 'pnpm-lock.yaml';
 
 export interface Lockfile {
   lockfileVersion: number;
@@ -15,6 +16,7 @@ export interface Lockfile {
   overrides?: Record<string, string>;
   packageExtensionsChecksum?: string;
   importers?: Importers;
+  registry?: string // legacy <4
 }
 
 export interface Importers {
@@ -78,6 +80,7 @@ export type Resolution =
 
 export type LockfileResolution = Resolution | {
   integrity: string
+  registry?: string
 }
 
 export interface PackageSnapshot {
