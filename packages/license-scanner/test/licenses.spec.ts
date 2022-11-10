@@ -2,29 +2,36 @@ import { findDependencyLicenses } from '@pnpm/license-scanner'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { ProjectManifest, Registries } from '@pnpm/types'
 import { Lockfile } from '@pnpm/lockfile-file'
-import { GetPackageInfoFunction, LicensePackage } from '../lib/licenses'
+import { LicensePackage } from '../lib/licenses'
+import { GetPackageInfoOptions, PackageInfo } from '../lib/getPkgInfo'
 
-const getPackageInfo: GetPackageInfoFunction = async (pkg, _opts): Promise<
-{
-  from: string
-  description?: string
-} & Omit<LicensePackage, 'belongsTo'>
-> => {
-  const packageInfo = {
-    from: pkg.name!,
-    name: pkg.name!,
-    version: pkg.version!,
-    description: 'Package Description',
-    license: pkg.name === 'bar' ? 'MIT' : 'Unknown',
-    licenseContents: pkg.name === 'bar' ? undefined : 'The MIT License',
-    author: 'Package Author',
-    homepage: 'Homepage',
-    repository: 'Repository',
-    path: `/path/to/package/${pkg.name!}@${pkg.version!}/node_modules`,
+jest.mock('../lib/getPkgInfo', () => {
+  const actualModule = jest.requireActual('../lib/getPkgInfo')
+  return {
+    ...actualModule,
+    getPkgInfo: async (pkg: PackageInfo, _opts: GetPackageInfoOptions): Promise<
+    {
+      from: string
+      description?: string
+    } & Omit<LicensePackage, 'belongsTo'>
+    > => {
+      const packageInfo = {
+        from: pkg.name!,
+        name: pkg.name!,
+        version: pkg.version!,
+        description: 'Package Description',
+        license: pkg.name === 'bar' ? 'MIT' : 'Unknown',
+        licenseContents: pkg.name === 'bar' ? undefined : 'The MIT License',
+        author: 'Package Author',
+        homepage: 'Homepage',
+        repository: 'Repository',
+        path: `/path/to/package/${pkg.name!}@${pkg.version!}/node_modules`,
+      }
+
+      return packageInfo
+    },
   }
-
-  return packageInfo
-}
+})
 
 describe('licences', () => {
   test('findDependencyLicenses()', async () => {
@@ -63,7 +70,6 @@ describe('licences', () => {
       virtualStoreDir: '/.pnpm',
       registries: {} as Registries,
       wantedLockfile: lockfile,
-      getPackageInfo,
       storeDir: '/opt/.pnpm',
     })
 

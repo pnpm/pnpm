@@ -6,7 +6,7 @@ import {
   LockfileWalkerStep,
 } from '@pnpm/lockfile-walker'
 import { DependenciesField, Registries } from '@pnpm/types'
-import { GetPackageInfoFunction } from './licenses'
+import { getPkgInfo } from './getPkgInfo'
 
 export interface LicenseNode {
   name?: string
@@ -34,7 +34,6 @@ export interface LicenseExtractOptions {
   modulesDir?: string
   dir: string
   registries: Registries
-  getPackageInfo: GetPackageInfoFunction
 }
 
 export async function lockfileToLicenseNode (
@@ -63,7 +62,7 @@ export async function lockfileToLicenseNode (
       continue
     }
 
-    const packageInfo = await options.getPackageInfo(
+    const packageInfo = await getPkgInfo(
       {
         name,
         version,
@@ -116,7 +115,6 @@ export async function lockfileToLicenseNode (
 export async function lockfileToLicenseNodeTree (
   lockfile: Lockfile,
   opts: {
-    getPackageInfo: GetPackageInfoFunction
     include?: { [dependenciesField in DependenciesField]: boolean }
   } & LicenseExtractOptions
 ): Promise<LicenseNodeTree> {
@@ -134,7 +132,6 @@ export async function lockfileToLicenseNodeTree (
       modulesDir: opts.modulesDir,
       dir: opts.dir,
       registries: opts.registries,
-      getPackageInfo: opts.getPackageInfo,
     })
 
     const depName = importerWalker.importerId

@@ -1,12 +1,11 @@
 import { PnpmError } from '@pnpm/error'
-import { Lockfile, PackageSnapshot } from '@pnpm/lockfile-file'
+import { Lockfile } from '@pnpm/lockfile-file'
 import {
   DependenciesField,
   IncludedDependencies,
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
-import { getPkgInfo } from './getPkgInfo'
 import {
   LicenseNode,
   lockfileToLicenseNodeTree,
@@ -23,25 +22,6 @@ export interface LicensePackage {
   repository?: string
   path?: string
 }
-
-export type GetPackageInfoFunction = (
-  pkg: {
-    name?: string
-    version?: string
-    depPath: string
-    snapshot: PackageSnapshot
-    registries: Registries
-  },
-  opts: {
-    storeDir: string
-    virtualStoreDir: string
-    dir: string
-    modulesDir: string
-  }
-) => Promise<{
-  from: string
-  description?: string
-} & Omit<LicensePackage, 'belongsTo'>>
 
 /**
  * @private
@@ -82,7 +62,6 @@ function getDependenciesFromLicenseNode (
 }
 
 export async function findDependencyLicenses (opts: {
-  getPackageInfo?: GetPackageInfoFunction
   ignoreDependencies?: Set<string>
   include?: IncludedDependencies
   lockfileDir: string
@@ -107,7 +86,6 @@ export async function findDependencyLicenses (opts: {
     virtualStoreDir: opts.virtualStoreDir,
     include: opts.include,
     registries: opts.registries,
-    getPackageInfo: opts.getPackageInfo ?? getPkgInfo,
   })
 
   const licensePackages = new Map<string, LicensePackage>()

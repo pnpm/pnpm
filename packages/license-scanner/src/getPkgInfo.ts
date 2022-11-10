@@ -4,7 +4,7 @@ import { readFile } from 'fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
 import { depPathToFilename } from 'dependency-path'
 import pLimit from 'p-limit'
-import { PackageManifest } from '@pnpm/types'
+import { PackageManifest, Registries } from '@pnpm/types'
 import {
   getFilePathByModeInCafs,
   getFilePathInCafs,
@@ -13,8 +13,8 @@ import {
 } from '@pnpm/cafs'
 import loadJsonFile from 'load-json-file'
 import { PnpmError } from '@pnpm/error'
-import { GetPackageInfoFunction, LicensePackage } from './licenses'
-import { pkgSnapshotToResolution, Resolution } from '@pnpm/lockfile-utils'
+import { LicensePackage } from './licenses'
+import { DirectoryResolution, PackageSnapshot, pkgSnapshotToResolution, Resolution } from '@pnpm/lockfile-utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 
 const limitPkgReads = pLimit(4)
@@ -160,12 +160,12 @@ async function readLicenseFileFromCafs (cafsDir: string, fileIntegrity: string) 
  * Returns the index of files included in
  * the package identified by the integrity id
  * @param packageResolution the resolution package information
- * @param packageRef the package reference
+ * @param depPath the package reference
  * @param opts options for fetching package file index
  */
 export async function readPackageIndexFile (
   packageResolution: Resolution,
-  packageRef: string,
+  depPath: string,
   opts: { cafsDir: string, storeDir: string, lockfileDir: string }
 ): Promise<
   | {
@@ -187,18 +187,11 @@ export async function readPackageIndexFile (
       packageResolution.integrity as string,
       'index'
     )
-  } else if (packageResolution.type === 'directory') {
-    // If the package resolution is of type 'directory' it means
-    // this is a workspace project and we need to do things differently
-    const targetRelative = depPathToFilename(packageRef)
-    const target = path.join(opts.storeDir, targetRelative)
-    pkgIndexFilePath = path.join(target, 'integrity.json')
   } else if (!packageResolution.type && packageResolution.tarball) {
     // If the package resolution has a tarball then we need to clean up
     // the call to depPathToFilename as it adds '_[hash]' part to the
     // directory for the package in the content-addressable store
-    const pathToDependency = depPathToFilename(packageRef)
-    const [packageDirInStore] = pathToDependency.split('_')
+    const packageDirInStore = depPathToFilename(depPath.split('_')[0])
     pkgIndexFilePath = path.join(
       opts.storeDir,
       packageDirInStore,
@@ -207,7 +200,7 @@ export async function readPackageIndexFile (
   } else {
     throw new PnpmError(
       'UNSUPPORTED_PACKAGE_TYPE',
-      `Unsupported package resolution type for ${packageRef}`
+      `Unsupported package resolution type for ${depPath}`
     )
   }
 
@@ -216,7 +209,7 @@ export async function readPackageIndexFile (
   const isLocalPkg = packageResolution.type === 'directory'
   if (isLocalPkg) {
     const localInfo = await fetchFromDir(
-      path.join(opts.lockfileDir, packageResolution.directory),
+      path.join(opts.lockfileDir, (packageResolution as DirectoryResolution).directory),
       {}
     )
     return {
@@ -234,7 +227,7 @@ export async function readPackageIndexFile (
       if (err.code === 'ENOENT') {
         throw new PnpmError(
           'MISSING_PACKAGE_INDEX_FILE',
-          `Failed to find package index file for ${packageRef}, please consider running 'pnpm install'`
+          `Failed to find package index file for ${depPath}, please consider running 'pnpm install'`
         )
       }
 
@@ -243,21 +236,36 @@ export async function readPackageIndexFile (
   }
 }
 
+export interface PackageInfo {
+  name?: string
+  version?: string
+  depPath: string
+  snapshot: PackageSnapshot
+  registries: Registries
+}
+
+export interface GetPackageInfoOptions {
+  storeDir: string
+  virtualStoreDir: string
+  dir: string
+  modulesDir: string
+}
+
 /**
  * Returns the package manifest information for a give package name and path
  * @param pkg the package to fetch information for
  * @param opts the fetching options
  * @returns Promise<{ from: string; description?: string } & Omit<LicensePackage, 'belongsTo'>>
  */
-export const getPkgInfo: GetPackageInfoFunction = async (
-  pkg,
-  opts
+export async function getPkgInfo (
+  pkg: PackageInfo,
+  opts: GetPackageInfoOptions
 ): Promise<
-{
-  from: string
-  description?: string
-} & Omit<LicensePackage, 'belongsTo'>
-> => {
+  {
+    from: string
+    description?: string
+  } & Omit<LicensePackage, 'belongsTo'>
+  > {
   const cafsDir = path.join(opts.storeDir, 'files')
 
   // Retrieve file index for the requested package
@@ -278,7 +286,7 @@ export const getPkgInfo: GetPackageInfoFunction = async (
   )
 
   // Fetch the package manifest
-  let packageManifestDir: string = ''
+  let packageManifestDir!: string
   if (packageFileIndexInfo.local) {
     packageManifestDir = packageFileIndexInfo.files['package.json']
   } else {
