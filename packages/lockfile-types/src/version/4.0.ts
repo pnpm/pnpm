@@ -1,6 +1,9 @@
+// TODO move this file to 4.ts
+
 import { DependenciesMeta } from '@pnpm/types'
 
-export const lockfileVersion = 4.0;
+export const lockfileVersion = 4;
+export const lockfileName = 'pnpm-lock.yaml';
 
 export interface Lockfile {
   importers: Record<string, ProjectSnapshot>
@@ -10,6 +13,7 @@ export interface Lockfile {
   onlyBuiltDependencies?: string[]
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
+  registry?: string // legacy <4
 }
 
 export interface ProjectSnapshot {
@@ -61,6 +65,7 @@ export type Resolution =
 
 export type LockfileResolution = Resolution | {
   integrity: string
+  registry?: string
 }
 
 export interface PackageSnapshot {
@@ -87,9 +92,14 @@ export interface PackageSnapshot {
   }
   transitivePeerDependencies?: string[]
   bundledDependencies?: string[]
-  engines?: {
-    node: string
-  }
+  engines?: string[] | {
+    node?: string;
+    npm?: string;
+  } | {
+    // https://github.com/pnpm/pnpm/issues/4518
+    // bug: engines array is stored as object
+    [index: string]: string;
+  };
   os?: string[]
   cpu?: string[]
   deprecated?: string
