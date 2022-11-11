@@ -658,6 +658,36 @@ test('recursive install in a monorepo with different modules directories', async
   await projects['project-2'].has('is-positive', 'modules_2')
 })
 
+test('recursive install in a monorepo with parsing env variables', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  process.env['SOME_NAME'] = 'some_name'
+  // eslint-disable-next-line no-template-curly-in-string
+  await fs.writeFile('project/.npmrc', 'modules-dir=${SOME_NAME}_modules', 'utf8')
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  await projects['project'].has('is-positive', `${process.env['SOME_NAME']}_modules`)
+})
+
 test('prefer-workspace-package', async () => {
   await addDistTag({
     distTag: 'latest',

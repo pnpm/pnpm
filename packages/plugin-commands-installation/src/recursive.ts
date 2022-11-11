@@ -436,11 +436,36 @@ async function readLocalConfig (prefix: string) {
     if (config.hoist === false) {
       config.hoistPattern = ''
     }
+
+    for (const [key, val] of Object.entries(config)) {
+      if (typeof val !== 'string') {
+        continue
+      }
+
+      config[key] = parseEnv(val, process.env)
+    }
+
     return config
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
     return {}
   }
+}
+
+// https://github.com/npm/cli/blob/706b3d3f227de43a095263926d2eef2b4e4cf2a9/workspaces/config/lib/env-replace.js
+function parseEnv (field: string, env: NodeJS.ProcessEnv) {
+  const envExpr = /(?<!\\)(\\*)\$\{([^${}]+)\}/g
+
+  return field.replace(envExpr, (orig, esc: string, name: string) => {
+    const val = env[name] !== undefined ? env[name] : `$\{${name}}`
+
+    // consume the escape chars that are relevant.
+    if (esc.length % 2) {
+      return orig.slice((esc.length + 1) / 2)
+    }
+
+    return `${(esc.slice(esc.length / 2))}${val}` // eslint-disable-line @typescript-eslint/restrict-template-expressions
+  })
 }
 
 function calculateRepositoryRoot (
