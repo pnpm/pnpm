@@ -4,7 +4,7 @@ import {
   RecursiveSummary,
   throwOnCommandFail,
 } from '@pnpm/cli-utils'
-import { Config } from '@pnpm/config'
+import { Config, readLocalConfig } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { logger } from '@pnpm/logger'
@@ -29,12 +29,10 @@ import {
   mutateModules,
   ProjectOptions,
 } from '@pnpm/core'
-import camelcaseKeys from 'camelcase-keys'
 import isSubdir from 'is-subdir'
 import mem from 'mem'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
-import readIniFile from 'read-ini-file'
 import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 import { updateToLatestSpecsFromManifest, createLatestSpecs } from './updateToLatestSpecsFromManifest'
@@ -423,49 +421,6 @@ async function unlinkPkgs (dependencyNames: string[], manifest: ProjectManifest,
     ],
     opts
   )
-}
-
-async function readLocalConfig (prefix: string) {
-  try {
-    const ini = await readIniFile(path.join(prefix, '.npmrc')) as Record<string, string>
-    const config = camelcaseKeys(ini) as (Record<string, string> & { hoist?: boolean })
-    if (config.shamefullyFlatten) {
-      config.hoistPattern = '*'
-      // TODO: print a warning
-    }
-    if (config.hoist === false) {
-      config.hoistPattern = ''
-    }
-
-    for (const [key, val] of Object.entries(config)) {
-      if (typeof val !== 'string') {
-        continue
-      }
-
-      config[key] = parseEnv(val, process.env)
-    }
-
-    return config
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT') throw err
-    return {}
-  }
-}
-
-// https://github.com/npm/cli/blob/706b3d3f227de43a095263926d2eef2b4e4cf2a9/workspaces/config/lib/env-replace.js
-function parseEnv (field: string, env: NodeJS.ProcessEnv) {
-  const envExpr = /(?<!\\)(\\*)\$\{([^${}]+)\}/g
-
-  return field.replace(envExpr, (orig, esc: string, name: string) => {
-    const val = env[name] !== undefined ? env[name] : `$\{${name}}`
-
-    // consume the escape chars that are relevant.
-    if (esc.length % 2) {
-      return orig.slice((esc.length + 1) / 2)
-    }
-
-    return `${(esc.slice(esc.length / 2))}${val}` // eslint-disable-line @typescript-eslint/restrict-template-expressions
-  })
 }
 
 function calculateRepositoryRoot (

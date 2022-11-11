@@ -89,7 +89,6 @@
     "@zkochan/rimraf": "^2.1.2",
     "@zkochan/table": "^1.0.0",
     "@zkochan/which": "^2.0.3",
-    "camelcase-keys": "^6.2.2",
     "chalk": "^4.1.2",
     "enquirer": "^2.3.6",
     "is-ci": "^3.0.1",
@@ -101,7 +100,6 @@
     "path-absolute": "^1.0.1",
     "path-exists": "^4.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "read-ini-file": "^3.1.0",
     "render-help": "^1.0.2",
     "version-selector-type": "^3.0.0"
   },
