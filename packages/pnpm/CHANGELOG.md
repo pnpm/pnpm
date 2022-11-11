@@ -1,5 +1,12 @@
 # pnpm
 
+## 6.35.1
+
+### Patch Changes
+
+- Replace environment variable placeholders with their values, when reading `.npmrc` files in subdirectories inside a workspace [#2570](https://github.com/pnpm/pnpm/issues/2570).
+- Don't fail if cannot override the name field of the error object [#5572](https://github.com/pnpm/pnpm/issues/5572).
+
 ## 6.35.0
 
 ### Patch Changes
