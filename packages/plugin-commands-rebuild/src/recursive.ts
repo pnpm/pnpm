@@ -1,20 +1,18 @@
-import path from 'path'
 import {
   RecursiveSummary,
   throwOnCommandFail,
 } from '@pnpm/cli-utils'
 import {
   Config,
+  readLocalConfig,
 } from '@pnpm/config'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { logger } from '@pnpm/logger'
 import { sortPackages } from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { Project, ProjectManifest } from '@pnpm/types'
-import camelcaseKeys from 'camelcase-keys'
 import mem from 'mem'
 import pLimit from 'p-limit'
-import readIniFile from 'read-ini-file'
 import { rebuildProjects as rebuildAll, RebuildOptions, rebuildSelectedPkgs } from './implementation'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
@@ -162,22 +160,4 @@ export async function recursiveRebuild (
   }
 
   throwOnFail(result)
-}
-
-async function readLocalConfig (prefix: string) {
-  try {
-    const ini = await readIniFile(path.join(prefix, '.npmrc')) as Record<string, string>
-    const config = camelcaseKeys(ini) as (Record<string, string> & { hoist?: boolean })
-    if (config.shamefullyFlatten) {
-      config.hoistPattern = '*'
-      // TODO: print a warning
-    }
-    if (config.hoist === false) {
-      config.hoistPattern = ''
-    }
-    return config
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT') throw err
-    return {}
-  }
 }

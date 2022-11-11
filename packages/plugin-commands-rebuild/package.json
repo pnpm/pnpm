@@ -66,13 +66,11 @@
     "@pnpm/store-connection-manager": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "camelcase-keys": "^6.2.2",
     "dependency-path": "workspace:*",
     "load-json-file": "^6.2.0",
     "mem": "^8.1.1",
     "p-limit": "^3.1.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "read-ini-file": "^3.1.0",
     "render-help": "^1.0.2",
     "run-groups": "^3.0.1",
     "semver": "^7.3.8"

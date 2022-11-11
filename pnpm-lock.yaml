@@ -465,6 +465,9 @@ importers:
 
   packages/config:
     dependencies:
+      '@pnpm/config.env-replace':
+        specifier: 1.0.0
+        version: 1.0.0
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../constants
@@ -478,8 +481,8 @@ importers:
         specifier: workspace:*
         version: link:../matcher
       '@pnpm/npm-conf':
-        specifier: 2.0.2
-        version: 2.0.2
+        specifier: 2.0.4
+        version: 2.0.4
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../pnpmfile
@@ -492,6 +495,9 @@ importers:
       camelcase:
         specifier: ^6.3.0
         version: 6.3.0
+      camelcase-keys:
+        specifier: ^6.2.2
+        version: 6.2.2
       can-write-to-dir:
         specifier: ^1.1.1
         version: 1.1.1
@@ -513,6 +519,9 @@ importers:
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda/0.28.1
+      read-ini-file:
+        specifier: ^3.1.0
+        version: 3.1.0
       realpath-missing:
         specifier: ^1.1.0
         version: 1.1.0
@@ -3355,9 +3364,6 @@ importers:
       '@zkochan/which':
         specifier: ^2.0.3
         version: 2.0.3
-      camelcase-keys:
-        specifier: ^6.2.2
-        version: 6.2.2
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
@@ -3391,9 +3397,6 @@ importers:
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda/0.28.1
-      read-ini-file:
-        specifier: ^3.1.0
-        version: 3.1.0
       render-help:
         specifier: ^1.0.2
         version: 1.0.2
@@ -3897,9 +3900,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
-      camelcase-keys:
-        specifier: ^6.2.2
-        version: 6.2.2
       dependency-path:
         specifier: workspace:*
         version: link:../dependency-path
@@ -3915,9 +3915,6 @@ importers:
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda/0.28.1
-      read-ini-file:
-        specifier: ^3.1.0
-        version: 3.1.0
       render-help:
         specifier: ^1.0.2
         version: 1.0.2
@@ -6869,6 +6866,11 @@ packages:
       chalk: 4.1.2
     dev: false
 
+  /@pnpm/config.env-replace/1.0.0:
+    resolution: {integrity: sha512-ZVPVDi1E8oeXlYqkGRtX0CkzLTwE2zt62bjWaWKaAvI8NZqHzlMvGeSNDpW+JB3+aKanYb4UETJOF1/CxGPemA==}
+    engines: {node: '>=12.22.0'}
+    dev: false
+
   /@pnpm/config/16.0.0_kt75g7u7xait7ts3kctxzlcgqq:
     resolution: {integrity: sha512-/KR8uQ1GWnnk3MciZbSWZG2VYzE/6WomekG7QdZ6iu3KT1YOJ0LGoSfbXCVKyirVZ748k5HIaLL51H7NsDPBLQ==}
     engines: {node: '>=14.6'}
@@ -7477,10 +7479,11 @@ packages:
       config-chain: 1.1.13
     dev: true
 
-  /@pnpm/npm-conf/2.0.2:
-    resolution: {integrity: sha512-vp0T6HQcklEpSILEutr8o4Gxf3lIPJtxbDT1kGNyYo0ZVL1UGgazeaGr9rc4ut8veI7tiVCBr7cJbDgym/q3Kg==}
+  /@pnpm/npm-conf/2.0.4:
+    resolution: {integrity: sha512-xWjBhnntYvAjYt1alEoFJiThMe0ZhSY7iZuxBUR+DH3tH2RyGrP2KU75NZfo/jhc3dSBUqZrd1DnIIgkQ0WyKw==}
     engines: {node: '>=12'}
     dependencies:
+      '@pnpm/config.env-replace': 1.0.0
       '@pnpm/network.ca-file': 1.0.1
       config-chain: 1.1.13
     dev: false
@@ -17154,13 +17157,14 @@ time:
   /@commitlint/prompt-cli/17.1.2: '2022-08-29T07:53:18.629Z'
   /@pnpm/byline/1.0.0: '2021-10-31T23:25:00.031Z'
   /@pnpm/colorize-semver-diff/1.0.1: '2020-10-25T15:50:17.812Z'
+  /@pnpm/config.env-replace/1.0.0: '2022-11-11T20:22:17.274Z'
   /@pnpm/exec/2.0.0: '2020-10-29T23:51:01.271Z'
   /@pnpm/graph-sequencer/1.0.0: '2022-03-20T20:48:58.797Z'
   /@pnpm/logger/5.0.0: '2022-10-14T13:56:04.285Z'
   /@pnpm/meta-updater/0.2.1: '2022-10-17T23:32:30.921Z'
   /@pnpm/network.agent/0.0.3: '2022-06-12T19:51:53.044Z'
   /@pnpm/nopt/0.2.1: '2021-06-01T19:45:54.552Z'
-  /@pnpm/npm-conf/2.0.2: '2022-10-21T14:43:04.271Z'
+  /@pnpm/npm-conf/2.0.4: '2022-11-11T20:26:48.028Z'
   /@pnpm/npm-lifecycle/2.0.0-1: '2022-02-21T22:36:47.308Z'
   /@pnpm/npm-package-arg/1.0.0: '2022-06-28T12:48:31.287Z'
   /@pnpm/os.env.path-extender/0.2.7: '2022-10-17T23:03:23.674Z'
