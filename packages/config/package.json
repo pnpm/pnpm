@@ -32,6 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/config#readme",
   "dependencies": {
+    "@pnpm/config.env-replace": "1.0.0",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/global-bin-dir": "workspace:*",
@@ -40,10 +41,12 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "camelcase": "^6.3.0",
+    "camelcase-keys": "^6.2.2",
     "can-write-to-dir": "^1.1.1",
     "is-subdir": "^1.2.0",
     "normalize-registry-url": "2.0.0",
     "ramda": "^0.27.2",
+    "read-ini-file": "^3.1.0",
     "realpath-missing": "^1.1.0",
     "which": "^2.0.2"
   },
