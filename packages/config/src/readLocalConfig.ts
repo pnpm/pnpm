@@ -1,6 +1,6 @@
 import path from 'path'
 import camelcaseKeys from 'camelcase-keys'
-import envReplace from '@npmcli/config/lib/env-replace.js'
+import { envReplace } from '@pnpm/config.env-replace'
 import readIniFile from 'read-ini-file'
 
 export async function readLocalConfig (prefix: string) {
@@ -16,7 +16,11 @@ export async function readLocalConfig (prefix: string) {
     }
     for (const [key, val] of Object.entries(config)) {
       if (typeof val === 'string') {
-        config[key] = envReplace(val, process.env)
+        try {
+          config[key] = envReplace(val, process.env)
+        } catch (err) {
+          // ignore
+        }
       }
     }
     return config

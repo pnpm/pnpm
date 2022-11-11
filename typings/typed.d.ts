@@ -54,8 +54,3 @@ declare module 'bin-links/lib/fix-bin' {
 declare namespace NodeJS.Module {
   function _nodeModulePaths(from: string): string[]
 }
-
-declare module '@npmcli/config/lib/env-replace.js' {
-  function envReplace (f: string, env: NodeJS.ProcessEnv): string
-  export = envReplace
-}
