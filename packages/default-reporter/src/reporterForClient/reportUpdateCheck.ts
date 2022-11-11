@@ -40,7 +40,7 @@ function renderUpdateCommand (opts: { env: NodeJS.ProcessEnv, latestVersion: str
   if (opts.env.COREPACK_ROOT) {
     return `corepack prepare pnpm@${opts.latestVersion} --activate`
   }
-  else if (opts.env.VOLTA_HOME) {
+  else if ('_VOLTA_TOOL_RECURSION' in opts.env) {
     return 'volta install pnpm'
   }
   const pkgName = process['pkg'] != null ? '@pnpm/exe' : 'pnpm'
