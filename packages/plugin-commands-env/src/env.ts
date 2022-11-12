@@ -3,16 +3,16 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import { resolveNodeVersion, resolveNodeVersionList } from '@pnpm/node.resolver'
+import { resolveNodeVersions } from '@pnpm/node.resolver'
 import { globalInfo } from '@pnpm/logger'
 import { removeBin } from '@pnpm/remove-bins'
 import cmdShim from '@zkochan/cmd-shim'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
-import semver from 'semver'
 import { getNodeDir, NvmNodeCommandOptions, getNodeVersionsBaseDir } from './node'
 import { getNodeMirror } from './getNodeMirror'
 import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
+import { listLocalVersions, listRemoteVersions } from './envList'
 
 export function rcOptionsTypes () {
   return {}
@@ -78,7 +78,7 @@ export function help () {
       'pnpm env remove --global argon',
       'pnpm env remove --global latest',
       'pnpm env remove --global rc/16',
-      'pnpm env list --global',
+      'pnpm env list',
       'pnpm env list --remote',
       'pnpm env list --remote 16',
       'pnpm env list --remote lts',
@@ -101,13 +101,17 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     const fetch = createFetchFromRegistry(opts)
     const { releaseChannel, versionSpecifier } = parseNodeEditionSpecifier(params[1])
     const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
-    const nodeVersion = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
-    if (!nodeVersion) {
+    const nodeVersions = await resolveNodeVersions(fetch, {
+      versionSpec: versionSpecifier,
+      nodeMirrorBaseUrl,
+      useHighest: true,
+    })
+    if (nodeVersions.length === 0) {
       throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${params[1]}`)
     }
     const nodeDir = await getNodeDir(fetch, {
       ...opts,
-      useNodeVersion: nodeVersion,
+      useNodeVersion: nodeVersions[0],
       nodeMirrorBaseUrl,
     })
     const src = path.join(nodeDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
@@ -134,7 +138,7 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     } catch (err: any) { // eslint-disable-line
       // ignore
     }
-    return `Node.js ${nodeVersion as string} is activated
+    return `Node.js ${nodeVersions[0] as string} is activated
   ${dest} -> ${src}`
   }
   case 'remove':
@@ -148,14 +152,18 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     const fetch = createFetchFromRegistry(opts)
     const { releaseChannel, versionSpecifier } = parseNodeEditionSpecifier(params[1])
     const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
-    const nodeVersion = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
+    const nodeVersions = await resolveNodeVersions(fetch, {
+      versionSpec: versionSpecifier,
+      nodeMirrorBaseUrl,
+      useHighest: true,
+    })
     const nodeDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
 
-    if (!nodeVersion) {
+    if (nodeVersions.length === 0) {
       throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${params[1]}`)
     }
 
-    const versionDir = path.resolve(nodeDir, nodeVersion)
+    const versionDir = path.resolve(nodeDir, nodeVersions[0])
 
     if (!existsSync(versionDir)) {
       throw new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${versionDir}`)
@@ -170,7 +178,7 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     }
 
     if (nodeLink?.includes(versionDir)) {
-      globalInfo(`Node.JS version ${nodeVersion} was detected as the default one, removing ...`)
+      globalInfo(`Node.JS version ${nodeVersions[0] as string} was detected as the default one, removing ...`)
 
       const npmPath = path.resolve(opts.pnpmHomeDir, 'npm')
       const npxPath = path.resolve(opts.pnpmHomeDir, 'npx')
@@ -188,47 +196,20 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
 
     await rimraf(versionDir)
 
-    return `Node.js ${nodeVersion} is removed
+    return `Node.js ${nodeVersions[0] as string} is removed
   ${versionDir}`
   }
   case 'list':
   case 'ls': {
-    if (!opts.global && !opts.cliOptions?.remote) {
-      throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env list <option>" can only be used with the "--global" option or "--remote" option currently')
-    }
     if (opts.cliOptions?.remote) {
-      const fetch = createFetchFromRegistry(opts)
-      const { releaseChannel, versionSpecifier } = parseNodeEditionSpecifier(params[1] ?? '')
-      const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
-      const nodeVersionList = await resolveNodeVersionList(fetch, versionSpecifier, nodeMirrorBaseUrl)
+      const nodeVersionList = await listRemoteVersions(opts, params[1])
+
       // make the newest version located in the end of output
       return nodeVersionList.reverse().join('\n')
     }
-    const nodeDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
-    const nodePath = path.resolve(opts.pnpmHomeDir, process.platform === 'win32' ? 'node.exe' : 'node')
-    let currentNodeVersion: string | undefined
-    let nodeLink: string | undefined
 
-    if (!existsSync(nodeDir)) {
-      throw new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${nodeDir}`)
-    }
-
-    try {
-      nodeLink = await fs.readlink(nodePath)
-    } catch (err) {
-      nodeLink = undefined
-    }
-
-    const nodeVersionDirs = await fs.readdir(nodeDir)
-    const nodeVersions = nodeVersionDirs.filter(nodeVersion => {
-      const nodeSrc = path.join(nodeDir, nodeVersion, process.platform === 'win32' ? 'node.exe' : 'bin/node')
-      const nodeVersionDir = path.join(nodeDir, nodeVersion)
-      if (nodeLink?.includes(nodeVersionDir)) {
-        currentNodeVersion = nodeVersion
-      }
-      return semver.valid(nodeVersion) && existsSync(nodeSrc)
-    })
-    return nodeVersions.map(nodeVersion => `${nodeVersion === currentNodeVersion ? '*' : ' '} ${nodeVersion}`).join('\n')
+    const { currentNodeVersion, nodeVersionList } = await listLocalVersions(opts)
+    return nodeVersionList.map(nodeVersion => `${nodeVersion === currentNodeVersion ? '*' : ' '} ${nodeVersion}`).join('\n')
   }
   default: {
     throw new PnpmError('ENV_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')

@@ -7,39 +7,45 @@ interface NodeVersion {
   lts: false | string
 }
 
-export async function resolveNodeVersion (
+export async function resolveNodeVersions (
   fetch: FetchFromRegistry,
-  versionSpec: string,
-  nodeMirrorBaseUrl?: string
-): Promise<string | null> {
-  const response = await fetch(`${nodeMirrorBaseUrl ?? 'https://nodejs.org/download/release/'}index.json`)
-  const allVersions = (await response.json()) as NodeVersion[]
-  if (versionSpec === 'latest') {
-    return allVersions[0].version.substring(1)
+  opts: {
+    versionSpec?: string
+    nodeMirrorBaseUrl?: string
+    // whether use highest version in the version list,
+    // returns one version at most when it's true.
+    useHighest?: boolean
   }
-  const { versions, versionRange } = filterVersions(allVersions, versionSpec)
-  const pickedVersion = semver.maxSatisfying(
-    versions.map(({ version }) => version), versionRange, { includePrerelease: true, loose: true })
-  if (!pickedVersion) return null
-  return pickedVersion.substring(1)
-}
-
-export async function resolveNodeVersionList (
-  fetch: FetchFromRegistry,
-  versionSpec?: string,
-  nodeMirrorBaseUrl?: string
 ): Promise<string[]> {
+  const { versionSpec, nodeMirrorBaseUrl, useHighest } = opts
   const response = await fetch(`${nodeMirrorBaseUrl ?? 'https://nodejs.org/download/release/'}index.json`)
   const allVersions = (await response.json()) as NodeVersion[]
-  if (!versionSpec) return allVersions.map(({ version }) => version.substring(1))
-  if (versionSpec === 'latest') {
-    return [allVersions[0].version.substring(1)]
+  let pickedVersions: string[] = []
+
+  if (!versionSpec) {
+    if (useHighest) {
+      pickedVersions = [allVersions[0].version.substring(1)]
+    } else {
+      pickedVersions = allVersions.map(({ version }) => version.substring(1))
+    }
+  } else if (versionSpec === 'latest') {
+    pickedVersions = [allVersions[0].version.substring(1)]
+  } else {
+    const { versions, versionRange } = filterVersions(allVersions, versionSpec)
+    if (useHighest) {
+      const pickedVersion = semver.maxSatisfying(
+        versions.map(({ version }) => version), versionRange, { includePrerelease: true, loose: true })
+      if (pickedVersion) {
+        pickedVersions = [pickedVersion]
+      }
+    } else {
+      pickedVersions = versions.map(({ version }) => version.substring(1)).filter(version => semver.satisfies(version, versionRange, {
+        includePrerelease: true,
+        loose: true,
+      }))
+    }
   }
-  const { versions, versionRange } = filterVersions(allVersions, versionSpec)
-  const pickedVersions = versions.map(({ version }) => version.substring(1)).filter(version => semver.satisfies(version, versionRange, {
-    includePrerelease: true,
-    loose: true,
-  }))
+
   return pickedVersions
 }
 
