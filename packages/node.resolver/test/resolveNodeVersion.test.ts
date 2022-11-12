@@ -13,6 +13,6 @@ test.each([
   ['https://nodejs.org/download/release/', 'latest', /.+/],
   [undefined, 'latest', /.+/],
 ])('Node.js %s is resolved', async (nodeMirrorBaseUrl, spec, expectedVersion) => {
-  const versions = await resolveNodeVersion(fetch, spec, nodeMirrorBaseUrl)
-  expect(versions).toMatch(expectedVersion)
+  const version = await resolveNodeVersion(fetch, spec, nodeMirrorBaseUrl)
+  expect(version).toMatch(expectedVersion)
 })
