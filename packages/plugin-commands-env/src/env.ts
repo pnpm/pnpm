@@ -12,6 +12,8 @@ import renderHelp from 'render-help'
 import { getNodeDir, NvmNodeCommandOptions, getNodeVersionsBaseDir } from './node'
 import { getNodeMirror } from './getNodeMirror'
 import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
+import { listLocalVersions, listRemoteVersions } from './envList'
+import { getNodeExecPathInBinDir, getNodeExecPathAndTargetDir, getNodeExecPathInNodeDir } from './utils'
 
 export function rcOptionsTypes () {
   return {}
@@ -20,6 +22,7 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return {
     global: Boolean,
+    remote: Boolean,
   }
 }
 
@@ -33,13 +36,18 @@ export function help () {
         title: 'Commands',
         list: [
           {
-            description: 'Installs the specified version of Node.JS. The npm CLI bundled with the given Node.js version gets installed as well.',
+            description: 'Installs the specified version of Node.js. The npm CLI bundled with the given Node.js version gets installed as well.',
             name: 'use',
           },
           {
-            description: 'Removes the specified version of Node.JS.',
+            description: 'Removes the specified version of Node.js.',
             name: 'remove',
             shortAlias: 'rm',
+          },
+          {
+            description: 'List Node.js versions available locally or remotely',
+            name: 'list',
+            shortAlias: 'ls',
           },
         ],
       },
@@ -50,6 +58,10 @@ export function help () {
             description: 'Manages Node.js versions globally',
             name: '--global',
             shortAlias: '-g',
+          },
+          {
+            description: 'List the remote versions of Node.js',
+            name: '--remote',
           },
         ],
       },
@@ -67,6 +79,13 @@ export function help () {
       'pnpm env remove --global argon',
       'pnpm env remove --global latest',
       'pnpm env remove --global rc/16',
+      'pnpm env list',
+      'pnpm env list --remote',
+      'pnpm env list --remote 16',
+      'pnpm env list --remote lts',
+      'pnpm env list --remote argon',
+      'pnpm env list --remote latest',
+      'pnpm env list --remote rc/16',
     ],
   })
 }
@@ -92,8 +111,8 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
       useNodeVersion: nodeVersion,
       nodeMirrorBaseUrl,
     })
-    const src = path.join(nodeDir, process.platform === 'win32' ? 'node.exe' : 'bin/node')
-    const dest = path.join(opts.bin, process.platform === 'win32' ? 'node.exe' : 'node')
+    const src = getNodeExecPathInNodeDir(nodeDir)
+    const dest = getNodeExecPathInBinDir(opts.bin)
     try {
       await fs.unlink(dest)
     } catch (err) {}
@@ -143,16 +162,10 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
       throw new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${versionDir}`)
     }
 
-    const nodePath = path.resolve(opts.pnpmHomeDir, process.platform === 'win32' ? 'node.exe' : 'node')
-    let nodeLink: string | undefined
-    try {
-      nodeLink = await fs.readlink(nodePath)
-    } catch (err) {
-      nodeLink = undefined
-    }
+    const { nodePath, nodeLink } = await getNodeExecPathAndTargetDir(opts.pnpmHomeDir)
 
     if (nodeLink?.includes(versionDir)) {
-      globalInfo(`Node.JS version ${nodeVersion} was detected as the default one, removing ...`)
+      globalInfo(`Node.js version ${nodeVersion as string} was detected as the default one, removing ...`)
 
       const npmPath = path.resolve(opts.pnpmHomeDir, 'npm')
       const npxPath = path.resolve(opts.pnpmHomeDir, 'npx')
@@ -170,8 +183,20 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
 
     await rimraf(versionDir)
 
-    return `Node.js ${nodeVersion} is removed
+    return `Node.js ${nodeVersion as string} is removed
   ${versionDir}`
+  }
+  case 'list':
+  case 'ls': {
+    if (opts.remote) {
+      const nodeVersionList = await listRemoteVersions(opts, params[1])
+      // Make the newest version located in the end of output
+      return nodeVersionList.reverse().join('\n')
+    }
+    const { currentVersion, versions } = await listLocalVersions(opts)
+    return versions
+      .map(nodeVersion => `${nodeVersion === currentVersion ? '*' : ' '} ${nodeVersion}`)
+      .join('\n')
   }
   default: {
     throw new PnpmError('ENV_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')

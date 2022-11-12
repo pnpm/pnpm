@@ -43,6 +43,7 @@
     "@zkochan/rimraf": "^2.1.2",
     "load-json-file": "^6.2.0",
     "render-help": "^1.0.2",
+    "semver": "^7.3.8",
     "write-json-file": "^4.3.0"
   },
   "funding": "https://opencollective.com/pnpm",
@@ -50,6 +51,7 @@
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "^0.4.34",
+    "@types/semver": "7.3.13",
     "adm-zip": "^0.5.9",
     "execa": "npm:safe-execa@^0.1.2",
     "nock": "13.2.9",

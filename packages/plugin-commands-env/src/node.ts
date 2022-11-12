@@ -31,7 +31,9 @@ export type NvmNodeCommandOptions = Pick<Config,
 | 'storeDir'
 | 'useNodeVersion'
 | 'pnpmHomeDir'
-> & Partial<Pick<Config, 'configDir'>>
+> & Partial<Pick<Config, 'configDir' | 'cliOptions'>> & {
+  remote?: boolean
+}
 
 export async function getNodeBinDir (opts: NvmNodeCommandOptions) {
   const fetch = createFetchFromRegistry(opts)
