@@ -216,7 +216,6 @@ describe('env remove', () => {
 describe('env list', () => {
   test('list local Node.js versions', async () => {
     tempDir()
-
     const configDir = path.resolve('config')
 
     await env.handler({
@@ -252,7 +251,6 @@ describe('env list', () => {
   })
   test('list remote Node.js versions', async () => {
     tempDir()
-
     const configDir = path.resolve('config')
 
     const versionStr = await env.handler({
@@ -260,13 +258,10 @@ describe('env list', () => {
       configDir,
       pnpmHomeDir: process.cwd(),
       rawConfig: {},
-      cliOptions: {
-        remote: true,
-      },
+      remote: true,
     }, ['list', '16'])
 
     const versions = versionStr.split('\n')
-
     expect(versions.every(version => semver.satisfies(version, '16'))).toBeTruthy()
   })
 })

@@ -188,7 +188,7 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
   }
   case 'list':
   case 'ls': {
-    if (opts.cliOptions?.remote) {
+    if (opts.remote) {
       const nodeVersionList = await listRemoteVersions(opts, params[1])
       // Make the newest version located in the end of output
       return nodeVersionList.reverse().join('\n')
