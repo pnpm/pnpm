@@ -6,6 +6,7 @@ import { env, node } from '@pnpm/plugin-commands-env'
 import * as execa from 'execa'
 import nock from 'nock'
 import PATH from 'path-name'
+import semver from 'semver'
 
 test('install Node (and npm, npx) by exact version of Node.js', async () => {
   tempDir()
@@ -209,5 +210,78 @@ describe('env remove', () => {
     }, ['rm', '16.4.0'])
 
     expect(() => execa.sync('node', ['-v'], opts)).toThrowError()
+  })
+
+  test('list global Node.js versions', async () => {
+    tempDir()
+
+    const configDir = path.resolve('config')
+
+    await env.handler({
+      bin: process.cwd(),
+      configDir,
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, ['use', '14.20.0'])
+
+    await env.handler({
+      bin: process.cwd(),
+      configDir,
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, ['use', '16.4.0'])
+
+    const versionStr = await env.handler({
+      bin: process.cwd(),
+      configDir,
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, ['list'])
+
+    const versions = versionStr.split('\n')
+    const expected = [
+      expect.stringContaining('14.20.0'),
+      expect.stringContaining('16.4.0'),
+    ]
+
+    expect(versions).toEqual(
+      expect.arrayContaining(expected)
+    )
+  })
+
+  test('list remote Node.js versions', async () => {
+    tempDir()
+
+    const configDir = path.resolve('config')
+
+    const versionStr = await env.handler({
+      bin: process.cwd(),
+      configDir,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+      cliOptions: {
+        remote: true,
+      },
+    }, ['list', '16'])
+
+    const versions = versionStr.split('\n')
+
+    expect(versions.every(version => semver.satisfies(version, '16'))).toBe(true)
+  })
+
+  test('list versions failed if --global or --option is missing', async () => {
+    tempDir()
+
+    await expect(
+      env.handler({
+        bin: process.cwd(),
+        global: false,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      }, ['list'])
+    ).rejects.toEqual(new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env list <option>" can only be used with the "--global" option or "--remote" option currently'))
   })
 })

@@ -3203,6 +3203,9 @@ importers:
       render-help:
         specifier: ^1.0.2
         version: 1.0.2
+      semver:
+        specifier: ^7.3.8
+        version: 7.3.8
       write-json-file:
         specifier: ^4.3.0
         version: 4.3.0
@@ -3216,6 +3219,9 @@ importers:
       '@types/adm-zip':
         specifier: ^0.4.34
         version: 0.4.34
+      '@types/semver':
+        specifier: 7.3.13
+        version: 7.3.13
       adm-zip:
         specifier: ^0.5.9
         version: 0.5.9

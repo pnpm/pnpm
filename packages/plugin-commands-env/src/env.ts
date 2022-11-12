@@ -3,12 +3,13 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import { resolveNodeVersion } from '@pnpm/node.resolver'
+import { resolveNodeVersion, resolveNodeVersionList } from '@pnpm/node.resolver'
 import { globalInfo } from '@pnpm/logger'
 import { removeBin } from '@pnpm/remove-bins'
 import cmdShim from '@zkochan/cmd-shim'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
+import semver from 'semver'
 import { getNodeDir, NvmNodeCommandOptions, getNodeVersionsBaseDir } from './node'
 import { getNodeMirror } from './getNodeMirror'
 import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
@@ -20,6 +21,7 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return {
     global: Boolean,
+    remote: Boolean,
   }
 }
 
@@ -41,6 +43,11 @@ export function help () {
             name: 'remove',
             shortAlias: 'rm',
           },
+          {
+            description: 'List the versions of Node.JS installed via pnpm.',
+            name: 'list',
+            shortAlias: 'ls',
+          },
         ],
       },
       {
@@ -50,6 +57,10 @@ export function help () {
             description: 'Manages Node.js versions globally',
             name: '--global',
             shortAlias: '-g',
+          },
+          {
+            description: 'List the remote versions of Node.JS.',
+            name: '--remote',
           },
         ],
       },
@@ -67,6 +78,13 @@ export function help () {
       'pnpm env remove --global argon',
       'pnpm env remove --global latest',
       'pnpm env remove --global rc/16',
+      'pnpm env list --global',
+      'pnpm env list --remote',
+      'pnpm env list --remote 16',
+      'pnpm env list --remote lts',
+      'pnpm env list --remote argon',
+      'pnpm env list --remote latest',
+      'pnpm env list --remote rc/16',
     ],
   })
 }
@@ -172,6 +190,45 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
 
     return `Node.js ${nodeVersion} is removed
   ${versionDir}`
+  }
+  case 'list':
+  case 'ls': {
+    if (!opts.global && !opts.cliOptions?.remote) {
+      throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env list <option>" can only be used with the "--global" option or "--remote" option currently')
+    }
+    if (opts.cliOptions?.remote) {
+      const fetch = createFetchFromRegistry(opts)
+      const { releaseChannel, versionSpecifier } = parseNodeEditionSpecifier(params[1] ?? '')
+      const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
+      const nodeVersionList = await resolveNodeVersionList(fetch, versionSpecifier, nodeMirrorBaseUrl)
+      // make the newest version located in the end of output
+      return nodeVersionList.reverse().join('\n')
+    }
+    const nodeDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
+    const nodePath = path.resolve(opts.pnpmHomeDir, process.platform === 'win32' ? 'node.exe' : 'node')
+    let currentNodeVersion: string | undefined
+    let nodeLink: string | undefined
+
+    if (!existsSync(nodeDir)) {
+      throw new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${nodeDir}`)
+    }
+
+    try {
+      nodeLink = await fs.readlink(nodePath)
+    } catch (err) {
+      nodeLink = undefined
+    }
+
+    const nodeVersionDirs = await fs.readdir(nodeDir)
+    const nodeVersions = nodeVersionDirs.filter(nodeVersion => {
+      const nodeSrc = path.join(nodeDir, nodeVersion, process.platform === 'win32' ? 'node.exe' : 'bin/node')
+      const nodeVersionDir = path.join(nodeDir, nodeVersion)
+      if (nodeLink?.includes(nodeVersionDir)) {
+        currentNodeVersion = nodeVersion
+      }
+      return semver.valid(nodeVersion) && existsSync(nodeSrc)
+    })
+    return nodeVersions.map(nodeVersion => `${nodeVersion === currentNodeVersion ? '*' : ' '} ${nodeVersion}`).join('\n')
   }
   default: {
     throw new PnpmError('ENV_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')

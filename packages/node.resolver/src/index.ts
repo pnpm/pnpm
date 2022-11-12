@@ -24,6 +24,25 @@ export async function resolveNodeVersion (
   return pickedVersion.substring(1)
 }
 
+export async function resolveNodeVersionList (
+  fetch: FetchFromRegistry,
+  versionSpec?: string,
+  nodeMirrorBaseUrl?: string
+): Promise<string[]> {
+  const response = await fetch(`${nodeMirrorBaseUrl ?? 'https://nodejs.org/download/release/'}index.json`)
+  const allVersions = (await response.json()) as NodeVersion[]
+  if (!versionSpec) return allVersions.map(({ version }) => version.substring(1))
+  if (versionSpec === 'latest') {
+    return [allVersions[0].version.substring(1)]
+  }
+  const { versions, versionRange } = filterVersions(allVersions, versionSpec)
+  const pickedVersions = versions.map(({ version }) => version.substring(1)).filter(version => semver.satisfies(version, versionRange, {
+    includePrerelease: true,
+    loose: true,
+  }))
+  return pickedVersions
+}
+
 function filterVersions (versions: NodeVersion[], versionSelector: string) {
   if (versionSelector === 'lts') {
     return {
