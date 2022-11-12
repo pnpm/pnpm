@@ -1,5 +1,5 @@
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import { resolveNodeVersion, resolveNodeVersions } from '@pnpm/node.resolver'
+import { resolveNodeVersion } from '@pnpm/node.resolver'
 
 const fetch = createFetchFromRegistry({})
 
@@ -15,10 +15,4 @@ test.each([
 ])('Node.js %s is resolved', async (nodeMirrorBaseUrl, spec, expectedVersion) => {
   const versions = await resolveNodeVersion(fetch, spec, nodeMirrorBaseUrl)
   expect(versions).toMatch(expectedVersion)
-})
-
-test('resolve specified version list', async () => {
-  const versions = await resolveNodeVersions(fetch, '16')
-  expect(versions.length).toBeGreaterThan(1)
-  expect(versions.every(version => version.match(/^16.+/))).toBeTruthy()
 })
