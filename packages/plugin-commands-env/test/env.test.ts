@@ -211,7 +211,9 @@ describe('env remove', () => {
 
     expect(() => execa.sync('node', ['-v'], opts)).toThrowError()
   })
+})
 
+describe('env list', () => {
   test('list local Node.js versions', async () => {
     tempDir()
 
@@ -234,7 +236,20 @@ describe('env remove', () => {
 
     expect(version).toMatch('16.4.0')
   })
+  test('list local versions fails if Node.js directory not found', async () => {
+    tempDir()
+    const configDir = path.resolve('config')
+    const pnpmHomeDir = path.resolve('specified-dir')
 
+    await expect(
+      env.handler({
+        bin: process.cwd(),
+        configDir,
+        pnpmHomeDir,
+        rawConfig: {},
+      }, ['list'])
+    ).rejects.toEqual(new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${path.join(pnpmHomeDir, 'nodejs')}`))
+  })
   test('list remote Node.js versions', async () => {
     tempDir()
 
