@@ -7,42 +7,32 @@ import semver from 'semver'
 import { getNodeMirror } from './getNodeMirror'
 import { getNodeVersionsBaseDir, NvmNodeCommandOptions } from './node'
 import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
+import { getNodeExecPathAndTargetDir, getNodeExecPathInNodeDir } from './utils'
 
-export const listLocalVersions = async (opts: NvmNodeCommandOptions) => {
-  const nodeDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
-  const nodePath = path.resolve(opts.pnpmHomeDir, process.platform === 'win32' ? 'node.exe' : 'node')
-  let currentNodeVersion: string | undefined
-  let nodeLink: string | undefined
-
-  if (!existsSync(nodeDir)) {
-    throw new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${nodeDir}`)
+export async function listLocalVersions (opts: NvmNodeCommandOptions) {
+  const nodeBaseDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
+  if (!existsSync(nodeBaseDir)) {
+    throw new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${nodeBaseDir}`)
   }
-
-  try {
-    nodeLink = await fs.readlink(nodePath)
-  } catch (err) {
-    nodeLink = undefined
-  }
-
-  const nodeVersionDirs = await fs.readdir(nodeDir)
-  const nodeVersionList = nodeVersionDirs.filter(nodeVersion => {
-    const nodeSrc = path.join(nodeDir, nodeVersion, process.platform === 'win32' ? 'node.exe' : 'bin/node')
-    const nodeVersionDir = path.join(nodeDir, nodeVersion)
-    if (nodeLink?.includes(nodeVersionDir)) {
-      currentNodeVersion = nodeVersion
+  const { nodeLink } = await getNodeExecPathAndTargetDir(opts.pnpmHomeDir)
+  const nodeVersionDirs = await fs.readdir(nodeBaseDir)
+  return nodeVersionDirs.reduce(({ currentVersion, versions }, nodeVersion) => {
+    const nodeVersionDir = path.join(nodeBaseDir, nodeVersion)
+    const nodeExec = getNodeExecPathInNodeDir(nodeVersionDir)
+    if (nodeLink?.startsWith(nodeVersionDir)) {
+      currentVersion = nodeVersion
     }
-    return semver.valid(nodeVersion) && existsSync(nodeSrc)
-  })
-  return { currentNodeVersion, nodeVersionList }
+    if (semver.valid(nodeVersion) && existsSync(nodeExec)) {
+      versions.push(nodeVersion)
+    }
+    return { currentVersion, versions }
+  }, { currentVersion: undefined as string | undefined, versions: [] as string[] })
 }
 
-export const listRemoteVersions = async (opts: NvmNodeCommandOptions, versionSpec?: string) => {
+export async function listRemoteVersions (opts: NvmNodeCommandOptions, versionSpec?: string) {
   const fetch = createFetchFromRegistry(opts)
   const { releaseChannel, versionSpecifier } = parseNodeEditionSpecifier(versionSpec ?? '')
   const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
-  const nodeVersionList = await resolveNodeVersions(fetch, {
-    versionSpec: versionSpecifier,
-    nodeMirrorBaseUrl,
-  })
+  const nodeVersionList = await resolveNodeVersions(fetch, versionSpecifier, nodeMirrorBaseUrl)
   return nodeVersionList
 }
