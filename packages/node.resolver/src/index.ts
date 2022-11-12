@@ -36,7 +36,7 @@ export async function resolveNodeVersions (
       const pickedVersion = semver.maxSatisfying(
         versions.map(({ version }) => version), versionRange, { includePrerelease: true, loose: true })
       if (pickedVersion) {
-        pickedVersions = [pickedVersion]
+        pickedVersions = [pickedVersion.substring(1)]
       }
     } else {
       pickedVersions = versions.map(({ version }) => version.substring(1)).filter(version => semver.satisfies(version, versionRange, {

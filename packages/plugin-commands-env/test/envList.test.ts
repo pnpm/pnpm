@@ -17,14 +17,15 @@ test('list local versions', async () => {
     rawConfig: {},
   }, ['use', '16.4.0'])
 
-  const versions = await listLocalVersions({
+  const { currentNodeVersion, nodeVersionList } = await listLocalVersions({
     bin: process.cwd(),
     configDir,
     pnpmHomeDir: process.cwd(),
     rawConfig: {},
   })
 
-  expect(versions).toStrictEqual(['16.4.0'])
+  expect(currentNodeVersion).toEqual('16.4.0')
+  expect(nodeVersionList).toEqual(['16.4.0'])
 })
 
 test('list local versions failed if Node.js directory not found', async () => {
