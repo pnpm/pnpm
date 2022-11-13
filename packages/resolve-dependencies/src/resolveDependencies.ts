@@ -665,7 +665,7 @@ async function resolveDependenciesOfDependency (
 
   if (resolveDependencyResult == null) return { resolveDependencyResult: null }
   if (resolveDependencyResult.isLinkedDependency) {
-    ctx.dependenciesTree[resolveDependencyResult.pkgId] = {
+    ctx.dependenciesTree[`link:${path.relative(ctx.lockfileDir, resolveDependencyResult.resolution.directory)}`] = {
       children: {},
       depth: -1,
       installable: true,
