@@ -39,6 +39,7 @@ import {
   Registries,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
+import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import pDefer from 'p-defer'
 import pShare from 'promise-share'
@@ -665,7 +666,7 @@ async function resolveDependenciesOfDependency (
 
   if (resolveDependencyResult == null) return { resolveDependencyResult: null }
   if (resolveDependencyResult.isLinkedDependency) {
-    ctx.dependenciesTree[`link:${path.relative(ctx.lockfileDir, resolveDependencyResult.resolution.directory)}`] = {
+    ctx.dependenciesTree[`link:${normalizePath(path.relative(ctx.lockfileDir, resolveDependencyResult.resolution.directory))}`] = {
       children: {},
       depth: -1,
       installable: true,

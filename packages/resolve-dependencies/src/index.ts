@@ -21,6 +21,7 @@ import {
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
+import normalizePath from 'normalize-path'
 import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
 import { getWantedDependencies, WantedDependency } from './getWantedDependencies'
@@ -179,7 +180,7 @@ export async function resolveDependencies (
       topParents.push({
         name: linkedDependency.alias,
         version: linkedDependency.version,
-        linkedDir: `link:${path.relative(opts.lockfileDir, linkedDependency.resolution.directory)}`,
+        linkedDir: `link:${normalizePath(path.relative(opts.lockfileDir, linkedDependency.resolution.directory))}`,
       })
     })
 
