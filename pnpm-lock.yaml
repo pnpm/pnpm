@@ -4882,6 +4882,9 @@ importers:
       is-subdir:
         specifier: ^1.2.0
         version: 1.2.0
+      normalize-path:
+        specifier: ^3.0.0
+        version: 3.0.0
       p-defer:
         specifier: ^3.0.0
         version: 3.0.0
@@ -4916,6 +4919,9 @@ importers:
       '@pnpm/resolve-dependencies':
         specifier: workspace:*
         version: 'link:'
+      '@types/normalize-path':
+        specifier: ^3.0.0
+        version: 3.0.0
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15

@@ -8,6 +8,8 @@ import { fixtures } from '@pnpm/test-fixtures'
 import {
   addDependenciesToPackage,
   install,
+  mutateModules,
+  MutatedProject,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
@@ -275,4 +277,79 @@ test('deep local', async () => {
 
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['file:../project-2', 'file:../project-2/project-3'])
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/5327
+test('resolution should not fail when a peer is resolved from a local package and there are many circular dependencies', async () => {
+  const manifest1 = {
+    name: 'chained-iterator',
+    version: '0.0.4',
+    dependencies: {
+      '@bryntum/siesta': '6.0.0-beta-1',
+    },
+  }
+  const manifest2 = {
+    name: '@bryntum/chronograph',
+    version: '2.0.3',
+    dependencies: {
+      '@bryntum/siesta': '6.0.0-beta-1',
+      'typescript-serializable-mixin': '0.0.3',
+      'typescript-mixin-class': 'link:../typescript-mixin-class',
+    },
+  }
+  const manifest3 = {
+    name: 'typescript-mixin-class',
+    version: '0.0.3',
+    dependencies: {
+      '@bryntum/siesta': '6.0.0-beta-1',
+    },
+  }
+
+  preparePackages([
+    {
+      location: manifest1.name,
+      package: manifest1,
+    },
+    {
+      location: manifest2.name,
+      package: manifest2,
+    },
+    {
+      location: manifest3.name,
+      package: manifest3,
+    },
+  ])
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve(manifest1.name),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve(manifest2.name),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve(manifest3.name),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: manifest1,
+      rootDir: path.resolve(manifest1.name),
+    },
+    {
+      buildIndex: 0,
+      manifest: manifest2,
+      rootDir: path.resolve(manifest2.name),
+    },
+    {
+      buildIndex: 0,
+      manifest: manifest3,
+      rootDir: path.resolve(manifest3.name),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({ allProjects, lockfileOnly: true, strictPeerDependencies: false }))
+  // All we need to know in this test is that installation doesn't fail
 })
