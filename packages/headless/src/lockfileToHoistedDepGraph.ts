@@ -71,7 +71,7 @@ async function _lockfileToHoistedDepGraph (
     ...opts,
     lockfile,
     graph,
-    pkgLocationByDepPath: {},
+    pkgLocationsByDepPath: {},
   }
   const hierarchy = {
     [opts.lockfileDir]: await fetchDeps(fetchDepsOpts, modulesDir, tree.dependencies),
@@ -99,7 +99,7 @@ async function _lockfileToHoistedDepGraph (
     directDependenciesByImporterId,
     graph,
     hierarchy,
-    pkgLocationByDepPath: fetchDepsOpts.pkgLocationByDepPath,
+    pkgLocationsByDepPath: fetchDepsOpts.pkgLocationsByDepPath,
     symlinkedDirectDependenciesByImporterId,
   }
 }
@@ -135,7 +135,7 @@ async function fetchDeps (
   opts: {
     graph: DependenciesGraph
     lockfile: Lockfile
-    pkgLocationByDepPath: Record<string, string>
+    pkgLocationsByDepPath: Record<string, string[]>
   } & LockfileToHoistedDepGraphOptions,
   modules: string,
   deps: Set<HoisterResult>
@@ -211,16 +211,19 @@ async function fetchDeps (
       requiresBuild: pkgSnapshot.requiresBuild === true,
       patchFile: opts.patchedDependencies?.[`${pkgName}@${pkgVersion}`],
     }
-    opts.pkgLocationByDepPath[depPath] = dir
+    if (!opts.pkgLocationsByDepPath[depPath]) {
+      opts.pkgLocationsByDepPath[depPath] = []
+    }
+    opts.pkgLocationsByDepPath[depPath].push(dir)
     depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies)
-    opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationByDepPath, opts)
+    opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationsByDepPath, opts)
   }))
   return depHierarchy
 }
 
 function getChildren (
   pkgSnapshot: PackageSnapshot,
-  pkgLocationByDepPath: Record<string, string>,
+  pkgLocationsByDepPath: Record<string, string[]>,
   opts: { include: IncludedDependencies }
 ) {
   const allDeps = {
@@ -230,8 +233,8 @@ function getChildren (
   const children = {}
   for (const [childName, childRef] of Object.entries(allDeps)) {
     const childDepPath = dp.refToRelative(childRef, childName)
-    if (childDepPath && pkgLocationByDepPath[childDepPath]) {
-      children[childName] = pkgLocationByDepPath[childDepPath]
+    if (childDepPath && pkgLocationsByDepPath[childDepPath]) {
+      children[childName] = pkgLocationsByDepPath[childDepPath][0]
     }
   }
   return children
