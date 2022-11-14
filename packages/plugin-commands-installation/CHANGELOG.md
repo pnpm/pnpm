@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-installation
 
+## 11.0.6
+
+### Patch Changes
+
+- 3dab7f83c: Replace environment variable placeholders with their values, when reading `.npmrc` files in subdirectories inside a workspace [#2570](https://github.com/pnpm/pnpm/issues/2570).
+- Updated dependencies [3dab7f83c]
+- Updated dependencies [3dab7f83c]
+  - @pnpm/config@16.1.0
+  - @pnpm/plugin-commands-rebuild@7.0.6
+  - @pnpm/cli-utils@1.0.6
+  - @pnpm/store-connection-manager@5.0.6
+  - @pnpm/core@7.0.6
+  - @pnpm/find-workspace-packages@5.0.6
+  - @pnpm/pnpmfile@4.0.6
+  - @pnpm/filter-workspace-packages@6.0.6
+
 ## 11.0.5
 
 ### Patch Changes

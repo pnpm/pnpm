@@ -1,5 +1,15 @@
 # @pnpm/config
 
+## 16.1.0
+
+### Minor Changes
+
+- 3dab7f83c: New function added: `readLocalConfig(dir: string)`.
+
+### Patch Changes
+
+- @pnpm/pnpmfile@4.0.6
+
 ## 16.0.5
 
 ### Patch Changes

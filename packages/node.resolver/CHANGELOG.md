@@ -1,5 +1,11 @@
 # @pnpm/node.resolver
 
+## 1.1.0
+
+### Minor Changes
+
+- f60d6c46f: Export a new function: resolveNodeVersions.
+
 ## 1.0.19
 
 ### Patch Changes

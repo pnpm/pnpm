@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-env
 
+## 3.1.0
+
+### Minor Changes
+
+- f60d6c46f: Support `pnpm env list` to list global or remote Node.js versions [#5546](https://github.com/pnpm/pnpm/issues/5546).
+
+### Patch Changes
+
+- Updated dependencies [3dab7f83c]
+- Updated dependencies [f60d6c46f]
+  - @pnpm/config@16.1.0
+  - @pnpm/node.resolver@1.1.0
+  - @pnpm/cli-utils@1.0.6
+
 ## 3.0.5
 
 ### Patch Changes
