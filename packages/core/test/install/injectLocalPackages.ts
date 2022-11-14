@@ -1483,3 +1483,127 @@ test('do not modify the manifest of the injected workpspace project', async () =
     },
   })
 })
+
+test('injected package is kept up-to-date when it is hoisted to multiple places', async () => {
+  // We create a root project with is-positive in the dependencies, so that the local is-positive
+  // inside project-1 and project-2 will be nested into their node_modules
+  const rootProjectManifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '2.0.0',
+    },
+  }
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': 'workspace:1.0.0',
+    },
+    dependenciesMeta: {
+      'is-positive': {
+        injected: true,
+      },
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': 'workspace:1.0.0',
+    },
+    dependenciesMeta: {
+      'is-positive': {
+        injected: true,
+      },
+    },
+  }
+  const project3Manifest = {
+    name: 'is-positive',
+    version: '1.0.0',
+    scripts: {
+      prepare: 'node -e "require(\'fs\').writeFileSync(\'prepare.txt\', \'prepare\', \'utf8\')"',
+    },
+  }
+  const projects = preparePackages([
+    {
+      location: '',
+      package: rootProjectManifest,
+    },
+    {
+      location: 'project-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'project-2',
+      package: project2Manifest,
+    },
+    {
+      location: 'project-3',
+      package: project3Manifest,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-3'),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: rootProjectManifest,
+      rootDir: process.cwd(),
+    },
+    {
+      buildIndex: 0,
+      manifest: project1Manifest,
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: project2Manifest,
+      rootDir: path.resolve('project-2'),
+    },
+    {
+      buildIndex: 0,
+      manifest: project3Manifest,
+      rootDir: path.resolve('project-3'),
+    },
+  ]
+  const workspacePackages = {
+    'is-positive': {
+      '1.0.0': {
+        dir: path.resolve('project-3'),
+        manifest: project1Manifest,
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({
+    allProjects,
+    nodeLinker: 'hoisted',
+    workspacePackages,
+  }))
+
+  await projects['project-1'].has('is-positive/prepare.txt')
+  await projects['project-2'].has('is-positive/prepare.txt')
+
+  const rootModules = assertProject(process.cwd())
+  const modulesState = await rootModules.readModulesManifest()
+  expect(modulesState?.injectedDeps?.['project-3'].length).toEqual(2)
+  expect(modulesState?.injectedDeps?.['project-3'][0]).toEqual(path.join('project-1', 'node_modules', 'is-positive'))
+  expect(modulesState?.injectedDeps?.['project-3'][1]).toEqual(path.join('project-2', 'node_modules', 'is-positive'))
+})
