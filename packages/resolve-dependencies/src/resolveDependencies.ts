@@ -666,7 +666,7 @@ async function resolveDependenciesOfDependency (
 
   if (resolveDependencyResult == null) return { resolveDependencyResult: null }
   if (resolveDependencyResult.isLinkedDependency) {
-    ctx.dependenciesTree[`link:${normalizePath(path.relative(ctx.lockfileDir, resolveDependencyResult.resolution.directory))}`] = {
+    ctx.dependenciesTree[createNodeIdForLinkedLocalPkg(ctx.lockfileDir, resolveDependencyResult.resolution.directory)] = {
       children: {},
       depth: -1,
       installable: true,
@@ -707,6 +707,10 @@ async function resolveDependenciesOfDependency (
       return filterMissingPeers({ missingPeers, resolvedPeers }, postponedResolutionOpts.parentPkgAliases)
     },
   }
+}
+
+export function createNodeIdForLinkedLocalPkg (lockfileDir: string, pkgDir: string) {
+  return `link:${normalizePath(path.relative(lockfileDir, pkgDir))}`
 }
 
 function filterMissingPeers (
