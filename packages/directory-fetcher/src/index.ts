@@ -1,4 +1,4 @@
-import { promises as fs, Stats } from 'fs'
+import { promises as fs } from 'fs'
 import path from 'path'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
 import { logger } from '@pnpm/logger'
@@ -67,17 +67,20 @@ async function _fetchAllFilesFromDir (
   await Promise.all(files
     .filter((file) => file !== 'node_modules')
     .map(async (file) => {
-      const filePath = path.join(dir, file)
-      let stat: Stats
-      try {
-        stat = await fs.stat(filePath)
-      } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-        // Broken symlinks are skipped
-        if (err.code === 'ENOENT') {
-          directoryFetcherLogger.debug({ brokenSymlink: filePath })
-          return
+      let filePath = path.join(dir, file)
+      let stat = await fs.lstat(filePath)
+      if (stat.isSymbolicLink()) {
+        try {
+          filePath = await fs.realpath(filePath)
+          stat = await fs.stat(filePath)
+        } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+          // Broken symlinks are skipped
+          if (err.code === 'ENOENT') {
+            directoryFetcherLogger.debug({ brokenSymlink: filePath })
+            return
+          }
+          throw err
         }
-        throw err
       }
       const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
       if (stat.isDirectory()) {

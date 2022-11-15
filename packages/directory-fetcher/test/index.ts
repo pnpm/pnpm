@@ -110,3 +110,22 @@ test('fetch does not fail on package with broken symlink', async () => {
   ])
   expect(debug).toHaveBeenCalledWith({ brokenSymlink: path.resolve('not-exists') })
 })
+
+test('fetch resolves symlinked files to their real locations', async () => {
+  process.chdir(f.find('pkg-with-symlinked-dir-and-files'))
+  const fetcher = createDirectoryFetcher()
+
+  // eslint-disable-next-line
+  const fetchResult = await fetcher.directory({} as any, {
+    directory: '.',
+    type: 'directory',
+  }, {
+    lockfileDir: process.cwd(),
+  })
+
+  expect(fetchResult.local).toBe(true)
+  expect(fetchResult.packageImportMethod).toBe('hardlink')
+  expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
+  expect(fetchResult.filesIndex['index.js']).toBe(path.join(f.find('no-manifest'), 'index.js'))
+  expect(fetchResult.filesIndex['src/index.js']).toBe(path.join(f.find('simple-pkg'), 'index.js'))
+})
