@@ -5,6 +5,7 @@ import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 // @ts-expect-error
 import { debug } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
+import rimraf from '@zkochan/rimraf'
 
 const f = fixtures(__dirname)
 jest.mock('@pnpm/logger', () => {
@@ -116,9 +117,9 @@ test('fetch resolves symlinked files to their real locations', async () => {
   process.chdir(f.find('pkg-with-symlinked-dir-and-files'))
   const indexJsPath = path.join(f.find('no-manifest'), 'index.js')
   const srcPath = f.find('simple-pkg')
-  fs.unlinkSync('index.js')
+  await rimraf('index.js')
   fs.symlinkSync(indexJsPath, path.resolve('index.js'), 'file')
-  fs.unlinkSync('src')
+  await rimraf('src')
   fs.symlinkSync(srcPath, path.resolve('src'), 'dir')
   const fetcher = createDirectoryFetcher()
 
