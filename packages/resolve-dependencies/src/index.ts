@@ -25,6 +25,7 @@ import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
 import { getWantedDependencies, WantedDependency } from './getWantedDependencies'
 import { depPathToRef } from './depPathToRef'
+import { createNodeIdForLinkedLocalPkg } from './resolveDependencies'
 import {
   Importer,
   LinkedDependency,
@@ -179,7 +180,7 @@ export async function resolveDependencies (
       topParents.push({
         name: linkedDependency.alias,
         version: linkedDependency.version,
-        linkedDir: `link:${path.relative(opts.lockfileDir, linkedDependency.resolution.directory)}`,
+        linkedDir: createNodeIdForLinkedLocalPkg(opts.lockfileDir, linkedDependency.resolution.directory),
       })
     })
 

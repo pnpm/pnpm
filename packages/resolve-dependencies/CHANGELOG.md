@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 29.0.6
+
+### Patch Changes
+
+- 4a4b2ac93: Fix the nodeId in dependenciesTree for linked local packages.
+
 ## 29.0.5
 
 ### Patch Changes

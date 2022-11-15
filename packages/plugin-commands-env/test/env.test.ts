@@ -6,6 +6,7 @@ import { env, node } from '@pnpm/plugin-commands-env'
 import * as execa from 'execa'
 import nock from 'nock'
 import PATH from 'path-name'
+import semver from 'semver'
 
 test('install Node (and npm, npx) by exact version of Node.js', async () => {
   tempDir()
@@ -209,5 +210,58 @@ describe('env remove', () => {
     }, ['rm', '16.4.0'])
 
     expect(() => execa.sync('node', ['-v'], opts)).toThrowError()
+  })
+})
+
+describe('env list', () => {
+  test('list local Node.js versions', async () => {
+    tempDir()
+    const configDir = path.resolve('config')
+
+    await env.handler({
+      bin: process.cwd(),
+      configDir,
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, ['use', '16.4.0'])
+
+    const version = await env.handler({
+      bin: process.cwd(),
+      configDir,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, ['list'])
+
+    expect(version).toMatch('16.4.0')
+  })
+  test('list local versions fails if Node.js directory not found', async () => {
+    tempDir()
+    const configDir = path.resolve('config')
+    const pnpmHomeDir = path.resolve('specified-dir')
+
+    await expect(
+      env.handler({
+        bin: process.cwd(),
+        configDir,
+        pnpmHomeDir,
+        rawConfig: {},
+      }, ['list'])
+    ).rejects.toEqual(new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${path.join(pnpmHomeDir, 'nodejs')}`))
+  })
+  test('list remote Node.js versions', async () => {
+    tempDir()
+    const configDir = path.resolve('config')
+
+    const versionStr = await env.handler({
+      bin: process.cwd(),
+      configDir,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+      remote: true,
+    }, ['list', '16'])
+
+    const versions = versionStr.split('\n')
+    expect(versions.every(version => semver.satisfies(version, '16'))).toBeTruthy()
   })
 })

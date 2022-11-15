@@ -39,6 +39,7 @@ import {
   Registries,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
+import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import pDefer from 'p-defer'
 import pShare from 'promise-share'
@@ -665,7 +666,7 @@ async function resolveDependenciesOfDependency (
 
   if (resolveDependencyResult == null) return { resolveDependencyResult: null }
   if (resolveDependencyResult.isLinkedDependency) {
-    ctx.dependenciesTree[resolveDependencyResult.pkgId] = {
+    ctx.dependenciesTree[createNodeIdForLinkedLocalPkg(ctx.lockfileDir, resolveDependencyResult.resolution.directory)] = {
       children: {},
       depth: -1,
       installable: true,
@@ -706,6 +707,10 @@ async function resolveDependenciesOfDependency (
       return filterMissingPeers({ missingPeers, resolvedPeers }, postponedResolutionOpts.parentPkgAliases)
     },
   }
+}
+
+export function createNodeIdForLinkedLocalPkg (lockfileDir: string, pkgDir: string) {
+  return `link:${normalizePath(path.relative(lockfileDir, pkgDir))}`
 }
 
 function filterMissingPeers (

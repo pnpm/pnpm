@@ -1,5 +1,16 @@
 # pnpm
 
+## 7.16.0
+
+### Minor Changes
+
+- Support `pnpm env list` to list global or remote Node.js versions [#5546](https://github.com/pnpm/pnpm/issues/5546).
+
+### Patch Changes
+
+- Replace environment variable placeholders with their values, when reading `.npmrc` files in subdirectories inside a workspace [#2570](https://github.com/pnpm/pnpm/issues/2570).
+- Fix an error that sometimes happen on projects with linked local dependencies [#5327](https://github.com/pnpm/pnpm/issues/5327).
+
 ## 7.15.0
 
 ### Minor Changes

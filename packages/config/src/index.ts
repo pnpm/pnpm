@@ -25,6 +25,8 @@ import {
 } from './Config'
 import { getWorkspaceConcurrency } from './concurrency'
 
+export * from './readLocalConfig'
+
 export { Config, UniversalOptions }
 
 const npmDefaults = loadNpmConf.defaults
