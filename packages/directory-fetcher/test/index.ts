@@ -1,4 +1,5 @@
 /// <reference path="../../../typings/index.d.ts"/>
+import fs from 'fs'
 import path from 'path'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 // @ts-expect-error
@@ -113,6 +114,12 @@ test('fetch does not fail on package with broken symlink', async () => {
 
 test('fetch resolves symlinked files to their real locations', async () => {
   process.chdir(f.find('pkg-with-symlinked-dir-and-files'))
+  const indexJsPath = path.join(f.find('no-manifest'), 'index.js')
+  const srcPath = f.find('simple-pkg')
+  fs.unlinkSync('index.js')
+  fs.symlinkSync(indexJsPath, path.resolve('index.js'), 'file')
+  fs.unlinkSync('src')
+  fs.symlinkSync(srcPath, path.resolve('src'), 'dir')
   const fetcher = createDirectoryFetcher()
 
   // eslint-disable-next-line
@@ -126,6 +133,6 @@ test('fetch resolves symlinked files to their real locations', async () => {
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.packageImportMethod).toBe('hardlink')
   expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
-  expect(fetchResult.filesIndex['index.js']).toBe(path.join(f.find('no-manifest'), 'index.js'))
-  expect(fetchResult.filesIndex['src/index.js']).toBe(path.join(f.find('simple-pkg'), 'index.js'))
+  expect(fetchResult.filesIndex['index.js']).toBe(indexJsPath)
+  expect(fetchResult.filesIndex['src/index.js']).toBe(path.join(srcPath, 'index.js'))
 })
