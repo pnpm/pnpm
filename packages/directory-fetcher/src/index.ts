@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import { promises as fs, Stats } from 'fs'
 import path from 'path'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
 import { logger } from '@pnpm/logger'
@@ -67,21 +67,8 @@ async function _fetchAllFilesFromDir (
   await Promise.all(files
     .filter((file) => file !== 'node_modules')
     .map(async (file) => {
-      let filePath = path.join(dir, file)
-      let stat = await fs.lstat(filePath)
-      if (stat.isSymbolicLink()) {
-        try {
-          filePath = await fs.realpath(filePath)
-          stat = await fs.stat(filePath)
-        } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-          // Broken symlinks are skipped
-          if (err.code === 'ENOENT') {
-            directoryFetcherLogger.debug({ brokenSymlink: filePath })
-            return
-          }
-          throw err
-        }
-      }
+      const { filePath, stat } = await realFileStat(path.join(dir, file))
+      if (!filePath) return
       const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
       if (stat.isDirectory()) {
         const subFilesIndex = await _fetchAllFilesFromDir(filePath, relativeSubdir)
@@ -92,6 +79,25 @@ async function _fetchAllFilesFromDir (
     })
   )
   return filesIndex
+}
+
+async function realFileStat (filePath: string): Promise<{ filePath: string, stat: Stats } | { filePath: null, stat: null }> {
+  let stat = await fs.lstat(filePath)
+  if (stat.isSymbolicLink()) {
+    try {
+      filePath = await fs.realpath(filePath)
+      stat = await fs.stat(filePath)
+      return { filePath, stat }
+    } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+      // Broken symlinks are skipped
+      if (err.code === 'ENOENT') {
+        directoryFetcherLogger.debug({ brokenSymlink: filePath })
+        return { filePath: null, stat: null }
+      }
+      throw err
+    }
+  }
+  return { filePath, stat }
 }
 
 async function fetchPackageFilesFromDir (
