@@ -21,6 +21,7 @@ export type ClientOptions = {
   userAgent?: string
   userConfig?: Record<string, string>
   gitShallowHosts?: string[]
+  resolveSymlinksInInjectedDirs?: boolean
 } & ResolverFactoryOptions & AgentOptions
 
 export interface Client {
@@ -51,13 +52,13 @@ type Fetchers = {
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
-  opts: Pick<ClientOptions, 'retry' | 'gitShallowHosts'>,
+  opts: Pick<ClientOptions, 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs'>,
   customFetchers?: CustomFetchers
 ): Fetchers {
   const defaultFetchers = {
     ...createTarballFetcher(fetchFromRegistry, getAuthHeader, opts),
     ...createGitFetcher(opts),
-    ...createDirectoryFetcher(),
+    ...createDirectoryFetcher({ resolveSymlinks: opts.resolveSymlinksInInjectedDirs }),
   }
 
   const overwrites = Object.entries(customFetchers ?? {})

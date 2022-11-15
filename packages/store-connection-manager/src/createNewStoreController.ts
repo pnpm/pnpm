@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs'
-import { createClient } from '@pnpm/client'
+import { createClient, ClientOptions } from '@pnpm/client'
 import { Config } from '@pnpm/config'
 import { createPackageStore } from '@pnpm/package-store'
 import { packageManager } from '@pnpm/cli-meta'
@@ -41,7 +41,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'verifyStoreIntegrity'
 > & {
   ignoreFile?: (filename: string) => boolean
-} & Partial<Pick<Config, 'userConfig'>>
+} & Partial<Pick<Config, 'userConfig'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
 
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
@@ -78,6 +78,7 @@ export async function createNewStoreController (
         : undefined
     ),
     gitShallowHosts: opts.gitShallowHosts,
+    resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {
