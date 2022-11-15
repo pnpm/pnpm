@@ -278,7 +278,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
     directDependenciesByImporterId,
     graph,
     hierarchy,
-    pkgLocationByDepPath,
+    pkgLocationsByDepPath,
     prevGraph,
     symlinkedDirectDependenciesByImporterId,
   } = await (
@@ -475,7 +475,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
   }
 
   const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, wantedLockfile, {
-    pkgLocationByDepPath,
+    pkgLocationsByDepPath,
     virtualStoreDir,
   })
 
