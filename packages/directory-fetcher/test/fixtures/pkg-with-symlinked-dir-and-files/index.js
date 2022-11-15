@@ -1,1 +1,0 @@
-../no-manifest/index.js
