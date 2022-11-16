@@ -11,6 +11,7 @@ export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
 | 'pkgRoot'
 | 'rootModulesDir'
 > & {
+  resolveSymlinksInInjectedDirs?: boolean
   storeController: StoreController
 }
 
@@ -53,7 +54,7 @@ export async function runLifecycleHooksConcurrently (
           await runLifecycleHook(stage, manifest, runLifecycleHookOpts)
         }
         if (targetDirs == null || targetDirs.length === 0) return
-        const filesResponse = await fetchFromDir(rootDir, {})
+        const filesResponse = await fetchFromDir(rootDir, { resolveSymlinks: opts.resolveSymlinksInInjectedDirs })
         await Promise.all(
           targetDirs.map(async (targetDir) => {
             const targetModulesDir = path.join(targetDir, 'node_modules')
