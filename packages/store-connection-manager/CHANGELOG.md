@@ -1,5 +1,11 @@
 # @pnpm/store-connection-manager
 
+## 5.1.1
+
+### Patch Changes
+
+- @pnpm/config@16.1.2
+
 ## 5.1.0
 
 ### Minor Changes

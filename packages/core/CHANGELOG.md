@@ -1,5 +1,18 @@
 # @pnpm/core
 
+## 7.1.0
+
+### Minor Changes
+
+- 1d04e663b: New option added: resolveSymlinksInInjectedDirs.
+
+### Patch Changes
+
+- Updated dependencies [1d04e663b]
+  - @pnpm/headless@19.1.0
+  - @pnpm/lifecycle@14.1.0
+  - @pnpm/build-modules@10.0.4
+
 ## 7.0.7
 
 ### Patch Changes

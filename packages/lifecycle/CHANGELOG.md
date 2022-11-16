@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 14.1.0
+
+### Minor Changes
+
+- 1d04e663b: New option added: resolveSymlinksInInjectedDirs.
+
 ## 14.0.3
 
 ### Patch Changes
