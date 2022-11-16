@@ -10,12 +10,14 @@ const directoryFetcherLogger = logger('directory-fetcher')
 
 export interface CreateDirectoryFetcherOptions {
   includeOnlyPackageFiles?: boolean
+  resolveSymlinks?: boolean
 }
 
 export function createDirectoryFetcher (
   opts?: CreateDirectoryFetcherOptions
 ) {
-  const fetchFromDir = opts?.includeOnlyPackageFiles ? fetchPackageFilesFromDir : fetchAllFilesFromDir
+  const readFileStat: ReadFileStat = opts?.resolveSymlinks === true ? realFileStat : fileStat
+  const fetchFromDir = opts?.includeOnlyPackageFiles ? fetchPackageFilesFromDir : fetchAllFilesFromDir.bind(null, readFileStat)
 
   const directoryFetcher: DirectoryFetcher = (cafs, resolution, opts) => {
     const dir = path.join(opts.lockfileDir, resolution.directory)
@@ -36,14 +38,16 @@ export async function fetchFromDir (
   if (opts.includeOnlyPackageFiles) {
     return fetchPackageFilesFromDir(dir, opts)
   }
-  return fetchAllFilesFromDir(dir, opts)
+  const readFileStat: ReadFileStat = opts?.resolveSymlinks === true ? realFileStat : fileStat
+  return fetchAllFilesFromDir(readFileStat, dir, opts)
 }
 
 async function fetchAllFilesFromDir (
+  readFileStat: ReadFileStat,
   dir: string,
   opts: FetchFromDirOpts
 ) {
-  const filesIndex = await _fetchAllFilesFromDir(dir)
+  const filesIndex = await _fetchAllFilesFromDir(readFileStat, dir)
   if (opts.manifest) {
     // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
     // Safe read was added to support the Bit workspace in which the components have no package.json files.
@@ -59,6 +63,7 @@ async function fetchAllFilesFromDir (
 }
 
 async function _fetchAllFilesFromDir (
+  readFileStat: ReadFileStat,
   dir: string,
   relativeDir = ''
 ): Promise<Record<string, string>> {
@@ -67,21 +72,11 @@ async function _fetchAllFilesFromDir (
   await Promise.all(files
     .filter((file) => file !== 'node_modules')
     .map(async (file) => {
-      const filePath = path.join(dir, file)
-      let stat: Stats
-      try {
-        stat = await fs.stat(filePath)
-      } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-        // Broken symlinks are skipped
-        if (err.code === 'ENOENT') {
-          directoryFetcherLogger.debug({ brokenSymlink: filePath })
-          return
-        }
-        throw err
-      }
+      const { filePath, stat } = await readFileStat(path.join(dir, file))
+      if (!filePath) return
       const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
       if (stat.isDirectory()) {
-        const subFilesIndex = await _fetchAllFilesFromDir(filePath, relativeSubdir)
+        const subFilesIndex = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir)
         Object.assign(filesIndex, subFilesIndex)
       } else {
         filesIndex[relativeSubdir] = filePath
@@ -89,6 +84,43 @@ async function _fetchAllFilesFromDir (
     })
   )
   return filesIndex
+}
+
+type ReadFileStat = (filePath: string) => Promise<{ filePath: string, stat: Stats } | { filePath: null, stat: null }>
+
+async function realFileStat (filePath: string): Promise<{ filePath: string, stat: Stats } | { filePath: null, stat: null }> {
+  let stat = await fs.lstat(filePath)
+  if (!stat.isSymbolicLink()) {
+    return { filePath, stat }
+  }
+  try {
+    filePath = await fs.realpath(filePath)
+    stat = await fs.stat(filePath)
+    return { filePath, stat }
+  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+    // Broken symlinks are skipped
+    if (err.code === 'ENOENT') {
+      directoryFetcherLogger.debug({ brokenSymlink: filePath })
+      return { filePath: null, stat: null }
+    }
+    throw err
+  }
+}
+
+async function fileStat (filePath: string): Promise<{ filePath: string, stat: Stats } | { filePath: null, stat: null }> {
+  try {
+    return {
+      filePath,
+      stat: await fs.stat(filePath),
+    }
+  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+    // Broken symlinks are skipped
+    if (err.code === 'ENOENT') {
+      directoryFetcherLogger.debug({ brokenSymlink: filePath })
+      return { filePath: null, stat: null }
+    }
+    throw err
+  }
 }
 
 async function fetchPackageFilesFromDir (
