@@ -1,5 +1,16 @@
 # @pnpm/client
 
+## 8.1.0
+
+### Minor Changes
+
+- eacff33e4: New option added to resolve symlinks to their real locations, when injecting directories.
+
+### Patch Changes
+
+- Updated dependencies [eacff33e4]
+  - @pnpm/directory-fetcher@5.1.0
+
 ## 8.0.3
 
 ### Patch Changes

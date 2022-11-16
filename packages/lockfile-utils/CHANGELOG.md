@@ -1,5 +1,15 @@
 # @pnpm/lockfile-utils
 
+## 5.0.0
+
+### Major Changes
+
+- ecc8794bb: Breaking change to the API of the `extendProjectsWithTargetDirs` function.
+
+### Patch Changes
+
+- ecc8794bb: Sync all injected dependencies when hoisted node linker is used.
+
 ## 4.2.8
 
 ### Patch Changes

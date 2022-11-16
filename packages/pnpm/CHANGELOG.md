@@ -1,5 +1,11 @@
 # pnpm
 
+## 7.16.1
+
+### Patch Changes
+
+- Sync all injected dependencies when hoisted node linker is used.
+
 ## 7.16.0
 
 ### Minor Changes

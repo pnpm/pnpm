@@ -1,5 +1,13 @@
 # @pnpm/resolve-dependencies
 
+## 29.0.7
+
+### Patch Changes
+
+- Updated dependencies [ecc8794bb]
+- Updated dependencies [ecc8794bb]
+  - @pnpm/lockfile-utils@5.0.0
+
 ## 29.0.6
 
 ### Patch Changes

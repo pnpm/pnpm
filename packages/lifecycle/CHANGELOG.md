@@ -1,5 +1,12 @@
 # @pnpm/lifecycle
 
+## 14.0.3
+
+### Patch Changes
+
+- Updated dependencies [eacff33e4]
+  - @pnpm/directory-fetcher@5.1.0
+
 ## 14.0.2
 
 ### Patch Changes

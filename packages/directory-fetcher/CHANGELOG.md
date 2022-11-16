@@ -1,5 +1,11 @@
 # @pnpm/directory-fetcher
 
+## 5.1.0
+
+### Minor Changes
+
+- eacff33e4: New option added to resolve symlinks to their real locations, when injecting directories.
+
 ## 5.0.0
 
 ### Major Changes

@@ -1,5 +1,19 @@
 # @pnpm/store-connection-manager
 
+## 5.1.0
+
+### Minor Changes
+
+- eacff33e4: New option added to resolve symlinks to their real locations, when injecting directories.
+
+### Patch Changes
+
+- Updated dependencies [eacff33e4]
+  - @pnpm/client@8.1.0
+  - @pnpm/package-store@15.0.2
+  - @pnpm/server@14.0.3
+  - @pnpm/config@16.1.1
+
 ## 5.0.6
 
 ### Patch Changes

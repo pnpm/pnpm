@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 8.0.4
+
+### Patch Changes
+
+- dependencies-hierarchy@12.0.3
+
 ## 8.0.3
 
 ### Patch Changes

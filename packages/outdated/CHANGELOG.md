@@ -1,5 +1,15 @@
 # @pnpm/outdated
 
+## 11.0.4
+
+### Patch Changes
+
+- Updated dependencies [eacff33e4]
+- Updated dependencies [ecc8794bb]
+- Updated dependencies [ecc8794bb]
+  - @pnpm/client@8.1.0
+  - @pnpm/lockfile-utils@5.0.0
+
 ## 11.0.3
 
 ### Patch Changes

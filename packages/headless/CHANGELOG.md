@@ -1,5 +1,22 @@
 # @pnpm/headless
 
+## 19.0.4
+
+### Patch Changes
+
+- ecc8794bb: Sync all injected dependencies when hoisted node linker is used.
+- Updated dependencies [ecc8794bb]
+- Updated dependencies [ecc8794bb]
+  - @pnpm/lockfile-utils@5.0.0
+  - @pnpm/package-requester@20.0.2
+  - @pnpm/lifecycle@14.0.3
+  - @pnpm/filter-lockfile@7.0.3
+  - @pnpm/hoist@7.0.3
+  - @pnpm/lockfile-to-pnp@2.0.3
+  - @pnpm/modules-cleaner@13.0.3
+  - @pnpm/real-hoist@1.0.4
+  - @pnpm/build-modules@10.0.3
+
 ## 19.0.3
 
 ### Patch Changes

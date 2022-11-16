@@ -1,5 +1,22 @@
 # @pnpm/core
 
+## 7.0.7
+
+### Patch Changes
+
+- Updated dependencies [ecc8794bb]
+- Updated dependencies [ecc8794bb]
+  - @pnpm/headless@19.0.4
+  - @pnpm/lockfile-utils@5.0.0
+  - @pnpm/package-requester@20.0.2
+  - @pnpm/lifecycle@14.0.3
+  - @pnpm/filter-lockfile@7.0.3
+  - @pnpm/hoist@7.0.3
+  - @pnpm/lockfile-to-pnp@2.0.3
+  - @pnpm/modules-cleaner@13.0.3
+  - @pnpm/resolve-dependencies@29.0.7
+  - @pnpm/build-modules@10.0.3
+
 ## 7.0.6
 
 ### Patch Changes
