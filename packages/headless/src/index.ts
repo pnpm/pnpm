@@ -144,6 +144,7 @@ export interface HeadlessOptions {
   wantedLockfile?: Lockfile
   ownLifecycleHooksStdio?: 'inherit' | 'pipe'
   pendingBuilds: string[]
+  resolveSymlinksInInjectedDirs?: boolean
   skipped: Set<string>
   enableModulesDir?: boolean
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
@@ -194,6 +195,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
     extraBinPaths: opts.extraBinPaths,
     extraEnv: opts.extraEnv,
     rawConfig: opts.rawConfig,
+    resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
     shellEmulator: opts.shellEmulator,

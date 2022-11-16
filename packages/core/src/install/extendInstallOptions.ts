@@ -116,6 +116,7 @@ export interface StrictInstallOptions {
   patchedDependencies?: Record<string, string>
 
   allProjects: ProjectOptions[]
+  resolveSymlinksInInjectedDirs: boolean
 }
 
 export type InstallOptions =
@@ -199,6 +200,7 @@ const defaults = async (opts: InstallOptions) => {
     workspacePackages: {},
     enableModulesDir: true,
     modulesCacheMaxAge: 7 * 24 * 60,
+    resolveSymlinksInInjectedDirs: false,
   } as StrictInstallOptions
 }
 

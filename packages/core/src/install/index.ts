@@ -245,6 +245,7 @@ export async function mutateModules (
       extraBinPaths: opts.extraBinPaths,
       extraEnv: opts.extraEnv,
       rawConfig: opts.rawConfig,
+      resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
       scriptsPrependNodePath: opts.scriptsPrependNodePath,
       scriptShell: opts.scriptShell,
       shellEmulator: opts.shellEmulator,
