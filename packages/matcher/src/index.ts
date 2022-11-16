@@ -43,12 +43,14 @@ function matchInputWithNonIgnoreMatchers (matchArr: MatcherFunction[], input: st
 
 function matchInputWithMatchersArray (matchArr: MatcherFunction[], input: string): number {
   let matchedPatternIndex = -1
+  let hasIgnore = false
   for (let i = 0; i < matchArr.length; i++) {
     const { ignore, match } = matchArr[i]
     if (ignore) {
       if (match(input)) {
         matchedPatternIndex = -1
-      } else if (matchedPatternIndex === -1) {
+        hasIgnore = true
+      } else if (matchedPatternIndex === -1 && !hasIgnore) {
         matchedPatternIndex = i
       }
     } else if (matchedPatternIndex === -1 && match(input)) {

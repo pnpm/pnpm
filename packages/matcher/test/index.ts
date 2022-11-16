@@ -98,4 +98,10 @@ test('createMatcherWithIndex()', () => {
     const match = createMatcherWithIndex(['!@pnpm.e2e/peer-*'])
     expect(match('@pnpm.e2e/foo')).toBe(0)
   }
+  {
+    const match = createMatcherWithIndex(['!foo', '!bar'])
+    expect(match('foo')).toBe(-1)
+    expect(match('bar')).toBe(-1)
+    expect(match('baz')).toBe(0)
+  }
 })
