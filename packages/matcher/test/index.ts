@@ -85,7 +85,7 @@ test('createMatcherWithIndex()', () => {
   }
   {
     const match = createMatcherWithIndex(['!eslint-plugin-bar', 'eslint-*'])
-    expect(match('eslint-plugin-foo')).toBe(0)
+    expect(match('eslint-plugin-foo')).toBe(1)
     expect(match('eslint-plugin-bar')).toBe(1)
   }
   {
@@ -103,5 +103,11 @@ test('createMatcherWithIndex()', () => {
     expect(match('foo')).toBe(-1)
     expect(match('bar')).toBe(-1)
     expect(match('baz')).toBe(0)
+  }
+  {
+    const match = createMatcherWithIndex(['!foo', '!bar', 'qar'])
+    expect(match('foo')).toBe(-1)
+    expect(match('bar')).toBe(-1)
+    expect(match('baz')).toBe(-1)
   }
 })
