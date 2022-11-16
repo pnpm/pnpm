@@ -304,3 +304,34 @@ test('not ignore packages if these are specified in parameter even if these are 
   expect(lockfileUpdated.packages['/@pnpm.e2e/foo/100.1.0']).toBeTruthy()
   expect(lockfileUpdated.packages['/@pnpm.e2e/bar/100.1.0']).toBeTruthy()
 })
+
+test('do not update anything if all the dependencies are ignored and trying to update to latest', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '100.0.0',
+    },
+    pnpm: {
+      updateConfig: {
+        ignoreDependencies: [
+          '@pnpm.e2e/foo',
+        ],
+      },
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: true,
+  }, [])
+
+  const lockfileUpdated = await project.readLockfile()
+  expect(lockfileUpdated.packages['/@pnpm.e2e/foo/100.0.0']).toBeTruthy()
+})
