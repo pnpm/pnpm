@@ -52,7 +52,7 @@
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.0",
-    "@types/node": "^14.18.29",
+    "@types/node": "^14.18.33",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.15",
     "cmd-extension": "^1.0.2",

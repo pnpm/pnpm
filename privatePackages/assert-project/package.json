@@ -19,7 +19,7 @@
     "@pnpm/assert-project": "workspace:*",
     "@types/is-windows": "^1.0.0",
     "@types/isexe": "2.0.1",
-    "@types/node": "^14.18.29"
+    "@types/node": "^14.18.33"
   },
   "directories": {
     "test": "test"

@@ -43,7 +43,7 @@
     "@types/sinon": "^10.0.13",
     "execa": "npm:safe-execa@^0.1.2",
     "path-exists": "^4.0.0",
-    "sinon": "^14.0.1",
+    "sinon": "^14.0.2",
     "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
