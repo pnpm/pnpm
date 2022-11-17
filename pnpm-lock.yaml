@@ -3607,6 +3607,9 @@ importers:
       '@types/zkochan__table':
         specifier: npm:@types/table@6.0.0
         version: /@types/table/6.0.0
+      strip-ansi:
+        specifier: ^6.0.1
+        version: 6.0.1
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
