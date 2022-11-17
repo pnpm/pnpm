@@ -122,33 +122,42 @@ async function updateTSConfig (
   }
 }
 
-let registryMockPort = 7769
+const subPkgsWithRegMock = [
+'@pnpm/headless',
+'@pnpm/outdated',
+'@pnpm/package-requester',
+'@pnpm/plugin-commands-installation',
+'@pnpm/plugin-commands-listing',
+'@pnpm/plugin-commands-outdated',
+'@pnpm/plugin-commands-patching',
+'@pnpm/plugin-commands-publishing',
+'@pnpm/plugin-commands-rebuild',
+'@pnpm/plugin-commands-script-runners',
+'@pnpm/plugin-commands-store',
+'@pnpm/plugin-commands-deploy',
+CLI_PKG_NAME
+  // sorting alphabetically to ensure mock port number calculation would be correct
+].sort((a, b) => a.localeCompare(b))
+
 
 async function updateManifest (workspaceDir: string, manifest: ProjectManifest, dir: string) {
   const relative = normalizePath(path.relative(workspaceDir, dir))
   let scripts: Record<string, string>
-  switch (manifest.name) {
-  case '@pnpm/lockfile-types':
+
+  if (manifest.name === '@pnpm/lockfile-types') {
     scripts = { ...manifest.scripts }
-    break
-  case '@pnpm/headless':
-  case '@pnpm/outdated':
-  case '@pnpm/package-requester':
-  case '@pnpm/plugin-commands-import':
-  case '@pnpm/plugin-commands-installation':
-  case '@pnpm/plugin-commands-listing':
-  case '@pnpm/plugin-commands-outdated':
-  case '@pnpm/plugin-commands-patching':
-  case '@pnpm/plugin-commands-publishing':
-  case '@pnpm/plugin-commands-rebuild':
-  case '@pnpm/plugin-commands-script-runners':
-  case '@pnpm/plugin-commands-store':
-  case '@pnpm/plugin-commands-deploy':
-  case CLI_PKG_NAME:
-  case '@pnpm/core': {
-    // @pnpm/core tests currently works only with port 4873 due to the usage of
-    // the next package: pkg-with-tarball-dep-from-registry
-    const port = manifest.name === '@pnpm/core' ? 4873 : ++registryMockPort
+  }
+  else if (subPkgsWithRegMock.includes(manifest.name!) || manifest.name === '@pnpm/core') {
+    const regMockPortStart = 7770
+
+    const port = manifest.name === '@pnpm/core'
+      // @pnpm/core tests currently works only with port 4873
+      // due to the usage of  the next package: pkg-with-tarball-dep-from-registry
+      ? 4873
+      // Using `indexOf()` to obtain the **pre-computed** ports to avoid
+      // none determinism due to relying on none stable promise fulfillment order.
+      : regMockPortStart + subPkgsWithRegMock.indexOf(manifest.name!)
+
     scripts = {
       ...(manifest.scripts as Record<string, string>),
       'registry-mock': 'registry-mock',
@@ -158,9 +167,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     }
     scripts.test = 'pnpm run compile && pnpm run _test'
     scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`
-    break
-  }
-  default:
+  } else {
     if (await exists(path.join(dir, 'test'))) {
       scripts = {
         ...(manifest.scripts as Record<string, string>),
@@ -173,8 +180,8 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
         test: 'pnpm run compile',
       }
     }
-    break
   }
+
   if (manifest.name === CLI_PKG_NAME) {
     manifest.publishConfig!.tag = NEXT_TAG
   }
