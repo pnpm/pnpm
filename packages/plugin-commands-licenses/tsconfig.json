@@ -1,0 +1,49 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../cli-utils"
+    },
+    {
+      "path": "../command"
+    },
+    {
+      "path": "../common-cli-options-help"
+    },
+    {
+      "path": "../config"
+    },
+    {
+      "path": "../constants"
+    },
+    {
+      "path": "../error"
+    },
+    {
+      "path": "../filter-workspace-packages"
+    },
+    {
+      "path": "../license-scanner"
+    },
+    {
+      "path": "../lockfile-file"
+    },
+    {
+      "path": "../plugin-commands-installation"
+    },
+    {
+      "path": "../read-package-json"
+    },
+    {
+      "path": "../store-path"
+    }
+  ]
+}

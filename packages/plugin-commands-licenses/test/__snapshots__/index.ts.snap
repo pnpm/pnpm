@@ -1,0 +1,36 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`pnpm licenses: output as json: found-license-types 1`] = `
+[
+  "MIT",
+]
+`;
+
+exports[`pnpm licenses: show details: show-packages-details 1`] = `
+"┌─────────────┬─────────┬─────────────────────────────────────────────┐
+│ Package     │ License │ Details                                     │
+├─────────────┼─────────┼─────────────────────────────────────────────┤
+│ is-positive │ MIT     │ Kevin Martensson                            │
+│             │         │ https://github.com/kevva/is-positive#readme │
+└─────────────┴─────────┴─────────────────────────────────────────────┘
+"
+`;
+
+exports[`pnpm licenses: show-packages 1`] = `
+"┌──────────────────┬────────────┐
+│ Package          │ License    │
+├──────────────────┼────────────┤
+│ typescript (dev) │ Apache-2.0 │
+├──────────────────┼────────────┤
+│ js-tokens        │ MIT        │
+├──────────────────┼────────────┤
+│ loose-envify     │ MIT        │
+├──────────────────┼────────────┤
+│ react            │ MIT        │
+├──────────────────┼────────────┤
+│ react-dom        │ MIT        │
+├──────────────────┼────────────┤
+│ scheduler        │ MIT        │
+└──────────────────┴────────────┘
+"
+`;

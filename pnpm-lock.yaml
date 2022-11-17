@@ -1807,6 +1807,64 @@ importers:
         specifier: 4.0.0-rc.27
         version: 4.0.0-rc.27_typanion@3.12.0
 
+  packages/license-scanner:
+    dependencies:
+      '@pnpm/cafs':
+        specifier: workspace:*
+        version: link:../cafs
+      '@pnpm/directory-fetcher':
+        specifier: workspace:*
+        version: link:../directory-fetcher
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../error
+      '@pnpm/lockfile-file':
+        specifier: workspace:*
+        version: link:../lockfile-file
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../lockfile-types
+      '@pnpm/lockfile-utils':
+        specifier: workspace:*
+        version: link:../lockfile-utils
+      '@pnpm/lockfile-walker':
+        specifier: workspace:*
+        version: link:../lockfile-walker
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/package-is-installable':
+        specifier: workspace:*
+        version: link:../package-is-installable
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../read-package-json
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../types
+      dependency-path:
+        specifier: workspace:*
+        version: link:../dependency-path
+      load-json-file:
+        specifier: ^6.2.0
+        version: 6.2.0
+      p-limit:
+        specifier: ^3.1.0
+        version: 3.1.0
+      path-absolute:
+        specifier: ^1.0.1
+        version: 1.0.1
+    devDependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../constants
+      '@pnpm/license-scanner':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
+
   packages/lifecycle:
     dependencies:
       '@pnpm/core-loggers':
@@ -3483,6 +3541,79 @@ importers:
         specifier: ^4.2.0
         version: 4.2.0
 
+  packages/plugin-commands-licenses:
+    dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../cli-utils
+      '@pnpm/command':
+        specifier: workspace:*
+        version: link:../command
+      '@pnpm/common-cli-options-help':
+        specifier: workspace:*
+        version: link:../common-cli-options-help
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../constants
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../error
+      '@pnpm/license-scanner':
+        specifier: workspace:*
+        version: link:../license-scanner
+      '@pnpm/lockfile-file':
+        specifier: workspace:*
+        version: link:../lockfile-file
+      '@pnpm/store-path':
+        specifier: workspace:*
+        version: link:../store-path
+      '@zkochan/table':
+        specifier: ^1.0.0
+        version: 1.0.0
+      chalk:
+        specifier: ^4.1.2
+        version: 4.1.2
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
+      render-help:
+        specifier: ^1.0.2
+        version: 1.0.2
+    devDependencies:
+      '@pnpm/filter-workspace-packages':
+        specifier: workspace:*
+        version: link:../filter-workspace-packages
+      '@pnpm/plugin-commands-installation':
+        specifier: workspace:*
+        version: link:../plugin-commands-installation
+      '@pnpm/plugin-commands-licenses':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../read-package-json
+      '@pnpm/registry-mock':
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.0
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
+      '@types/wrap-ansi':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@types/zkochan__table':
+        specifier: npm:@types/table@6.0.0
+        version: /@types/table/6.0.0
+      strip-ansi:
+        specifier: ^6.0.1
+        version: 6.0.1
+      tempy:
+        specifier: ^1.0.1
+        version: 1.0.1
+
   packages/plugin-commands-listing:
     dependencies:
       '@pnpm/cli-utils':
@@ -4350,6 +4481,9 @@ importers:
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../plugin-commands-installation
+      '@pnpm/plugin-commands-licenses':
+        specifier: workspace:*
+        version: link:../plugin-commands-licenses
       '@pnpm/plugin-commands-listing':
         specifier: workspace:*
         version: link:../plugin-commands-listing
