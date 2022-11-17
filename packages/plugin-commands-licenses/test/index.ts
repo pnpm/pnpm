@@ -47,7 +47,7 @@ test('pnpm licenses', async () => {
     // we need to prefix it with v3 otherwise licenses tool can't find anything
     // in the content-addressable directory
     storeDir: path.resolve(storeDir, 'v3'),
-  })
+  }, ['list'])
 
   expect(exitCode).toBe(0)
   expect(stripAnsi(output)).toMatchSnapshot('show-packages')
@@ -74,7 +74,7 @@ test('pnpm licenses: show details', async () => {
     // we need to prefix it with v3 otherwise licenses tool can't find anything
     // in the content-addressable directory
     storeDir: path.resolve(storeDir, 'v3'),
-  })
+  }, ['list'])
 
   expect(exitCode).toBe(0)
   expect(stripAnsi(output)).toMatchSnapshot('show-packages-details')
@@ -102,7 +102,7 @@ test('pnpm licenses: output as json', async () => {
     // we need to prefix it with v3 otherwise licenses tool can't find anything
     // in the content-addressable directory
     storeDir: path.resolve(storeDir, 'v3'),
-  })
+  }, ['list'])
 
   expect(exitCode).toBe(0)
   expect(output).not.toHaveLength(0)
@@ -129,7 +129,7 @@ test('pnpm licenses: fails when lockfile is missing', async () => {
       dir: path.resolve('./test/fixtures/invalid'),
       pnpmHomeDir: '',
       long: true,
-    })
+    }, ['list'])
   ).rejects.toThrowErrorMatchingInlineSnapshot(
     '"No pnpm-lock.yaml found: Cannot check a project without a lockfile"'
   )

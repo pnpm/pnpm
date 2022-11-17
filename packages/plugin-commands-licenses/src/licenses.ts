@@ -1,23 +1,18 @@
 import {
   docsUrl,
   readDepNameCompletions,
-  readProjectManifestOnly,
 } from '@pnpm/cli-utils'
-import { getStorePath } from '@pnpm/store-path'
 import { CompletionFunc } from '@pnpm/command'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { readWantedLockfile } from '@pnpm/lockfile-file'
 import {
   FILTERING,
   OPTIONS,
   UNIVERSAL_OPTIONS,
 } from '@pnpm/common-cli-options-help'
-import { Config, types as allTypes } from '@pnpm/config'
+import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { findDependencyLicenses } from '@pnpm/license-scanner'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { renderLicences } from './outputRenderer'
+import { licensesList, LicensesCommandOptions } from './licensesList'
 
 export function rcOptionsTypes () {
   return {
@@ -47,9 +42,8 @@ export function help () {
     description: `Check for licenses packages. The check can be limited to a subset of the installed packages by providing arguments (patterns are supported).
 
 Examples:
-pnpm licenses
-pnpm licenses --long
-pnpm licenses gulp-* @babel/core`,
+pnpm licenses list
+pnpm licenses list --long`,
     descriptionLists: [
       {
         title: 'Options',
@@ -94,67 +88,19 @@ export const completion: CompletionFunc = async (cliOpts) => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 
-export type LicensesCommandOptions = {
-  compatible?: boolean
-  long?: boolean
-  recursive?: boolean
-  json?: boolean
-} & Pick<
-Config,
-| 'dev'
-| 'dir'
-| 'lockfileDir'
-| 'registries'
-| 'optional'
-| 'production'
-| 'storeDir'
-| 'virtualStoreDir'
-| 'modulesDir'
-| 'pnpmHomeDir'
-> &
-Partial<Pick<Config, 'userConfig'>>
-
 export async function handler (
   opts: LicensesCommandOptions,
   params: string[] = []
 ) {
-  const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, {
-    ignoreIncompatible: true,
-  })
-  if (lockfile == null) {
-    throw new PnpmError(
-      'LICENSES_NO_LOCKFILE',
-      `No ${WANTED_LOCKFILE} found: Cannot check a project without a lockfile`
-    )
+  if (params.length === 0) {
+    throw new PnpmError('LICENCES_NO_SUBCOMMAND', 'Please specify the subcommand')
   }
-
-  const include = {
-    dependencies: opts.production !== false,
-    devDependencies: opts.dev !== false,
-    optionalDependencies: opts.optional !== false,
+  switch (params[0]) {
+  case 'list':
+  case 'ls':
+    return licensesList(opts)
+  default: {
+    throw new PnpmError('LICENSES_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')
   }
-
-  const manifest = await readProjectManifestOnly(opts.dir, {})
-
-  const storeDir = await getStorePath({
-    pkgRoot: opts.dir,
-    storePath: opts.storeDir,
-    pnpmHomeDir: opts.pnpmHomeDir,
-  })
-
-  const licensePackages = await findDependencyLicenses({
-    include,
-    lockfileDir: opts.dir,
-    storeDir,
-    virtualStoreDir: opts.virtualStoreDir ?? '.',
-    modulesDir: opts.modulesDir,
-    registries: opts.registries,
-    wantedLockfile: lockfile,
-    manifest,
-  })
-
-  if (licensePackages.length === 0)
-    return { output: 'No licenses in packages found', exitCode: 0 }
-
-  return renderLicences(licensePackages, opts)
+  }
 }
