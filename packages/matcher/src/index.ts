@@ -20,16 +20,21 @@ export function createMatcherWithIndex (patterns: string[]): MatcherWithIndex {
   }
   const matchArr: MatcherFunction[] = []
   let hasIgnore = false
+  let hasInclude = false
   for (const pattern of patterns) {
     if (isIgnorePattern(pattern)) {
       hasIgnore = true
       matchArr.push({ ignore: true, match: matcherFromPattern(pattern.substring(1)) })
     } else {
+      hasInclude = true
       matchArr.push({ ignore: false, match: matcherFromPattern(pattern) })
     }
   }
   if (!hasIgnore) {
     return matchInputWithNonIgnoreMatchers.bind(null, matchArr)
+  }
+  if (!hasInclude) {
+    return matchInputWithoutIgnoreMatchers.bind(null, matchArr)
   }
   return matchInputWithMatchersArray.bind(null, matchArr)
 }
@@ -41,12 +46,12 @@ function matchInputWithNonIgnoreMatchers (matchArr: MatcherFunction[], input: st
   return -1
 }
 
+function matchInputWithoutIgnoreMatchers (matchArr: MatcherFunction[], input: string): number {
+  return matchArr.some(({ match }) => match(input)) ? -1 : 0
+}
+
 function matchInputWithMatchersArray (matchArr: MatcherFunction[], input: string): number {
   let matchedPatternIndex = -1
-  const hasIgnoreOnly = matchArr.every(({ ignore }) => ignore)
-  if (hasIgnoreOnly) {
-    return matchArr.some(({ match }) => match(input)) ? -1 : 0
-  }
   for (let i = 0; i < matchArr.length; i++) {
     const { ignore, match } = matchArr[i]
     if (ignore) {
