@@ -49,7 +49,6 @@
     "@pnpm/license-scanner": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "chalk": "^4.1.2",
-    "strip-ansi": "^6.0.1",
     "@zkochan/table": "^1.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "@pnpm/command": "workspace:*",

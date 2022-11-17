@@ -1,7 +1,6 @@
 import { TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { LicensePackage } from '@pnpm/license-scanner'
 import chalk from 'chalk'
-import stripAnsi from 'strip-ansi'
 import { table } from '@zkochan/table'
 import { groupBy, sortWith } from 'ramda'
 
@@ -15,22 +14,7 @@ function sortLicensesPackages (licensePackages: readonly LicensePackage[]) {
   )
 }
 
-export function getCellWidth (
-  data: string[][],
-  columnNumber: number,
-  maxWidth: number
-) {
-  const maxCellWidth = data.reduce((cellWidth, row) => {
-    const cellLines = stripAnsi(row[columnNumber])?.split('\n') ?? []
-    const currentCellWidth = cellLines.reduce((lineWidth, line) => {
-      return Math.max(lineWidth, line.length)
-    }, 0)
-    return Math.max(cellWidth, currentCellWidth)
-  }, 0)
-  return Math.min(maxWidth, maxCellWidth)
-}
-
-export function renderPackageName ({ belongsTo, name: packageName }: LicensePackage) {
+function renderPackageName ({ belongsTo, name: packageName }: LicensePackage) {
   switch (belongsTo) {
   case 'devDependencies':
     return `${packageName} ${chalk.dim('(dev)')}`
@@ -41,12 +25,12 @@ export function renderPackageName ({ belongsTo, name: packageName }: LicensePack
   }
 }
 
-export function renderPackageLicense ({ license }: LicensePackage) {
+function renderPackageLicense ({ license }: LicensePackage) {
   const output = license ?? 'Unknown'
   return output as string
 }
 
-export function renderDetails (licensePackage: LicensePackage) {
+function renderDetails (licensePackage: LicensePackage) {
   const outputs = []
   if (licensePackage.author) {
     outputs.push(licensePackage.author)
@@ -56,6 +40,7 @@ export function renderDetails (licensePackage: LicensePackage) {
   }
   return outputs.join('\n')
 }
+
 export function renderLicences (
   licensesMap: LicensePackage[],
   opts: { long?: boolean, json?: boolean }
