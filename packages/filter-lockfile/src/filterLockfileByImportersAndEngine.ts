@@ -9,6 +9,8 @@ import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { DependenciesField } from '@pnpm/types'
 import * as dp from 'dependency-path'
+import mapValues from 'ramda/src/map'
+import pickBy from 'ramda/src/pickBy'
 import unnest from 'ramda/src/unnest'
 import { filterImporter } from './filterImporter'
 
@@ -51,18 +53,16 @@ export function filterLockfileByImportersAndEngine (
       })
       : {}
 
-  const importers = importerIds.reduce((acc, importerId) => {
-    acc[importerId] = filterImporter(lockfile.importers[importerId], opts.include)
-    if (acc[importerId].optionalDependencies != null) {
-      for (const depName of Object.keys(acc[importerId].optionalDependencies ?? {})) {
-        const depPath = dp.refToRelative(acc[importerId].optionalDependencies![depName], depName)
-        if (depPath && !packages[depPath]) {
-          delete acc[importerId].optionalDependencies![depName]
-        }
-      }
+  const importers = mapValues((importer) => {
+    const newImporter = filterImporter(importer, opts.include)
+    if (newImporter.optionalDependencies != null) {
+      newImporter.optionalDependencies = pickBy((ref, depName) => {
+        const depPath = dp.refToRelative(ref, depName)
+        return !depPath || packages[depPath] != null
+      }, newImporter.optionalDependencies)
     }
-    return acc
-  }, { ...lockfile.importers })
+    return newImporter
+  }, lockfile.importers)
 
   return {
     lockfile: {

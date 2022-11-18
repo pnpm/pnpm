@@ -62,8 +62,10 @@ import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import flatten from 'ramda/src/flatten'
 import fromPairs from 'ramda/src/fromPairs'
+import map from 'ramda/src/map'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
+import pickBy from 'ramda/src/pickBy'
 import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
 import unnest from 'ramda/src/unnest'
@@ -271,10 +273,10 @@ export async function mutateModules (
       ? ctx.wantedLockfile.patchedDependencies
       : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies, opts.lockfileDir) : {})
     const patchedDependenciesWithResolvedPath = patchedDependencies
-      ? fromPairs(Object.entries(patchedDependencies).map(([key, patchFile]) => [key, {
+      ? map((patchFile) => ({
         hash: patchFile.hash,
         path: path.join(opts.lockfileDir, patchFile.path),
-      }]))
+      }), patchedDependencies)
       : undefined
     let needsFullResolution = !maybeOpts.ignorePackageManifest &&
       lockfileIsUpToDate(ctx.wantedLockfile, {
@@ -841,30 +843,27 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
-    for (const projectId of Object.keys(linkedDependenciesByProjectId ?? {})) {
-      linkedDependenciesByProjectId[projectId] = linkedDependenciesByProjectId[projectId].filter((linkedDep) =>
+    linkedDependenciesByProjectId = map(
+      (linkedDeps) => linkedDeps.filter((linkedDep) =>
         !(
           linkedDep.dev && !opts.include.devDependencies ||
           linkedDep.optional && !opts.include.optionalDependencies ||
           !linkedDep.dev && !linkedDep.optional && !opts.include.dependencies
-        )
-      )
-    }
+        )),
+      linkedDependenciesByProjectId ?? {}
+    )
     for (const { id, manifest } of projects) {
-      dependenciesByProjectId[id] = fromPairs(
-        Object.entries(dependenciesByProjectId[id])
-          .filter(([, depPath]) => {
-            const dep = dependenciesGraph[depPath]
-            if (!dep) return false
-            const isDev = Boolean(manifest.devDependencies?.[dep.name])
-            const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
-            return !(
-              isDev && !opts.include.devDependencies ||
-              isOptional && !opts.include.optionalDependencies ||
-              !isDev && !isOptional && !opts.include.dependencies
-            )
-          })
-      )
+      dependenciesByProjectId[id] = pickBy((depPath) => {
+        const dep = dependenciesGraph[depPath]
+        if (!dep) return false
+        const isDev = Boolean(manifest.devDependencies?.[dep.name])
+        const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
+        return !(
+          isDev && !opts.include.devDependencies ||
+          isOptional && !opts.include.optionalDependencies ||
+          !isDev && !isOptional && !opts.include.dependencies
+        )
+      }, dependenciesByProjectId[id])
     }
   }
 

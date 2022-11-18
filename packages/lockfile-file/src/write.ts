@@ -7,7 +7,7 @@ import rimraf from '@zkochan/rimraf'
 import * as dp from 'dependency-path'
 import yaml from 'js-yaml'
 import equals from 'ramda/src/equals'
-import fromPairs from 'ramda/src/fromPairs'
+import pickBy from 'ramda/src/pickBy'
 import isEmpty from 'ramda/src/isEmpty'
 import writeFileAtomicCB from 'write-file-atomic'
 import { lockfileLogger as logger } from './logger'
@@ -168,7 +168,7 @@ export function normalizeLockfile (lockfile: Lockfile, opts: NormalizeLockfileOp
   return lockfileToSave
 }
 
-function pruneTime (time: Record<string, string>, importers: Record<string, ProjectSnapshot>) {
+function pruneTime (time: Record<string, string>, importers: Record<string, ProjectSnapshot>): Record<string, string> {
   const rootDepPaths = new Set<string>()
   for (const importer of Object.values(importers)) {
     for (const depType of DEPENDENCIES_FIELDS) {
@@ -184,7 +184,7 @@ function pruneTime (time: Record<string, string>, importers: Record<string, Proj
       }
     }
   }
-  return fromPairs(Object.entries(time).filter(([depPath]) => rootDepPaths.has(depPath)))
+  return pickBy((t, depPath) => rootDepPaths.has(depPath), time)
 }
 
 export async function writeLockfiles (
