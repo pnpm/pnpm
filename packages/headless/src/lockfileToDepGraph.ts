@@ -35,7 +35,7 @@ export interface DependenciesGraphNode {
   fetchingFiles: () => Promise<PackageFilesResponse>
   finishing: () => Promise<void>
   dir: string
-  children: { [alias: string]: string }
+  children: Record<string, string>
   optionalDependencies: Set<string>
   optional: boolean
   depPath: string // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
@@ -234,13 +234,13 @@ function getChildrenPaths (
   importerId: string
 ) {
   const children: { [alias: string]: string } = {}
-  for (const alias of Object.keys(allDeps)) {
-    const childDepPath = dp.refToAbsolute(allDeps[alias], alias, ctx.registries)
+  for (const [alias, ref] of Object.entries(allDeps)) {
+    const childDepPath = dp.refToAbsolute(ref, alias, ctx.registries)
     if (childDepPath === null) {
-      children[alias] = path.resolve(ctx.lockfileDir, importerId, allDeps[alias].slice(5))
+      children[alias] = path.resolve(ctx.lockfileDir, importerId, ref.slice(5))
       continue
     }
-    const childRelDepPath = dp.refToRelative(allDeps[alias], alias) as string
+    const childRelDepPath = dp.refToRelative(ref, alias) as string
     const childPkgSnapshot = ctx.pkgSnapshotsByDepPaths[childRelDepPath]
     if (ctx.graph[childRelDepPath]) {
       children[alias] = ctx.graph[childRelDepPath].dir
@@ -248,8 +248,8 @@ function getChildrenPaths (
       if (ctx.skipped.has(childRelDepPath)) continue
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       children[alias] = path.join(ctx.virtualStoreDir, dp.depPathToFilename(childRelDepPath), 'node_modules', pkgName)
-    } else if (allDeps[alias].indexOf('file:') === 0) {
-      children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].slice(5))
+    } else if (ref.indexOf('file:') === 0) {
+      children[alias] = path.resolve(ctx.lockfileDir, ref.slice(5))
     } else if (!ctx.skipped.has(childRelDepPath) && ((peerDeps == null) || !peerDeps.has(alias))) {
       throw new Error(`${childRelDepPath} not found in ${WANTED_LOCKFILE}`)
     }

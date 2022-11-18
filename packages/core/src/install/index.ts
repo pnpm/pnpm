@@ -62,7 +62,7 @@ import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import flatten from 'ramda/src/flatten'
 import fromPairs from 'ramda/src/fromPairs'
-import map from 'ramda/src/map'
+import mapValues from 'ramda/src/map'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import pickBy from 'ramda/src/pickBy'
@@ -273,7 +273,7 @@ export async function mutateModules (
       ? ctx.wantedLockfile.patchedDependencies
       : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies, opts.lockfileDir) : {})
     const patchedDependenciesWithResolvedPath = patchedDependencies
-      ? map((patchFile) => ({
+      ? mapValues((patchFile) => ({
         hash: patchFile.hash,
         path: path.join(opts.lockfileDir, patchFile.path),
       }), patchedDependencies)
@@ -843,7 +843,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
-    linkedDependenciesByProjectId = map(
+    linkedDependenciesByProjectId = mapValues(
       (linkedDeps) => linkedDeps.filter((linkedDep) =>
         !(
           linkedDep.dev && !opts.include.devDependencies ||

@@ -77,7 +77,7 @@ function projectSnapshotWithoutLinkedDeps (projectSnapshot: ProjectSnapshot) {
   }
   for (const depField of DEPENDENCIES_FIELDS) {
     if (projectSnapshot[depField] == null) continue
-    newProjectSnapshot[depField] = pickBy((depVersion) => !depVersion.startsWith('link:'), projectSnapshot)
+    newProjectSnapshot[depField] = pickBy((depVersion) => !depVersion.startsWith('link:'), projectSnapshot[depField])
   }
   return newProjectSnapshot
 }

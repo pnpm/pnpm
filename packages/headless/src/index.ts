@@ -65,6 +65,7 @@ import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
 import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
+import pickBy from 'ramda/src/pickBy'
 import props from 'ramda/src/props'
 import union from 'ramda/src/union'
 import realpathMissing from 'realpath-missing'
@@ -769,15 +770,9 @@ async function linkAllBins (
   return Promise.all(
     Object.values(depGraph)
       .map(async (depNode) => limitLinking(async () => {
-        const childrenToLink = opts.optional
+        const childrenToLink: Record<string, string> = opts.optional
           ? depNode.children
-          : Object.keys(depNode.children)
-            .reduce((nonOptionalChildren, childAlias) => {
-              if (!depNode.optionalDependencies.has(childAlias)) {
-                nonOptionalChildren[childAlias] = depNode.children[childAlias]
-              }
-              return nonOptionalChildren
-            }, {})
+          : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
 
         const binPath = path.join(depNode.dir, 'node_modules/.bin')
         const pkgSnapshots = props<string, DependenciesGraphNode>(Object.values(childrenToLink), depGraph)
@@ -827,15 +822,9 @@ async function linkAllModules (
   await Promise.all(
     depNodes
       .map(async (depNode) => {
-        const childrenToLink = opts.optional
+        const childrenToLink: Record<string, string> = opts.optional
           ? depNode.children
-          : Object.keys(depNode.children)
-            .reduce((nonOptionalChildren, childAlias) => {
-              if (!depNode.optionalDependencies.has(childAlias)) {
-                nonOptionalChildren[childAlias] = depNode.children[childAlias]
-              }
-              return nonOptionalChildren
-            }, {})
+          : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
 
         await Promise.all(
           Object.entries(childrenToLink)
