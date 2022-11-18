@@ -117,10 +117,10 @@ function getPreferredVersionsFromPackage (
 }
 
 function getVersionSpecsByRealNames (deps: Dependencies) {
-  return Object.keys(deps)
-    .reduce((acc, depName) => {
-      if (deps[depName].startsWith('npm:')) {
-        const pref = deps[depName].slice(4)
+  return Object.entries(deps)
+    .reduce((acc, [depName, currentPref]) => {
+      if (currentPref.startsWith('npm:')) {
+        const pref = currentPref.slice(4)
         const index = pref.lastIndexOf('@')
         const spec = pref.slice(index + 1)
         const selector = getVerSelType(spec)
@@ -129,8 +129,8 @@ function getVersionSpecsByRealNames (deps: Dependencies) {
           acc[pkgName] = acc[pkgName] || {}
           acc[pkgName][selector.normalized] = selector.type
         }
-      } else if (!deps[depName].includes(':')) { // we really care only about semver specs
-        const selector = getVerSelType(deps[depName])
+      } else if (!currentPref.includes(':')) { // we really care only about semver specs
+        const selector = getVerSelType(currentPref)
         if (selector != null) {
           acc[depName] = acc[depName] || {}
           acc[depName][selector.normalized] = selector.type
