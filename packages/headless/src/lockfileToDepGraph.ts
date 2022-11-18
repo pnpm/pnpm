@@ -96,9 +96,8 @@ export async function lockfileToDepGraph (
   if (lockfile.packages != null) {
     const pkgSnapshotByLocation = {}
     await Promise.all(
-      Object.keys(lockfile.packages).map(async (depPath) => {
+      Object.entries(lockfile.packages).map(async ([depPath, pkgSnapshot]) => {
         if (opts.skipped.has(depPath)) return
-        const pkgSnapshot = lockfile.packages![depPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
@@ -194,7 +193,7 @@ export async function lockfileToDepGraph (
       storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
     }
-    for (const dir of Object.keys(graph)) {
+    for (const [dir, node] of Object.entries(graph)) {
       const pkgSnapshot = pkgSnapshotByLocation[dir]
       const allDeps = {
         ...pkgSnapshot.dependencies,
@@ -202,7 +201,7 @@ export async function lockfileToDepGraph (
       }
 
       const peerDeps = pkgSnapshot.peerDependencies ? new Set(Object.keys(pkgSnapshot.peerDependencies)) : null
-      graph[dir].children = await getChildrenPaths(ctx, allDeps, peerDeps, '.')
+      node.children = getChildrenPaths(ctx, allDeps, peerDeps, '.')
     }
     for (const importerId of opts.importerIds) {
       const projectSnapshot = lockfile.importers[importerId]
@@ -211,13 +210,13 @@ export async function lockfileToDepGraph (
         ...(opts.include.dependencies ? projectSnapshot.dependencies : {}),
         ...(opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
       }
-      directDependenciesByImporterId[importerId] = await getChildrenPaths(ctx, rootDeps, null, importerId)
+      directDependenciesByImporterId[importerId] = getChildrenPaths(ctx, rootDeps, null, importerId)
     }
   }
   return { graph, directDependenciesByImporterId }
 }
 
-async function getChildrenPaths (
+function getChildrenPaths (
   ctx: {
     graph: DependenciesGraph
     force: boolean

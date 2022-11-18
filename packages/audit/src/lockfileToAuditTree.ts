@@ -2,7 +2,7 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { lockfileWalkerGroupImporterSteps, LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { DependenciesField } from '@pnpm/types'
-import map from 'ramda/src/map'
+import mapValues from 'ramda/src/map'
 
 export interface AuditNode {
   version?: string
@@ -73,5 +73,5 @@ function lockfileToAuditNode (step: LockfileWalkerStep) {
 }
 
 function toRequires (auditNodesByDepName: Record<string, AuditNode>): Record<string, string> {
-  return map((auditNode) => auditNode.version!, auditNodesByDepName)
+  return mapValues((auditNode) => auditNode.version!, auditNodesByDepName)
 }
