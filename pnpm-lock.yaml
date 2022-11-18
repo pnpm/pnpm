@@ -1860,6 +1860,9 @@ importers:
       path-absolute:
         specifier: ^1.0.1
         version: 1.0.1
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
     devDependencies:
       '@pnpm/constants':
         specifier: workspace:*
