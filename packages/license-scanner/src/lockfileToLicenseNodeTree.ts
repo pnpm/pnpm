@@ -7,6 +7,7 @@ import {
 } from '@pnpm/lockfile-walker'
 import { DependenciesField, Registries } from '@pnpm/types'
 import { getPkgInfo } from './getPkgInfo'
+import mapValues from 'ramda/src/map'
 
 export interface LicenseNode {
   name?: string
@@ -154,10 +155,6 @@ export async function lockfileToLicenseNodeTree (
   return licenseNodeTree
 }
 
-function toRequires (licenseNodesByDepName: Record<string, LicenseNode>) {
-  const requires = {}
-  for (const subdepName of Object.keys(licenseNodesByDepName)) {
-    requires[subdepName] = licenseNodesByDepName[subdepName].version
-  }
-  return requires
+function toRequires (licenseNodesByDepName: Record<string, LicenseNode>): Record<string, string> {
+  return mapValues((licenseNode) => licenseNode.version!, licenseNodesByDepName)
 }

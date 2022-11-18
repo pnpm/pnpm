@@ -1,6 +1,4 @@
-export interface Dependencies {
-  [name: string]: string
-}
+export type Dependencies = Record<string, string>
 
 export type PackageBin = string | { [commandName: string]: string }
 
