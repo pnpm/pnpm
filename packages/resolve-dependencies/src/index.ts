@@ -409,9 +409,9 @@ function alignDependencyTypes (manifest: ProjectManifest, projectSnapshot: Proje
   // Aligning the dependency types in pnpm-lock.yaml
   for (const depType of DEPENDENCIES_FIELDS) {
     if (projectSnapshot[depType] == null) continue
-    for (const alias of Object.keys(projectSnapshot[depType] ?? {})) {
+    for (const [alias, ref] of Object.entries(projectSnapshot[depType] ?? {})) {
       if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias]) continue
-      projectSnapshot[depTypesOfAliases[alias]][alias] = projectSnapshot[depType]![alias]
+      projectSnapshot[depTypesOfAliases[alias]][alias] = ref
       delete projectSnapshot[depType]![alias]
     }
   }

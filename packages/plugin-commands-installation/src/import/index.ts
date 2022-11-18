@@ -16,6 +16,8 @@ import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
+import fromPairs from 'ramda/src/fromPairs'
+import mapValues from 'ramda/src/map'
 import renderHelp from 'render-help'
 import { parse as parseYarnLock } from '@yarnpkg/lockfile'
 import * as yarnCore from '@yarnpkg/core'
@@ -223,18 +225,11 @@ async function readNpmLockfile (dir: string) {
   throw new PnpmError('NPM_LOCKFILE_NOT_FOUND', 'No package-lock.json or npm-shrinkwrap.json found')
 }
 
-function getPreferredVersions (
-  versionsByPackageNames: {
-    [packageName: string]: Set<string>
-  }
-) {
-  const preferredVersions = {}
-  for (const packageName of Object.keys(versionsByPackageNames)) {
-    preferredVersions[packageName] = Array.from(versionsByPackageNames[packageName]).reduce((acc, version) => {
-      acc[version] = 'version'
-      return acc
-    }, {})
-  }
+function getPreferredVersions (versionsByPackageNames: Record<string, Set<string>>) {
+  const preferredVersions = mapValues(
+    (versions) => fromPairs(Array.from(versions).map((version) => [version, 'version'])),
+    versionsByPackageNames
+  )
   return preferredVersions
 }
 
@@ -245,14 +240,14 @@ function getAllVersionsByPackageNames (
   }
 ) {
   if (npmPackageLock.dependencies == null) return
-  for (const packageName of Object.keys(npmPackageLock.dependencies)) {
+  for (const [packageName, { version }] of Object.entries(npmPackageLock.dependencies)) {
     if (!versionsByPackageNames[packageName]) {
       versionsByPackageNames[packageName] = new Set()
     }
-    versionsByPackageNames[packageName].add(npmPackageLock.dependencies[packageName].version)
+    versionsByPackageNames[packageName].add(version)
   }
-  for (const packageName of Object.keys(npmPackageLock.dependencies)) {
-    getAllVersionsByPackageNames(npmPackageLock.dependencies[packageName], versionsByPackageNames)
+  for (const dep of Object.values(npmPackageLock.dependencies)) {
+    getAllVersionsByPackageNames(dep, versionsByPackageNames)
   }
 }
 
@@ -262,12 +257,12 @@ function getAllVersionsFromYarnLockFile (
     [packageName: string]: Set<string>
   }
 ) {
-  for (const packageName of Object.keys(yarnPackageLock)) {
+  for (const [packageName, { version }] of Object.entries(yarnPackageLock)) {
     const pkgName = packageName.substring(0, packageName.lastIndexOf('@'))
     if (!versionsByPackageNames[pkgName]) {
       versionsByPackageNames[pkgName] = new Set()
     }
-    versionsByPackageNames[pkgName].add(yarnPackageLock[packageName].version)
+    versionsByPackageNames[pkgName].add(version)
   }
 }
 

@@ -1,6 +1,7 @@
 import path from 'path'
 import { DependenciesField, HoistedDependencies, Registries } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
+import fromPairs from 'ramda/src/fromPairs'
 import isWindows from 'is-windows'
 import writeYamlFile from 'write-yaml-file'
 
@@ -53,13 +54,11 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
       modules.publicHoistPattern = ['*']
     }
     if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
-      modules.hoistedDependencies = {}
-      for (const depPath of Object.keys(modules.hoistedAliases)) {
-        modules.hoistedDependencies[depPath] = {}
-        for (const alias of modules.hoistedAliases[depPath]) {
-          modules.hoistedDependencies[depPath][alias] = 'public'
-        }
-      }
+      modules.hoistedDependencies = Object.entries(modules.hoistedAliases)
+        .reduce((hoistedDependencies, [depPath, aliases]) => {
+          hoistedDependencies[depPath] = fromPairs(aliases.map((alias) => [alias, 'public']))
+          return hoistedDependencies
+        }, {})
     }
     break
   case false:

@@ -27,12 +27,14 @@
   },
   "dependencies": {
     "@pnpm/types": "workspace:*",
-    "normalize-registry-url": "2.0.0"
+    "normalize-registry-url": "2.0.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/normalize-registries#readme",
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/normalize-registries": "workspace:*"
+    "@pnpm/normalize-registries": "workspace:*",
+    "@types/ramda": "0.28.15"
   },
   "exports": {
     ".": "./lib/index.js"

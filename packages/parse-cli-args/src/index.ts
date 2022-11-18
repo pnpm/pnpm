@@ -131,9 +131,9 @@ export async function parseCliArgs (
   }
 
   if (opts.renamedOptions != null) {
-    for (const cliOption of Object.keys(options)) {
+    for (const [cliOption, optionValue] of Object.entries(options)) {
       if (opts.renamedOptions[cliOption]) {
-        options[opts.renamedOptions[cliOption]] = options[cliOption]
+        options[opts.renamedOptions[cliOption]] = optionValue
         delete options[cliOption]
       }
     }

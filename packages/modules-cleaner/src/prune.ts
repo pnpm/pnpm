@@ -212,13 +212,12 @@ function getPkgsDepPaths (
   registries: Registries,
   packages: PackageSnapshots,
   skipped: Set<string>
-): { [depPath: string]: string } {
-  const pkgIdsByDepPath = {}
-  for (const depPath of Object.keys(packages)) {
-    if (skipped.has(depPath)) continue
-    pkgIdsByDepPath[depPath] = packageIdFromSnapshot(depPath, packages[depPath], registries)
-  }
-  return pkgIdsByDepPath
+): Record<string, string> {
+  return Object.entries(packages).reduce((acc, [depPath, pkg]) => {
+    if (skipped.has(depPath)) return acc
+    acc[depPath] = packageIdFromSnapshot(depPath, pkg, registries)
+    return acc
+  }, {})
 }
 
 function getPkgsDepPathsOwnedOnlyByImporters (
@@ -242,7 +241,10 @@ function getPkgsDepPathsOwnedOnlyByImporters (
       include,
       skipped,
     })
-  const packagesOfSelectedOnly = pickAll(difference(Object.keys(selected.packages!), Object.keys(other.packages!)), selected.packages!) as PackageSnapshots
+  const packagesOfSelectedOnly = pickAll(
+    difference(Object.keys(selected.packages!), Object.keys(other.packages!)),
+    selected.packages!
+  ) as PackageSnapshots
   return getPkgsDepPaths(registries, packagesOfSelectedOnly, skipped)
 }
 

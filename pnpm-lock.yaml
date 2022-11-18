@@ -2439,6 +2439,9 @@ importers:
       is-windows:
         specifier: ^1.0.2
         version: 1.0.2
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
       read-yaml-file:
         specifier: ^2.1.0
         version: 2.1.0
@@ -2452,6 +2455,9 @@ importers:
       '@types/is-windows':
         specifier: ^1.0.0
         version: 1.0.0
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -2604,10 +2610,16 @@ importers:
       normalize-registry-url:
         specifier: 2.0.0
         version: 2.0.0
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
     devDependencies:
       '@pnpm/normalize-registries':
         specifier: workspace:*
         version: 'link:'
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
 
   packages/npm-resolver:
     dependencies:

@@ -68,8 +68,8 @@ function getWantedDependenciesFromGivenSet (
   }
 ): WantedDependency[] {
   if (!deps) return []
-  return Object.keys(deps).map((alias) => {
-    const pref = opts.updatePref(deps[alias])
+  return Object.entries(deps).map(([alias, pref]) => {
+    const updatedPref = opts.updatePref(pref)
     let depType
     if (opts.optionalDependencies[alias] != null) depType = 'optional'
     else if (opts.dependencies[alias] != null) depType = 'prod'
@@ -81,9 +81,9 @@ function getWantedDependenciesFromGivenSet (
       injected: opts.dependenciesMeta[alias]?.injected,
       optional: depType === 'optional',
       nodeExecPath: opts.nodeExecPath ?? opts.dependenciesMeta[alias]?.node,
-      pinnedVersion: whichVersionIsPinned(deps[alias]),
-      pref,
-      raw: `${alias}@${pref}`,
+      pinnedVersion: whichVersionIsPinned(pref),
+      pref: updatedPref,
+      raw: `${alias}@${updatedPref}`,
     }
   })
 }

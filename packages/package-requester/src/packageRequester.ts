@@ -544,17 +544,17 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
         // And we cannot rename the temp folder till we're calculating integrities.
         const integrity: Record<string, PackageFileInfo> = {}
         await Promise.all(
-          Object.keys(filesIndex)
-            .map(async (filename) => {
+          Object.entries(filesIndex)
+            .map(async ([filename, { writeResult, mode, size }]) => {
               const {
                 checkedAt,
                 integrity: fileIntegrity,
-              } = await filesIndex[filename].writeResult
+              } = await writeResult
               integrity[filename] = {
                 checkedAt,
                 integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
-                mode: filesIndex[filename].mode,
-                size: filesIndex[filename].size,
+                mode,
+                size,
               }
             })
         )
