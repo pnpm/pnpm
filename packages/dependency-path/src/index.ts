@@ -76,7 +76,7 @@ export function relative (
 export function refToRelative (
   reference: string,
   pkgName: string
-) {
+): string | null {
   if (reference.startsWith('link:')) {
     return null
   }

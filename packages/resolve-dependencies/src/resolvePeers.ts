@@ -26,7 +26,7 @@ export interface GenericDependenciesGraphNode {
   // at this point the version is really needed only for logging
   modules: string
   dir: string
-  children: { [alias: string]: string }
+  children: Record<string, string>
   depth: number
   peerDependencies?: Dependencies
   transitivePeerDependencies: Set<string>

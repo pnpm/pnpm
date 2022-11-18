@@ -12,6 +12,7 @@ import { symlinkDependency } from '@pnpm/symlink-dependency'
 import { HoistedDependencies } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import * as dp from 'dependency-path'
+import mapValues from 'ramda/src/map'
 
 const hoistLogger = logger('hoist')
 
@@ -128,10 +129,7 @@ async function getDependencies (
       ...pkgSnapshot.optionalDependencies,
     }
     deps.push({
-      children: Object.entries(allDeps).reduce((children, [alias, ref]) => {
-        children[alias] = dp.refToRelative(ref, alias)
-        return children
-      }, {}),
+      children: mapValues(dp.refToRelative as any, allDeps), // eslint-disable-line @typescript-eslint/no-explicit-any
       depPath,
       depth,
     })
@@ -153,14 +151,14 @@ async function getDependencies (
 }
 
 export interface Dependency {
-  children: { [alias: string]: string }
+  children: Record<string, string>
   depPath: string
   depth: number
 }
 
 async function hoistGraph (
   depNodes: Dependency[],
-  currentSpecifiers: { [alias: string]: string },
+  currentSpecifiers: Record<string, string>,
   opts: {
     getAliasHoistType: GetAliasHoistType
   }
