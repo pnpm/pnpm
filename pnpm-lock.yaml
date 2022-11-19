@@ -4313,9 +4313,6 @@ importers:
       pkgs-graph:
         specifier: workspace:*
         version: link:../packages/pkgs-graph
-      pnpm:
-        specifier: workspace:*
-        version: 'link:'
       ps-list:
         specifier: ^7.2.0
         version: 7.2.0

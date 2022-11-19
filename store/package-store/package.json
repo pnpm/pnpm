@@ -39,7 +39,7 @@
   "directories": {
     "test": "test"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/package-store#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/store/package-store#readme",
   "keywords": [
     "pnpm7",
     "store",
@@ -54,7 +54,7 @@
   "engines": {
     "node": ">=14.6"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/package-store",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/store/package-store",
   "scripts": {
     "start": "tsc --watch",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",

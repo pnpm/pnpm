@@ -16,13 +16,13 @@
     "registry-mock": "registry-mock",
     "test:jest": "jest",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7773 pnpm run test:e2e",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7771 pnpm run test:e2e",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "start": "tsc --watch",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-script-runners",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/exec/plugin-commands-script-runners",
   "keywords": [
     "pnpm7",
     "pnpm",
@@ -32,7 +32,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-script-runners#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/plugin-commands-script-runners#readme",
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-script-runners": "workspace:*",

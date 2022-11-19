@@ -17,7 +17,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/get-context",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/get-context",
   "keywords": [
     "pnpm7",
     "pnpm",
@@ -27,7 +27,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/get-context#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/get-context#readme",
   "devDependencies": {
     "@pnpm/get-context": "workspace:*",
     "@types/is-ci": "^3.0.0",

@@ -104,7 +104,7 @@
   "directories": {
     "test": "test"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/core#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core#readme",
   "keywords": [
     "pnpm7",
     "dependency manager",
@@ -132,7 +132,7 @@
   "engines": {
     "node": ">=14.6"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/core",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core",
   "scripts": {
     "start": "tsc --watch",
     "?commit": "echo 'Run Git commit wizard'",

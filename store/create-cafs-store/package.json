@@ -32,7 +32,7 @@
   "directories": {
     "test": "test"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/create-cafs-store#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/store/create-cafs-store#readme",
   "keywords": [
     "pnpm7",
     "store",
@@ -47,7 +47,7 @@
   "engines": {
     "node": ">=14.6"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/create-cafs-store",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/store/create-cafs-store",
   "scripts": {
     "start": "tsc --watch",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",

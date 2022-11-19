@@ -15,7 +15,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/find-packages",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/fs/find-packages",
   "keywords": [
     "pnpm7",
     "find",
@@ -28,7 +28,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/find-packages#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/find-packages#readme",
   "dependencies": {
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
