@@ -13,7 +13,7 @@
       "path": "../../cli/cli-utils"
     },
     {
-      "path": "../config"
+      "path": "../../config/config"
     }
   ]
 }

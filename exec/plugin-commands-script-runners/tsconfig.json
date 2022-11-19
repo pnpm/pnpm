@@ -13,31 +13,37 @@
       "path": "../../cli/cli-utils"
     },
     {
+      "path": "../../cli/command"
+    },
+    {
       "path": "../../cli/common-cli-options-help"
     },
     {
       "path": "../../config/config"
     },
     {
-      "path": "../../config/pick-registry-for-package"
+      "path": "../../packages/error"
     },
     {
-      "path": "../../exec/lifecycle"
+      "path": "../../packages/package-bins"
     },
     {
-      "path": "../../exec/run-npm"
+      "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manager/client"
+      "path": "../../pkg-manager/plugin-commands-installation"
     },
     {
-      "path": "../../pkg-manifest/exportable-manifest"
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
     },
     {
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../../resolving/resolver-base"
+      "path": "../../store/store-path"
     },
     {
       "path": "../../workspace/filter-workspace-packages"
@@ -46,16 +52,7 @@
       "path": "../../workspace/sort-packages"
     },
     {
-      "path": "../error"
-    },
-    {
-      "path": "../git-utils"
-    },
-    {
-      "path": "../package-bins"
-    },
-    {
-      "path": "../types"
+      "path": "../lifecycle"
     }
   ]
 }

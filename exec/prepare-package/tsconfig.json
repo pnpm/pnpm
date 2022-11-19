@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../../packages/error"
     },
     {
-      "path": "../error"
+      "path": "../../pkg-manifest/read-package-json"
     }
   ]
 }

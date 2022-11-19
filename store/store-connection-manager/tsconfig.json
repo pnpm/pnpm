@@ -13,7 +13,7 @@
       "path": "../../cli/cli-meta"
     },
     {
-      "path": "../../packages/config"
+      "path": "../../config/config"
     },
     {
       "path": "../../packages/error"

@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
       "path": "../../lockfile/lockfile-types"
     },
     {
@@ -29,9 +32,6 @@
     },
     {
       "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/pick-registry-for-package"
     },
     {
       "path": "../../packages/types"

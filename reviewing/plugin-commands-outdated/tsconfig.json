@@ -19,10 +19,10 @@
       "path": "../../cli/common-cli-options-help"
     },
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../config/config"
     },
     {
-      "path": "../../packages/config"
+      "path": "../../lockfile/lockfile-file"
     },
     {
       "path": "../../packages/constants"

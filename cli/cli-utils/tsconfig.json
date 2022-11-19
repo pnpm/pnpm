@@ -10,16 +10,16 @@
   ],
   "references": [
     {
-      "path": "../../packages/config"
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/package-is-installable"
     },
     {
       "path": "../../packages/default-reporter"
     },
     {
       "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/package-is-installable"
     },
     {
       "path": "../../packages/types"

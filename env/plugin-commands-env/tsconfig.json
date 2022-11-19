@@ -13,10 +13,10 @@
       "path": "../../cli/cli-utils"
     },
     {
-      "path": "../../network/fetch"
+      "path": "../../config/config"
     },
     {
-      "path": "../../packages/config"
+      "path": "../../network/fetch"
     },
     {
       "path": "../../packages/error"

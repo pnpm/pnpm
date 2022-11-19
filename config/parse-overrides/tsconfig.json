@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../error"
+      "path": "../../packages/error"
     },
     {
-      "path": "../parse-wanted-dependency"
+      "path": "../../packages/parse-wanted-dependency"
     }
   ]
 }

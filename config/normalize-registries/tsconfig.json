@@ -10,13 +10,7 @@
   ],
   "references": [
     {
-      "path": "../core-loggers"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../types"
+      "path": "../../packages/types"
     }
   ]
 }

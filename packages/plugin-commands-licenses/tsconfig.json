@@ -19,6 +19,9 @@
       "path": "../../cli/common-cli-options-help"
     },
     {
+      "path": "../../config/config"
+    },
+    {
       "path": "../../lockfile/lockfile-file"
     },
     {
@@ -32,9 +35,6 @@
     },
     {
       "path": "../../workspace/filter-workspace-packages"
-    },
-    {
-      "path": "../config"
     },
     {
       "path": "../constants"

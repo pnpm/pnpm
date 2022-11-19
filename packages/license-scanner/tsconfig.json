@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../config/package-is-installable"
+    },
+    {
       "path": "../../fetching/directory-fetcher"
     },
     {
@@ -38,9 +41,6 @@
     },
     {
       "path": "../error"
-    },
-    {
-      "path": "../package-is-installable"
     },
     {
       "path": "../types"

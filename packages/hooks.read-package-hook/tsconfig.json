@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../matcher"
+      "path": "../../config/parse-overrides"
     },
     {
-      "path": "../parse-overrides"
+      "path": "../matcher"
     },
     {
       "path": "../parse-wanted-dependency"

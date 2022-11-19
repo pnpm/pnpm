@@ -10,10 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../builder/build-modules"
+      "path": "../../config/normalize-registries"
     },
     {
-      "path": "../../builder/lifecycle"
+      "path": "../../exec/build-modules"
+    },
+    {
+      "path": "../../exec/lifecycle"
     },
     {
       "path": "../../lockfile/filter-lockfile"
@@ -65,9 +68,6 @@
     },
     {
       "path": "../../packages/matcher"
-    },
-    {
-      "path": "../../packages/normalize-registries"
     },
     {
       "path": "../../packages/parse-wanted-dependency"

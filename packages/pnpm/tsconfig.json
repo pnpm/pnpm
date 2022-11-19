@@ -13,9 +13,6 @@
   ],
   "references": [
     {
-      "path": "../../builder/plugin-commands-rebuild"
-    },
-    {
       "path": "../../cli/cli-meta"
     },
     {
@@ -31,7 +28,22 @@
       "path": "../../cli/parse-cli-args"
     },
     {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
       "path": "../../env/plugin-commands-env"
+    },
+    {
+      "path": "../../exec/plugin-commands-rebuild"
+    },
+    {
+      "path": "../../exec/plugin-commands-script-runners"
+    },
+    {
+      "path": "../../exec/run-npm"
     },
     {
       "path": "../../lockfile/lockfile-types"
@@ -85,9 +97,6 @@
       "path": "../../workspace/find-workspace-packages"
     },
     {
-      "path": "../config"
-    },
-    {
       "path": "../constants"
     },
     {
@@ -98,9 +107,6 @@
     },
     {
       "path": "../dependency-path"
-    },
-    {
-      "path": "../pick-registry-for-package"
     },
     {
       "path": "../pkgs-graph"
@@ -124,16 +130,10 @@
       "path": "../plugin-commands-publishing"
     },
     {
-      "path": "../plugin-commands-script-runners"
-    },
-    {
       "path": "../plugin-commands-server"
     },
     {
       "path": "../plugin-commands-setup"
-    },
-    {
-      "path": "../run-npm"
     },
     {
       "path": "../types"

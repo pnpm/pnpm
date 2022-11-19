@@ -13,10 +13,10 @@
       "path": "../../cli/cli-utils"
     },
     {
-      "path": "../../network/auth-header"
+      "path": "../../config/config"
     },
     {
-      "path": "../../packages/config"
+      "path": "../../network/auth-header"
     },
     {
       "path": "../../packages/constants"

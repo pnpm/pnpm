@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../builder/plugin-commands-rebuild"
-    },
-    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -22,10 +19,13 @@
       "path": "../../cli/common-cli-options-help"
     },
     {
-      "path": "../../lockfile/lockfile-types"
+      "path": "../../config/config"
     },
     {
-      "path": "../../packages/config"
+      "path": "../../exec/plugin-commands-rebuild"
+    },
+    {
+      "path": "../../lockfile/lockfile-types"
     },
     {
       "path": "../../packages/constants"
@@ -44,9 +44,6 @@
     },
     {
       "path": "../../packages/pnpmfile"
-    },
-    {
-      "path": "../../packages/sort-packages"
     },
     {
       "path": "../../packages/types"
@@ -86,6 +83,9 @@
     },
     {
       "path": "../../workspace/find-workspace-packages"
+    },
+    {
+      "path": "../../workspace/sort-packages"
     },
     {
       "path": "../core"

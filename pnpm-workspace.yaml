@@ -1,7 +1,8 @@
 packages:
-  - builder/*
   - cli/*
+  - config/*
   - env/*
+  - exec/*
   - fetching/*
   - lockfile/*
   - network/*

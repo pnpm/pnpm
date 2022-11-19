@@ -13,13 +13,19 @@
       "path": "../../cli/cli-utils"
     },
     {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/normalize-registries"
+    },
+    {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
       "path": "../../lockfile/lockfile-file"
     },
     {
       "path": "../../lockfile/lockfile-utils"
-    },
-    {
-      "path": "../../packages/config"
     },
     {
       "path": "../../packages/dependency-path"
@@ -28,13 +34,7 @@
       "path": "../../packages/error"
     },
     {
-      "path": "../../packages/normalize-registries"
-    },
-    {
       "path": "../../packages/parse-wanted-dependency"
-    },
-    {
-      "path": "../../packages/pick-registry-for-package"
     },
     {
       "path": "../../packages/types"

@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../packages/prepare-package"
+      "path": "../../exec/prepare-package"
     },
     {
       "path": "../../packages/types"

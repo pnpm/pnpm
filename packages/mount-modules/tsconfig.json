@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../config/config"
+    },
+    {
       "path": "../../lockfile/lockfile-file"
     },
     {
@@ -20,9 +23,6 @@
     },
     {
       "path": "../../store/store-path"
-    },
-    {
-      "path": "../config"
     },
     {
       "path": "../dependency-path"

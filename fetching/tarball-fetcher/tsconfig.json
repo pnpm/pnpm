@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../exec/prepare-package"
+    },
+    {
       "path": "../../network/fetch"
     },
     {
@@ -23,9 +26,6 @@
     },
     {
       "path": "../../packages/graceful-fs"
-    },
-    {
-      "path": "../../packages/prepare-package"
     },
     {
       "path": "../../privatePackages/test-fixtures"

@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../config/package-is-installable"
+    },
+    {
       "path": "../../packages/constants"
     },
     {
@@ -17,9 +20,6 @@
     },
     {
       "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/package-is-installable"
     },
     {
       "path": "../../packages/types"

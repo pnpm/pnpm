@@ -13,6 +13,9 @@
       "path": "../../cli/cli-utils"
     },
     {
+      "path": "../../config/config"
+    },
+    {
       "path": "../../pkg-manifest/write-project-manifest"
     },
     {
@@ -20,9 +23,6 @@
     },
     {
       "path": "../../privatePackages/test-fixtures"
-    },
-    {
-      "path": "../config"
     },
     {
       "path": "../error"

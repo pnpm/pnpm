@@ -10,10 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../builder/build-modules"
+      "path": "../../config/package-is-installable"
     },
     {
-      "path": "../../builder/lifecycle"
+      "path": "../../exec/build-modules"
+    },
+    {
+      "path": "../../exec/lifecycle"
     },
     {
       "path": "../../lockfile/filter-lockfile"
@@ -47,9 +50,6 @@
     },
     {
       "path": "../../packages/lockfile-to-pnp"
-    },
-    {
-      "path": "../../packages/package-is-installable"
     },
     {
       "path": "../../packages/real-hoist"

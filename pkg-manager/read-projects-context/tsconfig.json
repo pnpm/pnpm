@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../lockfile/lockfile-file"
+      "path": "../../config/normalize-registries"
     },
     {
-      "path": "../../packages/normalize-registries"
+      "path": "../../lockfile/lockfile-file"
     },
     {
       "path": "../../packages/types"

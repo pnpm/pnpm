@@ -13,6 +13,12 @@
       "path": "../../cli/cli-utils"
     },
     {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
       "path": "../../pkg-manager/plugin-commands-installation"
     },
     {
@@ -28,16 +34,10 @@
       "path": "../../store/store-connection-manager"
     },
     {
-      "path": "../config"
-    },
-    {
       "path": "../error"
     },
     {
       "path": "../parse-wanted-dependency"
-    },
-    {
-      "path": "../pick-registry-for-package"
     }
   ]
 }

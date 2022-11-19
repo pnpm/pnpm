@@ -16,13 +16,16 @@
       "path": "../../cli/common-cli-options-help"
     },
     {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/normalize-registries"
+    },
+    {
       "path": "../../lockfile/lockfile-utils"
     },
     {
       "path": "../../lockfile/lockfile-walker"
-    },
-    {
-      "path": "../../packages/config"
     },
     {
       "path": "../../packages/constants"
@@ -35,12 +38,6 @@
     },
     {
       "path": "../../packages/link-bins"
-    },
-    {
-      "path": "../../packages/normalize-registries"
-    },
-    {
-      "path": "../../packages/sort-packages"
     },
     {
       "path": "../../packages/types"
@@ -68,6 +65,9 @@
     },
     {
       "path": "../../workspace/find-workspace-packages"
+    },
+    {
+      "path": "../../workspace/sort-packages"
     },
     {
       "path": "../lifecycle"
