@@ -53,6 +53,7 @@
     "load-json-file": "^6.2.0",
     "p-defer": "^3.0.0",
     "p-limit": "^3.1.0",
+    "p-map-values": "^1.0.0",
     "p-queue": "^6.6.2",
     "path-temp": "^2.0.0",
     "promise-share": "^1.0.0",

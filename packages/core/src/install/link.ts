@@ -33,6 +33,8 @@ import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import difference from 'ramda/src/difference'
 import omit from 'ramda/src/omit'
+import pick from 'ramda/src/pick'
+import pickBy from 'ramda/src/pickBy'
 import props from 'ramda/src/props'
 import { ImporterToUpdate } from './index'
 
@@ -211,10 +213,10 @@ export async function linkPackages (
         }
       }
     }
-    const projects = projectIds.reduce((acc, projectId) => {
-      acc[projectId] = opts.wantedLockfile.importers[projectId]
-      return acc
-    }, opts.currentLockfile.importers)
+    const projects = {
+      ...opts.currentLockfile.importers,
+      ...pick(projectIds, opts.wantedLockfile.importers),
+    }
     currentLockfile = filterLockfileByImporters(
       {
         ...opts.wantedLockfile,
@@ -454,26 +456,20 @@ async function linkAllModules (
   await Promise.all(
     depNodes
       .map(async ({ children, optionalDependencies, name, modules }) => {
-        const childrenToLink = opts.optional
+        const childrenToLink: Record<string, string> = opts.optional
           ? children
-          : Object.keys(children)
-            .reduce((nonOptionalChildren, childAlias) => {
-              if (!optionalDependencies.has(childAlias)) {
-                nonOptionalChildren[childAlias] = children[childAlias]
-              }
-              return nonOptionalChildren
-            }, {})
+          : pickBy((_, childAlias) => !optionalDependencies.has(childAlias), children)
 
         await Promise.all(
           Object.entries(childrenToLink)
             .map(async ([childAlias, childDepPath]) => {
               if (childDepPath.startsWith('link:')) {
-                await limitLinking(async () => symlinkDependency(path.resolve(opts.lockfileDir, childDepPath.slice(5)), modules, childAlias))
+                await limitLinking(() => symlinkDependency(path.resolve(opts.lockfileDir, childDepPath.slice(5)), modules, childAlias))
                 return
               }
               const pkg = depGraph[childDepPath]
               if (!pkg || !pkg.installable && pkg.optional || childAlias === name) return
-              await limitLinking(async () => symlinkDependency(pkg.dir, modules, childAlias))
+              await limitLinking(() => symlinkDependency(pkg.dir, modules, childAlias))
             })
         )
       })

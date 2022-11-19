@@ -1,6 +1,7 @@
 import path from 'path'
 import npa from '@pnpm/npm-package-arg'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
+import mapValues from 'ramda/src/map'
 
 export interface Manifest {
   name?: string
@@ -30,20 +31,15 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
   ignoreDevDeps?: boolean
   linkWorkspacePackages?: boolean
 }): {
-    graph: { [id: string]: PackageNode<T> }
+    graph: Record<string, PackageNode<T>>
     unmatched: Array<{ pkgName: string, range: string }>
   } {
   const pkgMap = createPkgMap(pkgs)
   const unmatched: Array<{ pkgName: string, range: string }> = []
-  const graph = Object.entries(pkgMap)
-    .reduce((acc, [pkgSpec, pkg]) => {
-      acc[pkgSpec] = {
-        dependencies: createNode(pkg),
-        package: pkg,
-      }
-      return acc
-    }, {})
-
+  const graph = mapValues((pkg) => ({
+    dependencies: createNode(pkg),
+    package: pkg,
+  }), pkgMap) as Record<string, PackageNode<T>>
   return { graph, unmatched }
 
   function createNode (pkg: Package): string[] {
@@ -110,9 +106,7 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
   }
 }
 
-function createPkgMap (pkgs: Package[]): {
-  [pkgId: string]: Package
-} {
+function createPkgMap (pkgs: Package[]): Record<string, Package> {
   const pkgMap = {}
   for (const pkg of pkgs) {
     pkgMap[pkg.dir] = pkg

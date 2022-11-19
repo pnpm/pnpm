@@ -3,7 +3,7 @@ import { PackageManifest, PatchFile } from '@pnpm/types'
 import filter from 'ramda/src/filter'
 
 export interface DependenciesGraphNode {
-  children: { [alias: string]: string }
+  children: Record<string, string>
   depPath: string
   dir: string
   fetchingBundledManifest?: () => Promise<PackageManifest | undefined>

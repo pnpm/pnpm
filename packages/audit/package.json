@@ -33,6 +33,7 @@
     "@pnpm/audit": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
+    "@types/ramda": "0.28.15",
     "nock": "13.2.9"
   },
   "dependencies": {
@@ -42,7 +43,8 @@
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/lockfile-walker": "workspace:*",
-    "@pnpm/types": "workspace:*"
+    "@pnpm/types": "workspace:*",
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

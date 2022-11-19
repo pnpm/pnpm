@@ -36,7 +36,7 @@ export function updateLockfile (
   for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
       (child) => depNode.optionalDependencies.has(child.alias),
-      Object.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] }))
+      Object.entries(depNode.children).map(([alias, depPath]) => ({ alias, depPath }))
     )
     lockfile.packages[depPath] = toLockfileDependency(pendingRequiresBuilds, depNode, {
       depGraph: dependenciesGraph,
@@ -126,8 +126,8 @@ function toLockfileDependency (
   }
   if (pkg.peerDependenciesMeta != null) {
     const normalizedPeerDependenciesMeta = {}
-    for (const peer of Object.keys(pkg.peerDependenciesMeta)) {
-      if (pkg.peerDependenciesMeta[peer].optional) {
+    for (const [peer, { optional }] of Object.entries(pkg.peerDependenciesMeta)) {
+      if (optional) {
         normalizedPeerDependenciesMeta[peer] = { optional: true }
       }
     }
@@ -136,10 +136,10 @@ function toLockfileDependency (
     }
   }
   if (pkg.additionalInfo.engines != null) {
-    for (const engine of Object.keys(pkg.additionalInfo.engines)) {
-      if (pkg.additionalInfo.engines[engine] === '*') continue
+    for (const [engine, version] of Object.entries(pkg.additionalInfo.engines)) {
+      if (version === '*') continue
       result['engines'] = result['engines'] || {}
-      result['engines'][engine] = pkg.additionalInfo.engines[engine]
+      result['engines'][engine] = version
     }
   }
   if (pkg.additionalInfo.cpu != null) {

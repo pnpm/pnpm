@@ -7,8 +7,9 @@ import rimraf from '@zkochan/rimraf'
 import * as dp from 'dependency-path'
 import yaml from 'js-yaml'
 import equals from 'ramda/src/equals'
-import fromPairs from 'ramda/src/fromPairs'
+import pickBy from 'ramda/src/pickBy'
 import isEmpty from 'ramda/src/isEmpty'
+import mapValues from 'ramda/src/map'
 import writeFileAtomicCB from 'write-file-atomic'
 import { lockfileLogger as logger } from './logger'
 import { sortLockfileKeys } from './sortLockfileKeys'
@@ -118,8 +119,7 @@ export function normalizeLockfile (lockfile: Lockfile, opts: NormalizeLockfileOp
   } else {
     lockfileToSave = {
       ...lockfile,
-      importers: Object.keys(lockfile.importers).reduce((acc, alias) => {
-        const importer = lockfile.importers[alias]
+      importers: mapValues((importer) => {
         const normalizedImporter: Partial<ProjectSnapshot> = {}
         if (!isEmpty(importer.specifiers ?? {}) || opts.includeEmptySpecifiersField) {
           normalizedImporter['specifiers'] = importer.specifiers ?? {}
@@ -135,9 +135,8 @@ export function normalizeLockfile (lockfile: Lockfile, opts: NormalizeLockfileOp
         if (importer.publishDirectory) {
           normalizedImporter.publishDirectory = importer.publishDirectory
         }
-        acc[alias] = normalizedImporter
-        return acc
-      }, {}),
+        return normalizedImporter as ProjectSnapshot
+      }, lockfile.importers),
     }
     if (isEmpty(lockfileToSave.packages) || (lockfileToSave.packages == null)) {
       delete lockfileToSave.packages
@@ -168,7 +167,7 @@ export function normalizeLockfile (lockfile: Lockfile, opts: NormalizeLockfileOp
   return lockfileToSave
 }
 
-function pruneTime (time: Record<string, string>, importers: Record<string, ProjectSnapshot>) {
+function pruneTime (time: Record<string, string>, importers: Record<string, ProjectSnapshot>): Record<string, string> {
   const rootDepPaths = new Set<string>()
   for (const importer of Object.values(importers)) {
     for (const depType of DEPENDENCIES_FIELDS) {
@@ -184,7 +183,7 @@ function pruneTime (time: Record<string, string>, importers: Record<string, Proj
       }
     }
   }
-  return fromPairs(Object.entries(time).filter(([depPath]) => rootDepPaths.has(depPath)))
+  return pickBy((t, depPath) => rootDepPaths.has(depPath), time)
 }
 
 export async function writeLockfiles (

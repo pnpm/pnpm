@@ -111,6 +111,4 @@ export type PackageBin = string | { [name: string]: string }
  *   "foo": "registry.npmjs.org/foo/1.0.1"
  * }
  */
-export interface ResolvedDependencies {
-  [depName: string]: string
-}
+export type ResolvedDependencies = Record<string, string>

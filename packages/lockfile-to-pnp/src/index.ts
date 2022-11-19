@@ -40,8 +40,7 @@ export function lockfileToPackageRegistry (
   }
 ): PackageRegistry {
   const packageRegistry = new Map()
-  for (const importerId of Object.keys(lockfile.importers)) {
-    const importer = lockfile.importers[importerId]
+  for (const [importerId, importer] of Object.entries(lockfile.importers)) {
     if (importerId === '.') {
       const packageStore = new Map([
         [

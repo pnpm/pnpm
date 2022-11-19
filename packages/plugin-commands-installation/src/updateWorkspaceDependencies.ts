@@ -3,18 +3,22 @@ import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { WorkspacePackages } from '@pnpm/resolver-base'
 import { IncludedDependencies, ProjectManifest } from '@pnpm/types'
 
-export function updateToWorkspacePackagesFromManifest (manifest: ProjectManifest, include: IncludedDependencies, workspacePackages: WorkspacePackages) {
+export function updateToWorkspacePackagesFromManifest (
+  manifest: ProjectManifest,
+  include: IncludedDependencies,
+  workspacePackages: WorkspacePackages
+) {
   const allDeps = {
     ...(include.devDependencies ? manifest.devDependencies : {}),
     ...(include.dependencies ? manifest.dependencies : {}),
     ...(include.optionalDependencies ? manifest.optionalDependencies : {}),
   } as Record<string, string>
-  const updateSpecs = []
-  for (const depName of Object.keys(allDeps)) {
+  const updateSpecs = Object.keys(allDeps).reduce((acc: string[], depName) => {
     if (workspacePackages[depName]) {
-      updateSpecs.push(`${depName}@workspace:*`)
+      acc.push(`${depName}@workspace:*`)
     }
-  }
+    return acc
+  }, [])
   return updateSpecs
 }
 

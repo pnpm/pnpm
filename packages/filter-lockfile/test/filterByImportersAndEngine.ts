@@ -143,6 +143,8 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
         dependencies: {
           'project-2-prod-dep': '1.0.0',
         },
+        devDependencies: {},
+        optionalDependencies: {},
         specifiers: {
           'project-2-prod-dep': '^1.0.0',
         },
@@ -322,6 +324,8 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
         dependencies: {
           'project-2-prod-dep': '1.0.0',
         },
+        devDependencies: {},
+        optionalDependencies: {},
         specifiers: {
           'project-2-prod-dep': '^1.0.0',
         },
@@ -490,6 +494,8 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
         dependencies: {
           'project-2-prod-dep': '1.0.0',
         },
+        devDependencies: {},
+        optionalDependencies: {},
         specifiers: {
           'project-2-prod-dep': '^1.0.0',
         },
@@ -547,10 +553,8 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
           dependencies: {
             'project-2': 'link:project-2',
           },
-          devDependencies: {
-          },
-          optionalDependencies: {
-          },
+          devDependencies: {},
+          optionalDependencies: {},
           specifiers: {
             'project-2': '^1.0.0',
           },
@@ -607,10 +611,8 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
         dependencies: {
           'project-2': 'link:project-2',
         },
-        devDependencies: {
-        },
-        optionalDependencies: {
-        },
+        devDependencies: {},
+        optionalDependencies: {},
         specifiers: {
           'project-2': '^1.0.0',
         },
@@ -620,6 +622,8 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
           'project-3': 'link:project-3',
           foo: '1.0.0',
         },
+        devDependencies: {},
+        optionalDependencies: {},
         specifiers: {
           foo: '^1.0.0',
         },
@@ -628,6 +632,8 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
         dependencies: {
           bar: '1.0.0',
         },
+        devDependencies: {},
+        optionalDependencies: {},
         specifiers: {
           bar: '^1.0.0',
         },

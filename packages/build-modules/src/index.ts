@@ -9,6 +9,7 @@ import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-p
 import { StoreController } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
 import { applyPatch } from 'patch-package/dist/applyPatches'
+import pickBy from 'ramda/src/pickBy'
 import runGroups from 'run-groups'
 import { buildSequence, DependenciesGraph, DependenciesGraphNode } from './buildSequence'
 
@@ -174,15 +175,9 @@ export async function linkBinsOfDependencies (
     warn: (message: string) => void
   }
 ) {
-  const childrenToLink = opts.optional
+  const childrenToLink: Record<string, string> = opts.optional
     ? depNode.children
-    : Object.keys(depNode.children)
-      .reduce((nonOptionalChildren, childAlias) => {
-        if (!depNode.optionalDependencies.has(childAlias)) {
-          nonOptionalChildren[childAlias] = depNode.children[childAlias]
-        }
-        return nonOptionalChildren
-      }, {})
+    : pickBy((child, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
 
   const binPath = path.join(depNode.dir, 'node_modules/.bin')
 

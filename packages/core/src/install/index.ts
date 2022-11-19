@@ -60,10 +60,13 @@ import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
+import pMapValues from 'p-map-values'
 import flatten from 'ramda/src/flatten'
 import fromPairs from 'ramda/src/fromPairs'
+import mapValues from 'ramda/src/map'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
+import pickBy from 'ramda/src/pickBy'
 import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
 import unnest from 'ramda/src/unnest'
@@ -271,10 +274,10 @@ export async function mutateModules (
       ? ctx.wantedLockfile.patchedDependencies
       : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies, opts.lockfileDir) : {})
     const patchedDependenciesWithResolvedPath = patchedDependencies
-      ? fromPairs(Object.entries(patchedDependencies).map(([key, patchFile]) => [key, {
+      ? mapValues((patchFile) => ({
         hash: patchFile.hash,
         path: path.join(opts.lockfileDir, patchFile.path),
-      }]))
+      }), patchedDependencies)
       : undefined
     let needsFullResolution = !maybeOpts.ignorePackageManifest &&
       lockfileIsUpToDate(ctx.wantedLockfile, {
@@ -561,18 +564,13 @@ export async function mutateModules (
 }
 
 async function calcPatchHashes (patches: Record<string, string>, lockfileDir: string) {
-  return fromPairs(await Promise.all(
-    Object.entries(patches).map(async ([key, patchFileRelativePath]) => {
-      const patchFilePath = path.join(lockfileDir, patchFileRelativePath)
-      return [
-        key,
-        {
-          hash: await createBase32HashFromFile(patchFilePath),
-          path: patchFileRelativePath,
-        },
-      ]
-    })
-  ))
+  return pMapValues(async (patchFileRelativePath) => {
+    const patchFilePath = path.join(lockfileDir, patchFileRelativePath)
+    return {
+      hash: await createBase32HashFromFile(patchFilePath),
+      path: patchFileRelativePath,
+    }
+  }, patches)
 }
 
 function lockfileIsUpToDate (
@@ -782,16 +780,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     (ctx.wantedLockfile.packages != null) &&
     !isEmpty(ctx.wantedLockfile.packages)
   ) {
-    ctx.wantedLockfile.packages = Object.entries(ctx.wantedLockfile.packages).reduce((pre, [depPath, snapshot]) => ({
-      ...pre,
-      [depPath]: {
-        // These fields are needed to avoid losing information of the locked dependencies if these fields are not broken
-        // If these fields are broken, they will also be regenerated
-        dependencies: snapshot.dependencies,
-        optionalDependencies: snapshot.optionalDependencies,
-        resolution: snapshot.resolution,
-      },
-    }), {})
+    ctx.wantedLockfile.packages = mapValues(({ dependencies, optionalDependencies, resolution }) => ({
+      // These fields are needed to avoid losing information of the locked dependencies if these fields are not broken
+      // If these fields are broken, they will also be regenerated
+      dependencies,
+      optionalDependencies,
+      resolution,
+    }), ctx.wantedLockfile.packages)
   }
 
   let {
@@ -841,30 +836,27 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
-    for (const projectId of Object.keys(linkedDependenciesByProjectId ?? {})) {
-      linkedDependenciesByProjectId[projectId] = linkedDependenciesByProjectId[projectId].filter((linkedDep) =>
+    linkedDependenciesByProjectId = mapValues(
+      (linkedDeps) => linkedDeps.filter((linkedDep) =>
         !(
           linkedDep.dev && !opts.include.devDependencies ||
           linkedDep.optional && !opts.include.optionalDependencies ||
           !linkedDep.dev && !linkedDep.optional && !opts.include.dependencies
-        )
-      )
-    }
+        )),
+      linkedDependenciesByProjectId ?? {}
+    )
     for (const { id, manifest } of projects) {
-      dependenciesByProjectId[id] = fromPairs(
-        Object.entries(dependenciesByProjectId[id])
-          .filter(([, depPath]) => {
-            const dep = dependenciesGraph[depPath]
-            if (!dep) return false
-            const isDev = Boolean(manifest.devDependencies?.[dep.name])
-            const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
-            return !(
-              isDev && !opts.include.devDependencies ||
-              isOptional && !opts.include.optionalDependencies ||
-              !isDev && !isOptional && !opts.include.dependencies
-            )
-          })
-      )
+      dependenciesByProjectId[id] = pickBy((depPath) => {
+        const dep = dependenciesGraph[depPath]
+        if (!dep) return false
+        const isDev = Boolean(manifest.devDependencies?.[dep.name])
+        const isOptional = Boolean(manifest.optionalDependencies?.[dep.name])
+        return !(
+          isDev && !opts.include.devDependencies ||
+          isOptional && !opts.include.optionalDependencies ||
+          !isDev && !isOptional && !opts.include.dependencies
+        )
+      }, dependenciesByProjectId[id])
     }
   }
 

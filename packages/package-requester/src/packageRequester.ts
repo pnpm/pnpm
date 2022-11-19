@@ -41,6 +41,7 @@ import {
 } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
 import { depPathToFilename } from 'dependency-path'
+import pMapValues from 'p-map-values'
 import PQueue from 'p-queue'
 import loadJsonFile from 'load-json-file'
 import pDefer from 'p-defer'
@@ -538,26 +539,18 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
 
       let filesResult!: PackageFilesResponse
       if (!fetchedPackage.local) {
-        const filesIndex = fetchedPackage.filesIndex
         // Ideally, files wouldn't care about when integrity is calculated.
         // However, we can only rename the temp folder once we know the package name.
         // And we cannot rename the temp folder till we're calculating integrities.
-        const integrity: Record<string, PackageFileInfo> = {}
-        await Promise.all(
-          Object.keys(filesIndex)
-            .map(async (filename) => {
-              const {
-                checkedAt,
-                integrity: fileIntegrity,
-              } = await filesIndex[filename].writeResult
-              integrity[filename] = {
-                checkedAt,
-                integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
-                mode: filesIndex[filename].mode,
-                size: filesIndex[filename].size,
-              }
-            })
-        )
+        const integrity = await pMapValues(async ({ writeResult, mode, size }) => {
+          const { checkedAt, integrity } = await writeResult
+          return {
+            checkedAt,
+            integrity: integrity.toString(), // TODO: use the raw Integrity object
+            mode,
+            size,
+          }
+        }, fetchedPackage.filesIndex)
         if (opts.pkg.name && opts.pkg.version) {
           await writeFilesIndexFile(filesIndexFile, {
             pkg: opts.pkg,

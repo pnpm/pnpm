@@ -44,7 +44,7 @@ import exists from 'path-exists'
 import pDefer from 'p-defer'
 import pShare from 'promise-share'
 import isEmpty from 'ramda/src/isEmpty'
-import fromPairs from 'ramda/src/fromPairs'
+import pickBy from 'ramda/src/pickBy'
 import omit from 'ramda/src/omit'
 import zipWith from 'ramda/src/zipWith'
 import semver from 'semver'
@@ -445,19 +445,20 @@ async function resolveDependenciesOfImporters (
   }
 }
 
-function filterMissingPeersFromPkgAddresses (pkgAddresses: PkgAddress[], currentParentPkgAliases: ParentPkgAliases, resolvedPeers: ResolvedPeers) {
+function filterMissingPeersFromPkgAddresses (
+  pkgAddresses: PkgAddress[],
+  currentParentPkgAliases: ParentPkgAliases,
+  resolvedPeers: ResolvedPeers
+): PkgAddress[] {
   return pkgAddresses.map((pkgAddress) => ({
     ...pkgAddress,
-    missingPeers: fromPairs(
-      Object.entries(pkgAddress.missingPeers || {})
-        .filter(([peerName]) => {
-          if (!currentParentPkgAliases[peerName]) return true
-          if (currentParentPkgAliases[peerName] !== true) {
-            resolvedPeers[peerName] = currentParentPkgAliases[peerName] as PkgAddress
-          }
-          return false
-        })
-    ),
+    missingPeers: pickBy((peer, peerName) => {
+      if (!currentParentPkgAliases[peerName]) return true
+      if (currentParentPkgAliases[peerName] !== true) {
+        resolvedPeers[peerName] = currentParentPkgAliases[peerName] as PkgAddress
+      }
+      return false
+    }, pkgAddress.missingPeers ?? {}),
   }))
 }
 

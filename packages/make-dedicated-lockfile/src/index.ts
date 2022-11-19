@@ -10,7 +10,7 @@ import {
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import fromPairs from 'ramda/src/fromPairs'
+import pickBy from 'ramda/src/pickBy'
 import renameOverwrite from 'rename-overwrite'
 
 export async function makeDedicatedLockfile (lockfileDir: string, projectDir: string) {
@@ -77,10 +77,7 @@ function projectSnapshotWithoutLinkedDeps (projectSnapshot: ProjectSnapshot) {
   }
   for (const depField of DEPENDENCIES_FIELDS) {
     if (projectSnapshot[depField] == null) continue
-    newProjectSnapshot[depField] = fromPairs(
-      Object.entries(projectSnapshot[depField]!)
-        .filter(([depName, depVersion]) => !depVersion.startsWith('link:'))
-    )
+    newProjectSnapshot[depField] = pickBy((depVersion) => !depVersion.startsWith('link:'), projectSnapshot[depField])
   }
   return newProjectSnapshot
 }

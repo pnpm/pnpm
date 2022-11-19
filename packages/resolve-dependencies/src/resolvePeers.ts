@@ -10,7 +10,9 @@ import { depPathToFilename, createPeersFolderSuffix } from 'dependency-path'
 import { KeyValuePair } from 'ramda'
 import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
+import mapValues from 'ramda/src/map'
 import pick from 'ramda/src/pick'
+import pickBy from 'ramda/src/pickBy'
 import scan from 'ramda/src/scan'
 import {
   DependenciesTree,
@@ -24,7 +26,7 @@ export interface GenericDependenciesGraphNode {
   // at this point the version is really needed only for logging
   modules: string
   dir: string
-  children: { [alias: string]: string }
+  children: Record<string, string>
   depth: number
   peerDependencies?: Dependencies
   transitivePeerDependencies: Set<string>
@@ -93,18 +95,12 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   }
 
   Object.values(depGraph).forEach((node) => {
-    node.children = Object.keys(node.children).reduce((acc, alias) => {
-      acc[alias] = pathsByNodeId[node.children[alias]] ?? node.children[alias]
-      return acc
-    }, {})
+    node.children = mapValues((childNodeId) => pathsByNodeId[childNodeId] ?? childNodeId, node.children)
   })
 
   const dependenciesByProjectId: { [id: string]: { [alias: string]: string } } = {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
-    dependenciesByProjectId[id] = Object.keys(directNodeIdsByAlias).reduce((rootPathsByAlias, alias) => {
-      rootPathsByAlias[alias] = pathsByNodeId[directNodeIdsByAlias[alias]]
-      return rootPathsByAlias
-    }, {})
+    dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId[nodeId], directNodeIdsByAlias)
   }
   return {
     dependenciesGraph: depGraph,
@@ -376,12 +372,7 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     missingPeers.forEach((missingPeer) => allMissingPeers.add(missingPeer))
   }
 
-  const unknownResolvedPeersOfChildren = Object.keys(allResolvedPeers)
-    .filter((alias) => !children[alias])
-    .reduce((acc, peer) => {
-      acc[peer] = allResolvedPeers[peer]
-      return acc
-    }, {})
+  const unknownResolvedPeersOfChildren: Record<string, string> = pickBy((_, alias) => !children[alias], allResolvedPeers)
 
   return { resolvedPeers: unknownResolvedPeersOfChildren, missingPeers: Array.from(allMissingPeers) }
 }

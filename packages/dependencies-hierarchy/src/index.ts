@@ -141,13 +141,13 @@ async function dependenciesHierarchyForPackage (
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciedField => opts.include[dependenciedField])) {
     const topDeps = currentLockfile.importers[importerId][dependenciesField] ?? {}
     result[dependenciesField] = []
-    Object.keys(topDeps).forEach((alias) => {
+    Object.entries(topDeps).forEach(([alias, ref]) => {
       const { packageInfo, packageAbsolutePath } = getPkgInfo({
         alias,
         currentPackages: currentLockfile.packages ?? {},
         lockfileDir: opts.lockfileDir,
         modulesDir,
-        ref: topDeps[alias],
+        ref,
         registries: opts.registries,
         skipped: opts.skipped,
         wantedPackages: wantedLockfile.packages ?? {},
@@ -158,7 +158,7 @@ async function dependenciesHierarchyForPackage (
         if ((opts.search != null) && !matchedSearched) return
         newEntry = packageInfo
       } else {
-        const relativeId = refToRelative(topDeps[alias], alias)
+        const relativeId = refToRelative(ref, alias)
         if (relativeId) {
           const dependencies = getChildrenTree([relativeId], relativeId)
           if (dependencies.length > 0) {
@@ -273,14 +273,14 @@ function getTreeHelper (
 
   const peers = new Set(Object.keys(opts.currentPackages[parentId].peerDependencies ?? {}))
 
-  Object.keys(deps).forEach((alias) => {
+  Object.entries(deps).forEach(([alias, ref]) => {
     const { packageInfo, packageAbsolutePath } = getPkgInfo({
       alias,
       currentPackages: opts.currentPackages,
       lockfileDir: opts.lockfileDir,
       modulesDir: opts.modulesDir,
       peers,
-      ref: deps[alias],
+      ref,
       registries: opts.registries,
       skipped: opts.skipped,
       wantedPackages: opts.wantedPackages,
@@ -296,7 +296,7 @@ function getTreeHelper (
     } else {
       let dependencies: PackageNode[] | undefined
 
-      const relativeId = refToRelative(deps[alias], alias) as string // we know for sure that relative is not null if pkgPath is not null
+      const relativeId = refToRelative(ref, alias) as string // we know for sure that relative is not null if pkgPath is not null
       circular = keypath.includes(relativeId)
 
       if (circular) {

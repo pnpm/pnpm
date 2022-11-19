@@ -65,6 +65,7 @@ import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
 import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
+import pickBy from 'ramda/src/pickBy'
 import props from 'ramda/src/props'
 import union from 'ramda/src/union'
 import realpathMissing from 'realpath-missing'
@@ -639,12 +640,12 @@ async function linkRootPackages (
     ...projectSnapshot.optionalDependencies,
   }
   return Promise.all(
-    Object.keys(allDeps)
-      .map(async (alias) => {
-        if (allDeps[alias].startsWith('link:')) {
+    Object.entries(allDeps)
+      .map(async ([alias, ref]) => {
+        if (ref.startsWith('link:')) {
           const isDev = Boolean(projectSnapshot.devDependencies?.[alias])
           const isOptional = Boolean(projectSnapshot.optionalDependencies?.[alias])
-          const packageDir = path.join(opts.projectDir, allDeps[alias].slice(5))
+          const packageDir = path.join(opts.projectDir, ref.slice(5))
           const linkedPackage = await (async () => {
             const importerId = getLockfileImporterId(opts.lockfileDir, packageDir)
             if (importerManifestsByImporterId[importerId]) {
@@ -678,11 +679,11 @@ async function linkRootPackages (
         const isDev = Boolean(projectSnapshot.devDependencies?.[alias])
         const isOptional = Boolean(projectSnapshot.optionalDependencies?.[alias])
 
-        const depPath = dp.refToRelative(allDeps[alias], alias)
+        const depPath = dp.refToRelative(ref, alias)
         if (depPath === null) return
         const pkgSnapshot = lockfile.packages?.[depPath]
         if (pkgSnapshot == null) return // this won't ever happen. Just making typescript happy
-        const pkgId = pkgSnapshot.id ?? dp.refToAbsolute(allDeps[alias], alias, opts.registries) ?? undefined
+        const pkgId = pkgSnapshot.id ?? dp.refToAbsolute(ref, alias, opts.registries) ?? undefined
         const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         rootLogger.debug({
           added: {
@@ -769,15 +770,9 @@ async function linkAllBins (
   return Promise.all(
     Object.values(depGraph)
       .map(async (depNode) => limitLinking(async () => {
-        const childrenToLink = opts.optional
+        const childrenToLink: Record<string, string> = opts.optional
           ? depNode.children
-          : Object.keys(depNode.children)
-            .reduce((nonOptionalChildren, childAlias) => {
-              if (!depNode.optionalDependencies.has(childAlias)) {
-                nonOptionalChildren[childAlias] = depNode.children[childAlias]
-              }
-              return nonOptionalChildren
-            }, {})
+          : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
 
         const binPath = path.join(depNode.dir, 'node_modules/.bin')
         const pkgSnapshots = props<string, DependenciesGraphNode>(Object.values(childrenToLink), depGraph)
@@ -827,15 +822,9 @@ async function linkAllModules (
   await Promise.all(
     depNodes
       .map(async (depNode) => {
-        const childrenToLink = opts.optional
+        const childrenToLink: Record<string, string> = opts.optional
           ? depNode.children
-          : Object.keys(depNode.children)
-            .reduce((nonOptionalChildren, childAlias) => {
-              if (!depNode.optionalDependencies.has(childAlias)) {
-                nonOptionalChildren[childAlias] = depNode.children[childAlias]
-              }
-              return nonOptionalChildren
-            }, {})
+          : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
 
         await Promise.all(
           Object.entries(childrenToLink)
@@ -844,7 +833,7 @@ async function linkAllModules (
               if (alias === depNode.name) {
                 return
               }
-              await limitLinking(async () => symlinkDependency(pkgDir, depNode.modules, alias))
+              await limitLinking(() => symlinkDependency(pkgDir, depNode.modules, alias))
             })
         )
       })

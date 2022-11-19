@@ -10,6 +10,7 @@ import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import { createGitFetcher } from '@pnpm/git-fetcher'
 import { createTarballFetcher, TarballFetchers } from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import mapValues from 'ramda/src/map'
 
 export { ResolveFunction }
 
@@ -61,11 +62,10 @@ function createFetchers (
     ...createDirectoryFetcher({ resolveSymlinks: opts.resolveSymlinksInInjectedDirs }),
   }
 
-  const overwrites = Object.entries(customFetchers ?? {})
-    .reduce((acc, [fetcherName, factory]) => {
-      acc[fetcherName] = factory({ defaultFetchers })
-      return acc
-    }, {})
+  const overwrites = mapValues(
+    (factory: any) => factory({ defaultFetchers }), // eslint-disable-line @typescript-eslint/no-explicit-any
+    customFetchers ?? {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
+  )
 
   return {
     ...defaultFetchers,

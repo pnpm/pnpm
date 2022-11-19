@@ -208,8 +208,8 @@ export async function resolveDependencyTree<T> (
           }
         }),
       directNodeIdsByAlias: directNonLinkedDeps
-        .reduce((acc, dependency) => {
-          acc[dependency.alias] = dependency.nodeId
+        .reduce((acc, { alias, nodeId }) => {
+          acc[alias] = nodeId
           return acc
         }, {}),
       linkedDependencies,

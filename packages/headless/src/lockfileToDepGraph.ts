@@ -35,7 +35,7 @@ export interface DependenciesGraphNode {
   fetchingFiles: () => Promise<PackageFilesResponse>
   finishing: () => Promise<void>
   dir: string
-  children: { [alias: string]: string }
+  children: Record<string, string>
   optionalDependencies: Set<string>
   optional: boolean
   depPath: string // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
@@ -96,9 +96,8 @@ export async function lockfileToDepGraph (
   if (lockfile.packages != null) {
     const pkgSnapshotByLocation = {}
     await Promise.all(
-      Object.keys(lockfile.packages).map(async (depPath) => {
+      Object.entries(lockfile.packages).map(async ([depPath, pkgSnapshot]) => {
         if (opts.skipped.has(depPath)) return
-        const pkgSnapshot = lockfile.packages![depPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
@@ -194,7 +193,7 @@ export async function lockfileToDepGraph (
       storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
     }
-    for (const dir of Object.keys(graph)) {
+    for (const [dir, node] of Object.entries(graph)) {
       const pkgSnapshot = pkgSnapshotByLocation[dir]
       const allDeps = {
         ...pkgSnapshot.dependencies,
@@ -202,7 +201,7 @@ export async function lockfileToDepGraph (
       }
 
       const peerDeps = pkgSnapshot.peerDependencies ? new Set(Object.keys(pkgSnapshot.peerDependencies)) : null
-      graph[dir].children = await getChildrenPaths(ctx, allDeps, peerDeps, '.')
+      node.children = getChildrenPaths(ctx, allDeps, peerDeps, '.')
     }
     for (const importerId of opts.importerIds) {
       const projectSnapshot = lockfile.importers[importerId]
@@ -211,13 +210,13 @@ export async function lockfileToDepGraph (
         ...(opts.include.dependencies ? projectSnapshot.dependencies : {}),
         ...(opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
       }
-      directDependenciesByImporterId[importerId] = await getChildrenPaths(ctx, rootDeps, null, importerId)
+      directDependenciesByImporterId[importerId] = getChildrenPaths(ctx, rootDeps, null, importerId)
     }
   }
   return { graph, directDependenciesByImporterId }
 }
 
-async function getChildrenPaths (
+function getChildrenPaths (
   ctx: {
     graph: DependenciesGraph
     force: boolean
@@ -235,13 +234,13 @@ async function getChildrenPaths (
   importerId: string
 ) {
   const children: { [alias: string]: string } = {}
-  for (const alias of Object.keys(allDeps)) {
-    const childDepPath = dp.refToAbsolute(allDeps[alias], alias, ctx.registries)
+  for (const [alias, ref] of Object.entries(allDeps)) {
+    const childDepPath = dp.refToAbsolute(ref, alias, ctx.registries)
     if (childDepPath === null) {
-      children[alias] = path.resolve(ctx.lockfileDir, importerId, allDeps[alias].slice(5))
+      children[alias] = path.resolve(ctx.lockfileDir, importerId, ref.slice(5))
       continue
     }
-    const childRelDepPath = dp.refToRelative(allDeps[alias], alias) as string
+    const childRelDepPath = dp.refToRelative(ref, alias) as string
     const childPkgSnapshot = ctx.pkgSnapshotsByDepPaths[childRelDepPath]
     if (ctx.graph[childRelDepPath]) {
       children[alias] = ctx.graph[childRelDepPath].dir
@@ -249,8 +248,8 @@ async function getChildrenPaths (
       if (ctx.skipped.has(childRelDepPath)) continue
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       children[alias] = path.join(ctx.virtualStoreDir, dp.depPathToFilename(childRelDepPath), 'node_modules', pkgName)
-    } else if (allDeps[alias].indexOf('file:') === 0) {
-      children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].slice(5))
+    } else if (ref.indexOf('file:') === 0) {
+      children[alias] = path.resolve(ctx.lockfileDir, ref.slice(5))
     } else if (!ctx.skipped.has(childRelDepPath) && ((peerDeps == null) || !peerDeps.has(alias))) {
       throw new Error(`${childRelDepPath} not found in ${WANTED_LOCKFILE}`)
     }
