@@ -1709,36 +1709,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  packages/artifacts/linux-arm64:
-    devDependencies:
-      '@pnpm/linux-arm64':
-        specifier: workspace:*
-        version: 'link:'
-
-  packages/artifacts/linux-x64:
-    devDependencies:
-      '@pnpm/linux-x64':
-        specifier: workspace:*
-        version: 'link:'
-
-  packages/artifacts/macos-arm64:
-    devDependencies:
-      '@pnpm/macos-arm64':
-        specifier: workspace:*
-        version: 'link:'
-
-  packages/artifacts/macos-x64:
-    devDependencies:
-      '@pnpm/macos-x64':
-        specifier: workspace:*
-        version: 'link:'
-
-  packages/artifacts/win-x64:
-    devDependencies:
-      '@pnpm/win-x64':
-        specifier: workspace:*
-        version: 'link:'
-
   packages/calc-dep-state:
     dependencies:
       '@pnpm/constants':
@@ -1897,34 +1867,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: 'link:'
-
-  packages/exe:
-    optionalDependencies:
-      '@pnpm/linux-arm64':
-        specifier: workspace:*
-        version: link:../artifacts/linux-arm64
-      '@pnpm/linux-x64':
-        specifier: workspace:*
-        version: link:../artifacts/linux-x64
-      '@pnpm/macos-arm64':
-        specifier: workspace:*
-        version: link:../artifacts/macos-arm64
-      '@pnpm/macos-x64':
-        specifier: workspace:*
-        version: link:../artifacts/macos-x64
-      '@pnpm/win-x64':
-        specifier: workspace:*
-        version: link:../artifacts/win-x64
-    devDependencies:
-      '@pnpm/exe':
-        specifier: workspace:*
-        version: 'link:'
-      execa:
-        specifier: npm:safe-execa@^0.1.2
-        version: /safe-execa/0.1.2
-      pkg:
-        specifier: github:vercel/pkg#5.7.0
-        version: github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2_pp6fkuhwkrqq7cjcj7uqpf37e4
 
   packages/git-utils:
     dependencies:
@@ -2793,280 +2735,6 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../privatePackages/prepare
-
-  packages/pnpm:
-    optionalDependencies:
-      node-gyp:
-        specifier: ^9.3.0
-        version: 9.3.0
-    devDependencies:
-      '@pnpm/assert-project':
-        specifier: workspace:*
-        version: link:../../privatePackages/assert-project
-      '@pnpm/byline':
-        specifier: ^1.0.0
-        version: 1.0.0
-      '@pnpm/cli-meta':
-        specifier: workspace:*
-        version: link:../../cli/cli-meta
-      '@pnpm/cli-utils':
-        specifier: workspace:*
-        version: link:../../cli/cli-utils
-      '@pnpm/client':
-        specifier: workspace:*
-        version: link:../../pkg-manager/client
-      '@pnpm/command':
-        specifier: workspace:*
-        version: link:../../cli/command
-      '@pnpm/common-cli-options-help':
-        specifier: workspace:*
-        version: link:../../cli/common-cli-options-help
-      '@pnpm/config':
-        specifier: workspace:*
-        version: link:../../config/config
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../constants
-      '@pnpm/core-loggers':
-        specifier: workspace:*
-        version: link:../core-loggers
-      '@pnpm/default-reporter':
-        specifier: workspace:*
-        version: link:../default-reporter
-      '@pnpm/filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/filter-workspace-packages
-      '@pnpm/find-workspace-dir':
-        specifier: workspace:*
-        version: link:../../workspace/find-workspace-dir
-      '@pnpm/find-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/find-workspace-packages
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@pnpm/modules-yaml':
-        specifier: workspace:*
-        version: link:../../pkg-manager/modules-yaml
-      '@pnpm/nopt':
-        specifier: ^0.2.1
-        version: 0.2.1
-      '@pnpm/parse-cli-args':
-        specifier: workspace:*
-        version: link:../../cli/parse-cli-args
-      '@pnpm/pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../../config/pick-registry-for-package
-      '@pnpm/plugin-commands-audit':
-        specifier: workspace:*
-        version: link:../../lockfile/plugin-commands-audit
-      '@pnpm/plugin-commands-deploy':
-        specifier: workspace:*
-        version: link:../plugin-commands-deploy
-      '@pnpm/plugin-commands-doctor':
-        specifier: workspace:*
-        version: link:../plugin-commands-doctor
-      '@pnpm/plugin-commands-env':
-        specifier: workspace:*
-        version: link:../../env/plugin-commands-env
-      '@pnpm/plugin-commands-init':
-        specifier: workspace:*
-        version: link:../plugin-commands-init
-      '@pnpm/plugin-commands-installation':
-        specifier: workspace:*
-        version: link:../../pkg-manager/plugin-commands-installation
-      '@pnpm/plugin-commands-licenses':
-        specifier: workspace:*
-        version: link:../plugin-commands-licenses
-      '@pnpm/plugin-commands-listing':
-        specifier: workspace:*
-        version: link:../../reviewing/plugin-commands-listing
-      '@pnpm/plugin-commands-outdated':
-        specifier: workspace:*
-        version: link:../../reviewing/plugin-commands-outdated
-      '@pnpm/plugin-commands-patching':
-        specifier: workspace:*
-        version: link:../plugin-commands-patching
-      '@pnpm/plugin-commands-publishing':
-        specifier: workspace:*
-        version: link:../plugin-commands-publishing
-      '@pnpm/plugin-commands-rebuild':
-        specifier: workspace:*
-        version: link:../../exec/plugin-commands-rebuild
-      '@pnpm/plugin-commands-script-runners':
-        specifier: workspace:*
-        version: link:../../exec/plugin-commands-script-runners
-      '@pnpm/plugin-commands-server':
-        specifier: workspace:*
-        version: link:../plugin-commands-server
-      '@pnpm/plugin-commands-setup':
-        specifier: workspace:*
-        version: link:../plugin-commands-setup
-      '@pnpm/plugin-commands-store':
-        specifier: workspace:*
-        version: link:../../store/plugin-commands-store
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../privatePackages/prepare
-      '@pnpm/read-package-json':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-package-json
-      '@pnpm/read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
-      '@pnpm/registry-mock':
-        specifier: 3.1.0
-        version: 3.1.0_typanion@3.12.1
-      '@pnpm/run-npm':
-        specifier: workspace:*
-        version: link:../../exec/run-npm
-      '@pnpm/tabtab':
-        specifier: ^0.1.2
-        version: 0.1.2
-      '@pnpm/test-fixtures':
-        specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
-      '@pnpm/write-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/write-project-manifest
-      '@types/cross-spawn':
-        specifier: ^6.0.2
-        version: 6.0.2
-      '@types/is-ci':
-        specifier: ^3.0.0
-        version: 3.0.0
-      '@types/is-windows':
-        specifier: ^1.0.0
-        version: 1.0.0
-      '@types/pnpm__byline':
-        specifier: npm:@types/byline@^4.2.33
-        version: /@types/byline/4.2.33
-      '@types/ramda':
-        specifier: 0.28.15
-        version: 0.28.15
-      '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
-      '@types/which':
-        specifier: ^2.0.1
-        version: 2.0.1
-      '@zkochan/retry':
-        specifier: ^0.2.0
-        version: 0.2.0
-      '@zkochan/rimraf':
-        specifier: ^2.1.2
-        version: 2.1.2
-      chalk:
-        specifier: ^4.1.2
-        version: 4.1.2
-      cross-spawn:
-        specifier: ^7.0.3
-        version: 7.0.3
-      cross-var-no-babel:
-        specifier: ^1.2.0
-        version: 1.2.0
-      deep-require-cwd:
-        specifier: 1.0.0
-        version: 1.0.0
-      delay:
-        specifier: ^5.0.0
-        version: 5.0.0
-      dependency-path:
-        specifier: workspace:*
-        version: link:../dependency-path
-      dir-is-case-sensitive:
-        specifier: ^2.0.0
-        version: 2.0.0
-      esbuild:
-        specifier: ^0.15.14
-        version: 0.15.14
-      execa:
-        specifier: npm:safe-execa@^0.1.2
-        version: /safe-execa/0.1.2
-      exists-link:
-        specifier: 2.0.0
-        version: 2.0.0
-      is-ci:
-        specifier: ^3.0.1
-        version: 3.0.1
-      is-windows:
-        specifier: ^1.0.2
-        version: 1.0.2
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
-      loud-rejection:
-        specifier: ^2.2.0
-        version: 2.2.0
-      normalize-newline:
-        specifier: 3.0.0
-        version: 3.0.0
-      npm-run-all:
-        specifier: ^4.1.5
-        version: 4.1.5
-      p-any:
-        specifier: 3.0.0
-        version: 3.0.0
-      p-defer:
-        specifier: ^3.0.0
-        version: 3.0.0
-      path-exists:
-        specifier: ^4.0.0
-        version: 4.0.0
-      path-name:
-        specifier: ^1.0.0
-        version: 1.0.0
-      pkgs-graph:
-        specifier: workspace:*
-        version: link:../pkgs-graph
-      ps-list:
-        specifier: ^7.2.0
-        version: 7.2.0
-      ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
-        version: /@pnpm/ramda/0.28.1
-      read-yaml-file:
-        specifier: ^2.1.0
-        version: 2.1.0
-      render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
-      semver:
-        specifier: ^7.3.8
-        version: 7.3.8
-      split-cmd:
-        specifier: ^1.0.1
-        version: 1.0.1
-      strip-ansi:
-        specifier: ^6.0.1
-        version: 6.0.1
-      symlink-dir:
-        specifier: ^5.0.1
-        version: 5.0.1
-      tempy:
-        specifier: ^1.0.1
-        version: 1.0.1
-      tree-kill:
-        specifier: ^1.2.2
-        version: 1.2.2
-      which:
-        specifier: ^2.0.2
-        version: 2.0.2
-      write-json-file:
-        specifier: ^4.3.0
-        version: 4.3.0
-      write-pkg:
-        specifier: 4.0.0
-        version: 4.0.0
-      write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
 
   packages/real-hoist:
     dependencies:
@@ -4413,6 +4081,338 @@ importers:
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
+
+  pnpm:
+    optionalDependencies:
+      node-gyp:
+        specifier: ^9.3.0
+        version: 9.3.0
+    devDependencies:
+      '@pnpm/assert-project':
+        specifier: workspace:*
+        version: link:../privatePackages/assert-project
+      '@pnpm/byline':
+        specifier: ^1.0.0
+        version: 1.0.0
+      '@pnpm/cli-meta':
+        specifier: workspace:*
+        version: link:../cli/cli-meta
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../cli/cli-utils
+      '@pnpm/client':
+        specifier: workspace:*
+        version: link:../pkg-manager/client
+      '@pnpm/command':
+        specifier: workspace:*
+        version: link:../cli/command
+      '@pnpm/common-cli-options-help':
+        specifier: workspace:*
+        version: link:../cli/common-cli-options-help
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../config/config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../packages/constants
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../packages/core-loggers
+      '@pnpm/default-reporter':
+        specifier: workspace:*
+        version: link:../packages/default-reporter
+      '@pnpm/filter-workspace-packages':
+        specifier: workspace:*
+        version: link:../workspace/filter-workspace-packages
+      '@pnpm/find-workspace-dir':
+        specifier: workspace:*
+        version: link:../workspace/find-workspace-dir
+      '@pnpm/find-workspace-packages':
+        specifier: workspace:*
+        version: link:../workspace/find-workspace-packages
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../lockfile/lockfile-types
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/modules-yaml':
+        specifier: workspace:*
+        version: link:../pkg-manager/modules-yaml
+      '@pnpm/nopt':
+        specifier: ^0.2.1
+        version: 0.2.1
+      '@pnpm/parse-cli-args':
+        specifier: workspace:*
+        version: link:../cli/parse-cli-args
+      '@pnpm/pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../config/pick-registry-for-package
+      '@pnpm/plugin-commands-audit':
+        specifier: workspace:*
+        version: link:../lockfile/plugin-commands-audit
+      '@pnpm/plugin-commands-deploy':
+        specifier: workspace:*
+        version: link:../packages/plugin-commands-deploy
+      '@pnpm/plugin-commands-doctor':
+        specifier: workspace:*
+        version: link:../packages/plugin-commands-doctor
+      '@pnpm/plugin-commands-env':
+        specifier: workspace:*
+        version: link:../env/plugin-commands-env
+      '@pnpm/plugin-commands-init':
+        specifier: workspace:*
+        version: link:../packages/plugin-commands-init
+      '@pnpm/plugin-commands-installation':
+        specifier: workspace:*
+        version: link:../pkg-manager/plugin-commands-installation
+      '@pnpm/plugin-commands-licenses':
+        specifier: workspace:*
+        version: link:../packages/plugin-commands-licenses
+      '@pnpm/plugin-commands-listing':
+        specifier: workspace:*
+        version: link:../reviewing/plugin-commands-listing
+      '@pnpm/plugin-commands-outdated':
+        specifier: workspace:*
+        version: link:../reviewing/plugin-commands-outdated
+      '@pnpm/plugin-commands-patching':
+        specifier: workspace:*
+        version: link:../packages/plugin-commands-patching
+      '@pnpm/plugin-commands-publishing':
+        specifier: workspace:*
+        version: link:../packages/plugin-commands-publishing
+      '@pnpm/plugin-commands-rebuild':
+        specifier: workspace:*
+        version: link:../exec/plugin-commands-rebuild
+      '@pnpm/plugin-commands-script-runners':
+        specifier: workspace:*
+        version: link:../exec/plugin-commands-script-runners
+      '@pnpm/plugin-commands-server':
+        specifier: workspace:*
+        version: link:../packages/plugin-commands-server
+      '@pnpm/plugin-commands-setup':
+        specifier: workspace:*
+        version: link:../packages/plugin-commands-setup
+      '@pnpm/plugin-commands-store':
+        specifier: workspace:*
+        version: link:../store/plugin-commands-store
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../privatePackages/prepare
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../pkg-manifest/read-package-json
+      '@pnpm/read-project-manifest':
+        specifier: workspace:*
+        version: link:../pkg-manifest/read-project-manifest
+      '@pnpm/registry-mock':
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.1
+      '@pnpm/run-npm':
+        specifier: workspace:*
+        version: link:../exec/run-npm
+      '@pnpm/tabtab':
+        specifier: ^0.1.2
+        version: 0.1.2
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../privatePackages/test-fixtures
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../packages/types
+      '@pnpm/write-project-manifest':
+        specifier: workspace:*
+        version: link:../pkg-manifest/write-project-manifest
+      '@types/cross-spawn':
+        specifier: ^6.0.2
+        version: 6.0.2
+      '@types/is-ci':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@types/is-windows':
+        specifier: ^1.0.0
+        version: 1.0.0
+      '@types/pnpm__byline':
+        specifier: npm:@types/byline@^4.2.33
+        version: /@types/byline/4.2.33
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
+      '@types/semver':
+        specifier: 7.3.13
+        version: 7.3.13
+      '@types/which':
+        specifier: ^2.0.1
+        version: 2.0.1
+      '@zkochan/retry':
+        specifier: ^0.2.0
+        version: 0.2.0
+      '@zkochan/rimraf':
+        specifier: ^2.1.2
+        version: 2.1.2
+      chalk:
+        specifier: ^4.1.2
+        version: 4.1.2
+      cross-spawn:
+        specifier: ^7.0.3
+        version: 7.0.3
+      cross-var-no-babel:
+        specifier: ^1.2.0
+        version: 1.2.0
+      deep-require-cwd:
+        specifier: 1.0.0
+        version: 1.0.0
+      delay:
+        specifier: ^5.0.0
+        version: 5.0.0
+      dependency-path:
+        specifier: workspace:*
+        version: link:../packages/dependency-path
+      dir-is-case-sensitive:
+        specifier: ^2.0.0
+        version: 2.0.0
+      esbuild:
+        specifier: ^0.15.14
+        version: 0.15.14
+      execa:
+        specifier: npm:safe-execa@^0.1.2
+        version: /safe-execa/0.1.2
+      exists-link:
+        specifier: 2.0.0
+        version: 2.0.0
+      is-ci:
+        specifier: ^3.0.1
+        version: 3.0.1
+      is-windows:
+        specifier: ^1.0.2
+        version: 1.0.2
+      load-json-file:
+        specifier: ^6.2.0
+        version: 6.2.0
+      loud-rejection:
+        specifier: ^2.2.0
+        version: 2.2.0
+      normalize-newline:
+        specifier: 3.0.0
+        version: 3.0.0
+      npm-run-all:
+        specifier: ^4.1.5
+        version: 4.1.5
+      p-any:
+        specifier: 3.0.0
+        version: 3.0.0
+      p-defer:
+        specifier: ^3.0.0
+        version: 3.0.0
+      path-exists:
+        specifier: ^4.0.0
+        version: 4.0.0
+      path-name:
+        specifier: ^1.0.0
+        version: 1.0.0
+      pkgs-graph:
+        specifier: workspace:*
+        version: link:../packages/pkgs-graph
+      ps-list:
+        specifier: ^7.2.0
+        version: 7.2.0
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
+      read-yaml-file:
+        specifier: ^2.1.0
+        version: 2.1.0
+      render-help:
+        specifier: ^1.0.2
+        version: 1.0.2
+      semver:
+        specifier: ^7.3.8
+        version: 7.3.8
+      split-cmd:
+        specifier: ^1.0.1
+        version: 1.0.1
+      strip-ansi:
+        specifier: ^6.0.1
+        version: 6.0.1
+      symlink-dir:
+        specifier: ^5.0.1
+        version: 5.0.1
+      tempy:
+        specifier: ^1.0.1
+        version: 1.0.1
+      tree-kill:
+        specifier: ^1.2.2
+        version: 1.2.2
+      which:
+        specifier: ^2.0.2
+        version: 2.0.2
+      write-json-file:
+        specifier: ^4.3.0
+        version: 4.3.0
+      write-pkg:
+        specifier: 4.0.0
+        version: 4.0.0
+      write-yaml-file:
+        specifier: ^4.2.0
+        version: 4.2.0
+
+  pnpm-artifacts/exe:
+    optionalDependencies:
+      '@pnpm/linux-arm64':
+        specifier: workspace:*
+        version: link:../linux-arm64
+      '@pnpm/linux-x64':
+        specifier: workspace:*
+        version: link:../linux-x64
+      '@pnpm/macos-arm64':
+        specifier: workspace:*
+        version: link:../macos-arm64
+      '@pnpm/macos-x64':
+        specifier: workspace:*
+        version: link:../macos-x64
+      '@pnpm/win-x64':
+        specifier: workspace:*
+        version: link:../win-x64
+    devDependencies:
+      '@pnpm/exe':
+        specifier: workspace:*
+        version: 'link:'
+      execa:
+        specifier: npm:safe-execa@^0.1.2
+        version: /safe-execa/0.1.2
+      pkg:
+        specifier: github:vercel/pkg#5.7.0
+        version: github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2_pp6fkuhwkrqq7cjcj7uqpf37e4
+
+  pnpm-artifacts/linux-arm64:
+    devDependencies:
+      '@pnpm/linux-arm64':
+        specifier: workspace:*
+        version: 'link:'
+
+  pnpm-artifacts/linux-x64:
+    devDependencies:
+      '@pnpm/linux-x64':
+        specifier: workspace:*
+        version: 'link:'
+
+  pnpm-artifacts/macos-arm64:
+    devDependencies:
+      '@pnpm/macos-arm64':
+        specifier: workspace:*
+        version: 'link:'
+
+  pnpm-artifacts/macos-x64:
+    devDependencies:
+      '@pnpm/macos-x64':
+        specifier: workspace:*
+        version: 'link:'
+
+  pnpm-artifacts/win-x64:
+    devDependencies:
+      '@pnpm/win-x64':
+        specifier: workspace:*
+        version: 'link:'
 
   privatePackages/assert-project:
     dependencies:
@@ -8112,7 +8112,7 @@ packages:
     dependencies:
       debug: 4.3.4
       enquirer: 2.3.6
-      minimist: 1.2.6
+      minimist: 1.2.7
       untildify: 4.0.0
     transitivePeerDependencies:
       - supports-color

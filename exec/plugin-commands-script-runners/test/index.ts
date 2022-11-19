@@ -14,7 +14,7 @@ import isWindows from 'is-windows'
 import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
-const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
 test('pnpm run: returns correct exit code', async () => {
   prepare({

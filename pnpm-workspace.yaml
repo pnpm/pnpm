@@ -8,6 +8,8 @@ packages:
   - lockfile/*
   - network/*
   - hooks/*
+  - pnpm
+  - pnpm-artifacts/*
   - pkg-manager/*
   - pkg-manifest/*
   - resolving/*
@@ -15,7 +17,6 @@ packages:
   - store/*
   - workspace/*
   - packages/*
-  - packages/artifacts/*
   - privatePackages/*
   - typings
   - .meta-updater

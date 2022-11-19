@@ -5,7 +5,7 @@ import { preparePackages } from '@pnpm/prepare'
 import execa from 'execa'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
-const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
 test('pnpm recursive test', async () => {
   preparePackages([

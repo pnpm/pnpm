@@ -12,7 +12,7 @@ import ssri from 'ssri'
 
 const STORE_VERSION = 'v3'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
-const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
 test('remove unreferenced packages', async () => {
   const project = prepare()

@@ -13,7 +13,7 @@ const NEXT_TAG = 'next-7'
 const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => {
-  const pnpmManifest = loadJsonFile.sync(path.join(workspaceDir, 'packages/pnpm/package.json'))
+  const pnpmManifest = loadJsonFile.sync(path.join(workspaceDir, 'pnpm/package.json'))
   const pnpmVersion = pnpmManifest!['version'] // eslint-disable-line
   const pnpmMajorKeyword = `pnpm${pnpmVersion.split('.')[0]}`
   const pkgsDir = path.join(workspaceDir, 'packages')

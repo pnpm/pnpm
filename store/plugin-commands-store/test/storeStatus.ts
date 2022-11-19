@@ -8,7 +8,7 @@ import execa from 'execa'
 import tempy from 'tempy'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
-const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
 test('CLI fails when store status finds modified packages', async () => {
   const project = prepare()

@@ -19,7 +19,7 @@ const CREDENTIALS = [
   `--//localhost:${REGISTRY_MOCK_PORT}/:_password=${Buffer.from('password').toString('base64')}`,
   `--//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`,
 ]
-const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
 test('publish: package with package.json', async () => {
   prepare({

@@ -2,7 +2,7 @@ import * as execa from 'execa'
 import fs from 'fs'
 import path from 'path'
 
-const artifactsDir = path.join(__dirname, '../../artifacts')
+const artifactsDir = path.join(__dirname, '../..')
 
 function build (target: string) {
   let artifactFile = path.join(artifactsDir, target, 'pnpm')
@@ -12,7 +12,7 @@ function build (target: string) {
   try {
     fs.unlinkSync(artifactFile)
   } catch (err) {}
-  execa.sync('pkg', ['../pnpm/dist/pnpm.cjs', `--config=../pnpm/package-${target}.json`], {
+  execa.sync('pkg', ['../../pnpm/dist/pnpm.cjs', `--config=../../pnpm/package-${target}.json`], {
     cwd: path.join(__dirname, '..'),
     stdio: 'inherit',
   })
