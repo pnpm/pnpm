@@ -784,16 +784,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     (ctx.wantedLockfile.packages != null) &&
     !isEmpty(ctx.wantedLockfile.packages)
   ) {
-    ctx.wantedLockfile.packages = Object.entries(ctx.wantedLockfile.packages).reduce((pre, [depPath, snapshot]) => ({
-      ...pre,
-      [depPath]: {
-        // These fields are needed to avoid losing information of the locked dependencies if these fields are not broken
-        // If these fields are broken, they will also be regenerated
-        dependencies: snapshot.dependencies,
-        optionalDependencies: snapshot.optionalDependencies,
-        resolution: snapshot.resolution,
-      },
-    }), {})
+    ctx.wantedLockfile.packages = mapValues(({ dependencies, optionalDependencies, resolution }) => ({
+      // These fields are needed to avoid losing information of the locked dependencies if these fields are not broken
+      // If these fields are broken, they will also be regenerated
+      dependencies,
+      optionalDependencies,
+      resolution,
+    }), ctx.wantedLockfile.packages)
   }
 
   let {

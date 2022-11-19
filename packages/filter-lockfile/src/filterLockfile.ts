@@ -12,15 +12,15 @@ export function filterLockfile (
   }
 ): Lockfile {
   let pairs = Object.entries(lockfile.packages ?? {})
-    .filter(([depPath, pkg]) => !opts.skipped.has(depPath))
+    .filter(([depPath]) => !opts.skipped.has(depPath))
   if (!opts.include.dependencies) {
-    pairs = pairs.filter(([depPath, pkg]) => pkg.dev !== false || pkg.optional)
+    pairs = pairs.filter(([_, pkg]) => pkg.dev !== false || pkg.optional)
   }
   if (!opts.include.devDependencies) {
-    pairs = pairs.filter(([depPath, pkg]) => pkg.dev !== true)
+    pairs = pairs.filter(([_, pkg]) => pkg.dev !== true)
   }
   if (!opts.include.optionalDependencies) {
-    pairs = pairs.filter(([depPath, pkg]) => !pkg.optional)
+    pairs = pairs.filter(([_, pkg]) => !pkg.optional)
   }
   return {
     ...lockfile,

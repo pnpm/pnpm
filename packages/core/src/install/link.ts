@@ -464,12 +464,12 @@ async function linkAllModules (
           Object.entries(childrenToLink)
             .map(async ([childAlias, childDepPath]) => {
               if (childDepPath.startsWith('link:')) {
-                await limitLinking(async () => symlinkDependency(path.resolve(opts.lockfileDir, childDepPath.slice(5)), modules, childAlias))
+                await limitLinking(() => symlinkDependency(path.resolve(opts.lockfileDir, childDepPath.slice(5)), modules, childAlias))
                 return
               }
               const pkg = depGraph[childDepPath]
               if (!pkg || !pkg.installable && pkg.optional || childAlias === name) return
-              await limitLinking(async () => symlinkDependency(pkg.dir, modules, childAlias))
+              await limitLinking(() => symlinkDependency(pkg.dir, modules, childAlias))
             })
         )
       })

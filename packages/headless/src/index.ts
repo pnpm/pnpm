@@ -640,12 +640,12 @@ async function linkRootPackages (
     ...projectSnapshot.optionalDependencies,
   }
   return Promise.all(
-    Object.keys(allDeps)
-      .map(async (alias) => {
-        if (allDeps[alias].startsWith('link:')) {
+    Object.entries(allDeps)
+      .map(async ([alias, ref]) => {
+        if (ref.startsWith('link:')) {
           const isDev = Boolean(projectSnapshot.devDependencies?.[alias])
           const isOptional = Boolean(projectSnapshot.optionalDependencies?.[alias])
-          const packageDir = path.join(opts.projectDir, allDeps[alias].slice(5))
+          const packageDir = path.join(opts.projectDir, ref.slice(5))
           const linkedPackage = await (async () => {
             const importerId = getLockfileImporterId(opts.lockfileDir, packageDir)
             if (importerManifestsByImporterId[importerId]) {
@@ -679,11 +679,11 @@ async function linkRootPackages (
         const isDev = Boolean(projectSnapshot.devDependencies?.[alias])
         const isOptional = Boolean(projectSnapshot.optionalDependencies?.[alias])
 
-        const depPath = dp.refToRelative(allDeps[alias], alias)
+        const depPath = dp.refToRelative(ref, alias)
         if (depPath === null) return
         const pkgSnapshot = lockfile.packages?.[depPath]
         if (pkgSnapshot == null) return // this won't ever happen. Just making typescript happy
-        const pkgId = pkgSnapshot.id ?? dp.refToAbsolute(allDeps[alias], alias, opts.registries) ?? undefined
+        const pkgId = pkgSnapshot.id ?? dp.refToAbsolute(ref, alias, opts.registries) ?? undefined
         const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         rootLogger.debug({
           added: {
@@ -833,7 +833,7 @@ async function linkAllModules (
               if (alias === depNode.name) {
                 return
               }
-              await limitLinking(async () => symlinkDependency(pkgDir, depNode.modules, alias))
+              await limitLinking(() => symlinkDependency(pkgDir, depNode.modules, alias))
             })
         )
       })
