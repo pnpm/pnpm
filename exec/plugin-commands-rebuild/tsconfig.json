@@ -1,0 +1,76 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/normalize-registries"
+    },
+    {
+      "path": "../../lockfile/lockfile-utils"
+    },
+    {
+      "path": "../../lockfile/lockfile-walker"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/core-loggers"
+    },
+    {
+      "path": "../../packages/dependency-path"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manager/get-context"
+    },
+    {
+      "path": "../../pkg-manager/link-bins"
+    },
+    {
+      "path": "../../pkg-manager/modules-yaml"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
+      "path": "../../store/store-connection-manager"
+    },
+    {
+      "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../workspace/filter-workspace-packages"
+    },
+    {
+      "path": "../../workspace/find-workspace-packages"
+    },
+    {
+      "path": "../../workspace/sort-packages"
+    },
+    {
+      "path": "../lifecycle"
+    }
+  ]
+}

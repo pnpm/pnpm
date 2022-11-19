@@ -1,0 +1,60 @@
+{
+  "name": "@pnpm/cafs",
+  "version": "5.0.2",
+  "description": "A content-addressable filesystem for the packages storage",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "_test": "jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "compile": "tsc --build && pnpm run lint --fix",
+    "prepublishOnly": "pnpm run compile"
+  },
+  "keywords": [
+    "pnpm7"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
+    "@zkochan/rimraf": "^2.1.2",
+    "concat-stream": "^2.0.0",
+    "decompress-maybe": "^1.0.0",
+    "get-stream": "^6.0.1",
+    "p-limit": "^3.1.0",
+    "path-temp": "^2.0.0",
+    "rename-overwrite": "^4.0.3",
+    "ssri": "^9.0.1",
+    "strip-bom": "^4.0.0",
+    "tar-stream": "^2.2.0"
+  },
+  "devDependencies": {
+    "@pnpm/cafs": "workspace:*",
+    "@pnpm/cafs-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@types/concat-stream": "^2.0.0",
+    "@types/node": "^14.18.33",
+    "@types/ssri": "^7.1.1",
+    "@types/tar-stream": "^2.2.2",
+    "p-defer": "^3.0.0",
+    "tempy": "^1.0.1"
+  },
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "engines": {
+    "node": ">=14.6"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/store/cafs#readme",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/store/cafs",
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

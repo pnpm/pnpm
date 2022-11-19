@@ -1,0 +1,7 @@
+{
+  "pkg": {
+    "assets": ["dist/pnpmrc", "dist/scripts/*"],
+    "targets": ["node14-linux-x64"],
+    "outputPath": "../linux-x64"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../exec/prepare-package"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/create-cafs-store"
+    },
+    {
+      "path": "../fetcher-base"
+    }
+  ]
+}

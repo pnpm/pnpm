@@ -1,0 +1,53 @@
+{
+  "name": "@pnpm/cli-utils",
+  "version": "1.0.8",
+  "description": "Utils for pnpm commands",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=14.6"
+  },
+  "scripts": {
+    "lint": "eslint src/**/*.ts",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix",
+    "test": "pnpm run compile"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/cli/cli-utils",
+  "keywords": [
+    "pnpm7",
+    "pnpm"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/cli-utils#readme",
+  "devDependencies": {
+    "@pnpm/cli-utils": "workspace:*",
+    "@types/ramda": "0.28.15"
+  },
+  "dependencies": {
+    "@pnpm/cli-meta": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/default-reporter": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/manifest-utils": "workspace:*",
+    "@pnpm/package-is-installable": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "chalk": "^4.1.2",
+    "load-json-file": "^6.2.0"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

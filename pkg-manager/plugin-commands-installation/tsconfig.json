@@ -1,0 +1,97 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../cli/command"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/matcher"
+    },
+    {
+      "path": "../../exec/plugin-commands-rebuild"
+    },
+    {
+      "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../hooks/pnpmfile"
+    },
+    {
+      "path": "../../lockfile/lockfile-types"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/parse-wanted-dependency"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manifest/manifest-utils"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../privatePackages/assert-project"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../reviewing/outdated"
+    },
+    {
+      "path": "../../store/package-store"
+    },
+    {
+      "path": "../../store/store-connection-manager"
+    },
+    {
+      "path": "../../workspace/filter-workspace-packages"
+    },
+    {
+      "path": "../../workspace/find-workspace-dir"
+    },
+    {
+      "path": "../../workspace/find-workspace-packages"
+    },
+    {
+      "path": "../../workspace/sort-packages"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../modules-yaml"
+    }
+  ]
+}

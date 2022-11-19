@@ -1,0 +1,43 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../exec/prepare-package"
+    },
+    {
+      "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../network/fetch"
+    },
+    {
+      "path": "../../network/fetching-types"
+    },
+    {
+      "path": "../../packages/core-loggers"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
+      "path": "../../store/cafs-types"
+    },
+    {
+      "path": "../../store/create-cafs-store"
+    },
+    {
+      "path": "../fetcher-base"
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "name": "@pnpm/package-store",
+  "description": "A storage for packages",
+  "version": "15.0.2",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
+  "dependencies": {
+    "@pnpm/cafs": "workspace:*",
+    "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/package-requester": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@zkochan/rimraf": "^2.1.2",
+    "load-json-file": "^6.2.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
+    "ssri": "^9.0.1",
+    "write-json-file": "^4.3.0"
+  },
+  "devDependencies": {
+    "@pnpm/client": "workspace:*",
+    "@pnpm/package-store": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@types/ramda": "0.28.15",
+    "@types/ssri": "^7.1.1",
+    "tempy": "^1.0.1"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/store/package-store#readme",
+  "keywords": [
+    "pnpm7",
+    "store",
+    "storage",
+    "global store",
+    "maching store",
+    "central storage",
+    "cache",
+    "packages"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.6"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/store/package-store",
+  "scripts": {
+    "start": "tsc --watch",
+    "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "pretest": "rimraf .tmp",
+    "_test": "pnpm pretest && jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

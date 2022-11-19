@@ -1,0 +1,53 @@
+{
+  "name": "@pnpm/store-connection-manager",
+  "version": "5.1.1",
+  "description": "Create a direct pnpm store controller or connect to a running store server",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=14.6"
+  },
+  "scripts": {
+    "lint": "eslint src/**/*.ts",
+    "pretest": "rimraf node_modules/.bin/pnpm",
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/store/store-connection-manager",
+  "keywords": [
+    "pnpm7",
+    "pnpm"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/store/store-connection-manager#readme",
+  "devDependencies": {
+    "@pnpm/store-connection-manager": "workspace:*"
+  },
+  "dependencies": {
+    "@pnpm/cli-meta": "workspace:*",
+    "@pnpm/client": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/package-store": "workspace:*",
+    "@pnpm/server": "workspace:*",
+    "@pnpm/store-path": "workspace:*",
+    "@zkochan/diable": "^1.0.2",
+    "delay": "^5.0.0",
+    "dir-is-case-sensitive": "^2.0.0"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

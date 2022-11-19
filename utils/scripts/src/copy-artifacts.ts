@@ -5,12 +5,12 @@ import makeEmptyDir from 'make-empty-dir'
 
 const repoRoot = path.join(__dirname, '../../..')
 const dest = path.join(repoRoot, 'dist')
-const artifactsDir = path.join(repoRoot, 'packages/artifacts')
+const artifactsDir = path.join(repoRoot, 'pnpm/artifacts')
 
 ;(async () => { // eslint-disable-line
   await makeEmptyDir(dest)
   if (!fs.existsSync(path.join(artifactsDir, 'linux-x64/pnpm'))) {
-    execa.sync('pnpm', ['run', 'prepublishOnly', '--filter', '@pnpm/exe'], {
+    execa.sync('pnpm', ['--filter=@pnpm/exe', 'run', 'prepublishOnly'], {
       cwd: repoRoot,
       stdio: 'inherit',
     })

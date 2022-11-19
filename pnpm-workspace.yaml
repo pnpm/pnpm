@@ -1,6 +1,23 @@
 packages:
+  - cli/*
+  - config/*
+  - env/*
+  - exec/*
+  - fetching/*
+  - fs/*
+  - lockfile/*
+  - network/*
+  - hooks/*
+  - pnpm
+  - pnpm/artifacts/*
+  - pkg-manager/*
+  - pkg-manifest/*
+  - resolving/*
+  - releasing/*
+  - reviewing/*
+  - store/*
+  - workspace/*
   - packages/*
-  - packages/artifacts/*
   - privatePackages/*
   - typings
   - .meta-updater

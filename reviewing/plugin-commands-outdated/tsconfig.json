@@ -1,0 +1,64 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../cli/command"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/matcher"
+    },
+    {
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manager/modules-yaml"
+    },
+    {
+      "path": "../../pkg-manager/plugin-commands-installation"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
+      "path": "../../resolving/default-resolver"
+    },
+    {
+      "path": "../../store/store-path"
+    },
+    {
+      "path": "../../workspace/filter-workspace-packages"
+    },
+    {
+      "path": "../outdated"
+    }
+  ]
+}

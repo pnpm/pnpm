@@ -10,22 +10,22 @@
   ],
   "references": [
     {
-      "path": "../cafs"
+      "path": "../../config/config"
     },
     {
-      "path": "../config"
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
+      "path": "../../lockfile/lockfile-utils"
+    },
+    {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/store-path"
     },
     {
       "path": "../dependency-path"
-    },
-    {
-      "path": "../lockfile-file"
-    },
-    {
-      "path": "../lockfile-utils"
-    },
-    {
-      "path": "../store-path"
     },
     {
       "path": "../types"

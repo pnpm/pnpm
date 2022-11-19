@@ -1,0 +1,37 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../fs/read-modules-dir"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manifest/manifest-utils"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
+      "path": "../package-bins"
+    }
+  ]
+}

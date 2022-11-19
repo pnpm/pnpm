@@ -1,0 +1,64 @@
+{
+  "name": "@pnpm/outdated",
+  "version": "11.0.4",
+  "description": "Check for outdated packages",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "engines": {
+    "node": ">=14.6"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "test": "pnpm run compile && pnpm run _test",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "prepublishOnly": "pnpm run compile",
+    "registry-mock": "registry-mock",
+    "test:jest": "jest",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7779 pnpm run test:e2e",
+    "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/outdated",
+  "keywords": [
+    "pnpm7",
+    "pnpm",
+    "outdated"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/outdated#readme",
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
+  "dependencies": {
+    "@pnpm/client": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/manifest-utils": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
+    "@pnpm/modules-yaml": "workspace:*",
+    "@pnpm/npm-resolver": "workspace:*",
+    "@pnpm/pick-registry-for-package": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "dependency-path": "workspace:*",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
+    "semver": "^7.3.8"
+  },
+  "devDependencies": {
+    "@pnpm/outdated": "workspace:*",
+    "@types/ramda": "0.28.15",
+    "@types/semver": "7.3.13",
+    "npm-run-all": "^4.1.5"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

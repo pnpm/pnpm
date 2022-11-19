@@ -10,22 +10,22 @@
   ],
   "references": [
     {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../pkg-manifest/write-project-manifest"
+    },
+    {
       "path": "../../privatePackages/prepare"
     },
     {
       "path": "../../privatePackages/test-fixtures"
     },
     {
-      "path": "../cli-utils"
-    },
-    {
-      "path": "../config"
-    },
-    {
       "path": "../error"
-    },
-    {
-      "path": "../write-project-manifest"
     }
   ]
 }

@@ -1,0 +1,40 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../network/fetch"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../pkg-manager/remove-bins"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    },
+    {
+      "path": "../../store/store-path"
+    },
+    {
+      "path": "../node.fetcher"
+    },
+    {
+      "path": "../node.resolver"
+    }
+  ]
+}

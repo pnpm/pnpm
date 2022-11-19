@@ -1,0 +1,142 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "outDir": "lib",
+    "sourceMap": false,
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../cli/cli-meta"
+    },
+    {
+      "path": "../cli/cli-utils"
+    },
+    {
+      "path": "../cli/command"
+    },
+    {
+      "path": "../cli/common-cli-options-help"
+    },
+    {
+      "path": "../cli/default-reporter"
+    },
+    {
+      "path": "../cli/parse-cli-args"
+    },
+    {
+      "path": "../config/config"
+    },
+    {
+      "path": "../config/pick-registry-for-package"
+    },
+    {
+      "path": "../env/plugin-commands-env"
+    },
+    {
+      "path": "../exec/plugin-commands-rebuild"
+    },
+    {
+      "path": "../exec/plugin-commands-script-runners"
+    },
+    {
+      "path": "../exec/run-npm"
+    },
+    {
+      "path": "../lockfile/lockfile-types"
+    },
+    {
+      "path": "../lockfile/plugin-commands-audit"
+    },
+    {
+      "path": "../packages/constants"
+    },
+    {
+      "path": "../packages/core-loggers"
+    },
+    {
+      "path": "../packages/dependency-path"
+    },
+    {
+      "path": "../packages/plugin-commands-doctor"
+    },
+    {
+      "path": "../packages/plugin-commands-init"
+    },
+    {
+      "path": "../packages/plugin-commands-patching"
+    },
+    {
+      "path": "../packages/plugin-commands-setup"
+    },
+    {
+      "path": "../packages/types"
+    },
+    {
+      "path": "../pkg-manager/client"
+    },
+    {
+      "path": "../pkg-manager/modules-yaml"
+    },
+    {
+      "path": "../pkg-manager/plugin-commands-installation"
+    },
+    {
+      "path": "../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../pkg-manifest/write-project-manifest"
+    },
+    {
+      "path": "../privatePackages/assert-project"
+    },
+    {
+      "path": "../privatePackages/prepare"
+    },
+    {
+      "path": "../privatePackages/test-fixtures"
+    },
+    {
+      "path": "../releasing/plugin-commands-deploy"
+    },
+    {
+      "path": "../releasing/plugin-commands-publishing"
+    },
+    {
+      "path": "../reviewing/plugin-commands-licenses"
+    },
+    {
+      "path": "../reviewing/plugin-commands-listing"
+    },
+    {
+      "path": "../reviewing/plugin-commands-outdated"
+    },
+    {
+      "path": "../store/plugin-commands-server"
+    },
+    {
+      "path": "../store/plugin-commands-store"
+    },
+    {
+      "path": "../workspace/filter-workspace-packages"
+    },
+    {
+      "path": "../workspace/find-workspace-dir"
+    },
+    {
+      "path": "../workspace/find-workspace-packages"
+    },
+    {
+      "path": "../workspace/pkgs-graph"
+    }
+  ]
+}

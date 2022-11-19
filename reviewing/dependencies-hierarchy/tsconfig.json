@@ -1,0 +1,43 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../config/normalize-registries"
+    },
+    {
+      "path": "../../fs/read-modules-dir"
+    },
+    {
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
+      "path": "../../lockfile/lockfile-utils"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/dependency-path"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manager/modules-yaml"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    }
+  ]
+}

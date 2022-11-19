@@ -6,7 +6,7 @@
     "changeset": "changeset",
     "preinstall": "npx only-allow pnpm",
     "prepare": "husky install",
-    "pretest": "pnpm run compile-only && pnpm --dir=fixtures run prepareFixtures",
+    "pretest": "pnpm run compile-only && pnpm --dir=__fixtures__ run prepareFixtures",
     "lint": "pnpm lint:meta && syncpack list-mismatches --workspace false && pnpm run lint:ts",
     "lint:ts": "eslint **/src/**/*.ts **/test/**/*.ts",
     "test-main": "pnpm pretest && pnpm lint --quiet && run-p -r verdaccio test-pkgs-main",

@@ -1,0 +1,47 @@
+{
+  "name": "@pnpm/lockfile-walker",
+  "version": "6.0.2",
+  "description": "Walk over all the dependencies in a lockfile",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "engines": {
+    "node": ">=14.6"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint src/**/*.ts",
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/lockfile-walker",
+  "keywords": [
+    "pnpm7",
+    "pnpm",
+    "shrinkwrap",
+    "lockfile"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/lockfile-walker#readme",
+  "devDependencies": {
+    "@pnpm/lockfile-walker": "workspace:*",
+    "@types/ramda": "0.28.15",
+    "tempy": "^1.0.1"
+  },
+  "dependencies": {
+    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "dependency-path": "workspace:*",
+    "ramda": "npm:@pnpm/ramda@0.28.1"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

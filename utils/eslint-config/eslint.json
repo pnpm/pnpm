@@ -10,7 +10,7 @@
       "error",
       {
         "devDependencies": [
-          "**/packages/pnpm/**",
+          "**/pnpm/**",
           "**/test/**"
         ]
       }

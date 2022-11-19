@@ -10,34 +10,34 @@
   ],
   "references": [
     {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../pkg-manager/plugin-commands-installation"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../cli-utils"
-    },
-    {
-      "path": "../config"
+      "path": "../../store/store-connection-manager"
     },
     {
       "path": "../error"
     },
     {
       "path": "../parse-wanted-dependency"
-    },
-    {
-      "path": "../pick-registry-for-package"
-    },
-    {
-      "path": "../plugin-commands-installation"
-    },
-    {
-      "path": "../read-package-json"
-    },
-    {
-      "path": "../read-project-manifest"
-    },
-    {
-      "path": "../store-connection-manager"
     }
   ]
 }

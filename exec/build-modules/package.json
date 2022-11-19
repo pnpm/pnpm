@@ -1,0 +1,58 @@
+{
+  "name": "@pnpm/build-modules",
+  "version": "10.0.4",
+  "description": "Build packages in node_modules",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=14.6"
+  },
+  "scripts": {
+    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix",
+    "_test": "jest"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/exec/build-modules",
+  "keywords": [
+    "pnpm7",
+    "pnpm",
+    "resolver",
+    "npm"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/build-modules#readme",
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
+  "dependencies": {
+    "@pnpm/calc-dep-state": "workspace:*",
+    "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/graph-sequencer": "1.0.0",
+    "@pnpm/lifecycle": "workspace:*",
+    "@pnpm/link-bins": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "patch-package": "^6.5.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
+    "run-groups": "^3.0.1"
+  },
+  "devDependencies": {
+    "@pnpm/build-modules": "workspace:*",
+    "@types/ramda": "0.28.15"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "name": "@pnpm/plugin-commands-listing",
+  "version": "6.0.8",
+  "description": "The list and why commands of pnpm",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=14.6"
+  },
+  "scripts": {
+    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "registry-mock": "registry-mock",
+    "test:jest": "jest",
+    "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7780 pnpm run test:e2e",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-listing",
+  "keywords": [
+    "pnpm7",
+    "pnpm"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-listing#readme",
+  "devDependencies": {
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/filter-workspace-packages": "workspace:*",
+    "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/plugin-commands-listing": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "3.1.0",
+    "@types/ramda": "0.28.15",
+    "execa": "npm:safe-execa@^0.1.2",
+    "strip-ansi": "^6.0.1",
+    "write-yaml-file": "^4.2.0"
+  },
+  "dependencies": {
+    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/common-cli-options-help": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/list": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
+    "render-help": "^1.0.2"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

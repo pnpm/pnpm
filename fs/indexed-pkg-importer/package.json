@@ -1,0 +1,65 @@
+{
+  "name": "@pnpm/fs.indexed-pkg-importer",
+  "description": "Replicates indexed directories using hard links, copies, or cloning",
+  "version": "2.0.2",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
+  "dependencies": {
+    "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
+    "@zkochan/rimraf": "^2.1.2",
+    "make-empty-dir": "^2.0.0",
+    "p-limit": "^3.1.0",
+    "path-exists": "^4.0.0",
+    "path-temp": "^2.0.0",
+    "rename-overwrite": "^4.0.3",
+    "sanitize-filename": "^1.6.3"
+  },
+  "devDependencies": {
+    "@pnpm/fs.indexed-pkg-importer": "workspace:*",
+    "@pnpm/prepare": "workspace:*"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/indexed-pkg-importer#readme",
+  "keywords": [
+    "pnpm7",
+    "store",
+    "storage",
+    "global store",
+    "maching store",
+    "central storage",
+    "cache",
+    "packages"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.6"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/fs/indexed-pkg-importer",
+  "scripts": {
+    "start": "tsc --watch",
+    "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "pretest": "rimraf .tmp",
+    "_test": "pnpm pretest && jest",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

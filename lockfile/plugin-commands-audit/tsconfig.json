@@ -1,0 +1,43 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../network/auth-header"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
+      "path": "../audit"
+    },
+    {
+      "path": "../lockfile-file"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "name": "@pnpm/fetching-types",
+  "version": "4.0.0",
+  "description": "Types for fetching",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "engines": {
+    "node": ">=14.6"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "repository": "https://github.com/pnpm/pnpm/blob/main/network/fetching-types",
+  "keywords": [
+    "pnpm7",
+    "pnpm",
+    "types"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/network/fetching-types#readme",
+  "scripts": {
+    "compile": "tsc --build && pnpm run lint --fix",
+    "lint": "eslint src/**/*.ts",
+    "prepublishOnly": "pnpm run compile",
+    "test": "pnpm run compile"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "dependencies": {
+    "@zkochan/retry": "^0.2.0",
+    "node-fetch": "3.0.0-beta.9"
+  },
+  "devDependencies": {
+    "@pnpm/fetching-types": "workspace:*"
+  },
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

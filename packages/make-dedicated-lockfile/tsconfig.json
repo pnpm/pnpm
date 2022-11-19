@@ -10,25 +10,25 @@
   ],
   "references": [
     {
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
+      "path": "../../lockfile/prune-lockfile"
+    },
+    {
+      "path": "../../pkg-manifest/exportable-manifest"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
       "path": "../../privatePackages/test-fixtures"
     },
     {
+      "path": "../../workspace/find-workspace-dir"
+    },
+    {
       "path": "../error"
-    },
-    {
-      "path": "../exportable-manifest"
-    },
-    {
-      "path": "../find-workspace-dir"
-    },
-    {
-      "path": "../lockfile-file"
-    },
-    {
-      "path": "../prune-lockfile"
-    },
-    {
-      "path": "../read-project-manifest"
     },
     {
       "path": "../types"

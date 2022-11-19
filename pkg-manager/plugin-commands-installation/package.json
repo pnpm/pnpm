@@ -1,0 +1,113 @@
+{
+  "name": "@pnpm/plugin-commands-installation",
+  "version": "11.0.8",
+  "description": "Commands for installation",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=14.6"
+  },
+  "scripts": {
+    "start": "tsc --watch",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "registry-mock": "registry-mock",
+    "test:jest": "jest",
+    "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7775 pnpm run test:e2e",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/plugin-commands-installation",
+  "keywords": [
+    "pnpm7",
+    "pnpm"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/plugin-commands-installation#readme",
+  "devDependencies": {
+    "@pnpm/assert-project": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/modules-yaml": "workspace:*",
+    "@pnpm/plugin-commands-installation": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "3.1.0",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@types/is-ci": "^3.0.0",
+    "@types/proxyquire": "^1.3.28",
+    "@types/ramda": "0.28.15",
+    "@types/sinon": "^10.0.13",
+    "@types/yarnpkg__lockfile": "^1.1.5",
+    "@types/zkochan__table": "npm:@types/table@6.0.0",
+    "delay": "^5.0.0",
+    "path-name": "^1.0.0",
+    "proxyquire": "^2.1.3",
+    "read-yaml-file": "^2.1.0",
+    "sinon": "^14.0.2",
+    "symlink-dir": "^5.0.1",
+    "tempy": "^1.0.1",
+    "write-json-file": "^4.3.0",
+    "write-pkg": "4.0.0",
+    "write-yaml-file": "^4.2.0"
+  },
+  "dependencies": {
+    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/colorize-semver-diff": "^1.0.1",
+    "@pnpm/command": "workspace:*",
+    "@pnpm/common-cli-options-help": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/core": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/filter-workspace-packages": "workspace:*",
+    "@pnpm/find-workspace-dir": "workspace:*",
+    "@pnpm/find-workspace-packages": "workspace:*",
+    "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/manifest-utils": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
+    "@pnpm/outdated": "workspace:*",
+    "@pnpm/package-store": "workspace:*",
+    "@pnpm/parse-wanted-dependency": "workspace:*",
+    "@pnpm/plugin-commands-rebuild": "workspace:*",
+    "@pnpm/pnpmfile": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/semver-diff": "^1.1.0",
+    "@pnpm/sort-packages": "workspace:*",
+    "@pnpm/store-connection-manager": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@yarnpkg/core": "4.0.0-rc.27",
+    "@yarnpkg/lockfile": "^1.1.0",
+    "@yarnpkg/parsers": "3.0.0-rc.27",
+    "@zkochan/rimraf": "^2.1.2",
+    "@zkochan/table": "^1.0.0",
+    "@zkochan/which": "^2.0.3",
+    "chalk": "^4.1.2",
+    "enquirer": "^2.3.6",
+    "is-ci": "^3.0.1",
+    "is-subdir": "^1.2.0",
+    "load-json-file": "^6.2.0",
+    "mem": "^8.1.1",
+    "p-filter": "^2.1.0",
+    "p-limit": "^3.1.0",
+    "path-absolute": "^1.0.1",
+    "path-exists": "^4.0.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
+    "render-help": "^1.0.2",
+    "version-selector-type": "^3.0.0"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

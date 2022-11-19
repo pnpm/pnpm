@@ -1,7 +1,0 @@
-{
-  "pkg": {
-    "assets": ["dist/pnpmrc", "dist/scripts/*"],
-    "targets": ["node14-macos-x64"],
-    "outputPath": "../artifacts/macos-x64"
-  }
-}

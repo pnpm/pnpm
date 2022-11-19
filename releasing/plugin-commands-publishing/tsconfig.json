@@ -1,0 +1,61 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../config/config"
+    },
+    {
+      "path": "../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../exec/lifecycle"
+    },
+    {
+      "path": "../../exec/run-npm"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/git-utils"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manager/client"
+    },
+    {
+      "path": "../../pkg-manager/package-bins"
+    },
+    {
+      "path": "../../pkg-manifest/exportable-manifest"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    },
+    {
+      "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../workspace/filter-workspace-packages"
+    },
+    {
+      "path": "../../workspace/sort-packages"
+    }
+  ]
+}

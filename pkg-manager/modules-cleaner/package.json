@@ -1,0 +1,54 @@
+{
+  "name": "@pnpm/modules-cleaner",
+  "version": "13.0.3",
+  "description": "Exports util functions to clean up node_modules",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
+  "keywords": [
+    "pnpm7"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.6"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/modules-cleaner",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/modules-cleaner#readme",
+  "scripts": {
+    "start": "tsc --watch",
+    "test": "pnpm run compile",
+    "lint": "eslint src/**/*.ts",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/filter-lockfile": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/read-modules-dir": "workspace:*",
+    "@pnpm/remove-bins": "workspace:*",
+    "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@zkochan/rimraf": "^2.1.2",
+    "dependency-path": "workspace:*",
+    "ramda": "npm:@pnpm/ramda@0.28.1"
+  },
+  "devDependencies": {
+    "@pnpm/modules-cleaner": "workspace:*",
+    "@types/ramda": "0.28.15"
+  },
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

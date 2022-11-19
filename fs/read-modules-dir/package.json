@@ -1,0 +1,41 @@
+{
+  "name": "@pnpm/read-modules-dir",
+  "version": "5.0.0",
+  "description": "Finds all direct packages in node_modules",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "keywords": [
+    "pnpm7"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.6"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/fs/read-modules-dir",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/read-modules-dir#readme",
+  "scripts": {
+    "start": "tsc --watch",
+    "test": "pnpm run compile",
+    "lint": "eslint src/**/*.ts",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "dependencies": {
+    "graceful-fs": "^4.2.10"
+  },
+  "devDependencies": {
+    "@pnpm/read-modules-dir": "workspace:*",
+    "@types/graceful-fs": "^4.1.5"
+  },
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

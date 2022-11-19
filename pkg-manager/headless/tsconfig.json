@@ -1,0 +1,106 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../config/package-is-installable"
+    },
+    {
+      "path": "../../exec/build-modules"
+    },
+    {
+      "path": "../../exec/lifecycle"
+    },
+    {
+      "path": "../../fs/symlink-dependency"
+    },
+    {
+      "path": "../../lockfile/filter-lockfile"
+    },
+    {
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
+      "path": "../../lockfile/lockfile-to-pnp"
+    },
+    {
+      "path": "../../lockfile/lockfile-utils"
+    },
+    {
+      "path": "../../packages/calc-dep-state"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/core-loggers"
+    },
+    {
+      "path": "../../packages/dependency-path"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../privatePackages/assert-project"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/package-store"
+    },
+    {
+      "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../store/store-path"
+    },
+    {
+      "path": "../client"
+    },
+    {
+      "path": "../hoist"
+    },
+    {
+      "path": "../link-bins"
+    },
+    {
+      "path": "../modules-cleaner"
+    },
+    {
+      "path": "../modules-yaml"
+    },
+    {
+      "path": "../package-requester"
+    },
+    {
+      "path": "../read-projects-context"
+    },
+    {
+      "path": "../real-hoist"
+    }
+  ]
+}
