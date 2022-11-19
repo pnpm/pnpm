@@ -13,7 +13,7 @@
       "path": "../../fetching/fetcher-base"
     },
     {
-      "path": "../../packages/fs.indexed-pkg-importer"
+      "path": "../../fs/indexed-pkg-importer"
     },
     {
       "path": "../../privatePackages/prepare"

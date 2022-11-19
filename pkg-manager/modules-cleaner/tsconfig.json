@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../fs/read-modules-dir"
+    },
+    {
       "path": "../../lockfile/filter-lockfile"
     },
     {
@@ -23,9 +26,6 @@
     },
     {
       "path": "../../packages/dependency-path"
-    },
-    {
-      "path": "../../packages/read-modules-dir"
     },
     {
       "path": "../../packages/types"

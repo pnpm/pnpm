@@ -10,13 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../privatePackages/prepare"
+      "path": "../../packages/types"
     },
     {
-      "path": "../core-loggers"
-    },
-    {
-      "path": "../types"
+      "path": "../../pkg-manifest/read-project-manifest"
     }
   ]
 }

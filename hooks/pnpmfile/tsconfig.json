@@ -16,19 +16,19 @@
       "path": "../../lockfile/lockfile-types"
     },
     {
+      "path": "../../packages/core-loggers"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../pkg-manager/core"
     },
     {
       "path": "../../store/store-controller-types"
-    },
-    {
-      "path": "../core-loggers"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../types"
     }
   ]
 }

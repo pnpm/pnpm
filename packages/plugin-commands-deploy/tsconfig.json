@@ -16,6 +16,9 @@
       "path": "../../fetching/directory-fetcher"
     },
     {
+      "path": "../../fs/indexed-pkg-importer"
+    },
+    {
       "path": "../../lockfile/lockfile-types"
     },
     {
@@ -32,9 +35,6 @@
     },
     {
       "path": "../error"
-    },
-    {
-      "path": "../fs.indexed-pkg-importer"
     },
     {
       "path": "../types"

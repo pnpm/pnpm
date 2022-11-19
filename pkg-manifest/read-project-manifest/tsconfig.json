@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../packages/error"
+      "path": "../../fs/graceful-fs"
     },
     {
-      "path": "../../packages/graceful-fs"
+      "path": "../../packages/error"
     },
     {
       "path": "../../packages/types"

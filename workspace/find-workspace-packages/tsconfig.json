@@ -13,10 +13,10 @@
       "path": "../../cli/cli-utils"
     },
     {
-      "path": "../../packages/constants"
+      "path": "../../fs/find-packages"
     },
     {
-      "path": "../../packages/find-packages"
+      "path": "../../packages/constants"
     },
     {
       "path": "../../packages/types"

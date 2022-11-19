@@ -13,7 +13,7 @@
       "path": "../../fetching/fetcher-base"
     },
     {
-      "path": "../../packages/graceful-fs"
+      "path": "../../fs/graceful-fs"
     },
     {
       "path": "../../packages/types"

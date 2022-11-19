@@ -4,8 +4,10 @@ packages:
   - env/*
   - exec/*
   - fetching/*
+  - fs/*
   - lockfile/*
   - network/*
+  - hooks/*
   - pkg-manager/*
   - pkg-manifest/*
   - resolving/*

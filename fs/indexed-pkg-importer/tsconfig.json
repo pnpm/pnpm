@@ -10,16 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../config/parse-overrides"
+      "path": "../../packages/core-loggers"
     },
     {
-      "path": "../matcher"
+      "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../parse-wanted-dependency"
-    },
-    {
-      "path": "../types"
+      "path": "../../store/store-controller-types"
     }
   ]
 }

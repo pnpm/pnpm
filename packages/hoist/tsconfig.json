@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../config/matcher"
+    },
+    {
+      "path": "../../fs/symlink-dependency"
+    },
+    {
       "path": "../../lockfile/lockfile-types"
     },
     {
@@ -26,12 +32,6 @@
     },
     {
       "path": "../link-bins"
-    },
-    {
-      "path": "../matcher"
-    },
-    {
-      "path": "../symlink-dependency"
     },
     {
       "path": "../types"

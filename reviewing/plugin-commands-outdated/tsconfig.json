@@ -22,6 +22,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/matcher"
+    },
+    {
       "path": "../../lockfile/lockfile-file"
     },
     {
@@ -29,9 +32,6 @@
     },
     {
       "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/matcher"
     },
     {
       "path": "../../packages/types"

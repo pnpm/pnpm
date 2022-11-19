@@ -11,7 +11,7 @@ import sinon from 'sinon'
 import { DEFAULT_OPTS } from './utils'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
-const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.cjs')
+const pnpmBin = path.join(__dirname, '../../../packages/pnpm/bin/pnpm.cjs')
 const f = fixtures(__dirname)
 
 test('rebuilds dependencies', async () => {

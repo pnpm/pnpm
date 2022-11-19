@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../config/matcher"
+    },
+    {
       "path": "../../config/normalize-registries"
     },
     {
@@ -17,6 +20,15 @@
     },
     {
       "path": "../../exec/lifecycle"
+    },
+    {
+      "path": "../../fs/read-modules-dir"
+    },
+    {
+      "path": "../../fs/symlink-dependency"
+    },
+    {
+      "path": "../../hooks/read-package-hook"
     },
     {
       "path": "../../lockfile/filter-lockfile"
@@ -58,25 +70,13 @@
       "path": "../../packages/hoist"
     },
     {
-      "path": "../../packages/hooks.read-package-hook"
-    },
-    {
       "path": "../../packages/link-bins"
     },
     {
       "path": "../../packages/lockfile-to-pnp"
     },
     {
-      "path": "../../packages/matcher"
-    },
-    {
       "path": "../../packages/parse-wanted-dependency"
-    },
-    {
-      "path": "../../packages/read-modules-dir"
-    },
-    {
-      "path": "../../packages/symlink-dependency"
     },
     {
       "path": "../../packages/types"

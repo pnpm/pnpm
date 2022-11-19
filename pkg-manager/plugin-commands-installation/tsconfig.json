@@ -22,7 +22,16 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../config/matcher"
+    },
+    {
       "path": "../../exec/plugin-commands-rebuild"
+    },
+    {
+      "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../hooks/pnpmfile"
     },
     {
       "path": "../../lockfile/lockfile-types"
@@ -34,16 +43,7 @@
       "path": "../../packages/error"
     },
     {
-      "path": "../../packages/graceful-fs"
-    },
-    {
-      "path": "../../packages/matcher"
-    },
-    {
       "path": "../../packages/parse-wanted-dependency"
-    },
-    {
-      "path": "../../packages/pnpmfile"
     },
     {
       "path": "../../packages/types"

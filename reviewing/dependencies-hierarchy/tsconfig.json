@@ -13,6 +13,9 @@
       "path": "../../config/normalize-registries"
     },
     {
+      "path": "../../fs/read-modules-dir"
+    },
+    {
       "path": "../../lockfile/lockfile-file"
     },
     {
@@ -23,9 +26,6 @@
     },
     {
       "path": "../../packages/dependency-path"
-    },
-    {
-      "path": "../../packages/read-modules-dir"
     },
     {
       "path": "../../packages/types"

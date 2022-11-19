@@ -19,6 +19,9 @@
       "path": "../../exec/lifecycle"
     },
     {
+      "path": "../../fs/symlink-dependency"
+    },
+    {
       "path": "../../lockfile/filter-lockfile"
     },
     {
@@ -53,9 +56,6 @@
     },
     {
       "path": "../../packages/real-hoist"
-    },
-    {
-      "path": "../../packages/symlink-dependency"
     },
     {
       "path": "../../packages/types"

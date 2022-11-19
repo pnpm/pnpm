@@ -13,6 +13,9 @@
       "path": "../../exec/prepare-package"
     },
     {
+      "path": "../../fs/graceful-fs"
+    },
+    {
       "path": "../../network/fetch"
     },
     {
@@ -23,9 +26,6 @@
     },
     {
       "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/graceful-fs"
     },
     {
       "path": "../../privatePackages/test-fixtures"

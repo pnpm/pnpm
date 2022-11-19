@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../packages/matcher"
+      "path": "../../config/matcher"
     },
     {
       "path": "../../packages/types"

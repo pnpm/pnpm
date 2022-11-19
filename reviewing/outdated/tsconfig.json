@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../config/matcher"
+    },
+    {
       "path": "../../config/pick-registry-for-package"
     },
     {
@@ -26,9 +29,6 @@
     },
     {
       "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/matcher"
     },
     {
       "path": "../../packages/types"

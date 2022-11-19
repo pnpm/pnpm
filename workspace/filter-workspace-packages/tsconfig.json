@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../packages/error"
+      "path": "../../config/matcher"
     },
     {
-      "path": "../../packages/matcher"
+      "path": "../../packages/error"
     },
     {
       "path": "../../packages/pkgs-graph"

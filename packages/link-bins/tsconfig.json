@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../fs/read-modules-dir"
+    },
+    {
       "path": "../../pkg-manifest/manifest-utils"
     },
     {
@@ -26,9 +29,6 @@
     },
     {
       "path": "../package-bins"
-    },
-    {
-      "path": "../read-modules-dir"
     },
     {
       "path": "../types"

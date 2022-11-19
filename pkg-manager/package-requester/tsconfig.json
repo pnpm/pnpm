@@ -19,6 +19,9 @@
       "path": "../../fetching/pick-fetcher"
     },
     {
+      "path": "../../fs/graceful-fs"
+    },
+    {
       "path": "../../packages/core-loggers"
     },
     {
@@ -26,9 +29,6 @@
     },
     {
       "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/graceful-fs"
     },
     {
       "path": "../../packages/types"

@@ -256,13 +256,13 @@ importers:
         version: link:../../packages/git-utils
       '@pnpm/matcher':
         specifier: workspace:*
-        version: link:../../packages/matcher
+        version: link:../matcher
       '@pnpm/npm-conf':
         specifier: 2.0.4
         version: 2.0.4
       '@pnpm/pnpmfile':
         specifier: workspace:*
-        version: link:../../packages/pnpmfile
+        version: link:../../hooks/pnpmfile
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -327,6 +327,16 @@ importers:
       symlink-dir:
         specifier: ^5.0.1
         version: 5.0.1
+
+  config/matcher:
+    dependencies:
+      escape-string-regexp:
+        specifier: ^4.0.0
+        version: 4.0.0
+    devDependencies:
+      '@pnpm/matcher':
+        specifier: workspace:*
+        version: 'link:'
 
   config/normalize-registries:
     dependencies:
@@ -1023,7 +1033,7 @@ importers:
         version: link:../../network/fetching-types
       '@pnpm/graceful-fs':
         specifier: workspace:*
-        version: link:../../packages/graceful-fs
+        version: link:../../fs/graceful-fs
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -1073,6 +1083,196 @@ importers:
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
+
+  fs/find-packages:
+    dependencies:
+      '@pnpm/read-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/util.lex-comparator':
+        specifier: 1.0.0
+        version: 1.0.0
+      fast-glob:
+        specifier: ^3.2.12
+        version: 3.2.12
+      p-filter:
+        specifier: ^2.1.0
+        version: 2.1.0
+    devDependencies:
+      find-packages:
+        specifier: workspace:*
+        version: 'link:'
+
+  fs/graceful-fs:
+    dependencies:
+      graceful-fs:
+        specifier: ^4.2.10
+        version: 4.2.10
+    devDependencies:
+      '@pnpm/graceful-fs':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/graceful-fs':
+        specifier: ^4.1.5
+        version: 4.1.5
+
+  fs/indexed-pkg-importer:
+    dependencies:
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../packages/core-loggers
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../../store/store-controller-types
+      '@zkochan/rimraf':
+        specifier: ^2.1.2
+        version: 2.1.2
+      make-empty-dir:
+        specifier: ^2.0.0
+        version: 2.0.0
+      p-limit:
+        specifier: ^3.1.0
+        version: 3.1.0
+      path-exists:
+        specifier: ^4.0.0
+        version: 4.0.0
+      path-temp:
+        specifier: ^2.0.0
+        version: 2.0.0
+      rename-overwrite:
+        specifier: ^4.0.3
+        version: 4.0.3
+      sanitize-filename:
+        specifier: ^1.6.3
+        version: 1.6.3
+    devDependencies:
+      '@pnpm/fs.indexed-pkg-importer':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../privatePackages/prepare
+
+  fs/read-modules-dir:
+    dependencies:
+      graceful-fs:
+        specifier: ^4.2.10
+        version: 4.2.10
+    devDependencies:
+      '@pnpm/read-modules-dir':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/graceful-fs':
+        specifier: ^4.1.5
+        version: 4.1.5
+
+  fs/symlink-dependency:
+    dependencies:
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../packages/core-loggers
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      symlink-dir:
+        specifier: ^5.0.1
+        version: 5.0.1
+    devDependencies:
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../privatePackages/prepare
+      '@pnpm/symlink-dependency':
+        specifier: workspace:*
+        version: 'link:'
+
+  hooks/pnpmfile:
+    dependencies:
+      '@pnpm/core':
+        specifier: workspace:*
+        version: link:../../pkg-manager/core
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../packages/core-loggers
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-types
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../../store/store-controller-types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      chalk:
+        specifier: ^4.1.2
+        version: 4.1.2
+      path-absolute:
+        specifier: ^1.0.1
+        version: 1.0.1
+    devDependencies:
+      '@pnpm/fetcher-base':
+        specifier: workspace:*
+        version: link:../../fetching/fetcher-base
+      '@pnpm/pnpmfile':
+        specifier: workspace:*
+        version: 'link:'
+
+  hooks/read-package-hook:
+    dependencies:
+      '@pnpm/matcher':
+        specifier: workspace:*
+        version: link:../../config/matcher
+      '@pnpm/parse-overrides':
+        specifier: workspace:*
+        version: link:../../config/parse-overrides
+      '@pnpm/parse-wanted-dependency':
+        specifier: workspace:*
+        version: link:../../packages/parse-wanted-dependency
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@yarnpkg/extensions':
+        specifier: 2.0.0-rc.9
+        version: 2.0.0-rc.9_@yarnpkg+core@4.0.0-rc.27
+      normalize-path:
+        specifier: ^3.0.0
+        version: 3.0.0
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
+      semver:
+        specifier: ^7.3.8
+        version: 7.3.8
+    devDependencies:
+      '@pnpm/hooks.read-package-hook':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/normalize-path':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
+      '@types/semver':
+        specifier: 7.3.13
+        version: 7.3.13
+      '@yarnpkg/core':
+        specifier: 4.0.0-rc.27
+        version: 4.0.0-rc.27_typanion@3.12.1
 
   lockfile/audit:
     dependencies:
@@ -1726,68 +1926,6 @@ importers:
         specifier: github:vercel/pkg#5.7.0
         version: github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2_pp6fkuhwkrqq7cjcj7uqpf37e4
 
-  packages/find-packages:
-    dependencies:
-      '@pnpm/read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
-      '@pnpm/util.lex-comparator':
-        specifier: 1.0.0
-        version: 1.0.0
-      fast-glob:
-        specifier: ^3.2.12
-        version: 3.2.12
-      p-filter:
-        specifier: ^2.1.0
-        version: 2.1.0
-    devDependencies:
-      find-packages:
-        specifier: workspace:*
-        version: 'link:'
-
-  packages/fs.indexed-pkg-importer:
-    dependencies:
-      '@pnpm/core-loggers':
-        specifier: workspace:*
-        version: link:../core-loggers
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
-      '@zkochan/rimraf':
-        specifier: ^2.1.2
-        version: 2.1.2
-      make-empty-dir:
-        specifier: ^2.0.0
-        version: 2.0.0
-      p-limit:
-        specifier: ^3.1.0
-        version: 3.1.0
-      path-exists:
-        specifier: ^4.0.0
-        version: 4.0.0
-      path-temp:
-        specifier: ^2.0.0
-        version: 2.0.0
-      rename-overwrite:
-        specifier: ^4.0.3
-        version: 4.0.3
-      sanitize-filename:
-        specifier: ^1.6.3
-        version: 1.6.3
-    devDependencies:
-      '@pnpm/fs.indexed-pkg-importer':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../privatePackages/prepare
-
   packages/git-utils:
     dependencies:
       execa:
@@ -1800,19 +1938,6 @@ importers:
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
-
-  packages/graceful-fs:
-    dependencies:
-      graceful-fs:
-        specifier: ^4.2.10
-        version: 4.2.10
-    devDependencies:
-      '@pnpm/graceful-fs':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/graceful-fs':
-        specifier: ^4.1.5
-        version: 4.1.5
 
   packages/hoist:
     dependencies:
@@ -1836,10 +1961,10 @@ importers:
         version: 5.0.0
       '@pnpm/matcher':
         specifier: workspace:*
-        version: link:../matcher
+        version: link:../../config/matcher
       '@pnpm/symlink-dependency':
         specifier: workspace:*
-        version: link:../symlink-dependency
+        version: link:../../fs/symlink-dependency
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -1859,49 +1984,6 @@ importers:
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
-
-  packages/hooks.read-package-hook:
-    dependencies:
-      '@pnpm/matcher':
-        specifier: workspace:*
-        version: link:../matcher
-      '@pnpm/parse-overrides':
-        specifier: workspace:*
-        version: link:../../config/parse-overrides
-      '@pnpm/parse-wanted-dependency':
-        specifier: workspace:*
-        version: link:../parse-wanted-dependency
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
-      '@yarnpkg/extensions':
-        specifier: 2.0.0-rc.9
-        version: 2.0.0-rc.9_@yarnpkg+core@4.0.0-rc.27
-      normalize-path:
-        specifier: ^3.0.0
-        version: 3.0.0
-      ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
-        version: /@pnpm/ramda/0.28.1
-      semver:
-        specifier: ^7.3.8
-        version: 7.3.8
-    devDependencies:
-      '@pnpm/hooks.read-package-hook':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/normalize-path':
-        specifier: ^3.0.0
-        version: 3.0.0
-      '@types/ramda':
-        specifier: 0.28.15
-        version: 0.28.15
-      '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
-      '@yarnpkg/core':
-        specifier: 4.0.0-rc.27
-        version: 4.0.0-rc.27_typanion@3.12.1
 
   packages/license-scanner:
     dependencies:
@@ -1980,7 +2062,7 @@ importers:
         version: link:../package-bins
       '@pnpm/read-modules-dir':
         specifier: workspace:*
-        version: link:../read-modules-dir
+        version: link:../../fs/read-modules-dir
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -2132,16 +2214,6 @@ importers:
         specifier: 0.28.15
         version: 0.28.15
 
-  packages/matcher:
-    dependencies:
-      escape-string-regexp:
-        specifier: ^4.0.0
-        version: 4.0.0
-    devDependencies:
-      '@pnpm/matcher':
-        specifier: workspace:*
-        version: 'link:'
-
   packages/mount-modules:
     dependencies:
       '@pnpm/cafs':
@@ -2259,7 +2331,7 @@ importers:
         version: link:../error
       '@pnpm/fs.indexed-pkg-importer':
         specifier: workspace:*
-        version: link:../fs.indexed-pkg-importer
+        version: link:../../fs/indexed-pkg-importer
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -2996,56 +3068,6 @@ importers:
         specifier: ^4.2.0
         version: 4.2.0
 
-  packages/pnpmfile:
-    dependencies:
-      '@pnpm/core':
-        specifier: workspace:*
-        version: link:../../pkg-manager/core
-      '@pnpm/core-loggers':
-        specifier: workspace:*
-        version: link:../core-loggers
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../error
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
-      chalk:
-        specifier: ^4.1.2
-        version: 4.1.2
-      path-absolute:
-        specifier: ^1.0.1
-        version: 1.0.1
-    devDependencies:
-      '@pnpm/fetcher-base':
-        specifier: workspace:*
-        version: link:../../fetching/fetcher-base
-      '@pnpm/pnpmfile':
-        specifier: workspace:*
-        version: 'link:'
-
-  packages/read-modules-dir:
-    dependencies:
-      graceful-fs:
-        specifier: ^4.2.10
-        version: 4.2.10
-    devDependencies:
-      '@pnpm/read-modules-dir':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/graceful-fs':
-        specifier: ^4.1.5
-        version: 4.1.5
-
   packages/real-hoist:
     dependencies:
       '@pnpm/error':
@@ -3154,28 +3176,6 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
 
-  packages/symlink-dependency:
-    dependencies:
-      '@pnpm/core-loggers':
-        specifier: workspace:*
-        version: link:../core-loggers
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
-      symlink-dir:
-        specifier: ^5.0.1
-        version: 5.0.1
-    devDependencies:
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../privatePackages/prepare
-      '@pnpm/symlink-dependency':
-        specifier: workspace:*
-        version: 'link:'
-
   packages/types:
     devDependencies:
       '@pnpm/types':
@@ -3269,7 +3269,7 @@ importers:
         version: link:../../packages/hoist
       '@pnpm/hooks.read-package-hook':
         specifier: workspace:*
-        version: link:../../packages/hooks.read-package-hook
+        version: link:../../hooks/read-package-hook
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
@@ -3296,7 +3296,7 @@ importers:
         version: link:../../pkg-manifest/manifest-utils
       '@pnpm/matcher':
         specifier: workspace:*
-        version: link:../../packages/matcher
+        version: link:../../config/matcher
       '@pnpm/modules-cleaner':
         specifier: workspace:*
         version: link:../modules-cleaner
@@ -3320,7 +3320,7 @@ importers:
         version: link:../../lockfile/prune-lockfile
       '@pnpm/read-modules-dir':
         specifier: workspace:*
-        version: link:../../packages/read-modules-dir
+        version: link:../../fs/read-modules-dir
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -3341,7 +3341,7 @@ importers:
         version: link:../../store/store-controller-types
       '@pnpm/symlink-dependency':
         specifier: workspace:*
-        version: link:../../packages/symlink-dependency
+        version: link:../../fs/symlink-dependency
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3604,7 +3604,7 @@ importers:
         version: link:../../store/store-controller-types
       '@pnpm/symlink-dependency':
         specifier: workspace:*
-        version: link:../../packages/symlink-dependency
+        version: link:../../fs/symlink-dependency
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3710,7 +3710,7 @@ importers:
         version: 5.0.0
       '@pnpm/read-modules-dir':
         specifier: workspace:*
-        version: link:../../packages/read-modules-dir
+        version: link:../../fs/read-modules-dir
       '@pnpm/remove-bins':
         specifier: workspace:*
         version: link:../remove-bins
@@ -3784,7 +3784,7 @@ importers:
         version: link:../../fetching/fetcher-base
       '@pnpm/graceful-fs':
         specifier: workspace:*
-        version: link:../../packages/graceful-fs
+        version: link:../../fs/graceful-fs
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -3926,7 +3926,7 @@ importers:
         version: link:../../workspace/find-workspace-packages
       '@pnpm/graceful-fs':
         specifier: workspace:*
-        version: link:../../packages/graceful-fs
+        version: link:../../fs/graceful-fs
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -3935,7 +3935,7 @@ importers:
         version: link:../../pkg-manifest/manifest-utils
       '@pnpm/matcher':
         specifier: workspace:*
-        version: link:../../packages/matcher
+        version: link:../../config/matcher
       '@pnpm/outdated':
         specifier: workspace:*
         version: link:../../reviewing/outdated
@@ -3950,7 +3950,7 @@ importers:
         version: link:../../exec/plugin-commands-rebuild
       '@pnpm/pnpmfile':
         specifier: workspace:*
-        version: link:../../packages/pnpmfile
+        version: link:../../hooks/pnpmfile
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -4344,7 +4344,7 @@ importers:
         version: link:../../packages/error
       '@pnpm/graceful-fs':
         specifier: workspace:*
-        version: link:../../packages/graceful-fs
+        version: link:../../fs/graceful-fs
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -4595,7 +4595,7 @@ importers:
         version: link:../../packages/error
       '@pnpm/graceful-fs':
         specifier: workspace:*
-        version: link:../../packages/graceful-fs
+        version: link:../../fs/graceful-fs
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -4635,7 +4635,7 @@ importers:
         version: link:../../network/fetching-types
       '@pnpm/graceful-fs':
         specifier: workspace:*
-        version: link:../../packages/graceful-fs
+        version: link:../../fs/graceful-fs
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -4758,7 +4758,7 @@ importers:
         version: link:../../config/normalize-registries
       '@pnpm/read-modules-dir':
         specifier: workspace:*
-        version: link:../../packages/read-modules-dir
+        version: link:../../fs/read-modules-dir
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -4795,7 +4795,7 @@ importers:
     dependencies:
       '@pnpm/matcher':
         specifier: workspace:*
-        version: link:../../packages/matcher
+        version: link:../../config/matcher
       '@pnpm/npm-package-arg':
         specifier: ^1.0.0
         version: 1.0.0
@@ -4871,7 +4871,7 @@ importers:
         version: link:../../pkg-manifest/manifest-utils
       '@pnpm/matcher':
         specifier: workspace:*
-        version: link:../../packages/matcher
+        version: link:../../config/matcher
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -4996,7 +4996,7 @@ importers:
         version: link:../../lockfile/lockfile-file
       '@pnpm/matcher':
         specifier: workspace:*
-        version: link:../../packages/matcher
+        version: link:../../config/matcher
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -5072,7 +5072,7 @@ importers:
         version: link:../../fetching/fetcher-base
       '@pnpm/graceful-fs':
         specifier: workspace:*
-        version: link:../../packages/graceful-fs
+        version: link:../../fs/graceful-fs
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
@@ -5157,7 +5157,7 @@ importers:
         version: link:../../fetching/fetcher-base
       '@pnpm/fs.indexed-pkg-importer':
         specifier: workspace:*
-        version: link:../../packages/fs.indexed-pkg-importer
+        version: link:../../fs/indexed-pkg-importer
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -5557,7 +5557,7 @@ importers:
         version: link:../find-workspace-packages
       '@pnpm/matcher':
         specifier: workspace:*
-        version: link:../../packages/matcher
+        version: link:../../config/matcher
       execa:
         specifier: npm:safe-execa@^0.1.2
         version: /safe-execa/0.1.2
@@ -5637,7 +5637,7 @@ importers:
         version: 1.0.0
       find-packages:
         specifier: workspace:*
-        version: link:../../packages/find-packages
+        version: link:../../fs/find-packages
       read-yaml-file:
         specifier: ^2.1.0
         version: 2.1.0

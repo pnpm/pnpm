@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../hooks/pnpmfile"
+    },
+    {
       "path": "../../packages/constants"
     },
     {
@@ -17,12 +20,6 @@
     },
     {
       "path": "../../packages/git-utils"
-    },
-    {
-      "path": "../../packages/matcher"
-    },
-    {
-      "path": "../../packages/pnpmfile"
     },
     {
       "path": "../../packages/types"
@@ -35,6 +32,9 @@
     },
     {
       "path": "../../privatePackages/test-fixtures"
+    },
+    {
+      "path": "../matcher"
     }
   ]
 }
