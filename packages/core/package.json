@@ -60,6 +60,7 @@
     "p-every": "^2.0.0",
     "p-filter": "^2.1.0",
     "p-limit": "^3.1.0",
+    "p-map-values": "^1.0.0",
     "path-exists": "^4.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "run-groups": "^3.0.1",

@@ -709,6 +709,9 @@ importers:
       p-limit:
         specifier: ^3.1.0
         version: 3.1.0
+      p-map-values:
+        specifier: ^1.0.0
+        version: 1.0.0
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -1149,6 +1152,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
+      p-map-values:
+        specifier: ^1.0.0
+        version: 1.0.0
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda/0.28.1
@@ -2891,6 +2897,9 @@ importers:
       p-limit:
         specifier: ^3.1.0
         version: 3.1.0
+      p-map-values:
+        specifier: ^1.0.0
+        version: 1.0.0
       p-queue:
         specifier: ^6.6.2
         version: 6.6.2
@@ -5356,6 +5365,9 @@ importers:
       '@zkochan/retry':
         specifier: ^0.2.0
         version: 0.2.0
+      p-map-values:
+        specifier: ^1.0.0
+        version: 1.0.0
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda/0.28.1
@@ -14589,6 +14601,11 @@ packages:
     dependencies:
       p-limit: 3.1.0
 
+  /p-map-values/1.0.0:
+    resolution: {integrity: sha512-/n8QJM4Os3HLRMSuQWwAocsMExENSQwWTgRi8m3JVEOWQ/4gud14igBcnYvSGQTbiyZbuizxEmwf0w3ITn67gg==}
+    engines: {node: '>=14'}
+    dev: false
+
   /p-map/2.1.0:
     resolution: {integrity: sha512-y3b8Kpd8OAN444hxfBbFfj1FY/RjtTd8tzYwhUqNYXx0fXx2iX4maP4Qr6qhIKbQXI02wTLAda4fYUbDagTUFw==}
     engines: {node: '>=6'}
@@ -17671,6 +17688,7 @@ time:
   /p-every/2.0.0: '2019-03-15T09:22:34.849Z'
   /p-filter/2.1.0: '2019-04-04T04:54:11.010Z'
   /p-limit/3.1.0: '2020-11-25T07:42:37.364Z'
+  /p-map-values/1.0.0: '2022-11-19T01:54:52.912Z'
   /p-memoize/4.0.1: '2020-09-24T12:12:05.234Z'
   /p-queue/6.6.2: '2020-10-11T19:09:45.773Z'
   /p-settle/4.1.1: '2020-05-29T08:07:35.109Z'

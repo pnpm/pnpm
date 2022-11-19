@@ -2,8 +2,8 @@ import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
-import fromPairs from 'ramda/src/fromPairs'
 import omit from 'ramda/src/omit'
+import pMapValues from 'p-map-values'
 import { overridePublishConfig } from './overridePublishConfig'
 
 const PREPUBLISH_SCRIPTS = [
@@ -45,16 +45,15 @@ export async function createExportableManifest (
   return publishManifest
 }
 
-async function makePublishDependencies (dir: string, dependencies: Dependencies | undefined, modulesDir?: string) {
+async function makePublishDependencies (
+  dir: string,
+  dependencies: Dependencies | undefined,
+  modulesDir?: string
+): Promise<Dependencies | undefined> {
   if (dependencies == null) return dependencies
-  const publishDependencies: Dependencies = fromPairs(
-    await Promise.all(
-      Object.entries(dependencies)
-        .map(async ([depName, depSpec]) => [
-          depName,
-          await makePublishDependency(depName, depSpec, dir, modulesDir),
-        ])
-    ) as any, // eslint-disable-line
+  const publishDependencies = await pMapValues(
+    (depSpec, depName) => makePublishDependency(depName, depSpec, dir, modulesDir),
+    dependencies
   )
   return publishDependencies
 }

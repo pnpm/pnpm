@@ -60,6 +60,7 @@ import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
+import pMapValues from 'p-map-values'
 import flatten from 'ramda/src/flatten'
 import fromPairs from 'ramda/src/fromPairs'
 import mapValues from 'ramda/src/map'
@@ -563,18 +564,13 @@ export async function mutateModules (
 }
 
 async function calcPatchHashes (patches: Record<string, string>, lockfileDir: string) {
-  return fromPairs(await Promise.all(
-    Object.entries(patches).map(async ([key, patchFileRelativePath]) => {
-      const patchFilePath = path.join(lockfileDir, patchFileRelativePath)
-      return [
-        key,
-        {
-          hash: await createBase32HashFromFile(patchFilePath),
-          path: patchFileRelativePath,
-        },
-      ]
-    })
-  ))
+  return pMapValues(async (patchFileRelativePath) => {
+    const patchFilePath = path.join(lockfileDir, patchFileRelativePath)
+    return {
+      hash: await createBase32HashFromFile(patchFilePath),
+      path: patchFileRelativePath,
+    }
+  }, patches)
 }
 
 function lockfileIsUpToDate (
