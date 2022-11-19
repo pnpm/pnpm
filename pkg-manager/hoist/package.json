@@ -1,0 +1,58 @@
+{
+  "name": "@pnpm/hoist",
+  "description": "Hoists dependencies in a node_modules created by pnpm",
+  "version": "7.0.3",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/hoist": "workspace:*",
+    "@types/ramda": "0.28.15"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/hoist#readme",
+  "keywords": [
+    "pnpm7",
+    "pnpm"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.6"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/hoist",
+  "scripts": {
+    "start": "tsc --watch",
+    "test": "pnpm run compile",
+    "lint": "eslint src/**/*.ts",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/link-bins": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/lockfile-walker": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
+    "@pnpm/symlink-dependency": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "1.0.0",
+    "dependency-path": "workspace:*",
+    "ramda": "npm:@pnpm/ramda@0.28.1"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "name": "@pnpm/plugin-commands-publishing",
+  "version": "6.0.8",
+  "description": "The pack and publish commands of pnpm",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=14.6"
+  },
+  "scripts": {
+    "start": "tsc --watch",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "registry-mock": "registry-mock",
+    "test:jest": "jest",
+    "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7778 pnpm run test:e2e",
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-publishing",
+  "keywords": [
+    "pnpm7",
+    "pnpm",
+    "pack",
+    "publish"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-publishing#readme",
+  "devDependencies": {
+    "@pnpm/filter-workspace-packages": "workspace:*",
+    "@pnpm/plugin-commands-publishing": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/registry-mock": "3.1.0",
+    "@types/cross-spawn": "^6.0.2",
+    "@types/is-ci": "^3.0.0",
+    "@types/is-windows": "^1.0.0",
+    "@types/npm-packlist": "^3.0.0",
+    "@types/proxyquire": "^1.3.28",
+    "@types/ramda": "0.28.15",
+    "@types/sinon": "^10.0.13",
+    "@types/tar": "^6.1.3",
+    "@types/tar-stream": "^2.2.2",
+    "cross-spawn": "^7.0.3",
+    "is-ci": "^3.0.1",
+    "is-windows": "^1.0.2",
+    "load-json-file": "^6.2.0",
+    "path-exists": "^4.0.0",
+    "tar": "^6.1.12",
+    "write-yaml-file": "^4.2.0"
+  },
+  "dependencies": {
+    "@pnpm/cli-utils": "workspace:*",
+    "@pnpm/client": "workspace:*",
+    "@pnpm/common-cli-options-help": "workspace:*",
+    "@pnpm/config": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/exportable-manifest": "workspace:*",
+    "@pnpm/git-utils": "workspace:*",
+    "@pnpm/lifecycle": "workspace:*",
+    "@pnpm/package-bins": "workspace:*",
+    "@pnpm/pick-registry-for-package": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
+    "@pnpm/run-npm": "workspace:*",
+    "@pnpm/sort-packages": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@zkochan/rimraf": "^2.1.2",
+    "enquirer": "^2.3.6",
+    "execa": "npm:safe-execa@^0.1.2",
+    "fast-glob": "^3.2.12",
+    "npm-packlist": "^5.1.3",
+    "p-filter": "^2.1.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
+    "realpath-missing": "^1.1.0",
+    "render-help": "^1.0.2",
+    "tar-stream": "^2.2.0",
+    "tempy": "^1.0.1",
+    "write-json-file": "^4.3.0"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

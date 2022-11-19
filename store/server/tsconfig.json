@@ -10,25 +10,22 @@
   ],
   "references": [
     {
-      "path": "../../cli/cli-meta"
+      "path": "../../network/fetch"
     },
     {
-      "path": "../../config/config"
-    },
-    {
-      "path": "../../packages/error"
+      "path": "../../packages/types"
     },
     {
       "path": "../../pkg-manager/client"
     },
     {
+      "path": "../../pkg-manager/package-requester"
+    },
+    {
       "path": "../package-store"
     },
     {
-      "path": "../server"
-    },
-    {
-      "path": "../store-path"
+      "path": "../store-controller-types"
     }
   ]
 }

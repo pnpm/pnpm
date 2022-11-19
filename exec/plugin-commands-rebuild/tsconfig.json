@@ -37,13 +37,13 @@
       "path": "../../packages/dependency-path"
     },
     {
-      "path": "../../packages/link-bins"
-    },
-    {
       "path": "../../packages/types"
     },
     {
       "path": "../../pkg-manager/get-context"
+    },
+    {
+      "path": "../../pkg-manager/link-bins"
     },
     {
       "path": "../../pkg-manager/modules-yaml"

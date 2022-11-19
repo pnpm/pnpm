@@ -64,9 +64,6 @@
       "path": "../packages/dependency-path"
     },
     {
-      "path": "../packages/plugin-commands-deploy"
-    },
-    {
       "path": "../packages/plugin-commands-doctor"
     },
     {
@@ -74,12 +71,6 @@
     },
     {
       "path": "../packages/plugin-commands-patching"
-    },
-    {
-      "path": "../packages/plugin-commands-publishing"
-    },
-    {
-      "path": "../packages/plugin-commands-server"
     },
     {
       "path": "../packages/plugin-commands-setup"
@@ -115,6 +106,12 @@
       "path": "../privatePackages/test-fixtures"
     },
     {
+      "path": "../releasing/plugin-commands-deploy"
+    },
+    {
+      "path": "../releasing/plugin-commands-publishing"
+    },
+    {
       "path": "../reviewing/plugin-commands-licenses"
     },
     {
@@ -122,6 +119,9 @@
     },
     {
       "path": "../reviewing/plugin-commands-outdated"
+    },
+    {
+      "path": "../store/plugin-commands-server"
     },
     {
       "path": "../store/plugin-commands-store"

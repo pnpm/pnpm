@@ -10,10 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../packages/calc-dep-state"
-    },
-    {
-      "path": "../../packages/core-loggers"
+      "path": "../../fs/read-modules-dir"
     },
     {
       "path": "../../packages/error"
@@ -22,16 +19,19 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manager/link-bins"
+      "path": "../../pkg-manifest/manifest-utils"
     },
     {
       "path": "../../pkg-manifest/read-package-json"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../../pkg-manifest/read-project-manifest"
     },
     {
-      "path": "../lifecycle"
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
+      "path": "../package-bins"
     }
   ]
 }

@@ -37,6 +37,9 @@
       "path": "../../lockfile/lockfile-file"
     },
     {
+      "path": "../../lockfile/lockfile-to-pnp"
+    },
+    {
       "path": "../../lockfile/lockfile-utils"
     },
     {
@@ -65,15 +68,6 @@
     },
     {
       "path": "../../packages/git-utils"
-    },
-    {
-      "path": "../../packages/hoist"
-    },
-    {
-      "path": "../../packages/link-bins"
-    },
-    {
-      "path": "../../packages/lockfile-to-pnp"
     },
     {
       "path": "../../packages/parse-wanted-dependency"
@@ -128,6 +122,12 @@
     },
     {
       "path": "../headless"
+    },
+    {
+      "path": "../hoist"
+    },
+    {
+      "path": "../link-bins"
     },
     {
       "path": "../modules-cleaner"

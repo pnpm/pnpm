@@ -13,19 +13,22 @@
       "path": "../../cli/cli-meta"
     },
     {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
       "path": "../../config/config"
     },
     {
       "path": "../../packages/error"
     },
     {
-      "path": "../../pkg-manager/client"
-    },
-    {
-      "path": "../package-store"
-    },
-    {
       "path": "../server"
+    },
+    {
+      "path": "../store-connection-manager"
     },
     {
       "path": "../store-path"

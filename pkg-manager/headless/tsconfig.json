@@ -28,6 +28,9 @@
       "path": "../../lockfile/lockfile-file"
     },
     {
+      "path": "../../lockfile/lockfile-to-pnp"
+    },
+    {
       "path": "../../lockfile/lockfile-utils"
     },
     {
@@ -44,18 +47,6 @@
     },
     {
       "path": "../../packages/error"
-    },
-    {
-      "path": "../../packages/hoist"
-    },
-    {
-      "path": "../../packages/link-bins"
-    },
-    {
-      "path": "../../packages/lockfile-to-pnp"
-    },
-    {
-      "path": "../../packages/real-hoist"
     },
     {
       "path": "../../packages/types"
@@ -91,6 +82,12 @@
       "path": "../client"
     },
     {
+      "path": "../hoist"
+    },
+    {
+      "path": "../link-bins"
+    },
+    {
       "path": "../modules-cleaner"
     },
     {
@@ -101,6 +98,9 @@
     },
     {
       "path": "../read-projects-context"
+    },
+    {
+      "path": "../real-hoist"
     }
   ]
 }

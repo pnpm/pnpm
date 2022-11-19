@@ -10,16 +10,16 @@
   ],
   "references": [
     {
-      "path": "../../packages/core-loggers"
+      "path": "../../packages/dependency-path"
     },
     {
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manifest/read-package-json"
+      "path": "../lockfile-file"
     },
     {
-      "path": "../package-bins"
+      "path": "../lockfile-utils"
     }
   ]
 }

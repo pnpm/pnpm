@@ -665,7 +665,7 @@ importers:
         version: link:../lifecycle
       '@pnpm/link-bins':
         specifier: workspace:*
-        version: link:../../packages/link-bins
+        version: link:../../pkg-manager/link-bins
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -772,7 +772,7 @@ importers:
         version: link:../lifecycle
       '@pnpm/link-bins':
         specifier: workspace:*
-        version: link:../../packages/link-bins
+        version: link:../../pkg-manager/link-bins
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
@@ -890,7 +890,7 @@ importers:
         version: 5.0.0
       '@pnpm/package-bins':
         specifier: workspace:*
-        version: link:../../packages/package-bins
+        version: link:../../pkg-manager/package-bins
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
@@ -1536,6 +1536,46 @@ importers:
         specifier: 1.1.0
         version: 1.1.0
 
+  lockfile/lockfile-to-pnp:
+    dependencies:
+      '@pnpm/lockfile-file':
+        specifier: workspace:*
+        version: link:../lockfile-file
+      '@pnpm/lockfile-utils':
+        specifier: workspace:*
+        version: link:../lockfile-utils
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@yarnpkg/pnp':
+        specifier: ^2.3.2
+        version: 2.3.2
+      dependency-path:
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      normalize-path:
+        specifier: ^3.0.0
+        version: 3.0.0
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
+    devDependencies:
+      '@pnpm/lockfile-to-pnp':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/normalize-path':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
+      rimraf:
+        specifier: ^3.0.2
+        version: 3.0.2
+
   lockfile/lockfile-types:
     dependencies:
       '@pnpm/types':
@@ -1881,174 +1921,6 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
 
-  packages/hoist:
-    dependencies:
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../constants
-      '@pnpm/link-bins':
-        specifier: workspace:*
-        version: link:../link-bins
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
-      '@pnpm/lockfile-utils':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
-      '@pnpm/lockfile-walker':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-walker
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@pnpm/matcher':
-        specifier: workspace:*
-        version: link:../../config/matcher
-      '@pnpm/symlink-dependency':
-        specifier: workspace:*
-        version: link:../../fs/symlink-dependency
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
-      '@pnpm/util.lex-comparator':
-        specifier: 1.0.0
-        version: 1.0.0
-      dependency-path:
-        specifier: workspace:*
-        version: link:../dependency-path
-      ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
-        version: /@pnpm/ramda/0.28.1
-    devDependencies:
-      '@pnpm/hoist':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/ramda':
-        specifier: 0.28.15
-        version: 0.28.15
-
-  packages/link-bins:
-    dependencies:
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../error
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@pnpm/manifest-utils':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/manifest-utils
-      '@pnpm/package-bins':
-        specifier: workspace:*
-        version: link:../package-bins
-      '@pnpm/read-modules-dir':
-        specifier: workspace:*
-        version: link:../../fs/read-modules-dir
-      '@pnpm/read-package-json':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-package-json
-      '@pnpm/read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
-      '@zkochan/cmd-shim':
-        specifier: ^5.3.1
-        version: 5.3.1
-      '@zkochan/rimraf':
-        specifier: ^2.1.2
-        version: 2.1.2
-      bin-links:
-        specifier: ^3.0.3
-        version: 3.0.3
-      is-subdir:
-        specifier: ^1.2.0
-        version: 1.2.0
-      is-windows:
-        specifier: ^1.0.2
-        version: 1.0.2
-      normalize-path:
-        specifier: ^3.0.0
-        version: 3.0.0
-      p-settle:
-        specifier: ^4.1.1
-        version: 4.1.1
-      ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
-        version: /@pnpm/ramda/0.28.1
-      symlink-dir:
-        specifier: ^5.0.1
-        version: 5.0.1
-    devDependencies:
-      '@pnpm/link-bins':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/test-fixtures':
-        specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
-      '@types/is-windows':
-        specifier: ^1.0.0
-        version: 1.0.0
-      '@types/node':
-        specifier: ^14.18.33
-        version: 14.18.33
-      '@types/normalize-path':
-        specifier: ^3.0.0
-        version: 3.0.0
-      '@types/ramda':
-        specifier: 0.28.15
-        version: 0.28.15
-      cmd-extension:
-        specifier: ^1.0.2
-        version: 1.0.2
-      path-exists:
-        specifier: ^4.0.0
-        version: 4.0.0
-      tempy:
-        specifier: ^1.0.1
-        version: 1.0.1
-
-  packages/lockfile-to-pnp:
-    dependencies:
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
-      '@pnpm/lockfile-utils':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
-      '@yarnpkg/pnp':
-        specifier: ^2.3.2
-        version: 2.3.2
-      dependency-path:
-        specifier: workspace:*
-        version: link:../dependency-path
-      normalize-path:
-        specifier: ^3.0.0
-        version: 3.0.0
-      ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
-        version: /@pnpm/ramda/0.28.1
-    devDependencies:
-      '@pnpm/lockfile-to-pnp':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/normalize-path':
-        specifier: ^3.0.0
-        version: 3.0.0
-      '@types/ramda':
-        specifier: 0.28.15
-        version: 0.28.15
-      rimraf:
-        specifier: ^3.0.2
-        version: 3.0.2
-
   packages/make-dedicated-lockfile:
     dependencies:
       '@pnpm/error':
@@ -2145,25 +2017,6 @@ importers:
         specifier: ^3.0.2
         version: 3.0.2
 
-  packages/package-bins:
-    dependencies:
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
-      fast-glob:
-        specifier: ^3.2.12
-        version: 3.2.12
-      is-subdir:
-        specifier: ^1.2.0
-        version: 1.2.0
-    devDependencies:
-      '@pnpm/package-bins':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/node':
-        specifier: ^14.18.33
-        version: 14.18.33
-
   packages/parse-wanted-dependency:
     dependencies:
       validate-npm-package-name:
@@ -2176,55 +2029,6 @@ importers:
       '@types/validate-npm-package-name':
         specifier: ^4.0.0
         version: 4.0.0
-
-  packages/plugin-commands-deploy:
-    dependencies:
-      '@pnpm/cli-utils':
-        specifier: workspace:*
-        version: link:../../cli/cli-utils
-      '@pnpm/directory-fetcher':
-        specifier: workspace:*
-        version: link:../../fetching/directory-fetcher
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../error
-      '@pnpm/fs.indexed-pkg-importer':
-        specifier: workspace:*
-        version: link:../../fs/indexed-pkg-importer
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@pnpm/plugin-commands-installation':
-        specifier: workspace:*
-        version: link:../../pkg-manager/plugin-commands-installation
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
-      '@zkochan/rimraf':
-        specifier: ^2.1.2
-        version: 2.1.2
-      render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
-    devDependencies:
-      '@pnpm/assert-project':
-        specifier: workspace:*
-        version: link:../../privatePackages/assert-project
-      '@pnpm/filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/filter-workspace-packages
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
-      '@pnpm/plugin-commands-deploy':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../privatePackages/prepare
-      '@pnpm/registry-mock':
-        specifier: 3.1.0
-        version: 3.1.0_typanion@3.12.1
 
   packages/plugin-commands-doctor:
     dependencies:
@@ -2340,221 +2144,6 @@ importers:
         specifier: 0.28.15
         version: 0.28.15
 
-  packages/plugin-commands-publishing:
-    dependencies:
-      '@pnpm/cli-utils':
-        specifier: workspace:*
-        version: link:../../cli/cli-utils
-      '@pnpm/client':
-        specifier: workspace:*
-        version: link:../../pkg-manager/client
-      '@pnpm/common-cli-options-help':
-        specifier: workspace:*
-        version: link:../../cli/common-cli-options-help
-      '@pnpm/config':
-        specifier: workspace:*
-        version: link:../../config/config
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../error
-      '@pnpm/exportable-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/exportable-manifest
-      '@pnpm/git-utils':
-        specifier: workspace:*
-        version: link:../git-utils
-      '@pnpm/lifecycle':
-        specifier: workspace:*
-        version: link:../../exec/lifecycle
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@pnpm/package-bins':
-        specifier: workspace:*
-        version: link:../package-bins
-      '@pnpm/pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../../config/pick-registry-for-package
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
-      '@pnpm/run-npm':
-        specifier: workspace:*
-        version: link:../../exec/run-npm
-      '@pnpm/sort-packages':
-        specifier: workspace:*
-        version: link:../../workspace/sort-packages
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
-      '@zkochan/rimraf':
-        specifier: ^2.1.2
-        version: 2.1.2
-      enquirer:
-        specifier: ^2.3.6
-        version: 2.3.6
-      execa:
-        specifier: npm:safe-execa@^0.1.2
-        version: /safe-execa/0.1.2
-      fast-glob:
-        specifier: ^3.2.12
-        version: 3.2.12
-      npm-packlist:
-        specifier: ^5.1.3
-        version: 5.1.3
-      p-filter:
-        specifier: ^2.1.0
-        version: 2.1.0
-      ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
-        version: /@pnpm/ramda/0.28.1
-      realpath-missing:
-        specifier: ^1.1.0
-        version: 1.1.0
-      render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
-      tar-stream:
-        specifier: ^2.2.0
-        version: 2.2.0
-      tempy:
-        specifier: ^1.0.1
-        version: 1.0.1
-      write-json-file:
-        specifier: ^4.3.0
-        version: 4.3.0
-    devDependencies:
-      '@pnpm/filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/filter-workspace-packages
-      '@pnpm/plugin-commands-publishing':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../privatePackages/prepare
-      '@pnpm/registry-mock':
-        specifier: 3.1.0
-        version: 3.1.0_typanion@3.12.1
-      '@types/cross-spawn':
-        specifier: ^6.0.2
-        version: 6.0.2
-      '@types/is-ci':
-        specifier: ^3.0.0
-        version: 3.0.0
-      '@types/is-windows':
-        specifier: ^1.0.0
-        version: 1.0.0
-      '@types/npm-packlist':
-        specifier: ^3.0.0
-        version: 3.0.0
-      '@types/proxyquire':
-        specifier: ^1.3.28
-        version: 1.3.28
-      '@types/ramda':
-        specifier: 0.28.15
-        version: 0.28.15
-      '@types/sinon':
-        specifier: ^10.0.13
-        version: 10.0.13
-      '@types/tar':
-        specifier: ^6.1.3
-        version: 6.1.3
-      '@types/tar-stream':
-        specifier: ^2.2.2
-        version: 2.2.2
-      cross-spawn:
-        specifier: ^7.0.3
-        version: 7.0.3
-      is-ci:
-        specifier: ^3.0.1
-        version: 3.0.1
-      is-windows:
-        specifier: ^1.0.2
-        version: 1.0.2
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
-      path-exists:
-        specifier: ^4.0.0
-        version: 4.0.0
-      tar:
-        specifier: ^6.1.12
-        version: 6.1.12
-      write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
-
-  packages/plugin-commands-server:
-    dependencies:
-      '@pnpm/cli-meta':
-        specifier: workspace:*
-        version: link:../../cli/cli-meta
-      '@pnpm/cli-utils':
-        specifier: workspace:*
-        version: link:../../cli/cli-utils
-      '@pnpm/common-cli-options-help':
-        specifier: workspace:*
-        version: link:../../cli/common-cli-options-help
-      '@pnpm/config':
-        specifier: workspace:*
-        version: link:../../config/config
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../error
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@pnpm/server':
-        specifier: workspace:*
-        version: link:../server
-      '@pnpm/store-connection-manager':
-        specifier: workspace:*
-        version: link:../../store/store-connection-manager
-      '@pnpm/store-path':
-        specifier: workspace:*
-        version: link:../../store/store-path
-      '@zkochan/diable':
-        specifier: ^1.0.2
-        version: 1.0.2
-      delay:
-        specifier: ^5.0.0
-        version: 5.0.0
-      get-port:
-        specifier: ^5.1.1
-        version: 5.1.1
-      is-windows:
-        specifier: ^1.0.2
-        version: 1.0.2
-      process-exists:
-        specifier: ^4.1.0
-        version: 4.1.0
-      ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
-        version: /@pnpm/ramda/0.28.1
-      render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
-      signal-exit:
-        specifier: ^3.0.7
-        version: 3.0.7
-      tree-kill:
-        specifier: ^1.2.2
-        version: 1.2.2
-    devDependencies:
-      '@pnpm/plugin-commands-server':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/is-windows':
-        specifier: ^1.0.0
-        version: 1.0.0
-      '@types/ramda':
-        specifier: 0.28.15
-        version: 0.28.15
-      '@types/signal-exit':
-        specifier: ^3.0.1
-        version: 3.0.1
-
   packages/plugin-commands-setup:
     dependencies:
       '@pnpm/cli-utils':
@@ -2580,28 +2169,6 @@ importers:
         specifier: workspace:*
         version: link:../../privatePackages/prepare
 
-  packages/real-hoist:
-    dependencies:
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../error
-      '@pnpm/lockfile-utils':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
-      '@yarnpkg/nm':
-        specifier: 4.0.0-rc.27
-        version: 4.0.0-rc.27_typanion@3.12.1
-      dependency-path:
-        specifier: workspace:*
-        version: link:../dependency-path
-    devDependencies:
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
-      '@pnpm/real-hoist':
-        specifier: workspace:*
-        version: 'link:'
-
   packages/render-peer-issues:
     dependencies:
       '@pnpm/types':
@@ -2626,67 +2193,6 @@ importers:
       strip-ansi:
         specifier: ^6.0.1
         version: 6.0.1
-
-  packages/server:
-    dependencies:
-      '@pnpm/fetch':
-        specifier: workspace:*
-        version: link:../../network/fetch
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@pnpm/store-controller-types':
-        specifier: workspace:*
-        version: link:../../store/store-controller-types
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
-      p-limit:
-        specifier: ^3.1.0
-        version: 3.1.0
-      promise-share:
-        specifier: ^1.0.0
-        version: 1.0.0
-      uuid:
-        specifier: ^9.0.0
-        version: 9.0.0
-    devDependencies:
-      '@pnpm/client':
-        specifier: workspace:*
-        version: link:../../pkg-manager/client
-      '@pnpm/package-requester':
-        specifier: workspace:*
-        version: link:../../pkg-manager/package-requester
-      '@pnpm/package-store':
-        specifier: workspace:*
-        version: link:../../store/package-store
-      '@pnpm/server':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/mz':
-        specifier: ^2.7.4
-        version: 2.7.4
-      '@types/uuid':
-        specifier: ^8.3.4
-        version: 8.3.4
-      '@zkochan/rimraf':
-        specifier: ^2.1.2
-        version: 2.1.2
-      get-port:
-        specifier: ^5.1.1
-        version: 5.1.1
-      is-port-reachable:
-        specifier: 3.0.0
-        version: 3.0.0
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
-      node-fetch:
-        specifier: 3.0.0-beta.9
-        version: 3.0.0-beta.9
-      tempy:
-        specifier: ^1.0.1
-        version: 1.0.1
 
   packages/types:
     devDependencies:
@@ -2778,7 +2284,7 @@ importers:
         version: link:../headless
       '@pnpm/hoist':
         specifier: workspace:*
-        version: link:../../packages/hoist
+        version: link:../hoist
       '@pnpm/hooks.read-package-hook':
         specifier: workspace:*
         version: link:../../hooks/read-package-hook
@@ -2787,13 +2293,13 @@ importers:
         version: link:../../exec/lifecycle
       '@pnpm/link-bins':
         specifier: workspace:*
-        version: link:../../packages/link-bins
+        version: link:../link-bins
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-file
       '@pnpm/lockfile-to-pnp':
         specifier: workspace:*
-        version: link:../../packages/lockfile-to-pnp
+        version: link:../../lockfile/lockfile-to-pnp
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
@@ -3071,19 +2577,19 @@ importers:
         version: link:../../lockfile/filter-lockfile
       '@pnpm/hoist':
         specifier: workspace:*
-        version: link:../../packages/hoist
+        version: link:../hoist
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
       '@pnpm/link-bins':
         specifier: workspace:*
-        version: link:../../packages/link-bins
+        version: link:../link-bins
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-file
       '@pnpm/lockfile-to-pnp':
         specifier: workspace:*
-        version: link:../../packages/lockfile-to-pnp
+        version: link:../../lockfile/lockfile-to-pnp
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
@@ -3110,7 +2616,7 @@ importers:
         version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/real-hoist':
         specifier: workspace:*
-        version: link:../../packages/real-hoist
+        version: link:../real-hoist
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -3203,6 +2709,134 @@ importers:
         specifier: ^4.3.0
         version: 4.3.0
 
+  pkg-manager/hoist:
+    dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/link-bins':
+        specifier: workspace:*
+        version: link:../link-bins
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-types
+      '@pnpm/lockfile-utils':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-utils
+      '@pnpm/lockfile-walker':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-walker
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/matcher':
+        specifier: workspace:*
+        version: link:../../config/matcher
+      '@pnpm/symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/util.lex-comparator':
+        specifier: 1.0.0
+        version: 1.0.0
+      dependency-path:
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
+    devDependencies:
+      '@pnpm/hoist':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
+
+  pkg-manager/link-bins:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/manifest-utils':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/manifest-utils
+      '@pnpm/package-bins':
+        specifier: workspace:*
+        version: link:../package-bins
+      '@pnpm/read-modules-dir':
+        specifier: workspace:*
+        version: link:../../fs/read-modules-dir
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
+      '@pnpm/read-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@zkochan/cmd-shim':
+        specifier: ^5.3.1
+        version: 5.3.1
+      '@zkochan/rimraf':
+        specifier: ^2.1.2
+        version: 2.1.2
+      bin-links:
+        specifier: ^3.0.3
+        version: 3.0.3
+      is-subdir:
+        specifier: ^1.2.0
+        version: 1.2.0
+      is-windows:
+        specifier: ^1.0.2
+        version: 1.0.2
+      normalize-path:
+        specifier: ^3.0.0
+        version: 3.0.0
+      p-settle:
+        specifier: ^4.1.1
+        version: 4.1.1
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
+      symlink-dir:
+        specifier: ^5.0.1
+        version: 5.0.1
+    devDependencies:
+      '@pnpm/link-bins':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../privatePackages/test-fixtures
+      '@types/is-windows':
+        specifier: ^1.0.0
+        version: 1.0.0
+      '@types/node':
+        specifier: ^14.18.33
+        version: 14.18.33
+      '@types/normalize-path':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
+      cmd-extension:
+        specifier: ^1.0.2
+        version: 1.0.2
+      path-exists:
+        specifier: ^4.0.0
+        version: 4.0.0
+      tempy:
+        specifier: ^1.0.1
+        version: 1.0.1
+
   pkg-manager/modules-cleaner:
     dependencies:
       '@pnpm/core-loggers':
@@ -3279,6 +2913,25 @@ importers:
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
+
+  pkg-manager/package-bins:
+    dependencies:
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      fast-glob:
+        specifier: ^3.2.12
+        version: 3.2.12
+      is-subdir:
+        specifier: ^1.2.0
+        version: 1.2.0
+    devDependencies:
+      '@pnpm/package-bins':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/node':
+        specifier: ^14.18.33
+        version: 14.18.33
 
   pkg-manager/package-requester:
     dependencies:
@@ -3634,6 +3287,28 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  pkg-manager/real-hoist:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/lockfile-utils':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-utils
+      '@yarnpkg/nm':
+        specifier: 4.0.0-rc.27
+        version: 4.0.0-rc.27_typanion@3.12.1
+      dependency-path:
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+    devDependencies:
+      '@pnpm/lockfile-file':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-file
+      '@pnpm/real-hoist':
+        specifier: workspace:*
+        version: 'link:'
+
   pkg-manager/remove-bins:
     dependencies:
       '@pnpm/core-loggers':
@@ -3644,7 +3319,7 @@ importers:
         version: 5.0.0
       '@pnpm/package-bins':
         specifier: workspace:*
-        version: link:../../packages/package-bins
+        version: link:../package-bins
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -3997,7 +3672,7 @@ importers:
         version: link:../lockfile/plugin-commands-audit
       '@pnpm/plugin-commands-deploy':
         specifier: workspace:*
-        version: link:../packages/plugin-commands-deploy
+        version: link:../releasing/plugin-commands-deploy
       '@pnpm/plugin-commands-doctor':
         specifier: workspace:*
         version: link:../packages/plugin-commands-doctor
@@ -4024,7 +3699,7 @@ importers:
         version: link:../packages/plugin-commands-patching
       '@pnpm/plugin-commands-publishing':
         specifier: workspace:*
-        version: link:../packages/plugin-commands-publishing
+        version: link:../releasing/plugin-commands-publishing
       '@pnpm/plugin-commands-rebuild':
         specifier: workspace:*
         version: link:../exec/plugin-commands-rebuild
@@ -4033,7 +3708,7 @@ importers:
         version: link:../exec/plugin-commands-script-runners
       '@pnpm/plugin-commands-server':
         specifier: workspace:*
-        version: link:../packages/plugin-commands-server
+        version: link:../store/plugin-commands-server
       '@pnpm/plugin-commands-setup':
         specifier: workspace:*
         version: link:../packages/plugin-commands-setup
@@ -4366,6 +4041,200 @@ importers:
       '@types/fs-extra':
         specifier: ^9.0.13
         version: 9.0.13
+
+  releasing/plugin-commands-deploy:
+    dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
+      '@pnpm/directory-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/directory-fetcher
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/fs.indexed-pkg-importer':
+        specifier: workspace:*
+        version: link:../../fs/indexed-pkg-importer
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/plugin-commands-installation':
+        specifier: workspace:*
+        version: link:../../pkg-manager/plugin-commands-installation
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@zkochan/rimraf':
+        specifier: ^2.1.2
+        version: 2.1.2
+      render-help:
+        specifier: ^1.0.2
+        version: 1.0.2
+    devDependencies:
+      '@pnpm/assert-project':
+        specifier: workspace:*
+        version: link:../../privatePackages/assert-project
+      '@pnpm/filter-workspace-packages':
+        specifier: workspace:*
+        version: link:../../workspace/filter-workspace-packages
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-types
+      '@pnpm/plugin-commands-deploy':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../privatePackages/prepare
+      '@pnpm/registry-mock':
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.1
+
+  releasing/plugin-commands-publishing:
+    dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
+      '@pnpm/client':
+        specifier: workspace:*
+        version: link:../../pkg-manager/client
+      '@pnpm/common-cli-options-help':
+        specifier: workspace:*
+        version: link:../../cli/common-cli-options-help
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/exportable-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/exportable-manifest
+      '@pnpm/git-utils':
+        specifier: workspace:*
+        version: link:../../packages/git-utils
+      '@pnpm/lifecycle':
+        specifier: workspace:*
+        version: link:../../exec/lifecycle
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/package-bins':
+        specifier: workspace:*
+        version: link:../../pkg-manager/package-bins
+      '@pnpm/pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
+      '@pnpm/resolver-base':
+        specifier: workspace:*
+        version: link:../../resolving/resolver-base
+      '@pnpm/run-npm':
+        specifier: workspace:*
+        version: link:../../exec/run-npm
+      '@pnpm/sort-packages':
+        specifier: workspace:*
+        version: link:../../workspace/sort-packages
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@zkochan/rimraf':
+        specifier: ^2.1.2
+        version: 2.1.2
+      enquirer:
+        specifier: ^2.3.6
+        version: 2.3.6
+      execa:
+        specifier: npm:safe-execa@^0.1.2
+        version: /safe-execa/0.1.2
+      fast-glob:
+        specifier: ^3.2.12
+        version: 3.2.12
+      npm-packlist:
+        specifier: ^5.1.3
+        version: 5.1.3
+      p-filter:
+        specifier: ^2.1.0
+        version: 2.1.0
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
+      realpath-missing:
+        specifier: ^1.1.0
+        version: 1.1.0
+      render-help:
+        specifier: ^1.0.2
+        version: 1.0.2
+      tar-stream:
+        specifier: ^2.2.0
+        version: 2.2.0
+      tempy:
+        specifier: ^1.0.1
+        version: 1.0.1
+      write-json-file:
+        specifier: ^4.3.0
+        version: 4.3.0
+    devDependencies:
+      '@pnpm/filter-workspace-packages':
+        specifier: workspace:*
+        version: link:../../workspace/filter-workspace-packages
+      '@pnpm/plugin-commands-publishing':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../privatePackages/prepare
+      '@pnpm/registry-mock':
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.1
+      '@types/cross-spawn':
+        specifier: ^6.0.2
+        version: 6.0.2
+      '@types/is-ci':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@types/is-windows':
+        specifier: ^1.0.0
+        version: 1.0.0
+      '@types/npm-packlist':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@types/proxyquire':
+        specifier: ^1.3.28
+        version: 1.3.28
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
+      '@types/sinon':
+        specifier: ^10.0.13
+        version: 10.0.13
+      '@types/tar':
+        specifier: ^6.1.3
+        version: 6.1.3
+      '@types/tar-stream':
+        specifier: ^2.2.2
+        version: 2.2.2
+      cross-spawn:
+        specifier: ^7.0.3
+        version: 7.0.3
+      is-ci:
+        specifier: ^3.0.1
+        version: 3.0.1
+      is-windows:
+        specifier: ^1.0.2
+        version: 1.0.2
+      load-json-file:
+        specifier: ^6.2.0
+        version: 6.2.0
+      path-exists:
+        specifier: ^4.0.0
+        version: 4.0.0
+      tar:
+        specifier: ^6.1.12
+        version: 6.1.12
+      write-yaml-file:
+        specifier: ^4.2.0
+        version: 4.2.0
 
   resolving/default-resolver:
     dependencies:
@@ -5226,6 +5095,76 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
 
+  store/plugin-commands-server:
+    dependencies:
+      '@pnpm/cli-meta':
+        specifier: workspace:*
+        version: link:../../cli/cli-meta
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
+      '@pnpm/common-cli-options-help':
+        specifier: workspace:*
+        version: link:../../cli/common-cli-options-help
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/server':
+        specifier: workspace:*
+        version: link:../server
+      '@pnpm/store-connection-manager':
+        specifier: workspace:*
+        version: link:../store-connection-manager
+      '@pnpm/store-path':
+        specifier: workspace:*
+        version: link:../store-path
+      '@zkochan/diable':
+        specifier: ^1.0.2
+        version: 1.0.2
+      delay:
+        specifier: ^5.0.0
+        version: 5.0.0
+      get-port:
+        specifier: ^5.1.1
+        version: 5.1.1
+      is-windows:
+        specifier: ^1.0.2
+        version: 1.0.2
+      process-exists:
+        specifier: ^4.1.0
+        version: 4.1.0
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
+      render-help:
+        specifier: ^1.0.2
+        version: 1.0.2
+      signal-exit:
+        specifier: ^3.0.7
+        version: 3.0.7
+      tree-kill:
+        specifier: ^1.2.2
+        version: 1.2.2
+    devDependencies:
+      '@pnpm/plugin-commands-server':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/is-windows':
+        specifier: ^1.0.0
+        version: 1.0.0
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
+      '@types/signal-exit':
+        specifier: ^3.0.1
+        version: 3.0.1
+
   store/plugin-commands-store:
     dependencies:
       '@pnpm/cafs':
@@ -5332,6 +5271,67 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
 
+  store/server:
+    dependencies:
+      '@pnpm/fetch':
+        specifier: workspace:*
+        version: link:../../network/fetch
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../store-controller-types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      p-limit:
+        specifier: ^3.1.0
+        version: 3.1.0
+      promise-share:
+        specifier: ^1.0.0
+        version: 1.0.0
+      uuid:
+        specifier: ^9.0.0
+        version: 9.0.0
+    devDependencies:
+      '@pnpm/client':
+        specifier: workspace:*
+        version: link:../../pkg-manager/client
+      '@pnpm/package-requester':
+        specifier: workspace:*
+        version: link:../../pkg-manager/package-requester
+      '@pnpm/package-store':
+        specifier: workspace:*
+        version: link:../package-store
+      '@pnpm/server':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/mz':
+        specifier: ^2.7.4
+        version: 2.7.4
+      '@types/uuid':
+        specifier: ^8.3.4
+        version: 8.3.4
+      '@zkochan/rimraf':
+        specifier: ^2.1.2
+        version: 2.1.2
+      get-port:
+        specifier: ^5.1.1
+        version: 5.1.1
+      is-port-reachable:
+        specifier: 3.0.0
+        version: 3.0.0
+      load-json-file:
+        specifier: ^6.2.0
+        version: 6.2.0
+      node-fetch:
+        specifier: 3.0.0-beta.9
+        version: 3.0.0-beta.9
+      tempy:
+        specifier: ^1.0.1
+        version: 1.0.1
+
   store/store-connection-manager:
     dependencies:
       '@pnpm/cli-meta':
@@ -5354,7 +5354,7 @@ importers:
         version: link:../package-store
       '@pnpm/server':
         specifier: workspace:*
-        version: link:../../packages/server
+        version: link:../server
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
@@ -8329,7 +8329,7 @@ packages:
   /@types/isexe/2.0.1:
     resolution: {integrity: sha512-leMb+b2fOo1s7NsCVGQr07/zXI/CNodvhHE3IMizhWVzoN/8+gSdyqlo/SWxL/zEoVcYdV6F8/RZHg5Hm+wrfw==}
     dependencies:
-      '@types/node': 14.18.33
+      '@types/node': 18.11.9
     dev: true
 
   /@types/istanbul-lib-coverage/2.0.4:
