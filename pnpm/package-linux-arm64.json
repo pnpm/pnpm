@@ -2,6 +2,6 @@
   "pkg": {
     "assets": ["dist/pnpmrc", "dist/scripts/*"],
     "targets": ["node14-linux-arm64"],
-    "outputPath": "../artifacts/linux-arm64"
+    "outputPath": "../linux-arm64"
   }
 }

@@ -9,7 +9,7 @@ packages:
   - network/*
   - hooks/*
   - pnpm
-  - pnpm-artifacts/*
+  - pnpm/artifacts/*
   - pkg-manager/*
   - pkg-manifest/*
   - resolving/*

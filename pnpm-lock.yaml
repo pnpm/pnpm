@@ -4356,7 +4356,7 @@ importers:
         specifier: ^4.2.0
         version: 4.2.0
 
-  pnpm-artifacts/exe:
+  pnpm/artifacts/exe:
     optionalDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
@@ -4384,31 +4384,31 @@ importers:
         specifier: github:vercel/pkg#5.7.0
         version: github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2_pp6fkuhwkrqq7cjcj7uqpf37e4
 
-  pnpm-artifacts/linux-arm64:
+  pnpm/artifacts/linux-arm64:
     devDependencies:
       '@pnpm/linux-arm64':
         specifier: workspace:*
         version: 'link:'
 
-  pnpm-artifacts/linux-x64:
+  pnpm/artifacts/linux-x64:
     devDependencies:
       '@pnpm/linux-x64':
         specifier: workspace:*
         version: 'link:'
 
-  pnpm-artifacts/macos-arm64:
+  pnpm/artifacts/macos-arm64:
     devDependencies:
       '@pnpm/macos-arm64':
         specifier: workspace:*
         version: 'link:'
 
-  pnpm-artifacts/macos-x64:
+  pnpm/artifacts/macos-x64:
     devDependencies:
       '@pnpm/macos-x64':
         specifier: workspace:*
         version: 'link:'
 
-  pnpm-artifacts/win-x64:
+  pnpm/artifacts/win-x64:
     devDependencies:
       '@pnpm/win-x64':
         specifier: workspace:*

@@ -5,7 +5,7 @@ import makeEmptyDir from 'make-empty-dir'
 
 const repoRoot = path.join(__dirname, '../../..')
 const dest = path.join(repoRoot, 'dist')
-const artifactsDir = path.join(repoRoot, 'pnpm-artifacts')
+const artifactsDir = path.join(repoRoot, 'pnpm/artifacts')
 
 ;(async () => { // eslint-disable-line
   await makeEmptyDir(dest)

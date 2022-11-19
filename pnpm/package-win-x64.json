@@ -2,6 +2,6 @@
   "pkg": {
     "assets": ["dist/pnpmrc", "dist/scripts/*"],
     "targets": ["node14-win-x64"],
-    "outputPath": "../artifacts/win-x64"
+    "outputPath": "../win-x64"
   }
 }

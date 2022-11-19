@@ -1,0 +1,1 @@
+# @pnpm/macos-arm64
