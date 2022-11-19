@@ -10,13 +10,19 @@
   ],
   "references": [
     {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../cli-utils"
+      "path": "../../reviewing/list"
     },
     {
-      "path": "../common-cli-options-help"
+      "path": "../../workspace/filter-workspace-packages"
     },
     {
       "path": "../config"
@@ -26,12 +32,6 @@
     },
     {
       "path": "../error"
-    },
-    {
-      "path": "../filter-workspace-packages"
-    },
-    {
-      "path": "../list"
     },
     {
       "path": "../plugin-commands-installation"

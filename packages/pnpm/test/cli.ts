@@ -2,6 +2,7 @@ import { createReadStream, promises as fs, mkdirSync } from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import loadJsonFile from 'load-json-file'
@@ -11,8 +12,8 @@ import {
   execPnpxSync,
 } from './utils'
 
-const fixtures = path.join(__dirname, '../../../fixtures')
-const hasOutdatedDepsFixture = path.join(fixtures, 'has-outdated-deps')
+const f = fixtures(__dirname)
+const hasOutdatedDepsFixture = f.find('has-outdated-deps')
 
 test('some commands pass through to npm', () => {
   const result = execPnpmSync(['dist-tag', 'ls', 'is-positive'])

@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
       "path": "../constants"
     },
     {
@@ -17,9 +20,6 @@
     },
     {
       "path": "../error"
-    },
-    {
-      "path": "../lockfile-file"
     },
     {
       "path": "../modules-yaml"

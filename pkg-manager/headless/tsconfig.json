@@ -1,0 +1,106 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../builder/build-modules"
+    },
+    {
+      "path": "../../builder/lifecycle"
+    },
+    {
+      "path": "../../lockfile/filter-lockfile"
+    },
+    {
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
+      "path": "../../lockfile/lockfile-utils"
+    },
+    {
+      "path": "../../packages/calc-dep-state"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/core-loggers"
+    },
+    {
+      "path": "../../packages/dependency-path"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/hoist"
+    },
+    {
+      "path": "../../packages/link-bins"
+    },
+    {
+      "path": "../../packages/lockfile-to-pnp"
+    },
+    {
+      "path": "../../packages/modules-cleaner"
+    },
+    {
+      "path": "../../packages/modules-yaml"
+    },
+    {
+      "path": "../../packages/package-is-installable"
+    },
+    {
+      "path": "../../packages/read-projects-context"
+    },
+    {
+      "path": "../../packages/real-hoist"
+    },
+    {
+      "path": "../../packages/symlink-dependency"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../privatePackages/assert-project"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    },
+    {
+      "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/package-store"
+    },
+    {
+      "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../store/store-path"
+    },
+    {
+      "path": "../client"
+    },
+    {
+      "path": "../package-requester"
+    }
+  ]
+}

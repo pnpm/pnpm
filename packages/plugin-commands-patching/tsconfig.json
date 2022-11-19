@@ -10,10 +10,19 @@
   ],
   "references": [
     {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../cli-utils"
+      "path": "../../store/store-connection-manager"
     },
     {
       "path": "../config"
@@ -29,15 +38,6 @@
     },
     {
       "path": "../plugin-commands-installation"
-    },
-    {
-      "path": "../read-package-json"
-    },
-    {
-      "path": "../read-project-manifest"
-    },
-    {
-      "path": "../store-connection-manager"
     }
   ]
 }

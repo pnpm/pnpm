@@ -13,10 +13,10 @@
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../core-loggers"
+      "path": "../../store/store-controller-types"
     },
     {
-      "path": "../store-controller-types"
+      "path": "../core-loggers"
     }
   ]
 }

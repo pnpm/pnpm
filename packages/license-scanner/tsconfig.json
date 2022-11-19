@@ -10,7 +10,25 @@
   ],
   "references": [
     {
-      "path": "../cafs"
+      "path": "../../fetching/directory-fetcher"
+    },
+    {
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
+      "path": "../../lockfile/lockfile-types"
+    },
+    {
+      "path": "../../lockfile/lockfile-utils"
+    },
+    {
+      "path": "../../lockfile/lockfile-walker"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../store/cafs"
     },
     {
       "path": "../constants"
@@ -19,28 +37,10 @@
       "path": "../dependency-path"
     },
     {
-      "path": "../directory-fetcher"
-    },
-    {
       "path": "../error"
     },
     {
-      "path": "../lockfile-file"
-    },
-    {
-      "path": "../lockfile-types"
-    },
-    {
-      "path": "../lockfile-utils"
-    },
-    {
-      "path": "../lockfile-walker"
-    },
-    {
       "path": "../package-is-installable"
-    },
-    {
-      "path": "../read-package-json"
     },
     {
       "path": "../types"

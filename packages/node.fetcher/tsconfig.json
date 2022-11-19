@@ -10,28 +10,28 @@
   ],
   "references": [
     {
+      "path": "../../fetching/fetcher-base"
+    },
+    {
+      "path": "../../fetching/pick-fetcher"
+    },
+    {
+      "path": "../../fetching/tarball-fetcher"
+    },
+    {
+      "path": "../../network/fetching-types"
+    },
+    {
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../cafs-types"
+      "path": "../../store/cafs-types"
     },
     {
-      "path": "../create-cafs-store"
+      "path": "../../store/create-cafs-store"
     },
     {
       "path": "../error"
-    },
-    {
-      "path": "../fetcher-base"
-    },
-    {
-      "path": "../fetching-types"
-    },
-    {
-      "path": "../pick-fetcher"
-    },
-    {
-      "path": "../tarball-fetcher"
     }
   ]
 }

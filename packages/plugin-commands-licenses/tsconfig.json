@@ -10,13 +10,25 @@
   ],
   "references": [
     {
-      "path": "../cli-utils"
+      "path": "../../cli/cli-utils"
     },
     {
-      "path": "../command"
+      "path": "../../cli/command"
     },
     {
-      "path": "../common-cli-options-help"
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../store/store-path"
+    },
+    {
+      "path": "../../workspace/filter-workspace-packages"
     },
     {
       "path": "../config"
@@ -28,22 +40,10 @@
       "path": "../error"
     },
     {
-      "path": "../filter-workspace-packages"
-    },
-    {
       "path": "../license-scanner"
     },
     {
-      "path": "../lockfile-file"
-    },
-    {
       "path": "../plugin-commands-installation"
-    },
-    {
-      "path": "../read-package-json"
-    },
-    {
-      "path": "../store-path"
     }
   ]
 }

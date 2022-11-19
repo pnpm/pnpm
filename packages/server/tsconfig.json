@@ -10,19 +10,19 @@
   ],
   "references": [
     {
-      "path": "../client"
+      "path": "../../network/fetch"
     },
     {
-      "path": "../fetch"
+      "path": "../../pkg-manager/client"
     },
     {
-      "path": "../package-requester"
+      "path": "../../pkg-manager/package-requester"
     },
     {
-      "path": "../package-store"
+      "path": "../../store/package-store"
     },
     {
-      "path": "../store-controller-types"
+      "path": "../../store/store-controller-types"
     },
     {
       "path": "../types"

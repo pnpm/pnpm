@@ -20,7 +20,7 @@ test('audit', async () => {
     .reply(200, responses.ALL_VULN_RESP)
 
   const { output, exitCode } = await audit.handler({
-    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
+    dir: f.find('has-vulnerabilities'),
     userConfig: {},
     rawConfig,
     registries,
@@ -35,7 +35,7 @@ test('audit --dev', async () => {
     .reply(200, responses.DEV_VULN_ONLY_RESP)
 
   const { output, exitCode } = await audit.handler({
-    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
+    dir: f.find('has-vulnerabilities'),
     dev: true,
     production: false,
     userConfig: {},
@@ -54,7 +54,7 @@ test('audit --audit-level', async () => {
 
   const { output, exitCode } = await audit.handler({
     auditLevel: 'moderate',
-    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
+    dir: f.find('has-vulnerabilities'),
     userConfig: {},
     rawConfig,
     registries,
@@ -70,7 +70,7 @@ test('audit: no vulnerabilities', async () => {
     .reply(200, responses.NO_VULN_RESP)
 
   const { output, exitCode } = await audit.handler({
-    dir: path.join(__dirname, '../../../fixtures/has-outdated-deps'),
+    dir: f.find('has-outdated-deps'),
     userConfig: {},
     rawConfig,
     registries,
@@ -86,7 +86,7 @@ test('audit --json', async () => {
     .reply(200, responses.ALL_VULN_RESP)
 
   const { output, exitCode } = await audit.handler({
-    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
+    dir: f.find('has-vulnerabilities'),
     json: true,
     userConfig: {},
     rawConfig,
@@ -105,7 +105,7 @@ test.skip('audit does not exit with code 1 if the found vulnerabilities are havi
 
   const { output, exitCode } = await audit.handler({
     auditLevel: 'high',
-    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
+    dir: f.find('has-vulnerabilities'),
     userConfig: {},
     rawConfig,
     dev: true,
@@ -122,7 +122,7 @@ test('audit does not exit with code 1 if the registry responds with a non-200 re
     .post('/-/npm/v1/security/audits')
     .reply(500, { message: 'Something bad happened' })
   const { output, exitCode } = await audit.handler({
-    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
+    dir: f.find('has-vulnerabilities'),
     dev: true,
     fetchRetries: 0,
     ignoreRegistryErrors: true,
@@ -144,7 +144,7 @@ test('audit sends authToken', async () => {
     .reply(200, responses.NO_VULN_RESP)
 
   const { output, exitCode } = await audit.handler({
-    dir: path.join(__dirname, '../../../fixtures/has-outdated-deps'),
+    dir: f.find('has-outdated-deps'),
     userConfig: {},
     rawConfig: {
       registry: registries.default,
@@ -163,7 +163,7 @@ test('audit endpoint does not exist', async () => {
     .reply(404, {})
 
   await expect(audit.handler({
-    dir: path.join(__dirname, 'fixtures/has-vulnerabilities'),
+    dir: f.find('has-vulnerabilities'),
     dev: true,
     fetchRetries: 0,
     ignoreRegistryErrors: false,

@@ -10,13 +10,22 @@
   ],
   "references": [
     {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../lockfile/audit"
+    },
+    {
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
+      "path": "../../network/auth-header"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
       "path": "../../privatePackages/test-fixtures"
-    },
-    {
-      "path": "../audit"
-    },
-    {
-      "path": "../cli-utils"
     },
     {
       "path": "../config"
@@ -26,15 +35,6 @@
     },
     {
       "path": "../error"
-    },
-    {
-      "path": "../lockfile-file"
-    },
-    {
-      "path": "../network.auth-header"
-    },
-    {
-      "path": "../read-project-manifest"
     },
     {
       "path": "../types"

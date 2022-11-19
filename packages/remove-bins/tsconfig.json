@@ -10,13 +10,13 @@
   ],
   "references": [
     {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
       "path": "../core-loggers"
     },
     {
       "path": "../package-bins"
-    },
-    {
-      "path": "../read-package-json"
     },
     {
       "path": "../types"

@@ -10,6 +10,15 @@
   ],
   "references": [
     {
+      "path": "../../lockfile/lockfile-types"
+    },
+    {
+      "path": "../../lockfile/lockfile-utils"
+    },
+    {
+      "path": "../../lockfile/lockfile-walker"
+    },
+    {
       "path": "../constants"
     },
     {
@@ -17,15 +26,6 @@
     },
     {
       "path": "../link-bins"
-    },
-    {
-      "path": "../lockfile-types"
-    },
-    {
-      "path": "../lockfile-utils"
-    },
-    {
-      "path": "../lockfile-walker"
     },
     {
       "path": "../matcher"

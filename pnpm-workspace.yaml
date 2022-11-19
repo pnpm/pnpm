@@ -1,4 +1,15 @@
 packages:
+  - builder/*
+  - cli/*
+  - fetching/*
+  - lockfile/*
+  - network/*
+  - pkg-manager/*
+  - pkg-manifest/*
+  - resolving/*
+  - reviewing/*
+  - store/*
+  - workspace/*
   - packages/*
   - packages/artifacts/*
   - privatePackages/*

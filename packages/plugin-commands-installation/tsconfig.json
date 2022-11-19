@@ -10,6 +10,27 @@
   ],
   "references": [
     {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../cli/command"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../lockfile/lockfile-types"
+    },
+    {
+      "path": "../../pkg-manager/core"
+    },
+    {
+      "path": "../../pkg-manifest/manifest-utils"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
       "path": "../../privatePackages/assert-project"
     },
     {
@@ -19,13 +40,25 @@
       "path": "../../privatePackages/test-fixtures"
     },
     {
-      "path": "../cli-utils"
+      "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../command"
+      "path": "../../reviewing/outdated"
     },
     {
-      "path": "../common-cli-options-help"
+      "path": "../../store/package-store"
+    },
+    {
+      "path": "../../store/store-connection-manager"
+    },
+    {
+      "path": "../../workspace/filter-workspace-packages"
+    },
+    {
+      "path": "../../workspace/find-workspace-dir"
+    },
+    {
+      "path": "../../workspace/find-workspace-packages"
     },
     {
       "path": "../config"
@@ -34,40 +67,16 @@
       "path": "../constants"
     },
     {
-      "path": "../core"
-    },
-    {
       "path": "../error"
     },
     {
-      "path": "../filter-workspace-packages"
-    },
-    {
-      "path": "../find-workspace-dir"
-    },
-    {
-      "path": "../find-workspace-packages"
-    },
-    {
       "path": "../graceful-fs"
-    },
-    {
-      "path": "../lockfile-types"
-    },
-    {
-      "path": "../manifest-utils"
     },
     {
       "path": "../matcher"
     },
     {
       "path": "../modules-yaml"
-    },
-    {
-      "path": "../outdated"
-    },
-    {
-      "path": "../package-store"
     },
     {
       "path": "../parse-wanted-dependency"
@@ -79,16 +88,7 @@
       "path": "../pnpmfile"
     },
     {
-      "path": "../read-project-manifest"
-    },
-    {
-      "path": "../resolver-base"
-    },
-    {
       "path": "../sort-packages"
-    },
-    {
-      "path": "../store-connection-manager"
     },
     {
       "path": "../types"

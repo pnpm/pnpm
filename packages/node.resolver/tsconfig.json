@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../fetch"
+      "path": "../../network/fetch"
     },
     {
-      "path": "../fetching-types"
+      "path": "../../network/fetching-types"
     },
     {
       "path": "../node.fetcher"

@@ -10,16 +10,31 @@
   ],
   "references": [
     {
+      "path": "../../builder/lifecycle"
+    },
+    {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../cli/command"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../cli-utils"
+      "path": "../../store/store-path"
     },
     {
-      "path": "../command"
-    },
-    {
-      "path": "../common-cli-options-help"
+      "path": "../../workspace/filter-workspace-packages"
     },
     {
       "path": "../config"
@@ -28,28 +43,13 @@
       "path": "../error"
     },
     {
-      "path": "../filter-workspace-packages"
-    },
-    {
-      "path": "../lifecycle"
-    },
-    {
       "path": "../package-bins"
     },
     {
       "path": "../plugin-commands-installation"
     },
     {
-      "path": "../read-package-json"
-    },
-    {
-      "path": "../read-project-manifest"
-    },
-    {
       "path": "../sort-packages"
-    },
-    {
-      "path": "../store-path"
     },
     {
       "path": "../types"

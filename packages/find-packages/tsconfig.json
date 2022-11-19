@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../read-project-manifest"
+      "path": "../../pkg-manifest/read-project-manifest"
     },
     {
       "path": "../types"

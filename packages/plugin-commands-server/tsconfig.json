@@ -10,13 +10,19 @@
   ],
   "references": [
     {
-      "path": "../cli-meta"
+      "path": "../../cli/cli-meta"
     },
     {
-      "path": "../cli-utils"
+      "path": "../../cli/cli-utils"
     },
     {
-      "path": "../common-cli-options-help"
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../store/store-connection-manager"
+    },
+    {
+      "path": "../../store/store-path"
     },
     {
       "path": "../config"
@@ -26,12 +32,6 @@
     },
     {
       "path": "../server"
-    },
-    {
-      "path": "../store-connection-manager"
-    },
-    {
-      "path": "../store-path"
     }
   ]
 }

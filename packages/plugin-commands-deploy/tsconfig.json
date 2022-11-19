@@ -10,28 +10,28 @@
   ],
   "references": [
     {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../fetching/directory-fetcher"
+    },
+    {
+      "path": "../../lockfile/lockfile-types"
+    },
+    {
       "path": "../../privatePackages/assert-project"
     },
     {
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../cli-utils"
-    },
-    {
-      "path": "../directory-fetcher"
+      "path": "../../workspace/filter-workspace-packages"
     },
     {
       "path": "../error"
     },
     {
-      "path": "../filter-workspace-packages"
-    },
-    {
       "path": "../fs.indexed-pkg-importer"
-    },
-    {
-      "path": "../lockfile-types"
     },
     {
       "path": "../plugin-commands-installation"

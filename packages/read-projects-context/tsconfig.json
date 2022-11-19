@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../lockfile-file"
+      "path": "../../lockfile/lockfile-file"
     },
     {
       "path": "../modules-yaml"

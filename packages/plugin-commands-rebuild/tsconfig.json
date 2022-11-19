@@ -10,16 +10,37 @@
   ],
   "references": [
     {
+      "path": "../../builder/lifecycle"
+    },
+    {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../lockfile/lockfile-utils"
+    },
+    {
+      "path": "../../lockfile/lockfile-walker"
+    },
+    {
       "path": "../../privatePackages/prepare"
     },
     {
       "path": "../../privatePackages/test-fixtures"
     },
     {
-      "path": "../cli-utils"
+      "path": "../../store/store-connection-manager"
     },
     {
-      "path": "../common-cli-options-help"
+      "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../workspace/filter-workspace-packages"
+    },
+    {
+      "path": "../../workspace/find-workspace-packages"
     },
     {
       "path": "../config"
@@ -34,25 +55,10 @@
       "path": "../dependency-path"
     },
     {
-      "path": "../filter-workspace-packages"
-    },
-    {
-      "path": "../find-workspace-packages"
-    },
-    {
       "path": "../get-context"
     },
     {
-      "path": "../lifecycle"
-    },
-    {
       "path": "../link-bins"
-    },
-    {
-      "path": "../lockfile-utils"
-    },
-    {
-      "path": "../lockfile-walker"
     },
     {
       "path": "../modules-yaml"
@@ -62,12 +68,6 @@
     },
     {
       "path": "../sort-packages"
-    },
-    {
-      "path": "../store-connection-manager"
-    },
-    {
-      "path": "../store-controller-types"
     },
     {
       "path": "../types"

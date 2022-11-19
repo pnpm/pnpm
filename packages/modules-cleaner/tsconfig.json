@@ -10,28 +10,28 @@
   ],
   "references": [
     {
+      "path": "../../lockfile/filter-lockfile"
+    },
+    {
+      "path": "../../lockfile/lockfile-types"
+    },
+    {
+      "path": "../../lockfile/lockfile-utils"
+    },
+    {
+      "path": "../../store/store-controller-types"
+    },
+    {
       "path": "../core-loggers"
     },
     {
       "path": "../dependency-path"
     },
     {
-      "path": "../filter-lockfile"
-    },
-    {
-      "path": "../lockfile-types"
-    },
-    {
-      "path": "../lockfile-utils"
-    },
-    {
       "path": "../read-modules-dir"
     },
     {
       "path": "../remove-bins"
-    },
-    {
-      "path": "../store-controller-types"
     },
     {
       "path": "../types"

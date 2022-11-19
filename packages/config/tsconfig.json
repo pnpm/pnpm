@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
       "path": "../../privatePackages/prepare"
     },
     {
@@ -29,9 +32,6 @@
     },
     {
       "path": "../pnpmfile"
-    },
-    {
-      "path": "../read-project-manifest"
     },
     {
       "path": "../types"

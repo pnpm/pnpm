@@ -26,7 +26,9 @@ function copyFixture (searchFromDir: string, name: string, dest: string): void {
 function findFixture (dir: string, name: string): string {
   const { root } = path.parse(dir)
   while (true) {
-    const checkDir = path.join(dir, 'fixtures', name)
+    let checkDir = path.join(dir, 'fixtures', name)
+    if (fs.existsSync(checkDir)) return checkDir
+    checkDir = path.join(dir, '__fixtures__', name)
     if (fs.existsSync(checkDir)) return checkDir
     if (dir === root) throw new Error(`Local package "${name}" not found`)
     dir = path.dirname(dir)

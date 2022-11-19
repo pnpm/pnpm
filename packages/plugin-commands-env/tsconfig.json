@@ -10,19 +10,22 @@
   ],
   "references": [
     {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../network/fetch"
+    },
+    {
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../cli-utils"
+      "path": "../../store/store-path"
     },
     {
       "path": "../config"
     },
     {
       "path": "../error"
-    },
-    {
-      "path": "../fetch"
     },
     {
       "path": "../node.fetcher"
@@ -32,9 +35,6 @@
     },
     {
       "path": "../remove-bins"
-    },
-    {
-      "path": "../store-path"
     }
   ]
 }

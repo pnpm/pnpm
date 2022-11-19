@@ -10,10 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../packages/constants"
+      "path": "../../lockfile/lockfile-types"
     },
     {
-      "path": "../../packages/lockfile-types"
+      "path": "../../packages/constants"
     },
     {
       "path": "../../packages/modules-yaml"

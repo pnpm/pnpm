@@ -10,16 +10,31 @@
   ],
   "references": [
     {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
+      "path": "../../lockfile/lockfile-utils"
+    },
+    {
       "path": "../../privatePackages/assert-store"
     },
     {
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../cafs"
+      "path": "../../store/cafs"
     },
     {
-      "path": "../cli-utils"
+      "path": "../../store/store-connection-manager"
+    },
+    {
+      "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../store/store-path"
     },
     {
       "path": "../config"
@@ -34,12 +49,6 @@
       "path": "../get-context"
     },
     {
-      "path": "../lockfile-file"
-    },
-    {
-      "path": "../lockfile-utils"
-    },
-    {
       "path": "../normalize-registries"
     },
     {
@@ -47,15 +56,6 @@
     },
     {
       "path": "../pick-registry-for-package"
-    },
-    {
-      "path": "../store-connection-manager"
-    },
-    {
-      "path": "../store-controller-types"
-    },
-    {
-      "path": "../store-path"
     },
     {
       "path": "../types"

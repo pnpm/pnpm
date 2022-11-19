@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../packages/cafs"
+      "path": "../../store/cafs"
     }
   ]
 }

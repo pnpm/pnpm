@@ -10,16 +10,28 @@
   ],
   "references": [
     {
+      "path": "../../builder/lifecycle"
+    },
+    {
+      "path": "../../cli/cli-utils"
+    },
+    {
+      "path": "../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../pkg-manager/client"
+    },
+    {
+      "path": "../../pkg-manifest/exportable-manifest"
+    },
+    {
       "path": "../../privatePackages/prepare"
     },
     {
-      "path": "../cli-utils"
+      "path": "../../resolving/resolver-base"
     },
     {
-      "path": "../client"
-    },
-    {
-      "path": "../common-cli-options-help"
+      "path": "../../workspace/filter-workspace-packages"
     },
     {
       "path": "../config"
@@ -28,25 +40,13 @@
       "path": "../error"
     },
     {
-      "path": "../exportable-manifest"
-    },
-    {
-      "path": "../filter-workspace-packages"
-    },
-    {
       "path": "../git-utils"
-    },
-    {
-      "path": "../lifecycle"
     },
     {
       "path": "../package-bins"
     },
     {
       "path": "../pick-registry-for-package"
-    },
-    {
-      "path": "../resolver-base"
     },
     {
       "path": "../run-npm"

@@ -11,10 +11,10 @@
   ],
   "references": [
     {
-      "path": "../../privatePackages/prepare"
+      "path": "../../cli/cli-utils"
     },
     {
-      "path": "../cli-utils"
+      "path": "../../privatePackages/prepare"
     },
     {
       "path": "../error"

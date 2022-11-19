@@ -10,13 +10,13 @@
   ],
   "references": [
     {
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
+      "path": "../../lockfile/lockfile-utils"
+    },
+    {
       "path": "../dependency-path"
-    },
-    {
-      "path": "../lockfile-file"
-    },
-    {
-      "path": "../lockfile-utils"
     },
     {
       "path": "../types"
