@@ -12,7 +12,7 @@ import { symlinkDependency } from '@pnpm/symlink-dependency'
 import { HoistedDependencies } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import * as dp from 'dependency-path'
-import mapValues from 'ramda/src/map'
+import mapObjIndexed from 'ramda/src/mapObjIndexed'
 
 const hoistLogger = logger('hoist')
 
@@ -129,7 +129,7 @@ async function getDependencies (
       ...pkgSnapshot.optionalDependencies,
     }
     deps.push({
-      children: mapValues(dp.refToRelative as any, allDeps), // eslint-disable-line @typescript-eslint/no-explicit-any
+      children: mapObjIndexed(dp.refToRelative, allDeps) as Record<string, string>,
       depPath,
       depth,
     })
