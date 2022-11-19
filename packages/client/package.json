@@ -38,11 +38,13 @@
     "@pnpm/git-fetcher": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
-    "@pnpm/tarball-fetcher": "workspace:*"
+    "@pnpm/tarball-fetcher": "workspace:*",
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",
-    "@pnpm/fetcher-base": "workspace:*"
+    "@pnpm/fetcher-base": "workspace:*",
+    "@types/ramda": "0.28.15"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
