@@ -105,11 +105,10 @@ async function _lockfileToHoistedDepGraph (
 }
 
 function directDepsMap (directDepDirs: string[], graph: DependenciesGraph): Record<string, string> {
-  const result: Record<string, string> = {}
-  for (const dir of directDepDirs) {
-    result[graph[dir].alias!] = dir
-  }
-  return result
+  return directDepDirs.reduce((acc, dir) => {
+    acc[graph[dir].alias!] = dir
+    return acc
+  }, {})
 }
 
 function pickLinkedDirectDeps (
@@ -122,13 +121,13 @@ function pickLinkedDirectDeps (
     ...(include.dependencies ? importer.dependencies : {}),
     ...(include.optionalDependencies ? importer.optionalDependencies : {}),
   }
-  const directDeps = {}
-  for (const [alias, ref] of Object.entries(rootDeps)) {
-    if (ref.startsWith('link:')) {
-      directDeps[alias] = path.resolve(importerDir, ref.slice(5))
-    }
-  }
-  return directDeps
+  return Object.entries(rootDeps)
+    .reduce((directDeps, [alias, ref]) => {
+      if (ref.startsWith('link:')) {
+        directDeps[alias] = path.resolve(importerDir, ref.slice(5))
+      }
+      return directDeps
+    }, {})
 }
 
 async function fetchDeps (

@@ -861,6 +861,9 @@ importers:
       path-temp:
         specifier: ^2.0.0
         version: 2.0.0
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
     devDependencies:
       '@pnpm/cafs-types':
         specifier: workspace:*
@@ -871,6 +874,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../privatePackages/prepare
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
 
   packages/crypto.base32-hash:
     dependencies:

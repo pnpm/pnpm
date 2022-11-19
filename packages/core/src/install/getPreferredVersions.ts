@@ -22,14 +22,14 @@ export function getAllUniqueSpecs (manifests: DependencyManifest[]) {
 }
 
 export function getPreferredVersionsFromLockfile (snapshots: PackageSnapshots): PreferredVersions {
-  const preferredVersions: PreferredVersions = {}
-  for (const [depPath, snapshot] of Object.entries(snapshots)) {
-    const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
-    if (!preferredVersions[name]) {
-      preferredVersions[name] = { [version]: 'version' }
-    } else {
-      preferredVersions[name][version] = 'version'
-    }
-  }
-  return preferredVersions
+  return Object.entries(snapshots)
+    .map(([depPath, snapshot]) => nameVerFromPkgSnapshot(depPath, snapshot))
+    .reduce((preferredVersions, { name, version }) => {
+      if (!preferredVersions[name]) {
+        preferredVersions[name] = { [version]: 'version' }
+      } else {
+        preferredVersions[name][version] = 'version'
+      }
+      return preferredVersions
+    }, {})
 }
