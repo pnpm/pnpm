@@ -25,6 +25,9 @@
       "path": "../cli/common-cli-options-help"
     },
     {
+      "path": "../cli/default-reporter"
+    },
+    {
       "path": "../cli/parse-cli-args"
     },
     {
@@ -58,13 +61,7 @@
       "path": "../packages/core-loggers"
     },
     {
-      "path": "../packages/default-reporter"
-    },
-    {
       "path": "../packages/dependency-path"
-    },
-    {
-      "path": "../packages/pkgs-graph"
     },
     {
       "path": "../packages/plugin-commands-deploy"
@@ -74,9 +71,6 @@
     },
     {
       "path": "../packages/plugin-commands-init"
-    },
-    {
-      "path": "../packages/plugin-commands-licenses"
     },
     {
       "path": "../packages/plugin-commands-patching"
@@ -121,6 +115,9 @@
       "path": "../privatePackages/test-fixtures"
     },
     {
+      "path": "../reviewing/plugin-commands-licenses"
+    },
+    {
       "path": "../reviewing/plugin-commands-listing"
     },
     {
@@ -137,6 +134,9 @@
     },
     {
       "path": "../workspace/find-workspace-packages"
+    },
+    {
+      "path": "../workspace/pkgs-graph"
     }
   ]
 }

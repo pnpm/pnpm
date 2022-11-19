@@ -13,16 +13,16 @@
       "path": "../../config/config"
     },
     {
-      "path": "../core-loggers"
+      "path": "../../packages/core-loggers"
     },
     {
-      "path": "../error"
+      "path": "../../packages/error"
     },
     {
-      "path": "../render-peer-issues"
+      "path": "../../packages/render-peer-issues"
     },
     {
-      "path": "../types"
+      "path": "../../packages/types"
     }
   ]
 }

@@ -16,10 +16,10 @@
       "path": "../../packages/error"
     },
     {
-      "path": "../../packages/pkgs-graph"
+      "path": "../find-workspace-packages"
     },
     {
-      "path": "../find-workspace-packages"
+      "path": "../pkgs-graph"
     }
   ]
 }

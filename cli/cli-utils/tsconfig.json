@@ -16,9 +16,6 @@
       "path": "../../config/package-is-installable"
     },
     {
-      "path": "../../packages/default-reporter"
-    },
-    {
       "path": "../../packages/error"
     },
     {
@@ -32,6 +29,9 @@
     },
     {
       "path": "../cli-meta"
+    },
+    {
+      "path": "../default-reporter"
     }
   ]
 }

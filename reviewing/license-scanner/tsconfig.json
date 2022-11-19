@@ -28,22 +28,22 @@
       "path": "../../lockfile/lockfile-walker"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/dependency-path"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../pkg-manifest/read-package-json"
     },
     {
       "path": "../../store/cafs"
-    },
-    {
-      "path": "../constants"
-    },
-    {
-      "path": "../dependency-path"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../types"
     }
   ]
 }

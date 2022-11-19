@@ -25,6 +25,12 @@
       "path": "../../lockfile/lockfile-file"
     },
     {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
       "path": "../../pkg-manager/plugin-commands-installation"
     },
     {
@@ -35,12 +41,6 @@
     },
     {
       "path": "../../workspace/filter-workspace-packages"
-    },
-    {
-      "path": "../constants"
-    },
-    {
-      "path": "../error"
     },
     {
       "path": "../license-scanner"

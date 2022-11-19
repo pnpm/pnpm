@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../../workspace/resolve-workspace-range"
+      "path": "../resolve-workspace-range"
     }
   ]
 }
