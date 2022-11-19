@@ -16,28 +16,28 @@
       "path": "../../cli/common-cli-options-help"
     },
     {
-      "path": "../../privatePackages/prepare"
+      "path": "../../packages/config"
     },
     {
-      "path": "../../reviewing/list"
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manager/plugin-commands-installation"
+    },
+    {
+      "path": "../../privatePackages/prepare"
     },
     {
       "path": "../../workspace/filter-workspace-packages"
     },
     {
-      "path": "../config"
-    },
-    {
-      "path": "../constants"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../plugin-commands-installation"
-    },
-    {
-      "path": "../types"
+      "path": "../list"
     }
   ]
 }

@@ -19,22 +19,22 @@
       "path": "../../lockfile/lockfile-utils"
     },
     {
+      "path": "../../packages/core-loggers"
+    },
+    {
+      "path": "../../packages/dependency-path"
+    },
+    {
+      "path": "../../packages/read-modules-dir"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../store/store-controller-types"
     },
     {
-      "path": "../core-loggers"
-    },
-    {
-      "path": "../dependency-path"
-    },
-    {
-      "path": "../read-modules-dir"
-    },
-    {
       "path": "../remove-bins"
-    },
-    {
-      "path": "../types"
     }
   ]
 }

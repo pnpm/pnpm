@@ -22,6 +22,9 @@
       "path": "../../lockfile/lockfile-file"
     },
     {
+      "path": "../../pkg-manager/plugin-commands-installation"
+    },
+    {
       "path": "../../pkg-manifest/read-package-json"
     },
     {
@@ -41,9 +44,6 @@
     },
     {
       "path": "../license-scanner"
-    },
-    {
-      "path": "../plugin-commands-installation"
     }
   ]
 }

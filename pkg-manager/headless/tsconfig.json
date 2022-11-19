@@ -49,16 +49,7 @@
       "path": "../../packages/lockfile-to-pnp"
     },
     {
-      "path": "../../packages/modules-cleaner"
-    },
-    {
-      "path": "../../packages/modules-yaml"
-    },
-    {
       "path": "../../packages/package-is-installable"
-    },
-    {
-      "path": "../../packages/read-projects-context"
     },
     {
       "path": "../../packages/real-hoist"
@@ -100,7 +91,16 @@
       "path": "../client"
     },
     {
+      "path": "../modules-cleaner"
+    },
+    {
+      "path": "../modules-yaml"
+    },
+    {
       "path": "../package-requester"
+    },
+    {
+      "path": "../read-projects-context"
     }
   ]
 }

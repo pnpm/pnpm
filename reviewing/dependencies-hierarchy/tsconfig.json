@@ -22,9 +22,6 @@
       "path": "../../packages/dependency-path"
     },
     {
-      "path": "../../packages/modules-yaml"
-    },
-    {
       "path": "../../packages/normalize-registries"
     },
     {
@@ -32,6 +29,9 @@
     },
     {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manager/modules-yaml"
     },
     {
       "path": "../../pkg-manifest/read-package-json"

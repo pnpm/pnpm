@@ -13,13 +13,13 @@
       "path": "../../lockfile/lockfile-file"
     },
     {
+      "path": "../../packages/normalize-registries"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../modules-yaml"
-    },
-    {
-      "path": "../normalize-registries"
-    },
-    {
-      "path": "../types"
     }
   ]
 }

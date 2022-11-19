@@ -13,22 +13,22 @@
       "path": "../../lockfile/lockfile-file"
     },
     {
-      "path": "../constants"
+      "path": "../../packages/constants"
     },
     {
-      "path": "../core-loggers"
+      "path": "../../packages/core-loggers"
     },
     {
-      "path": "../error"
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/types"
     },
     {
       "path": "../modules-yaml"
     },
     {
       "path": "../read-projects-context"
-    },
-    {
-      "path": "../types"
     }
   ]
 }

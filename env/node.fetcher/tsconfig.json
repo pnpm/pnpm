@@ -22,6 +22,9 @@
       "path": "../../network/fetching-types"
     },
     {
+      "path": "../../packages/error"
+    },
+    {
       "path": "../../privatePackages/prepare"
     },
     {
@@ -29,9 +32,6 @@
     },
     {
       "path": "../../store/create-cafs-store"
-    },
-    {
-      "path": "../error"
     }
   ]
 }

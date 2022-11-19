@@ -49,9 +49,6 @@
       "path": "../../packages/error"
     },
     {
-      "path": "../../packages/get-context"
-    },
-    {
       "path": "../../packages/git-utils"
     },
     {
@@ -70,12 +67,6 @@
       "path": "../../packages/matcher"
     },
     {
-      "path": "../../packages/modules-cleaner"
-    },
-    {
-      "path": "../../packages/modules-yaml"
-    },
-    {
       "path": "../../packages/normalize-registries"
     },
     {
@@ -83,9 +74,6 @@
     },
     {
       "path": "../../packages/read-modules-dir"
-    },
-    {
-      "path": "../../packages/remove-bins"
     },
     {
       "path": "../../packages/symlink-dependency"
@@ -136,10 +124,22 @@
       "path": "../client"
     },
     {
+      "path": "../get-context"
+    },
+    {
       "path": "../headless"
     },
     {
+      "path": "../modules-cleaner"
+    },
+    {
+      "path": "../modules-yaml"
+    },
+    {
       "path": "../package-requester"
+    },
+    {
+      "path": "../remove-bins"
     },
     {
       "path": "../resolve-dependencies"

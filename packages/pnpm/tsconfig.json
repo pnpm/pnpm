@@ -13,6 +13,9 @@
   ],
   "references": [
     {
+      "path": "../../builder/plugin-commands-rebuild"
+    },
+    {
       "path": "../../cli/cli-meta"
     },
     {
@@ -28,10 +31,22 @@
       "path": "../../cli/parse-cli-args"
     },
     {
+      "path": "../../env/plugin-commands-env"
+    },
+    {
       "path": "../../lockfile/lockfile-types"
     },
     {
+      "path": "../../lockfile/plugin-commands-audit"
+    },
+    {
       "path": "../../pkg-manager/client"
+    },
+    {
+      "path": "../../pkg-manager/modules-yaml"
+    },
+    {
+      "path": "../../pkg-manager/plugin-commands-installation"
     },
     {
       "path": "../../pkg-manifest/read-package-json"
@@ -50,6 +65,15 @@
     },
     {
       "path": "../../privatePackages/test-fixtures"
+    },
+    {
+      "path": "../../reviewing/plugin-commands-listing"
+    },
+    {
+      "path": "../../reviewing/plugin-commands-outdated"
+    },
+    {
+      "path": "../../store/plugin-commands-store"
     },
     {
       "path": "../../workspace/filter-workspace-packages"
@@ -76,16 +100,10 @@
       "path": "../dependency-path"
     },
     {
-      "path": "../modules-yaml"
-    },
-    {
       "path": "../pick-registry-for-package"
     },
     {
       "path": "../pkgs-graph"
-    },
-    {
-      "path": "../plugin-commands-audit"
     },
     {
       "path": "../plugin-commands-deploy"
@@ -94,31 +112,16 @@
       "path": "../plugin-commands-doctor"
     },
     {
-      "path": "../plugin-commands-env"
-    },
-    {
       "path": "../plugin-commands-init"
     },
     {
-      "path": "../plugin-commands-installation"
-    },
-    {
       "path": "../plugin-commands-licenses"
-    },
-    {
-      "path": "../plugin-commands-listing"
-    },
-    {
-      "path": "../plugin-commands-outdated"
     },
     {
       "path": "../plugin-commands-patching"
     },
     {
       "path": "../plugin-commands-publishing"
-    },
-    {
-      "path": "../plugin-commands-rebuild"
     },
     {
       "path": "../plugin-commands-script-runners"
@@ -128,9 +131,6 @@
     },
     {
       "path": "../plugin-commands-setup"
-    },
-    {
-      "path": "../plugin-commands-store"
     },
     {
       "path": "../run-npm"

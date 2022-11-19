@@ -16,10 +16,10 @@
       "path": "../../packages/constants"
     },
     {
-      "path": "../../packages/modules-yaml"
+      "path": "../../packages/types"
     },
     {
-      "path": "../../packages/types"
+      "path": "../../pkg-manager/modules-yaml"
     },
     {
       "path": "../assert-store"

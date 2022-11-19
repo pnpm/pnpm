@@ -22,6 +22,27 @@
       "path": "../../lockfile/lockfile-file"
     },
     {
+      "path": "../../packages/config"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/matcher"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manager/modules-yaml"
+    },
+    {
+      "path": "../../pkg-manager/plugin-commands-installation"
+    },
+    {
       "path": "../../privatePackages/prepare"
     },
     {
@@ -31,34 +52,13 @@
       "path": "../../resolving/default-resolver"
     },
     {
-      "path": "../../reviewing/outdated"
-    },
-    {
       "path": "../../store/store-path"
     },
     {
       "path": "../../workspace/filter-workspace-packages"
     },
     {
-      "path": "../config"
-    },
-    {
-      "path": "../constants"
-    },
-    {
-      "path": "../error"
-    },
-    {
-      "path": "../matcher"
-    },
-    {
-      "path": "../modules-yaml"
-    },
-    {
-      "path": "../plugin-commands-installation"
-    },
-    {
-      "path": "../types"
+      "path": "../outdated"
     }
   ]
 }

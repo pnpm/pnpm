@@ -22,6 +22,9 @@
       "path": "../../cli/common-cli-options-help"
     },
     {
+      "path": "../../pkg-manager/plugin-commands-installation"
+    },
+    {
       "path": "../../pkg-manifest/read-package-json"
     },
     {
@@ -44,9 +47,6 @@
     },
     {
       "path": "../package-bins"
-    },
-    {
-      "path": "../plugin-commands-installation"
     },
     {
       "path": "../sort-packages"

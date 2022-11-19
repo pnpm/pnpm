@@ -10,16 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../packages/core-loggers"
+    },
+    {
+      "path": "../../packages/package-bins"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../pkg-manifest/read-package-json"
-    },
-    {
-      "path": "../core-loggers"
-    },
-    {
-      "path": "../package-bins"
-    },
-    {
-      "path": "../types"
     }
   ]
 }

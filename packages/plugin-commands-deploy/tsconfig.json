@@ -19,6 +19,9 @@
       "path": "../../lockfile/lockfile-types"
     },
     {
+      "path": "../../pkg-manager/plugin-commands-installation"
+    },
+    {
       "path": "../../privatePackages/assert-project"
     },
     {
@@ -32,9 +35,6 @@
     },
     {
       "path": "../fs.indexed-pkg-importer"
-    },
-    {
-      "path": "../plugin-commands-installation"
     },
     {
       "path": "../types"
