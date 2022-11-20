@@ -1,5 +1,12 @@
 # @pnpm/list
 
+## 8.0.5
+
+### Patch Changes
+
+- Updated dependencies [969f8a002]
+  - @pnpm/matcher@4.0.1
+
 ## 8.0.4
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/audit
 
+## 6.0.0
+
+### Major Changes
+
+- 3801d2fa2: New required option added: lockfileDir.
+
 ## 5.0.2
 
 ### Patch Changes

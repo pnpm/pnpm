@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 19.1.1
+
+### Patch Changes
+
+- Updated dependencies [45c83bfbd]
+  - @pnpm/hoist@7.0.4
+
 ## 19.1.0
 
 ### Minor Changes

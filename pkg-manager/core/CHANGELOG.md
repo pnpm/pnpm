@@ -1,5 +1,16 @@
 # @pnpm/core
 
+## 7.1.1
+
+### Patch Changes
+
+- Updated dependencies [45c83bfbd]
+- Updated dependencies [969f8a002]
+  - @pnpm/hoist@7.0.4
+  - @pnpm/matcher@4.0.1
+  - @pnpm/headless@19.1.1
+  - @pnpm/hooks.read-package-hook@2.0.6
+
 ## 7.1.0
 
 ### Minor Changes

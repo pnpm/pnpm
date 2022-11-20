@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-outdated
 
+## 8.0.4
+
+### Patch Changes
+
+- Updated dependencies [969f8a002]
+  - @pnpm/matcher@4.0.1
+  - @pnpm/config@16.1.3
+  - @pnpm/outdated@11.0.5
+  - @pnpm/cli-utils@1.0.9
+
 ## 8.0.3
 
 ### Patch Changes

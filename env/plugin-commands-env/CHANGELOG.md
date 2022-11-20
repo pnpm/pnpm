@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-env
 
+## 3.1.3
+
+### Patch Changes
+
+- @pnpm/config@16.1.3
+- @pnpm/cli-utils@1.0.9
+
 ## 3.1.2
 
 ### Patch Changes

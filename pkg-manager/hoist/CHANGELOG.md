@@ -1,5 +1,13 @@
 # @pnpm/hoist
 
+## 7.0.4
+
+### Patch Changes
+
+- 45c83bfbd: Hoisting with symlinks should not override external symlinks and directories in the root of node_modules.
+- Updated dependencies [969f8a002]
+  - @pnpm/matcher@4.0.1
+
 ## 7.0.3
 
 ### Patch Changes

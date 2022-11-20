@@ -1,5 +1,13 @@
 # @pnpm/config
 
+## 16.1.3
+
+### Patch Changes
+
+- Updated dependencies [969f8a002]
+  - @pnpm/matcher@4.0.1
+  - @pnpm/pnpmfile@4.0.9
+
 ## 16.1.2
 
 ### Patch Changes

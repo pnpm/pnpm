@@ -1,5 +1,18 @@
 # pnpm
 
+## 7.17.0
+
+### Minor Changes
+
+- Added a new command `pnpm licenses list`, which displays the licenses of the packages [#2825](https://github.com/pnpm/pnpm/issues/2825)
+
+### Patch Changes
+
+- `pnpm update --latest !foo` should not update anything if the only dependency in the project is the ignored one [#5643](https://github.com/pnpm/pnpm/pull/5643).
+- `pnpm audit` should send the versions of workspace projects for audit.
+- Hoisting with symlinks should not override external symlinks and directories in the root of node_modules.
+- The `pnpm.updateConfig.ignoreDependencies` setting should work with multiple dependencies in the array [#5639](https://github.com/pnpm/pnpm/issues/5639).
+
 ## 7.16.1
 
 ### Patch Changes

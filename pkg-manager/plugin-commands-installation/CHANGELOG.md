@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-installation
 
+## 11.0.9
+
+### Patch Changes
+
+- 969f8a002: `pnpm update --latest !foo` should not update anything if the only dependency in the project is the ignored one [#5643](https://github.com/pnpm/pnpm/pull/5643).
+- Updated dependencies [969f8a002]
+  - @pnpm/matcher@4.0.1
+  - @pnpm/core@7.1.1
+  - @pnpm/config@16.1.3
+  - @pnpm/outdated@11.0.5
+  - @pnpm/filter-workspace-packages@6.0.9
+  - @pnpm/pnpmfile@4.0.9
+  - @pnpm/cli-utils@1.0.9
+  - @pnpm/plugin-commands-rebuild@7.0.9
+  - @pnpm/store-connection-manager@5.1.2
+  - @pnpm/find-workspace-packages@5.0.9
+
 ## 11.0.8
 
 ### Patch Changes

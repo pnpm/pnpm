@@ -1,5 +1,11 @@
 # @pnpm/matcher
 
+## 4.0.1
+
+### Patch Changes
+
+- 969f8a002: The `pnpm.updateConfig.ignoreDependencies` setting should work with multiple dependencies in the array [#5639](https://github.com/pnpm/pnpm/issues/5639).
+
 ## 4.0.0
 
 ### Major Changes
