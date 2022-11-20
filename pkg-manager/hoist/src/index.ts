@@ -262,4 +262,5 @@ async function symlinkHoistedDependency (
   }
   await fs.promises.unlink(dest)
   await symlinkDir(depLocation, dest)
+  linkLogger.debug({ target: dest, link: depLocation })
 }
