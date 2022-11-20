@@ -1,12 +1,15 @@
 import { audit } from '@pnpm/audit'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
+import { fixtures } from '@pnpm/test-fixtures'
 import nock from 'nock'
 import { lockfileToAuditTree } from '../lib/lockfileToAuditTree'
 
+const f = fixtures(__dirname)
+
 describe('audit', () => {
-  test('lockfileToAuditTree()', () => {
-    expect(lockfileToAuditTree({
+  test('lockfileToAuditTree()', async () => {
+    expect(await lockfileToAuditTree({
       importers: {
         '.': {
           dependencies: {
@@ -33,7 +36,7 @@ describe('audit', () => {
           },
         },
       },
-    })).toEqual({
+    }, { lockfileDir: f.find('one-project') })).toEqual({
       name: undefined,
       version: undefined,
 
@@ -59,7 +62,7 @@ describe('audit', () => {
           requires: {
             foo: '1.0.0',
           },
-          version: '0.0.0',
+          version: '1.0.0',
         },
       },
       dev: false,
@@ -67,7 +70,7 @@ describe('audit', () => {
       integrity: undefined,
       metadata: {},
       remove: [],
-      requires: { '.': '0.0.0' },
+      requires: { '.': '1.0.0' },
     })
   })
 
@@ -88,6 +91,7 @@ describe('audit', () => {
       },
       getAuthHeader,
       {
+        lockfileDir: f.find('one-project'),
         registry,
         retry: {
           retries: 0,

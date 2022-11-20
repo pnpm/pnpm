@@ -1576,6 +1576,9 @@ importers:
       '@pnpm/lockfile-walker':
         specifier: workspace:*
         version: link:../lockfile-walker
+      '@pnpm/read-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1592,6 +1595,9 @@ importers:
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../lockfile-file
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
