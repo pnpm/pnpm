@@ -1,7 +1,9 @@
+import path from 'path'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { lockfileWalkerGroupImporterSteps, LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { DependenciesField } from '@pnpm/types'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 import mapValues from 'ramda/src/map'
 
 export interface AuditNode {
@@ -19,25 +21,29 @@ export type AuditTree = AuditNode & {
   metadata: Object
 }
 
-export function lockfileToAuditTree (
+export async function lockfileToAuditTree (
   lockfile: Lockfile,
-  opts?: {
+  opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
+    lockfileDir: string
   }
-): AuditTree {
+): Promise<AuditTree> {
   const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, Object.keys(lockfile.importers), { include: opts?.include })
   const dependencies = {}
-  importerWalkers.forEach((importerWalker) => {
-    const importerDeps = lockfileToAuditNode(importerWalker.step)
-    // For some reason the registry responds with 500 if the keys in dependencies have slashes
-    // see issue: https://github.com/pnpm/pnpm/issues/2848
-    const depName = importerWalker.importerId.replace(/\//g, '__')
-    dependencies[depName] = {
-      dependencies: importerDeps,
-      requires: toRequires(importerDeps),
-      version: '0.0.0',
-    }
-  })
+  await Promise.all(
+    importerWalkers.map(async (importerWalker) => {
+      const importerDeps = lockfileToAuditNode(importerWalker.step)
+      // For some reason the registry responds with 500 if the keys in dependencies have slashes
+      // see issue: https://github.com/pnpm/pnpm/issues/2848
+      const depName = importerWalker.importerId.replace(/\//g, '__')
+      const { manifest } = await readProjectManifest(path.join(opts.lockfileDir, importerWalker.importerId))
+      dependencies[depName] = {
+        dependencies: importerDeps,
+        requires: toRequires(importerDeps),
+        version: manifest.version,
+      }
+    })
+  )
   const auditTree: AuditTree = {
     name: undefined,
     version: undefined,

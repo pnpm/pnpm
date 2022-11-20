@@ -33,6 +33,7 @@
     "@pnpm/audit": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.15",
     "nock": "13.2.9"
   },
@@ -43,6 +44,7 @@
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/lockfile-walker": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },

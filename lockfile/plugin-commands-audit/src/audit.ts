@@ -130,7 +130,8 @@ export async function handler (
   | 'rootProjectManifest'
   >
 ) {
-  const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })
+  const lockfileDir = opts.lockfileDir ?? opts.dir
+  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: true })
   if (lockfile == null) {
     throw new PnpmError('AUDIT_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found: Cannot audit a project without a lockfile`)
   }
@@ -156,6 +157,7 @@ export async function handler (
         timeout: opts.fetchTimeout,
       },
       include,
+      lockfileDir,
       registry: opts.registries.default,
       retry: {
         factor: opts.fetchRetryFactor,

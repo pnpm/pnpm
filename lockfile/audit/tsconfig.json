@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
       "path": "../../network/fetch"
     },
     {
@@ -23,6 +26,9 @@
     },
     {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manifest/read-project-manifest"
     },
     {
       "path": "../lockfile-file"

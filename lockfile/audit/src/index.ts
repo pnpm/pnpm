@@ -14,12 +14,13 @@ export async function audit (
   opts: {
     agentOptions?: AgentOptions
     include?: { [dependenciesField in DependenciesField]: boolean }
+    lockfileDir: string
     registry: string
     retry?: RetryTimeoutOptions
     timeout?: number
   }
 ) {
-  const auditTree = lockfileToAuditTree(lockfile, { include: opts.include })
+  const auditTree = await lockfileToAuditTree(lockfile, { include: opts.include, lockfileDir: opts.lockfileDir })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/audits`
   const authHeaderValue = getAuthHeader(registry)
