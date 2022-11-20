@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
 import { list, listForPackages } from '@pnpm/list'
 import { fixtures } from '@pnpm/test-fixtures'

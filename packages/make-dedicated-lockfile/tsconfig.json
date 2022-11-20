@@ -6,9 +6,12 @@
   },
   "include": [
     "src/**/*.ts",
-    "../../typings/**/*.d.ts"
+    "../../__typings__/**/*.d.ts"
   ],
   "references": [
+    {
+      "path": "../../__utils__/test-fixtures"
+    },
     {
       "path": "../../lockfile/lockfile-file"
     },
@@ -20,9 +23,6 @@
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
-      "path": "../../privatePackages/test-fixtures"
     },
     {
       "path": "../../workspace/find-workspace-dir"

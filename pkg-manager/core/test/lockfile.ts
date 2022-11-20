@@ -1070,7 +1070,7 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
   expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
 })
 
-const REGISTRY_MIRROR_DIR = path.join(__dirname, '../../../registry-mirror')
+const REGISTRY_MIRROR_DIR = path.join(__dirname, './registry-mirror')
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const isPositiveMeta = loadJsonFile.sync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-positive.json'))

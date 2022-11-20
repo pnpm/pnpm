@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../__typings__/index.d.ts"/>
 import { createExportableManifest } from '@pnpm/exportable-manifest'
 
 test('the pnpm options are removed', async () => {

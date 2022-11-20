@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/local.d.ts"/>
+/// <reference path="../../../__typings__/local.d.ts"/>
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   pruneLockfile,

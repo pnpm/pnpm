@@ -6,14 +6,14 @@
   },
   "include": [
     "src/**/*.ts",
-    "../../typings/**/*.d.ts"
+    "../../__typings__/**/*.d.ts"
   ],
   "references": [
     {
-      "path": "../../packages/core-loggers"
+      "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../privatePackages/prepare"
+      "path": "../../packages/core-loggers"
     },
     {
       "path": "../../store/store-controller-types"

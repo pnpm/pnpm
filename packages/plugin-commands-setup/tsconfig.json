@@ -7,14 +7,14 @@
   },
   "include": [
     "src/**/*.ts",
-    "../../typings/**/*.d.ts"
+    "../../__typings__/**/*.d.ts"
   ],
   "references": [
     {
-      "path": "../../cli/cli-utils"
+      "path": "../../__utils__/prepare"
     },
     {
-      "path": "../../privatePackages/prepare"
+      "path": "../../cli/cli-utils"
     },
     {
       "path": "../error"

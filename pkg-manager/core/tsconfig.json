@@ -6,9 +6,21 @@
   },
   "include": [
     "src/**/*.ts",
-    "../../typings/**/*.d.ts"
+    "../../__typings__/**/*.d.ts"
   ],
   "references": [
+    {
+      "path": "../../__utils__/assert-project"
+    },
+    {
+      "path": "../../__utils__/assert-store"
+    },
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/test-fixtures"
+    },
     {
       "path": "../../config/matcher"
     },
@@ -86,18 +98,6 @@
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
-      "path": "../../privatePackages/assert-project"
-    },
-    {
-      "path": "../../privatePackages/assert-store"
-    },
-    {
-      "path": "../../privatePackages/prepare"
-    },
-    {
-      "path": "../../privatePackages/test-fixtures"
     },
     {
       "path": "../../resolving/resolver-base"

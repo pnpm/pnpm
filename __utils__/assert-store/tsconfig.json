@@ -2,12 +2,15 @@
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
     "outDir": "lib",
-    "rootDir": "src",
-    "module": "ES2020"
+    "rootDir": "src"
   },
   "include": [
     "src/**/*.ts",
-    "../../typings/**/*.d.ts"
+    "../../__typings__/**/*.d.ts"
   ],
-  "references": []
+  "references": [
+    {
+      "path": "../../store/cafs"
+    }
+  ]
 }

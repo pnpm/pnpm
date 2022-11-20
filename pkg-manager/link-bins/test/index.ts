@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../__typings__/index.d.ts"/>
 import { promises as fs, writeFileSync } from 'fs'
 import path from 'path'
 import { logger, globalWarn } from '@pnpm/logger'

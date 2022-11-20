@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
 import { runLifecycleHook, runPostinstallHooks } from '@pnpm/lifecycle'
 import loadJsonFile from 'load-json-file'

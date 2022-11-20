@@ -6,9 +6,15 @@
   },
   "include": [
     "src/**/*.ts",
-    "../../typings/**/*.d.ts"
+    "../../__typings__/**/*.d.ts"
   ],
   "references": [
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/test-fixtures"
+    },
     {
       "path": "../../cli/cli-utils"
     },
@@ -47,12 +53,6 @@
     },
     {
       "path": "../../pkg-manager/modules-yaml"
-    },
-    {
-      "path": "../../privatePackages/prepare"
-    },
-    {
-      "path": "../../privatePackages/test-fixtures"
     },
     {
       "path": "../../store/store-connection-manager"

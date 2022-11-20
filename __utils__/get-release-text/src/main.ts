@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/local.d.ts" />
+/// <reference path="../../../__typings__/local.d.ts" />
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'

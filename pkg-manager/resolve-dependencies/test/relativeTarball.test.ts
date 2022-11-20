@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts" />
+/// <reference path="../../../__typings__/index.d.ts" />
 import { relativeTarball } from '../lib/updateLockfile'
 
 test('relativeTarball()', () => {

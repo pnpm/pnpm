@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'

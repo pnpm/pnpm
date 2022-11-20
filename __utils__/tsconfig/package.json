@@ -1,0 +1,39 @@
+{
+  "name": "@pnpm/tsconfig",
+  "description": "pnpm's TypeScript configuration",
+  "version": "2.0.0",
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "z@kochan.io",
+    "url": "https://www.kochan.io/"
+  },
+  "license": "MIT",
+  "main": "tsconfig.json",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/__utils__/tsconfig#readme",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/__utils__/tsconfig",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "devDependencies": {
+    "@pnpm/tsconfig": "workspace:*"
+  },
+  "keywords": [
+    "pnpm7"
+  ],
+  "engines": {
+    "node": ">=14.6"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "funding": "https://opencollective.com/pnpm",
+  "scripts": {
+    "test": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix",
+    "prepublishOnly": "pnpm run compile"
+  },
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

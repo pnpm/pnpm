@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/local.d.ts"/>
+/// <reference path="../../../__typings__/local.d.ts"/>
 import { createPkgGraph } from 'pkgs-graph'
 import pathResolve from 'better-path-resolve'
 

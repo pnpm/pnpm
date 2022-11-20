@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { createGitFetcher } from '@pnpm/git-fetcher'

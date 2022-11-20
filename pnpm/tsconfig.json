@@ -9,9 +9,18 @@
   },
   "include": [
     "src/**/*.ts",
-    "../typings/**/*.d.ts"
+    "../__typings__/**/*.d.ts"
   ],
   "references": [
+    {
+      "path": "../__utils__/assert-project"
+    },
+    {
+      "path": "../__utils__/prepare"
+    },
+    {
+      "path": "../__utils__/test-fixtures"
+    },
     {
       "path": "../cli/cli-meta"
     },
@@ -95,15 +104,6 @@
     },
     {
       "path": "../pkg-manifest/write-project-manifest"
-    },
-    {
-      "path": "../privatePackages/assert-project"
-    },
-    {
-      "path": "../privatePackages/prepare"
-    },
-    {
-      "path": "../privatePackages/test-fixtures"
     },
     {
       "path": "../releasing/plugin-commands-deploy"

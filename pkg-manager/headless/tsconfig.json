@@ -6,9 +6,18 @@
   },
   "include": [
     "src/**/*.ts",
-    "../../typings/**/*.d.ts"
+    "../../__typings__/**/*.d.ts"
   ],
   "references": [
+    {
+      "path": "../../__utils__/assert-project"
+    },
+    {
+      "path": "../../__utils__/prepare"
+    },
+    {
+      "path": "../../__utils__/test-fixtures"
+    },
     {
       "path": "../../config/package-is-installable"
     },
@@ -56,15 +65,6 @@
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
-      "path": "../../privatePackages/assert-project"
-    },
-    {
-      "path": "../../privatePackages/prepare"
-    },
-    {
-      "path": "../../privatePackages/test-fixtures"
     },
     {
       "path": "../../store/cafs"

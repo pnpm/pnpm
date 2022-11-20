@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import { createBase32Hash, createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import { tempDir } from '@pnpm/prepare'

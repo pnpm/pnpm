@@ -19,7 +19,7 @@ packageExtensionsChecksum: 66c6aa53b7057053eae6c4a5ea9612f3
 patchedDependencies:
   pkg@5.7.0:
     hash: pp6fkuhwkrqq7cjcj7uqpf37e4
-    path: patches/pkg@5.7.0.patch
+    path: __patches__/pkg@5.7.0.patch
 
 importers:
 
@@ -54,7 +54,7 @@ importers:
         version: 17.2.0
       '@pnpm/eslint-config':
         specifier: workspace:*
-        version: link:utils/eslint-config
+        version: link:__utils__/eslint-config
       '@pnpm/meta-updater':
         specifier: 0.2.2
         version: 0.2.2_typanion@3.12.1
@@ -63,7 +63,7 @@ importers:
         version: 3.1.0_typanion@3.12.1
       '@pnpm/tsconfig':
         specifier: workspace:*
-        version: link:utils/tsconfig
+        version: link:__utils__/tsconfig
       '@types/jest':
         specifier: ^29.2.3
         version: 29.2.3
@@ -147,6 +147,206 @@ importers:
         version: 4.3.0
     devDependencies:
       '@pnpm-private/updater':
+        specifier: workspace:*
+        version: 'link:'
+
+  __typings__:
+    devDependencies:
+      '@pnpm-private/typings':
+        specifier: workspace:*
+        version: 'link:'
+
+  __utils__/assert-project:
+    dependencies:
+      '@pnpm/assert-store':
+        specifier: workspace:*
+        version: link:../assert-store
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-types
+      '@pnpm/modules-yaml':
+        specifier: workspace:*
+        version: link:../../pkg-manager/modules-yaml
+      '@pnpm/registry-mock':
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.1
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      is-windows:
+        specifier: ^1.0.2
+        version: 1.0.2
+      isexe:
+        specifier: 2.0.0
+        version: 2.0.0
+      path-exists:
+        specifier: ^4.0.0
+        version: 4.0.0
+      read-yaml-file:
+        specifier: ^2.1.0
+        version: 2.1.0
+      write-pkg:
+        specifier: 4.0.0
+        version: 4.0.0
+    devDependencies:
+      '@pnpm/assert-project':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/is-windows':
+        specifier: ^1.0.0
+        version: 1.0.0
+      '@types/isexe':
+        specifier: 2.0.1
+        version: 2.0.1
+      '@types/node':
+        specifier: ^14.18.33
+        version: 14.18.33
+
+  __utils__/assert-store:
+    dependencies:
+      '@pnpm/cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
+      '@pnpm/registry-mock':
+        specifier: 3.1.0
+        version: 3.1.0_typanion@3.12.1
+      path-exists:
+        specifier: ^4.0.0
+        version: 4.0.0
+    devDependencies:
+      '@pnpm/assert-store':
+        specifier: workspace:*
+        version: 'link:'
+
+  __utils__/build-artifacts:
+    dependencies:
+      pkg-deb:
+        specifier: ^1.1.2
+        version: 1.1.2
+      pkg-rpm:
+        specifier: ^1.0.3
+        version: 1.0.3
+    devDependencies:
+      '@pnpm/build-artifacts':
+        specifier: workspace:*
+        version: 'link:'
+
+  __utils__/eslint-config:
+    dependencies:
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^5.43.0
+        version: 5.43.0_wze2rj5tow7zwqpgbdx2buoy3m
+      '@typescript-eslint/parser':
+        specifier: ^5.43.0
+        version: 5.43.0_e3uo4sehh4zr4i6m57mkkxxv7y
+      eslint:
+        specifier: ^8.27.0
+        version: 8.27.0
+      eslint-config-standard-with-typescript:
+        specifier: ^23.0.0
+        version: 23.0.0_7cxqyvay3bhndwpjpjrmrfdxlm
+      eslint-plugin-import:
+        specifier: ^2.26.0
+        version: 2.26.0_wbsj7pk5g7hogwvhsif6xntns4
+      eslint-plugin-n:
+        specifier: ^15.5.1
+        version: 15.5.1_eslint@8.27.0
+      eslint-plugin-node:
+        specifier: ^11.1.0
+        version: 11.1.0_eslint@8.27.0
+      eslint-plugin-promise:
+        specifier: ^6.1.1
+        version: 6.1.1_eslint@8.27.0
+      typescript:
+        specifier: 4.9.3
+        version: 4.9.3
+    devDependencies:
+      '@pnpm/eslint-config':
+        specifier: workspace:*
+        version: 'link:'
+
+  __utils__/get-release-text:
+    dependencies:
+      mdast-util-to-string:
+        specifier: ^2.0.0
+        version: 2.0.0
+      remark-parse:
+        specifier: ^9.0.0
+        version: 9.0.0_unified@9.2.2
+      remark-stringify:
+        specifier: ^9.0.1
+        version: 9.0.1_unified@9.2.2
+      unified:
+        specifier: ^9.2.2
+        version: 9.2.2
+    devDependencies:
+      '@pnpm/get-release-text':
+        specifier: workspace:*
+        version: 'link:'
+
+  __utils__/prepare:
+    dependencies:
+      '@pnpm/assert-project':
+        specifier: workspace:*
+        version: link:../assert-project
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      unique-string:
+        specifier: ^2.0.0
+        version: 2.0.0
+      write-json5-file:
+        specifier: ^3.1.0
+        version: 3.1.0
+      write-pkg:
+        specifier: 4.0.0
+        version: 4.0.0
+      write-yaml-file:
+        specifier: ^4.2.0
+        version: 4.2.0
+    devDependencies:
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/node':
+        specifier: ^14.18.33
+        version: 14.18.33
+
+  __utils__/scripts:
+    dependencies:
+      execa:
+        specifier: npm:safe-execa@^0.1.2
+        version: /safe-execa/0.1.2
+      make-empty-dir:
+        specifier: ^2.0.0
+        version: 2.0.0
+    devDependencies:
+      '@pnpm/scripts':
+        specifier: workspace:*
+        version: 'link:'
+
+  __utils__/test-fixtures:
+    dependencies:
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../prepare
+      fs-extra:
+        specifier: ^10.1.0
+        version: 10.1.0
+    devDependencies:
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/fs-extra':
+        specifier: ^9.0.13
+        version: 9.0.13
+
+  __utils__/tsconfig:
+    devDependencies:
+      '@pnpm/tsconfig':
         specifier: workspace:*
         version: 'link:'
 
@@ -393,10 +593,10 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/is-windows':
         specifier: ^1.0.0
         version: 1.0.0
@@ -537,7 +737,7 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@types/adm-zip':
         specifier: ^0.4.34
         version: 0.4.34
@@ -623,7 +823,7 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@types/adm-zip':
         specifier: ^0.4.34
         version: 0.4.34
@@ -836,13 +1036,13 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
         version: 3.1.0_typanion@3.12.1
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -942,7 +1142,7 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
         version: 3.1.0_typanion@3.12.1
@@ -1023,7 +1223,7 @@ importers:
         version: 'link:'
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/npm-packlist':
         specifier: ^3.0.0
         version: 3.0.0
@@ -1149,7 +1349,7 @@ importers:
         version: 'link:'
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -1239,7 +1439,7 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
 
   fs/read-modules-dir:
     dependencies:
@@ -1271,7 +1471,7 @@ importers:
     devDependencies:
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@pnpm/symlink-dependency':
         specifier: workspace:*
         version: 'link:'
@@ -1726,7 +1926,7 @@ importers:
         version: 'link:'
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -1874,7 +2074,7 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
 
   packages/dependency-path:
     dependencies:
@@ -1962,7 +2162,7 @@ importers:
         version: 'link:'
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -2075,10 +2275,10 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -2136,7 +2336,7 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
         version: 3.1.0_typanion@3.12.1
@@ -2167,7 +2367,7 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
 
   packages/render-peer-issues:
     dependencies:
@@ -2411,10 +2611,10 @@ importers:
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
-        version: link:../../privatePackages/assert-project
+        version: link:../../__utils__/assert-project
       '@pnpm/assert-store':
         specifier: workspace:*
-        version: link:../../privatePackages/assert-store
+        version: link:../../__utils__/assert-store
       '@pnpm/cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -2432,7 +2632,7 @@ importers:
         version: link:../../store/package-store
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
         version: 3.1.0_typanion@3.12.1
@@ -2441,7 +2641,7 @@ importers:
         version: link:../../store/store-path
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/fs-extra':
         specifier: ^9.0.13
         version: 9.0.13
@@ -2650,7 +2850,7 @@ importers:
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
-        version: link:../../privatePackages/assert-project
+        version: link:../../__utils__/assert-project
       '@pnpm/cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -2665,7 +2865,7 @@ importers:
         version: link:../../store/package-store
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@pnpm/read-projects-context':
         specifier: workspace:*
         version: link:../read-projects-context
@@ -2677,7 +2877,7 @@ importers:
         version: link:../../store/store-path
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/fs-extra':
         specifier: ^9.0.13
         version: 9.0.13
@@ -2814,7 +3014,7 @@ importers:
         version: 'link:'
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/is-windows':
         specifier: ^1.0.0
         version: 1.0.0
@@ -3028,7 +3228,7 @@ importers:
         version: 3.1.0_typanion@3.12.1
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/normalize-path':
         specifier: ^3.0.0
         version: 3.0.0
@@ -3194,7 +3394,7 @@ importers:
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
-        version: link:../../privatePackages/assert-project
+        version: link:../../__utils__/assert-project
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-types
@@ -3206,13 +3406,13 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
         version: 3.1.0_typanion@3.12.1
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/is-ci':
         specifier: ^3.0.0
         version: 3.0.0
@@ -3609,7 +3809,7 @@ importers:
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
-        version: link:../privatePackages/assert-project
+        version: link:../__utils__/assert-project
       '@pnpm/byline':
         specifier: ^1.0.0
         version: 1.0.0
@@ -3717,7 +3917,7 @@ importers:
         version: link:../store/plugin-commands-store
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../privatePackages/prepare
+        version: link:../__utils__/prepare
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../pkg-manifest/read-package-json
@@ -3735,7 +3935,7 @@ importers:
         version: 0.1.2
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../privatePackages/test-fixtures
+        version: link:../__utils__/test-fixtures
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
@@ -3933,115 +4133,6 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
-  privatePackages/assert-project:
-    dependencies:
-      '@pnpm/assert-store':
-        specifier: workspace:*
-        version: link:../assert-store
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../packages/constants
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
-      '@pnpm/modules-yaml':
-        specifier: workspace:*
-        version: link:../../pkg-manager/modules-yaml
-      '@pnpm/registry-mock':
-        specifier: 3.1.0
-        version: 3.1.0_typanion@3.12.1
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      is-windows:
-        specifier: ^1.0.2
-        version: 1.0.2
-      isexe:
-        specifier: 2.0.0
-        version: 2.0.0
-      path-exists:
-        specifier: ^4.0.0
-        version: 4.0.0
-      read-yaml-file:
-        specifier: ^2.1.0
-        version: 2.1.0
-      write-pkg:
-        specifier: 4.0.0
-        version: 4.0.0
-    devDependencies:
-      '@pnpm/assert-project':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/is-windows':
-        specifier: ^1.0.0
-        version: 1.0.0
-      '@types/isexe':
-        specifier: 2.0.1
-        version: 2.0.1
-      '@types/node':
-        specifier: ^14.18.33
-        version: 14.18.33
-
-  privatePackages/assert-store:
-    dependencies:
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
-      '@pnpm/registry-mock':
-        specifier: 3.1.0
-        version: 3.1.0_typanion@3.12.1
-      path-exists:
-        specifier: ^4.0.0
-        version: 4.0.0
-    devDependencies:
-      '@pnpm/assert-store':
-        specifier: workspace:*
-        version: 'link:'
-
-  privatePackages/prepare:
-    dependencies:
-      '@pnpm/assert-project':
-        specifier: workspace:*
-        version: link:../assert-project
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      unique-string:
-        specifier: ^2.0.0
-        version: 2.0.0
-      write-json5-file:
-        specifier: ^3.1.0
-        version: 3.1.0
-      write-pkg:
-        specifier: 4.0.0
-        version: 4.0.0
-      write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
-    devDependencies:
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/node':
-        specifier: ^14.18.33
-        version: 14.18.33
-
-  privatePackages/test-fixtures:
-    dependencies:
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../prepare
-      fs-extra:
-        specifier: ^10.1.0
-        version: 10.1.0
-    devDependencies:
-      '@pnpm/test-fixtures':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/fs-extra':
-        specifier: ^9.0.13
-        version: 9.0.13
-
   releasing/plugin-commands-deploy:
     dependencies:
       '@pnpm/cli-utils':
@@ -4074,7 +4165,7 @@ importers:
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
-        version: link:../../privatePackages/assert-project
+        version: link:../../__utils__/assert-project
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
@@ -4086,7 +4177,7 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
         version: 3.1.0_typanion@3.12.1
@@ -4183,7 +4274,7 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
         version: 3.1.0_typanion@3.12.1
@@ -4412,7 +4503,7 @@ importers:
         version: 'link:'
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/normalize-path':
         specifier: ^3.0.0
         version: 3.0.0
@@ -4496,7 +4587,7 @@ importers:
         version: link:../../packages/constants
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/normalize-path':
         specifier: ^3.0.0
         version: 3.0.0
@@ -4609,7 +4700,7 @@ importers:
         version: 'link:'
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/archy':
         specifier: 0.0.32
         version: 0.0.32
@@ -4798,7 +4889,7 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
         version: 3.1.0_typanion@3.12.1
@@ -4895,13 +4986,13 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
         version: 3.1.0_typanion@3.12.1
       '@pnpm/test-fixtures':
         specifier: workspace:*
-        version: link:../../privatePackages/test-fixtures
+        version: link:../../__utils__/test-fixtures
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -5029,7 +5120,7 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -5084,7 +5175,7 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -5233,7 +5324,7 @@ importers:
     devDependencies:
       '@pnpm/assert-store':
         specifier: workspace:*
-        version: link:../../privatePackages/assert-store
+        version: link:../../__utils__/assert-store
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-file
@@ -5242,7 +5333,7 @@ importers:
         version: 'link:'
       '@pnpm/prepare':
         specifier: workspace:*
-        version: link:../../privatePackages/prepare
+        version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
         version: 3.1.0_typanion@3.12.1
@@ -5433,97 +5524,6 @@ importers:
       rimraf:
         specifier: ^3.0.2
         version: 3.0.2
-
-  typings:
-    devDependencies:
-      '@pnpm-private/typings':
-        specifier: workspace:*
-        version: 'link:'
-
-  utils/build-artifacts:
-    dependencies:
-      pkg-deb:
-        specifier: ^1.1.2
-        version: 1.1.2
-      pkg-rpm:
-        specifier: ^1.0.3
-        version: 1.0.3
-    devDependencies:
-      '@pnpm/build-artifacts':
-        specifier: workspace:*
-        version: 'link:'
-
-  utils/eslint-config:
-    dependencies:
-      '@typescript-eslint/eslint-plugin':
-        specifier: ^5.43.0
-        version: 5.43.0_wze2rj5tow7zwqpgbdx2buoy3m
-      '@typescript-eslint/parser':
-        specifier: ^5.43.0
-        version: 5.43.0_e3uo4sehh4zr4i6m57mkkxxv7y
-      eslint:
-        specifier: ^8.27.0
-        version: 8.27.0
-      eslint-config-standard-with-typescript:
-        specifier: ^23.0.0
-        version: 23.0.0_7cxqyvay3bhndwpjpjrmrfdxlm
-      eslint-plugin-import:
-        specifier: ^2.26.0
-        version: 2.26.0_wbsj7pk5g7hogwvhsif6xntns4
-      eslint-plugin-n:
-        specifier: ^15.5.1
-        version: 15.5.1_eslint@8.27.0
-      eslint-plugin-node:
-        specifier: ^11.1.0
-        version: 11.1.0_eslint@8.27.0
-      eslint-plugin-promise:
-        specifier: ^6.1.1
-        version: 6.1.1_eslint@8.27.0
-      typescript:
-        specifier: 4.9.3
-        version: 4.9.3
-    devDependencies:
-      '@pnpm/eslint-config':
-        specifier: workspace:*
-        version: 'link:'
-
-  utils/get-release-text:
-    dependencies:
-      mdast-util-to-string:
-        specifier: ^2.0.0
-        version: 2.0.0
-      remark-parse:
-        specifier: ^9.0.0
-        version: 9.0.0_unified@9.2.2
-      remark-stringify:
-        specifier: ^9.0.1
-        version: 9.0.1_unified@9.2.2
-      unified:
-        specifier: ^9.2.2
-        version: 9.2.2
-    devDependencies:
-      '@pnpm/get-release-text':
-        specifier: workspace:*
-        version: 'link:'
-
-  utils/scripts:
-    dependencies:
-      execa:
-        specifier: npm:safe-execa@^0.1.2
-        version: /safe-execa/0.1.2
-      make-empty-dir:
-        specifier: ^2.0.0
-        version: 2.0.0
-    devDependencies:
-      '@pnpm/scripts':
-        specifier: workspace:*
-        version: 'link:'
-
-  utils/tsconfig:
-    devDependencies:
-      '@pnpm/tsconfig':
-        specifier: workspace:*
-        version: 'link:'
 
   workspace/filter-workspace-packages:
     dependencies:
@@ -9252,16 +9252,6 @@ packages:
     resolution: {integrity: sha512-HGyxoOTYUyCM6stUe6EJgnd4EoewAI7zMdfqO+kGjnlZmBDz/cR5pf8r/cR4Wq60sL/p0IkcjUEEPwS3GFrIyw==}
     engines: {node: '>=8'}
 
-  /array.prototype.flat/1.3.0:
-    resolution: {integrity: sha512-12IUEkHsAhA4DY5s0FPgNXIdc8VRSqD9Zp78a5au9abH/SOBrsp082JOWFNTjkMozh8mqcdiKuaLGhPeYztxSw==}
-    engines: {node: '>= 0.4'}
-    dependencies:
-      call-bind: 1.0.2
-      define-properties: 1.1.4
-      es-abstract: 1.20.4
-      es-shim-unscopables: 1.0.0
-    dev: false
-
   /array.prototype.flat/1.3.1:
     resolution: {integrity: sha512-roTU0KWIOmJ4DRLmwKd19Otg0/mT3qPNt0Qb3GWW8iObuZXxrjB/pzn0R3hqpRSWg4HCwqx+0vwOnWnvlOyeIA==}
     engines: {node: '>= 0.4'}
@@ -9270,7 +9260,6 @@ packages:
       define-properties: 1.1.4
       es-abstract: 1.20.4
       es-shim-unscopables: 1.0.0
-    dev: true
 
   /arrify/1.0.1:
     resolution: {integrity: sha512-3CYzex9M9FGQjCGMGyi6/31c8GJbgb0qGyrx5HWxPd0aCwh4cB2YjMb2Xf9UuoogrMrlO9cTqnB5rI5GHZTcUA==}
@@ -11035,14 +11024,14 @@ packages:
     dependencies:
       '@typescript-eslint/parser': 5.43.0_e3uo4sehh4zr4i6m57mkkxxv7y
       array-includes: 3.1.5
-      array.prototype.flat: 1.3.0
+      array.prototype.flat: 1.3.1
       debug: 2.6.9
       doctrine: 2.1.0
       eslint: 8.27.0
       eslint-import-resolver-node: 0.3.6
       eslint-module-utils: 2.7.4_7n62batgpjg7oa6ssbsyzoyo34
       has: 1.0.3
-      is-core-module: 2.10.0
+      is-core-module: 2.11.0
       is-glob: 4.0.3
       minimatch: 3.1.2
       object.values: 1.1.5
@@ -12316,12 +12305,6 @@ packages:
     hasBin: true
     dependencies:
       ci-info: 3.6.1
-
-  /is-core-module/2.10.0:
-    resolution: {integrity: sha512-Erxj2n/LDAZ7H8WNJXd9tw38GYM3dv8rk8Zcs+jJuxYTW7sozH+SS8NtrSjVL1/vpLvWi1hxy96IzjJ3EHTJJg==}
-    dependencies:
-      has: 1.0.3
-    dev: false
 
   /is-core-module/2.11.0:
     resolution: {integrity: sha512-RRjxlvLDkD1YJwDbroBHMb+cukurkDWNyHx7D3oNB5x9rb5ogcksMC5wHCadcXoo67gVr/+3GFySh3134zi6rw==}

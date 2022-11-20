@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../__typings__/index.d.ts"/>
 import fs from 'fs'
 import { tempDir } from '@pnpm/prepare'
 import path from 'path'

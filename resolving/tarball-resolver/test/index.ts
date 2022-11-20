@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../__typings__/index.d.ts"/>
 import { resolveFromTarball } from '@pnpm/tarball-resolver'
 
 test('tarball from npm registry', async () => {

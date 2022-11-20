@@ -6,14 +6,14 @@
   },
   "include": [
     "src/**/*.ts",
-    "../../typings/**/*.d.ts"
+    "../../__typings__/**/*.d.ts"
   ],
   "references": [
     {
-      "path": "../../pkg-manifest/read-project-manifest"
+      "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../privatePackages/test-fixtures"
+      "path": "../../pkg-manifest/read-project-manifest"
     },
     {
       "path": "../../resolving/resolver-base"

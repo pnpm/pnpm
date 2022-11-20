@@ -6,9 +6,15 @@
   },
   "include": [
     "src/**/*.ts",
-    "../../typings/**/*.d.ts"
+    "../../__typings__/**/*.d.ts"
   ],
   "references": [
+    {
+      "path": "../../__utils__/assert-store"
+    },
+    {
+      "path": "../../__utils__/prepare"
+    },
     {
       "path": "../../cli/cli-utils"
     },
@@ -41,12 +47,6 @@
     },
     {
       "path": "../../pkg-manager/get-context"
-    },
-    {
-      "path": "../../privatePackages/assert-store"
-    },
-    {
-      "path": "../../privatePackages/prepare"
     },
     {
       "path": "../cafs"

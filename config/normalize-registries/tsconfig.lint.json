@@ -3,6 +3,6 @@
   "include": [
     "src/**/*.ts",
     "test/**/*.ts",
-    "../../typings/**/*.d.ts"
+    "../../__typings__/**/*.d.ts"
   ]
 }

@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
 import { resolveFromLocal } from '@pnpm/local-resolver'
 import normalize from 'normalize-path'

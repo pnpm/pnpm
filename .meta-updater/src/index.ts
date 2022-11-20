@@ -16,8 +16,7 @@ export default async (workspaceDir: string) => {
   const pnpmManifest = loadJsonFile.sync(path.join(workspaceDir, 'pnpm/package.json'))
   const pnpmVersion = pnpmManifest!['version'] // eslint-disable-line
   const pnpmMajorKeyword = `pnpm${pnpmVersion.split('.')[0]}`
-  const privatePkgsDir = path.join(workspaceDir, 'privatePackages')
-  const utilsDir = path.join(workspaceDir, 'utils')
+  const utilsDir = path.join(workspaceDir, '__utils__')
   const lockfile = await readWantedLockfile(workspaceDir, { ignoreIncompatible: false })
   if (lockfile == null) {
     throw new Error('no lockfile found')
@@ -39,7 +38,7 @@ export default async (workspaceDir: string) => {
       } else if (manifest.name === CLI_PKG_NAME && manifest.devDependencies) {
         delete manifest.devDependencies[manifest.name]
       }
-      if (manifest.private || isSubdir(privatePkgsDir, dir) || isSubdir(utilsDir, dir)) return manifest
+      if (manifest.private || isSubdir(utilsDir, dir)) return manifest
       manifest.keywords = [
         pnpmMajorKeyword,
         ...(manifest.keywords ?? []).filter((keyword) => !/^pnpm[0-9]+$/.test(keyword)),
@@ -104,7 +103,7 @@ async function updateTSConfig (
     include: [
       'src/**/*.ts',
       'test/**/*.ts',
-      '../../typings/**/*.d.ts',
+      '../../__typings__/**/*.d.ts',
     ],
   }, { indent: 2 })
   return {

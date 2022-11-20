@@ -6,9 +6,15 @@
   },
   "include": [
     "src/**/*.ts",
-    "../../typings/**/*.d.ts"
+    "../../__typings__/**/*.d.ts"
   ],
   "references": [
+    {
+      "path": "../../__utils__/assert-project"
+    },
+    {
+      "path": "../../__utils__/prepare"
+    },
     {
       "path": "../../cli/cli-utils"
     },
@@ -29,12 +35,6 @@
     },
     {
       "path": "../../pkg-manager/plugin-commands-installation"
-    },
-    {
-      "path": "../../privatePackages/assert-project"
-    },
-    {
-      "path": "../../privatePackages/prepare"
     },
     {
       "path": "../../workspace/filter-workspace-packages"

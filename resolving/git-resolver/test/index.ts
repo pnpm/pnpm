@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts"/>
+/// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
 import { createGitResolver } from '@pnpm/git-resolver'
 import git from 'graceful-git'

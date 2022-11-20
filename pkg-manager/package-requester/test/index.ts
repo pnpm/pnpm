@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts" />
+/// <reference path="../../../__typings__/index.d.ts" />
 import { promises as fs, statSync } from 'fs'
 import path from 'path'
 import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'

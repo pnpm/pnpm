@@ -1,28 +1,26 @@
 packages:
+  - .meta-updater
+  - __typings__
+  - __utils__/*
   - cli/*
   - config/*
   - env/*
   - exec/*
   - fetching/*
   - fs/*
+  - hooks/*
   - lockfile/*
   - network/*
-  - hooks/*
-  - pnpm
-  - pnpm/artifacts/*
+  - packages/*
   - pkg-manager/*
   - pkg-manifest/*
-  - resolving/*
+  - pnpm
+  - pnpm/artifacts/*
   - releasing/*
+  - resolving/*
   - reviewing/*
   - store/*
   - workspace/*
-  - packages/*
-  - privatePackages/*
-  - typings
-  - .meta-updater
-  - utils/*
-  - "!**/__package_previews__/**"
   - "!**/example/**"
   - "!**/test/**"
-  - "!packages/local-resolver/example-package/**"
+  - "!resolving/local-resolver/example-package/**"

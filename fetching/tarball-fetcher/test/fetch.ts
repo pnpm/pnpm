@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts" />
+/// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
 import { FetchError, PnpmError } from '@pnpm/error'

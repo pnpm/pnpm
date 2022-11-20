@@ -1,4 +1,4 @@
-/// <reference path="../../../typings/index.d.ts" />
+/// <reference path="../../../__typings__/index.d.ts" />
 import path from 'path'
 import { licenses } from '@pnpm/plugin-commands-licenses'
 import { install } from '@pnpm/plugin-commands-installation'
