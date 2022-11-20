@@ -3,11 +3,7 @@ import {
   readDepNameCompletions,
 } from '@pnpm/cli-utils'
 import { CompletionFunc } from '@pnpm/command'
-import {
-  FILTERING,
-  OPTIONS,
-  UNIVERSAL_OPTIONS,
-} from '@pnpm/common-cli-options-help'
+import { OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import pick from 'ramda/src/pick'
@@ -39,11 +35,7 @@ export const commandNames = ['licenses']
 
 export function help () {
   return renderHelp({
-    description: `Check for licenses packages. The check can be limited to a subset of the installed packages by providing arguments (patterns are supported).
-
-Examples:
-pnpm licenses list
-pnpm licenses list --long`,
+    description: `Check the licenses of the installed packages.`,
     descriptionLists: [
       {
         title: 'Options',
@@ -51,7 +43,7 @@ pnpm licenses list --long`,
         list: [
           {
             description:
-              'By default, details about the packages (such as a link to the repo) are not displayed. \
+              'Show more details (such as a link to the repo) are not displayed. \
 To display the details, pass this option.',
             name: '--long',
           },
@@ -73,14 +65,15 @@ To display the details, pass this option.',
             description: 'Don\'t check "optionalDependencies"',
             name: '--no-optional',
           },
-          OPTIONS.globalDir,
-          ...UNIVERSAL_OPTIONS,
         ],
       },
-      FILTERING,
     ],
     url: docsUrl('licenses'),
-    usages: ['pnpm licenses [options]'],
+    usages: [
+      'pnpm licenses ls',
+      'pnpm licenses list',
+      'pnpm licenses list --long',
+    ],
   })
 }
 
