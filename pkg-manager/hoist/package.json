@@ -40,16 +40,19 @@
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",
+    "@pnpm/core-loggers": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/lockfile-walker": "workspace:*",
     "@pnpm/matcher": "workspace:*",
-    "@pnpm/symlink-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "1.0.0",
     "dependency-path": "workspace:*",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "is-subdir": "^1.2.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
+    "resolve-link-target": "^2.0.0",
+    "symlink-dir": "^5.1.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

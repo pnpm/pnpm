@@ -13,6 +13,7 @@ import rimraf from '@zkochan/rimraf'
 import resolveLinkTarget from 'resolve-link-target'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
+import symlinkDir from 'symlink-dir'
 import writeYamlFile from 'write-yaml-file'
 import { testDefaults } from '../utils'
 
@@ -48,6 +49,24 @@ test('should hoist dependencies to the root of node_modules when publicHoistPatt
 
   // should also hoist bins
   await project.isExecutable('.bin/mime')
+})
+
+test('public hoist should not override directories that are already in the root of node_modules', async () => {
+  const project = prepareEmpty()
+  fs.mkdirSync('node_modules/debug', { recursive: true })
+  fs.writeFileSync('node_modules/debug/pnpm-test.txt', '')
+  fs.mkdirSync('cookie')
+  fs.writeFileSync('cookie/pnpm-test.txt', '')
+  await symlinkDir('cookie', 'node_modules/cookie')
+
+  await addDependenciesToPackage({},
+    ['express@4.18.2'],
+    await testDefaults({ fastUnpack: false, publicHoistPattern: '*' }))
+
+  await project.has('express')
+  await project.has('debug/pnpm-test.txt')
+  await project.has('cookie/pnpm-test.txt')
+  await project.has('mime')
 })
 
 test('should hoist some dependencies to the root of node_modules when publicHoistPattern is used and others to the virtual store directory', async () => {

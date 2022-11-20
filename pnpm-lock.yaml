@@ -607,8 +607,8 @@ importers:
         specifier: ^2.0.1
         version: 2.0.1
       symlink-dir:
-        specifier: ^5.0.1
-        version: 5.0.1
+        specifier: ^5.1.0
+        version: 5.1.0
 
   config/matcher:
     dependencies:
@@ -1466,8 +1466,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       symlink-dir:
-        specifier: ^5.0.1
-        version: 5.0.1
+        specifier: ^5.1.0
+        version: 5.1.0
     devDependencies:
       '@pnpm/prepare':
         specifier: workspace:*
@@ -2703,8 +2703,8 @@ importers:
         specifier: ^14.0.2
         version: 14.0.2
       symlink-dir:
-        specifier: ^5.0.1
-        version: 5.0.1
+        specifier: ^5.1.0
+        version: 5.1.0
       write-json-file:
         specifier: ^4.3.0
         version: 4.3.0
@@ -2920,6 +2920,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../packages/core-loggers
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../link-bins
@@ -2938,9 +2941,6 @@ importers:
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
-      '@pnpm/symlink-dependency':
-        specifier: workspace:*
-        version: link:../../fs/symlink-dependency
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -2950,9 +2950,18 @@ importers:
       dependency-path:
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      is-subdir:
+        specifier: ^1.2.0
+        version: 1.2.0
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda/0.28.1
+      resolve-link-target:
+        specifier: ^2.0.0
+        version: 2.0.0
+      symlink-dir:
+        specifier: ^5.1.0
+        version: 5.1.0
     devDependencies:
       '@pnpm/hoist':
         specifier: workspace:*
@@ -3012,8 +3021,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda/0.28.1
       symlink-dir:
-        specifier: ^5.0.1
-        version: 5.0.1
+        specifier: ^5.1.0
+        version: 5.1.0
     devDependencies:
       '@pnpm/link-bins':
         specifier: workspace:*
@@ -3453,8 +3462,8 @@ importers:
         specifier: ^14.0.2
         version: 14.0.2
       symlink-dir:
-        specifier: ^5.0.1
-        version: 5.0.1
+        specifier: ^5.1.0
+        version: 5.1.0
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -4060,8 +4069,8 @@ importers:
         specifier: ^6.0.1
         version: 6.0.1
       symlink-dir:
-        specifier: ^5.0.1
-        version: 5.0.1
+        specifier: ^5.1.0
+        version: 5.1.0
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -16115,6 +16124,15 @@ packages:
     dependencies:
       better-path-resolve: 1.0.0
       rename-overwrite: 4.0.3
+    dev: true
+
+  /symlink-dir/5.1.0:
+    resolution: {integrity: sha512-nrwSDbmMYGwc+wu6gzmTdQIV9GzItMG/0LX4c9Co0bhtx2KK1WUKjNIyhjhAdIKaA5eIwVhB2tqFsn8ooUsRKA==}
+    engines: {node: '>=12.10'}
+    hasBin: true
+    dependencies:
+      better-path-resolve: 1.0.0
+      rename-overwrite: 4.0.3
 
   /syncpack/8.3.9:
     resolution: {integrity: sha512-oDaEvgZAoU40WXX4okQ7DiCfVEcO2antl+jV+Av+FbS4Hyh8VoJ8F6HGo2G8eT9H+AyBBM1iDUdbtR1MQRimoQ==}
@@ -17529,7 +17547,7 @@ time:
   /string.prototype.replaceall/1.0.6: '2021-10-05T01:00:00.092Z'
   /strip-ansi/6.0.1: '2021-09-23T16:34:41.798Z'
   /strip-bom/4.0.0: '2019-04-28T04:40:47.887Z'
-  /symlink-dir/5.0.1: '2021-05-03T15:54:10.299Z'
+  /symlink-dir/5.1.0: '2022-11-20T16:48:15.918Z'
   /syncpack/8.3.9: '2022-10-28T16:58:42.312Z'
   /tar-stream/2.2.0: '2020-12-29T10:22:57.508Z'
   /tar/6.1.12: '2022-11-01T16:33:12.294Z'

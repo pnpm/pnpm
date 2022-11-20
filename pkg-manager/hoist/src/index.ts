@@ -1,4 +1,6 @@
+import fs from 'fs'
 import path from 'path'
+import { linkLogger } from '@pnpm/core-loggers'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { linkBins, WarnFunction } from '@pnpm/link-bins'
 import {
@@ -8,11 +10,13 @@ import {
 import { lockfileWalker, LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
-import { symlinkDependency } from '@pnpm/symlink-dependency'
 import { HoistedDependencies } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import * as dp from 'dependency-path'
+import isSubdir from 'is-subdir'
 import mapObjIndexed from 'ramda/src/mapObjIndexed'
+import resolveLinkTarget from 'resolve-link-target'
+import symlinkDir from 'symlink-dir'
 
 const hoistLogger = logger('hoist')
 
@@ -202,6 +206,7 @@ async function symlinkHoistedDependencies (
     virtualStoreDir: string
   }
 ) {
+  const symlink = symlinkHoistedDependency.bind(null, opts)
   await Promise.all(
     Object.entries(hoistedDependencies)
       .map(async ([depPath, pkgAliases]) => {
@@ -218,8 +223,44 @@ async function symlinkHoistedDependencies (
           const targetDir = hoistType === 'public'
             ? opts.publicHoistedModulesDir
             : opts.privateHoistedModulesDir
-          await symlinkDependency(depLocation, targetDir, pkgAlias)
+          const dest = path.join(targetDir, pkgAlias)
+          return symlink(depLocation, dest)
         }))
-      }
-      ))
+      })
+  )
+}
+
+async function symlinkHoistedDependency (
+  opts: { virtualStoreDir: string },
+  depLocation: string,
+  dest: string
+) {
+  try {
+    await symlinkDir(depLocation, dest, { overwrite: false })
+    linkLogger.debug({ target: dest, link: depLocation })
+    return
+  } catch (err: any) { // eslint-disable-line
+    if (err.code !== 'EEXIST' && err.code !== 'EISDIR') throw err
+  }
+  let existingSymlink!: string
+  try {
+    existingSymlink = await resolveLinkTarget(dest)
+  } catch (err) {
+    hoistLogger.debug({
+      skipped: dest,
+      reason: 'a directory is present at the target location',
+    })
+    return
+  }
+  if (!isSubdir(opts.virtualStoreDir, existingSymlink)) {
+    hoistLogger.debug({
+      skipped: dest,
+      existingSymlink,
+      reason: 'an external symlink is present at the target location',
+    })
+    return
+  }
+  await fs.promises.unlink(dest)
+  await symlinkDir(depLocation, dest)
+  linkLogger.debug({ target: dest, link: depLocation })
 }
