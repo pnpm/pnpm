@@ -13,9 +13,6 @@
       "path": "../../config/matcher"
     },
     {
-      "path": "../../fs/symlink-dependency"
-    },
-    {
       "path": "../../lockfile/lockfile-types"
     },
     {
@@ -26,6 +23,9 @@
     },
     {
       "path": "../../packages/constants"
+    },
+    {
+      "path": "../../packages/core-loggers"
     },
     {
       "path": "../../packages/dependency-path"

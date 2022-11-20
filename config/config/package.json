@@ -61,7 +61,7 @@
     "@types/is-windows": "^1.0.0",
     "@types/ramda": "0.28.15",
     "@types/which": "^2.0.1",
-    "symlink-dir": "^5.0.1"
+    "symlink-dir": "^5.1.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
