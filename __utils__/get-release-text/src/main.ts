@@ -15,7 +15,7 @@ export const BumpLevels = {
 } as const
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
-const pnpmDir = path.join(dirname, '../../../packages/pnpm')
+const pnpmDir = path.join(dirname, '../../../pnpm')
 const changelog = fs.readFileSync(path.join(pnpmDir, 'CHANGELOG.md'), 'utf8')
 const pnpm = JSON.parse(fs.readFileSync(path.join(pnpmDir, 'package.json'), 'utf8'))
 const release = getChangelogEntry(changelog, pnpm.version)
