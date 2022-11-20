@@ -123,10 +123,10 @@ importers:
     dependencies:
       '@pnpm/lockfile-file':
         specifier: 6.0.2
-        version: 6.0.2_@pnpm+logger@5.0.0
+        version: link:../lockfile/lockfile-file
       '@pnpm/types':
         specifier: 8.9.0
-        version: 8.9.0
+        version: link:../packages/types
       '@types/normalize-path':
         specifier: ^3.0.0
         version: 3.0.0
@@ -7212,6 +7212,7 @@ packages:
     engines: {node: '>=14.6'}
     dependencies:
       rfc4648: 1.5.2
+    dev: true
 
   /@pnpm/default-reporter/11.0.8_t6hceofxo263blh2tl245s3shq:
     resolution: {integrity: sha512-D/Pl8vPTkBT86DAvdiQdkQHZ/KbrAkg2JQOpUQWdZmi3yTMXoHi4Wyr42oaSjeRAJ7+Hj1E2tl6505+MO6eqFg==}
@@ -7364,6 +7365,7 @@ packages:
     engines: {node: '>=14.6'}
     dependencies:
       execa: /safe-execa/0.1.2
+    dev: true
 
   /@pnpm/graceful-fs/2.0.0:
     resolution: {integrity: sha512-ogUZCGf0/UILZt6d8PsO4gA4pXh7f0BumXeFkcCe4AQ65PXPKfAkHC0C30Lheh2EgFOpLZm3twDP1Eiww18gew==}
@@ -7523,6 +7525,7 @@ packages:
       sort-keys: 4.2.0
       strip-bom: 4.0.0
       write-file-atomic: 4.0.2
+    dev: true
 
   /@pnpm/lockfile-to-pnp/2.0.3_@pnpm+logger@5.0.0:
     resolution: {integrity: sha512-NGSOyTzGwRtnAZjkmxTd+QltEYd2s7uAkMLGU5TlrLFgiIF9fGRG8aD3zyZLGf11MuOC05Qp/KFqvj5E68RHaQ==}
@@ -7545,6 +7548,7 @@ packages:
     engines: {node: '>=14.6'}
     dependencies:
       '@pnpm/types': 8.9.0
+    dev: true
 
   /@pnpm/lockfile-utils/5.0.0:
     resolution: {integrity: sha512-jY5idWkuh4sXRS0PjHqSQ//ycsTYEzYPX0Uypp69NeDhw9Jdd+jY7SYrdd24QieuMlrdY9nKZEIKBbN+GSyOjg==}
@@ -7601,6 +7605,7 @@ packages:
       comver-to-semver: 1.0.0
       ramda: /@pnpm/ramda/0.28.1
       semver: 7.3.8
+    dev: true
 
   /@pnpm/meta-updater/0.2.2_typanion@3.12.1:
     resolution: {integrity: sha512-wh3LdQYM1aTl4vbuh+7Lv6amaDrQTu+iAIs0qsovIVnQfhHvRpwEdICHZTKC/xdthd4uGUmNZRvhoITzGLu1tg==}
@@ -8121,6 +8126,7 @@ packages:
   /@pnpm/types/8.9.0:
     resolution: {integrity: sha512-3MYHYm8epnciApn6w5Fzx6sepawmsNU7l6lvIq+ER22/DPSrr83YMhU/EQWnf4lORn2YyiXFj0FJSyJzEtIGmw==}
     engines: {node: '>=14.6'}
+    dev: true
 
   /@pnpm/util.lex-comparator/1.0.0:
     resolution: {integrity: sha512-3aBQPHntVgk5AweBWZn+1I/fqZ9krK/w01197aYVkAJQGftb+BVWgEepxY5GChjSW12j52XX+CmfynYZ/p0DFQ==}
@@ -10413,6 +10419,7 @@ packages:
       '@pnpm/types': 8.9.0
       encode-registry: 3.0.0
       semver: 7.3.8
+    dev: true
 
   /destroy/1.2.0:
     resolution: {integrity: sha512-2sJGJTaXIIaR1w4iJSNoN0hnMY7Gpc/n8D4qSCJw8QqFWXf7cuAgnEHxBpweaVcPevC2l3KpjYCx3NypQQgaJg==}
@@ -17311,7 +17318,6 @@ time:
   /@pnpm/config.env-replace/1.0.0: '2022-11-11T20:22:17.274Z'
   /@pnpm/exec/2.0.0: '2020-10-29T23:51:01.271Z'
   /@pnpm/graph-sequencer/1.0.0: '2022-03-20T20:48:58.797Z'
-  /@pnpm/lockfile-file/6.0.2: '2022-11-09T23:11:04.131Z'
   /@pnpm/logger/5.0.0: '2022-10-14T13:56:04.285Z'
   /@pnpm/meta-updater/0.2.2: '2022-11-18T12:00:42.706Z'
   /@pnpm/network.agent/0.0.3: '2022-06-12T19:51:53.044Z'
@@ -17324,7 +17330,6 @@ time:
   /@pnpm/registry-mock/3.1.0: '2022-10-13T19:59:17.408Z'
   /@pnpm/semver-diff/1.1.0: '2021-11-16T12:40:59.941Z'
   /@pnpm/tabtab/0.1.2: '2021-03-05T17:31:19.932Z'
-  /@pnpm/types/8.9.0: '2022-11-09T23:07:02.862Z'
   /@pnpm/util.lex-comparator/1.0.0: '2022-11-04T01:03:46.134Z'
   /@types/adm-zip/0.4.34: '2021-04-04T18:01:23.318Z'
   /@types/archy/0.0.32: '2021-07-06T18:11:33.301Z'
