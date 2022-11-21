@@ -10,6 +10,7 @@ const withPeerFixture = f.find('with-peer')
 const circularFixture = f.find('circular')
 const withFileDepFixture = f.find('with-file-dep')
 const withNonPackageDepFixture = f.find('with-non-package-dep')
+const withDepAtDifferentDepths = f.find('with-dep-at-different-depths')
 const withLinksOnlyFixture = f.find('fixtureWithLinks/with-links-only')
 const withUnsavedDepsFixture = f.find('with-unsaved-deps')
 const fixtureMonorepo = path.join(__dirname, '..', 'fixtureMonorepo')
@@ -519,4 +520,47 @@ test('dependency without a package.json', async () => {
   expect(tree[withNonPackageDepFixture].dependencies![0]['dependencies']).toBeUndefined()
   expect(tree[withNonPackageDepFixture].dependencies![0]['devDependencies']).toBeUndefined()
   expect(tree[withNonPackageDepFixture].dependencies![0]['optionalDependencies']).toBeUndefined()
+})
+
+// Test case for https://github.com/pnpm/pnpm/issues/4814
+test('dependency tree shows correct depth even if previously visited with different depth', async () => {
+  const tree = await buildDependenciesHierarchy([withDepAtDifferentDepths], {
+    depth: 2,
+    lockfileDir: withDepAtDifferentDepths,
+  })
+
+  expect(tree).toEqual({
+    [withDepAtDifferentDepths]: expect.objectContaining({
+      dependencies: expect.arrayContaining([
+        // depth 0
+        expect.objectContaining({
+          alias: 'glob',
+          dependencies: expect.arrayContaining([
+
+            // depth 1
+            expect.objectContaining({
+              alias: 'inflight',
+              dependencies: expect.arrayContaining([
+                // depth 2
+                expect.objectContaining({
+                  // The "once" package is first seen here at depth 2.
+                  alias: 'once',
+                }),
+              ]),
+            }),
+
+            // depth 1
+            expect.objectContaining({
+              alias: 'once',
+              dependencies: [
+                // The "once" package is seen again at depth 1. The "once"
+                // package contains a "wrappy" package that should be listed.
+                expect.objectContaining({ alias: 'wrappy' }),
+              ],
+            }),
+          ]),
+        }),
+      ]),
+    }),
+  })
 })

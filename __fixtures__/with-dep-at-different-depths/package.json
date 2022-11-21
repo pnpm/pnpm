@@ -1,0 +1,7 @@
+{
+  "name": "with-dep-at-different-depths",
+  "version": "0.0.0",
+  "dependencies": {
+    "glob": "^6.0.4"
+  }
+}
