@@ -2359,8 +2359,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       '@pnpm/os.env.path-extender':
-        specifier: ^0.2.7
-        version: 0.2.7
+        specifier: ^0.2.8
+        version: 0.2.8
       render-help:
         specifier: ^1.0.2
         version: 1.0.2
@@ -7783,15 +7783,15 @@ packages:
       - domexception
     dev: true
 
-  /@pnpm/os.env.path-extender-posix/0.2.5:
-    resolution: {integrity: sha512-rJ5SVOnFeTLKfn733klzJMiT9e5AuFFCGoLSgnIDiBI/QKFrnQG2N5cNzGLokFV1zIXfK1yyd3D7d/ifoTVkAA==}
+  /@pnpm/os.env.path-extender-posix/0.2.6:
+    resolution: {integrity: sha512-CHV6GX6QQyjppcIyIuUFXCPmJV1ffUTqmEV6dvJ4R+KksxAHLWaGfsfizaTkhBvty7LEH2zSoZwbKVQzOu+elg==}
     engines: {node: '>=12.22.0'}
     dependencies:
       '@pnpm/error': 4.0.0
     dev: false
 
-  /@pnpm/os.env.path-extender-windows/0.2.3:
-    resolution: {integrity: sha512-edkY/wC+8zWTYgK3L1LMSssZX0vnz3lrdYdDWtDyIqy3hm+KvCqZYe+oF4T1aSWFJ9n1hmOC3Ing2P8Y+pHV2Q==}
+  /@pnpm/os.env.path-extender-windows/0.2.4:
+    resolution: {integrity: sha512-7mm3kiOt4NUhX2ki1x0UDpSTrDk6MTrFF/z+HXRExhpSeGwgfUGqWVyWhHlrw9AZu5Cb8oLkXKgnXbMSJakRZw==}
     engines: {node: '>=12.22.0'}
     dependencies:
       '@pnpm/error': 4.0.0
@@ -7799,12 +7799,12 @@ packages:
       string.prototype.matchall: 4.0.7
     dev: false
 
-  /@pnpm/os.env.path-extender/0.2.7:
-    resolution: {integrity: sha512-Y1AXj1s/Lnu3PJk2E0st+edNW+OSNRli0kUod6loeGcy14K3NnwXshHrMgEN43ufA5hbWkBfAaXC7DtBDvLk1w==}
+  /@pnpm/os.env.path-extender/0.2.8:
+    resolution: {integrity: sha512-wp9zTah9y5TP85vUTtUbTckIAnTkWqeXz9yCuOA52YDVA2B/vbl+9MhStOxHh/Sq+OfhbnJF0siILsXMLHbKEQ==}
     engines: {node: '>=12.22.0'}
     dependencies:
-      '@pnpm/os.env.path-extender-posix': 0.2.5
-      '@pnpm/os.env.path-extender-windows': 0.2.3
+      '@pnpm/os.env.path-extender-posix': 0.2.6
+      '@pnpm/os.env.path-extender-windows': 0.2.4
     dev: false
 
   /@pnpm/package-bins/7.0.2:
@@ -17349,7 +17349,7 @@ time:
   /@pnpm/npm-conf/2.0.4: '2022-11-11T20:26:48.028Z'
   /@pnpm/npm-lifecycle/2.0.0-1: '2022-02-21T22:36:47.308Z'
   /@pnpm/npm-package-arg/1.0.0: '2022-06-28T12:48:31.287Z'
-  /@pnpm/os.env.path-extender/0.2.7: '2022-10-17T23:03:23.674Z'
+  /@pnpm/os.env.path-extender/0.2.8: '2022-11-21T01:38:43.315Z'
   /@pnpm/ramda/0.28.1: '2022-08-03T13:56:59.597Z'
   /@pnpm/registry-mock/3.1.0: '2022-10-13T19:59:17.408Z'
   /@pnpm/semver-diff/1.1.0: '2021-11-16T12:40:59.941Z'
