@@ -3,7 +3,6 @@ import {
   readDepNameCompletions,
 } from '@pnpm/cli-utils'
 import { CompletionFunc } from '@pnpm/command'
-import { OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import pick from 'ramda/src/pick'
@@ -35,7 +34,7 @@ export const commandNames = ['licenses']
 
 export function help () {
   return renderHelp({
-    description: `Check the licenses of the installed packages.`,
+    description: 'Check the licenses of the installed packages.',
     descriptionLists: [
       {
         title: 'Options',
