@@ -162,7 +162,10 @@ Do you want to continue?`,
     return
   }
   if ((params.length > 0) && params[0].endsWith('.tgz')) {
-    runNpm(opts.npmPath, ['publish', ...params])
+    const { status } = runNpm(opts.npmPath, ['publish', ...params])
+    if (status !== null && status !== 0) {
+      return { exitCode: status }
+    }
     return
   }
   const dirInParams = (params.length > 0) && params[0]
