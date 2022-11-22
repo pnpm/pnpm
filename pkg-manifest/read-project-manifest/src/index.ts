@@ -5,7 +5,7 @@ import { ProjectManifest } from '@pnpm/types'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import readYamlFile from 'read-yaml-file'
 
-import detectIndent from 'detect-indent'
+import detectIndent from '@gwhitney/detect-indent'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
 import sortKeys from 'sort-keys'

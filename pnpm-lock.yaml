@@ -3741,6 +3741,9 @@ importers:
 
   pkg-manifest/read-project-manifest:
     dependencies:
+      '@gwhitney/detect-indent':
+        specifier: 7.0.1
+        version: 7.0.1
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -3753,9 +3756,6 @@ importers:
       '@pnpm/write-project-manifest':
         specifier: workspace:*
         version: link:../write-project-manifest
-      detect-indent:
-        specifier: ^6.1.0
-        version: 6.1.0
       fast-deep-equal:
         specifier: ^3.1.3
         version: 3.1.3
@@ -6624,6 +6624,11 @@ packages:
 
   /@gar/promisify/1.1.3:
     resolution: {integrity: sha512-k2Ty1JcVojjJFwrg/ThKi2ujJ7XNLYaFGNB/bWT9wGR+oSMJHMa5w+CUq6p/pVrKeNNgA7pCqEcjSnHVoqJQFw==}
+
+  /@gwhitney/detect-indent/7.0.1:
+    resolution: {integrity: sha512-7bQW+gkKa2kKZPeJf6+c6gFK9ARxQfn+FKy9ScTBppyKRWH2KzsmweXUoklqeEiHiNVWaeP5csIdsNq6w7QhzA==}
+    engines: {node: '>=12.20'}
+    dev: false
 
   /@humanwhocodes/config-array/0.11.7:
     resolution: {integrity: sha512-kBbPWzN8oVMLb0hOUYXhmxggL/1cJE6ydvjDIGi9EnAGUyA7cLVKQg+d/Dsm+KZwx2czGHrCmMVLiyg8s5JPKw==}
@@ -17337,6 +17342,7 @@ time:
   /@commitlint/cli/17.2.0: '2022-10-31T15:02:07.699Z'
   /@commitlint/config-conventional/17.2.0: '2022-10-31T15:02:07.633Z'
   /@commitlint/prompt-cli/17.2.0: '2022-10-31T15:02:10.457Z'
+  /@gwhitney/detect-indent/7.0.1: '2022-11-22T14:07:22.341Z'
   /@pnpm/byline/1.0.0: '2021-10-31T23:25:00.031Z'
   /@pnpm/colorize-semver-diff/1.0.1: '2020-10-25T15:50:17.812Z'
   /@pnpm/config.env-replace/1.0.0: '2022-11-11T20:22:17.274Z'
@@ -17431,7 +17437,6 @@ time:
   /decompress-maybe/1.0.0: '2016-08-22T09:02:46.873Z'
   /deep-require-cwd/1.0.0: '2017-05-08T20:09:31.558Z'
   /delay/5.0.0: '2021-02-01T15:29:35.501Z'
-  /detect-indent/6.1.0: '2021-05-28T06:44:53.545Z'
   /detect-libc/2.0.1: '2022-02-14T10:44:10.231Z'
   /didyoumean2/5.0.0: '2021-05-27T03:31:55.835Z'
   /dint/5.1.0: '2021-02-12T01:22:54.214Z'
