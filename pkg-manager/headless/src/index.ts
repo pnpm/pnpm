@@ -576,13 +576,20 @@ async function symlinkDirectDependencies (
     symlink,
   }: SymlinkDirectDependenciesOpts
 ) {
-  const projectsToLink: ProjectToLink[] = []
-  await Promise.all(projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
-    if (symlink !== false) {
-      projectsToLink.push({
+  projects.forEach(({ rootDir, manifest }) => {
+    // Even though headless installation will never update the package.json
+    // this needs to be logged because otherwise install summary won't be printed
+    packageManifestLogger.debug({
+      prefix: rootDir,
+      updated: manifest,
+    })
+  })
+  if (symlink !== false) {
+    const projectsToLink = await Promise.all(
+      projects.map(async ({ rootDir, id, modulesDir }) => ({
         dir: rootDir,
         modulesDir,
-        dependencies: await linkRootPackages(filteredLockfile, {
+        dependencies: await getRootPackagesToLink(filteredLockfile, {
           importerId: id,
           importerModulesDir: modulesDir,
           lockfileDir,
@@ -591,17 +598,8 @@ async function symlinkDirectDependencies (
           registries,
           rootDependencies: directDependenciesByImporterId[id],
         }),
-      })
-    }
-
-    // Even though headless installation will never update the package.json
-    // this needs to be logged because otherwise install summary won't be printed
-    packageManifestLogger.debug({
-      prefix: rootDir,
-      updated: manifest,
-    })
-  }))
-  if (symlink !== false) {
+      }))
+    )
     await linkDirectDeps(projectsToLink)
   }
 }
@@ -625,7 +623,7 @@ async function linkBinsOfImporter (
   })
 }
 
-async function linkRootPackages (
+async function getRootPackagesToLink (
   lockfile: Lockfile,
   opts: {
     registries: Registries
