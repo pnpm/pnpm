@@ -724,5 +724,5 @@ test('publish: exit with non-zero code when publish tgz', async () => {
   }, [
     './non-exists.tgz',
   ])
-  expect(result?.exitCode).toEqual(254)
+  expect(result?.exitCode).not.toBe(0)
 })
