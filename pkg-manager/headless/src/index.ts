@@ -77,7 +77,7 @@ import {
   lockfileToDepGraph,
 } from './lockfileToDepGraph'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph'
-import { linkDirectDeps, LinkedDirectDep, ProjectToLink } from '@pnpm/pkg-manager.direct-dep-linker'
+import { linkDirectDeps, LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
 
 export { HoistingLimits }
 
