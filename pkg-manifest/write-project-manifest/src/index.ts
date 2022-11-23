@@ -122,5 +122,3 @@ export async function writeProjectManifest (
 
   return writeFileAtomic(filePath, `${json}${trailingNewline}`)
 }
-
-export default writeProjectManifest

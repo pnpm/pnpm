@@ -159,7 +159,6 @@ function detectFileFormatting (text: string) {
     if (lineEnd < 0) {
       lineEnd = stripped.length
     }
-    const prefix = stripped
     const whitespaceMatch = stripped
       .slice(lineStart, comment.index - offset)
       .match(/^\s*/)
@@ -168,8 +167,8 @@ function detectFileFormatting (text: string) {
       type: comment.type,
       content: comment.content,
       lineNumber,
-      on : stripped.slice(lineStart, lineEnd),
-      whitespace: whitespaceMatch ? whitespaceMatch[0] : ''
+      on: stripped.slice(lineStart, lineEnd),
+      whitespace: whitespaceMatch ? whitespaceMatch[0] : '',
     }
 
     if (hasAfter) {
