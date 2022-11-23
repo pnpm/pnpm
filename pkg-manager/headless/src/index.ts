@@ -9,7 +9,6 @@ import {
 import {
   packageManifestLogger,
   progressLogger,
-  rootLogger,
   stageLogger,
   statsLogger,
   summaryLogger,
@@ -55,7 +54,7 @@ import {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store-controller-types'
-import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
+import { symlinkDependency } from '@pnpm/symlink-dependency'
 import { DependencyManifest, HoistedDependencies, ProjectManifest, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import pLimit from 'p-limit'
@@ -78,6 +77,7 @@ import {
   lockfileToDepGraph,
 } from './lockfileToDepGraph'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph'
+import { linkDirectDeps, LinkedDirectDep, ProjectToLink } from './linkDirectDeps'
 
 export { HoistingLimits }
 
@@ -576,16 +576,22 @@ async function symlinkDirectDependencies (
     symlink,
   }: SymlinkDirectDependenciesOpts
 ) {
+  const projectsToLink: ProjectToLink[] = []
   await Promise.all(projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
     if (symlink !== false) {
-      await linkRootPackages(filteredLockfile, {
-        importerId: id,
-        importerModulesDir: modulesDir,
-        lockfileDir,
+      projectsToLink.push({
+        projectId: id,
         projectDir: rootDir,
-        projects,
-        registries,
-        rootDependencies: directDependenciesByImporterId[id],
+        modulesDir,
+        dependencies: await linkRootPackages(filteredLockfile, {
+          importerId: id,
+          importerModulesDir: modulesDir,
+          lockfileDir,
+          projectDir: rootDir,
+          projects,
+          registries,
+          rootDependencies: directDependenciesByImporterId[id],
+        }),
       })
     }
 
@@ -596,6 +602,9 @@ async function symlinkDirectDependencies (
       updated: manifest,
     })
   }))
+  if (symlink !== false) {
+    await linkDirectDeps(projectsToLink)
+  }
 }
 
 async function linkBinsOfImporter (
@@ -628,7 +637,7 @@ async function linkRootPackages (
     lockfileDir: string
     rootDependencies: { [alias: string]: string }
   }
-) {
+): Promise<LinkedDirectDep[]> {
   const importerManifestsByImporterId = {} as { [id: string]: ProjectManifest }
   for (const { id, manifest } of opts.projects) {
     importerManifestsByImporterId[id] = manifest
@@ -639,7 +648,7 @@ async function linkRootPackages (
     ...projectSnapshot.dependencies,
     ...projectSnapshot.optionalDependencies,
   }
-  return Promise.all(
+  return (await Promise.all(
     Object.entries(allDeps)
       .map(async ([alias, ref]) => {
         if (ref.startsWith('link:')) {
@@ -659,21 +668,21 @@ async function linkRootPackages (
               return { name: alias, version: '0.0.0' }
             }
           })() as DependencyManifest
-          await symlinkDirectRootDependency(packageDir, opts.importerModulesDir, alias, {
-            fromDependenciesField: isDev && 'devDependencies' ||
-              isOptional && 'optionalDependencies' ||
-              'dependencies',
-            linkedPackage,
-            prefix: opts.projectDir,
-          })
-          return
+          return {
+            alias,
+            name: linkedPackage.name,
+            version: linkedPackage.version,
+            depLocation: packageDir,
+            id: ref, // not needed actually
+            isLinked: true,
+            dependencyType: isDev && 'dev' ||
+              isOptional && 'optional' ||
+              'prod',
+          }
         }
         const dir = opts.rootDependencies[alias]
         // Skipping linked packages
         if (!dir) {
-          return
-        }
-        if ((await symlinkDependency(dir, opts.importerModulesDir, alias)).reused) {
           return
         }
         const isDev = Boolean(projectSnapshot.devDependencies?.[alias])
@@ -685,19 +694,18 @@ async function linkRootPackages (
         if (pkgSnapshot == null) return // this won't ever happen. Just making typescript happy
         const pkgId = pkgSnapshot.id ?? dp.refToAbsolute(ref, alias, opts.registries) ?? undefined
         const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        rootLogger.debug({
-          added: {
-            dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
-            id: pkgId,
-            // latest: opts.outdatedPkgs[pkg.id],
-            name: alias,
-            realName: pkgInfo.name,
-            version: pkgInfo.version,
-          },
-          prefix: opts.projectDir,
-        })
+        return {
+          alias,
+          isLinked: false,
+          name: pkgInfo.name,
+          version: pkgInfo.version,
+          dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
+          depLocation: dir,
+          id: pkgId,
+        }
       })
-  )
+  ))
+    .filter(Boolean) as LinkedDirectDep[]
 }
 
 const limitLinking = pLimit(16)
