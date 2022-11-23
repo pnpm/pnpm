@@ -41,6 +41,7 @@
     "@pnpm/npm-package-arg": "^1.0.0",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
+    "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",
     "@pnpm/prune-lockfile": "workspace:*",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",

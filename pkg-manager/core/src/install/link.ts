@@ -9,7 +9,7 @@ import {
 import {
   filterLockfileByImporters,
 } from '@pnpm/filter-lockfile'
-import { linkDirectDeps, ProjectToLink } from '@pnpm/headless'
+import { linkDirectDeps, LinkedDirectDep, ProjectToLink } from '@pnpm/pkg-manager.direct-dep-linker'
 import { hoist } from '@pnpm/hoist'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { logger } from '@pnpm/logger'
