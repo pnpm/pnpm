@@ -79,7 +79,7 @@ import {
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph'
 import { linkDirectDeps, LinkedDirectDep, ProjectToLink } from './linkDirectDeps'
 
-export { HoistingLimits }
+export { ProjectToLink, linkDirectDeps, LinkedDirectDep, HoistingLimits }
 
 export type ReporterFunction = (logObj: LogBase) => void
 

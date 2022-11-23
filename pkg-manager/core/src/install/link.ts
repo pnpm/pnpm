@@ -3,13 +3,13 @@ import path from 'path'
 import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   progressLogger,
-  rootLogger,
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
 import {
   filterLockfileByImporters,
 } from '@pnpm/filter-lockfile'
+import { linkDirectDeps, ProjectToLink } from '@pnpm/headless'
 import { hoist } from '@pnpm/hoist'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { logger } from '@pnpm/logger'
@@ -21,7 +21,7 @@ import {
   LinkedDependency,
 } from '@pnpm/resolve-dependencies'
 import { StoreController } from '@pnpm/store-controller-types'
-import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
+import { symlinkDependency } from '@pnpm/symlink-dependency'
 import {
   HoistedDependencies,
   Registries,
@@ -160,43 +160,49 @@ export async function linkPackages (
   })
 
   if (opts.symlink) {
+    const projectsToLink: ProjectToLink[] = []
     await Promise.all(projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
       const deps = opts.dependenciesByProjectId[id]
       const importerFromLockfile = newCurrentLockfile.importers[id]
-      await Promise.all([
-        ...Object.entries(deps)
-          .filter(([rootAlias]) => importerFromLockfile.specifiers[rootAlias])
-          .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
-          .filter(({ depGraphNode }) => depGraphNode)
-          .map(async ({ rootAlias, depGraphNode }) => {
-            if (
-              (await symlinkDependency(depGraphNode.dir, modulesDir, rootAlias)).reused
-            ) return
-
-            const isDev = Boolean(manifest.devDependencies?.[depGraphNode.name])
-            const isOptional = Boolean(manifest.optionalDependencies?.[depGraphNode.name])
-            rootLogger.debug({
-              added: {
-                dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
-                id: depGraphNode.id,
-                latest: opts.outdatedDependencies[depGraphNode.id],
-                name: rootAlias,
-                realName: depGraphNode.name,
+      projectsToLink.push({
+        projectId: id,
+        projectDir: rootDir,
+        modulesDir,
+        dependencies: await Promise.all([
+          ...Object.entries(deps)
+            .filter(([rootAlias]) => importerFromLockfile.specifiers[rootAlias])
+            .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
+            .filter(({ depGraphNode }) => depGraphNode)
+            .map(async ({ rootAlias, depGraphNode }) => {
+              const isDev = Boolean(manifest.devDependencies?.[depGraphNode.name])
+              const isOptional = Boolean(manifest.optionalDependencies?.[depGraphNode.name])
+              return {
+                alias: rootAlias,
+                name: depGraphNode.name,
                 version: depGraphNode.version,
-              },
-              prefix: rootDir,
-            })
+                depLocation: depGraphNode.dir,
+                id: depGraphNode.id,
+                dependencyType: (isDev && 'dev' || isOptional && 'optional' || 'prod') as 'dev' | 'optional' | 'prod',
+                latest: opts.outdatedDependencies[depGraphNode.id],
+                isLinked: false,
+              }
+            }),
+          ...opts.linkedDependenciesByProjectId[id].map(async (linkedDependency) => {
+            const depLocation = resolvePath(rootDir, linkedDependency.resolution.directory)
+            return {
+              alias: linkedDependency.alias,
+              name: linkedDependency.name,
+              version: linkedDependency.version,
+              depLocation,
+              id: linkedDependency.resolution.directory,
+              dependencyType: (linkedDependency.dev && 'dev' || linkedDependency.optional && 'optional' || 'prod') as 'dev' | 'optional' | 'prod',
+              isLinked: true,
+            }
           }),
-        ...opts.linkedDependenciesByProjectId[id].map(async (linkedDependency) => {
-          const depLocation = resolvePath(rootDir, linkedDependency.resolution.directory)
-          return symlinkDirectRootDependency(depLocation, modulesDir, linkedDependency.alias, {
-            fromDependenciesField: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
-            linkedPackage: linkedDependency,
-            prefix: rootDir,
-          })
-        }),
-      ])
+        ]),
+      })
     }))
+    await linkDirectDeps(projectsToLink)
   }
 
   let currentLockfile: Lockfile

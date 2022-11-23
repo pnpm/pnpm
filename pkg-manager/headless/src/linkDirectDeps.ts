@@ -9,6 +9,7 @@ export interface LinkedDirectDep {
   id: string
   dependencyType: 'prod' | 'dev' | 'optional'
   isLinked: boolean
+  latest?: string
 }
 
 export interface ProjectToLink {
@@ -43,7 +44,7 @@ export async function linkDirectDeps (
         added: {
           dependencyType: dep.dependencyType,
           id: dep.id,
-          // latest: opts.outdatedPkgs[pkg.id],
+          latest: dep.latest,
           name: dep.alias,
           realName: dep.name,
           version: dep.version,
