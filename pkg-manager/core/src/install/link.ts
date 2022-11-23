@@ -160,11 +160,11 @@ export async function linkPackages (
   })
 
   if (opts.symlink) {
-    const projectsToLink = await Promise.all(
+    const projectsToLink = fromPairs(await Promise.all(
       projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
         const deps = opts.dependenciesByProjectId[id]
         const importerFromLockfile = newCurrentLockfile.importers[id]
-        return {
+        return [id, {
           dir: rootDir,
           modulesDir,
           dependencies: await Promise.all([
@@ -199,8 +199,8 @@ export async function linkPackages (
               }
             }),
           ]),
-        }
-      })
+        }]
+      }))
     )
     await linkDirectDeps(projectsToLink)
   }

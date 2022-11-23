@@ -585,8 +585,8 @@ async function symlinkDirectDependencies (
     })
   })
   if (symlink !== false) {
-    const projectsToLink = await Promise.all(
-      projects.map(async ({ rootDir, id, modulesDir }) => ({
+    const projectsToLink = fromPairs(await Promise.all(
+      projects.map(async ({ rootDir, id, modulesDir }) => ([id, {
         dir: rootDir,
         modulesDir,
         dependencies: await getRootPackagesToLink(filteredLockfile, {
@@ -598,8 +598,8 @@ async function symlinkDirectDependencies (
           registries,
           rootDependencies: directDependenciesByImporterId[id],
         }),
-      }))
-    )
+      }]))
+    ))
     await linkDirectDeps(projectsToLink)
   }
 }

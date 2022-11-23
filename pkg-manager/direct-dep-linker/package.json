@@ -15,7 +15,8 @@
     "@pnpm/logger": "^5.0.0"
   },
   "devDependencies": {
-    "@pnpm/pkg-manager.direct-dep-linker": "workspace:*"
+    "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",
+    "@types/ramda": "0.28.15"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/direct-dep-linker#readme",
   "keywords": [
@@ -35,7 +36,8 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/symlink-dependency": "workspace:*"
+    "@pnpm/symlink-dependency": "workspace:*",
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
