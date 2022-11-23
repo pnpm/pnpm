@@ -2539,6 +2539,9 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
+      '@pnpm/pkg-manager.direct-dep-linker':
+        specifier: workspace:*
+        version: link:../direct-dep-linker
       '@pnpm/prune-lockfile':
         specifier: workspace:*
         version: link:../../lockfile/prune-lockfile
@@ -2712,6 +2715,22 @@ importers:
         specifier: ^4.2.0
         version: 4.2.0
 
+  pkg-manager/direct-dep-linker:
+    dependencies:
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../packages/core-loggers
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/symlink-dependency':
+        specifier: workspace:*
+        version: link:../../fs/symlink-dependency
+    devDependencies:
+      '@pnpm/pkg-manager.direct-dep-linker':
+        specifier: workspace:*
+        version: 'link:'
+
   pkg-manager/get-context:
     dependencies:
       '@pnpm/constants':
@@ -2814,6 +2833,9 @@ importers:
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../package-requester
+      '@pnpm/pkg-manager.direct-dep-linker':
+        specifier: workspace:*
+        version: link:../direct-dep-linker
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json

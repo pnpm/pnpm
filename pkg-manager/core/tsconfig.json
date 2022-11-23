@@ -118,6 +118,9 @@
       "path": "../client"
     },
     {
+      "path": "../direct-dep-linker"
+    },
+    {
       "path": "../get-context"
     },
     {

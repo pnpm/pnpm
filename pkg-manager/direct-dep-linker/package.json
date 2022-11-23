@@ -1,0 +1,44 @@
+{
+  "name": "@pnpm/pkg-manager.direct-dep-linker",
+  "description": "Fast installation using only pnpm-lock.yaml",
+  "version": "0.0.0",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/pkg-manager.direct-dep-linker": "workspace:*"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/direct-dep-linker#readme",
+  "keywords": [
+    "pnpm7",
+    "pnpm"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.6"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/direct-dep-linker",
+  "scripts": {
+    "lint": "eslint src/**/*.ts",
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/symlink-dependency": "workspace:*"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

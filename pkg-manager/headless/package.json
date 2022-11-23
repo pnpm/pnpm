@@ -83,6 +83,7 @@
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
+    "@pnpm/pkg-manager.direct-dep-linker": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/real-hoist": "workspace:*",
