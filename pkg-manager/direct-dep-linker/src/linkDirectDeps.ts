@@ -1,6 +1,9 @@
+import path from 'path'
 import { rootLogger } from '@pnpm/core-loggers'
 import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import omit from 'ramda/src/omit'
+import { readModulesDir } from '@pnpm/read-modules-dir'
+import resolveLinkTarget from 'resolve-link-target'
 
 export interface LinkedDirectDep {
   alias: string
@@ -22,10 +25,19 @@ export interface ProjectToLink {
 export async function linkDirectDeps (
   projects: Record<string, ProjectToLink>
 ) {
+  let targetsInTheRoot!: string[]
   if (projects['.']) {
     await linkDirectDepsOfProject(projects['.'])
+    if (Object.keys(projects).length === 1) return
+    const pkgs = (await readModulesDir(projects['.'].modulesDir)) ?? []
+    targetsInTheRoot = await Promise.all(pkgs.map(async (pkg) => await resolveLinkTarget(path.join(projects['.'].modulesDir, pkg))))
+  } else {
+    targetsInTheRoot = []
   }
-  await Promise.all(Object.values(omit(['.'], projects)).map(linkDirectDepsOfProject))
+  await Promise.all(Object.values(omit(['.'], projects)).map((project) => linkDirectDepsOfProject({
+    ...project,
+    dependencies: project.dependencies.filter((dep) => targetsInTheRoot.every((targetsInTheRoot) => path.relative(targetsInTheRoot, dep.dir) !== '')),
+  })))
 }
 
 async function linkDirectDepsOfProject (project: ProjectToLink) {
