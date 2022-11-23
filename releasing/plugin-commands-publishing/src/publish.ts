@@ -162,8 +162,8 @@ Do you want to continue?`,
     return
   }
   if ((params.length > 0) && params[0].endsWith('.tgz')) {
-    runNpm(opts.npmPath, ['publish', ...params])
-    return
+    const { status } = runNpm(opts.npmPath, ['publish', ...params])
+    return { exitCode: status ?? 0 }
   }
   const dirInParams = (params.length > 0) && params[0]
   const dir = dirInParams || opts.dir || process.cwd()

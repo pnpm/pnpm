@@ -708,3 +708,21 @@ test('publish: with specified publish branch name', async () => {
     publishBranch: branch,
   }, [])
 })
+
+test('publish: exit with non-zero code when publish tgz', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.2',
+  })
+
+  const result = await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', './non-exists.tgz', '--no-git-checks'] },
+    dir: process.cwd(),
+    gitChecks: false,
+
+  }, [
+    './non-exists.tgz',
+  ])
+  expect(result?.exitCode).not.toBe(0)
+})
