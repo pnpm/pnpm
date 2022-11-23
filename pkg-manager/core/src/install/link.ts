@@ -9,7 +9,7 @@ import {
 import {
   filterLockfileByImporters,
 } from '@pnpm/filter-lockfile'
-import { linkDirectDeps, LinkedDirectDep, ProjectToLink } from '@pnpm/pkg-manager.direct-dep-linker'
+import { linkDirectDeps, ProjectToLink } from '@pnpm/pkg-manager.direct-dep-linker'
 import { hoist } from '@pnpm/hoist'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { logger } from '@pnpm/logger'
@@ -165,8 +165,7 @@ export async function linkPackages (
       const deps = opts.dependenciesByProjectId[id]
       const importerFromLockfile = newCurrentLockfile.importers[id]
       projectsToLink.push({
-        projectId: id,
-        projectDir: rootDir,
+        dir: rootDir,
         modulesDir,
         dependencies: await Promise.all([
           ...Object.entries(deps)
@@ -180,23 +179,23 @@ export async function linkPackages (
                 alias: rootAlias,
                 name: depGraphNode.name,
                 version: depGraphNode.version,
-                depLocation: depGraphNode.dir,
+                dir: depGraphNode.dir,
                 id: depGraphNode.id,
                 dependencyType: (isDev && 'dev' || isOptional && 'optional' || 'prod') as 'dev' | 'optional' | 'prod',
                 latest: opts.outdatedDependencies[depGraphNode.id],
-                isLinked: false,
+                isExternalLink: false,
               }
             }),
           ...opts.linkedDependenciesByProjectId[id].map(async (linkedDependency) => {
-            const depLocation = resolvePath(rootDir, linkedDependency.resolution.directory)
+            const dir = resolvePath(rootDir, linkedDependency.resolution.directory)
             return {
               alias: linkedDependency.alias,
               name: linkedDependency.name,
               version: linkedDependency.version,
-              depLocation,
+              dir,
               id: linkedDependency.resolution.directory,
               dependencyType: (linkedDependency.dev && 'dev' || linkedDependency.optional && 'optional' || 'prod') as 'dev' | 'optional' | 'prod',
-              isLinked: true,
+              isExternalLink: true,
             }
           }),
         ]),

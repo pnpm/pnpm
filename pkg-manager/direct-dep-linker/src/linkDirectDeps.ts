@@ -5,16 +5,15 @@ export interface LinkedDirectDep {
   alias: string
   name: string
   version: string
-  depLocation: string
+  dir: string
   id: string
   dependencyType: 'prod' | 'dev' | 'optional'
-  isLinked: boolean
+  isExternalLink: boolean
   latest?: string
 }
 
 export interface ProjectToLink {
-  projectId: string
-  projectDir: string
+  dir: string
   modulesDir: string
   dependencies: LinkedDirectDep[]
 }
@@ -24,8 +23,8 @@ export async function linkDirectDeps (
 ) {
   await Promise.all(projects.map(async (project) => {
     await Promise.all(project.dependencies.map(async (dep) => {
-      if (dep.isLinked) {
-        await symlinkDirectRootDependency(dep.depLocation, project.modulesDir, dep.alias, {
+      if (dep.isExternalLink) {
+        await symlinkDirectRootDependency(dep.dir, project.modulesDir, dep.alias, {
           fromDependenciesField: dep.dependencyType === 'dev' && 'devDependencies' ||
             dep.dependencyType === 'optional' && 'optionalDependencies' ||
             'dependencies',
@@ -33,11 +32,11 @@ export async function linkDirectDeps (
             name: dep.name,
             version: dep.version,
           },
-          prefix: project.projectDir,
+          prefix: project.dir,
         })
         return
       }
-      if ((await symlinkDependency(dep.depLocation, project.modulesDir, dep.alias)).reused) {
+      if ((await symlinkDependency(dep.dir, project.modulesDir, dep.alias)).reused) {
         return
       }
       rootLogger.debug({
@@ -49,7 +48,7 @@ export async function linkDirectDeps (
           realName: dep.name,
           version: dep.version,
         },
-        prefix: project.projectDir,
+        prefix: project.dir,
       })
     }))
   }))

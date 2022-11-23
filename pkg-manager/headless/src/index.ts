@@ -79,7 +79,7 @@ import {
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph'
 import { linkDirectDeps, LinkedDirectDep, ProjectToLink } from '@pnpm/pkg-manager.direct-dep-linker'
 
-export { ProjectToLink, linkDirectDeps, LinkedDirectDep, HoistingLimits }
+export { HoistingLimits }
 
 export type ReporterFunction = (logObj: LogBase) => void
 
@@ -580,8 +580,7 @@ async function symlinkDirectDependencies (
   await Promise.all(projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
     if (symlink !== false) {
       projectsToLink.push({
-        projectId: id,
-        projectDir: rootDir,
+        dir: rootDir,
         modulesDir,
         dependencies: await linkRootPackages(filteredLockfile, {
           importerId: id,
@@ -672,9 +671,9 @@ async function linkRootPackages (
             alias,
             name: linkedPackage.name,
             version: linkedPackage.version,
-            depLocation: packageDir,
-            id: ref, // not needed actually
-            isLinked: true,
+            dir: packageDir,
+            id: ref,
+            isExternalLink: true,
             dependencyType: isDev && 'dev' ||
               isOptional && 'optional' ||
               'prod',
@@ -696,11 +695,11 @@ async function linkRootPackages (
         const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         return {
           alias,
-          isLinked: false,
+          isExternalLink: false,
           name: pkgInfo.name,
           version: pkgInfo.version,
           dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
-          depLocation: dir,
+          dir,
           id: pkgId,
         }
       })
