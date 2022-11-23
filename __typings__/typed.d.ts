@@ -45,6 +45,29 @@ declare module 'split-cmd' {
   export function splitToObject (cmd: string): { command: string, args: string[] }
 }
 
+declare module 'strip-comments-strings' {
+  export interface CodeItem {
+    // What feature of the code has been found:
+    type: string,
+    // The indices of the feature in the original code string:
+    index: number,
+    indexEnd: number,
+    // The test of the feature
+    content: string
+  }
+  export interface CodeAttributes {
+    // The remaining code text after all features have been stripped:
+    text: string,
+    // The items found:
+    comments: CodeItem[],
+    regexes: CodeItem[],
+    strings: CodeItem[]
+  }
+  export function parseString (str: string): CodeAttributes;
+  export type CodeItemReplacer = (item: CodeItem) => string;
+  export function stripComments (
+    str: string, replacer?: CodeItemReplacer): string;
+}
 
 declare module 'bin-links/lib/fix-bin' {
   function fixBin (path: string, execMode: number): Promise<void>;
