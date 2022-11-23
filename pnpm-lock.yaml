@@ -172,7 +172,7 @@ importers:
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -212,7 +212,7 @@ importers:
         version: link:../../store/cafs
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -377,6 +377,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -399,9 +402,6 @@ importers:
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -429,6 +429,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/render-peer-issues':
         specifier: workspace:*
         version: link:../../packages/render-peer-issues
@@ -478,9 +481,6 @@ importers:
       '@pnpm/default-reporter':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@types/normalize-path':
         specifier: ^3.0.0
         version: 3.0.0
@@ -647,6 +647,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -663,9 +666,6 @@ importers:
         specifier: ^7.3.8
         version: 7.3.8
     devDependencies:
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: 'link:'
@@ -866,6 +866,9 @@ importers:
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -888,9 +891,6 @@ importers:
       '@pnpm/build-modules':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -903,6 +903,9 @@ importers:
       '@pnpm/directory-fetcher':
         specifier: workspace:*
         version: link:../../fetching/directory-fetcher
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/npm-lifecycle':
         specifier: ^2.0.0-1
         version: 2.0.0-1_typanion@3.12.1
@@ -925,9 +928,6 @@ importers:
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@types/rimraf':
         specifier: ^3.0.2
         version: 3.0.2
@@ -979,6 +979,9 @@ importers:
       '@pnpm/lockfile-walker':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-walker
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
@@ -1028,9 +1031,6 @@ importers:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/plugin-commands-rebuild':
         specifier: workspace:*
         version: 'link:'
@@ -1039,7 +1039,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -1085,6 +1085,9 @@ importers:
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../lifecycle
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/package-bins
@@ -1134,9 +1137,6 @@ importers:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/plugin-commands-script-runners':
         specifier: workspace:*
         version: 'link:'
@@ -1145,7 +1145,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       '@types/is-windows':
         specifier: ^1.0.0
         version: 1.0.0
@@ -1202,6 +1202,9 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/read-project-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-project-manifest
@@ -1218,9 +1221,6 @@ importers:
       '@pnpm/directory-fetcher':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -1316,6 +1316,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package
@@ -1341,9 +1344,6 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: 'link:'
@@ -1406,6 +1406,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -1434,9 +1437,6 @@ importers:
       '@pnpm/fs.indexed-pkg-importer':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -1459,6 +1459,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1466,9 +1469,6 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0
     devDependencies:
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -1490,6 +1490,9 @@ importers:
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-types
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
@@ -1506,9 +1509,6 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: 'link:'
@@ -1622,6 +1622,9 @@ importers:
       '@pnpm/lockfile-walker':
         specifier: workspace:*
         version: link:../lockfile-walker
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
@@ -1638,9 +1641,6 @@ importers:
       '@pnpm/filter-lockfile':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -1671,6 +1671,9 @@ importers:
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../lockfile-types
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/merge-lockfile-changes':
         specifier: workspace:*
         version: link:../merge-lockfile-changes
@@ -1714,9 +1717,6 @@ importers:
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@types/js-yaml':
         specifier: ^4.0.5
         version: 4.0.5
@@ -1750,6 +1750,9 @@ importers:
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../lockfile-utils
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1769,9 +1772,6 @@ importers:
       '@pnpm/lockfile-to-pnp':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@types/normalize-path':
         specifier: ^3.0.0
         version: 3.0.0
@@ -2004,6 +2004,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../fetching-types
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/network.agent':
         specifier: 0.0.3
         version: 0.0.3
@@ -2017,9 +2020,6 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       nock:
         specifier: 13.2.9
         version: 13.2.9
@@ -2058,6 +2058,9 @@ importers:
 
   packages/core-loggers:
     dependencies:
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
@@ -2065,9 +2068,6 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
 
   packages/crypto.base32-hash:
     dependencies:
@@ -2244,13 +2244,13 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       render-help:
         specifier: ^1.0.2
         version: 1.0.2
     devDependencies:
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/plugin-commands-doctor':
         specifier: workspace:*
         version: 'link:'
@@ -2300,6 +2300,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../parse-wanted-dependency
@@ -2334,9 +2337,6 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
     devDependencies:
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/plugin-commands-patching':
         specifier: workspace:*
         version: 'link:'
@@ -2345,7 +2345,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -2355,6 +2355,9 @@ importers:
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/os.env.path-extender':
         specifier: ^0.2.8
         version: 0.2.8
@@ -2365,9 +2368,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../error
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/plugin-commands-setup':
         specifier: workspace:*
         version: 'link:'
@@ -2512,6 +2512,9 @@ importers:
       '@pnpm/lockfile-walker':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-walker
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -2633,9 +2636,6 @@ importers:
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../../store/package-store
@@ -2644,7 +2644,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -2674,7 +2674,7 @@ importers:
         version: 10.0.13
       '@yarnpkg/core':
         specifier: 4.0.0-rc.27
-        version: 4.0.0-rc.27
+        version: 4.0.0-rc.27_typanion@3.12.1
       deep-require-cwd:
         specifier: 1.0.0
         version: 1.0.0
@@ -2760,6 +2760,9 @@ importers:
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-file
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
@@ -2785,9 +2788,6 @@ importers:
       '@pnpm/get-context':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@types/is-ci':
         specifier: ^3.0.0
         version: 3.0.0
@@ -2833,6 +2833,9 @@ importers:
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/modules-cleaner':
         specifier: workspace:*
         version: link:../modules-cleaner
@@ -2900,9 +2903,6 @@ importers:
       '@pnpm/headless':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../../store/package-store
@@ -2914,7 +2914,7 @@ importers:
         version: link:../read-projects-context
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -2972,6 +2972,9 @@ importers:
       '@pnpm/lockfile-walker':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-walker
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
@@ -3000,9 +3003,6 @@ importers:
       '@pnpm/hoist':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -3012,6 +3012,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -3061,9 +3064,6 @@ importers:
       '@pnpm/link-bins':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -3103,6 +3103,9 @@ importers:
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
@@ -3125,9 +3128,6 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda/0.28.1
     devDependencies:
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/modules-cleaner':
         specifier: workspace:*
         version: 'link:'
@@ -3202,6 +3202,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
@@ -3269,15 +3272,12 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/package-requester':
         specifier: workspace:*
         version: 'link:'
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -3344,6 +3344,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -3385,7 +3388,7 @@ importers:
         version: link:../../packages/types
       '@yarnpkg/core':
         specifier: 4.0.0-rc.27
-        version: 4.0.0-rc.27
+        version: 4.0.0-rc.27_typanion@3.12.1
       '@yarnpkg/lockfile':
         specifier: ^1.1.0
         version: 1.1.0
@@ -3447,9 +3450,6 @@ importers:
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-types
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
@@ -3461,7 +3461,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -3519,6 +3519,9 @@ importers:
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-file
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
@@ -3532,9 +3535,6 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
     devDependencies:
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/read-projects-context':
         specifier: workspace:*
         version: 'link:'
@@ -3549,7 +3549,7 @@ importers:
         version: link:../../lockfile/lockfile-utils
       '@yarnpkg/nm':
         specifier: 4.0.0-rc.27
-        version: 4.0.0-rc.27
+        version: 4.0.0-rc.27_typanion@3.12.1
       dependency-path:
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -3566,6 +3566,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../package-bins
@@ -3585,9 +3588,6 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
     devDependencies:
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/remove-bins':
         specifier: workspace:*
         version: 'link:'
@@ -3615,6 +3615,9 @@ importers:
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -3644,7 +3647,7 @@ importers:
         version: link:../../packages/which-version-is-pinned
       '@yarnpkg/core':
         specifier: 4.0.0-rc.27
-        version: 4.0.0-rc.27
+        version: 4.0.0-rc.27_typanion@3.12.1
       dependency-path:
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -3697,9 +3700,6 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
     devDependencies:
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/resolve-dependencies':
         specifier: workspace:*
         version: 'link:'
@@ -3814,9 +3814,6 @@ importers:
       strip-bom:
         specifier: ^4.0.0
         version: 4.0.0
-      strip-comments-strings:
-        specifier: 1.2.0
-        version: 1.2.0
     devDependencies:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
@@ -3981,7 +3978,7 @@ importers:
         version: link:../pkg-manifest/read-project-manifest
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
@@ -4202,6 +4199,9 @@ importers:
       '@pnpm/fs.indexed-pkg-importer':
         specifier: workspace:*
         version: link:../../fs/indexed-pkg-importer
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
@@ -4224,9 +4224,6 @@ importers:
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-types
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/plugin-commands-deploy':
         specifier: workspace:*
         version: 'link:'
@@ -4235,7 +4232,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
 
   releasing/plugin-commands-publishing:
     dependencies:
@@ -4263,6 +4260,9 @@ importers:
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/package-bins
@@ -4321,9 +4321,6 @@ importers:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/plugin-commands-publishing':
         specifier: workspace:*
         version: 'link:'
@@ -4332,7 +4329,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       '@types/cross-spawn':
         specifier: ^6.0.2
         version: 6.0.2
@@ -4495,6 +4492,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/resolve-workspace-range':
         specifier: workspace:*
         version: link:../../workspace/resolve-workspace-range
@@ -4550,9 +4550,6 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/npm-resolver':
         specifier: workspace:*
         version: 'link:'
@@ -4673,6 +4670,9 @@ importers:
       '@pnpm/lockfile-walker':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-walker
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-is-installable':
         specifier: workspace:*
         version: link:../../config/package-is-installable
@@ -4704,9 +4704,6 @@ importers:
       '@pnpm/license-scanner':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -4783,6 +4780,9 @@ importers:
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/manifest-utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/manifest-utils
@@ -4811,9 +4811,6 @@ importers:
         specifier: ^7.3.8
         version: 7.3.8
     devDependencies:
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/outdated':
         specifier: workspace:*
         version: 'link:'
@@ -4883,7 +4880,7 @@ importers:
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -4917,6 +4914,9 @@ importers:
       '@pnpm/list':
         specifier: workspace:*
         version: link:../list
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -4933,9 +4933,6 @@ importers:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/plugin-commands-installation':
         specifier: workspace:*
         version: link:../../pkg-manager/plugin-commands-installation
@@ -4947,7 +4944,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       '@types/ramda':
         specifier: 0.28.15
         version: 0.28.15
@@ -5044,7 +5041,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5151,6 +5148,9 @@ importers:
       '@pnpm/fs.indexed-pkg-importer':
         specifier: workspace:*
         version: link:../../fs/indexed-pkg-importer
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
@@ -5170,9 +5170,6 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: 'link:'
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -5191,6 +5188,9 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../../pkg-manager/package-requester
@@ -5222,9 +5222,6 @@ importers:
       '@pnpm/client':
         specifier: workspace:*
         version: link:../../pkg-manager/client
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/package-store':
         specifier: workspace:*
         version: 'link:'
@@ -5258,6 +5255,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/server':
         specifier: workspace:*
         version: link:../server
@@ -5295,9 +5295,6 @@ importers:
         specifier: ^1.2.2
         version: 1.2.2
     devDependencies:
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/plugin-commands-server':
         specifier: workspace:*
         version: 'link:'
@@ -5331,6 +5328,9 @@ importers:
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
@@ -5380,9 +5380,6 @@ importers:
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-file
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/plugin-commands-store':
         specifier: workspace:*
         version: 'link:'
@@ -5391,7 +5388,7 @@ importers:
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
         specifier: 3.1.0
-        version: 3.1.0
+        version: 3.1.0_typanion@3.12.1
       '@types/archy':
         specifier: 0.0.32
         version: 0.0.32
@@ -5422,6 +5419,9 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
@@ -5441,9 +5441,6 @@ importers:
       '@pnpm/client':
         specifier: workspace:*
         version: link:../../pkg-manager/client
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../../pkg-manager/package-requester
@@ -5492,6 +5489,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../package-store
@@ -5511,9 +5511,6 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
     devDependencies:
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: 'link:'
@@ -8034,27 +8031,6 @@ packages:
       - typanion
     dev: true
 
-  /@pnpm/registry-mock/3.1.0:
-    resolution: {integrity: sha512-uOWJxzqNOutPbeH+yQW+cYwg0yM1eCdaMWstlIVjBCCoJ2IEpwsi3KhQnCDmMKZbqqUdPDcHTQaYzMKVG0WAFQ==}
-    engines: {node: '>=10.13'}
-    hasBin: true
-    dependencies:
-      anonymous-npm-registry-client: 0.2.0
-      cpr: 3.0.1
-      execa: 5.1.1
-      read-yaml-file: 2.1.0
-      rimraf: 3.0.2
-      tempy: 1.0.1
-      verdaccio: 5.16.3
-      write-yaml-file: 4.2.0
-    transitivePeerDependencies:
-      - bufferutil
-      - canvas
-      - encoding
-      - supports-color
-      - typanion
-      - utf-8-validate
-
   /@pnpm/registry-mock/3.1.0_typanion@3.12.1:
     resolution: {integrity: sha512-uOWJxzqNOutPbeH+yQW+cYwg0yM1eCdaMWstlIVjBCCoJ2IEpwsi3KhQnCDmMKZbqqUdPDcHTQaYzMKVG0WAFQ==}
     engines: {node: '>=10.13'}
@@ -8075,7 +8051,6 @@ packages:
       - supports-color
       - typanion
       - utf-8-validate
-    dev: true
 
   /@pnpm/remove-bins/4.0.2_@pnpm+logger@5.0.0:
     resolution: {integrity: sha512-49s59lNaEpL8y3r+oU5K8H46DzjI5QeREICOwNG5k/rRPZ5K2ksNgcnKD/XqPARfDW2KSE/3b74O78t5kH3AHg==}
@@ -8853,39 +8828,6 @@ packages:
       - typanion
     dev: true
 
-  /@yarnpkg/core/4.0.0-rc.27:
-    resolution: {integrity: sha512-y5PKe+7SVIsDmz+YEOzNme5rf0myiTxGF2xCFvdYQKHNnJ+qylEEFpULD9i74LTEx2HLdXttH2aP+uXnhTkDww==}
-    engines: {node: '>=14.15.0'}
-    dependencies:
-      '@arcanis/slice-ansi': 1.1.1
-      '@types/lodash': 4.14.181
-      '@types/semver': 7.3.13
-      '@types/treeify': 1.0.0
-      '@yarnpkg/fslib': 3.0.0-rc.25
-      '@yarnpkg/libzip': 3.0.0-rc.25_@yarnpkg+fslib@3.0.0-rc.25
-      '@yarnpkg/parsers': 3.0.0-rc.30
-      '@yarnpkg/shell': 4.0.0-rc.30
-      camelcase: 5.3.1
-      chalk: 3.0.0
-      ci-info: 3.6.1
-      clipanion: 3.2.0-rc.6
-      cross-spawn: 7.0.3
-      diff: 5.1.0
-      globby: 11.1.0
-      got: 11.8.5
-      lodash: 4.17.21
-      micromatch: 4.0.5
-      p-limit: 2.3.0
-      semver: 7.3.8
-      strip-ansi: 6.0.1
-      tar: 6.1.12
-      tinylogic: 2.0.0
-      treeify: 1.1.0
-      tslib: 2.4.1
-      tunnel: 0.0.6
-    transitivePeerDependencies:
-      - typanion
-
   /@yarnpkg/core/4.0.0-rc.27_typanion@3.12.1:
     resolution: {integrity: sha512-y5PKe+7SVIsDmz+YEOzNme5rf0myiTxGF2xCFvdYQKHNnJ+qylEEFpULD9i74LTEx2HLdXttH2aP+uXnhTkDww==}
     engines: {node: '>=14.15.0'}
@@ -8956,17 +8898,6 @@ packages:
   /@yarnpkg/lockfile/1.1.0:
     resolution: {integrity: sha512-GpSwvyXOcOOlV70vbnzjj4fW5xW/FdUF6nQEt1ENy7m4ZCczi1+/buVUPAqmGfqznsORNFzUMjctTIp8a9tuCQ==}
 
-  /@yarnpkg/nm/4.0.0-rc.27:
-    resolution: {integrity: sha512-KfoYI38XY0PjpPu+LGvRHxg3OFO+5nwbQy/c5FuLR0ipQkXcinS3JbG+de17Mf6QdKnBTcghA7mdrUKs5JbxyA==}
-    engines: {node: '>=14.15.0'}
-    dependencies:
-      '@yarnpkg/core': 4.0.0-rc.27
-      '@yarnpkg/fslib': 3.0.0-rc.25
-      '@yarnpkg/pnp': 4.0.0-rc.30
-    transitivePeerDependencies:
-      - typanion
-    dev: false
-
   /@yarnpkg/nm/4.0.0-rc.27_typanion@3.12.1:
     resolution: {integrity: sha512-KfoYI38XY0PjpPu+LGvRHxg3OFO+5nwbQy/c5FuLR0ipQkXcinS3JbG+de17Mf6QdKnBTcghA7mdrUKs5JbxyA==}
     engines: {node: '>=14.15.0'}
@@ -8976,7 +8907,6 @@ packages:
       '@yarnpkg/pnp': 4.0.0-rc.30
     transitivePeerDependencies:
       - typanion
-    dev: true
 
   /@yarnpkg/parsers/2.5.1:
     resolution: {integrity: sha512-KtYN6Ez3x753vPF9rETxNTPnPjeaHY11Exlpqb4eTII7WRlnGiZ5rvvQBau4R20Ik5KBv+vS3EJEcHyCunwzzw==}
@@ -9029,22 +8959,6 @@ packages:
       micromatch: 4.0.5
       stream-buffers: 3.0.2
       tslib: 1.14.1
-    transitivePeerDependencies:
-      - typanion
-
-  /@yarnpkg/shell/4.0.0-rc.30:
-    resolution: {integrity: sha512-ZBX6X/LMRoHF0COrfG2Q/txYM13pK4RXEbwK5Vxcvc8b4h43EAPhUPvwuDouXQskGweVSivsbA7f94Mb40SqfA==}
-    engines: {node: '>=14.15.0'}
-    hasBin: true
-    dependencies:
-      '@yarnpkg/fslib': 3.0.0-rc.25
-      '@yarnpkg/parsers': 3.0.0-rc.30
-      chalk: 3.0.0
-      clipanion: 3.2.0-rc.6
-      cross-spawn: 7.0.3
-      fast-glob: 3.2.12
-      micromatch: 4.0.5
-      tslib: 2.4.1
     transitivePeerDependencies:
       - typanion
 
@@ -9941,11 +9855,6 @@ packages:
   /cli-width/2.2.1:
     resolution: {integrity: sha512-GRMWDxpOB6Dgk2E5Uo+3eEBvtOOlimMmpbFiKuLFnQzYDavtLFY3K5ona41jgN/WdRZtG7utuVSVTL4HbZHGkw==}
     dev: true
-
-  /clipanion/3.2.0-rc.6:
-    resolution: {integrity: sha512-lcByFNxi1L/sskjD/YybFZI43bnkm/AuUNFcF5i5Znz6nvWCH9gfq4qkNmAk5MhS/MPY5Im8jiqYH54h23Vc7Q==}
-    peerDependencies:
-      typanion: '*'
 
   /clipanion/3.2.0-rc.6_typanion@3.12.1:
     resolution: {integrity: sha512-lcByFNxi1L/sskjD/YybFZI43bnkm/AuUNFcF5i5Znz6nvWCH9gfq4qkNmAk5MhS/MPY5Im8jiqYH54h23Vc7Q==}
@@ -16191,10 +16100,6 @@ packages:
     resolution: {integrity: sha512-3xurFv5tEgii33Zi8Jtp55wEIILR9eh34FAW00PZf+JnSsTmV/ioewSgQl97JHvgjoRGwPShsWm+IdrxB35d0w==}
     engines: {node: '>=8'}
 
-  /strip-comments-strings/1.2.0:
-    resolution: {integrity: sha512-zwF4bmnyEjZwRhaak9jUWNxc0DoeKBJ7lwSN/LEc8dQXZcUFG6auaaTQJokQWXopLdM3iTx01nQT8E4aL29DAQ==}
-    dev: false
-
   /strip-final-newline/2.0.0:
     resolution: {integrity: sha512-BrpvfNAE3dcvq7ll3xVumzjKjZQ5tI1sEUIKr3Uoks0XUl45St3FlatVqef9prk4jRDzhW6WZg+3bk93y6pLjA==}
     engines: {node: '>=6'}
@@ -16959,61 +16864,6 @@ packages:
       http-errors: 2.0.0
       unix-crypt-td-js: 1.1.4
 
-  /verdaccio/5.16.3:
-    resolution: {integrity: sha512-2MWGcInH4wR1zSWQpsr51sAZjOzAMvtbi5IrqD4+1VCU2VB1VI5kAwte+ic8DA09thX1xaKGQgOsjMdT6p3jNQ==}
-    engines: {node: '>=12', npm: '>=6'}
-    hasBin: true
-    dependencies:
-      '@verdaccio/commons-api': 10.2.0
-      '@verdaccio/local-storage': 10.3.1
-      '@verdaccio/readme': 10.4.2
-      '@verdaccio/streams': 10.2.0
-      '@verdaccio/ui-theme': 6.0.0-6-next.50
-      JSONStream: 1.3.5
-      async: 3.2.4
-      body-parser: 1.20.1
-      clipanion: 3.2.0-rc.6
-      compression: 1.7.4
-      cookies: 0.8.0
-      cors: 2.8.5
-      dayjs: 1.11.6
-      debug: 4.3.4
-      envinfo: 7.8.1
-      eslint-import-resolver-node: 0.3.6
-      express: 4.18.2
-      express-rate-limit: 5.5.1
-      fast-safe-stringify: 2.1.1
-      handlebars: 4.7.7
-      http-errors: 2.0.0
-      js-yaml: /@zkochan/js-yaml/0.0.6
-      jsonwebtoken: 8.5.1
-      kleur: 4.1.5
-      lodash: 4.17.21
-      lru-cache: 7.14.0
-      lunr-mutable-indexes: 2.3.2
-      marked: 4.2.2
-      memoizee: 0.4.15
-      mime: 3.0.0
-      minimatch: 5.1.0
-      mkdirp: 1.0.4
-      mv: 2.1.1
-      pino: 6.14.0
-      pkginfo: 0.4.1
-      prettier-bytes: 1.0.4
-      pretty-ms: 7.0.1
-      request: 2.88.0
-      semver: 7.3.7
-      validator: 13.7.0
-      verdaccio-audit: 10.2.3
-      verdaccio-htpasswd: 10.5.1
-    transitivePeerDependencies:
-      - bufferutil
-      - canvas
-      - encoding
-      - supports-color
-      - typanion
-      - utf-8-validate
-
   /verdaccio/5.16.3_typanion@3.12.1:
     resolution: {integrity: sha512-2MWGcInH4wR1zSWQpsr51sAZjOzAMvtbi5IrqD4+1VCU2VB1VI5kAwte+ic8DA09thX1xaKGQgOsjMdT6p3jNQ==}
     engines: {node: '>=12', npm: '>=6'}
@@ -17068,7 +16918,6 @@ packages:
       - supports-color
       - typanion
       - utf-8-validate
-    dev: true
 
   /verror/1.10.0:
     resolution: {integrity: sha512-ZZKSmDAEFOijERBLkmYfJ+vmk3w+7hOLYDNkRCuRuMJGEmqYNCNLyBBFwWKVMhfwaEF3WOd0Zlw86U/WC/+nYw==}
@@ -17740,7 +17589,6 @@ time:
   /string.prototype.replaceall/1.0.6: '2021-10-05T01:00:00.092Z'
   /strip-ansi/6.0.1: '2021-09-23T16:34:41.798Z'
   /strip-bom/4.0.0: '2019-04-28T04:40:47.887Z'
-  /strip-comments-strings/1.2.0: '2022-06-12T23:34:53.852Z'
   /symlink-dir/5.1.0: '2022-11-20T16:48:15.918Z'
   /syncpack/8.3.9: '2022-10-28T16:58:42.312Z'
   /tar-stream/2.2.0: '2020-12-29T10:22:57.508Z'
