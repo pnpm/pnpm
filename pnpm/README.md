@@ -68,6 +68,11 @@ To quote the [Rush](https://rushjs.io/) team:
         </a>
       </td>
     </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://www.flightcontrol.dev/?ref=pnpm" target="_blank"><img src="https://pnpm.io/img/users/flightcontrol.png" width="240"></a>
+      </td>
+    </tr>
   </tbody>
 </table>
 
