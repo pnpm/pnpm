@@ -183,7 +183,7 @@ function detectFileFormatting (text: string) {
   }
   return {
     comments,
-    indent: detectIndent(text).indent,
+    indent: detectIndent(stripped).indent, // Comments shouldn't affect indent
     insertFinalNewline: finalNewline,
   }
 }
