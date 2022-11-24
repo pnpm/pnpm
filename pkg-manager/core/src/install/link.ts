@@ -45,6 +45,7 @@ export async function linkPackages (
   depGraph: DependenciesGraph,
   opts: {
     currentLockfile: Lockfile
+    dedupeDirectDeps: boolean
     dependenciesByProjectId: {
       [id: string]: { [alias: string]: string }
     }
@@ -202,7 +203,7 @@ export async function linkPackages (
         }]
       }))
     )
-    await linkDirectDeps(projectsToLink)
+    await linkDirectDeps(projectsToLink, { dedupe: opts.dedupeDirectDeps })
   }
 
   let currentLockfile: Lockfile

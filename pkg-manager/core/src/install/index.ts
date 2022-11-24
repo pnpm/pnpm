@@ -886,6 +886,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dependenciesGraph,
       {
         currentLockfile: ctx.currentLockfile,
+        dedupeDirectDeps: opts.dedupeDirectDeps,
         dependenciesByProjectId,
         depsStateCache,
         extraNodePaths: ctx.extraNodePaths,

@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { rootLogger } from '@pnpm/core-loggers'
 import { symlinkDependency, symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
@@ -23,6 +24,18 @@ export interface ProjectToLink {
 }
 
 export async function linkDirectDeps (
+  projects: Record<string, ProjectToLink>,
+  opts: {
+    dedupe: boolean
+  }
+) {
+  if (opts.dedupe) {
+    return linkDirectDepsAndDedupe(projects)
+  }
+  await Promise.all(Object.values(projects).map(linkDirectDepsOfProject))
+}
+
+async function linkDirectDepsAndDedupe (
   projects: Record<string, ProjectToLink>
 ) {
   let targetsInTheRoot!: string[]
@@ -34,10 +47,20 @@ export async function linkDirectDeps (
   } else {
     targetsInTheRoot = []
   }
-  await Promise.all(Object.values(omit(['.'], projects)).map((project) => linkDirectDepsOfProject({
-    ...project,
-    dependencies: project.dependencies.filter((dep) => targetsInTheRoot.every((targetsInTheRoot) => path.relative(targetsInTheRoot, dep.dir) !== '')),
-  })))
+  await Promise.all(
+    Object.values(omit(['.'], projects)).map(async (project) => {
+      const pkgs = (await readModulesDir(projects['.'].modulesDir)) ?? []
+      const targets = await Promise.all(pkgs.map(async (pkg) => await resolveLinkTarget(path.join(projects['.'].modulesDir, pkg))))
+      await Promise.all(targets
+        .filter((target) => targetsInTheRoot.some((targetsInTheRoot) => path.relative(target, targetsInTheRoot) === ''))
+        .map((target) => fs.promises.unlink(target))
+      )
+      return linkDirectDepsOfProject({
+        ...project,
+        dependencies: project.dependencies.filter((dep) => targetsInTheRoot.every((targetsInTheRoot) => path.relative(targetsInTheRoot, dep.dir) !== '')),
+      })
+    })
+  )
 }
 
 async function linkDirectDepsOfProject (project: ProjectToLink) {
