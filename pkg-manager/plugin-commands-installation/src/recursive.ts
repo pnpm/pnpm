@@ -257,7 +257,7 @@ export async function recursive (
     if (opts.save !== false) {
       await Promise.all(
         mutatedPkgs
-          .map(async ({ manifest }, index) => writeProjectManifests[index](manifest))
+          .map(async ({ originalManifest, manifest }, index) => writeProjectManifests[index](originalManifest ?? manifest))
       )
     }
     return true
