@@ -43,17 +43,23 @@ async function linkDirectDepsAndDedupe (
     await linkDirectDepsOfProject(projects['.'])
     if (Object.keys(projects).length === 1) return
     const pkgs = (await readModulesDir(projects['.'].modulesDir)) ?? []
-    targetsInTheRoot = await Promise.all(pkgs.map(async (pkg) => await resolveLinkTarget(path.join(projects['.'].modulesDir, pkg))))
+    targetsInTheRoot = await Promise.all(pkgs.map((pkg) => resolveLinkTarget(path.join(projects['.'].modulesDir, pkg))))
   } else {
     targetsInTheRoot = []
   }
   await Promise.all(
     Object.values(omit(['.'], projects)).map(async (project) => {
-      const pkgs = (await readModulesDir(projects['.'].modulesDir)) ?? []
-      const targets = await Promise.all(pkgs.map(async (pkg) => await resolveLinkTarget(path.join(projects['.'].modulesDir, pkg))))
+      const pkgs = (await readModulesDir(project.modulesDir)) ?? []
+      const targets = await Promise.all(pkgs.map(async (pkg) => {
+        const location = path.join(project.modulesDir, pkg)
+        return {
+          location,
+          realLocation: await resolveLinkTarget(location),
+        }
+      }))
       await Promise.all(targets
-        .filter((target) => targetsInTheRoot.some((targetsInTheRoot) => path.relative(target, targetsInTheRoot) === ''))
-        .map((target) => fs.promises.unlink(target))
+        .filter(({ realLocation }) => targetsInTheRoot.some((targetsInTheRoot) => path.relative(realLocation, targetsInTheRoot) === ''))
+        .map(({ location }) => fs.promises.unlink(location))
       )
       return linkDirectDepsOfProject({
         ...project,
