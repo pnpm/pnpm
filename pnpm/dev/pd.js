@@ -8,7 +8,7 @@ const { findWorkspaceDir } = require('@pnpm/find-workspace-dir')
 const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'package.json'), 'utf8'))
 
 ;(async () => {
-  const workspaceDir = await findWorkspaceDir(process.cwd())
+  const workspaceDir = await findWorkspaceDir(__dirname)
   const pkgs = await findWorkspacePackagesNoCheck(workspaceDir)
   const localPackages = pkgs.map(pkg => pkg.manifest.name)
   const dirByPackageName = pkgs.reduce((acc, pkg) => {
