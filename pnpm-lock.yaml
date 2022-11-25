@@ -2723,13 +2723,28 @@ importers:
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
+      '@pnpm/read-modules-dir':
+        specifier: workspace:*
+        version: link:../../fs/read-modules-dir
       '@pnpm/symlink-dependency':
         specifier: workspace:*
         version: link:../../fs/symlink-dependency
+      '@zkochan/rimraf':
+        specifier: ^2.1.2
+        version: 2.1.2
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
+      resolve-link-target:
+        specifier: ^2.0.0
+        version: 2.0.0
     devDependencies:
       '@pnpm/pkg-manager.direct-dep-linker':
         specifier: workspace:*
         version: 'link:'
+      '@types/ramda':
+        specifier: 0.28.15
+        version: 0.28.15
 
   pkg-manager/get-context:
     dependencies:

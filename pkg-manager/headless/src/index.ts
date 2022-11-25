@@ -101,6 +101,7 @@ export interface HeadlessOptions {
     nodeVersion: string
     pnpmVersion: string
   }
+  dedupeDirectDeps?: boolean
   enablePnp?: boolean
   engineStrict: boolean
   extraBinPaths?: string[]
@@ -339,6 +340,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
 
     await symlinkDirectDependencies({
       directDependenciesByImporterId: symlinkedDirectDependenciesByImporterId!,
+      dedupe: opts.dedupeDirectDeps,
       filteredLockfile,
       lockfileDir,
       projects: selectedProjects,
@@ -562,6 +564,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
 
 type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'registries' | 'symlink' | 'lockfileDir'> & {
   filteredLockfile: Lockfile
+  dedupe?: boolean
   directDependenciesByImporterId: DirectDependenciesByImporterId
   projects: Project[]
 }
@@ -569,6 +572,7 @@ type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'registries' | 'symli
 async function symlinkDirectDependencies (
   {
     filteredLockfile,
+    dedupe,
     directDependenciesByImporterId,
     lockfileDir,
     projects,
@@ -585,8 +589,8 @@ async function symlinkDirectDependencies (
     })
   })
   if (symlink !== false) {
-    const projectsToLink = await Promise.all(
-      projects.map(async ({ rootDir, id, modulesDir }) => ({
+    const projectsToLink = fromPairs(await Promise.all(
+      projects.map(async ({ rootDir, id, modulesDir }) => ([id, {
         dir: rootDir,
         modulesDir,
         dependencies: await getRootPackagesToLink(filteredLockfile, {
@@ -598,9 +602,9 @@ async function symlinkDirectDependencies (
           registries,
           rootDependencies: directDependenciesByImporterId[id],
         }),
-      }))
-    )
-    await linkDirectDeps(projectsToLink)
+      }]))
+    ))
+    await linkDirectDeps(projectsToLink, { dedupe: Boolean(dedupe) })
   }
 }
 

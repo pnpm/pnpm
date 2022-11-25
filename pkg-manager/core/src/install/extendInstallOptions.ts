@@ -117,6 +117,7 @@ export interface StrictInstallOptions {
 
   allProjects: ProjectOptions[]
   resolveSymlinksInInjectedDirs: boolean
+  dedupeDirectDeps: boolean
 }
 
 export type InstallOptions =
@@ -201,6 +202,7 @@ const defaults = async (opts: InstallOptions) => {
     enableModulesDir: true,
     modulesCacheMaxAge: 7 * 24 * 60,
     resolveSymlinksInInjectedDirs: false,
+    dedupeDirectDeps: false,
   } as StrictInstallOptions
 }
 
