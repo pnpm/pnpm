@@ -61,11 +61,11 @@ async function linkDirectDepsAndDedupe (
 }
 
 function omitDepsFromRoot (deps: LinkedDirectDep[], pkgsLinkedToRoot: string[]) {
-  return deps.filter((dep) =>
-    pkgsLinkedToRoot.every(
-      (pkgLinkedToRoot) => path.relative(pkgLinkedToRoot, dep.dir) !== ''
-    )
-  )
+  return deps.filter(({ dir }) => !pkgsLinkedToRoot.some(pathsEqual.bind(null, dir)))
+}
+
+function pathsEqual (path1: string, path2: string) {
+  return path.relative(path1, path2) === ''
 }
 
 async function readLinkedDeps (modulesDir: string): Promise<string[]> {
@@ -80,13 +80,10 @@ async function deletePkgsPresentInRoot (
   pkgsLinkedToRoot: string[]
 ): Promise<boolean> {
   const pkgsLinkedToCurrentProject = await readLinkedDepsWithRealLocations(modulesDir)
-  const removedCount = (await Promise.all(
-    pkgsLinkedToCurrentProject
-      .filter(({ linkedFrom }) => pkgsLinkedToRoot
-        .some((pkgLinkedToRoot) => path.relative(linkedFrom, pkgLinkedToRoot) === ''))
-      .map(({ linkedTo }) => fs.promises.unlink(linkedTo))
-  )).length
-  return removedCount === pkgsLinkedToCurrentProject.length
+  const pkgsToDelete = pkgsLinkedToCurrentProject
+    .filter(({ linkedFrom }) => pkgsLinkedToRoot.some(pathsEqual.bind(null, linkedFrom)))
+  await Promise.all(pkgsToDelete.map(({ linkedTo }) => fs.promises.unlink(linkedTo)))
+  return pkgsToDelete.length === pkgsLinkedToCurrentProject.length
 }
 
 async function readLinkedDepsWithRealLocations (modulesDir: string) {
