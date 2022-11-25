@@ -29,44 +29,66 @@ export async function linkDirectDeps (
     dedupe: boolean
   }
 ) {
-  if (opts.dedupe) {
-    return linkDirectDepsAndDedupe(projects)
+  if (opts.dedupe && projects['.'] && Object.keys(projects).length > 1) {
+    return linkDirectDepsAndDedupe(projects['.'], omit(['.'], projects))
   }
   await Promise.all(Object.values(projects).map(linkDirectDepsOfProject))
 }
 
 async function linkDirectDepsAndDedupe (
+  rootProject: ProjectToLink,
   projects: Record<string, ProjectToLink>
 ) {
-  let targetsInTheRoot!: string[]
-  if (projects['.']) {
-    await linkDirectDepsOfProject(projects['.'])
-    if (Object.keys(projects).length === 1) return
-    const pkgs = (await readModulesDir(projects['.'].modulesDir)) ?? []
-    targetsInTheRoot = await Promise.all(pkgs.map((pkg) => resolveLinkTarget(path.join(projects['.'].modulesDir, pkg))))
-  } else {
-    targetsInTheRoot = []
-  }
+  await linkDirectDepsOfProject(rootProject)
+  const pkgsLinkedToRoot = await readLinkedDeps(rootProject.modulesDir)
   await Promise.all(
-    Object.values(omit(['.'], projects)).map(async (project) => {
-      const pkgs = (await readModulesDir(project.modulesDir)) ?? []
-      const targets = await Promise.all(pkgs.map(async (pkg) => {
-        const location = path.join(project.modulesDir, pkg)
-        return {
-          location,
-          realLocation: await resolveLinkTarget(location),
-        }
-      }))
-      await Promise.all(targets
-        .filter(({ realLocation }) => targetsInTheRoot.some((targetsInTheRoot) => path.relative(realLocation, targetsInTheRoot) === ''))
-        .map(({ location }) => fs.promises.unlink(location))
-      )
+    Object.values(projects).map(async (project) => {
+      await deletePkgsPresentInRoot(project.modulesDir, pkgsLinkedToRoot)
       return linkDirectDepsOfProject({
         ...project,
-        dependencies: project.dependencies.filter((dep) => targetsInTheRoot.every((targetsInTheRoot) => path.relative(targetsInTheRoot, dep.dir) !== '')),
+        dependencies: omitDepsFromRoot(project.dependencies, pkgsLinkedToRoot),
       })
     })
   )
+}
+
+function omitDepsFromRoot (deps: LinkedDirectDep[], pkgsLinkedToRoot: string[]) {
+  return deps.filter((dep) =>
+    pkgsLinkedToRoot.every(
+      (pkgLinkedToRoot) => path.relative(pkgLinkedToRoot, dep.dir) !== ''
+    )
+  )
+}
+
+async function readLinkedDeps (modulesDir: string): Promise<string[]> {
+  const deps = (await readModulesDir(modulesDir)) ?? []
+  return Promise.all(
+    deps.map((alias) => resolveLinkTarget(path.join(modulesDir, alias)))
+  )
+}
+
+async function deletePkgsPresentInRoot (
+  modulesDir: string,
+  pkgsLinkedToRoot: string[]
+) {
+  const pkgsLinkedToCurrentProject = await readLinkedDepsWithRealLocations(modulesDir)
+  await Promise.all(
+    pkgsLinkedToCurrentProject
+      .filter(({ linkedFrom }) => pkgsLinkedToRoot
+        .some((pkgLinkedToRoot) => path.relative(linkedFrom, pkgLinkedToRoot) === ''))
+      .map(({ linkedTo }) => fs.promises.unlink(linkedTo))
+  )
+}
+
+async function readLinkedDepsWithRealLocations (modulesDir: string) {
+  const deps = (await readModulesDir(modulesDir)) ?? []
+  return Promise.all(deps.map(async (alias) => {
+    const linkedTo = path.join(modulesDir, alias)
+    return {
+      linkedTo,
+      linkedFrom: await resolveLinkTarget(linkedTo),
+    }
+  }))
 }
 
 async function linkDirectDepsOfProject (project: ProjectToLink) {
