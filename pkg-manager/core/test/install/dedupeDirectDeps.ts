@@ -61,16 +61,12 @@ test('dedupe direct dependencies', async () => {
   allProjects[1].manifest.dependencies['is-odd'] = '2.0.0'
   await mutateModules(importers, await testDefaults({ allProjects, dedupeDirectDeps: true }))
 
-  expect(Array.from(fs.readdirSync('node_modules').sort())).toStrictEqual([
+  expect(Array.from(fs.readdirSync('node_modules').sort())).toEqual([
     '.modules.yaml',
     '.pnpm',
     'is-negative',
     'is-odd',
     'is-positive',
   ])
-  expect(fs.readdirSync('project-2/node_modules').sort()).toStrictEqual(['is-odd'])
-  // await projects['project-1'].has('is-negative')
-  // await projects['project-2'].hasNot('is-negative')
-  // await projects['project-2'].hasNot('is-positive')
-  // await projects['project-2'].has('is-odd')
+  expect(fs.readdirSync('project-2/node_modules').sort()).toEqual(['is-odd'])
 })
