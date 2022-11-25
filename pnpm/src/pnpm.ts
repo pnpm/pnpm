@@ -42,11 +42,13 @@ const argv = process.argv.slice(2)
   case 'ping':
   case 'prefix':
   case 'profile':
+  case 'pkg':
   case 'repo':
   case 's':
   case 'se':
   case 'search':
   case 'set':
+  case 'set-script':
   case 'star':
   case 'stars':
   case 'team':
