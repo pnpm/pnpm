@@ -37,6 +37,18 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
   pkg = await loadJsonFile(path.resolve('package.json'))
   expect(pkg.dependencies).toBeFalsy() // remove & readPackage hook work
   await project.hasNot('is-positive')
+
+  // Reset for --lockfile-only checks
+  await fs.unlink('pnpm-lock.yaml');
+
+  await execPnpm(['install', '--lockfile-only'])
+  pkg = await loadJsonFile(path.resolve('package.json'))
+  expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, without pnpm-lock.yaml
+
+  // runs with pnpm-lock.yaml should not mutate local projects
+  await execPnpm(['install', '--lockfile-only'])
+  pkg = await loadJsonFile(path.resolve('package.json'))
+  expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, with pnpm-lock.yaml
 })
 
 test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
@@ -79,6 +91,19 @@ test('readPackage hook in monorepo doesn\'t modify manifest', async () => {
   await execPnpm(['remove', 'is-positive', '--filter', 'project-a'])
   pkg = await loadJsonFile(path.resolve('project-a/package.json'))
   expect(pkg.dependencies).toBeFalsy() // remove & readPackage hook work
+
+  // Reset for --lockfile-only checks
+  await fs.unlink('pnpm-lock.yaml');
+
+  await execPnpm(['install', '--lockfile-only'])
+  pkg = await loadJsonFile(path.resolve('project-a/package.json'))
+  expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, without pnpm-lock.yaml
+
+  // runs with pnpm-lock.yaml should not mutate local projects
+  await execPnpm(['install', '--lockfile-only'])
+  pkg = await loadJsonFile(path.resolve('project-a/package.json'))
+  expect(pkg.dependencies).toBeFalsy() // install --lockfile-only & readPackage hook work, with pnpm-lock.yaml
+
 })
 
 test('filterLog hook filters peer dependency warning', async () => {
