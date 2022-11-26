@@ -50,12 +50,6 @@ export async function readProjectManifestOnly (projectDir: string): Promise<Proj
   return manifest
 }
 
-enum ManifestIs {
-  Json,
-  Json5,
-  Yaml
-}
-
 export async function tryReadProjectManifest (projectDir: string): Promise<{
   fileName: string
   manifest: ProjectManifest | null
@@ -68,7 +62,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
       fileName: 'package.json',
       manifest: data,
       writeProjectManifest: createManifestWriter({
-        ...detectFileFormatting(text, ManifestIs.Json),
+        ...detectFileFormatting(text),
         initialManifest: data,
         manifestPath,
       }),
@@ -83,7 +77,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
       fileName: 'package.json5',
       manifest: data,
       writeProjectManifest: createManifestWriter({
-        ...detectFileFormatting(text, ManifestIs.Json5),
+        ...detectFileFormattingAndComments(text),
         initialManifest: data,
         manifestPath,
       }),
@@ -124,24 +118,24 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   }
 }
 
-function detectFileFormatting (text: string, kind: ManifestIs) {
-  const finalNewline = text.endsWith('\n')
-  let comments
-  if (kind === ManifestIs.Json5) {
-    const result = extractJson5Comments(text, finalNewline)
-    comments = result.comments
-    // The comment extractor replaces the text because comments should
-    // not affect indent detection
-    text = result.text
-  }
+function detectFileFormattingAndComments (text: string) {
+  const { comments, text: newText, hasFinalNewline } = extractJson5Comments(text)
   return {
     comments,
-    indent: detectIndent(text).indent,
-    insertFinalNewline: finalNewline,
+    indent: detectIndent(newText).indent,
+    insertFinalNewline: hasFinalNewline,
   }
 }
 
-function extractJson5Comments (text: string, hasFinalNewline: boolean) {
+function detectFileFormatting (text: string) {
+  return {
+    indent: detectIndent(text).indent,
+    insertFinalNewline: text.endsWith('\n'),
+  }
+}
+
+function extractJson5Comments (text: string) {
+  const hasFinalNewline = text.endsWith('\n')
   if (!hasFinalNewline) {
     /* For the sake of the comment parser, which otherwise loses the
      * final character of a final comment
@@ -206,6 +200,7 @@ function extractJson5Comments (text: string, hasFinalNewline: boolean) {
   return {
     text: stripped,
     comments: comments.length ? comments : undefined,
+    hasFinalNewline,
   }
 }
 
@@ -217,7 +212,7 @@ export async function readExactProjectManifest (manifestPath: string) {
     return {
       manifest: data,
       writeProjectManifest: createManifestWriter({
-        ...detectFileFormatting(text, ManifestIs.Json),
+        ...detectFileFormatting(text),
         initialManifest: data,
         manifestPath,
       }),
@@ -228,7 +223,7 @@ export async function readExactProjectManifest (manifestPath: string) {
     return {
       manifest: data,
       writeProjectManifest: createManifestWriter({
-        ...detectFileFormatting(text, ManifestIs.Json5),
+        ...detectFileFormattingAndComments(text),
         initialManifest: data,
         manifestPath,
       }),
