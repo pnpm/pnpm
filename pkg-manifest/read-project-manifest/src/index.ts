@@ -50,6 +50,12 @@ export async function readProjectManifestOnly (projectDir: string): Promise<Proj
   return manifest
 }
 
+enum ManifestIs {
+  Json,
+  Json5,
+  Yaml
+}
+
 export async function tryReadProjectManifest (projectDir: string): Promise<{
   fileName: string
   manifest: ProjectManifest | null
@@ -62,7 +68,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
       fileName: 'package.json',
       manifest: data,
       writeProjectManifest: createManifestWriter({
-        ...detectFileFormatting(text),
+        ...detectFileFormatting(text, ManifestIs.Json),
         initialManifest: data,
         manifestPath,
       }),
@@ -77,7 +83,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
       fileName: 'package.json5',
       manifest: data,
       writeProjectManifest: createManifestWriter({
-        ...detectFileFormatting(text),
+        ...detectFileFormatting(text, ManifestIs.Json5),
         initialManifest: data,
         manifestPath,
       }),
@@ -118,9 +124,25 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   }
 }
 
-function detectFileFormatting (text: string) {
+function detectFileFormatting (text: string, kind: ManifestIs) {
   const finalNewline = text.endsWith('\n')
-  if (!finalNewline) {
+  let comments
+  if (kind === ManifestIs.Json5) {
+    const result = extractJson5Comments(text, finalNewline)
+    comments = result.comments
+    // The comment extractor replaces the text because comments should
+    // not affect indent detection
+    text = result.text
+  }
+  return {
+    comments,
+    indent: detectIndent(text).indent,
+    insertFinalNewline: finalNewline,
+  }
+}
+
+function extractJson5Comments (text: string, hasFinalNewline: boolean) {
+  if (!hasFinalNewline) {
     /* For the sake of the comment parser, which otherwise loses the
      * final character of a final comment
      */
@@ -129,7 +151,7 @@ function detectFileFormatting (text: string) {
   const { comments: rawComments } = parseString(text)
   const comments: CommentSpecifier[] = []
   let stripped = stripComments(text)
-  if (!finalNewline) {
+  if (!hasFinalNewline) {
     stripped = stripped.slice(0, -1)
   }
   let offset = 0 // accumulates difference of indices from text to stripped
@@ -182,9 +204,8 @@ function detectFileFormatting (text: string) {
     offset += comment.indexEnd - comment.index
   }
   return {
-    comments,
-    indent: detectIndent(stripped).indent, // Comments shouldn't affect indent
-    insertFinalNewline: finalNewline,
+    text: stripped,
+    comments: comments.length ? comments : undefined,
   }
 }
 
@@ -196,7 +217,7 @@ export async function readExactProjectManifest (manifestPath: string) {
     return {
       manifest: data,
       writeProjectManifest: createManifestWriter({
-        ...detectFileFormatting(text),
+        ...detectFileFormatting(text, ManifestIs.Json),
         initialManifest: data,
         manifestPath,
       }),
@@ -207,7 +228,7 @@ export async function readExactProjectManifest (manifestPath: string) {
     return {
       manifest: data,
       writeProjectManifest: createManifestWriter({
-        ...detectFileFormatting(text),
+        ...detectFileFormatting(text, ManifestIs.Json5),
         initialManifest: data,
         manifestPath,
       }),
