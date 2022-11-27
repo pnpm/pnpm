@@ -2,7 +2,7 @@ import { promises as fs, Stats } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { ProjectManifest } from '@pnpm/types'
-import { extractJson5Comments, CommentSpecifier } from '@pnpm/text.comments-parser'
+import { extractComments, CommentSpecifier } from '@pnpm/text.comments-parser'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import readYamlFile from 'read-yaml-file'
 import detectIndent from '@gwhitney/detect-indent'
@@ -118,7 +118,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
 }
 
 function detectFileFormattingAndComments (text: string) {
-  const { comments, text: newText, hasFinalNewline } = extractJson5Comments(text)
+  const { comments, text: newText, hasFinalNewline } = extractComments(text)
   return {
     comments,
     indent: detectIndent(newText).indent,

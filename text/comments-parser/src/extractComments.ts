@@ -1,7 +1,7 @@
 import { parseString, stripComments } from 'strip-comments-strings'
 import { CommentSpecifier } from './CommentSpecifier'
 
-export function extractJson5Comments (text: string) {
+export function extractComments (text: string) {
   const hasFinalNewline = text.endsWith('\n')
   if (!hasFinalNewline) {
     /* For the sake of the comment parser, which otherwise loses the

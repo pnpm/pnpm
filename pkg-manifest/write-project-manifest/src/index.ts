@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { insertJson5Comments, CommentSpecifier } from '@pnpm/text.comments-parser'
+import { insertComments, CommentSpecifier } from '@pnpm/text.comments-parser'
 import { ProjectManifest } from '@pnpm/types'
 import JSON5 from 'json5'
 import writeFileAtomic from 'write-file-atomic'
@@ -32,7 +32,7 @@ export async function writeProjectManifest (
     .stringify(manifest, undefined, opts?.indent ?? '\t')
 
   if (fileType === 'json5' && opts?.comments) {
-    json = insertJson5Comments(json, opts.comments)
+    json = insertComments(json, opts.comments)
   }
 
   return writeFileAtomic(filePath, `${json}${trailingNewline}`)
