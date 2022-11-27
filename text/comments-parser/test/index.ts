@@ -1,4 +1,4 @@
-import { extractComments, insertComments } from '@pnpm/text.json5-comments-parser'
+import { extractComments, insertComments } from '@pnpm/text.comments-parser'
 
 test('extract and insert JSON5 comments', () => {
   const json5WithComments = `/* This is an example of a package.json5 file with comments. */
