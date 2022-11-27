@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 14.1.1
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@5.1.1
+
 ## 14.1.0
 
 ### Minor Changes

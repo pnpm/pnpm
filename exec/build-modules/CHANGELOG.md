@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 10.0.5
+
+### Patch Changes
+
+- @pnpm/link-bins@8.0.3
+- @pnpm/lifecycle@14.1.1
+
 ## 10.0.4
 
 ### Patch Changes

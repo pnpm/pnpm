@@ -1,5 +1,13 @@
 # @pnpm/link-bins
 
+## 8.0.3
+
+### Patch Changes
+
+- Updated dependencies [fec9e3149]
+- Updated dependencies [0d12d38fd]
+  - @pnpm/read-project-manifest@4.1.0
+
 ## 8.0.2
 
 ### Patch Changes

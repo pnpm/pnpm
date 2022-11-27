@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-publishing
 
+## 6.0.10
+
+### Patch Changes
+
+- a2b432691: `pnpm publish <tarball path>` should exit with non-0 exit code when publish fails [#5396](https://github.com/pnpm/pnpm/issues/5396).
+  - @pnpm/cli-utils@1.0.10
+  - @pnpm/config@16.1.4
+  - @pnpm/exportable-manifest@4.0.3
+  - @pnpm/lifecycle@14.1.1
+  - @pnpm/client@8.1.1
+
 ## 6.0.9
 
 ### Patch Changes

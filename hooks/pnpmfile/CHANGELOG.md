@@ -1,5 +1,13 @@
 # @pnpm/pnpmfile
 
+## 4.0.10
+
+### Patch Changes
+
+- Updated dependencies [043bbeaf3]
+- Updated dependencies [868f2fb16]
+  - @pnpm/core@7.2.0
+
 ## 4.0.9
 
 ### Patch Changes
