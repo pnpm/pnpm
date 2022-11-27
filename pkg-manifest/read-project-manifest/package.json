@@ -32,6 +32,7 @@
     "@gwhitney/detect-indent": "7.0.1",
     "@pnpm/error": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/text.comments-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
     "fast-deep-equal": "^3.1.3",
