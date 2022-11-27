@@ -29,6 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/write-project-manifest#readme",
   "dependencies": {
+    "@pnpm/text.comments-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
     "json5": "^2.2.1",
     "write-file-atomic": "^4.0.2",

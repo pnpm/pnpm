@@ -19,6 +19,9 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../text/comments-parser"
+    },
+    {
       "path": "../write-project-manifest"
     }
   ]

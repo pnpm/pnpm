@@ -3787,6 +3787,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/text.comments-parser':
+        specifier: workspace:*
+        version: link:../../text/comments-parser
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3814,9 +3817,6 @@ importers:
       strip-bom:
         specifier: ^4.0.0
         version: 4.0.0
-      strip-comments-strings:
-        specifier: 1.2.0
-        version: 1.2.0
     devDependencies:
       '@pnpm/read-project-manifest':
         specifier: workspace:*
@@ -3833,6 +3833,9 @@ importers:
 
   pkg-manifest/write-project-manifest:
     dependencies:
+      '@pnpm/text.comments-parser':
+        specifier: workspace:*
+        version: link:../../text/comments-parser
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5579,6 +5582,16 @@ importers:
       rimraf:
         specifier: ^3.0.2
         version: 3.0.2
+
+  text/comments-parser:
+    dependencies:
+      strip-comments-strings:
+        specifier: 1.2.0
+        version: 1.2.0
+    devDependencies:
+      '@pnpm/text.comments-parser':
+        specifier: workspace:*
+        version: 'link:'
 
   workspace/filter-workspace-packages:
     dependencies:

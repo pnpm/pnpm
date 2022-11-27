@@ -32,6 +32,7 @@
     "@gwhitney/detect-indent": "7.0.1",
     "@pnpm/error": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/text.comments-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
     "fast-deep-equal": "^3.1.3",
@@ -40,8 +41,7 @@
     "parse-json": "^5.2.0",
     "read-yaml-file": "^2.1.0",
     "sort-keys": "^4.2.0",
-    "strip-bom": "^4.0.0",
-    "strip-comments-strings": "1.2.0"
+    "strip-bom": "^4.0.0"
   },
   "devDependencies": {
     "@pnpm/read-project-manifest": "workspace:*",
