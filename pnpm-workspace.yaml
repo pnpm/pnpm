@@ -20,6 +20,7 @@ packages:
   - resolving/*
   - reviewing/*
   - store/*
+  - text/*
   - workspace/*
   - "!**/example/**"
   - "!**/test/**"

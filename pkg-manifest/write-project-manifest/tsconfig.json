@@ -11,6 +11,9 @@
   "references": [
     {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../text/comments-parser"
     }
   ]
 }

@@ -1,5 +1,16 @@
 # @pnpm/write-project-manifest
 
+## 4.1.0
+
+### Minor Changes
+
+- 0d12d38fd: Comments in `package.json5` are preserver [#2008](https://github.com/pnpm/pnpm/issues/2008).
+
+### Patch Changes
+
+- Updated dependencies [0d12d38fd]
+  - @pnpm/text.comments-parser@1.0.0
+
 ## 4.0.2
 
 ### Patch Changes

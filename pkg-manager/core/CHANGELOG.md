@@ -1,5 +1,27 @@
 # @pnpm/core
 
+## 7.2.0
+
+### Minor Changes
+
+- 043bbeaf3: New setting added for deduping direct dependencies: dedupeDirectDeps [#5676](https://github.com/pnpm/pnpm/pull/5676).
+
+### Patch Changes
+
+- 868f2fb16: readPackage hooks should not modify the `package.json` files in a workspace [#5670](https://github.com/pnpm/pnpm/issues/5670).
+- Updated dependencies [043bbeaf3]
+- Updated dependencies [d5496cc3f]
+- Updated dependencies [fec9e3149]
+- Updated dependencies [0d12d38fd]
+  - @pnpm/pkg-manager.direct-dep-linker@1.0.0
+  - @pnpm/headless@19.2.0
+  - @pnpm/read-project-manifest@4.1.0
+  - @pnpm/link-bins@8.0.3
+  - @pnpm/lifecycle@14.1.1
+  - @pnpm/build-modules@10.0.5
+  - @pnpm/hoist@7.0.5
+  - @pnpm/package-requester@20.0.2
+
 ## 7.1.1
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-licenses
 
+## 1.0.1
+
+### Patch Changes
+
+- a8cc22364: Fix the CLI help of the `pnpm licenses` command.
+  - @pnpm/cli-utils@1.0.10
+  - @pnpm/config@16.1.4
+  - @pnpm/license-scanner@1.0.1
+
 ## 1.0.0
 
 ### Major Changes

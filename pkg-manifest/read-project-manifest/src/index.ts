@@ -2,9 +2,9 @@ import { promises as fs, Stats } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { ProjectManifest } from '@pnpm/types'
+import { extractComments, CommentSpecifier } from '@pnpm/text.comments-parser'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import readYamlFile from 'read-yaml-file'
-
 import detectIndent from '@gwhitney/detect-indent'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
@@ -76,7 +76,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
       fileName: 'package.json5',
       manifest: data,
       writeProjectManifest: createManifestWriter({
-        ...detectFileFormatting(text),
+        ...detectFileFormattingAndComments(text),
         initialManifest: data,
         manifestPath,
       }),
@@ -117,6 +117,15 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   }
 }
 
+function detectFileFormattingAndComments (text: string) {
+  const { comments, text: newText, hasFinalNewline } = extractComments(text)
+  return {
+    comments,
+    indent: detectIndent(newText).indent,
+    insertFinalNewline: hasFinalNewline,
+  }
+}
+
 function detectFileFormatting (text: string) {
   return {
     indent: detectIndent(text).indent,
@@ -143,7 +152,7 @@ export async function readExactProjectManifest (manifestPath: string) {
     return {
       manifest: data,
       writeProjectManifest: createManifestWriter({
-        ...detectFileFormatting(text),
+        ...detectFileFormattingAndComments(text),
         initialManifest: data,
         manifestPath,
       }),
@@ -174,6 +183,7 @@ async function readPackageYaml (filePath: string) {
 function createManifestWriter (
   opts: {
     initialManifest: ProjectManifest
+    comments?: CommentSpecifier[]
     indent?: string | number | undefined
     insertFinalNewline?: boolean
     manifestPath: string
@@ -184,6 +194,7 @@ function createManifestWriter (
     updatedManifest = normalize(updatedManifest)
     if (force === true || !equal(initialManifest, updatedManifest)) {
       await writeProjectManifest(opts.manifestPath, updatedManifest, {
+        comments: opts.comments,
         indent: opts.indent,
         insertFinalNewline: opts.insertFinalNewline,
       })

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/write-project-manifest",
-  "version": "4.0.2",
+  "version": "4.1.0",
   "description": "Write a project manifest (called package.json in most cases)",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,6 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/write-project-manifest#readme",
   "dependencies": {
+    "@pnpm/text.comments-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
     "json5": "^2.2.1",
     "write-file-atomic": "^4.0.2",

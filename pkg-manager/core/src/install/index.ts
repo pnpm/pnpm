@@ -690,6 +690,7 @@ export type ImporterToUpdate = {
 } & DependenciesMutation
 
 export interface UpdatedProject {
+  originalManifest?: ProjectManifest
   manifest: ProjectManifest
   peerDependencyIssues?: PeerDependencyIssues
   rootDir: string

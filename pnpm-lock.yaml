@@ -3787,6 +3787,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/text.comments-parser':
+        specifier: workspace:*
+        version: link:../../text/comments-parser
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3830,6 +3833,9 @@ importers:
 
   pkg-manifest/write-project-manifest:
     dependencies:
+      '@pnpm/text.comments-parser':
+        specifier: workspace:*
+        version: link:../../text/comments-parser
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5576,6 +5582,16 @@ importers:
       rimraf:
         specifier: ^3.0.2
         version: 3.0.2
+
+  text/comments-parser:
+    dependencies:
+      strip-comments-strings:
+        specifier: 1.2.0
+        version: 1.2.0
+    devDependencies:
+      '@pnpm/text.comments-parser':
+        specifier: workspace:*
+        version: 'link:'
 
   workspace/filter-workspace-packages:
     dependencies:
@@ -16100,6 +16116,10 @@ packages:
     resolution: {integrity: sha512-3xurFv5tEgii33Zi8Jtp55wEIILR9eh34FAW00PZf+JnSsTmV/ioewSgQl97JHvgjoRGwPShsWm+IdrxB35d0w==}
     engines: {node: '>=8'}
 
+  /strip-comments-strings/1.2.0:
+    resolution: {integrity: sha512-zwF4bmnyEjZwRhaak9jUWNxc0DoeKBJ7lwSN/LEc8dQXZcUFG6auaaTQJokQWXopLdM3iTx01nQT8E4aL29DAQ==}
+    dev: false
+
   /strip-final-newline/2.0.0:
     resolution: {integrity: sha512-BrpvfNAE3dcvq7ll3xVumzjKjZQ5tI1sEUIKr3Uoks0XUl45St3FlatVqef9prk4jRDzhW6WZg+3bk93y6pLjA==}
     engines: {node: '>=6'}
@@ -17589,6 +17609,7 @@ time:
   /string.prototype.replaceall/1.0.6: '2021-10-05T01:00:00.092Z'
   /strip-ansi/6.0.1: '2021-09-23T16:34:41.798Z'
   /strip-bom/4.0.0: '2019-04-28T04:40:47.887Z'
+  /strip-comments-strings/1.2.0: '2022-06-12T23:34:53.852Z'
   /symlink-dir/5.1.0: '2022-11-20T16:48:15.918Z'
   /syncpack/8.3.9: '2022-10-28T16:58:42.312Z'
   /tar-stream/2.2.0: '2020-12-29T10:22:57.508Z'

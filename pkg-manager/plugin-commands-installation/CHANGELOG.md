@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-installation
 
+## 11.0.10
+
+### Patch Changes
+
+- 868f2fb16: readPackage hooks should not modify the `package.json` files in a workspace [#5670](https://github.com/pnpm/pnpm/issues/5670).
+- Updated dependencies [043bbeaf3]
+- Updated dependencies [fec9e3149]
+- Updated dependencies [868f2fb16]
+- Updated dependencies [0d12d38fd]
+  - @pnpm/core@7.2.0
+  - @pnpm/read-project-manifest@4.1.0
+  - @pnpm/pnpmfile@4.0.10
+  - @pnpm/cli-utils@1.0.10
+  - @pnpm/config@16.1.4
+  - @pnpm/plugin-commands-rebuild@7.0.10
+  - @pnpm/find-workspace-packages@5.0.10
+  - @pnpm/store-connection-manager@5.1.3
+  - @pnpm/filter-workspace-packages@6.0.10
+  - @pnpm/outdated@11.0.6
+  - @pnpm/package-store@15.0.2
+
 ## 11.0.9
 
 ### Patch Changes

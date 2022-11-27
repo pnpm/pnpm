@@ -1,5 +1,16 @@
 # pnpm
 
+## 7.17.1
+
+### Patch Changes
+
+- `pnpm set-script` and `pnpm pkg` are passed through to npm [#5683](https://github.com/pnpm/pnpm/discussions/5683).
+- `pnpm publish <tarball path>` should exit with non-0 exit code when publish fails [#5396](https://github.com/pnpm/pnpm/issues/5396).
+- readPackage hooks should not modify the `package.json` files in a workspace [#5670](https://github.com/pnpm/pnpm/issues/5670).
+- Comments in `package.json5` are preserver [#2008](https://github.com/pnpm/pnpm/issues/2008).
+- `pnpm setup` should create PNPM_HOME as a non-expandable env variable on Windows [#4658](https://github.com/pnpm/pnpm/issues/4658).
+- Fix the CLI help of the `pnpm licenses` command.
+
 ## 7.17.0
 
 ### Minor Changes
