@@ -26,6 +26,18 @@ export function getOptionsFromRootManifest (manifest: ProjectManifest): {
   const allowedDeprecatedVersions = manifest.pnpm?.allowedDeprecatedVersions
   const allowNonAppliedPatches = manifest.pnpm?.allowNonAppliedPatches
   const patchedDependencies = manifest.pnpm?.patchedDependencies
+  if (overrides) {
+    for (const key in overrides) {
+      if (overrides[key].startsWith('$')) {
+        const dependenciesName = overrides[key].slice(1)
+        if (manifest.dependencies?.[dependenciesName]) {
+          overrides[key] = manifest.dependencies[dependenciesName]
+        } else if (manifest.devDependencies?.[dependenciesName]) {
+          overrides[key] = manifest.devDependencies[dependenciesName]
+        }
+      }
+    }
+  }
   const settings = {
     allowedDeprecatedVersions,
     allowNonAppliedPatches,
