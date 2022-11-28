@@ -19,3 +19,48 @@ test('getOptionsFromRootManifest() should read "overrides" field', () => {
   })
   expect(options.overrides).toStrictEqual({ foo: '1.0.0' })
 })
+
+test('getOptionsFromRootManifest() Support $ in overrides by dependencies', () => {
+  const options = getOptionsFromRootManifest({
+    dependencies: {
+      foo: '1.0.0',
+    },
+    pnpm: {
+      overrides: {
+        foo: '$foo',
+      },
+    },
+  })
+  expect(options.overrides).toStrictEqual({ foo: '1.0.0' })
+})
+
+test('getOptionsFromRootManifest() Support $ in overrides by devDependencies', () => {
+  const options = getOptionsFromRootManifest({
+    devDependencies: {
+      foo: '1.0.0',
+    },
+    pnpm: {
+      overrides: {
+        foo: '$foo',
+      },
+    },
+  })
+  expect(options.overrides).toStrictEqual({ foo: '1.0.0' })
+})
+
+test('getOptionsFromRootManifest() Support $ in overrides by dependencies and devDependencies', () => {
+  const options = getOptionsFromRootManifest({
+    dependencies: {
+      foo: '1.0.0',
+    },
+    devDependencies: {
+      foo: '2.0.0',
+    },
+    pnpm: {
+      overrides: {
+        foo: '$foo',
+      },
+    },
+  })
+  expect(options.overrides).toStrictEqual({ foo: '1.0.0' })
+})
