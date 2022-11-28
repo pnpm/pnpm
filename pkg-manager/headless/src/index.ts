@@ -340,7 +340,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
 
     await symlinkDirectDependencies({
       directDependenciesByImporterId: symlinkedDirectDependenciesByImporterId!,
-      dedupe: opts.dedupeDirectDeps,
+      dedupe: Boolean(opts.dedupeDirectDeps),
       filteredLockfile,
       lockfileDir,
       projects: selectedProjects,
@@ -408,6 +408,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
     /** Skip linking and due to no project manifest */
     if (!opts.ignorePackageManifest) {
       await symlinkDirectDependencies({
+        dedupe: Boolean(opts.dedupeDirectDeps),
         directDependenciesByImporterId,
         filteredLockfile,
         lockfileDir,
@@ -564,7 +565,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
 
 type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'registries' | 'symlink' | 'lockfileDir'> & {
   filteredLockfile: Lockfile
-  dedupe?: boolean
+  dedupe: boolean
   directDependenciesByImporterId: DirectDependenciesByImporterId
   projects: Project[]
 }

@@ -95,4 +95,10 @@ test('dedupe direct dependencies', async () => {
   expect(fs.readdirSync('project-2/node_modules').sort()).toEqual(['is-odd'])
   await projects['project-3'].hasNot('is-negative')
   expect(fs.existsSync('project-3/node_modules')).toBeFalsy()
+
+  // Test the same with headless install
+  await mutateModules(importers, await testDefaults({ allProjects, dedupeDirectDeps: true, frozenLockfile: true }))
+  expect(fs.readdirSync('project-2/node_modules').sort()).toEqual(['is-odd'])
+  await projects['project-3'].hasNot('is-negative')
+  expect(fs.existsSync('project-3/node_modules')).toBeFalsy()
 })
