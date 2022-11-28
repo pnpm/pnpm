@@ -101,7 +101,7 @@ async function resolveLinkTargetOrFile (filePath: string) {
   try {
     return await resolveLinkTarget(filePath)
   } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (err.code !== 'EINVAL') throw err
+    if (err.code !== 'EINVAL' && err.code !== 'UNKNOWN') throw err
     return filePath
   }
 }
