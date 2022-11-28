@@ -1,5 +1,11 @@
 # @pnpm/pkg-manager.direct-dep-linker
 
+## 1.0.1
+
+### Patch Changes
+
+- e2cc20231: Deduping should not fail when node_modules has non-symlinked packages.
+
 ## 1.0.0
 
 ### Major Changes

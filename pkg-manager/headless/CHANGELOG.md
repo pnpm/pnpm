@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 19.2.1
+
+### Patch Changes
+
+- Updated dependencies [e2cc20231]
+  - @pnpm/pkg-manager.direct-dep-linker@1.0.1
+
 ## 19.2.0
 
 ### Minor Changes
