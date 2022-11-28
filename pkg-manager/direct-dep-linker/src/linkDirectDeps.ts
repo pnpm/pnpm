@@ -71,7 +71,7 @@ function pathsEqual (path1: string, path2: string) {
 async function readLinkedDeps (modulesDir: string): Promise<string[]> {
   const deps = (await readModulesDir(modulesDir)) ?? []
   return Promise.all(
-    deps.map((alias) => resolveLinkTarget(path.join(modulesDir, alias)))
+    deps.map((alias) => resolveLinkTargetOrFile(path.join(modulesDir, alias)))
   )
 }
 
@@ -92,9 +92,18 @@ async function readLinkedDepsWithRealLocations (modulesDir: string) {
     const linkedTo = path.join(modulesDir, alias)
     return {
       linkedTo,
-      linkedFrom: await resolveLinkTarget(linkedTo),
+      linkedFrom: await resolveLinkTargetOrFile(linkedTo),
     }
   }))
+}
+
+async function resolveLinkTargetOrFile (filePath: string) {
+  try {
+    return await resolveLinkTarget(filePath)
+  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (err.code !== 'EINVAL') throw err
+    return filePath
+  }
 }
 
 async function linkDirectDepsOfProject (project: ProjectToLink) {

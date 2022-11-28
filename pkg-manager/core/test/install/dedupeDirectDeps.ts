@@ -19,6 +19,8 @@ test('dedupe direct dependencies', async () => {
       package: { name: 'project-3' },
     },
   ])
+  fs.mkdirSync('node_modules/foo', { recursive: true })
+  fs.writeFileSync('node_modules/foo/package.json', JSON.stringify({ name: 'foo', version: '1.0.0' }))
 
   const importers: MutatedProject[] = [
     {
@@ -85,6 +87,7 @@ test('dedupe direct dependencies', async () => {
   expect(Array.from(fs.readdirSync('node_modules').sort())).toEqual([
     '.modules.yaml',
     '.pnpm',
+    'foo',
     'is-negative',
     'is-odd',
     'is-positive',
