@@ -64,3 +64,16 @@ test('getOptionsFromRootManifest() Support $ in overrides by dependencies and de
   })
   expect(options.overrides).toStrictEqual({ foo: '1.0.0' })
 })
+
+test('getOptionsFromRootManifest() throws an error if cannot resolve an override version reference', () => {
+  expect(() => getOptionsFromRootManifest({
+    dependencies: {
+      bar: '1.0.0',
+    },
+    pnpm: {
+      overrides: {
+        foo: '$foo',
+      },
+    },
+  })).toThrow('Cannot resolve version $foo in overrides. The direct dependencies don\'t have dependency "foo".')
+})
