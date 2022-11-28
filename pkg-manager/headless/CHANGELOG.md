@@ -1,5 +1,11 @@
 # @pnpm/headless
 
+## 19.2.2
+
+### Patch Changes
+
+- 32288715d: Dedupe direct dependencies.
+
 ## 19.2.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 7.2.2
+
+### Patch Changes
+
+- Updated dependencies [32288715d]
+  - @pnpm/headless@19.2.2
+
 ## 7.2.1
 
 ### Patch Changes
