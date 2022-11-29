@@ -13,7 +13,7 @@ export function createVersionsOverrider (
     parseOverrides(overrides)
       .map((override) => {
         let linkTarget: string | undefined
-        if (override.newPref.startsWith('link:')) {
+        if (override.newPref.startsWith('link:') || override.newPref.startsWith('file:')) {
           linkTarget = path.join(rootDir, override.newPref.substring(5))
         }
         return {
@@ -69,7 +69,7 @@ function overrideDeps (versionOverrides: VersionOverride[], deps: Dependencies, 
     if (actual == null) continue
     if (!isSubRange(versionOverride.targetPkg.pref, actual)) continue
     if (versionOverride.linkTarget && dir) {
-      deps[versionOverride.targetPkg.name] = `link:${normalizePath(path.relative(dir, versionOverride.linkTarget))}`
+      deps[versionOverride.targetPkg.name] = `${versionOverride.newPref.startsWith('link:') ? 'link:' : 'file:'}${normalizePath(path.relative(dir, versionOverride.linkTarget))}`
       continue
     }
     deps[versionOverride.targetPkg.name] = versionOverride.newPref
