@@ -52,7 +52,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "read-ini-file": "^3.1.0",
     "realpath-missing": "^1.1.0",
-    "which": "^2.0.2"
+    "which": "^3.0.0"
   },
   "devDependencies": {
     "@pnpm/config": "workspace:*",

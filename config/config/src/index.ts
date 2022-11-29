@@ -14,7 +14,7 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import fromPairs from 'ramda/src/fromPairs'
 import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
-import whichcb from 'which'
+import which from 'which'
 import { checkGlobalBinDir } from './checkGlobalBinDir'
 import { getScopeRegistries } from './getScopeRegistries'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
@@ -30,12 +30,6 @@ export * from './readLocalConfig'
 export { Config, UniversalOptions }
 
 const npmDefaults = loadNpmConf.defaults
-
-async function which (cmd: string) {
-  return new Promise<string>((resolve, reject) => {
-    whichcb(cmd, (err, resolvedPath) => (err != null) ? reject(err) : resolve(resolvedPath!))
-  })
-}
 
 export const types = Object.assign({
   'auto-install-peers': Boolean,
