@@ -14,11 +14,12 @@ test('resolve directory', async () => {
 
 test('resolve directory specified using absolute path', async () => {
   const linkedDir = path.join(__dirname, '..')
+  const normalizedLinkedDir = normalize(linkedDir)
   const resolveResult = await resolveFromLocal({ pref: `link:${linkedDir}` }, { projectDir: __dirname })
   expect(resolveResult!.id).toEqual('link:..')
-  expect(resolveResult!.normalizedPref).toEqual(`link:${linkedDir}`)
+  expect(resolveResult!.normalizedPref).toEqual(`link:${normalizedLinkedDir}`)
   expect(resolveResult!['manifest']!.name).toEqual('@pnpm/local-resolver')
-  expect(resolveResult!.resolution['directory']).toEqual(normalize(linkedDir))
+  expect(resolveResult!.resolution['directory']).toEqual(normalizedLinkedDir)
   expect(resolveResult!.resolution['type']).toEqual('directory')
 })
 
