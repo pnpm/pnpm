@@ -55,7 +55,7 @@
   "devDependencies": {
     "@pnpm/default-reporter": "workspace:*",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "0.28.15",
+    "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",
     "ghooks": "2.0.4",
     "load-json-file": "^6.2.0",

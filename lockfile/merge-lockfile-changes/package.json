@@ -39,7 +39,7 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/merge-lockfile-changes": "workspace:*",
-    "@types/ramda": "0.28.15",
+    "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13"
   },
   "exports": {

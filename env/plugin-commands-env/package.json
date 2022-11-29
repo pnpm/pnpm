@@ -50,7 +50,7 @@
   "devDependencies": {
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/adm-zip": "^0.4.34",
+    "@types/adm-zip": "^0.5.0",
     "@types/semver": "7.3.13",
     "adm-zip": "^0.5.9",
     "execa": "npm:safe-execa@^0.1.2",

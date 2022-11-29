@@ -29,7 +29,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/cli/cli-utils#readme",
   "devDependencies": {
     "@pnpm/cli-utils": "workspace:*",
-    "@types/ramda": "0.28.15"
+    "@types/ramda": "0.28.20"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:*",

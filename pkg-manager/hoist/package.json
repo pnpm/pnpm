@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@pnpm/hoist": "workspace:*",
-    "@types/ramda": "0.28.15"
+    "@types/ramda": "0.28.20"
   },
   "directories": {
     "test": "test"

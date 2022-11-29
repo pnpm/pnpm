@@ -50,7 +50,7 @@
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/adm-zip": "^0.4.34",
+    "@types/adm-zip": "^0.5.0",
     "node-fetch": "3.0.0-beta.9"
   }
 }
