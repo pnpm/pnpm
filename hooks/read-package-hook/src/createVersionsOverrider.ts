@@ -16,9 +16,14 @@ export function createVersionsOverrider (
         if (override.newPref.startsWith('link:')) {
           linkTarget = path.join(rootDir, override.newPref.substring(5))
         }
+        let linkFileTarget: string | undefined
+        if (override.newPref.startsWith('file:')) {
+          linkFileTarget = path.join(rootDir, override.newPref.substring(5))
+        }
         return {
           ...override,
           linkTarget,
+          linkFileTarget,
         }
       })
   ) as [VersionOverrideWithParent[], VersionOverride[]]
@@ -44,6 +49,7 @@ interface VersionOverride {
   }
   newPref: string
   linkTarget?: string
+  linkFileTarget?: string
 }
 
 interface VersionOverrideWithParent extends VersionOverride {
@@ -70,6 +76,10 @@ function overrideDeps (versionOverrides: VersionOverride[], deps: Dependencies, 
     if (!isSubRange(versionOverride.targetPkg.pref, actual)) continue
     if (versionOverride.linkTarget && dir) {
       deps[versionOverride.targetPkg.name] = `link:${normalizePath(path.relative(dir, versionOverride.linkTarget))}`
+      continue
+    }
+    if (versionOverride.linkFileTarget) {
+      deps[versionOverride.targetPkg.name] = `file:${versionOverride.linkFileTarget}`
       continue
     }
     deps[versionOverride.targetPkg.name] = versionOverride.newPref

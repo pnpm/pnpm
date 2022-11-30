@@ -252,3 +252,22 @@ test('createVersionsOverrider() should work for scoped parent and scoped child',
     },
   })
 })
+
+test('createVersionsOverrider() overrides dependencies with file', () => {
+  const overrider = createVersionsOverrider({
+    qar: 'file:../qar',
+  }, process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: `file:${path.resolve('../qar')}`,
+    },
+  })
+})
