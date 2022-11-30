@@ -254,6 +254,7 @@ export async function mutateModules (
       stdio: opts.ownLifecycleHooksStdio,
       storeController: opts.storeController,
       unsafePerm: opts.unsafePerm || false,
+      neverBuiltDependencies: opts.neverBuiltDependencies,
     }
 
     if (!opts.ignoreScripts && !opts.ignorePackageManifest && rootProjectManifest?.scripts?.[DEV_PREINSTALL]) {
