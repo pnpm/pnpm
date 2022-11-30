@@ -25,7 +25,7 @@ test('getPref()', () => {
     getPref('foo', 'foo', '4.0.0', {
       pinnedVersion: 'none',
     })
-  ).toEqual('*')
+  ).toEqual('^4.0.0')
 
   expect(
     getPref('foo', 'foo', undefined, {
