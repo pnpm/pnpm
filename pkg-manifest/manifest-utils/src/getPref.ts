@@ -19,7 +19,6 @@ export function getPref (
 export function createVersionSpec (version: string | undefined, opts: { pinnedVersion?: PinnedVersion, rolling?: boolean }) {
   switch (opts.pinnedVersion ?? 'major') {
   case 'none':
-    return '*'
   case 'major':
     if (opts.rolling) return '^'
     return !version ? '*' : `^${version}`
