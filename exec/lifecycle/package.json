@@ -37,7 +37,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
-    "@pnpm/npm-lifecycle": "^2.0.0-1",
+    "@pnpm/npm-lifecycle": "^2.0.0",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
