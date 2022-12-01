@@ -33,7 +33,7 @@
   "devDependencies": {
     "@pnpm/plugin-commands-audit": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/ramda": "0.28.15",
+    "@types/ramda": "0.28.20",
     "@types/zkochan__table": "npm:@types/table@6.0.0",
     "load-json-file": "^6.2.0",
     "nock": "13.2.9",

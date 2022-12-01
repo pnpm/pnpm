@@ -84,7 +84,7 @@
     "@types/is-ci": "^3.0.0",
     "@types/is-windows": "^1.0.0",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "0.28.15",
+    "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",
     "@types/sinon": "^10.0.13",
     "@yarnpkg/core": "4.0.0-rc.27",
@@ -97,7 +97,7 @@
     "path-name": "^1.0.0",
     "read-yaml-file": "^2.1.0",
     "resolve-link-target": "^2.0.0",
-    "sinon": "^14.0.2",
+    "sinon": "^15.0.0",
     "symlink-dir": "^5.1.0",
     "write-json-file": "^4.3.0",
     "write-yaml-file": "^4.2.0"

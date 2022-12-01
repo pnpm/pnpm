@@ -25,14 +25,14 @@
     "@zkochan/rimraf": "^2.1.2",
     "load-json-file": "^6.2.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "ssri": "^9.0.1",
+    "ssri": "10.0.0",
     "write-json-file": "^4.3.0"
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/ramda": "0.28.15",
+    "@types/ramda": "0.28.20",
     "@types/ssri": "^7.1.1",
     "tempy": "^1.0.1"
   },

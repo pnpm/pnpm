@@ -61,7 +61,7 @@
     "rename-overwrite": "^4.0.3",
     "safe-promise-defer": "^1.0.1",
     "semver": "^7.3.8",
-    "ssri": "^9.0.1"
+    "ssri": "10.0.0"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
@@ -71,7 +71,7 @@
     "@pnpm/registry-mock": "3.1.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "0.28.15",
+    "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",
     "@types/ssri": "^7.1.1",
     "delay": "^5.0.0",

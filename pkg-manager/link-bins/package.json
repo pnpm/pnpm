@@ -40,7 +40,7 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/cmd-shim": "^5.3.1",
     "@zkochan/rimraf": "^2.1.2",
-    "bin-links": "^3.0.3",
+    "bin-links": "^4.0.1",
     "is-subdir": "^1.2.0",
     "is-windows": "^1.0.2",
     "normalize-path": "^3.0.0",
@@ -54,7 +54,7 @@
     "@types/is-windows": "^1.0.0",
     "@types/node": "^14.18.33",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "0.28.15",
+    "@types/ramda": "0.28.20",
     "cmd-extension": "^1.0.2",
     "path-exists": "^4.0.0",
     "tempy": "^1.0.1"

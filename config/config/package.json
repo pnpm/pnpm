@@ -52,14 +52,14 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "read-ini-file": "^3.1.0",
     "realpath-missing": "^1.1.0",
-    "which": "^2.0.2"
+    "which": "^3.0.0"
   },
   "devDependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.0",
-    "@types/ramda": "0.28.15",
+    "@types/ramda": "0.28.20",
     "@types/which": "^2.0.1",
     "symlink-dir": "^5.1.0"
   },

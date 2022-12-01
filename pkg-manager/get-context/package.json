@@ -31,7 +31,7 @@
   "devDependencies": {
     "@pnpm/get-context": "workspace:*",
     "@types/is-ci": "^3.0.0",
-    "@types/ramda": "0.28.15"
+    "@types/ramda": "0.28.20"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

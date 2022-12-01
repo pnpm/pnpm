@@ -36,7 +36,7 @@
     "@pnpm/plugin-commands-patching": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.1.0",
-    "@types/ramda": "0.28.15"
+    "@types/ramda": "0.28.20"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
