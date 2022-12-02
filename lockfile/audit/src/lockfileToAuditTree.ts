@@ -40,7 +40,7 @@ export async function lockfileToAuditTree (
       dependencies[depName] = {
         dependencies: importerDeps,
         requires: toRequires(importerDeps),
-        version: manifest.version,
+        version: manifest.version ?? '0.0.0',
       }
     })
   )

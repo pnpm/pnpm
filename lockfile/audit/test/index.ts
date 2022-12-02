@@ -74,6 +74,72 @@ describe('audit', () => {
     })
   })
 
+  test('lockfileToAuditTree() without specified version should use default version 0.0.0', async () => {
+    expect(await lockfileToAuditTree({
+      importers: {
+        '.': {
+          dependencies: {
+            foo: '1.0.0',
+          },
+          specifiers: {
+            foo: '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        '/bar/1.0.0': {
+          resolution: {
+            integrity: 'bar-integrity',
+          },
+        },
+        '/foo/1.0.0': {
+          dependencies: {
+            bar: '1.0.0',
+          },
+          resolution: {
+            integrity: 'foo-integrity',
+          },
+        },
+      },
+    }, { lockfileDir: f.find('project-without-version') })).toEqual({
+      name: undefined,
+      version: undefined,
+
+      dependencies: {
+        '.': {
+          dependencies: {
+            foo: {
+              dependencies: {
+                bar: {
+                  dev: false,
+                  integrity: 'bar-integrity',
+                  version: '1.0.0',
+                },
+              },
+              dev: false,
+              integrity: 'foo-integrity',
+              requires: {
+                bar: '1.0.0',
+              },
+              version: '1.0.0',
+            },
+          },
+          requires: {
+            foo: '1.0.0',
+          },
+          version: '0.0.0',
+        },
+      },
+      dev: false,
+      install: [],
+      integrity: undefined,
+      metadata: {},
+      remove: [],
+      requires: { '.': '0.0.0' },
+    })
+  })
+
   test('an error is thrown if the audit endpoint responds with a non-OK code', async () => {
     const registry = 'http://registry.registry/'
     const getAuthHeader = () => undefined
