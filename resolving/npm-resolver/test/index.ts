@@ -1317,6 +1317,43 @@ test('resolve from local directory when package is not found in the registry and
   expect(resolveResult!.manifest!.version).toBe('2.0.0')
 })
 
+test('resolve from local directory when package is not found in the registry and local prerelease available', async () => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(404, {})
+
+  const cacheDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    cacheDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', pref: 'latest' }, {
+    projectDir: '/home/istvan/src',
+    registry,
+    workspacePackages: {
+      'is-positive': {
+        '3.0.0-alpha.1.2.3': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '3.0.0-alpha.1.2.3',
+          },
+        },
+      },
+    },
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+  expect(resolveResult!.id).toBe('link:is-positive')
+  expect(resolveResult!.latest).toBeFalsy()
+  expect(resolveResult!.resolution).toStrictEqual({
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  expect(resolveResult!.manifest).toBeTruthy()
+  expect(resolveResult!.manifest!.name).toBe('is-positive')
+  expect(resolveResult!.manifest!.version).toBe('3.0.0-alpha.1.2.3')
+})
+
 test('resolve from local directory when package is not found in the registry and specific version is requested', async () => {
   nock(registry)
     .get('/is-positive')

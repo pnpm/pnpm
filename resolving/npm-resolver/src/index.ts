@@ -291,7 +291,9 @@ function pickMatchingLocalVersionOrNull (
   const localVersions = Object.keys(versions)
   switch (spec.type) {
   case 'tag':
-    return semver.maxSatisfying(localVersions, '*')
+    return semver.maxSatisfying(localVersions, '*', {
+      includePrerelease: true,
+    })
   case 'version':
     return versions[spec.fetchSpec] ? spec.fetchSpec : null
   case 'range':
