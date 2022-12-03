@@ -1,5 +1,17 @@
 # @pnpm/resolve-dependencies
 
+## 29.0.8
+
+### Patch Changes
+
+- a9d59d8bc: Update dependencies.
+- Updated dependencies [c245edf1b]
+- Updated dependencies [a9d59d8bc]
+- Updated dependencies [f3bfa2aae]
+  - @pnpm/manifest-utils@4.1.2
+  - @pnpm/read-package-json@7.0.3
+  - @pnpm/npm-resolver@15.0.2
+
 ## 29.0.7
 
 ### Patch Changes

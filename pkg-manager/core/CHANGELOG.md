@@ -1,5 +1,33 @@
 # @pnpm/core
 
+## 7.2.3
+
+### Patch Changes
+
+- Updated dependencies [c245edf1b]
+- Updated dependencies [924eca293]
+- Updated dependencies [a9d59d8bc]
+- Updated dependencies [93558ce68]
+  - @pnpm/manifest-utils@4.1.2
+  - @pnpm/hooks.read-package-hook@2.0.7
+  - @pnpm/lockfile-file@6.0.3
+  - @pnpm/parse-wanted-dependency@4.0.1
+  - @pnpm/link-bins@8.0.4
+  - @pnpm/package-requester@20.0.3
+  - @pnpm/resolve-dependencies@29.0.8
+  - @pnpm/read-package-json@7.0.3
+  - @pnpm/lifecycle@14.1.2
+  - @pnpm/lockfile-to-pnp@2.0.4
+  - @pnpm/get-context@8.0.3
+  - @pnpm/headless@19.2.3
+  - @pnpm/build-modules@10.0.6
+  - @pnpm/hoist@7.0.6
+  - @pnpm/remove-bins@4.0.3
+  - @pnpm/read-project-manifest@4.1.1
+  - @pnpm/modules-cleaner@13.0.4
+  - @pnpm/symlink-dependency@6.0.2
+  - @pnpm/crypto.base32-hash@1.0.1
+
 ## 7.2.2
 
 ### Patch Changes

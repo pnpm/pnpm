@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-store
 
+## 6.0.13
+
+### Patch Changes
+
+- a9d59d8bc: Update dependencies.
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/config@16.1.7
+  - @pnpm/parse-wanted-dependency@4.0.1
+  - @pnpm/cafs@5.0.3
+  - @pnpm/cli-utils@1.0.13
+  - @pnpm/store-connection-manager@5.1.6
+  - @pnpm/get-context@8.0.3
+
 ## 6.0.12
 
 ### Patch Changes

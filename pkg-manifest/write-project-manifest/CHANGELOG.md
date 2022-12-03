@@ -1,5 +1,11 @@
 # @pnpm/write-project-manifest
 
+## 4.1.1
+
+### Patch Changes
+
+- a9d59d8bc: Update dependencies.
+
 ## 4.1.0
 
 ### Minor Changes

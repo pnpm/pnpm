@@ -1,5 +1,11 @@
 # find-packages
 
+## 10.0.4
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@4.1.1
+
 ## 10.0.3
 
 ### Patch Changes

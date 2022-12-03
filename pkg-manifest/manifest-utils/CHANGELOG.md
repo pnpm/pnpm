@@ -1,5 +1,11 @@
 # @pnpm/manifest-utils
 
+## 4.1.2
+
+### Patch Changes
+
+- c245edf1b: Dependencies specified via `*` should be updated to semver ranges by `pnpm update` [#5681](https://github.com/pnpm/pnpm/issues/5681).
+
 ## 4.1.1
 
 ### Patch Changes

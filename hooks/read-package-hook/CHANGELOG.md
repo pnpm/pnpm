@@ -1,5 +1,14 @@
 # @pnpm/hooks.read-package-hook
 
+## 2.0.7
+
+### Patch Changes
+
+- 924eca293: It should be possible to override a dependency with a local package using relative path from the workspace root directory [#5493](https://github.com/pnpm/pnpm/issues/5493).
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/parse-wanted-dependency@4.0.1
+  - @pnpm/parse-overrides@3.0.1
+
 ## 2.0.6
 
 ### Patch Changes

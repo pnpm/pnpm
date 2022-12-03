@@ -1,5 +1,11 @@
 # @pnpm/cafs
 
+## 5.0.3
+
+### Patch Changes
+
+- a9d59d8bc: Update dependencies.
+
 ## 5.0.2
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/lifecycle
 
+## 14.1.2
+
+### Patch Changes
+
+- 93558ce68: Exit with non-zero exit code when child process exits with a non-zero exit clode [#5525](https://github.com/pnpm/pnpm/issues/5525).
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/read-package-json@7.0.3
+  - @pnpm/directory-fetcher@5.1.2
+
 ## 14.1.1
 
 ### Patch Changes

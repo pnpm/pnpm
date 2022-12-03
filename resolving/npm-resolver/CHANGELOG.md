@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 15.0.2
+
+### Patch Changes
+
+- a9d59d8bc: Update dependencies.
+- f3bfa2aae: `pnpm add` should prefer local projects from the workspace, even if they use prerelease versions.
+
 ## 15.0.1
 
 ### Patch Changes

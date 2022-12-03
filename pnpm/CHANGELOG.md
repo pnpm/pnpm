@@ -1,5 +1,33 @@
 # pnpm
 
+## 7.18.0
+
+### Minor Changes
+
+- Overrides may be defined as a reference to a spec for a direct dependency by prefixing the name of the package you wish the version to match with a `# pnpm.
+
+  ```json
+  {
+    "dependencies": {
+      "foo": "^1.0.0"
+    },
+    "overrides": {
+      // the override is defined as a reference to the dependency
+      "foo": "$foo",
+      // the referenced package does not need to match the overridden one
+      "bar": "$foo"
+    }
+  }
+  ```
+
+### Patch Changes
+
+- `pnpm audit` should work when the project's `package.json` has no `version` field [#5728](https://github.com/pnpm/pnpm/issues/5728)
+- Dependencies specified via `*` should be updated to semver ranges by `pnpm update` [#5681](https://github.com/pnpm/pnpm/issues/5681).
+- It should be possible to override a dependency with a local package using relative path from the workspace root directory [#5493](https://github.com/pnpm/pnpm/issues/5493).
+- Exit with non-zero exit code when child process exits with a non-zero exit clode [#5525](https://github.com/pnpm/pnpm/issues/5525).
+- `pnpm add` should prefer local projects from the workspace, even if they use prerelease versions.
+
 ## 7.17.1
 
 ### Patch Changes

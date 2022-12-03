@@ -1,5 +1,14 @@
 # @pnpm/package-requester
 
+## 20.0.3
+
+### Patch Changes
+
+- a9d59d8bc: Update dependencies.
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/read-package-json@7.0.3
+  - @pnpm/cafs@5.0.3
+
 ## 20.0.2
 
 ### Patch Changes

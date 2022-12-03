@@ -1,5 +1,11 @@
 # @pnpm/parse-wanted-dependency
 
+## 4.0.1
+
+### Patch Changes
+
+- a9d59d8bc: Update dependencies.
+
 ## 4.0.0
 
 ### Major Changes

@@ -1,5 +1,12 @@
 # @pnpm/remove-bins
 
+## 4.0.3
+
+### Patch Changes
+
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/read-package-json@7.0.3
+
 ## 4.0.2
 
 ### Patch Changes

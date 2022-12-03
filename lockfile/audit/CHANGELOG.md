@@ -1,5 +1,14 @@
 # @pnpm/audit
 
+## 6.0.2
+
+### Patch Changes
+
+- dd83e5974: `pnpm audit` should work when the project's `package.json` has no `version` field [#5728](https://github.com/pnpm/pnpm/issues/5728)
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/fetch@6.0.4
+  - @pnpm/read-project-manifest@4.1.1
+
 ## 6.0.1
 
 ### Patch Changes

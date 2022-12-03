@@ -1,5 +1,16 @@
 # @pnpm/link-bins
 
+## 8.0.4
+
+### Patch Changes
+
+- a9d59d8bc: Update dependencies.
+- Updated dependencies [c245edf1b]
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/manifest-utils@4.1.2
+  - @pnpm/read-package-json@7.0.3
+  - @pnpm/read-project-manifest@4.1.1
+
 ## 8.0.3
 
 ### Patch Changes
