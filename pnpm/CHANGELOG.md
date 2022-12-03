@@ -20,13 +20,15 @@
   }
   ```
 
+  Issue: [#5703](https://github.com/pnpm/pnpm/issues/5703).
+
 ### Patch Changes
 
 - `pnpm audit` should work when the project's `package.json` has no `version` field [#5728](https://github.com/pnpm/pnpm/issues/5728)
 - Dependencies specified via `*` should be updated to semver ranges by `pnpm update` [#5681](https://github.com/pnpm/pnpm/issues/5681).
 - It should be possible to override a dependency with a local package using relative path from the workspace root directory [#5493](https://github.com/pnpm/pnpm/issues/5493).
 - Exit with non-zero exit code when child process exits with a non-zero exit clode [#5525](https://github.com/pnpm/pnpm/issues/5525).
-- `pnpm add` should prefer local projects from the workspace, even if they use prerelease versions.
+- `pnpm add` should prefer local projects from the workspace, even if they use prerelease versions [#5316](https://github.com/pnpm/pnpm/issues/5316).
 
 ## 7.17.1
 
