@@ -376,7 +376,7 @@ test('fail when extracting a broken tarball', async () => {
     fetch.remoteTarball(cafs, resolution, {
       lockfileDir: process.cwd(),
     })
-  ).rejects.toThrow(`Got an error while fetching and unpacking the tarball from ${registry}foo.tgz: Unexpected end of data`
+  ).rejects.toThrow(`Failed to unpack the tarball from "${registry}foo.tgz": Unexpected end of data`
   )
   expect(scope.isDone()).toBeTruthy()
 })

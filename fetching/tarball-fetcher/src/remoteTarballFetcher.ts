@@ -106,13 +106,7 @@ export function createDownloader (
           }
           const timeout = op.retry(error)
           if (timeout === false) {
-            const mainError: Error = op.mainError() ?? error
-            if (mainError['code']?.startsWith('ERR_PNPM_')) {
-              reject(mainError)
-            } else {
-              const err = new PnpmError('TARBALL_FETCH', `Got an error while fetching and unpacking the tarball from ${url}: ${mainError.message}`)
-              reject(err)
-            }
+            reject(op.mainError())
             return
           }
           requestRetryLogger.debug({
@@ -179,6 +173,15 @@ export function createDownloader (
 
             resolve({ filesIndex })
           } catch (err: any) { // eslint-disable-line
+            // If the error is not an integrity check error, then it happened during extracting the tarball
+            if (
+              err['code'] !== 'ERR_PNPM_TARBALL_INTEGRITY' &&
+              err['code'] !== 'ERR_PNPM_BAD_TARBALL_SIZE'
+            ) {
+              const extractError = new PnpmError('TARBALL_EXTRACT', `Failed to unpack the tarball from "${url}": ${err.message}`)
+              reject(extractError)
+              return
+            }
             reject(err)
           }
         })
