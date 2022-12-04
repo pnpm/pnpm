@@ -1,4 +1,4 @@
-import { constants, promises as fs, Stats } from 'fs'
+import { constants, copyFileSync, linkSync, promises as fs, Stats } from 'fs'
 import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
@@ -6,6 +6,7 @@ import { FilesMap, ImportOptions, ImportIndexedPackage } from '@pnpm/store-contr
 import pLimit from 'p-limit'
 import exists from 'path-exists'
 import { importIndexedDir, ImportFile } from './importIndexedDir'
+import { platform } from 'os'
 
 const limitLinking = pLimit(16)
 
@@ -138,7 +139,10 @@ async function hardlinkPkg (
 
 async function linkOrCopy (existingPath: string, newPath: string) {
   try {
-    await fs.link(existingPath, newPath)
+    // If platform is Darwin, use copy instead of link
+    if (platform() === 'darwin') return copyFileSync(existingPath, newPath, constants.COPYFILE_FICLONE_FORCE)
+    linkSync(existingPath, newPath)
+    return
   } catch (err: any) { // eslint-disable-line
     // If a hard link to the same file already exists
     // then trying to copy it will make an empty file from it.
@@ -146,7 +150,7 @@ async function linkOrCopy (existingPath: string, newPath: string) {
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
-    await fs.copyFile(existingPath, newPath)
+    await fs.copyFile(existingPath, newPath, constants.COPYFILE_FICLONE_FORCE)
   }
 }
 

@@ -2,10 +2,12 @@ import path from 'path'
 
 const fsMock = { promises: {} as any } as any // eslint-disable-line
 jest.mock('fs', () => {
-  const { access, constants, promises } = jest.requireActual('fs')
+  const { access, constants, promises, copyFileSync, linkSync } = jest.requireActual('fs')
   fsMock.constants = constants
   fsMock.promises.mkdir = promises.mkdir
   fsMock.promises.readdir = promises.readdir
+  fsMock.copyFileSync = copyFileSync
+  fsMock.linkSync = linkSync
   fsMock.access = access
   return fsMock
 })
@@ -48,7 +50,7 @@ test('packageImportMethod=auto: link files if cloning fails', async () => {
   fsMock.promises.copyFile = jest.fn(() => {
     throw new Error('This file system does not support cloning')
   })
-  fsMock.promises.link = jest.fn()
+  fsMock.linkSync = jest.fn()
   fsMock.promises.rename = jest.fn()
   expect(await importPackage('project/package', {
     filesMap: {
@@ -58,8 +60,8 @@ test('packageImportMethod=auto: link files if cloning fails', async () => {
     force: false,
     fromStore: false,
   })).toBe('hardlink')
-  expect(fsMock.promises.link).toBeCalledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json'))
-  expect(fsMock.promises.link).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
+  expect(fsMock.linkSync).toBeCalledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json'))
+  expect(fsMock.linkSync).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
   expect(fsMock.promises.copyFile).toBeCalled()
   fsMock.promises.copyFile.mockClear()
 
@@ -73,8 +75,8 @@ test('packageImportMethod=auto: link files if cloning fails', async () => {
     fromStore: false,
   })).toBe('hardlink')
   expect(fsMock.promises.copyFile).not.toBeCalled()
-  expect(fsMock.promises.link).toBeCalledWith(path.join('hash1'), path.join('project2', '_tmp', 'package.json'))
-  expect(fsMock.promises.link).toBeCalledWith(path.join('hash2'), path.join('project2', '_tmp', 'index.js'))
+  expect(fsMock.linkSync).toBeCalledWith(path.join('hash1'), path.join('project2', '_tmp', 'package.json'))
+  expect(fsMock.linkSync).toBeCalledWith(path.join('hash2'), path.join('project2', '_tmp', 'index.js'))
 })
 
 test('packageImportMethod=auto: link files if cloning fails and even hard linking fails but not with EXDEV error', async () => {
@@ -83,7 +85,7 @@ test('packageImportMethod=auto: link files if cloning fails and even hard linkin
     throw new Error('This file system does not support cloning')
   })
   let linkFirstCall = true
-  fsMock.promises.link = jest.fn(() => {
+  fsMock.linkSync = jest.fn(() => {
     if (linkFirstCall) {
       linkFirstCall = false
       throw new Error()
@@ -97,8 +99,8 @@ test('packageImportMethod=auto: link files if cloning fails and even hard linkin
     force: false,
     fromStore: false,
   })).toBe('hardlink')
-  expect(fsMock.promises.link).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
-  expect(fsMock.promises.link).toBeCalledTimes(2)
+  expect(fsMock.linkSync).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
+  expect(fsMock.linkSync).toBeCalledTimes(2)
   expect(fsMock.promises.copyFile).toBeCalledTimes(1)
 })
 
@@ -109,7 +111,7 @@ test('packageImportMethod=auto: chooses copying if cloning and hard linking is n
       throw new Error('This file system does not support cloning')
     }
   })
-  fsMock.promises.link = jest.fn(() => {
+  fsMock.linkSync = jest.fn(() => {
     throw new Error('EXDEV: cross-device link not permitted')
   })
   fsMock.promises.rename = jest.fn()
@@ -126,7 +128,7 @@ test('packageImportMethod=auto: chooses copying if cloning and hard linking is n
 
 test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', async () => {
   const importPackage = createIndexedPkgImporter('hardlink')
-  fsMock.promises.link = jest.fn((src: string, dest: string) => {
+  fsMock.linkSync = jest.fn((src: string, dest: string) => {
     if (dest.endsWith('license')) {
       const err = new Error('')
       err['code'] = 'EEXIST'
@@ -144,7 +146,7 @@ test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', 
     force: false,
     fromStore: false,
   })).toBe('hardlink')
-  expect(fsMock.promises.link).toBeCalledTimes(3)
+  expect(fsMock.linkSync).toBeCalledTimes(3)
   expect(fsMock.promises.copyFile).toBeCalledTimes(2) // One time the target already exists, so it won't be copied
   expect(fsMock.promises.copyFile).toBeCalledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json'))
   expect(fsMock.promises.copyFile).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
