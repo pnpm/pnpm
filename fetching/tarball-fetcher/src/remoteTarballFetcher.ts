@@ -178,7 +178,7 @@ export function createDownloader (
               err['code'] !== 'ERR_PNPM_TARBALL_INTEGRITY' &&
               err['code'] !== 'ERR_PNPM_BAD_TARBALL_SIZE'
             ) {
-              const extractError = new PnpmError('TARBALL_EXTRACT', `Failed to unpack the tarball from "${url}": ${err.message}`)
+              const extractError = new PnpmError('TARBALL_EXTRACT', `Failed to unpack the tarball from "${url}": ${err.message as string}`)
               reject(extractError)
               return
             }
