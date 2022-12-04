@@ -364,7 +364,7 @@ test('fail when extracting a broken tarball', async () => {
   const scope = nock(registry)
     .get('/foo.tgz')
     .times(2)
-    .replyWithFile(200, f.find('unexpected-end-of-data.tgz'))
+    .reply(200, 'this is not a valid tarball')
 
   process.chdir(tempy.directory())
 

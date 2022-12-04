@@ -106,8 +106,8 @@ export function createDownloader (
           }
           const timeout = op.retry(error)
           if (timeout === false) {
-            const mainError = op.mainError() ?? error
-            if (mainError['code'] && mainError['code'].startsWith('ERR_PNPM_')) {
+            const mainError: Error = op.mainError() ?? error
+            if (mainError['code']?.startsWith('ERR_PNPM_')) {
               reject(mainError)
             } else {
               const err = new PnpmError('TARBALL_FETCH', `Got an error while fetching and unpacking the tarball from ${url}: ${mainError.message}`)
