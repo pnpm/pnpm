@@ -1,5 +1,24 @@
 # @pnpm/headless
 
+## 19.2.3
+
+### Patch Changes
+
+- Updated dependencies [a9d59d8bc]
+- Updated dependencies [93558ce68]
+  - @pnpm/lockfile-file@6.0.3
+  - @pnpm/link-bins@8.0.4
+  - @pnpm/package-requester@20.0.3
+  - @pnpm/read-package-json@7.0.3
+  - @pnpm/lifecycle@14.1.2
+  - @pnpm/lockfile-to-pnp@2.0.4
+  - @pnpm/real-hoist@1.0.4
+  - @pnpm/build-modules@10.0.6
+  - @pnpm/hoist@7.0.6
+  - @pnpm/read-project-manifest@4.1.1
+  - @pnpm/modules-cleaner@13.0.4
+  - @pnpm/symlink-dependency@6.0.2
+
 ## 19.2.2
 
 ### Patch Changes

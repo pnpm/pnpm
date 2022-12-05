@@ -1,5 +1,12 @@
 # @pnpm/tarball-fetcher
 
+## 13.0.2
+
+### Patch Changes
+
+- a9d59d8bc: Update dependencies.
+  - @pnpm/prepare-package@3.0.3
+
 ## 13.0.1
 
 ### Patch Changes

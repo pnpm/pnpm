@@ -1,5 +1,43 @@
 # @pnpm/plugin-commands-installation
 
+## 11.1.0
+
+### Minor Changes
+
+- 4097af6b5: Overrides may be defined as a reference to a spec for a direct dependency by prefixing the name of the package you wish the version to match with a `# @pnpm/plugin-commands-installation.
+
+  ```json
+  {
+    "dependencies": {
+      "foo": "^1.0.0"
+    },
+    "overrides": {
+      // the override is defined as a reference to the dependency
+      "foo": "$foo",
+      // the referenced package does not need to match the overridden one
+      "bar": "$foo"
+    }
+  }
+  ```
+
+### Patch Changes
+
+- Updated dependencies [c245edf1b]
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/manifest-utils@4.1.2
+  - @pnpm/config@16.1.7
+  - @pnpm/parse-wanted-dependency@4.0.1
+  - @pnpm/package-store@15.0.3
+  - @pnpm/cli-utils@1.0.13
+  - @pnpm/core@7.2.3
+  - @pnpm/outdated@11.0.7
+  - @pnpm/plugin-commands-rebuild@7.0.13
+  - @pnpm/store-connection-manager@5.1.6
+  - @pnpm/read-project-manifest@4.1.1
+  - @pnpm/find-workspace-packages@5.0.13
+  - @pnpm/pnpmfile@4.0.13
+  - @pnpm/filter-workspace-packages@6.0.13
+
 ## 11.0.12
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/read-project-manifest
 
+## 4.1.1
+
+### Patch Changes
+
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/write-project-manifest@4.1.1
+
 ## 4.1.0
 
 ### Minor Changes

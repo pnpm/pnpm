@@ -1,5 +1,12 @@
 # @pnpm/lockfile-to-pnp
 
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/lockfile-file@6.0.3
+
 ## 2.0.3
 
 ### Patch Changes

@@ -359,3 +359,24 @@ test('fetch a big repository', async () => {
 
   expect(result.filesIndex).toBeTruthy()
 })
+
+test('fail when extracting a broken tarball', async () => {
+  const scope = nock(registry)
+    .get('/foo.tgz')
+    .times(2)
+    .reply(200, 'this is not a valid tarball')
+
+  process.chdir(tempy.directory())
+
+  const resolution = {
+    tarball: `${registry}foo.tgz`,
+  }
+
+  await expect(
+    fetch.remoteTarball(cafs, resolution, {
+      lockfileDir: process.cwd(),
+    })
+  ).rejects.toThrow(`Failed to unpack the tarball from "${registry}foo.tgz": Unexpected end of data`
+  )
+  expect(scope.isDone()).toBeTruthy()
+})

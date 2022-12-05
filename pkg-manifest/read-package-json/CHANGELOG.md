@@ -1,5 +1,11 @@
 # @pnpm/read-package-json
 
+## 7.0.3
+
+### Patch Changes
+
+- a9d59d8bc: Update dependencies.
+
 ## 7.0.2
 
 ### Patch Changes

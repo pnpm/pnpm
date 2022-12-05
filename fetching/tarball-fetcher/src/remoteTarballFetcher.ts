@@ -173,6 +173,15 @@ export function createDownloader (
 
             resolve({ filesIndex })
           } catch (err: any) { // eslint-disable-line
+            // If the error is not an integrity check error, then it happened during extracting the tarball
+            if (
+              err['code'] !== 'ERR_PNPM_TARBALL_INTEGRITY' &&
+              err['code'] !== 'ERR_PNPM_BAD_TARBALL_SIZE'
+            ) {
+              const extractError = new PnpmError('TARBALL_EXTRACT', `Failed to unpack the tarball from "${url}": ${err.message as string}`)
+              reject(extractError)
+              return
+            }
             reject(err)
           }
         })

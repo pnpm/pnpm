@@ -1,5 +1,12 @@
 # @pnpm/prepare-package
 
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/read-package-json@7.0.3
+
 ## 3.0.2
 
 ### Patch Changes
