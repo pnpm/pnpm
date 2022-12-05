@@ -57,6 +57,7 @@ export function reporterForClient (
     cmd: string
     config?: Config
     env: NodeJS.ProcessEnv
+    process: NodeJS.Process
     isRecursive: boolean
     logLevel?: LogLevel
     pnpmConfig?: Config

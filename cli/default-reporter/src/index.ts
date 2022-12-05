@@ -28,6 +28,7 @@ export function initDefaultReporter (
       argv: string[]
       config?: Config
       env?: NodeJS.ProcessEnv
+      process?: NodeJS.Process
     }
   }
 ): () => void {
@@ -95,6 +96,7 @@ export function toOutput$ (
       argv: string[]
       config?: Config
       env?: NodeJS.ProcessEnv
+      process?: NodeJS.Process
     }
   }
 ): Rx.Observable<string> {
@@ -235,6 +237,7 @@ export function toOutput$ (
       cmd: opts.context.argv[0],
       config: opts.context.config,
       env: opts.context.env ?? process.env,
+      process: opts.context.process ?? process,
       isRecursive: opts.context.config?.['recursive'] === true,
       logLevel: opts.reportingOptions?.logLevel,
       pnpmConfig: opts.context.config,
