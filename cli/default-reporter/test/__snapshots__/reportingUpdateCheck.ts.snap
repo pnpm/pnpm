@@ -27,3 +27,17 @@ exports[`print update notification if the latest version is greater than the cur
    ╰──────────────────────────────────────────────────────────────────╯
 "
 `;
+
+exports[`print update notification that suggests to use the standalone scripts for the upgrade 1`] = `
+"
+   ╭──────────────────────────────────────────────────────────────────╮
+   │                                                                  │
+   │                Update available! 10.0.0 → 11.0.0.                │
+   │   Changelog: https://github.com/pnpm/pnpm/releases/tag/v11.0.0   │
+   │         Run a script from: https://pnpm.io/installation          │
+   │                                                                  │
+   │      Follow @pnpmjs for updates: https://twitter.com/pnpmjs      │
+   │                                                                  │
+   ╰──────────────────────────────────────────────────────────────────╯
+"
+`;
