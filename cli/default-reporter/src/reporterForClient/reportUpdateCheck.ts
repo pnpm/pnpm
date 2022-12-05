@@ -46,7 +46,7 @@ interface UpdateMessageOptions {
 
 function renderUpdateMessage (opts: UpdateMessageOptions) {
   if (opts.currentPkgIsExecutable && opts.env.PNPM_HOME) {
-    return 'Run one of the standalone scripts from: https://pnpm.io/installation'
+    return 'Run a script from: https://pnpm.io/installation'
   }
   const updateCommand = renderUpdateCommand(opts)
   return `Run "${chalk.magenta(updateCommand)}" to update.`
