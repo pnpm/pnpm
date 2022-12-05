@@ -85,7 +85,9 @@ export async function handler (
   params: string[] = []
 ) {
   if (params.length === 0) {
-    throw new PnpmError('LICENCES_NO_SUBCOMMAND', 'Please specify the subcommand')
+    throw new PnpmError('LICENCES_NO_SUBCOMMAND', 'Please specify the subcommand', {
+      hint: help(),
+    })
   }
   switch (params[0]) {
   case 'list':
