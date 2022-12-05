@@ -8,8 +8,9 @@ import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { Registries } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
+import difference from 'ramda/src/difference'
 import pick from 'ramda/src/pick'
-import { difference } from 'ramda'
+import pickBy from 'ramda/src/pickBy'
 import renderHelp from 'render-help'
 import { fix } from './fix'
 
@@ -197,6 +198,10 @@ ${JSON.stringify(newOverrides, null, 2)}`,
   const vulnerabilities = auditReport.metadata.vulnerabilities
   const totalVulnerabilityCount = Object.values(vulnerabilities)
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
+  const ignoreCves = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreCves
+  if (ignoreCves) {
+    auditReport.advisories = pickBy(({ cves }) => difference(cves, ignoreCves).length > 0, auditReport.advisories)
+  }
   if (opts.json) {
     return {
       exitCode: totalVulnerabilityCount > 0 ? 1 : 0,
@@ -207,10 +212,6 @@ ${JSON.stringify(newOverrides, null, 2)}`,
   let output = ''
   const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
   let advisories = Object.values(auditReport.advisories)
-  const ignoreCves = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreCves
-  if (ignoreCves) {
-    advisories = advisories.filter(({ cves }) => difference(cves, ignoreCves).length > 0)
-  }
   advisories = advisories
     .filter(({ severity }) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
     .sort((a1, a2) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])

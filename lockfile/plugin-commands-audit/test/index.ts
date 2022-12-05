@@ -204,3 +204,35 @@ test('audit: CVEs in ignoreCves do not show up', async () => {
   expect(exitCode).toBe(1)
   expect(stripAnsi(output)).toMatchSnapshot()
 })
+
+test('audit: CVEs in ignoreCves do not show up when JSON output is used', async () => {
+  const tmp = f.prepare('has-vulnerabilities')
+
+  nock(registries.default)
+    .post('/-/npm/v1/security/audits')
+    .reply(200, responses.ALL_VULN_RESP)
+
+  const { exitCode, output } = await audit.handler({
+    auditLevel: 'moderate',
+    dir: tmp,
+    json: true,
+    userConfig: {},
+    rawConfig,
+    registries,
+    rootProjectManifest: {
+      pnpm: {
+        auditConfig: {
+          ignoreCves: [
+            'CVE-2019-10742',
+            'CVE-2020-28168',
+            'CVE-2021-3749',
+            'CVE-2020-7598',
+          ],
+        },
+      },
+    },
+  })
+
+  expect(exitCode).toBe(1)
+  expect(stripAnsi(output)).toMatchSnapshot()
+})
