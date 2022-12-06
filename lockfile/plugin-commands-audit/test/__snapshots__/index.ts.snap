@@ -1128,6 +1128,17 @@ exports[`audit: CVEs in ignoreCves do not show up 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-pp7h-53gx-mx7r │
 └─────────────────────┴───────────────────────────────────────────────────┘
 ┌─────────────────────┬───────────────────────────────────────────────────┐
+│ high                │ Denial of Service in http-proxy                   │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ Package             │ http-proxy                                        │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ Vulnerable versions │ <1.18.1                                           │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ Patched versions    │ >=1.18.1                                          │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ More info           │ https://github.com/advisories/GHSA-6x33-pw7p-hmpq │
+└─────────────────────┴───────────────────────────────────────────────────┘
+┌─────────────────────┬───────────────────────────────────────────────────┐
 │ high                │ Validation Bypass in kind-of                      │
 ├─────────────────────┼───────────────────────────────────────────────────┤
 │ Package             │ kind-of                                           │
@@ -1258,6 +1269,17 @@ exports[`audit: CVEs in ignoreCves do not show up 1`] = `
 │ Patched versions    │ <0.0.0                                            │
 ├─────────────────────┼───────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-38h8-x697-gh8q │
+└─────────────────────┴───────────────────────────────────────────────────┘
+┌─────────────────────┬───────────────────────────────────────────────────┐
+│ moderate            │ Memory Exposure in tunnel-agent                   │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ Package             │ tunnel-agent                                      │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ Vulnerable versions │ <0.6.0                                            │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ Patched versions    │ >=0.6.0                                           │
+├─────────────────────┼───────────────────────────────────────────────────┤
+│ More info           │ https://github.com/advisories/GHSA-xc7v-wxcw-j472 │
 └─────────────────────┴───────────────────────────────────────────────────┘
 ┌─────────────────────┬───────────────────────────────────────────────────┐
 │ moderate            │ Prototype Pollution in hoek                       │
@@ -2402,6 +2424,37 @@ exports[`audit: CVEs in ignoreCves do not show up when JSON output is used 1`] =
       "overview": "A buffer over-read vulnerability exists in bl <4.0.3, <3.0.1, <2.2.1, and <1.2.3 which could allow an attacker to supply user input (even typed) that if it ends up in consume() argument and can become negative, the BufferList state can be corrupted, tricking it into exposing uninitialized memory via regular .slice() calls.",
       "url": "https://github.com/advisories/GHSA-pp7h-53gx-mx7r"
     },
+    "1005586": {
+      "findings": [
+        {
+          "version": "1.18.0",
+          "paths": [
+            ".>karma>http-proxy"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<1.18.1",
+      "module_name": "http-proxy",
+      "severity": "high",
+      "github_advisory_id": "GHSA-6x33-pw7p-hmpq",
+      "cves": [],
+      "access": "public",
+      "patched_versions": ">=1.18.1",
+      "updated": "2020-08-31T19:01:07.000Z",
+      "recommendation": "Upgrade to version 1.18.1 or later",
+      "cwe": "",
+      "found_by": null,
+      "deleted": null,
+      "id": 1005586,
+      "references": "- https://github.com/http-party/node-http-proxy/pull/1447/files\\n- https://www.npmjs.com/advisories/1486\\n- https://github.com/advisories/GHSA-6x33-pw7p-hmpq",
+      "created": "2021-11-18T16:00:48.552Z",
+      "reported_by": null,
+      "title": "Denial of Service in http-proxy",
+      "npm_advisory_id": null,
+      "overview": "Versions of \`http-proxy\` prior to 1.18.1 are vulnerable to Denial of Service. An HTTP request with a long body triggers an \`ERR_HTTP_HEADERS_SENT\` unhandled exception that crashes the proxy server. This is only possible when the proxy server sets headers in the proxy request using the \`proxyReq.setHeader\` function.   \\n\\nFor a proxy server running on \`http://localhost:3000\`, the following curl request triggers the unhandled exception:  \\n\`\`\`curl -XPOST http://localhost:3000 -d \\"$(python -c 'print(\\"x\\"*1025)')\\"\`\`\`\\n\\n\\n## Recommendation\\n\\nUpgrade to version 1.18.1 or later",
+      "url": "https://github.com/advisories/GHSA-6x33-pw7p-hmpq"
+    },
     "1005745": {
       "findings": [
         {
@@ -2500,6 +2553,68 @@ exports[`audit: CVEs in ignoreCves do not show up when JSON output is used 1`] =
       "npm_advisory_id": null,
       "overview": "Versions of \`kind-of\` 6.x prior to 6.0.3 are vulnerable to a Validation Bypass. A maliciously crafted object can alter the result of the type check, allowing attackers to bypass the type checking validation. \\n\\n\\n## Recommendation\\n\\nUpgrade to versions 6.0.3 or later.",
       "url": "https://github.com/advisories/GHSA-6c8f-qphg-qjgp"
+    },
+    "1006342": {
+      "findings": [
+        {
+          "version": "0.1.5",
+          "paths": [
+            ".>karma>expand-braces>braces"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<2.3.1",
+      "module_name": "braces",
+      "severity": "low",
+      "github_advisory_id": "GHSA-g95f-p29q-9xw4",
+      "cves": [],
+      "access": "public",
+      "patched_versions": ">=2.3.1",
+      "updated": "2019-06-06T09:40:52.000Z",
+      "recommendation": "Upgrade to version 2.3.1 or later",
+      "cwe": "CWE-185",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006342,
+      "references": "- https://github.com/micromatch/braces/commit/abdafb0cae1e0c00f184abbadc692f4eaa98f451\\n- https://www.npmjs.com/advisories/786\\n- https://snyk.io/vuln/npm:braces:20180219\\n- https://github.com/advisories/GHSA-g95f-p29q-9xw4",
+      "created": "2021-11-18T16:00:48.617Z",
+      "reported_by": null,
+      "title": "Regular Expression Denial of Service in braces",
+      "npm_advisory_id": null,
+      "overview": "Versions of \`braces\` prior to 2.3.1 are vulnerable to Regular Expression Denial of Service (ReDoS). Untrusted input may cause catastrophic backtracking while matching regular expressions. This can cause the application to be unresponsive leading to Denial of Service.\\n\\n\\n## Recommendation\\n\\nUpgrade to version 2.3.1 or higher.",
+      "url": "https://github.com/advisories/GHSA-g95f-p29q-9xw4"
+    },
+    "1006373": {
+      "findings": [
+        {
+          "version": "0.4.3",
+          "paths": [
+            ".>karma>log4js>loggly>request>tunnel-agent"
+          ]
+        }
+      ],
+      "metadata": null,
+      "vulnerable_versions": "<0.6.0",
+      "module_name": "tunnel-agent",
+      "severity": "moderate",
+      "github_advisory_id": "GHSA-xc7v-wxcw-j472",
+      "cves": [],
+      "access": "public",
+      "patched_versions": ">=0.6.0",
+      "updated": "2019-06-03T17:08:06.000Z",
+      "recommendation": "Upgrade to version 0.6.0 or later",
+      "cwe": "CWE-200",
+      "found_by": null,
+      "deleted": null,
+      "id": 1006373,
+      "references": "- https://github.com/request/tunnel-agent/commit/9ca95ec7219daface8a6fc2674000653de0922c0\\n- https://www.npmjs.com/advisories/598\\n- https://gist.github.com/ChALkeR/fd6b2c445834244e7d440a043f9d2ff4\\n- https://github.com/advisories/GHSA-xc7v-wxcw-j472",
+      "created": "2021-11-18T16:00:48.619Z",
+      "reported_by": null,
+      "title": "Memory Exposure in tunnel-agent",
+      "npm_advisory_id": null,
+      "overview": "Versions of \`tunnel-agent\` before 0.6.0 are vulnerable to memory exposure.\\n\\nThis is exploitable if user supplied input is provided to the auth value and is a number.\\n\\nProof-of-concept:\\n\`\`\`js\\nrequire('request')({\\n  method: 'GET',\\n  uri: 'http://www.example.com',\\n  tunnel: true,\\n  proxy:{\\n    protocol: 'http:',\\n    host:'127.0.0.1',\\n    port:8080,\\n    auth:USERSUPPLIEDINPUT // number\\n  }\\n});\\n\`\`\`\\n\\n\\n## Recommendation\\n\\nUpdate to version 0.6.0 or later.",
+      "url": "https://github.com/advisories/GHSA-xc7v-wxcw-j472"
     },
     "1006603": {
       "findings": [

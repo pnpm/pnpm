@@ -200,7 +200,7 @@ ${JSON.stringify(newOverrides, null, 2)}`,
     .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
   const ignoreCves = opts.rootProjectManifest?.pnpm?.auditConfig?.ignoreCves
   if (ignoreCves) {
-    auditReport.advisories = pickBy(({ cves }) => difference(cves, ignoreCves).length > 0, auditReport.advisories)
+    auditReport.advisories = pickBy(({ cves }) => cves.length === 0 || difference(cves, ignoreCves).length > 0, auditReport.advisories)
   }
   if (opts.json) {
     return {
