@@ -1,5 +1,15 @@
 # pnpm
 
+## 7.18.1
+
+### Patch Changes
+
+- The update notifier should suggest using the standalone script, when pnpm was installed using a standalone script [#5750](https://github.com/pnpm/pnpm/issues/5750).
+- Vulnerabilities that don't have CVEs codes should not be skipped by `pnpm audit` if an `ignoreCves` list is declared in `package.json` [#5756](https://github.com/pnpm/pnpm/issues/5756).
+- It should be possible to use overrides with absolute file paths [#5754](https://github.com/pnpm/pnpm/issues/5754).
+- `pnpm audit --json` should ignore vulnerabilities listed in `auditConfig.ignoreCves` [#5734](https://github.com/pnpm/pnpm/issues/5734).
+- `pnpm licenses` should print help, not just an error message [#5745](https://github.com/pnpm/pnpm/issues/5745).
+
 ## 7.18.0
 
 ### Minor Changes

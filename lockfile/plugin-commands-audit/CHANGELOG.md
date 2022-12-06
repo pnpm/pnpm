@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-audit
 
+## 7.1.9
+
+### Patch Changes
+
+- 494760388: Vulnerabilities that don't have CVEs codes should not be skipped by `pnpm audit` if an ignoreCves list is declared in `package.json`.
+- c5aea50ae: `pnpm audit --json` should ignore vulnerabilities listed in `auditConfig.ignoreCves` [#5734](https://github.com/pnpm/pnpm/issues/5734).
+  - @pnpm/cli-utils@1.0.14
+  - @pnpm/config@16.1.8
+
 ## 7.1.8
 
 ### Patch Changes

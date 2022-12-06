@@ -1,5 +1,11 @@
 # @pnpm/hooks.read-package-hook
 
+## 2.0.8
+
+### Patch Changes
+
+- b11a8c363: It should be possible to use overrides with absolute file paths [#5754](https://github.com/pnpm/pnpm/issues/5754).
+
 ## 2.0.7
 
 ### Patch Changes

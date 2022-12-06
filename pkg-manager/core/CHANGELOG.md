@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 7.2.4
+
+### Patch Changes
+
+- Updated dependencies [b11a8c363]
+  - @pnpm/hooks.read-package-hook@2.0.8
+
 ## 7.2.3
 
 ### Patch Changes
