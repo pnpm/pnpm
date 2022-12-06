@@ -18,7 +18,8 @@ export function createVersionsOverrider (
         }
         let linkFileTarget: string | undefined
         if (override.newPref.startsWith('file:')) {
-          linkFileTarget = path.join(rootDir, override.newPref.substring(5))
+          const pkgPath = override.newPref.substring(5)
+          linkFileTarget = path.isAbsolute(pkgPath) ? pkgPath : path.join(rootDir, pkgPath)
         }
         return {
           ...override,

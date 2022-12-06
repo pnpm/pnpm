@@ -271,3 +271,23 @@ test('createVersionsOverrider() overrides dependencies with file', () => {
     },
   })
 })
+
+test('createVersionsOverrider() overrides dependencies with file specified with absolute path', () => {
+  const absolutePath = path.join(__dirname, 'qar')
+  const overrider = createVersionsOverrider({
+    qar: `file:${absolutePath}`,
+  }, process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.resolve('pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: `file:${absolutePath}`,
+    },
+  })
+})
