@@ -1033,7 +1033,7 @@ test('update workspace range', async () => {
     dep3: 'workspace:^2.0.0',
     dep4: 'workspace:^2.0.0',
     dep5: 'workspace:~2.0.0',
-    dep6: 'workspace:2.0.0',
+    dep6: 'workspace:*',
   }
   expect(updatedImporters[0].manifest.dependencies).toStrictEqual(expected)
   expect(updatedImporters[1].manifest.dependencies).toStrictEqual(expected)

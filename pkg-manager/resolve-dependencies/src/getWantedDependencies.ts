@@ -83,7 +83,7 @@ function getWantedDependenciesFromGivenSet (
       nodeExecPath: opts.nodeExecPath ?? opts.dependenciesMeta[alias]?.node,
       pinnedVersion: whichVersionIsPinned(pref),
       pref: updatedPref,
-      raw: `${alias}@${updatedPref}`,
+      raw: `${alias}@${pref}`,
     }
   })
 }

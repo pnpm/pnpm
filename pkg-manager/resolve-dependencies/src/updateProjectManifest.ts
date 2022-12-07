@@ -159,8 +159,14 @@ function getPrefPreferSpecifiedExoticSpec (
   }
 ) {
   const prefix = getPrefix(opts.alias, opts.name)
-  if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`) && opts.specRaw !== `${opts.alias}@workspace:*`) {
-    const specWithoutName = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)
+  if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
+    let specWithoutName = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)
+    if (specWithoutName.startsWith('workspace:')) {
+      specWithoutName = specWithoutName.slice(10)
+      if (specWithoutName === '*') {
+        return '*'
+      }
+    }
     const selector = versionSelectorType(specWithoutName)
     if (!((selector != null) && (selector.type === 'version' || selector.type === 'range'))) {
       return opts.specRaw.slice(opts.alias.length + 1)
