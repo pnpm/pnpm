@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-licenses
 
+## 1.0.5
+
+### Patch Changes
+
+- 568dc3ab2: `pnpm licenses` should print help, not just an error message [#5745](https://github.com/pnpm/pnpm/issues/5745).
+  - @pnpm/cli-utils@1.0.14
+  - @pnpm/config@16.1.8
+
 ## 1.0.4
 
 ### Patch Changes

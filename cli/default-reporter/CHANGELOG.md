@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 11.0.14
+
+### Patch Changes
+
+- 3f644a514: The update notifier should suggest using the standalone script, when pnpm was installed using a standalone script.
+  - @pnpm/config@16.1.8
+
 ## 11.0.13
 
 ### Patch Changes

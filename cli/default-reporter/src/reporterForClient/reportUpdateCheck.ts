@@ -7,12 +7,14 @@ import semver from 'semver'
 
 export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
   env: NodeJS.ProcessEnv
+  process: NodeJS.Process
 }) {
   return log$.pipe(
     take(1),
     filter((log) => semver.gt(log.latestVersion, log.currentVersion)),
     map((log) => {
-      const updateCommand = renderUpdateCommand({
+      const updateMessage = renderUpdateMessage({
+        currentPkgIsExecutable: detectIfCurrentPkgIsExecutable(opts.process),
         latestVersion: log.latestVersion,
         env: opts.env,
       })
@@ -20,7 +22,7 @@ export function reportUpdateCheck (log$: Rx.Observable<UpdateCheckLog>, opts: {
         msg: boxen(`\
 Update available! ${chalk.red(log.currentVersion)} → ${chalk.green(log.latestVersion)}.
 ${chalk.magenta('Changelog:')} https://github.com/pnpm/pnpm/releases/tag/v${log.latestVersion}
-Run "${chalk.magenta(updateCommand)}" to update.
+${updateMessage}
 
 Follow ${chalk.magenta('@pnpmjs')} for updates: https://twitter.com/pnpmjs`,
         {
@@ -36,10 +38,28 @@ Follow ${chalk.magenta('@pnpmjs')} for updates: https://twitter.com/pnpmjs`,
   )
 }
 
-function renderUpdateCommand (opts: { env: NodeJS.ProcessEnv, latestVersion: string }) {
+interface UpdateMessageOptions {
+  currentPkgIsExecutable: boolean
+  env: NodeJS.ProcessEnv
+  latestVersion: string
+}
+
+function renderUpdateMessage (opts: UpdateMessageOptions) {
+  if (opts.currentPkgIsExecutable && opts.env.PNPM_HOME) {
+    return 'Run a script from: https://pnpm.io/installation'
+  }
+  const updateCommand = renderUpdateCommand(opts)
+  return `Run "${chalk.magenta(updateCommand)}" to update.`
+}
+
+function renderUpdateCommand (opts: UpdateMessageOptions) {
   if (opts.env.COREPACK_ROOT) {
     return `corepack prepare pnpm@${opts.latestVersion} --activate`
   }
-  const pkgName = process['pkg'] != null ? '@pnpm/exe' : 'pnpm'
+  const pkgName = opts.currentPkgIsExecutable ? '@pnpm/exe' : 'pnpm'
   return `pnpm add -g ${pkgName}`
+}
+
+function detectIfCurrentPkgIsExecutable (process: NodeJS.Process) {
+  return process['pkg'] != null
 }
