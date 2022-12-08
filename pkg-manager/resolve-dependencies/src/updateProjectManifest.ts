@@ -117,7 +117,7 @@ function resolvedDirectDepToSpecObject (
     nodeExecPath: opts.nodeExecPath,
     peer: importer['peer'],
     pref,
-    saveType: (isNew === true) ? importer['targetDependenciesField'] : undefined,
+    saveType: importer['targetDependenciesField'],
   }
 }
 
@@ -168,9 +168,14 @@ function getPrefPreferSpecifiedExoticSpec (
       }
     }
     const selector = versionSelectorType(specWithoutName)
-    if (!((selector != null) && (selector.type === 'version' || selector.type === 'range'))) {
+    if (!selector) {
       return opts.specRaw.slice(opts.alias.length + 1)
     }
   }
+  // A prerelease version is always added as an exact version
+  if (semver.parse(opts.version)?.prerelease.length) {
+    return `${prefix}${opts.version}`
+  }
+
   return `${prefix}${createVersionSpec(opts.version, { pinnedVersion: opts.pinnedVersion, rolling: opts.rolling })}`
 }
