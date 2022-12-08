@@ -163,8 +163,8 @@ function getPrefPreferSpecifiedExoticSpec (
     let specWithoutName = opts.specRaw.slice(`${opts.alias}@${prefix}`.length)
     if (specWithoutName.startsWith('workspace:')) {
       specWithoutName = specWithoutName.slice(10)
-      if (specWithoutName === '*') {
-        return '*'
+      if (specWithoutName === '*' || specWithoutName === '^' || specWithoutName === '~') {
+        return specWithoutName
       }
     }
     const selector = versionSelectorType(specWithoutName)
