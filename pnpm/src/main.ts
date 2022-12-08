@@ -296,7 +296,7 @@ export async function main (inputArgv: string[]) {
   }
 }
 
-export function printError (message: string, hint?: string) {
+function printError (message: string, hint?: string) {
   console.log(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(message)}`)
   if (hint) {
     console.log(hint)
