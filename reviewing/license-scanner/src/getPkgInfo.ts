@@ -182,7 +182,7 @@ export async function readPackageIndexFile (
   let pkgIndexFilePath
   if (isPackageWithIntegrity) {
     // Retrieve all the index file of all files included in the package
-    pkgIndexFilePath = await getFilePathInCafs(
+    pkgIndexFilePath = getFilePathInCafs(
       opts.cafsDir,
       packageResolution.integrity as string,
       'index'
@@ -295,7 +295,7 @@ export async function getPkgInfo (
     PackageFileInfo
     >
     const packageManifestFile = packageFileIndex['package.json']
-    packageManifestDir = await getFilePathByModeInCafs(
+    packageManifestDir = getFilePathByModeInCafs(
       cafsDir,
       packageManifestFile.integrity,
       packageManifestFile.mode
