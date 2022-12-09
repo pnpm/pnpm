@@ -66,6 +66,10 @@ export function help () {
             name: '--dry-run',
           },
           {
+            description: 'Show information in JSON format',
+            name: '--json',
+          },
+          {
             description: 'Registers the published package with the given tag. By default, the "latest" tag is used.',
             name: '--tag <tag>',
           },
