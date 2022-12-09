@@ -128,10 +128,7 @@ async function parseLicense (
       if (pkg.files.local) {
         licenseContents = await readFile(licensePackageFileInfo as string)
       } else {
-        licenseContents = await readLicenseFileFromCafs(
-          opts.cafsDir,
-          (licensePackageFileInfo as PackageFileInfo).integrity
-        )
+        licenseContents = await readLicenseFileFromCafs(opts.cafsDir, licensePackageFileInfo as PackageFileInfo)
       }
 
       return {
@@ -150,8 +147,8 @@ async function parseLicense (
  * @param opts the options for reading file
  * @returns Promise<Buffer>
  */
-async function readLicenseFileFromCafs (cafsDir: string, fileIntegrity: string) {
-  const fileName = getFilePathByModeInCafs(cafsDir, fileIntegrity, 0)
+async function readLicenseFileFromCafs (cafsDir: string, { integrity, mode }: PackageFileInfo) {
+  const fileName = getFilePathByModeInCafs(cafsDir, integrity, mode)
   const fileContents = await readFile(fileName)
   return fileContents
 }

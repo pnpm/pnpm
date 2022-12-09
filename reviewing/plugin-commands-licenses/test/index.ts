@@ -134,3 +134,30 @@ test('pnpm licenses: fails when lockfile is missing', async () => {
     '"No pnpm-lock.yaml found: Cannot check a project without a lockfile"'
   )
 })
+
+test('pnpm licenses: should correctly read LICENSE file with executable file mode', async () => {
+  const workspaceDir = path.resolve('./test/fixtures/file-mode-test')
+
+  const tmp = tempy.directory()
+  const storeDir = path.join(tmp, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+  })
+
+  // Attempt to run the licenses command now
+  const { output, exitCode } = await licenses.handler({
+    ...LICENSES_OPTIONS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: true,
+    // we need to prefix it with v3 otherwise licenses tool can't find anything
+    // in the content-addressable directory
+    storeDir: path.resolve(storeDir, 'v3'),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toMatchSnapshot('show-packages-details')
+})

@@ -6,6 +6,57 @@ exports[`pnpm licenses: output as json: found-license-types 1`] = `
 ]
 `;
 
+exports[`pnpm licenses: should correctly read LICENSE file with executable file mode: show-packages-details 1`] = `
+"┌──────────────────────────────┬─────────┬───────────────────────────────────────────────────────┐
+│ Package                      │ License │ Details                                               │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ inherits                     │ ISC     │ https://github.com/isaacs/inherits#readme             │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ sax                          │ ISC     │ Isaac Z. Schlueter                                    │
+│                              │         │ https://github.com/isaacs/sax-js#readme               │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ commander                    │ MIT     │ TJ Holowaychuk                                        │
+│                              │         │ https://github.com/tj/commander.js#readme             │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ core-util-is                 │ MIT     │ Isaac Z. Schlueter                                    │
+│                              │         │ https://github.com/isaacs/core-util-is#readme         │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ isarray                      │ MIT     │ Julian Gruber                                         │
+│                              │         │ https://github.com/juliangruber/isarray               │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ neatequal                    │ MIT     │ Nicolas Froidure                                      │
+│                              │         │ https://github.com/nfroidure/neatequal                │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ process-nextick-args         │ MIT     │ https://github.com/calvinmetcalf/process-nextick-args │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ readable-stream              │ MIT     │ https://github.com/nodejs/readable-stream#readme      │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ safe-buffer                  │ MIT     │ Feross Aboukhadijeh                                   │
+│                              │         │ https://github.com/feross/safe-buffer                 │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ string_decoder               │ MIT     │ https://github.com/nodejs/string_decoder              │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ string.fromcodepoint         │ MIT     │ Mathias Bynens                                        │
+│                              │         │ http://mths.be/fromcodepoint                          │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ string.prototype.codepointat │ MIT     │ Mathias Bynens                                        │
+│                              │         │ https://mths.be/codepointat                           │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ svg-pathdata                 │ MIT     │ Nicolas Froidure                                      │
+│                              │         │ https://github.com/nfroidure/SVGPathData#readme       │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ svgicons2svgfont             │ MIT     │ Nicolas Froidure                                      │
+│                              │         │ https://github.com/nfroidure/svgicons2svgfont         │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ util-deprecate               │ MIT     │ Nathan Rajlich                                        │
+│                              │         │ https://github.com/TooTallNate/util-deprecate         │
+├──────────────────────────────┼─────────┼───────────────────────────────────────────────────────┤
+│ varstream                    │ Unknown │ Nicolas Froidure                                      │
+│                              │         │ https://github.com/nfroidure/VarStream#readme         │
+└──────────────────────────────┴─────────┴───────────────────────────────────────────────────────┘
+"
+`;
+
 exports[`pnpm licenses: show details: show-packages-details 1`] = `
 "┌─────────────┬─────────┬─────────────────────────────────────────────┐
 │ Package     │ License │ Details                                     │
