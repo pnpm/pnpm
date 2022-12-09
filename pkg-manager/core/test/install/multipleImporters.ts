@@ -946,6 +946,8 @@ test('update workspace range', async () => {
             dep4: 'workspace:1',
             dep5: 'workspace:1.0',
             dep6: 'workspace:*',
+            dep7: 'workspace:^',
+            dep8: 'workspace:~',
           },
         },
         rootDir: path.resolve('project-1'),
@@ -963,6 +965,8 @@ test('update workspace range', async () => {
             dep4: 'workspace:1',
             dep5: 'workspace:1.0',
             dep6: 'workspace:*',
+            dep7: 'workspace:^',
+            dep8: 'workspace:~',
           },
         },
         rootDir: path.resolve('project-2'),
@@ -1024,6 +1028,24 @@ test('update workspace range', async () => {
           },
         },
       },
+      dep7: {
+        '2.0.0': {
+          dir: '',
+          manifest: {
+            name: 'dep7',
+            version: '2.0.0',
+          },
+        },
+      },
+      dep8: {
+        '2.0.0': {
+          dir: '',
+          manifest: {
+            name: 'dep8',
+            version: '2.0.0',
+          },
+        },
+      },
     },
   }))
 
@@ -1033,7 +1055,9 @@ test('update workspace range', async () => {
     dep3: 'workspace:^2.0.0',
     dep4: 'workspace:^2.0.0',
     dep5: 'workspace:~2.0.0',
-    dep6: 'workspace:2.0.0',
+    dep6: 'workspace:*',
+    dep7: 'workspace:^',
+    dep8: 'workspace:~',
   }
   expect(updatedImporters[0].manifest.dependencies).toStrictEqual(expected)
   expect(updatedImporters[1].manifest.dependencies).toStrictEqual(expected)

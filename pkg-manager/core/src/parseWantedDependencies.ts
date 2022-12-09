@@ -41,7 +41,7 @@ export function parseWantedDependencies (
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
         optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
         pinnedVersion,
-        raw: rawWantedDependency,
+        raw: alias && opts.currentPrefs?.[alias]?.startsWith('workspace:') ? `${alias}@${opts.currentPrefs[alias]}` : rawWantedDependency,
       }
       if (pref) {
         return {
