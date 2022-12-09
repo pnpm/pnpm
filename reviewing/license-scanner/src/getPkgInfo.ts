@@ -147,8 +147,8 @@ async function parseLicense (
  * @param opts the options for reading file
  * @returns Promise<Buffer>
  */
-async function readLicenseFileFromCafs (cafsDir: string, file: PackageFileInfo) {
-  const fileName = getFilePathByModeInCafs(cafsDir, file.integrity, file.mode)
+async function readLicenseFileFromCafs (cafsDir: string, { integrity, mode }: PackageFileInfo) {
+  const fileName = getFilePathByModeInCafs(cafsDir, integrity, mode)
   const fileContents = await readFile(fileName)
   return fileContents
 }
