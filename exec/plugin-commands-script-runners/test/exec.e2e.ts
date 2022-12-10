@@ -9,6 +9,7 @@ import execa from 'execa'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
+const testOnPosixOnly = process.platform === 'win32' ? test.skip : test
 
 test('pnpm recursive exec', async () => {
   preparePackages([
@@ -482,7 +483,8 @@ test('pnpm exec shell mode', async () => {
   expect(result).toBe('test_shell_mode')
 })
 
-test('pnpm recursive exec works with PnP', async () => {
+// This test is not stable on Windows
+testOnPosixOnly('pnpm recursive exec works with PnP', async () => {
   preparePackages([
     {
       name: 'project-1',
