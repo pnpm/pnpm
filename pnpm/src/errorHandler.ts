@@ -1,22 +1,29 @@
 import { logger } from '@pnpm/logger'
 import { REPORTER_INITIALIZED } from './main'
 
-export function errorHandler (error: Error) {
-  if (!global[REPORTER_INITIALIZED]) {
-    console.log(error)
-    process.exitCode = 1
-    return
-  }
-  if (global[REPORTER_INITIALIZED] === 'silent') {
-    process.exitCode = 1
-    return
-  }
+export function errorHandler (error: Error & { code?: string }) {
   if (error.name != null && error.name !== 'pnpm' && !error.name.startsWith('pnpm:')) {
     try {
       error.name = 'pnpm'
     } catch {
       // Sometimes the name property is read-only
     }
+  }
+
+  if (!global[REPORTER_INITIALIZED]) {
+    // print parseable error on unhandled exception
+    console.log(JSON.stringify({
+      error: {
+        code: error.code ?? error.name,
+        message: error.message,
+      },
+    }, null, 2))
+    process.exitCode = 1
+    return
+  }
+  if (global[REPORTER_INITIALIZED] === 'silent') {
+    process.exitCode = 1
+    return
   }
 
   // bole passes only the name, message and stack of an error

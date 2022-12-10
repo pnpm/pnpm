@@ -138,8 +138,8 @@ export async function main (inputArgv: string[]) {
       cmd,
       config,
     })
+    global[REPORTER_INITIALIZED] = reporterType
   }
-  global[REPORTER_INITIALIZED] = reporterType
 
   const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && cliParams.includes(packageManager.name)
 
