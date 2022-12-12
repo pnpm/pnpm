@@ -2,6 +2,8 @@ import { lifecycleLogger } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
 import lifecycle from '@pnpm/npm-lifecycle'
 import { DependencyManifest, ProjectManifest } from '@pnpm/types'
+import { PnpmError } from '@pnpm/error'
+import { existsSync } from 'fs'
 
 function noop () {} // eslint-disable-line:no-empty
 
@@ -35,6 +37,9 @@ export async function runLifecycleHook (
 
   if (stage === 'start' && !m.scripts.start) {
     m.scripts.start = 'node server.js'
+    if (!existsSync('server.js')) {
+      throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
+    }
   }
   if (opts.args?.length && m.scripts?.[stage]) {
     const escapedArgs = opts.args.map((arg) => JSON.stringify(arg))

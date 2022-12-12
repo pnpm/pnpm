@@ -3,6 +3,7 @@ import path from 'path'
 import { runLifecycleHook, runPostinstallHooks } from '@pnpm/lifecycle'
 import loadJsonFile from 'load-json-file'
 import rimraf from '@zkochan/rimraf'
+import { PnpmError } from '@pnpm/error'
 
 const fixtures = path.join(__dirname, 'fixtures')
 const rootModulesDir = path.join(__dirname, '..', 'node_modules')
@@ -50,4 +51,19 @@ test('runPostinstallHooks()', async () => {
   })
 
   expect(loadJsonFile.sync(path.join(pkgRoot, 'output.json'))).toStrictEqual(['preinstall', 'install', 'postinstall'])
+})
+
+test('runLifecycleHook() should throw an error while missing script start or file server.js', async () => {
+  const pkgRoot = path.join(fixtures, 'without-scriptstart-serverjs')
+  const pkg = await import(path.join(pkgRoot, 'package.json'))
+  await expect(
+    runLifecycleHook('start', pkg, {
+      depPath: '/without-scriptstart-serverjs/1.0.0',
+      optional: false,
+      pkgRoot,
+      rawConfig: {},
+      rootModulesDir,
+      unsafePerm: true,
+    })
+  ).rejects.toThrow(new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js'))
 })
