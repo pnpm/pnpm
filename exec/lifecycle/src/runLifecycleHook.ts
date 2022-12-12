@@ -36,10 +36,10 @@ export async function runLifecycleHook (
   m.scripts = { ...m.scripts }
 
   if (stage === 'start' && !m.scripts.start) {
-    m.scripts.start = 'node server.js'
     if (!existsSync('server.js')) {
       throw new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js')
     }
+    m.scripts.start = 'node server.js'
   }
   if (opts.args?.length && m.scripts?.[stage]) {
     const escapedArgs = opts.args.map((arg) => JSON.stringify(arg))

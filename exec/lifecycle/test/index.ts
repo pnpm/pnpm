@@ -4,12 +4,13 @@ import { runLifecycleHook, runPostinstallHooks } from '@pnpm/lifecycle'
 import loadJsonFile from 'load-json-file'
 import rimraf from '@zkochan/rimraf'
 import { PnpmError } from '@pnpm/error'
+import { fixtures } from '@pnpm/test-fixtures'
 
-const fixtures = path.join(__dirname, 'fixtures')
+const f = fixtures(path.join(__dirname, 'fixtures'))
 const rootModulesDir = path.join(__dirname, '..', 'node_modules')
 
 test('runLifecycleHook()', async () => {
-  const pkgRoot = path.join(fixtures, 'simple')
+  const pkgRoot = f.find('simple')
   const pkg = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('postinstall', pkg, {
     depPath: '/simple/1.0.0',
@@ -24,7 +25,7 @@ test('runLifecycleHook()', async () => {
 })
 
 test('runLifecycleHook() escapes the args passed to the script', async () => {
-  const pkgRoot = path.join(fixtures, 'escape-args')
+  const pkgRoot = f.find('escape-args')
   const pkg = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('echo', pkg, {
     depPath: '/escape-args/1.0.0',
@@ -39,7 +40,7 @@ test('runLifecycleHook() escapes the args passed to the script', async () => {
 })
 
 test('runPostinstallHooks()', async () => {
-  const pkgRoot = path.join(fixtures, 'with-many-scripts')
+  const pkgRoot = f.find('with-many-scripts')
   await rimraf(path.join(pkgRoot, 'output.json'))
   await runPostinstallHooks({
     depPath: '/with-many-scripts/1.0.0',
@@ -54,7 +55,7 @@ test('runPostinstallHooks()', async () => {
 })
 
 test('runLifecycleHook() should throw an error while missing script start or file server.js', async () => {
-  const pkgRoot = path.join(fixtures, 'without-scriptstart-serverjs')
+  const pkgRoot = f.find('without-scriptstart-serverjs')
   const pkg = await import(path.join(pkgRoot, 'package.json'))
   await expect(
     runLifecycleHook('start', pkg, {
