@@ -224,3 +224,20 @@ test('hoistingLimits should prevent packages to be hoisted', async () => {
   expect(fs.existsSync('node_modules/ms')).toBeFalsy()
   expect(fs.existsSync('node_modules/send/node_modules/ms')).toBeTruthy()
 })
+
+test('externalDependencies should prevent package from being hoisted to the root', async () => {
+  prepareEmpty()
+
+  const externalDependencies = new Set(['ms'])
+  await install({
+    dependencies: {
+      send: '0.17.2',
+    },
+  }, await testDefaults({
+    nodeLinker: 'hoisted',
+    externalDependencies,
+  }))
+
+  expect(fs.existsSync('node_modules/ms')).toBeFalsy()
+  expect(fs.existsSync('node_modules/send/node_modules/ms')).toBeTruthy()
+})

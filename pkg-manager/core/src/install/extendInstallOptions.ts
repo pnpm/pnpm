@@ -28,6 +28,7 @@ export interface StrictInstallOptions {
   extraBinPaths: string[]
   extraEnv: Record<string, string>
   hoistingLimits?: HoistingLimits
+  externalDependencies?: Set<string>
   useLockfile: boolean
   saveLockfile: boolean
   useGitBranchLockfile: boolean

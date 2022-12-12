@@ -14,6 +14,9 @@ export function hoist (
   lockfile: Lockfile,
   opts?: {
     hoistingLimits?: HoistingLimits
+    // This option was added for Bit CLI in order to prevent pnpm from overwriting dependencies linked by Bit.
+    // However, in the future it might be useful to use it in pnpm for skipping any dependencies added by external tools.
+    externalDependencies?: Set<string>
   }
 ): HoisterResult {
   const nodes = new Map<string, HoisterTree>()
@@ -27,6 +30,13 @@ export function hoist (
       ...lockfile.importers['.']?.dependencies,
       ...lockfile.importers['.']?.devDependencies,
       ...lockfile.importers['.']?.optionalDependencies,
+      ...(Array.from(opts?.externalDependencies ?? [])).reduce((acc, dep) => {
+        // It doesn't matter what version spec is used here.
+        // This dependency will be removed from the tree anyway.
+        // It is only needed to prevent the hoister from hoisting deps with this name to the root of node_modules.
+        acc[dep] = 'link:'
+        return acc
+      }, {}),
     }),
   }
   for (const [importerId, importer] of Object.entries(lockfile.importers)) {
@@ -46,7 +56,15 @@ export function hoist (
     node.dependencies.add(importerNode)
   }
 
-  return _hoist(node, opts)
+  const hoisterResult = _hoist(node, opts)
+  if (opts?.externalDependencies) {
+    for (const hoistedDep of hoisterResult.dependencies.values()) {
+      if (opts.externalDependencies.has(hoistedDep.name)) {
+        hoisterResult.dependencies.delete(hoistedDep)
+      }
+    }
+  }
+  return hoisterResult
 }
 
 function toTree (nodes: Map<string, HoisterTree>, lockfile: Lockfile, deps: Record<string, string>): Set<HoisterTree> {

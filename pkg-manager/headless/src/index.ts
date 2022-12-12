@@ -109,6 +109,7 @@ export interface HeadlessOptions {
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
   hoistingLimits?: HoistingLimits
+  externalDependencies?: Set<string>
   ignoreDepScripts: boolean
   ignoreScripts: boolean
   ignorePackageManifest?: boolean
