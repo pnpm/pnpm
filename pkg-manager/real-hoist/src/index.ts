@@ -14,6 +14,8 @@ export function hoist (
   lockfile: Lockfile,
   opts?: {
     hoistingLimits?: HoistingLimits
+    // This option was added for Bit CLI in order to prevent pnpm from overwriting dependencies linked by Bit.
+    // However, in the future it might be useful to use it in pnpm for skipping any dependencies added by external tools.
     externalDependencies?: Set<string>
   }
 ): HoisterResult {
