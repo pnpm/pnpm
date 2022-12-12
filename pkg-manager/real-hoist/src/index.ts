@@ -29,6 +29,9 @@ export function hoist (
       ...lockfile.importers['.']?.devDependencies,
       ...lockfile.importers['.']?.optionalDependencies,
       ...(Array.from(opts?.externalDependencies ?? [])).reduce((acc, dep) => {
+        // It doesn't matter what version spec is used here.
+        // This dependency will be removed from the tree anyway.
+        // It is only needed to prevent the hoister from hoisting deps with this name to the root of node_modules.
         acc[dep] = 'link:'
         return acc
       }, {}),
