@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 29.0.9
+
+### Patch Changes
+
+- 49f6c917f: `pnpm update` should not replace `workspace:*`, `workspace:~`, and `workspace:^` with `workspace:<version>` [#5764](https://github.com/pnpm/pnpm/pull/5764).
+
 ## 29.0.8
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/license-scanner
 
+## 1.0.3
+
+### Patch Changes
+
+- 5464e1da6: `pnpm license list` should not fail if a license file is an executable [#5740](https://github.com/pnpm/pnpm/pull/5740).
+
 ## 1.0.2
 
 ### Patch Changes

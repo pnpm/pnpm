@@ -1,5 +1,15 @@
 # pnpm
 
+## 7.18.2
+
+### Patch Changes
+
+- Added `--json` to the `pnpm publish --help` output [#5773](https://github.com/pnpm/pnpm/pull/5773).
+- `pnpm update` should not replace `workspace:*`, `workspace:~`, and `workspace:^` with `workspace:<version>` [#5764](https://github.com/pnpm/pnpm/pull/5764).
+- The fatal error should be printed in JSON format, when running a pnpm command with the `--json` option [#5710](https://github.com/pnpm/pnpm/issues/5710).
+- Throw an error while missing script start or file `server.js` [#5782](https://github.com/pnpm/pnpm/pull/5782).
+- `pnpm license list` should not fail if a license file is an executable [#5740](https://github.com/pnpm/pnpm/pull/5740).
+
 ## 7.18.1
 
 ### Patch Changes

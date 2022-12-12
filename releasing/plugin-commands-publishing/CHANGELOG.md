@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-publishing
 
+## 6.0.15
+
+### Patch Changes
+
+- 5d8f84520: Added `--json` to the `pnpm publish --help` output [#5773](https://github.com/pnpm/pnpm/pull/5773).
+- Updated dependencies [f5c377a8d]
+  - @pnpm/lifecycle@14.1.3
+  - @pnpm/config@16.1.9
+  - @pnpm/cli-utils@1.0.15
+
 ## 6.0.14
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 19.2.4
+
+### Patch Changes
+
+- Updated dependencies [f5c377a8d]
+  - @pnpm/lifecycle@14.1.3
+  - @pnpm/build-modules@10.0.7
+
 ## 19.2.3
 
 ### Patch Changes

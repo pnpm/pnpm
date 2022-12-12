@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-installation
 
+## 11.1.2
+
+### Patch Changes
+
+- 49f6c917f: `pnpm update` should not replace `workspace:*`, `workspace:~`, and `workspace:^` with `workspace:<version>` [#5764](https://github.com/pnpm/pnpm/pull/5764).
+- Updated dependencies [49f6c917f]
+  - @pnpm/core@7.2.5
+  - @pnpm/pnpmfile@4.0.15
+  - @pnpm/plugin-commands-rebuild@7.0.15
+  - @pnpm/config@16.1.9
+  - @pnpm/cli-utils@1.0.15
+  - @pnpm/store-connection-manager@5.1.8
+  - @pnpm/find-workspace-packages@5.0.15
+  - @pnpm/filter-workspace-packages@6.0.15
+
 ## 11.1.1
 
 ### Patch Changes

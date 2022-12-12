@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-licenses
 
+## 1.0.6
+
+### Patch Changes
+
+- 5464e1da6: `pnpm license list` should not fail if a license file is an executable [#5740](https://github.com/pnpm/pnpm/pull/5740).
+- Updated dependencies [5464e1da6]
+  - @pnpm/license-scanner@1.0.3
+  - @pnpm/config@16.1.9
+  - @pnpm/cli-utils@1.0.15
+
 ## 1.0.5
 
 ### Patch Changes

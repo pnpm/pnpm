@@ -1,5 +1,17 @@
 # @pnpm/core
 
+## 7.2.5
+
+### Patch Changes
+
+- 49f6c917f: `pnpm update` should not replace `workspace:*`, `workspace:~`, and `workspace:^` with `workspace:<version>` [#5764](https://github.com/pnpm/pnpm/pull/5764).
+- Updated dependencies [49f6c917f]
+- Updated dependencies [f5c377a8d]
+  - @pnpm/resolve-dependencies@29.0.9
+  - @pnpm/lifecycle@14.1.3
+  - @pnpm/build-modules@10.0.7
+  - @pnpm/headless@19.2.4
+
 ## 7.2.4
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 14.1.3
+
+### Patch Changes
+
+- f5c377a8d: Throw an error while missing script start or file `server.js` [#5782](https://github.com/pnpm/pnpm/pull/5782).
+
 ## 14.1.2
 
 ### Patch Changes
