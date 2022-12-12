@@ -14,6 +14,7 @@ export function hoist (
   lockfile: Lockfile,
   opts?: {
     hoistingLimits?: HoistingLimits
+    externalDependencies?: Set<string>
   }
 ): HoisterResult {
   const nodes = new Map<string, HoisterTree>()
@@ -27,6 +28,10 @@ export function hoist (
       ...lockfile.importers['.']?.dependencies,
       ...lockfile.importers['.']?.devDependencies,
       ...lockfile.importers['.']?.optionalDependencies,
+      ...(Array.from(opts?.externalDependencies ?? [])).reduce((acc, dep) => {
+        acc[dep] = 'link:'
+        return acc
+      }, {}),
     }),
   }
   for (const [importerId, importer] of Object.entries(lockfile.importers)) {
@@ -46,7 +51,15 @@ export function hoist (
     node.dependencies.add(importerNode)
   }
 
-  return _hoist(node, opts)
+  const hoisterResult = _hoist(node, opts)
+  if (opts?.externalDependencies) {
+    for (const hoistedDep of hoisterResult.dependencies.values()) {
+      if (opts.externalDependencies.has(hoistedDep.name)) {
+        hoisterResult.dependencies.delete(hoistedDep)
+      }
+    }
+  }
+  return hoisterResult
 }
 
 function toTree (nodes: Map<string, HoisterTree>, lockfile: Lockfile, deps: Record<string, string>): Set<HoisterTree> {

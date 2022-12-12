@@ -29,6 +29,7 @@ export interface LockfileToHoistedDepGraphOptions {
   engineStrict: boolean
   force: boolean
   hoistingLimits?: HoistingLimits
+  externalDependencies?: Set<string>
   importerIds: string[]
   include: IncludedDependencies
   lockfileDir: string
@@ -64,7 +65,7 @@ async function _lockfileToHoistedDepGraph (
   lockfile: Lockfile,
   opts: LockfileToHoistedDepGraphOptions
 ): Promise<Omit<LockfileToDepGraphResult, 'prevGraph'>> {
-  const tree = hoist(lockfile, { hoistingLimits: opts.hoistingLimits })
+  const tree = hoist(lockfile, { hoistingLimits: opts.hoistingLimits, externalDependencies: opts.externalDependencies })
   const graph: DependenciesGraph = {}
   const modulesDir = path.join(opts.lockfileDir, 'node_modules')
   const fetchDepsOpts = {
