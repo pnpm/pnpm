@@ -1,5 +1,5 @@
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import { PackageNode } from 'dependencies-hierarchy'
+import { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import sortBy from 'ramda/src/sortBy'
 import path from 'ramda/src/path'
 import { Ord } from 'ramda'

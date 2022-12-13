@@ -1,4 +1,4 @@
-# dependencies-hierarchy
+# @pnpm/reviewing.dependencies-hierarchy
 
 > Creates a dependencies hierarchy for a symlinked \`node_modules\`
 
@@ -11,7 +11,7 @@ A symlinked `node_modules` is created when installing using [pnpm](https://githu
 ## Installation
 
 ```
-pnpm add dependencies-hierarchy
+pnpm add @pnpm/reviewing.dependencies-hierarchy
 ```
 
 ## License

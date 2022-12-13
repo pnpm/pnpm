@@ -40,7 +40,7 @@ import {
   WantedDependency,
 } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
-import { depPathToFilename } from 'dependency-path'
+import { depPathToFilename } from '@pnpm/dependency-path'
 import pMapValues from 'p-map-values'
 import PQueue from 'p-queue'
 import loadJsonFile from 'load-json-file'

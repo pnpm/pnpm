@@ -6,7 +6,7 @@ import {
   ResolvedDependencies,
 } from '@pnpm/lockfile-types'
 import { PackageManifest } from '@pnpm/types'
-import { refToRelative } from 'dependency-path'
+import { refToRelative } from '@pnpm/dependency-path'
 import difference from 'ramda/src/difference'
 import isEmpty from 'ramda/src/isEmpty'
 import unnest from 'ramda/src/unnest'

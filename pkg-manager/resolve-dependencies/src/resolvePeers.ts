@@ -6,7 +6,7 @@ import {
   PeerDependencyIssues,
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
-import { depPathToFilename, createPeersFolderSuffix } from 'dependency-path'
+import { depPathToFilename, createPeersFolderSuffix } from '@pnpm/dependency-path'
 import { KeyValuePair } from 'ramda'
 import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'

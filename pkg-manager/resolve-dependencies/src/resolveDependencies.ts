@@ -38,7 +38,7 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import * as dp from 'dependency-path'
+import * as dp from '@pnpm/dependency-path'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import pDefer from 'p-defer'

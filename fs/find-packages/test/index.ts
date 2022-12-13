@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
-import { findPackages } from 'find-packages'
+import { findPackages } from '@pnpm/fs.find-packages'
 
 const fixtures = path.join(__dirname, 'fixtures')
 

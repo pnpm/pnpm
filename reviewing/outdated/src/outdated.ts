@@ -16,7 +16,7 @@ import {
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
-import * as dp from 'dependency-path'
+import * as dp from '@pnpm/dependency-path'
 import semver from 'semver'
 
 export * from './createManifestGetter'

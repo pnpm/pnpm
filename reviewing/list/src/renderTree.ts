@@ -1,5 +1,5 @@
 import path from 'path'
-import { PackageNode } from 'dependencies-hierarchy'
+import { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import archy from 'archy'
 import chalk from 'chalk'

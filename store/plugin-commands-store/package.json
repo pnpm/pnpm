@@ -62,7 +62,7 @@
     "@pnpm/store-path": "workspace:*",
     "@pnpm/types": "workspace:*",
     "archy": "^1.0.0",
-    "dependency-path": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
     "dint": "^5.1.0",
     "load-json-file": "^6.2.0",
     "p-filter": "^2.1.0",

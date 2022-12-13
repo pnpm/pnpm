@@ -5,7 +5,7 @@ import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
 import { Registries } from '@pnpm/types'
-import { depPathToFilename, refToRelative } from 'dependency-path'
+import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
 import { generateInlinedScript, PackageRegistry } from '@yarnpkg/pnp'
 import normalizePath from 'normalize-path'
 

@@ -1,6 +1,6 @@
 import { PackageSnapshot } from '@pnpm/lockfile-types'
 import { Registries } from '@pnpm/types'
-import * as dp from 'dependency-path'
+import * as dp from '@pnpm/dependency-path'
 
 export function packageIdFromSnapshot (
   depPath: string,

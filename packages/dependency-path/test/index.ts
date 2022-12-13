@@ -8,7 +8,7 @@ import {
   relative,
   resolve,
   tryGetPackageId,
-} from 'dependency-path'
+} from '@pnpm/dependency-path'
 
 test('isAbsolute()', () => {
   expect(isAbsolute('/foo/1.0.0')).toBeFalsy()

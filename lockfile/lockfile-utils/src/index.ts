@@ -1,4 +1,4 @@
-import { refToRelative } from 'dependency-path'
+import { refToRelative } from '@pnpm/dependency-path'
 
 export { extendProjectsWithTargetDirs } from './extendProjectsWithTargetDirs'
 export { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot'

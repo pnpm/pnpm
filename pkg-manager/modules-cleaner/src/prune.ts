@@ -20,7 +20,7 @@ import {
   HoistedDependencies,
   Registries,
 } from '@pnpm/types'
-import { depPathToFilename } from 'dependency-path'
+import { depPathToFilename } from '@pnpm/dependency-path'
 import rimraf from '@zkochan/rimraf'
 import difference from 'ramda/src/difference'
 import equals from 'ramda/src/equals'

@@ -1,4 +1,4 @@
-import { PackageNode } from 'dependencies-hierarchy'
+import { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import sortBy from 'ramda/src/sortBy'
 import prop from 'ramda/src/prop'
 import { PackageDependencyHierarchy } from './types'

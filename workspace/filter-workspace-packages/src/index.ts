@@ -1,6 +1,6 @@
 import { findWorkspacePackages, Project } from '@pnpm/find-workspace-packages'
 import { createMatcher } from '@pnpm/matcher'
-import { createPkgGraph, Package, PackageNode } from 'pkgs-graph'
+import { createPkgGraph, Package, PackageNode } from '@pnpm/workspace.pkgs-graph'
 import isSubdir from 'is-subdir'
 import difference from 'ramda/src/difference'
 import partition from 'ramda/src/partition'

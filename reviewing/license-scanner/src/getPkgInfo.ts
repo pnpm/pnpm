@@ -2,7 +2,7 @@ import path from 'path'
 import pathAbsolute from 'path-absolute'
 import { readFile } from 'fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
-import { depPathToFilename } from 'dependency-path'
+import { depPathToFilename } from '@pnpm/dependency-path'
 import pLimit from 'p-limit'
 import { PackageManifest, Registries } from '@pnpm/types'
 import {

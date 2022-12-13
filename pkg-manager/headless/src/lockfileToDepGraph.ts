@@ -21,7 +21,7 @@ import {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store-controller-types'
-import * as dp from 'dependency-path'
+import * as dp from '@pnpm/dependency-path'
 import pathExists from 'path-exists'
 import equals from 'ramda/src/equals'
 

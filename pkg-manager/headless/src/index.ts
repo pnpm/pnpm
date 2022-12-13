@@ -56,7 +56,7 @@ import {
 } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import { DependencyManifest, HoistedDependencies, ProjectManifest, Registries } from '@pnpm/types'
-import * as dp from 'dependency-path'
+import * as dp from '@pnpm/dependency-path'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import equals from 'ramda/src/equals'

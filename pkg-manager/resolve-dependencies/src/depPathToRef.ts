@@ -1,6 +1,6 @@
 import { Resolution } from '@pnpm/resolver-base'
 import { Registries } from '@pnpm/types'
-import { getRegistryByPackageName } from 'dependency-path'
+import { getRegistryByPackageName } from '@pnpm/dependency-path'
 import encodeRegistry from 'encode-registry'
 
 export function depPathToRef (
