@@ -1,6 +1,6 @@
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependenciesField, Registries } from '@pnpm/types'
-import { buildDependenciesHierarchy } from 'dependencies-hierarchy'
+import { buildDependenciesHierarchy } from '@pnpm/reviewing.dependencies-hierarchy'
 import { createPackagesSearcher } from './createPackagesSearcher'
 import { renderJson } from './renderJson'
 import { renderParseable } from './renderParseable'

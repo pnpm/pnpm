@@ -4,7 +4,7 @@ import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingle
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf from '@zkochan/rimraf'
-import { createPeersFolderSuffix } from 'dependency-path'
+import { createPeersFolderSuffix } from '@pnpm/dependency-path'
 import { testDefaults } from '../utils'
 
 test('auto install non-optional peer dependencies', async () => {

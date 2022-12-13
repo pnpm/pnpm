@@ -91,7 +91,7 @@
     "@pnpm/symlink-dependency": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
-    "dependency-path": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
     "p-limit": "^3.1.0",
     "path-absolute": "^1.0.1",
     "path-exists": "^4.0.0",

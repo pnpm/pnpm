@@ -54,7 +54,7 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
-    "dependency-path": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
     "is-inner-link": "^4.0.0",
     "load-json-file": "^6.2.0",
     "normalize-path": "^3.0.0",

@@ -1,22 +1,22 @@
-# find-packages
+# @pnpm/fs.find-packages
 
 > Find all packages inside a directory
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/find-packages.svg)](https://www.npmjs.com/package/find-packages)
+[![npm version](https://img.shields.io/npm/v/find-packages.svg)](https://www.npmjs.com/package/@pnpm/fs.find-packages)
 <!--/@-->
 
 ## Installation
 
 ```sh
-pnpm add find-packages
+pnpm add @pnpm/fs.find-packages
 ```
 
 ## Usage
 
 ```js
 const path = require('path')
-const findPkgs = require('find-packages')
+const findPkgs = require('@pnpm/fs.find-packages')
 
 findPkgs(path.join(__dirname, 'test', 'fixture'))
   .then(pkgs => console.log(pkgs))

@@ -49,7 +49,7 @@
     "@pnpm/logger": "^5.0.0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "dependency-path": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
     "hyperdrive-schemas": "^2.0.0",
     "load-json-file": "^6.2.0",
     "normalize-path": "^3.0.0"

@@ -6,7 +6,7 @@ import {
   packageIdFromSnapshot,
 } from '@pnpm/lockfile-utils'
 import { streamParser } from '@pnpm/logger'
-import * as dp from 'dependency-path'
+import * as dp from '@pnpm/dependency-path'
 import dint from 'dint'
 import loadJsonFile from 'load-json-file'
 import pFilter from 'p-filter'

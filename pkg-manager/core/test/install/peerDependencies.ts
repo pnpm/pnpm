@@ -18,7 +18,7 @@ import rimraf from '@zkochan/rimraf'
 import exists from 'path-exists'
 import sinon from 'sinon'
 import deepRequireCwd from 'deep-require-cwd'
-import { createPeersFolderSuffix } from 'dependency-path'
+import { createPeersFolderSuffix } from '@pnpm/dependency-path'
 import { testDefaults } from '../utils'
 
 const f = fixtures(__dirname)

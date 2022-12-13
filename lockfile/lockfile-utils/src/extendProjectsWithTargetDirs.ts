@@ -1,6 +1,6 @@
 import path from 'path'
 import { Lockfile } from '@pnpm/lockfile-types'
-import { depPathToFilename } from 'dependency-path'
+import { depPathToFilename } from '@pnpm/dependency-path'
 import fromPairs from 'ramda/src/fromPairs'
 
 type GetLocalLocations = (depPath: string, pkgName: string) => string[]

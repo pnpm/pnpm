@@ -2,7 +2,7 @@ import url from 'url'
 import { PackageSnapshot } from '@pnpm/lockfile-types'
 import { Resolution } from '@pnpm/resolver-base'
 import { Registries } from '@pnpm/types'
-import * as dp from 'dependency-path'
+import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot'
 

@@ -1,4 +1,4 @@
-# pkgs-graph
+# @pnpm/workspace.pkgs-graph
 
 > Create a graph from an array of packages
 
@@ -7,7 +7,7 @@
 ## Installation
 
 ```
-pnpm add pkgs-graph
+pnpm add @pnpm/workspace.pkgs-graph
 ```
 
 ## Usage
@@ -56,11 +56,6 @@ console.log(graph)
 //    },
 //  }
 ```
-
-## Related
-
-* [find-packages](https://github.com/zkochan/find-packages) - Find all packages inside a directory
-* [sort-pkgs](https://github.com/zkochan/sort-pkgs) - Sort packages. Dependents first.
 
 ## License
 

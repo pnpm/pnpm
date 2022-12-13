@@ -12,7 +12,7 @@ import {
   mutateModulesInSingleProject,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
-import { createPeersFolderSuffix } from 'dependency-path'
+import { createPeersFolderSuffix } from '@pnpm/dependency-path'
 import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
 import pick from 'ramda/src/pick'

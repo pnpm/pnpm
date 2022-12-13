@@ -17,7 +17,7 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import { hoist, HoistingLimits, HoisterResult } from '@pnpm/real-hoist'
-import * as dp from 'dependency-path'
+import * as dp from '@pnpm/dependency-path'
 import {
   DependenciesGraph,
   DepHierarchy,

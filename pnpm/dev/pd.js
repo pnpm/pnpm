@@ -21,11 +21,6 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
   const spnpmImportsPlugin = {
     name: 'spnpmImports',
     setup: (build) => {
-      // This is an exception to the rule that all local packages start with `@pnpm`
-      build.onResolve({ filter: /^dependency-path$/ }, ({path, resolveDir}) => ({
-        path: pathLib.resolve(dirByPackageName['dependency-path'], 'src', 'index.ts')
-      }))
-
       // E.g. @pnpm/config -> /<some_dir>/pnpm/packages/config/src/index.ts
       build.onResolve({ filter: /@pnpm\// }, ({path, resolveDir}) => {
         const pathParts = path.split('/')

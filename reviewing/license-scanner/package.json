@@ -46,7 +46,7 @@
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "dependency-path": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
     "load-json-file": "^6.2.0",
     "p-limit": "^3.1.0",
     "path-absolute": "^1.0.1",

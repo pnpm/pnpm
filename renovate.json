@@ -53,7 +53,7 @@
     "@pnpm/utils",
     "@pnpm/write-project-manifest",
     "dependencies-hierarchy",
-    "dependency-path",
+    "@pnpm/dependency-path",
     "fetch-from-npm-registry",
     "find-packages",
     "npm",
