@@ -1,5 +1,25 @@
 # @pnpm/headless
 
+## 19.3.0
+
+### Minor Changes
+
+- 450e0b1d1: A new option added for avoiding hoisting some dependencies to the root of `node_modules`: `externalDependencies`. This option is a set of dependency names that were added to `node_modules` by another tool. pnpm doesn't have information about these dependencies but they shouldn't be overwritten by hoisted dependencies.
+
+### Patch Changes
+
+- Updated dependencies [450e0b1d1]
+- Updated dependencies [313702d76]
+  - @pnpm/real-hoist@1.1.0
+  - @pnpm/dependency-path@1.0.0
+  - @pnpm/filter-lockfile@7.0.4
+  - @pnpm/lockfile-file@6.0.4
+  - @pnpm/lockfile-to-pnp@2.0.5
+  - @pnpm/lockfile-utils@5.0.1
+  - @pnpm/hoist@7.0.7
+  - @pnpm/modules-cleaner@13.0.5
+  - @pnpm/package-requester@20.0.4
+
 ## 19.2.4
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/lockfile-walker
 
+## 6.0.3
+
+### Patch Changes
+
+- Updated dependencies [313702d76]
+  - @pnpm/dependency-path@1.0.0
+
 ## 6.0.2
 
 ### Patch Changes
