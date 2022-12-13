@@ -49,11 +49,13 @@ export async function runLifecycleHooksConcurrently (
           pkgRoot: rootDir,
           rootModulesDir: modulesDir,
         }
+        let isBuilt = false
         for (const stage of (importerStages ?? stages)) {
           if ((manifest.scripts == null) || !manifest.scripts[stage]) continue
           await runLifecycleHook(stage, manifest, runLifecycleHookOpts)
+          isBuilt = true
         }
-        if (targetDirs == null || targetDirs.length === 0) return
+        if (targetDirs == null || targetDirs.length === 0 || !isBuilt) return
         const filesResponse = await fetchFromDir(rootDir, { resolveSymlinks: opts.resolveSymlinksInInjectedDirs })
         await Promise.all(
           targetDirs.map(async (targetDir) => {
