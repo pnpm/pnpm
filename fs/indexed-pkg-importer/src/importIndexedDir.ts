@@ -19,6 +19,11 @@ export async function importIndexedDir (
   const stage = pathTemp(path.dirname(newDir))
   try {
     await tryImportIndexedDir(importFile, stage, filenames)
+    try {
+      await fs.rename(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
+    } catch (err) {
+      // TODO: merge directories maybe
+    }
     await renameOverwrite(stage, newDir)
   } catch (err: any) { // eslint-disable-line
     try {
