@@ -120,6 +120,7 @@ export interface HeadlessOptions {
   hoistedDependencies: HoistedDependencies
   hoistPattern?: string[]
   publicHoistPattern?: string[]
+  currentDependenciesLocations?: Record<string, string[]>
   lockfileDir: string
   modulesDir?: string
   virtualStoreDir?: string

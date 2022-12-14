@@ -32,6 +32,7 @@ export interface LockfileToHoistedDepGraphOptions {
   externalDependencies?: Set<string>
   importerIds: string[]
   include: IncludedDependencies
+  currentDependenciesLocations?: Record<string, string[]>
   lockfileDir: string
   nodeVersion: string
   pnpmVersion: string
@@ -176,25 +177,31 @@ async function fetchDeps (
       return
     }
     const dir = path.join(modules, dep.name)
+    const depLocation = path.relative(opts.lockfileDir, dir)
     const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
     let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
-    try {
-      fetchResponse = opts.storeController.fetchPackage({
-        force: false,
-        lockfileDir: opts.lockfileDir,
-        pkg: {
-          id: packageId,
-          resolution,
-        },
-        expectedPkg: {
-          name: pkgName,
-          version: pkgVersion,
-        },
-      })
-      if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-    } catch (err: any) { // eslint-disable-line
-      if (pkgSnapshot.optional) return
-      throw err
+    const skipFetch = opts.currentDependenciesLocations?.[depPath]?.includes(depLocation)
+    if (skipFetch) {
+      fetchResponse = {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    } else {
+      try {
+        fetchResponse = opts.storeController.fetchPackage({
+          force: false,
+          lockfileDir: opts.lockfileDir,
+          pkg: {
+            id: packageId,
+            resolution,
+          },
+          expectedPkg: {
+            name: pkgName,
+            version: pkgVersion,
+          },
+        })
+        if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
+      } catch (err: any) { // eslint-disable-line
+        if (pkgSnapshot.optional) return
+        throw err
+      }
     }
     opts.graph[dir] = {
       alias: dep.name,
@@ -222,7 +229,7 @@ async function fetchDeps (
     if (!locations[depPath]) {
       locations[depPath] = []
     }
-    locations[depPath].push(path.relative(opts.lockfileDir, dir))
+    locations[depPath].push(depLocation)
     opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationsByDepPath, opts)
   }))
   return depHierarchy
