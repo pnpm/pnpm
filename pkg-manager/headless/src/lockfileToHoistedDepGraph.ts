@@ -74,8 +74,9 @@ async function _lockfileToHoistedDepGraph (
     graph,
     pkgLocationsByDepPath: {},
   }
+  const locations: Record<string, string[]> = {}
   const hierarchy = {
-    [opts.lockfileDir]: await fetchDeps(fetchDepsOpts, modulesDir, tree.dependencies),
+    [opts.lockfileDir]: await fetchDeps(fetchDepsOpts, modulesDir, tree.dependencies, locations),
   }
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {
     '.': directDepsMap(Object.keys(hierarchy[opts.lockfileDir]), graph),
@@ -87,7 +88,7 @@ async function _lockfileToHoistedDepGraph (
       const importerId = reference.replace('workspace:', '')
       const projectDir = path.join(opts.lockfileDir, importerId)
       const modulesDir = path.join(projectDir, 'node_modules')
-      const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies))
+      const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies, locations))
       hierarchy[projectDir] = nextHierarchy
 
       const importer = lockfile.importers[importerId]
@@ -102,6 +103,7 @@ async function _lockfileToHoistedDepGraph (
     hierarchy,
     pkgLocationsByDepPath: fetchDepsOpts.pkgLocationsByDepPath,
     symlinkedDirectDependenciesByImporterId,
+    locations,
   }
 }
 
@@ -138,7 +140,8 @@ async function fetchDeps (
     pkgLocationsByDepPath: Record<string, string[]>
   } & LockfileToHoistedDepGraphOptions,
   modules: string,
-  deps: Set<HoisterResult>
+  deps: Set<HoisterResult>,
+  locations: Record<string, string[]>
 ): Promise<DepHierarchy> {
   const depHierarchy = {}
   await Promise.all(Array.from(deps).map(async (dep) => {
@@ -215,7 +218,11 @@ async function fetchDeps (
       opts.pkgLocationsByDepPath[depPath] = []
     }
     opts.pkgLocationsByDepPath[depPath].push(dir)
-    depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies)
+    depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies, locations)
+    if (!locations[depPath]) {
+      locations[depPath] = []
+    }
+    locations[depPath].push(path.relative(opts.lockfileDir, dir))
     opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationsByDepPath, opts)
   }))
   return depHierarchy
