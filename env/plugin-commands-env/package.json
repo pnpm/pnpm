@@ -39,7 +39,7 @@
     "@pnpm/node.resolver": "workspace:*",
     "@pnpm/remove-bins": "workspace:*",
     "@pnpm/store-path": "workspace:*",
-    "@zkochan/cmd-shim": "^5.3.1",
+    "@zkochan/cmd-shim": "^5.4.0",
     "@zkochan/rimraf": "^2.1.2",
     "load-json-file": "^6.2.0",
     "render-help": "^1.0.2",
