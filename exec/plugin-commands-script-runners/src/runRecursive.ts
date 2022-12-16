@@ -12,6 +12,7 @@ import { sortPackages } from '@pnpm/sort-packages'
 import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'
 import { existsInDir } from './existsInDir'
+import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'
@@ -57,12 +58,20 @@ export async function runRecursive (
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
+  const { manifest } = await tryReadProjectManifest(opts.workspaceDir)
+  const requiredScripts = manifest?.pnpm?.requiredScripts ?? []
+
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map(async (prefix: string) =>
       limitRun(async () => {
         const pkg = opts.selectedProjectsGraph[prefix]
+        if (!pkg.package.manifest.scripts?.[scriptName]) {
+          if (requiredScripts.includes(scriptName)) {
+            throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in ${pkg.package.dir}`)
+          }
+          return
+        }
         if (
-          !pkg.package.manifest.scripts?.[scriptName] ||
           process.env.npm_lifecycle_event === scriptName &&
           process.env.PNPM_SCRIPT_SRC_DIR === prefix
         ) {

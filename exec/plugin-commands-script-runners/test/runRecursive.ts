@@ -6,6 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import writeYamlFile from 'write-yaml-file'
+import writeJsonFile from 'write-json-file'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
@@ -783,4 +784,55 @@ test('`pnpm run -r` should avoid infinite recursion', async () => {
 
   expect(outputs1).toStrictEqual(['project-2'])
   expect(outputs2).toStrictEqual(['project-3'])
+})
+
+test('`pnpm recursive run` should fail when no script in package with requiredScripts', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      scripts: {
+        build: 'echo 2',
+      },
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      scripts: {
+        build: 'echo 3',
+      },
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+  ])
+  await writeJsonFile(path.join(process.cwd(), 'package.json'), {
+    name: 'test-workspaces',
+    private: true,
+    pnpm: {
+      requiredScripts: ['build'],
+    },
+  })
+
+  let err!: PnpmError
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      ...await readProjects(process.cwd(), [{ namePattern: '*' }]),
+      dir: process.cwd(),
+      recursive: true,
+      workspaceDir: process.cwd(),
+    }, ['build'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.message).toContain('Missing script "build"')
+  expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
 })
