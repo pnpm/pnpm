@@ -6,7 +6,6 @@ import { PnpmError } from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import writeYamlFile from 'write-yaml-file'
-import writeJsonFile from 'write-json-file'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
@@ -813,13 +812,6 @@ test('`pnpm recursive run` should fail when no script in package with requiredSc
       },
     },
   ])
-  await writeJsonFile(path.join(process.cwd(), 'package.json'), {
-    name: 'test-workspaces',
-    private: true,
-    pnpm: {
-      requiredScripts: ['build'],
-    },
-  })
 
   let err!: PnpmError
   try {
@@ -828,6 +820,13 @@ test('`pnpm recursive run` should fail when no script in package with requiredSc
       ...await readProjects(process.cwd(), [{ namePattern: '*' }]),
       dir: process.cwd(),
       recursive: true,
+      rootProjectManifest: {
+        name: 'test-workspaces',
+        private: true,
+        pnpm: {
+          requiredScripts: ['build'],
+        },
+      },
       workspaceDir: process.cwd(),
     }, ['build'])
   } catch (_err: any) { // eslint-disable-line

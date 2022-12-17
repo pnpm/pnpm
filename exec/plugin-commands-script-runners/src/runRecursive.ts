@@ -12,12 +12,12 @@ import { sortPackages } from '@pnpm/sort-packages'
 import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'
 import { existsInDir } from './existsInDir'
-import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'
 | 'unsafePerm'
 | 'rawConfig'
+| 'rootProjectManifest'
 | 'scriptsPrependNodePath'
 | 'scriptShell'
 | 'shellEmulator'
@@ -58,8 +58,7 @@ export async function runRecursive (
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
-  const { manifest } = await tryReadProjectManifest(opts.workspaceDir)
-  const requiredScripts = manifest?.pnpm?.requiredScripts ?? []
+  const requiredScripts = opts.rootProjectManifest?.pnpm?.requiredScripts ?? []
 
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map(async (prefix: string) =>
