@@ -6,6 +6,7 @@ import { refToRelative } from '@pnpm/dependency-path'
 import { SearchFunction } from './types'
 import { PackageNode } from './PackageNode'
 import { getPkgInfo } from './getPkgInfo'
+import { DependenciesCache } from './DependenciesCache'
 
 interface GetTreeOpts {
   currentDepth: number
@@ -26,13 +27,13 @@ export function getTree (
   keypath: string[],
   parentId: string
 ): PackageNode[] {
-  const dependenciesCache = new Map<string, PackageNode[]>()
+  const dependenciesCache = new DependenciesCache()
 
   return getTreeHelper(dependenciesCache, opts, keypath, parentId).dependencies
 }
 
 function getTreeHelper (
-  dependenciesCache: Map<string, PackageNode[]>,
+  dependenciesCache: DependenciesCache,
   opts: GetTreeOpts,
   keypath: string[],
   parentId: string
