@@ -1,4 +1,4 @@
-import { promises as fs, existsSync } from 'fs'
+import { promises as fs } from 'fs'
 import path from 'path'
 import { globalWarn, logger } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
@@ -119,11 +119,17 @@ function getUniqueFileMap (fileMap: Record<string, string>) {
 async function moveOrMergeModulesDirs (src: string, dest: string) {
   try {
     await fs.rename(src, dest)
-  } catch (err) {
-    if (existsSync(dest)) {
+  } catch (err: any) { // eslint-disable-line
+    switch (err.code) {
+    case 'ENOENT':
+      // If src directory doesn't exist, there is nothing to do
+      return
+    case 'ENOTEMPTY':
       await mergeModulesDirs(src, dest)
+      return
+    default:
+      throw err
     }
-    throw err
   }
 }
 
