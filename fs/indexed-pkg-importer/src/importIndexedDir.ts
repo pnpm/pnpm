@@ -125,6 +125,7 @@ async function moveOrMergeModulesDirs (src: string, dest: string) {
       // If src directory doesn't exist, there is nothing to do
       return
     case 'ENOTEMPTY':
+    case 'EPERM': // This error code is thrown on Windows
       await mergeModulesDirs(src, dest)
       return
     default:
