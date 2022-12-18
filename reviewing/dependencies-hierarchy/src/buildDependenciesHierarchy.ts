@@ -16,8 +16,8 @@ import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
 import { PackageNode, SearchFunction } from './types'
-import { getTree } from './getTree'
 import { getPkgInfo } from './getPkgInfo'
+import { getTree } from './getTree2'
 
 export interface DependenciesHierarchy {
   dependencies?: PackageNode[]
@@ -139,7 +139,7 @@ async function dependenciesHierarchyForPackage (
       } else {
         const relativeId = refToRelative(ref, alias)
         if (relativeId) {
-          const dependencies = getChildrenTree([relativeId], relativeId)
+          const dependencies = getChildrenTree(relativeId)
           if (dependencies.length > 0) {
             newEntry = {
               ...packageInfo,
