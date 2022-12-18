@@ -126,6 +126,7 @@ async function moveOrMergeModulesDirs (src: string, dest: string) {
       return
     case 'ENOTEMPTY':
     case 'EPERM': // This error code is thrown on Windows
+      // The newly added dependency might have node_modules if it has bundled dependencies.
       await mergeModulesDirs(src, dest)
       return
     default:

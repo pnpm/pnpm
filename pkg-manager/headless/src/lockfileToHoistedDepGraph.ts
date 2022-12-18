@@ -32,7 +32,7 @@ export interface LockfileToHoistedDepGraphOptions {
   externalDependencies?: Set<string>
   importerIds: string[]
   include: IncludedDependencies
-  currentDependenciesLocations?: Record<string, string[]>
+  currentHoistedLocations?: Record<string, string[]>
   lockfileDir: string
   nodeVersion: string
   pnpmVersion: string
@@ -74,10 +74,10 @@ async function _lockfileToHoistedDepGraph (
     lockfile,
     graph,
     pkgLocationsByDepPath: {},
+    hoistedLocations: {} as Record<string, string[]>,
   }
-  const locations: Record<string, string[]> = {}
   const hierarchy = {
-    [opts.lockfileDir]: await fetchDeps(fetchDepsOpts, modulesDir, tree.dependencies, locations),
+    [opts.lockfileDir]: await fetchDeps(fetchDepsOpts, modulesDir, tree.dependencies),
   }
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {
     '.': directDepsMap(Object.keys(hierarchy[opts.lockfileDir]), graph),
@@ -89,7 +89,7 @@ async function _lockfileToHoistedDepGraph (
       const importerId = reference.replace('workspace:', '')
       const projectDir = path.join(opts.lockfileDir, importerId)
       const modulesDir = path.join(projectDir, 'node_modules')
-      const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies, locations))
+      const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies))
       hierarchy[projectDir] = nextHierarchy
 
       const importer = lockfile.importers[importerId]
@@ -104,7 +104,7 @@ async function _lockfileToHoistedDepGraph (
     hierarchy,
     pkgLocationsByDepPath: fetchDepsOpts.pkgLocationsByDepPath,
     symlinkedDirectDependenciesByImporterId,
-    locations,
+    hoistedLocations: fetchDepsOpts.hoistedLocations,
   }
 }
 
@@ -139,10 +139,10 @@ async function fetchDeps (
     graph: DependenciesGraph
     lockfile: Lockfile
     pkgLocationsByDepPath: Record<string, string[]>
+    hoistedLocations: Record<string, string[]>
   } & LockfileToHoistedDepGraphOptions,
   modules: string,
-  deps: Set<HoisterResult>,
-  locations: Record<string, string[]>
+  deps: Set<HoisterResult>
 ): Promise<DepHierarchy> {
   const depHierarchy = {}
   await Promise.all(Array.from(deps).map(async (dep) => {
@@ -180,7 +180,7 @@ async function fetchDeps (
     const depLocation = path.relative(opts.lockfileDir, dir)
     const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
     let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
-    const skipFetch = opts.currentDependenciesLocations?.[depPath]?.includes(depLocation)
+    const skipFetch = opts.currentHoistedLocations?.[depPath]?.includes(depLocation)
     if (skipFetch) {
       fetchResponse = {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
     } else {
@@ -225,11 +225,11 @@ async function fetchDeps (
       opts.pkgLocationsByDepPath[depPath] = []
     }
     opts.pkgLocationsByDepPath[depPath].push(dir)
-    depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies, locations)
-    if (!locations[depPath]) {
-      locations[depPath] = []
+    depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies)
+    if (!opts.hoistedLocations[depPath]) {
+      opts.hoistedLocations[depPath] = []
     }
-    locations[depPath].push(depLocation)
+    opts.hoistedLocations[depPath].push(depLocation)
     opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationsByDepPath, opts)
   }))
   return depHierarchy

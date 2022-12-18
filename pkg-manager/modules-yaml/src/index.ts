@@ -31,7 +31,7 @@ export interface Modules {
   storeDir: string
   virtualStoreDir: string
   injectedDeps?: Record<string, string[]>
-  locations?: Record<string, string[]>
+  hoistedLocations?: Record<string, string[]>
 }
 
 export async function readModulesManifest (modulesDir: string): Promise<Modules | null> {

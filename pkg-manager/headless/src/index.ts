@@ -120,7 +120,7 @@ export interface HeadlessOptions {
   hoistedDependencies: HoistedDependencies
   hoistPattern?: string[]
   publicHoistPattern?: string[]
-  currentDependenciesLocations?: Record<string, string[]>
+  currentHoistedLocations?: Record<string, string[]>
   lockfileDir: string
   modulesDir?: string
   virtualStoreDir?: string
@@ -284,7 +284,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
     directDependenciesByImporterId,
     graph,
     hierarchy,
-    locations,
+    hoistedLocations,
     pkgLocationsByDepPath,
     prevGraph,
     symlinkedDirectDependenciesByImporterId,
@@ -530,7 +530,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
       included: opts.include,
       injectedDeps,
       layoutVersion: LAYOUT_VERSION,
-      locations,
+      hoistedLocations,
       nodeLinker: opts.nodeLinker,
       packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
       pendingBuilds: opts.pendingBuilds,
