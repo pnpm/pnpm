@@ -30,6 +30,7 @@ export interface ImportPackageOpts {
   sideEffectsCacheKey?: string
   filesResponse: PackageFilesResponse
   force: boolean
+  keepModulesDir?: boolean
 }
 
 export type ImportPackageFunction = (

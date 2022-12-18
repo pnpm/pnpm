@@ -33,7 +33,12 @@ function createPackageImporter (
       ? 'clone-or-copy'
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)
-    const importMethod = await impPkg(to, { filesMap, fromStore: opts.filesResponse.fromStore, force: opts.force })
+    const importMethod = await impPkg(to, {
+      filesMap,
+      fromStore: opts.filesResponse.fromStore,
+      force: opts.force,
+      keepModulesDir: Boolean(opts.keepModulesDir),
+    })
     return { importMethod, isBuilt }
   }
 }

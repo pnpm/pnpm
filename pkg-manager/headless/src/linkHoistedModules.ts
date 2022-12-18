@@ -95,36 +95,39 @@ async function linkAllPkgsInOrder (
   await Promise.all(
     Object.entries(hierarchy).map(async ([dir, deps]) => {
       const depNode = graph[dir]
-      let filesResponse!: PackageFilesResponse
-      try {
-        filesResponse = await depNode.fetchingFiles()
-      } catch (err: any) { // eslint-disable-line
-        if (depNode.optional) return
-        throw err
-      }
+      if (depNode.fetchingFiles) {
+        let filesResponse!: PackageFilesResponse
+        try {
+          filesResponse = await depNode.fetchingFiles()
+        } catch (err: any) { // eslint-disable-line
+          if (depNode.optional) return
+          throw err
+        }
 
-      let sideEffectsCacheKey: string | undefined
-      if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
-        sideEffectsCacheKey = _calcDepState(dir, {
-          isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
-          patchFileHash: depNode.patchFile?.hash,
+        let sideEffectsCacheKey: string | undefined
+        if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
+          sideEffectsCacheKey = _calcDepState(dir, {
+            isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
+            patchFileHash: depNode.patchFile?.hash,
+          })
+        }
+        const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
+          filesResponse,
+          force: opts.force || depNode.depPath !== prevGraph[dir]?.depPath,
+          keepModulesDir: true,
+          requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
+          sideEffectsCacheKey,
         })
+        if (importMethod) {
+          progressLogger.debug({
+            method: importMethod,
+            requester: opts.lockfileDir,
+            status: 'imported',
+            to: depNode.dir,
+          })
+        }
+        depNode.isBuilt = isBuilt
       }
-      const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
-        filesResponse,
-        force: opts.force || depNode.depPath !== prevGraph[dir]?.depPath,
-        requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
-        sideEffectsCacheKey,
-      })
-      if (importMethod) {
-        progressLogger.debug({
-          method: importMethod,
-          requester: opts.lockfileDir,
-          status: 'imported',
-          to: depNode.dir,
-        })
-      }
-      depNode.isBuilt = isBuilt
       return linkAllPkgsInOrder(storeController, graph, prevGraph, deps, dir, opts)
     })
   )

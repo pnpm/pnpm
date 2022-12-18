@@ -14,11 +14,18 @@ export type ImportFile = (src: string, dest: string) => Promise<void>
 export async function importIndexedDir (
   importFile: ImportFile,
   newDir: string,
-  filenames: Record<string, string>
+  filenames: Record<string, string>,
+  opts: {
+    keepModulesDir?: boolean
+  }
 ) {
   const stage = pathTemp(path.dirname(newDir))
   try {
     await tryImportIndexedDir(importFile, stage, filenames)
+    if (opts.keepModulesDir) {
+      // Keeping node_modules is needed only when the hoisted node linker is used.
+      await moveOrMergeModulesDirs(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
+    }
     await renameOverwrite(stage, newDir)
   } catch (err: any) { // eslint-disable-line
     try {
@@ -37,7 +44,7 @@ export async function importIndexedDir (
         'which is an issue on case-insensitive filesystems. ' +
         `The conflicting file names are: ${JSON.stringify(conflictingFileNames)}`
       )
-      await importIndexedDir(importFile, newDir, uniqueFileMap)
+      await importIndexedDir(importFile, newDir, uniqueFileMap, opts)
       return
     }
     if (err['code'] === 'ENOENT') {
@@ -47,7 +54,7 @@ export async function importIndexedDir (
 The package linked to "${path.relative(process.cwd(), newDir)}" had \
 files with invalid names: ${invalidFilenames.join(', ')}. \
 They were renamed.`)
-      await importIndexedDir(importFile, newDir, sanitizedFilenames)
+      await importIndexedDir(importFile, newDir, sanitizedFilenames, opts)
       return
     }
     throw err
@@ -107,4 +114,30 @@ function getUniqueFileMap (fileMap: Record<string, string>) {
     conflictingFileNames,
     uniqueFileMap,
   }
+}
+
+async function moveOrMergeModulesDirs (src: string, dest: string) {
+  try {
+    await fs.rename(src, dest)
+  } catch (err: any) { // eslint-disable-line
+    switch (err.code) {
+    case 'ENOENT':
+      // If src directory doesn't exist, there is nothing to do
+      return
+    case 'ENOTEMPTY':
+    case 'EPERM': // This error code is thrown on Windows
+      // The newly added dependency might have node_modules if it has bundled dependencies.
+      await mergeModulesDirs(src, dest)
+      return
+    default:
+      throw err
+    }
+  }
+}
+
+async function mergeModulesDirs (src: string, dest: string) {
+  const srcFiles = await fs.readdir(src)
+  const destFiles = new Set(await fs.readdir(dest))
+  const filesToMove = srcFiles.filter((file) => !destFiles.has(file))
+  await Promise.all(filesToMove.map((file) => fs.rename(path.join(src, file), path.join(dest, file))))
 }

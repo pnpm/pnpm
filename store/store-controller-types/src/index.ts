@@ -147,6 +147,7 @@ export interface ImportOptions {
   filesMap: FilesMap
   force: boolean
   fromStore: boolean
+  keepModulesDir?: boolean
 }
 
 export type ImportIndexedPackage = (to: string, opts: ImportOptions) => Promise<string | undefined>

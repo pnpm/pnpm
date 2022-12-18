@@ -32,6 +32,7 @@ export interface LockfileToHoistedDepGraphOptions {
   externalDependencies?: Set<string>
   importerIds: string[]
   include: IncludedDependencies
+  currentHoistedLocations?: Record<string, string[]>
   lockfileDir: string
   nodeVersion: string
   pnpmVersion: string
@@ -73,6 +74,7 @@ async function _lockfileToHoistedDepGraph (
     lockfile,
     graph,
     pkgLocationsByDepPath: {},
+    hoistedLocations: {} as Record<string, string[]>,
   }
   const hierarchy = {
     [opts.lockfileDir]: await fetchDeps(fetchDepsOpts, modulesDir, tree.dependencies),
@@ -102,6 +104,7 @@ async function _lockfileToHoistedDepGraph (
     hierarchy,
     pkgLocationsByDepPath: fetchDepsOpts.pkgLocationsByDepPath,
     symlinkedDirectDependenciesByImporterId,
+    hoistedLocations: fetchDepsOpts.hoistedLocations,
   }
 }
 
@@ -136,6 +139,7 @@ async function fetchDeps (
     graph: DependenciesGraph
     lockfile: Lockfile
     pkgLocationsByDepPath: Record<string, string[]>
+    hoistedLocations: Record<string, string[]>
   } & LockfileToHoistedDepGraphOptions,
   modules: string,
   deps: Set<HoisterResult>
@@ -173,25 +177,31 @@ async function fetchDeps (
       return
     }
     const dir = path.join(modules, dep.name)
+    const depLocation = path.relative(opts.lockfileDir, dir)
     const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
     let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
-    try {
-      fetchResponse = opts.storeController.fetchPackage({
-        force: false,
-        lockfileDir: opts.lockfileDir,
-        pkg: {
-          id: packageId,
-          resolution,
-        },
-        expectedPkg: {
-          name: pkgName,
-          version: pkgVersion,
-        },
-      })
-      if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-    } catch (err: any) { // eslint-disable-line
-      if (pkgSnapshot.optional) return
-      throw err
+    const skipFetch = opts.currentHoistedLocations?.[depPath]?.includes(depLocation)
+    if (skipFetch) {
+      fetchResponse = {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    } else {
+      try {
+        fetchResponse = opts.storeController.fetchPackage({
+          force: false,
+          lockfileDir: opts.lockfileDir,
+          pkg: {
+            id: packageId,
+            resolution,
+          },
+          expectedPkg: {
+            name: pkgName,
+            version: pkgVersion,
+          },
+        })
+        if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
+      } catch (err: any) { // eslint-disable-line
+        if (pkgSnapshot.optional) return
+        throw err
+      }
     }
     opts.graph[dir] = {
       alias: dep.name,
@@ -216,6 +226,10 @@ async function fetchDeps (
     }
     opts.pkgLocationsByDepPath[depPath].push(dir)
     depHierarchy[dir] = await fetchDeps(opts, path.join(dir, 'node_modules'), dep.dependencies)
+    if (!opts.hoistedLocations[depPath]) {
+      opts.hoistedLocations[depPath] = []
+    }
+    opts.hoistedLocations[depPath].push(depLocation)
     opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationsByDepPath, opts)
   }))
   return depHierarchy

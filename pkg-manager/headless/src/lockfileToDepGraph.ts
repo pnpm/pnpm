@@ -80,6 +80,7 @@ export interface LockfileToDepGraphResult {
   directDependenciesByImporterId: DirectDependenciesByImporterId
   graph: DependenciesGraph
   hierarchy?: DepHierarchy
+  hoistedLocations?: Record<string, string[]>
   symlinkedDirectDependenciesByImporterId?: DirectDependenciesByImporterId
   prevGraph?: DependenciesGraph
   pkgLocationsByDepPath?: Record<string, string[]>
