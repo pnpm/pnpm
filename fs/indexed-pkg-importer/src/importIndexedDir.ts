@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import { promises as fs, existsSync } from 'fs'
 import path from 'path'
 import { globalWarn, logger } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
@@ -23,11 +23,8 @@ export async function importIndexedDir (
   try {
     await tryImportIndexedDir(importFile, stage, filenames)
     if (opts.keepModulesDir) {
-      try {
-        await fs.rename(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
-      } catch (err) {
-        // TODO: merge directories maybe
-      }
+      // Keeping node_modules is needed only when the hoisted node linker is used.
+      await moveOrMergeModulesDirs(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
     }
     await renameOverwrite(stage, newDir)
   } catch (err: any) { // eslint-disable-line
@@ -117,4 +114,22 @@ function getUniqueFileMap (fileMap: Record<string, string>) {
     conflictingFileNames,
     uniqueFileMap,
   }
+}
+
+async function moveOrMergeModulesDirs (src: string, dest: string) {
+  try {
+    await fs.rename(src, dest)
+  } catch (err) {
+    if (existsSync(dest)) {
+      await mergeModulesDirs(src, dest)
+    }
+    throw err
+  }
+}
+
+async function mergeModulesDirs (src: string, dest: string) {
+  const srcFiles = await fs.readdir(src)
+  const destFiles = new Set(await fs.readdir(dest))
+  const filesToMove = srcFiles.filter((file) => !destFiles.has(file))
+  await Promise.all(filesToMove.map((file) => fs.rename(path.join(src, file), path.join(dest, file))))
 }
