@@ -110,7 +110,7 @@ async function clonePkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    await importIndexedDir(cloneFile, to, opts.filesMap)
+    await importIndexedDir(cloneFile, to, opts.filesMap, opts)
     return 'clone'
   }
   return undefined
@@ -130,7 +130,7 @@ async function hardlinkPkg (
     opts.force ||
     !await pkgLinkedToStore(opts.filesMap, to)
   ) {
-    await importIndexedDir(importFile, to, opts.filesMap)
+    await importIndexedDir(importFile, to, opts.filesMap, opts)
     return 'hardlink'
   }
   return undefined
@@ -188,7 +188,7 @@ export async function copyPkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    await importIndexedDir(fs.copyFile, to, opts.filesMap)
+    await importIndexedDir(fs.copyFile, to, opts.filesMap, opts)
     return 'copy'
   }
   return undefined

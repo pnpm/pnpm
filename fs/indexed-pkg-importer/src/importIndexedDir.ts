@@ -14,15 +14,20 @@ export type ImportFile = (src: string, dest: string) => Promise<void>
 export async function importIndexedDir (
   importFile: ImportFile,
   newDir: string,
-  filenames: Record<string, string>
+  filenames: Record<string, string>,
+  opts: {
+    keepModulesDir?: boolean
+  }
 ) {
   const stage = pathTemp(path.dirname(newDir))
   try {
     await tryImportIndexedDir(importFile, stage, filenames)
-    try {
-      await fs.rename(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
-    } catch (err) {
-      // TODO: merge directories maybe
+    if (opts.keepModulesDir) {
+      try {
+        await fs.rename(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
+      } catch (err) {
+        // TODO: merge directories maybe
+      }
     }
     await renameOverwrite(stage, newDir)
   } catch (err: any) { // eslint-disable-line
@@ -42,7 +47,7 @@ export async function importIndexedDir (
         'which is an issue on case-insensitive filesystems. ' +
         `The conflicting file names are: ${JSON.stringify(conflictingFileNames)}`
       )
-      await importIndexedDir(importFile, newDir, uniqueFileMap)
+      await importIndexedDir(importFile, newDir, uniqueFileMap, opts)
       return
     }
     if (err['code'] === 'ENOENT') {
@@ -52,7 +57,7 @@ export async function importIndexedDir (
 The package linked to "${path.relative(process.cwd(), newDir)}" had \
 files with invalid names: ${invalidFilenames.join(', ')}. \
 They were renamed.`)
-      await importIndexedDir(importFile, newDir, sanitizedFilenames)
+      await importIndexedDir(importFile, newDir, sanitizedFilenames, opts)
       return
     }
     throw err
