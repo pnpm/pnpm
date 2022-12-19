@@ -76,6 +76,7 @@ export async function handler (
   | 'dir'
   | 'engineStrict'
   | 'hooks'
+  | 'nodeLinker'
   | 'rawLocalConfig'
   | 'registries'
   | 'scriptShell'

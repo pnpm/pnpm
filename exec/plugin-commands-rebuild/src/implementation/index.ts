@@ -273,13 +273,15 @@ async function _rebuild (
       const pkgSnapshot = pkgSnapshots[depPath]
       const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       const pkgRoots = opts.nodeLinker === 'hoisted'
-        ? (ctx.modulesFile?.hoistedLocations?.[depPath] ?? [])
+        ? (ctx.modulesFile?.hoistedLocations?.[depPath] ?? []).map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
         : [path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules', pkgInfo.name)]
       for (const pkgRoot of pkgRoots) {
         try {
-          const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
-          const binPath = path.join(pkgRoot, 'node_modules', '.bin')
-          await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
+          if (opts.nodeLinker !== 'hoisted') {
+            const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
+            const binPath = path.join(pkgRoot, 'node_modules', '.bin')
+            await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
+          }
           await runPostinstallHooks({
             depPath,
             extraBinPaths: ctx.extraBinPaths,

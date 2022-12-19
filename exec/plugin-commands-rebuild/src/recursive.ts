@@ -22,6 +22,7 @@ type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'ignoreScripts'
 | 'lockfileDir'
 | 'lockfileOnly'
+| 'nodeLinker'
 | 'rawLocalConfig'
 | 'registries'
 | 'sharedWorkspaceLockfile'
