@@ -4,7 +4,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import { getContext } from '@pnpm/get-context'
+import { getContext, PnpmContext } from '@pnpm/get-context'
 import {
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
@@ -231,7 +231,7 @@ async function _rebuild (
     projects: Record<string, { id: string, rootDir: string }>
     extraBinPaths: string[]
     extraNodePaths: string[]
-  },
+  } & Pick<PnpmContext, 'modulesFile'>,
   opts: StrictRebuildOptions
 ) {
   const pkgsThatWereRebuilt = new Set()
@@ -272,40 +272,44 @@ async function _rebuild (
     async () => {
       const pkgSnapshot = pkgSnapshots[depPath]
       const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const pkgRoot = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules', pkgInfo.name)
-      try {
-        const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
-        const binPath = path.join(pkgRoot, 'node_modules', '.bin')
-        await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
-        await runPostinstallHooks({
-          depPath,
-          extraBinPaths: ctx.extraBinPaths,
-          extraEnv: opts.extraEnv,
-          optional: pkgSnapshot.optional === true,
-          pkgRoot,
-          rawConfig: opts.rawConfig,
-          rootModulesDir: ctx.rootModulesDir,
-          scriptsPrependNodePath: opts.scriptsPrependNodePath,
-          shellEmulator: opts.shellEmulator,
-          unsafePerm: opts.unsafePerm || false,
-        })
-        pkgsThatWereRebuilt.add(depPath)
-      } catch (err: any) { // eslint-disable-line
-        if (pkgSnapshot.optional) {
-          // TODO: add parents field to the log
-          skippedOptionalDependencyLogger.debug({
-            details: err.toString(),
-            package: {
-              id: pkgSnapshot.id ?? depPath,
-              name: pkgInfo.name,
-              version: pkgInfo.version,
-            },
-            prefix: opts.dir,
-            reason: 'build_failure',
+      const pkgRoots = opts.nodeLinker === 'hoisted'
+        ? (ctx.modulesFile?.hoistedLocations?.[depPath] ?? [])
+        : [path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules', pkgInfo.name)]
+      for (const pkgRoot of pkgRoots) {
+        try {
+          const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
+          const binPath = path.join(pkgRoot, 'node_modules', '.bin')
+          await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
+          await runPostinstallHooks({
+            depPath,
+            extraBinPaths: ctx.extraBinPaths,
+            extraEnv: opts.extraEnv,
+            optional: pkgSnapshot.optional === true,
+            pkgRoot,
+            rawConfig: opts.rawConfig,
+            rootModulesDir: ctx.rootModulesDir,
+            scriptsPrependNodePath: opts.scriptsPrependNodePath,
+            shellEmulator: opts.shellEmulator,
+            unsafePerm: opts.unsafePerm || false,
           })
-          return
+          pkgsThatWereRebuilt.add(depPath)
+        } catch (err: any) { // eslint-disable-line
+          if (pkgSnapshot.optional) {
+            // TODO: add parents field to the log
+            skippedOptionalDependencyLogger.debug({
+              details: err.toString(),
+              package: {
+                id: pkgSnapshot.id ?? depPath,
+                name: pkgInfo.name,
+                version: pkgInfo.version,
+              },
+              prefix: opts.dir,
+              reason: 'build_failure',
+            })
+            return
+          }
+          throw err
         }
-        throw err
       }
     }
   ))
