@@ -54,6 +54,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/find-workspace-packages": "workspace:*",
+    "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/get-context": "workspace:*",
     "@pnpm/graph-sequencer": "1.0.0",
     "@pnpm/lifecycle": "workspace:*",

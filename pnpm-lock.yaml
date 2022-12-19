@@ -970,6 +970,9 @@ importers:
       '@pnpm/find-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/find-workspace-packages
+      '@pnpm/fs.hard-link-dir':
+        specifier: workspace:*
+        version: link:../../fs/hard-link-dir
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
@@ -1406,6 +1409,15 @@ importers:
       '@types/graceful-fs':
         specifier: ^4.1.5
         version: 4.1.5
+
+  fs/hard-link-dir:
+    devDependencies:
+      '@pnpm/fs.hard-link-dir':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
 
   fs/indexed-pkg-importer:
     dependencies:
