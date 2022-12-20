@@ -59,6 +59,7 @@ export async function runRecursive (
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
   const requiredScripts = opts.rootProjectManifest?.pnpm?.requiredScripts ?? []
+  const missingScriptPackages: string[] = []
 
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map(async (prefix: string) =>
@@ -66,7 +67,7 @@ export async function runRecursive (
         const pkg = opts.selectedProjectsGraph[prefix]
         if (!pkg.package.manifest.scripts?.[scriptName]) {
           if (requiredScripts.includes(scriptName)) {
-            throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in ${pkg.package.dir}`)
+            missingScriptPackages.push(pkg.package.manifest.name ?? pkg.package.dir)
           }
           return
         }
@@ -133,6 +134,10 @@ export async function runRecursive (
         }
       }
       )))
+  }
+
+  if (missingScriptPackages.length) {
+    throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in packages: ${missingScriptPackages.join(', ')}`)
   }
 
   if (scriptName !== 'test' && !hasCommand && !opts.ifPresent) {

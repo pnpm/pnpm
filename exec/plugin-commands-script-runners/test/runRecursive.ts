@@ -804,9 +804,6 @@ test('`pnpm recursive run` should fail when no script in package with requiredSc
     {
       name: 'project-3',
       version: '1.0.0',
-      scripts: {
-        build: 'echo 3',
-      },
       dependencies: {
         'project-1': '1',
       },
@@ -832,6 +829,6 @@ test('`pnpm recursive run` should fail when no script in package with requiredSc
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
-  expect(err.message).toContain('Missing script "build"')
+  expect(err.message).toContain('Missing script "build" in packages: project-1, project-3')
   expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
 })
