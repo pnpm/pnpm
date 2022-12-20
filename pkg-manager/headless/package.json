@@ -62,7 +62,7 @@
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7773 pnpm run test:e2e",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "runPrepareFixtures": "node ../pnpm/bin/pnpm.cjs i -r -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force --no-strict-peer-dependencies",
+    "runPrepareFixtures": "node ../../pnpm/bin/pnpm.cjs i -r -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force --no-strict-peer-dependencies",
     "prepareFixtures": "registry-mock prepare && run-p -r registry-mock runPrepareFixtures",
     "compile": "tsc --build && pnpm run lint --fix"
   },

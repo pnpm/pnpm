@@ -14,7 +14,7 @@ packages:
     dev: false
 
   /@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0:
-    resolution: {integrity: sha512-RWys6ZQfGRl4enR2IZv+Ear9h5v0p1LjwY36bxkBgJCEAV9lP1DksvXa3hATKgG9r3/FrkESKSwlMwZ8vLNgAg==}
+    resolution: {integrity: sha512-p2L5hqNZFiWX/4tQiuawjhh4xVy2QObs21HzZa6DdGZfWlgzdKiMN5MLuwh5ehI0GxuNWSrq0+/T+DEEr7kWVw==}
     requiresBuild: true
     dependencies:
       '@pnpm.e2e/hello-world-js-bin': 1.0.0
