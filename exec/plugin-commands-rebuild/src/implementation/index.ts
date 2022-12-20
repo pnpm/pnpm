@@ -278,14 +278,22 @@ async function _rebuild (
         : [path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules', pkgInfo.name)]
       const pkgRoot = pkgRoots[0]
       try {
+        const extraBinPaths = ctx.extraBinPaths
         if (opts.nodeLinker !== 'hoisted') {
           const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
           const binPath = path.join(pkgRoot, 'node_modules', '.bin')
           await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
+        } else {
+          let dir = pkgRoot
+          do {
+            extraBinPaths.push(path.join(dir, 'node_modules', '.bin'))
+            dir = path.dirname(dir)
+          } while (dir !== opts.lockfileDir && dir !== pkgRoot)
+          extraBinPaths.push(path.join(opts.lockfileDir, 'node_modules', '.bin'))
         }
         await runPostinstallHooks({
           depPath,
-          extraBinPaths: ctx.extraBinPaths,
+          extraBinPaths,
           extraEnv: opts.extraEnv,
           optional: pkgSnapshot.optional === true,
           pkgRoot,

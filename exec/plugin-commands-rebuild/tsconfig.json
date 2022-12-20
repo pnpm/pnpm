@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../__utils__/assert-project"
+    },
+    {
       "path": "../../__utils__/prepare"
     },
     {

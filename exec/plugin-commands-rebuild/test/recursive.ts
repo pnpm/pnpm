@@ -1,4 +1,5 @@
 import path from 'path'
+import { assertProject } from '@pnpm/assert-project'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { preparePackages } from '@pnpm/prepare'
@@ -70,7 +71,7 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
       version: '1.0.0',
 
       dependencies: {
-        '@pnpm.e2e/pre-and-postinstall-scripts-example': '*',
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1',
       },
     },
     {
@@ -78,12 +79,29 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
       version: '1.0.0',
 
       dependencies: {
-        '@pnpm.e2e/pre-and-postinstall-scripts-example': '*',
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '2',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '2',
       },
     },
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['*'] })
   await execa('node', [
     pnpmBin,
     'install',
@@ -96,12 +114,15 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
     '--config.node-linker=hoisted',
   ], { stdout: 'inherit' })
 
+  const rootProject = assertProject(process.cwd())
   await projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   await projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
   await projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   await projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-3'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await projects['project-3'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 
-  const modulesManifest = await projects['project-1'].readModulesManifest()
+  const modulesManifest = await rootProject.readModulesManifest()
   await rebuild.handler({
     ...DEFAULT_OPTS,
     allProjects,
@@ -110,13 +131,18 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
     recursive: true,
     registries: modulesManifest!.registries!,
     selectedProjectsGraph,
+    lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
   }, [])
 
-  await projects['project-1'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-1'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
-  await projects['project-2'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
-  await projects['project-2'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-3'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await projects['project-3'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 })
 
 // TODO: make this test pass
