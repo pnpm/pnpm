@@ -59,19 +59,23 @@ export async function runRecursive (
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
   const requiredScripts = opts.rootProjectManifest?.pnpm?.requiredScripts ?? []
-  const missingScriptPackages: string[] = []
+  if (requiredScripts.includes(scriptName)) {
+    const missingScriptPackages: string[] = packageChunks
+      .flat()
+      .map((prefix) => opts.selectedProjectsGraph[prefix])
+      .filter((pkg) => !pkg.package.manifest.scripts?.[scriptName])
+      .map((pkg) => pkg.package.manifest.name ?? pkg.package.dir)
+    if (missingScriptPackages.length) {
+      throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in packages: ${missingScriptPackages.join(', ')}`)
+    }
+  }
 
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map(async (prefix: string) =>
       limitRun(async () => {
         const pkg = opts.selectedProjectsGraph[prefix]
-        if (!pkg.package.manifest.scripts?.[scriptName]) {
-          if (requiredScripts.includes(scriptName)) {
-            missingScriptPackages.push(pkg.package.manifest.name ?? pkg.package.dir)
-          }
-          return
-        }
         if (
+          !pkg.package.manifest.scripts?.[scriptName] ||
           process.env.npm_lifecycle_event === scriptName &&
           process.env.PNPM_SCRIPT_SRC_DIR === prefix
         ) {
@@ -134,10 +138,6 @@ export async function runRecursive (
         }
       }
       )))
-  }
-
-  if (missingScriptPackages.length) {
-    throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in packages: ${missingScriptPackages.join(', ')}`)
   }
 
   if (scriptName !== 'test' && !hasCommand && !opts.ifPresent) {
