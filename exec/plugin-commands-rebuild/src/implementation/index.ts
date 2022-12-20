@@ -284,12 +284,7 @@ async function _rebuild (
           const binPath = path.join(pkgRoot, 'node_modules', '.bin')
           await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
         } else {
-          let dir = pkgRoot
-          do {
-            extraBinPaths.push(path.join(dir, 'node_modules', '.bin'))
-            dir = path.dirname(dir)
-          } while (dir !== opts.lockfileDir && dir !== pkgRoot)
-          extraBinPaths.push(path.join(opts.lockfileDir, 'node_modules', '.bin'))
+          extraBinPaths.push(...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir))
         }
         await runPostinstallHooks({
           depPath,
@@ -352,4 +347,17 @@ async function _rebuild (
   })))
 
   return pkgsThatWereRebuilt
+}
+
+function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[] {
+  const binDirs: string[] = []
+  let dir = pkgRoot
+  do {
+    if (!path.dirname(dir).startsWith('@')) {
+      binDirs.push(path.join(dir, 'node_modules', '.bin'))
+    }
+    dir = path.dirname(dir)
+  } while (path.relative(dir, lockfileDir) !== '')
+  binDirs.push(path.join(lockfileDir, 'node_modules', '.bin'))
+  return binDirs
 }
