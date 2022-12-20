@@ -53,7 +53,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
   }
   const editDir = opts.editDir ?? tempy.directory()
   await writePackage(params[0], editDir, opts)
-  return 
-    `You can now edit the following folder: ${editDir}\n` 
-      + `Once you're done with your changes, run \`pnpm patch-commit ${editDir}\``
+  return `You can now edit the following folder: ${editDir}
+
+Once you're done with your changes, run "pnpm patch-commit ${editDir}"`
 }
