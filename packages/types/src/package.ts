@@ -135,6 +135,7 @@ export type ProjectManifest = BaseManifest & {
     auditConfig?: {
       ignoreCves?: string[]
     }
+    requiredScripts?: string[]
   }
   private?: boolean
   resolutions?: Record<string, string>

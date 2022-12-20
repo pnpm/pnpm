@@ -17,6 +17,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'
 | 'unsafePerm'
 | 'rawConfig'
+| 'rootProjectManifest'
 | 'scriptsPrependNodePath'
 | 'scriptShell'
 | 'shellEmulator'
@@ -56,6 +57,18 @@ export async function runRecursive (
       : 'pipe'
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
+
+  const requiredScripts = opts.rootProjectManifest?.pnpm?.requiredScripts ?? []
+  if (requiredScripts.includes(scriptName)) {
+    const missingScriptPackages: string[] = packageChunks
+      .flat()
+      .map((prefix) => opts.selectedProjectsGraph[prefix])
+      .filter((pkg) => !pkg.package.manifest.scripts?.[scriptName])
+      .map((pkg) => pkg.package.manifest.name ?? pkg.package.dir)
+    if (missingScriptPackages.length) {
+      throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in packages: ${missingScriptPackages.join(', ')}`)
+    }
+  }
 
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map(async (prefix: string) =>

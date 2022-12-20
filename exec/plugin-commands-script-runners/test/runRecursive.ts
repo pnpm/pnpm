@@ -784,3 +784,51 @@ test('`pnpm run -r` should avoid infinite recursion', async () => {
   expect(outputs1).toStrictEqual(['project-2'])
   expect(outputs2).toStrictEqual(['project-3'])
 })
+
+test('`pnpm recursive run` should fail when no script in package with requiredScripts', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      scripts: {
+        build: 'echo 2',
+      },
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+  ])
+
+  let err!: PnpmError
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      ...await readProjects(process.cwd(), [{ namePattern: '*' }]),
+      dir: process.cwd(),
+      recursive: true,
+      rootProjectManifest: {
+        name: 'test-workspaces',
+        private: true,
+        pnpm: {
+          requiredScripts: ['build'],
+        },
+      },
+      workspaceDir: process.cwd(),
+    }, ['build'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.message).toContain('Missing script "build" in packages: project-1, project-3')
+  expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
+})
