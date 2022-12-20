@@ -354,10 +354,10 @@ function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[]
   let dir = pkgRoot
   do {
     if (!path.dirname(dir).startsWith('@')) {
-      binDirs.push(path.join(dir, 'node_modules', '.bin'))
+      binDirs.push(path.join(dir, 'node_modules/.bin'))
     }
     dir = path.dirname(dir)
   } while (path.relative(dir, lockfileDir) !== '')
-  binDirs.push(path.join(lockfileDir, 'node_modules', '.bin'))
+  binDirs.push(path.join(lockfileDir, 'node_modules/.bin'))
   return binDirs
 }
