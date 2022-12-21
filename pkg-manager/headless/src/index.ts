@@ -467,6 +467,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
       extraEnv,
       depsStateCache,
       ignoreScripts: opts.ignoreScripts || opts.ignoreDepScripts,
+      hoistedLocations,
       lockfileDir,
       optional: opts.include.optionalDependencies,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
