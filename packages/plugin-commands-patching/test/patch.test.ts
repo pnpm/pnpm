@@ -36,7 +36,7 @@ describe('patch and commit', () => {
 
   test('patch and commit', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
-    const patchDir = output.substring(output.indexOf(':') + 1).trim()
+    const patchDir = getPatchDirFromPatchOutput(output)
     const tempDir = os.tmpdir() // temp dir depends on the operating system (@see tempy)
 
     // store patch files in a temporary directory when not given editDir option
@@ -71,7 +71,7 @@ describe('patch and commit', () => {
     const editDir = path.join(tempy.directory())
 
     const output = await patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0'])
-    const patchDir = output.substring(output.indexOf(':') + 1).trim()
+    const patchDir = getPatchDirFromPatchOutput(output)
 
     expect(patchDir).toBe(editDir)
     expect(fs.existsSync(patchDir)).toBe(true)
@@ -98,7 +98,7 @@ describe('patch and commit', () => {
     const editDir = path.join(tempy.directory()) + (os.platform() === 'win32' ? '\\' : '/')
 
     const output = await patch.handler({ ...defaultPatchOption, editDir }, ['is-positive@1.0.0'])
-    const patchDir = output.substring(output.indexOf(':') + 1).trim()
+    const patchDir = getPatchDirFromPatchOutput(output)
 
     expect(patchDir).toBe(editDir)
     expect(fs.existsSync(patchDir)).toBe(true)
@@ -141,7 +141,7 @@ describe('patching should work when there is a no EOL in the patched file', () =
   })
   it('should work when adding content on a newline', async () => {
     const output = await patch.handler(defaultPatchOption, ['safe-execa@0.1.2'])
-    const userPatchDir = output.substring(output.indexOf(':') + 1).trim()
+    const userPatchDir = getPatchDirFromPatchOutput(output)
     const tempDir = os.tmpdir()
 
     expect(userPatchDir).toContain(tempDir)
@@ -167,7 +167,7 @@ describe('patching should work when there is a no EOL in the patched file', () =
   })
   it('should work fine when new content is appended', async () => {
     const output = await patch.handler(defaultPatchOption, ['safe-execa@0.1.2'])
-    const userPatchDir = output.substring(output.indexOf(':') + 1).trim()
+    const userPatchDir = getPatchDirFromPatchOutput(output)
     const tempDir = os.tmpdir()
 
     expect(userPatchDir).toContain(tempDir)
@@ -190,3 +190,8 @@ describe('patching should work when there is a no EOL in the patched file', () =
     expect(fs.readFileSync('node_modules/safe-execa/lib/index.js', 'utf8')).toContain('//# sourceMappingURL=index.js.map// patch without newline')
   })
 })
+
+function getPatchDirFromPatchOutput (output: string) {
+  const [firstLine] = output.split('\n')
+  return firstLine.substring(firstLine.indexOf(':') + 1).trim()
+}
