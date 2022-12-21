@@ -9,6 +9,7 @@ import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
+import pDefer, { DeferredPromise } from 'p-defer'
 import { applyPatch } from 'patch-package/dist/applyPatches'
 import pickBy from 'ramda/src/pickBy'
 import runGroups from 'run-groups'
@@ -87,12 +88,18 @@ async function buildDependency (
     storeController: StoreController
     unsafePerm: boolean
     hoistedLocations?: Record<string, string[]>
-    builtHoistedDeps?: Set<string>
+    builtHoistedDeps?: Record<string, DeferredPromise<void>>
     warn: (message: string) => void
   }
 ) {
-  if (opts.builtHoistedDeps?.has(depPath)) return
   const depNode = depGraph[depPath]
+  if (opts.builtHoistedDeps) {
+    if (opts.builtHoistedDeps[depNode.depPath]) {
+      await opts.builtHoistedDeps[depNode.depPath].promise
+      return
+    }
+    opts.builtHoistedDeps[depNode.depPath] = pDefer()
+  }
   try {
     await linkBinsOfDependencies(depNode, depGraph, opts)
     const isPatched = depNode.patchFile?.path != null
@@ -156,14 +163,14 @@ async function buildDependency (
     }
     throw err
   } finally {
-    const hoistedLocationsOfDep = opts.hoistedLocations?.[depPath]
+    const hoistedLocationsOfDep = opts.hoistedLocations?.[depNode.depPath]
     if (hoistedLocationsOfDep) {
       const rel = path.relative(opts.lockfileDir, depNode.dir)
       const nonBuiltHoistedDeps = hoistedLocationsOfDep?.filter((hoistedLocation) => hoistedLocation !== rel)
       await hardLinkDir(depNode.dir, nonBuiltHoistedDeps)
     }
     if (opts.builtHoistedDeps) {
-      opts.builtHoistedDeps.add(depPath)
+      opts.builtHoistedDeps[depNode.depPath].resolve()
     }
   }
 }

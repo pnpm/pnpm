@@ -1,11 +1,14 @@
 import * as path from 'path'
 import { promises as fs } from 'fs'
+import { assertProject } from '@pnpm/assert-project'
 import { LifecycleLog } from '@pnpm/core-loggers'
-import { prepareEmpty } from '@pnpm/prepare'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   install,
   mutateModulesInSingleProject,
+  MutatedProject,
+  mutateModules,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import isWindows from 'is-windows'
@@ -607,4 +610,109 @@ test('ignore-dep-scripts', async () => {
 
     expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
   }
+})
+
+test('run pre/postinstall scripts in a workspace that uses node-linker=hoisted', async () => {
+  const projects = preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2' },
+    },
+    {
+      location: 'project-3',
+      package: { name: 'project-3' },
+    },
+    {
+      location: 'project-4',
+      package: { name: 'project-4' },
+    },
+  ])
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-3'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-4'),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/pre-and-postinstall-scripts-example': '1',
+        },
+      },
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/pre-and-postinstall-scripts-example': '1',
+        },
+      },
+      rootDir: path.resolve('project-2'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-3',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/pre-and-postinstall-scripts-example': '2',
+        },
+      },
+      rootDir: path.resolve('project-3'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-4',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/pre-and-postinstall-scripts-example': '2',
+        },
+      },
+      rootDir: path.resolve('project-4'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({
+    allProjects,
+    fastUnpack: false,
+    nodeLinker: 'hoisted',
+  }))
+  const rootProject = assertProject(process.cwd())
+  await rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-3'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await projects['project-3'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 })
