@@ -15,7 +15,6 @@ import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
 import pSettle from 'p-settle'
 import { KeyValuePair } from 'ramda'
-import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
 import unnest from 'ramda/src/unnest'
 import partition from 'ramda/src/partition'
@@ -124,7 +123,7 @@ async function _linkBins (
 
   const results1 = await pSettle(cmdsWithOwnName.map(async (cmd) => linkBin(cmd, binsDir, opts)))
 
-  const usedNames = fromPairs(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as KeyValuePair<string, string>))
+  const usedNames = Object.fromEntries(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as KeyValuePair<string, string>))
   const results2 = await pSettle(cmdsWithOtherNames.map(async (cmd) => {
     if (usedNames[cmd.name]) {
       binsConflictLogger.debug({

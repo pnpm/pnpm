@@ -1,7 +1,6 @@
 import path from 'path'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { depPathToFilename } from '@pnpm/dependency-path'
-import fromPairs from 'ramda/src/fromPairs'
 
 type GetLocalLocations = (depPath: string, pkgName: string) => string[]
 
@@ -17,7 +16,7 @@ export function extendProjectsWithTargetDirs<T> (
     ? (depPath: string) => ctx.pkgLocationsByDepPath![depPath]
     : (depPath: string, pkgName: string) => [path.join(ctx.virtualStoreDir, depPathToFilename(depPath), 'node_modules', pkgName)]
   const projectsById: Record<string, T & { id: string, targetDirs: string[], stages?: string[] }> =
-    fromPairs(projects.map((project) => [project.id, { ...project, targetDirs: [] as string[] }]))
+    Object.fromEntries(projects.map((project) => [project.id, { ...project, targetDirs: [] as string[] }]))
   Object.entries(lockfile.packages ?? {})
     .forEach(([depPath, pkg]) => {
       if (pkg.resolution?.['type'] !== 'directory') return

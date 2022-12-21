@@ -62,7 +62,6 @@ import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import pMapValues from 'p-map-values'
 import flatten from 'ramda/src/flatten'
-import fromPairs from 'ramda/src/fromPairs'
 import mapValues from 'ramda/src/map'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
@@ -918,7 +917,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     )
     await finishLockfileUpdates()
     if (opts.enablePnp) {
-      const importerNames = fromPairs(
+      const importerNames = Object.fromEntries(
         projects.map(({ manifest, id }) => [id, manifest.name ?? id])
       )
       await writePnpFile(result.currentLockfile, {

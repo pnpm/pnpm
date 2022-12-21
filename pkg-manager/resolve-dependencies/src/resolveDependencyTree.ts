@@ -7,7 +7,6 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import fromPairs from 'ramda/src/fromPairs'
 import partition from 'ramda/src/partition'
 import zipObj from 'ramda/src/zipObj'
 import { WantedDependency } from './getNonDevWantedDependencies'
@@ -154,7 +153,7 @@ export async function resolveDependencyTree<T> (
     }
     return {
       updatePackageManifest: importer.updatePackageManifest,
-      parentPkgAliases: fromPairs(
+      parentPkgAliases: Object.fromEntries(
         importer.wantedDependencies.filter(({ alias }) => alias).map(({ alias }) => [alias, true])
       ) as ParentPkgAliases,
       preferredVersions: importer.preferredVersions ?? {},

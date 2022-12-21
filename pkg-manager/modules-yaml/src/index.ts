@@ -1,7 +1,6 @@
 import path from 'path'
 import { DependenciesField, HoistedDependencies, Registries } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
-import fromPairs from 'ramda/src/fromPairs'
 import mapValues from 'ramda/src/map'
 import isWindows from 'is-windows'
 import writeYamlFile from 'write-yaml-file'
@@ -57,7 +56,7 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
     }
     if ((modules.hoistedAliases != null) && !modules.hoistedDependencies) {
       modules.hoistedDependencies = mapValues(
-        (aliases) => fromPairs(aliases.map((alias) => [alias, 'public'])),
+        (aliases) => Object.fromEntries(aliases.map((alias) => [alias, 'public'])),
         modules.hoistedAliases
       )
     }

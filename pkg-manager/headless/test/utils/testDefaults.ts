@@ -6,7 +6,6 @@ import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectsContext } from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { getStorePath } from '@pnpm/store-path'
-import fromPairs from 'ramda/src/fromPairs'
 import tempy from 'tempy'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
@@ -76,7 +75,7 @@ export async function testDefaults (
     },
     pendingBuilds,
     selectedProjectDirs: opts.selectedProjectDirs ?? projects.map((project) => project.rootDir),
-    allProjects: fromPairs(
+    allProjects: Object.fromEntries(
       await Promise.all(projects.map(async (project) => [project.rootDir, { ...project, manifest: await safeReadPackageJsonFromDir(project.rootDir) }]))
     ),
     rawConfig: {},

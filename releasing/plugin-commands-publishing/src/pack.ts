@@ -13,7 +13,6 @@ import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import tar from 'tar-stream'
 import packlist from 'npm-packlist'
-import fromPairs from 'ramda/src/fromPairs'
 import { runScriptsIfPresent } from './publish'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}'
@@ -95,7 +94,7 @@ export async function handler (
   }
   const tarballName = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
   const files = await packlist({ path: dir })
-  const filesMap: Record<string, string> = fromPairs(files.map((file) => [`package/${file}`, path.join(dir, file)]))
+  const filesMap: Record<string, string> = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(\..+)?/i.test(file))) {
     const licenses = await findLicenses({ cwd: opts.workspaceDir })
     for (const license of licenses) {

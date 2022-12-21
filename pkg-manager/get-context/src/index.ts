@@ -20,7 +20,6 @@ import rimraf from '@zkochan/rimraf'
 import pathAbsolute from 'path-absolute'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
-import fromPairs from 'ramda/src/fromPairs'
 import { checkCompatibility } from './checkCompatibility'
 import { UnexpectedStoreError } from './checkCompatibility/UnexpectedStoreError'
 import { UnexpectedVirtualStoreDirError } from './checkCompatibility/UnexpectedVirtualStoreDirError'
@@ -160,7 +159,7 @@ export async function getContext (
     lockfileDir: opts.lockfileDir,
     modulesFile: importersContext.modules,
     pendingBuilds: importersContext.pendingBuilds,
-    projects: fromPairs(importersContext.projects.map((project) => [project.rootDir, project])),
+    projects: Object.fromEntries(importersContext.projects.map((project) => [project.rootDir, project])),
     publicHoistPattern: importersContext.currentPublicHoistPattern ?? opts.publicHoistPattern,
     registries: {
       ...opts.registries,

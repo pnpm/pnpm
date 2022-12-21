@@ -6,7 +6,6 @@ import {
   ProjectManifest,
   ReadPackageHook,
 } from '@pnpm/types'
-import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'
 import { createPackageExtender } from './createPackageExtender'
@@ -32,7 +31,7 @@ export function createReadPackageHook (
 ): ReadPackageHook | undefined {
   const hooks: ReadPackageHook[] = []
   if (!ignoreCompatibilityDb) {
-    hooks.push(createPackageExtender(fromPairs(compatPackageExtensions)))
+    hooks.push(createPackageExtender(Object.fromEntries(compatPackageExtensions)))
   }
   if (!isEmpty(packageExtensions ?? {})) {
     hooks.push(createPackageExtender(packageExtensions!))

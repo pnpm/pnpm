@@ -60,7 +60,6 @@ import * as dp from '@pnpm/dependency-path'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import equals from 'ramda/src/equals'
-import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
 import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
@@ -302,7 +301,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
       )
   )
   if (opts.enablePnp) {
-    const importerNames = fromPairs(
+    const importerNames = Object.fromEntries(
       selectedProjects.map(({ manifest, id }) => [id, manifest.name ?? id])
     )
     await writePnpFile(filteredLockfile, {
@@ -594,7 +593,7 @@ async function symlinkDirectDependencies (
     })
   })
   if (symlink !== false) {
-    const projectsToLink = fromPairs(await Promise.all(
+    const projectsToLink = Object.fromEntries(await Promise.all(
       projects.map(async ({ rootDir, id, modulesDir }) => ([id, {
         dir: rootDir,
         modulesDir,

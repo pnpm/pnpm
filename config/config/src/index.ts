@@ -11,7 +11,6 @@ import { createMatcher } from '@pnpm/matcher'
 import camelcase from 'camelcase'
 import isWindows from 'is-windows'
 import normalizeRegistryUrl from 'normalize-registry-url'
-import fromPairs from 'ramda/src/fromPairs'
 import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
@@ -244,7 +243,7 @@ export async function getConfig (
 
   const rcOptions = Object.keys(rcOptionsTypes)
 
-  const pnpmConfig: ConfigWithDeprecatedSettings = fromPairs([
+  const pnpmConfig: ConfigWithDeprecatedSettings = Object.fromEntries([
     ...rcOptions.map((configKey) => [camelcase(configKey), npmConfig.get(configKey)]) as any, // eslint-disable-line
     ...Object.entries(cliOptions).filter(([name, value]) => typeof value !== 'undefined').map(([name, value]) => [camelcase(name), value]),
   ]) as unknown as ConfigWithDeprecatedSettings

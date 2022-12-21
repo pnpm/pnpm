@@ -16,7 +16,6 @@ import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
-import fromPairs from 'ramda/src/fromPairs'
 import mapValues from 'ramda/src/map'
 import renderHelp from 'render-help'
 import { parse as parseYarnLock } from '@yarnpkg/lockfile'
@@ -227,7 +226,7 @@ async function readNpmLockfile (dir: string) {
 
 function getPreferredVersions (versionsByPackageNames: Record<string, Set<string>>) {
   const preferredVersions = mapValues(
-    (versions) => fromPairs(Array.from(versions).map((version) => [version, 'version'])),
+    (versions) => Object.fromEntries(Array.from(versions).map((version) => [version, 'version'])),
     versionsByPackageNames
   )
   return preferredVersions

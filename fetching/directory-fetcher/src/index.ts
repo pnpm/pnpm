@@ -3,7 +3,6 @@ import path from 'path'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
 import { logger } from '@pnpm/logger'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
-import fromPairs from 'ramda/src/fromPairs'
 import packlist from 'npm-packlist'
 
 const directoryFetcherLogger = logger('directory-fetcher')
@@ -128,7 +127,7 @@ async function fetchPackageFilesFromDir (
   opts: FetchFromDirOpts
 ) {
   const files = await packlist({ path: dir })
-  const filesIndex: Record<string, string> = fromPairs(files.map((file) => [file, path.join(dir, file)]))
+  const filesIndex: Record<string, string> = Object.fromEntries(files.map((file) => [file, path.join(dir, file)]))
   if (opts.manifest) {
     // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
     // Safe read was added to support the Bit workspace in which the components have no package.json files.

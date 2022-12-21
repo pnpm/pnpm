@@ -1,6 +1,5 @@
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
-import fromPairs from 'ramda/src/fromPairs'
 import mapValues from 'ramda/src/map'
 import { filterImporter } from './filterImporter'
 
@@ -25,6 +24,6 @@ export function filterLockfile (
   return {
     ...lockfile,
     importers: mapValues((importer) => filterImporter(importer, opts.include), lockfile.importers),
-    packages: fromPairs(pairs),
+    packages: Object.fromEntries(pairs),
   }
 }

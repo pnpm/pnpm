@@ -28,7 +28,6 @@ import {
 } from '@pnpm/types'
 import pLimit from 'p-limit'
 import pathExists from 'path-exists'
-import fromPairs from 'ramda/src/fromPairs'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import difference from 'ramda/src/difference'
@@ -99,7 +98,7 @@ export async function linkPackages (
   if (!opts.include.optionalDependencies) {
     depNodes = depNodes.filter(({ optional }) => !optional)
   }
-  depGraph = fromPairs(depNodes.map((depNode) => [depNode.depPath, depNode]))
+  depGraph = Object.fromEntries(depNodes.map((depNode) => [depNode.depPath, depNode]))
   const removedDepPaths = await prune(projects, {
     currentLockfile: opts.currentLockfile,
     hoistedDependencies: opts.hoistedDependencies,
@@ -159,7 +158,7 @@ export async function linkPackages (
   })
 
   if (opts.symlink) {
-    const projectsToLink = fromPairs(await Promise.all(
+    const projectsToLink = Object.fromEntries(await Promise.all(
       projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
         const deps = opts.dependenciesByProjectId[id]
         const importerFromLockfile = newCurrentLockfile.importers[id]
