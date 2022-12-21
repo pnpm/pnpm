@@ -5,6 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
+import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
@@ -38,12 +39,16 @@ export async function buildModules (
     sideEffectsCacheWrite: boolean
     storeController: StoreController
     rootModulesDir: string
+    hoistedLocations?: Record<string, string[]>
   }
 ) {
   const warn = (message: string) => logger.warn({ message, prefix: opts.lockfileDir })
   // postinstall hooks
 
   const buildDepOpts = { ...opts, warn }
+  if (opts.hoistedLocations) {
+    buildDepOpts['builtHoistedDeps'] = new Set<string>()
+  }
   const chunks = buildSequence(depGraph, rootDepPaths)
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
@@ -81,9 +86,12 @@ async function buildDependency (
     sideEffectsCacheWrite: boolean
     storeController: StoreController
     unsafePerm: boolean
+    hoistedLocations?: Record<string, string[]>
+    builtHoistedDeps?: Set<string>
     warn: (message: string) => void
   }
 ) {
+  if (opts.builtHoistedDeps?.has(depPath)) return
   const depNode = depGraph[depPath]
   try {
     await linkBinsOfDependencies(depNode, depGraph, opts)
@@ -147,6 +155,16 @@ async function buildDependency (
       return
     }
     throw err
+  } finally {
+    const hoistedLocationsOfDep = opts.hoistedLocations?.[depPath]
+    if (hoistedLocationsOfDep) {
+      const rel = path.relative(opts.lockfileDir, depNode.dir)
+      const nonBuiltHoistedDeps = hoistedLocationsOfDep?.filter((hoistedLocation) => hoistedLocation !== rel)
+      await hardLinkDir(depNode.dir, nonBuiltHoistedDeps)
+    }
+    if (opts.builtHoistedDeps) {
+      opts.builtHoistedDeps.add(depPath)
+    }
   }
 }
 

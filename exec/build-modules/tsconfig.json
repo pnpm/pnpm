@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../fs/hard-link-dir"
+    },
+    {
       "path": "../../packages/calc-dep-state"
     },
     {

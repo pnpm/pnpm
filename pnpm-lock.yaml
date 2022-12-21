@@ -857,6 +857,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/fs.hard-link-dir':
+        specifier: workspace:*
+        version: link:../../fs/hard-link-dir
       '@pnpm/graph-sequencer':
         specifier: 1.0.0
         version: 1.0.0
