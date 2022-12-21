@@ -4,7 +4,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import { getContext } from '@pnpm/get-context'
+import { getContext, PnpmContext } from '@pnpm/get-context'
 import {
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
@@ -22,6 +22,7 @@ import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { ProjectManifest } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
+import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import runGroups from 'run-groups'
 import graphSequencer from '@pnpm/graph-sequencer'
 import npa from '@pnpm/npm-package-arg'
@@ -231,7 +232,7 @@ async function _rebuild (
     projects: Record<string, { id: string, rootDir: string }>
     extraBinPaths: string[]
     extraNodePaths: string[]
-  },
+  } & Pick<PnpmContext, 'modulesFile'>,
   opts: StrictRebuildOptions
 ) {
   const pkgsThatWereRebuilt = new Set()
@@ -272,14 +273,22 @@ async function _rebuild (
     async () => {
       const pkgSnapshot = pkgSnapshots[depPath]
       const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const pkgRoot = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules', pkgInfo.name)
+      const pkgRoots = opts.nodeLinker === 'hoisted'
+        ? (ctx.modulesFile?.hoistedLocations?.[depPath] ?? []).map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
+        : [path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules', pkgInfo.name)]
+      const pkgRoot = pkgRoots[0]
       try {
-        const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
-        const binPath = path.join(pkgRoot, 'node_modules', '.bin')
-        await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
+        const extraBinPaths = ctx.extraBinPaths
+        if (opts.nodeLinker !== 'hoisted') {
+          const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
+          const binPath = path.join(pkgRoot, 'node_modules', '.bin')
+          await linkBins(modules, binPath, { extraNodePaths: ctx.extraNodePaths, warn })
+        } else {
+          extraBinPaths.push(...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir))
+        }
         await runPostinstallHooks({
           depPath,
-          extraBinPaths: ctx.extraBinPaths,
+          extraBinPaths,
           extraEnv: opts.extraEnv,
           optional: pkgSnapshot.optional === true,
           pkgRoot,
@@ -306,6 +315,9 @@ async function _rebuild (
           return
         }
         throw err
+      }
+      if (pkgRoots.length > 1) {
+        await hardLinkDir(pkgRoot, pkgRoots.slice(1))
       }
     }
   ))
@@ -335,4 +347,17 @@ async function _rebuild (
   })))
 
   return pkgsThatWereRebuilt
+}
+
+function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[] {
+  const binDirs: string[] = []
+  let dir = pkgRoot
+  do {
+    if (!path.dirname(dir).startsWith('@')) {
+      binDirs.push(path.join(dir, 'node_modules/.bin'))
+    }
+    dir = path.dirname(dir)
+  } while (path.relative(dir, lockfileDir) !== '')
+  binDirs.push(path.join(lockfileDir, 'node_modules/.bin'))
+  return binDirs
 }

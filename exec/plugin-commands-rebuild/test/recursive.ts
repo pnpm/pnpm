@@ -1,4 +1,5 @@
 import path from 'path'
+import { assertProject } from '@pnpm/assert-project'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { preparePackages } from '@pnpm/prepare'
@@ -61,6 +62,89 @@ test('pnpm recursive rebuild', async () => {
   await projects['project-1'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
   await projects['project-2'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   await projects['project-2'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+})
+
+test('pnpm recursive rebuild with hoisted node linker', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '2',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '2',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['*'] })
+  await execa('node', [
+    pnpmBin,
+    'install',
+    '-r',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${path.resolve(DEFAULT_OPTS.storeDir)}`,
+    `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
+    '--ignore-scripts',
+    '--reporter=append-only',
+    '--config.node-linker=hoisted',
+  ], { stdout: 'inherit' })
+
+  const rootProject = assertProject(process.cwd())
+  await rootProject.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await rootProject.hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-3'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await projects['project-3'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-4'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await projects['project-4'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+
+  const modulesManifest = await rootProject.readModulesManifest()
+  await rebuild.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    nodeLinker: 'hoisted',
+    recursive: true,
+    registries: modulesManifest!.registries!,
+    selectedProjectsGraph,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, [])
+
+  await rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await rootProject.has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await projects['project-1'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-3'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await projects['project-3'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  await projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
+  await projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 })
 
 // TODO: make this test pass

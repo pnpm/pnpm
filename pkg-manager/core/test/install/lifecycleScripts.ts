@@ -20,7 +20,7 @@ const testOnNonWindows = isWindows() ? test.skip : test
 test('run pre/postinstall scripts', async () => {
   const project = prepareEmpty()
   const manifest = await addDependenciesToPackage({},
-    ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'],
     await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' })
   )
 
@@ -57,7 +57,7 @@ test('run pre/postinstall scripts', async () => {
 test('run pre/postinstall scripts, when PnP is used and no symlinks', async () => {
   prepareEmpty()
   await addDependenciesToPackage({},
-    ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'],
     await testDefaults({
       fastUnpack: false,
       enablePnp: true,
@@ -76,7 +76,7 @@ test('testing that the bins are linked when the package with the bins was alread
   const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin'], await testDefaults({ fastUnpack: false }))
-  await addDependenciesToPackage(manifest, ['@pnpm.e2e/pre-and-postinstall-scripts-example'], await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' }))
 
   const generatedByPreinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
   expect(typeof generatedByPreinstall).toBe('function')
@@ -333,7 +333,7 @@ test('bins are linked even if lifecycle scripts are ignored', async () => {
     [
       '@pnpm.e2e/pkg-with-peer-having-bin',
       '@pnpm.e2e/peer-with-bin',
-      '@pnpm.e2e/pre-and-postinstall-scripts-example',
+      '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
     ],
     await testDefaults({ fastUnpack: false, ignoreScripts: true })
   )
@@ -402,7 +402,7 @@ test('selectively ignore scripts in some dependencies by neverBuiltDependencies'
   const project = prepareEmpty()
   const neverBuiltDependencies = ['@pnpm.e2e/pre-and-postinstall-scripts-example']
   const manifest = await addDependenciesToPackage({},
-    ['@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/install-script-example'],
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
     await testDefaults({ fastUnpack: false, neverBuiltDependencies })
   )
 
@@ -430,7 +430,7 @@ test('throw an exception when both neverBuiltDependencies and onlyBuiltDependenc
   await expect(
     addDependenciesToPackage(
       {},
-      ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+      ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'],
       await testDefaults({ onlyBuiltDependencies: ['@pnpm.e2e/foo'], neverBuiltDependencies: ['@pnpm.e2e/bar'] })
     )
   ).rejects.toThrow(/Cannot have both/)
@@ -440,7 +440,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependencies', 
   const project = prepareEmpty()
   const onlyBuiltDependencies = ['@pnpm.e2e/install-script-example']
   const manifest = await addDependenciesToPackage({},
-    ['@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/install-script-example'],
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
     await testDefaults({ fastUnpack: false, onlyBuiltDependencies })
   )
 
@@ -465,7 +465,7 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependencies', 
 test('lockfile is updated if neverBuiltDependencies is changed', async () => {
   const project = prepareEmpty()
   const manifest = await addDependenciesToPackage({},
-    ['@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/install-script-example'],
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
     await testDefaults({ fastUnpack: false })
   )
 
@@ -494,7 +494,7 @@ test('lockfile is updated if neverBuiltDependencies is changed', async () => {
 test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
   const project = prepareEmpty()
   const manifest = await addDependenciesToPackage({},
-    ['@pnpm.e2e/pre-and-postinstall-scripts-example', '@pnpm.e2e/install-script-example'],
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0', '@pnpm.e2e/install-script-example'],
     await testDefaults({ fastUnpack: false })
   )
 
