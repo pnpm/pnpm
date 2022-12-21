@@ -37,14 +37,12 @@
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
-    "npm-packlist": "^5.1.3",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "npm-packlist": "^5.1.3"
   },
   "devDependencies": {
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/npm-packlist": "^3.0.0",
-    "@types/ramda": "0.28.20",
     "@zkochan/rimraf": "^2.1.2"
   },
   "exports": {

@@ -12,7 +12,6 @@ import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { KeyValuePair } from 'ramda'
 import isEmpty from 'ramda/src/isEmpty'
-import fromPairs from 'ramda/src/fromPairs'
 import mergeRight from 'ramda/src/mergeRight'
 import partition from 'ramda/src/partition'
 import { depPathToRef } from './depPathToRef'
@@ -199,7 +198,7 @@ function updateResolvedDeps (
   registries: Registries,
   depGraph: DependenciesGraph
 ) {
-  const newResolvedDeps = fromPairs<string>(
+  const newResolvedDeps = Object.fromEntries(
     updatedDeps
       .map(({ alias, depPath }): KeyValuePair<string, string> => {
         if (depPath.startsWith('link:')) {

@@ -8,7 +8,6 @@ import {
 } from '@pnpm/types'
 import { depPathToFilename, createPeersFolderSuffix } from '@pnpm/dependency-path'
 import { KeyValuePair } from 'ramda'
-import fromPairs from 'ramda/src/fromPairs'
 import isEmpty from 'ramda/src/isEmpty'
 import mapValues from 'ramda/src/map'
 import pick from 'ramda/src/pick'
@@ -117,7 +116,7 @@ function createPkgsByName<T extends PartialResolvedPackage> (
   }
 ) {
   return Object.assign(
-    fromPairs(
+    Object.fromEntries(
       topParents.map(({ name, version, linkedDir }): KeyValuePair<string, ParentRef> => [
         name,
         {
@@ -215,7 +214,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     ctx.depGraph[hit.depPath].depth = Math.min(ctx.depGraph[hit.depPath].depth, node.depth)
     return {
       missingPeers: hit.missingPeers,
-      resolvedPeers: fromPairs(hit.resolvedPeers),
+      resolvedPeers: Object.fromEntries(hit.resolvedPeers),
     }
   }
 

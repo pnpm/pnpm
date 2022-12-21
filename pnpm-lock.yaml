@@ -1226,9 +1226,6 @@ importers:
       npm-packlist:
         specifier: ^5.1.3
         version: 5.1.3
-      ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
-        version: /@pnpm/ramda/0.28.1
     devDependencies:
       '@pnpm/directory-fetcher':
         specifier: workspace:*
@@ -1239,9 +1236,6 @@ importers:
       '@types/npm-packlist':
         specifier: ^3.0.0
         version: 3.0.0
-      '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
       '@zkochan/rimraf':
         specifier: ^2.1.2
         version: 2.1.2
