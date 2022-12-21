@@ -48,7 +48,7 @@ export async function buildModules (
 
   const buildDepOpts = { ...opts, warn }
   if (opts.hoistedLocations) {
-    buildDepOpts['builtHoistedDeps'] = new Set<string>()
+    buildDepOpts['builtHoistedDeps'] = {}
   }
   const chunks = buildSequence(depGraph, rootDepPaths)
   const groups = chunks.map((chunk) => {
@@ -165,8 +165,10 @@ async function buildDependency (
   } finally {
     const hoistedLocationsOfDep = opts.hoistedLocations?.[depNode.depPath]
     if (hoistedLocationsOfDep) {
-      const rel = path.relative(opts.lockfileDir, depNode.dir)
-      const nonBuiltHoistedDeps = hoistedLocationsOfDep?.filter((hoistedLocation) => hoistedLocation !== rel)
+      // There is no need to build the same package in every location.
+      // We just copy the built package to every location where it is present.
+      const currentHoistedLocation = path.relative(opts.lockfileDir, depNode.dir)
+      const nonBuiltHoistedDeps = hoistedLocationsOfDep?.filter((hoistedLocation) => hoistedLocation !== currentHoistedLocation)
       await hardLinkDir(depNode.dir, nonBuiltHoistedDeps)
     }
     if (opts.builtHoistedDeps) {
