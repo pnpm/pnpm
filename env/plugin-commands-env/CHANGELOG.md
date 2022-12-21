@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-env
 
+## 3.1.11
+
+### Patch Changes
+
+- bc18d33fe: Allow the `-S` flag in command shims [pnpm/cmd-shim#42](https://github.com/pnpm/cmd-shim/pull/42).
+  - @pnpm/cli-utils@1.0.17
+  - @pnpm/config@16.1.11
+  - @pnpm/remove-bins@4.0.4
+  - @pnpm/node.fetcher@2.0.5
+  - @pnpm/fetch@6.0.5
+  - @pnpm/node.resolver@1.1.2
+
 ## 3.1.10
 
 ### Patch Changes

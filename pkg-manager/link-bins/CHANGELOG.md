@@ -1,5 +1,17 @@
 # @pnpm/link-bins
 
+## 8.0.5
+
+### Patch Changes
+
+- bc18d33fe: Allow the `-S` flag in command shims [pnpm/cmd-shim#42](https://github.com/pnpm/cmd-shim/pull/42).
+- Updated dependencies [b77651d14]
+  - @pnpm/types@8.10.0
+  - @pnpm/package-bins@7.0.3
+  - @pnpm/manifest-utils@4.1.3
+  - @pnpm/read-package-json@7.0.4
+  - @pnpm/read-project-manifest@4.1.2
+
 ## 8.0.4
 
 ### Patch Changes

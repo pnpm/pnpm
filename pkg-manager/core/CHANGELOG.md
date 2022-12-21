@@ -1,5 +1,51 @@
 # @pnpm/core
 
+## 7.4.0
+
+### Minor Changes
+
+- 2458741fa: When the hoisted node linker is used, preserve `node_modules` directories when linking new dependencies. This improves performance, when installing in a project that already has a `node_modules` directory [#5795](https://github.com/pnpm/pnpm/pull/5795).
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+- Updated dependencies [bc18d33fe]
+- Updated dependencies [2458741fa]
+- Updated dependencies [2458741fa]
+- Updated dependencies [6b00a8325]
+- Updated dependencies [3360c9f4b]
+- Updated dependencies [2458741fa]
+  - @pnpm/types@8.10.0
+  - @pnpm/link-bins@8.0.5
+  - @pnpm/store-controller-types@14.2.0
+  - @pnpm/headless@19.4.0
+  - @pnpm/lifecycle@14.1.4
+  - @pnpm/build-modules@10.1.0
+  - @pnpm/modules-yaml@11.1.0
+  - @pnpm/normalize-registries@4.0.3
+  - @pnpm/symlink-dependency@6.0.3
+  - @pnpm/hooks.read-package-hook@2.0.9
+  - @pnpm/filter-lockfile@7.0.5
+  - @pnpm/lockfile-file@6.0.5
+  - @pnpm/lockfile-to-pnp@2.0.6
+  - @pnpm/lockfile-utils@5.0.2
+  - @pnpm/lockfile-walker@6.0.4
+  - @pnpm/prune-lockfile@4.0.20
+  - @pnpm/core-loggers@8.0.3
+  - @pnpm/dependency-path@1.0.1
+  - @pnpm/get-context@8.0.5
+  - @pnpm/hoist@7.0.8
+  - @pnpm/modules-cleaner@13.0.6
+  - @pnpm/package-requester@20.0.5
+  - @pnpm/remove-bins@4.0.4
+  - @pnpm/resolve-dependencies@29.0.11
+  - @pnpm/manifest-utils@4.1.3
+  - @pnpm/read-package-json@7.0.4
+  - @pnpm/read-project-manifest@4.1.2
+  - @pnpm/resolver-base@9.1.5
+  - @pnpm/crypto.base32-hash@1.0.1
+  - @pnpm/pkg-manager.direct-dep-linker@1.0.2
+
 ## 7.3.0
 
 ### Minor Changes

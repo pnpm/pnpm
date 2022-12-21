@@ -1,5 +1,21 @@
 # @pnpm/outdated
 
+## 11.0.9
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+- Updated dependencies [2458741fa]
+  - @pnpm/types@8.10.0
+  - @pnpm/modules-yaml@11.1.0
+  - @pnpm/pick-registry-for-package@4.0.3
+  - @pnpm/lockfile-file@6.0.5
+  - @pnpm/lockfile-utils@5.0.2
+  - @pnpm/dependency-path@1.0.1
+  - @pnpm/manifest-utils@4.1.3
+  - @pnpm/npm-resolver@15.0.3
+  - @pnpm/client@8.1.3
+
 ## 11.0.8
 
 ### Patch Changes

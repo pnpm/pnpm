@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-publishing
 
+## 6.0.17
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+- Updated dependencies [6b00a8325]
+  - @pnpm/types@8.10.0
+  - @pnpm/lifecycle@14.1.4
+  - @pnpm/cli-utils@1.0.17
+  - @pnpm/config@16.1.11
+  - @pnpm/pick-registry-for-package@4.0.3
+  - @pnpm/package-bins@7.0.3
+  - @pnpm/exportable-manifest@4.0.5
+  - @pnpm/resolver-base@9.1.5
+  - @pnpm/sort-packages@4.0.3
+  - @pnpm/client@8.1.3
+
 ## 6.0.16
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/package-is-installable
 
+## 7.0.3
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+  - @pnpm/types@8.10.0
+  - @pnpm/core-loggers@8.0.3
+
 ## 7.0.2
 
 ### Patch Changes

@@ -126,7 +126,7 @@ importers:
         version: 6.0.2_@pnpm+logger@5.0.0
       '@pnpm/types':
         specifier: 8.9.0
-        version: link:../packages/types
+        version: 8.9.0
       '@types/normalize-path':
         specifier: ^3.0.0
         version: 3.0.0
@@ -17436,6 +17436,7 @@ time:
   /@pnpm/registry-mock/3.2.0: '2022-12-20T01:09:10.273Z'
   /@pnpm/semver-diff/1.1.0: '2021-11-16T12:40:59.941Z'
   /@pnpm/tabtab/0.1.2: '2021-03-05T17:31:19.932Z'
+  /@pnpm/types/8.9.0: '2022-11-09T23:07:02.862Z'
   /@pnpm/util.lex-comparator/1.0.0: '2022-11-04T01:03:46.134Z'
   /@types/adm-zip/0.5.0: '2022-04-01T08:01:50.776Z'
   /@types/archy/0.0.32: '2021-07-06T18:11:33.301Z'

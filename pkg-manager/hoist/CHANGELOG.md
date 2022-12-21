@@ -1,5 +1,19 @@
 # @pnpm/hoist
 
+## 7.0.8
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+- Updated dependencies [bc18d33fe]
+  - @pnpm/types@8.10.0
+  - @pnpm/link-bins@8.0.5
+  - @pnpm/lockfile-types@4.3.6
+  - @pnpm/lockfile-utils@5.0.2
+  - @pnpm/lockfile-walker@6.0.4
+  - @pnpm/core-loggers@8.0.3
+  - @pnpm/dependency-path@1.0.1
+
 ## 7.0.7
 
 ### Patch Changes

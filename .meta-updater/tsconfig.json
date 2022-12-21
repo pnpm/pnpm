@@ -9,9 +9,5 @@
     "src/**/*.ts",
     "../typings/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../packages/types"
-    }
-  ]
+  "references": []
 }

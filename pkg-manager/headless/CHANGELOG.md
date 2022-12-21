@@ -1,5 +1,41 @@
 # @pnpm/headless
 
+## 19.4.0
+
+### Minor Changes
+
+- 2458741fa: When the hoisted node linker is used, preserve `node_modules` directories when linking new dependencies. This improves performance, when installing in a project that already has a `node_modules` directory [#5795](https://github.com/pnpm/pnpm/pull/5795).
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+- Updated dependencies [bc18d33fe]
+- Updated dependencies [2458741fa]
+- Updated dependencies [6b00a8325]
+- Updated dependencies [3360c9f4b]
+- Updated dependencies [2458741fa]
+  - @pnpm/types@8.10.0
+  - @pnpm/link-bins@8.0.5
+  - @pnpm/store-controller-types@14.2.0
+  - @pnpm/lifecycle@14.1.4
+  - @pnpm/build-modules@10.1.0
+  - @pnpm/modules-yaml@11.1.0
+  - @pnpm/package-is-installable@7.0.3
+  - @pnpm/symlink-dependency@6.0.3
+  - @pnpm/filter-lockfile@7.0.5
+  - @pnpm/lockfile-file@6.0.5
+  - @pnpm/lockfile-to-pnp@2.0.6
+  - @pnpm/lockfile-utils@5.0.2
+  - @pnpm/core-loggers@8.0.3
+  - @pnpm/dependency-path@1.0.1
+  - @pnpm/hoist@7.0.8
+  - @pnpm/modules-cleaner@13.0.6
+  - @pnpm/package-requester@20.0.5
+  - @pnpm/read-package-json@7.0.4
+  - @pnpm/read-project-manifest@4.1.2
+  - @pnpm/pkg-manager.direct-dep-linker@1.0.2
+  - @pnpm/real-hoist@1.1.1
+
 ## 19.3.0
 
 ### Minor Changes

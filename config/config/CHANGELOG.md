@@ -1,5 +1,14 @@
 # @pnpm/config
 
+## 16.1.11
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+  - @pnpm/types@8.10.0
+  - @pnpm/pnpmfile@4.0.17
+  - @pnpm/read-project-manifest@4.1.2
+
 ## 16.1.10
 
 ### Patch Changes

@@ -1,5 +1,26 @@
 # @pnpm/build-modules
 
+## 10.1.0
+
+### Minor Changes
+
+- 3360c9f4b: When the hoisted `node-linker` is used, pnpm should not build the same package multiple times during installation. If a package is present at multipe locations because hoisting could not hoist them to a single directory, then the package should only built in one of the locations and copied to the rest.
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+- Updated dependencies [bc18d33fe]
+- Updated dependencies [2458741fa]
+- Updated dependencies [c9d3970e3]
+- Updated dependencies [6b00a8325]
+  - @pnpm/types@8.10.0
+  - @pnpm/link-bins@8.0.5
+  - @pnpm/store-controller-types@14.2.0
+  - @pnpm/fs.hard-link-dir@1.0.0
+  - @pnpm/lifecycle@14.1.4
+  - @pnpm/core-loggers@8.0.3
+  - @pnpm/read-package-json@7.0.4
+
 ## 10.0.7
 
 ### Patch Changes

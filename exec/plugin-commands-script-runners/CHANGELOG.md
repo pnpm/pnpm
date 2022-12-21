@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-script-runners
 
+## 6.1.0
+
+### Minor Changes
+
+- b77651d14: New setting supported in the `package.json` that is in the root of the workspace: `pnpm.requiredScripts`. Scripts listed in this array will be required in each project of the worksapce. Otherwise, `pnpm -r run <script name>` will fail [#5569](https://github.com/pnpm/pnpm/issues/5569).
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+- Updated dependencies [6b00a8325]
+  - @pnpm/types@8.10.0
+  - @pnpm/lifecycle@14.1.4
+  - @pnpm/plugin-commands-installation@11.1.4
+  - @pnpm/cli-utils@1.0.17
+  - @pnpm/config@16.1.11
+  - @pnpm/package-bins@7.0.3
+  - @pnpm/read-package-json@7.0.4
+  - @pnpm/read-project-manifest@4.1.2
+  - @pnpm/sort-packages@4.0.3
+
 ## 6.0.16
 
 ### Patch Changes

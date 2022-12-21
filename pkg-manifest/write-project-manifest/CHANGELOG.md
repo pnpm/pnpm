@@ -1,5 +1,12 @@
 # @pnpm/write-project-manifest
 
+## 4.1.2
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+  - @pnpm/types@8.10.0
+
 ## 4.1.1
 
 ### Patch Changes

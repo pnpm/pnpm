@@ -1,5 +1,15 @@
 # @pnpm/remove-bins
 
+## 4.0.4
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+  - @pnpm/types@8.10.0
+  - @pnpm/core-loggers@8.0.3
+  - @pnpm/package-bins@7.0.3
+  - @pnpm/read-package-json@7.0.4
+
 ## 4.0.3
 
 ### Patch Changes

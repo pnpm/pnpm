@@ -1,5 +1,16 @@
 # @pnpm/modules-yaml
 
+## 11.1.0
+
+### Minor Changes
+
+- 2458741fa: New field saved in the modules state file: `hoistedLocations`. This field maps the locations of dependencies, when `node-linker=hoisted` is used.
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+  - @pnpm/types@8.10.0
+
 ## 11.0.2
 
 ### Patch Changes

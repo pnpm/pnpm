@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-patching
 
+## 2.0.17
+
+### Patch Changes
+
+- e8aafe393: `pnpm patch` should print instructions about how to commit the changes.
+  - @pnpm/plugin-commands-installation@11.1.4
+  - @pnpm/cli-utils@1.0.17
+  - @pnpm/config@16.1.11
+  - @pnpm/pick-registry-for-package@4.0.3
+  - @pnpm/read-package-json@7.0.4
+  - @pnpm/read-project-manifest@4.1.2
+  - @pnpm/store-connection-manager@5.1.10
+
 ## 2.0.16
 
 ### Patch Changes

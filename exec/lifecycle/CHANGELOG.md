@@ -1,5 +1,18 @@
 # @pnpm/lifecycle
 
+## 14.1.4
+
+### Patch Changes
+
+- 6b00a8325: Don't relink injected directories if they were not built.
+- Updated dependencies [b77651d14]
+- Updated dependencies [2458741fa]
+  - @pnpm/types@8.10.0
+  - @pnpm/store-controller-types@14.2.0
+  - @pnpm/core-loggers@8.0.3
+  - @pnpm/read-package-json@7.0.4
+  - @pnpm/directory-fetcher@5.1.3
+
 ## 14.1.3
 
 ### Patch Changes

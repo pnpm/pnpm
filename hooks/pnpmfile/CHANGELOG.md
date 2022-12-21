@@ -1,5 +1,18 @@
 # @pnpm/pnpmfile
 
+## 4.0.17
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+- Updated dependencies [2458741fa]
+- Updated dependencies [2458741fa]
+  - @pnpm/types@8.10.0
+  - @pnpm/store-controller-types@14.2.0
+  - @pnpm/core@7.4.0
+  - @pnpm/lockfile-types@4.3.6
+  - @pnpm/core-loggers@8.0.3
+
 ## 4.0.16
 
 ### Patch Changes

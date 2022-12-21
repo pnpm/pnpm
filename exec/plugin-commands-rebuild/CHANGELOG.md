@@ -1,5 +1,34 @@
 # @pnpm/plugin-commands-rebuild
 
+## 7.0.17
+
+### Patch Changes
+
+- c9d3970e3: `pnpm rebuild` should work in projects that use the hoister node linker [#5560](https://github.com/pnpm/pnpm/issues/5560).
+- Updated dependencies [b77651d14]
+- Updated dependencies [bc18d33fe]
+- Updated dependencies [2458741fa]
+- Updated dependencies [c9d3970e3]
+- Updated dependencies [6b00a8325]
+- Updated dependencies [2458741fa]
+  - @pnpm/types@8.10.0
+  - @pnpm/link-bins@8.0.5
+  - @pnpm/store-controller-types@14.2.0
+  - @pnpm/fs.hard-link-dir@1.0.0
+  - @pnpm/lifecycle@14.1.4
+  - @pnpm/modules-yaml@11.1.0
+  - @pnpm/cli-utils@1.0.17
+  - @pnpm/config@16.1.11
+  - @pnpm/normalize-registries@4.0.3
+  - @pnpm/lockfile-utils@5.0.2
+  - @pnpm/lockfile-walker@6.0.4
+  - @pnpm/core-loggers@8.0.3
+  - @pnpm/dependency-path@1.0.1
+  - @pnpm/get-context@8.0.5
+  - @pnpm/find-workspace-packages@5.0.17
+  - @pnpm/sort-packages@4.0.3
+  - @pnpm/store-connection-manager@5.1.10
+
 ## 7.0.16
 
 ### Patch Changes
