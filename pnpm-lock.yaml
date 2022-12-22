@@ -1046,6 +1046,9 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
