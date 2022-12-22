@@ -13,6 +13,7 @@ overrides:
   js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.6
   nopt@5: npm:@pnpm/nopt@^0.2.1
   clipanion: 3.2.0-rc.6
+  jsonwebtoken@<=8.5.1: '>=9.0.0'
 
 packageExtensionsChecksum: 66c6aa53b7057053eae6c4a5ea9612f3
 
@@ -13300,20 +13301,14 @@ packages:
     resolution: {integrity: sha512-POQXvpdL69+CluYsillJ7SUhKvytYjW9vG/GKpnf+xP8UWgYEM/RaMzHHofbALDiKbbP1W8UEYmgGl39WkPZsg==}
     engines: {'0': node >= 0.2.0}
 
-  /jsonwebtoken/8.5.1:
-    resolution: {integrity: sha512-XjwVfRS6jTMsqYs0EsuJ4LGxXV14zQybNd4L2r0UvbVnSF9Af8x7p5MzbJ90Ioz/9TI41/hTCvznF/loiSzn8w==}
-    engines: {node: '>=4', npm: '>=1.4.28'}
+  /jsonwebtoken/9.0.0:
+    resolution: {integrity: sha512-tuGfYXxkQGDPnLJ7SibiQgVgeDgfbPq2k2ICcbgqW8WxWLBAxKQM/ZCu/IT8SOSwmaYl4dpTFCW5xZv7YbbWUw==}
+    engines: {node: '>=12', npm: '>=6'}
     dependencies:
       jws: 3.2.2
-      lodash.includes: 4.3.0
-      lodash.isboolean: 3.0.3
-      lodash.isinteger: 4.0.4
-      lodash.isnumber: 3.0.3
-      lodash.isplainobject: 4.0.6
-      lodash.isstring: 4.0.1
-      lodash.once: 4.1.1
+      lodash: 4.17.21
       ms: 2.1.3
-      semver: 5.7.1
+      semver: 7.3.8
 
   /jsprim/1.4.2:
     resolution: {integrity: sha512-P2bSOMAc/ciLz6DzgjVlGJP9+BrJWu5UDGK70C2iweC5QBIeFf0ZXRvGjEj2uYgrY2MkAAhsSWHDWlFtEroZWw==}
@@ -13503,21 +13498,9 @@ packages:
     resolution: {integrity: sha512-z+Uw/vLuy6gQe8cfaFWD7p0wVv8fJl3mbzXh33RS+0oW2wvUqiRXiQ69gLWSLpgB5/6sU+r6BlQR0MBILadqTQ==}
     dev: true
 
-  /lodash.includes/4.3.0:
-    resolution: {integrity: sha512-W3Bx6mdkRTGtlJISOvVD/lbqjTlPPUDTMnlXZFnVwi9NKJ6tiAk6LVdlhZMm17VZisqhKcgzpO5Wz91PCt5b0w==}
-
-  /lodash.isboolean/3.0.3:
-    resolution: {integrity: sha512-Bz5mupy2SVbPHURB98VAcw+aHh4vRV5IPNhILUCsOzRmsTmSQ17jIuqopAentWoehktxGd9e/hbIXq980/1QJg==}
-
   /lodash.isfunction/3.0.9:
     resolution: {integrity: sha512-AirXNj15uRIMMPihnkInB4i3NHeb4iBtNg9WRWuK2o31S+ePwwNmDPaTL3o7dTJ+VXNZim7rFs4rxN4YU1oUJw==}
     dev: true
-
-  /lodash.isinteger/4.0.4:
-    resolution: {integrity: sha512-DBwtEWN2caHQ9/imiNeEA5ys1JoRtRfY3d7V9wkqtbycnAmTvRRmbHKDV4a0EYc678/dia0jrte4tjYwVBaZUA==}
-
-  /lodash.isnumber/3.0.3:
-    resolution: {integrity: sha512-QYqzpfwO3/CWf3XP+Z+tkQsfaLL/EnUlXWVkIk5FUPc4sBdTehEqZONuyRt2P67PXAk+NXmTBcc97zw9t1FQrw==}
 
   /lodash.isobject/3.0.2:
     resolution: {integrity: sha512-3/Qptq2vr7WeJbB4KHUSKlq8Pl7ASXi3UG6CMbBm8WRtXi8+GHm7mKaU3urfpSEzWe2wCIChs6/sdocUsTKJiA==}
@@ -13525,9 +13508,7 @@ packages:
 
   /lodash.isplainobject/4.0.6:
     resolution: {integrity: sha512-oSXzaWypCMHkPC3NvBEaPHf0KsA5mvPrOPgQWDsbg8n7orZ290M0BmC/jgRZ4vcJ6DTAhjrsSYgdsW/F+MFOBA==}
-
-  /lodash.isstring/4.0.1:
-    resolution: {integrity: sha512-0wJxfxH1wgO3GrbuP+dTTk7op+6L41QCXbGINEmD+ny/G/eCqGzxyCsh7159S+mgDDcoarnBw6PC1PS5+wUGgw==}
+    dev: true
 
   /lodash.isundefined/3.0.1:
     resolution: {integrity: sha512-MXB1is3s899/cD8jheYYE2V9qTHwKvt+npCwpD+1Sxm3Q3cECXCiYHjeHWXNwr6Q0SOBPrYUDxendrO6goVTEA==}
@@ -13547,9 +13528,6 @@ packages:
   /lodash.mergewith/4.6.2:
     resolution: {integrity: sha512-GK3g5RPZWTRSeLSpgP8Xhra+pnjBC56q9FZYe1d5RN3TJ35dbkGy3YqBSMbyCrlbi+CM9Z3Jk5yTL7RCsqboyQ==}
     dev: true
-
-  /lodash.once/4.1.1:
-    resolution: {integrity: sha512-Sb487aTOCr9drQVL8pIxOzVhafOjZN9UU54hiN8PU3uAiSV7lx1yYNpbNmex2PK6dSJoNTSJUUswT651yww3Mg==}
 
   /lodash.snakecase/4.1.1:
     resolution: {integrity: sha512-QZ1d4xoBHYUeuouhEq3lk3Uq7ldgyFXGBhg04+oRLnIz8o9T65Eh+8YdroUwn846zchkA9yDsDl5CVVaV2nqYw==}
@@ -16975,7 +16953,7 @@ packages:
       handlebars: 4.7.7
       http-errors: 2.0.0
       js-yaml: /@zkochan/js-yaml/0.0.6
-      jsonwebtoken: 8.5.1
+      jsonwebtoken: 9.0.0
       kleur: 4.1.5
       lodash: 4.17.21
       lru-cache: 7.14.0
