@@ -4,6 +4,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
+import { PnpmError } from '@pnpm/error'
 import { getContext, PnpmContext } from '@pnpm/get-context'
 import {
   runLifecycleHooksConcurrently,
@@ -276,6 +277,11 @@ async function _rebuild (
       const pkgRoots = opts.nodeLinker === 'hoisted'
         ? (ctx.modulesFile?.hoistedLocations?.[depPath] ?? []).map((hoistedLocation) => path.join(opts.lockfileDir, hoistedLocation))
         : [path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules', pkgInfo.name)]
+      if (pkgRoots.length === 0) {
+        throw new PnpmError('MISSING_HOISTED_LOCATIONS', `${depPath} is not found in hoistedLocations inside node_modules/.modules.yaml`, {
+          hint: 'If you installed your node_modules with pnpm older than v7.19.0, you may need to remove it and run "pnpm install"',
+        })
+      }
       const pkgRoot = pkgRoots[0]
       try {
         const extraBinPaths = ctx.extraBinPaths
