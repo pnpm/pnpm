@@ -1,6 +1,6 @@
 import path from 'path'
-import readIniFile from 'read-ini-file'
-import writeIniFile from 'write-ini-file'
+import { readIniFile } from 'read-ini-file'
+import { writeIniFile } from 'write-ini-file'
 import { ConfigCommandOptions } from './ConfigCommandOptions'
 
 export async function configSet (opts: ConfigCommandOptions, key: string, value: string | null) {

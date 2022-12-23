@@ -20,11 +20,6 @@ declare module 'path-name' {
   export = pathname;
 }
 
-declare module 'read-ini-file' {
-  function readIniFile (filename: string): Promise<Object>;
-  export = readIniFile;
-}
-
 declare module 'right-pad' {
   function rightPad (txt: string, size: number): string;
   export = rightPad;

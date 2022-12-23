@@ -151,11 +151,6 @@ declare module 'string.prototype.replaceall' {
   export = anything
 }
 
-declare module 'write-ini-file' {
-  const anything: any
-  export = anything
-}
-
 declare module 'ramda/src/map' {
   function map <K extends string | number | symbol, V, U> (fn: (x: V) => U, obj: Record<K, V>): Record<K, U>
   export = map

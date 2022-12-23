@@ -50,7 +50,7 @@
     "path-absolute": "^1.0.1",
     "path-name": "^1.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "read-ini-file": "^3.1.0",
+    "read-ini-file": "4.0.0",
     "realpath-missing": "^1.1.0",
     "which": "^3.0.0"
   },
