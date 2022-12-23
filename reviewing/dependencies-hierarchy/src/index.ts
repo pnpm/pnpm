@@ -145,7 +145,6 @@ async function dependenciesHierarchyForPackage (
       const { packageInfo, packageAbsolutePath } = getPkgInfo({
         alias,
         currentPackages: currentLockfile.packages ?? {},
-        lockfileDir: opts.lockfileDir,
         modulesDir,
         ref,
         registries: opts.registries,
@@ -226,7 +225,6 @@ function getAllDirectDependencies (projectSnapshot: ProjectSnapshot) {
 interface GetTreeOpts {
   currentDepth: number
   maxDepth: number
-  lockfileDir: string
   modulesDir: string
   includeOptionalDependencies: boolean
   search?: SearchFunction
@@ -277,7 +275,6 @@ function getTreeHelper (
     const { packageInfo, packageAbsolutePath } = getPkgInfo({
       alias,
       currentPackages: opts.currentPackages,
-      lockfileDir: opts.lockfileDir,
       modulesDir: opts.modulesDir,
       peers,
       ref,
@@ -343,7 +340,6 @@ function getTreeHelper (
 function getPkgInfo (
   opts: {
     alias: string
-    lockfileDir: string
     modulesDir: string
     ref: string
     currentPackages: PackageSnapshots
