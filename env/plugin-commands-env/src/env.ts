@@ -83,7 +83,9 @@ export function help () {
 
 export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
   if (params.length === 0) {
-    throw new PnpmError('ENV_NO_SUBCOMMAND', 'Please specify the subcommand')
+    throw new PnpmError('ENV_NO_SUBCOMMAND', 'Please specify the subcommand', {
+      hint: help(),
+    })
   }
   switch (params[0]) {
   case 'use': {
