@@ -11,11 +11,10 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return {
     global: Boolean,
-    remote: Boolean,
   }
 }
 
-export const commandNames = ['c']
+export const commandNames = ['config', 'c']
 
 export function help () {
   return renderHelp({
@@ -64,7 +63,9 @@ export function help () {
 
 export async function handler (opts: ConfigCommandOptions, params: string[]) {
   if (params.length === 0) {
-    throw new PnpmError('ENV_NO_SUBCOMMAND', 'Please specify the subcommand')
+    throw new PnpmError('ENV_NO_SUBCOMMAND', 'Please specify the subcommand', {
+      hint: help(),
+    })
   }
   switch (params[0]) {
   case 'set': {
