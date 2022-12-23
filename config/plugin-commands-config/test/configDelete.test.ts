@@ -4,11 +4,12 @@ import { tempDir } from '@pnpm/prepare'
 import { config } from '@pnpm/plugin-commands-config'
 import { readIniFileSync } from 'read-ini-file'
 
-test('config set', async () => {
+test('config delete', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(path.join(configDir, 'rc'), 'store-dir=~/store')
+  fs.writeFileSync(path.join(configDir, 'rc'), `store-dir=~/store
+cache-dir=~/cache`)
 
   await config.handler({
     dir: process.cwd(),
@@ -16,10 +17,9 @@ test('config set', async () => {
     global: true,
     rawConfig: {},
     rawLocalConfig: {},
-  }, ['set', 'fetch-retries', '1'])
+  }, ['delete', 'store-dir'])
 
   expect(readIniFileSync(path.join(configDir, 'rc'))).toEqual({
-    'store-dir': '~/store',
-    'fetch-retries': '1',
+    'cache-dir': '~/cache',
   })
 })
