@@ -5,7 +5,16 @@ import { ConfigCommandOptions } from './ConfigCommandOptions'
 
 export async function configSet (opts: ConfigCommandOptions, key: string, value: string) {
   const configPath = opts.global ? path.join(opts.configDir, 'rc') : path.join(opts.dir, '.npmrc')
-  const settings = await readIniFile(configPath)
+  const settings = await safeReadIniFile(configPath)
   settings[key] = value
   await writeIniFile(configPath, settings)
+}
+
+async function safeReadIniFile (configPath: string) {
+  try {
+    return await readIniFile(configPath)
+  } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (err.code === 'ENOENT') return {}
+    throw err
+  }
 }

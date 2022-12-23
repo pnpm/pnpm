@@ -724,6 +724,9 @@ importers:
       '@pnpm/plugin-commands-config':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
 
   env/node.fetcher:
     dependencies:

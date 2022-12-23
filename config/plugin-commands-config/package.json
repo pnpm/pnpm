@@ -40,7 +40,8 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/logger": "^5.0.0",
-    "@pnpm/plugin-commands-config": "workspace:*"
+    "@pnpm/plugin-commands-config": "workspace:*",
+    "@pnpm/prepare": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"
