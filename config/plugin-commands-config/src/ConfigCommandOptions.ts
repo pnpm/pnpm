@@ -5,4 +5,5 @@ export type ConfigCommandOptions = Pick<Config,
 | 'dir'
 | 'global'
 | 'rawConfig'
+| 'rawLocalConfig'
 >

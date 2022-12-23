@@ -1,5 +1,8 @@
 import { ConfigCommandOptions } from './ConfigCommandOptions'
 
 export function configGet (opts: ConfigCommandOptions, key: string) {
-  return opts.rawConfig[key]
+  if (opts.global) {
+    return opts.rawConfig[key]
+  }
+  return opts.rawLocalConfig[key]
 }

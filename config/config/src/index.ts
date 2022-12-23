@@ -175,6 +175,10 @@ export async function getConfig (
     cliOptions.dir = await realpathMissing(cliOptions.dir)
     cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
+  if (!cliOptions.configDir) {
+    cliOptions.configDir = getConfigDir(process)
+  }
+  cliOptions['globalPnpmConfig'] = path.join(cliOptions.configDir as string, 'rc')
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
   const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, {
     'auto-install-peers': false,
@@ -427,9 +431,6 @@ export async function getConfig (
   }
   if (!pnpmConfig.stateDir) {
     pnpmConfig.stateDir = getStateDir(process)
-  }
-  if (!pnpmConfig.configDir) {
-    pnpmConfig.configDir = getConfigDir(process)
   }
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern
