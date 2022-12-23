@@ -697,6 +697,22 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  config/plugin-commands-config:
+    dependencies:
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../config
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+    devDependencies:
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/plugin-commands-config':
+        specifier: workspace:*
+        version: 'link:'
+
   env/node.fetcher:
     dependencies:
       '@pnpm/create-cafs-store':
