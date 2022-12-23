@@ -15,11 +15,11 @@ export function cliOptionsTypes () {
   }
 }
 
-export const commandNames = ['env']
+export const commandNames = ['c']
 
 export function help () {
   return renderHelp({
-    description: 'Manage Node.js versions.',
+    description: 'Manage the pnpm configuration files.',
     descriptionLists: [
       {
         title: 'Commands',
@@ -68,7 +68,7 @@ export async function handler (opts: ConfigCommandOptions, params: string[]) {
   }
   switch (params[0]) {
   case 'set': {
-    return configSet(opts, params.slice(1))
+    return configSet(opts, params[1], params[2])
   }
   default: {
     throw new PnpmError('ENV_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')

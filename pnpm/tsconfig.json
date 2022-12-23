@@ -46,6 +46,9 @@
       "path": "../config/pick-registry-for-package"
     },
     {
+      "path": "../config/plugin-commands-config"
+    },
+    {
       "path": "../env/plugin-commands-env"
     },
     {

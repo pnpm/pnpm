@@ -28,8 +28,6 @@ const argv = process.argv.slice(2)
   case 'access':
   case 'adduser':
   case 'bugs':
-  case 'c':
-  case 'config':
   case 'deprecate':
   case 'dist-tag':
   case 'docs':

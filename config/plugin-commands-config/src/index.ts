@@ -1,4 +1,3 @@
-import * as env from './env'
-import * as node from './node'
+import * as config from './config'
 
-export { env, node }
+export { config }

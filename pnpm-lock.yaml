@@ -699,12 +699,24 @@ importers:
 
   config/plugin-commands-config:
     dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
       '@pnpm/config':
         specifier: workspace:*
         version: link:../config
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      read-ini-file:
+        specifier: ^3.1.0
+        version: 3.1.0
+      render-help:
+        specifier: ^1.0.2
+        version: 1.0.2
+      write-ini-file:
+        specifier: 4.0.0
+        version: 4.0.0
     devDependencies:
       '@pnpm/logger':
         specifier: ^5.0.0
@@ -3972,6 +3984,9 @@ importers:
       '@pnpm/plugin-commands-audit':
         specifier: workspace:*
         version: link:../lockfile/plugin-commands-audit
+      '@pnpm/plugin-commands-config':
+        specifier: workspace:*
+        version: link:../config/plugin-commands-config
       '@pnpm/plugin-commands-deploy':
         specifier: workspace:*
         version: link:../releasing/plugin-commands-deploy
@@ -12374,6 +12389,11 @@ packages:
     resolution: {integrity: sha512-7PnF4oN3CvZF23ADhA5wRaYEQpJ8qygSkbtTXWBeXWXmEVRXK+1ITciHWwHhsjv1TmW0MgacIv6hEi5pX5NQdA==}
     engines: {node: '>=10'}
 
+  /ini/3.0.1:
+    resolution: {integrity: sha512-it4HyVAUTKBc6m8e1iXWvXSTdndF7HbdN713+kvLrymxTaU4AUBWrJ4vEooP+V7fexnVD3LKcBshjGGPefSMUQ==}
+    engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
+    dev: false
+
   /inquirer/6.5.2:
     resolution: {integrity: sha512-cntlB5ghuB0iuO65Ovoi8ogLHiWGs/5yNrtUcKjFhSSiVeAIVpD7koaSU9RM8mpXw5YDi9RdYXGQMaOURB7ycQ==}
     engines: {node: '>=6.0.0'}
@@ -17210,6 +17230,15 @@ packages:
       imurmurhash: 0.1.4
       signal-exit: 3.0.7
 
+  /write-ini-file/4.0.0:
+    resolution: {integrity: sha512-o43++IKaOeIxjxflvFH4BQvkpDsiqqH2I6qsz8Az2uyWAq0Gw6Mrc2JYSmGKoARE9j7jz/X/hTmPZi6B1XKT8g==}
+    engines: {node: '>=14.6'}
+    dependencies:
+      ini: 3.0.1
+      make-dir: 3.1.0
+      write-file-atomic: 5.0.0
+    dev: false
+
   /write-json-file/3.2.0:
     resolution: {integrity: sha512-3xZqT7Byc2uORAatYiP3DHUUAVEkNOswEWNs9H5KXiicRTvzYzYqKjYc4G7p+8pltvAw641lVByKVtMpf+4sYQ==}
     engines: {node: '>=6'}
@@ -17646,6 +17675,7 @@ time:
   /which/3.0.0: '2022-11-01T19:20:24.475Z'
   /wrap-ansi/7.0.0: '2020-04-22T16:53:23.889Z'
   /write-file-atomic/5.0.0: '2022-10-14T05:22:38.937Z'
+  /write-ini-file/4.0.0: '2022-12-23T13:45:29.905Z'
   /write-json-file/4.3.0: '2020-02-07T08:54:49.528Z'
   /write-json5-file/3.1.0: '2021-02-11T22:54:24.439Z'
   /write-pkg/4.0.0: '2019-04-29T10:37:09.855Z'
