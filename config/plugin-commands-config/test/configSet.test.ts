@@ -14,6 +14,7 @@ test('install Node (and npm, npx) by exact version of Node.js', async () => {
     configDir,
     global: true,
     rawConfig: {},
+    rawLocalConfig: {},
   }, ['set', 'fetch-retries', '1'])
 
   expect(fs.readFileSync(path.join(configDir, 'rc'), 'utf8')).toBe(`store-dir=~/store

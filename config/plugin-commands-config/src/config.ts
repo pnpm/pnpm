@@ -25,12 +25,16 @@ export function help () {
         title: 'Commands',
         list: [
           {
-            description: 'Sets the config key to the value provided',
+            description: 'Set the config key to the value provided',
             name: 'set',
           },
           {
             description: 'Print the config value for the provided key',
             name: 'get',
+          },
+          {
+            description: 'Remove the config key from the config file',
+            name: 'delete',
           },
         ],
       },
@@ -49,6 +53,7 @@ export function help () {
     usages: [
       'pnpm config set <key> <value>',
       'pnpm config get <key>',
+      'pnpm config delete <key>',
     ],
   })
 }
@@ -61,10 +66,13 @@ export async function handler (opts: ConfigCommandOptions, params: string[]) {
   }
   switch (params[0]) {
   case 'set': {
-    return configSet(opts, params[1], params[2])
+    return configSet(opts, params[1], params[2] ?? '')
   }
   case 'get': {
     return configGet(opts, params[1])
+  }
+  case 'delete': {
+    return configSet(opts, params[1], null)
   }
   default: {
     throw new PnpmError('CONFIG_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')

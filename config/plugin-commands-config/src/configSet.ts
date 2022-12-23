@@ -3,10 +3,15 @@ import readIniFile from 'read-ini-file'
 import writeIniFile from 'write-ini-file'
 import { ConfigCommandOptions } from './ConfigCommandOptions'
 
-export async function configSet (opts: ConfigCommandOptions, key: string, value: string) {
+export async function configSet (opts: ConfigCommandOptions, key: string, value: string | null) {
   const configPath = opts.global ? path.join(opts.configDir, 'rc') : path.join(opts.dir, '.npmrc')
   const settings = await safeReadIniFile(configPath)
-  settings[key] = value
+  if (value == null) {
+    if (settings[key] == null) return
+    delete settings[key]
+  } else {
+    settings[key] = value
+  }
   await writeIniFile(configPath, settings)
 }
 
