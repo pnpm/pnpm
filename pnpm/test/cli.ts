@@ -50,13 +50,6 @@ test('pnpm import does not move modules created by npm', async () => {
   expect(packageManifestInodeBefore).toBe(packageManifestInodeAfter)
 })
 
-test('pass through to npm CLI for commands that are not supported by npm', () => {
-  const result = execPnpmSync(['config', 'get', 'user-agent'])
-
-  expect(result.status).toBe(0)
-  expect(result.stdout.toString()).toMatch(/npm\//) // command returned correct result
-})
-
 test('pass through to npm with all the args', async () => {
   prepare()
   await rimraf('package.json')
