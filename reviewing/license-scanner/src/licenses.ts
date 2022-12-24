@@ -19,6 +19,7 @@ export interface LicensePackage {
   licenseContents?: string
   author?: string
   homepage?: string
+  description?: string
   repository?: string
   path?: string
 }
@@ -52,6 +53,7 @@ function getDependenciesFromLicenseNode (
         licenseContents: dependencyNode.licenseContents,
         author: dependencyNode.author as string,
         homepage: dependencyNode.homepage as string,
+        description: dependencyNode.description,
         repository: dependencyNode.repository as string,
         path: dependencyNode.dir,
       },
