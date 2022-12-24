@@ -175,10 +175,6 @@ export async function getConfig (
     cliOptions.dir = await realpathMissing(cliOptions.dir)
     cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
-  if (!cliOptions.configDir) {
-    cliOptions.configDir = getConfigDir(process)
-  }
-  cliOptions['globalPnpmConfig'] = path.join(cliOptions.configDir as string, 'rc')
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
   const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, {
     'auto-install-peers': false,
@@ -239,7 +235,15 @@ export async function getConfig (
     'registry-supports-time-field': false,
   })
 
-  npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
+  const configDir = getConfigDir(process)
+  {
+    const warn = npmConfig.addFile(path.join(configDir as string, 'rc'), 'pnpm-global')
+    if (warn) warnings.push(warn)
+  }
+  {
+    const warn = npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
+    if (warn) warnings.push(warn)
+  }
 
   delete cliOptions.prefix
 
@@ -256,6 +260,7 @@ export async function getConfig (
   pnpmConfig.maxSockets = npmConfig.maxsockets
   delete pnpmConfig['maxsockets']
 
+  pnpmConfig.configDir = configDir
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
   pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [

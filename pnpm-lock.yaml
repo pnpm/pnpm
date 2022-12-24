@@ -541,8 +541,8 @@ importers:
         specifier: workspace:*
         version: link:../matcher
       '@pnpm/npm-conf':
-        specifier: 2.1.0
-        version: 2.1.0
+        specifier: 2.0.0
+        version: 2.0.0
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
@@ -7925,6 +7925,14 @@ packages:
       normalize-registry-url: 2.0.0
     dev: true
 
+  /@pnpm/npm-conf/2.0.0:
+    resolution: {integrity: sha512-Ot3xJvdbRQ3fwtDeRYMik/97BbCKij9ZupSgY1tJLCzPPgYRTIIjwdOBHQX2qGbwqNeKd6EneMyKAAsUMO09Bw==}
+    engines: {node: '>=12'}
+    dependencies:
+      '@pnpm/network.ca-file': 1.0.2
+      config-chain: 1.1.13
+    dev: false
+
   /@pnpm/npm-conf/2.0.4:
     resolution: {integrity: sha512-xWjBhnntYvAjYt1alEoFJiThMe0ZhSY7iZuxBUR+DH3tH2RyGrP2KU75NZfo/jhc3dSBUqZrd1DnIIgkQ0WyKw==}
     engines: {node: '>=12'}
@@ -7933,15 +7941,6 @@ packages:
       '@pnpm/network.ca-file': 1.0.2
       config-chain: 1.1.13
     dev: true
-
-  /@pnpm/npm-conf/2.1.0:
-    resolution: {integrity: sha512-Oe6ntvgsMTE3hDIqy6sajqHF+MnzJrOF06qC2QSiUEybLL7cp6tjoKUa32gpd9+KPVl4QyMs3E3nsXrx/Vdnlw==}
-    engines: {node: '>=12'}
-    dependencies:
-      '@pnpm/config.env-replace': 1.0.0
-      '@pnpm/network.ca-file': 1.0.2
-      config-chain: 1.1.13
-    dev: false
 
   /@pnpm/npm-lifecycle/2.0.0_typanion@3.12.1:
     resolution: {integrity: sha512-613qs9UwSFFVhXPv94Rt3tpJGv/D6mkHkZsByhHgBJII9gJXQ+bq4uru8y5q5g/kggS0raNH+18YGd9eu0Nawg==}
@@ -17490,7 +17489,7 @@ time:
   /@pnpm/meta-updater/0.2.2: '2022-11-18T12:00:42.706Z'
   /@pnpm/network.agent/0.0.4: '2022-11-21T01:38:39.074Z'
   /@pnpm/nopt/0.2.1: '2021-06-01T19:45:54.552Z'
-  /@pnpm/npm-conf/2.1.0: '2022-12-23T16:08:03.626Z'
+  /@pnpm/npm-conf/2.0.0: '2022-07-31T00:06:52.248Z'
   /@pnpm/npm-lifecycle/2.0.0: '2022-11-30T19:58:42.868Z'
   /@pnpm/npm-package-arg/1.0.0: '2022-06-28T12:48:31.287Z'
   /@pnpm/os.env.path-extender/0.2.8: '2022-11-21T01:38:43.315Z'
