@@ -1,6 +1,6 @@
 import { config } from '@pnpm/plugin-commands-config'
 
-test('config get --global', async () => {
+test('config get', async () => {
   const configKey = await config.handler({
     dir: process.cwd(),
     configDir: process.cwd(),
@@ -12,17 +12,4 @@ test('config get --global', async () => {
   }, ['get', 'store-dir'])
 
   expect(configKey).toEqual('~/store')
-})
-
-test('config get', async () => {
-  const configKey = await config.handler({
-    dir: process.cwd(),
-    configDir: process.cwd(),
-    rawConfig: {},
-    rawLocalConfig: {
-      'fetch-retries': '2',
-    },
-  }, ['get', 'fetch-retries'])
-
-  expect(configKey).toEqual('2')
 })
