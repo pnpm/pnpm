@@ -3,6 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import renderHelp from 'render-help'
 import { configGet } from './configGet'
 import { configSet } from './configSet'
+import { configList } from './configList'
 import { ConfigCommandOptions } from './ConfigCommandOptions'
 
 export function rcOptionsTypes () {
@@ -12,6 +13,7 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return {
     global: Boolean,
+    json: Boolean,
   }
 }
 
@@ -36,6 +38,10 @@ export function help () {
             description: 'Remove the config key from the config file',
             name: 'delete',
           },
+          {
+            description: 'Show all the config settings',
+            name: 'list',
+          },
         ],
       },
       {
@@ -54,6 +60,7 @@ export function help () {
       'pnpm config set <key> <value>',
       'pnpm config get <key>',
       'pnpm config delete <key>',
+      'pnpm config list',
     ],
   })
 }
@@ -73,6 +80,9 @@ export async function handler (opts: ConfigCommandOptions, params: string[]) {
   }
   case 'delete': {
     return configSet(opts, params[1], null)
+  }
+  case 'list': {
+    return configList(opts)
   }
   default: {
     throw new PnpmError('CONFIG_UNKNOWN_SUBCOMMAND', 'This subcommand is not known')

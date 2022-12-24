@@ -708,12 +708,18 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      ini:
+        specifier: 3.0.1
+        version: 3.0.1
       read-ini-file:
         specifier: 4.0.0
         version: 4.0.0
       render-help:
         specifier: ^1.0.2
         version: 1.0.2
+      sort-keys:
+        specifier: ^4.2.0
+        version: 4.2.0
       write-ini-file:
         specifier: 4.0.1
         version: 4.0.1
@@ -727,6 +733,9 @@ importers:
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
+      '@types/ini':
+        specifier: 1.3.31
+        version: 1.3.31
 
   env/node.fetcher:
     dependencies:
@@ -8566,6 +8575,10 @@ packages:
 
   /@types/http-cache-semantics/4.0.1:
     resolution: {integrity: sha512-SZs7ekbP8CN0txVG2xVRH6EgKmEm31BOxA07vkFaETzZz1xh+cbt8BcI0slpymvwhx5dlFnQG2rTlPVQn+iRPQ==}
+
+  /@types/ini/1.3.31:
+    resolution: {integrity: sha512-8ecxxaG4AlVEM1k9+BsziMw8UsX0qy3jYI1ad/71RrDZ+rdL6aZB0wLfAuflQiDhkD5o4yJ0uPK3OSUic3fG0w==}
+    dev: true
 
   /@types/is-ci/3.0.0:
     resolution: {integrity: sha512-Q0Op0hdWbYd1iahB+IFNQcWXFq4O0Q5MwQP7uN0souuQ4rPg1vEYcnIOfr1gY+M+6rc8FGoRaBO1mOOvL29sEQ==}
@@ -17495,6 +17508,7 @@ time:
   /@types/fs-extra/9.0.13: '2021-09-21T19:02:27.512Z'
   /@types/graceful-fs/4.1.5: '2021-02-11T21:49:02.172Z'
   /@types/hosted-git-info/3.0.2: '2021-07-06T21:35:19.353Z'
+  /@types/ini/1.3.31: '2021-10-07T21:01:49.672Z'
   /@types/is-ci/3.0.0: '2021-03-07T11:49:37.729Z'
   /@types/is-windows/1.0.0: '2019-11-19T19:37:55.992Z'
   /@types/isexe/2.0.1: '2021-07-06T21:42:29.330Z'
@@ -17592,6 +17606,7 @@ time:
   /graceful-git/3.1.2: '2021-09-16T00:23:26.185Z'
   /husky/8.0.2: '2022-11-08T03:41:05.629Z'
   /hyperdrive-schemas/2.0.0: '2020-07-14T11:16:33.671Z'
+  /ini/3.0.1: '2022-08-22T17:22:43.830Z'
   /is-ci/3.0.1: '2021-10-26T04:02:03.835Z'
   /is-inner-link/4.0.0: '2021-02-11T22:54:33.386Z'
   /is-port-reachable/3.0.0: '2019-11-12T09:49:42.096Z'

@@ -6,4 +6,4 @@ export type ConfigCommandOptions = Pick<Config,
 | 'global'
 | 'rawConfig'
 | 'rawLocalConfig'
->
+> & { json?: boolean }
