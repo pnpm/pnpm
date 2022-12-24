@@ -1,5 +1,11 @@
 import { config } from '@pnpm/plugin-commands-config'
 
+const CRLF = '\r\n'
+
+function normalizeNewlines (str: string) {
+  return str.replace(new RegExp(CRLF, 'g'), '\n')
+}
+
 test('config list', async () => {
   const output = await config.handler({
     dir: process.cwd(),
@@ -10,7 +16,7 @@ test('config list', async () => {
     },
   }, ['list'])
 
-  expect(output.replace(/\/r\/n/g, '\n')).toEqual(`fetch-retries=2
+  expect(normalizeNewlines(output)).toEqual(`fetch-retries=2
 store-dir=~/store
 `)
 })
