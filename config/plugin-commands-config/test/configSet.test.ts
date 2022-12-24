@@ -15,7 +15,6 @@ test('config set', async () => {
     configDir,
     global: true,
     rawConfig: {},
-    rawLocalConfig: {},
   }, ['set', 'fetch-retries', '1'])
 
   expect(readIniFileSync(path.join(configDir, 'rc'))).toEqual({

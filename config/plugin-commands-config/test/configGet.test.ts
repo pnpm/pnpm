@@ -8,7 +8,6 @@ test('config get', async () => {
     rawConfig: {
       'store-dir': '~/store',
     },
-    rawLocalConfig: {},
   }, ['get', 'store-dir'])
 
   expect(configKey).toEqual('~/store')

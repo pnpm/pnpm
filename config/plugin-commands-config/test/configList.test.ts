@@ -8,7 +8,6 @@ test('config list', async () => {
       'store-dir': '~/store',
       'fetch-retries': '2',
     },
-    rawLocalConfig: {},
   }, ['list'])
 
   expect(output).toEqual(`fetch-retries=2
@@ -25,7 +24,6 @@ test('config list --json', async () => {
       'store-dir': '~/store',
       'fetch-retries': '2',
     },
-    rawLocalConfig: {},
   }, ['list'])
 
   expect(output).toEqual(JSON.stringify({

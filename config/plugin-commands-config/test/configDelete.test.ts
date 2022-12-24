@@ -16,7 +16,6 @@ cache-dir=~/cache`)
     configDir,
     global: true,
     rawConfig: {},
-    rawLocalConfig: {},
   }, ['delete', 'store-dir'])
 
   expect(readIniFileSync(path.join(configDir, 'rc'))).toEqual({
