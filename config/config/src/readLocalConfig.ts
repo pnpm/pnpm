@@ -1,7 +1,7 @@
 import path from 'path'
 import camelcaseKeys from 'camelcase-keys'
 import { envReplace } from '@pnpm/config.env-replace'
-import readIniFile from 'read-ini-file'
+import { readIniFile } from 'read-ini-file'
 
 export async function readLocalConfig (prefix: string) {
   try {

@@ -580,8 +580,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda/0.28.1
       read-ini-file:
-        specifier: ^3.1.0
-        version: 3.1.0
+        specifier: 4.0.0
+        version: 4.0.0
       realpath-missing:
         specifier: ^1.1.0
         version: 1.1.0
@@ -696,6 +696,46 @@ importers:
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: 'link:'
+
+  config/plugin-commands-config:
+    dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../config
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      ini:
+        specifier: 3.0.1
+        version: 3.0.1
+      read-ini-file:
+        specifier: 4.0.0
+        version: 4.0.0
+      render-help:
+        specifier: ^1.0.2
+        version: 1.0.2
+      sort-keys:
+        specifier: ^4.2.0
+        version: 4.2.0
+      write-ini-file:
+        specifier: 4.0.1
+        version: 4.0.1
+    devDependencies:
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/plugin-commands-config':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@types/ini':
+        specifier: 1.3.31
+        version: 1.3.31
 
   env/node.fetcher:
     dependencies:
@@ -3956,6 +3996,9 @@ importers:
       '@pnpm/plugin-commands-audit':
         specifier: workspace:*
         version: link:../lockfile/plugin-commands-audit
+      '@pnpm/plugin-commands-config':
+        specifier: workspace:*
+        version: link:../config/plugin-commands-config
       '@pnpm/plugin-commands-deploy':
         specifier: workspace:*
         version: link:../releasing/plugin-commands-deploy
@@ -8523,6 +8566,10 @@ packages:
   /@types/http-cache-semantics/4.0.1:
     resolution: {integrity: sha512-SZs7ekbP8CN0txVG2xVRH6EgKmEm31BOxA07vkFaETzZz1xh+cbt8BcI0slpymvwhx5dlFnQG2rTlPVQn+iRPQ==}
 
+  /@types/ini/1.3.31:
+    resolution: {integrity: sha512-8ecxxaG4AlVEM1k9+BsziMw8UsX0qy3jYI1ad/71RrDZ+rdL6aZB0wLfAuflQiDhkD5o4yJ0uPK3OSUic3fG0w==}
+    dev: true
+
   /@types/is-ci/3.0.0:
     resolution: {integrity: sha512-Q0Op0hdWbYd1iahB+IFNQcWXFq4O0Q5MwQP7uN0souuQ4rPg1vEYcnIOfr1gY+M+6rc8FGoRaBO1mOOvL29sEQ==}
     dependencies:
@@ -12357,6 +12404,12 @@ packages:
   /ini/2.0.0:
     resolution: {integrity: sha512-7PnF4oN3CvZF23ADhA5wRaYEQpJ8qygSkbtTXWBeXWXmEVRXK+1ITciHWwHhsjv1TmW0MgacIv6hEi5pX5NQdA==}
     engines: {node: '>=10'}
+    dev: true
+
+  /ini/3.0.1:
+    resolution: {integrity: sha512-it4HyVAUTKBc6m8e1iXWvXSTdndF7HbdN713+kvLrymxTaU4AUBWrJ4vEooP+V7fexnVD3LKcBshjGGPefSMUQ==}
+    engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
+    dev: false
 
   /inquirer/6.5.2:
     resolution: {integrity: sha512-cntlB5ghuB0iuO65Ovoi8ogLHiWGs/5yNrtUcKjFhSSiVeAIVpD7koaSU9RM8mpXw5YDi9RdYXGQMaOURB7ycQ==}
@@ -15209,6 +15262,15 @@ packages:
     dependencies:
       ini: 2.0.0
       strip-bom: 4.0.0
+    dev: true
+
+  /read-ini-file/4.0.0:
+    resolution: {integrity: sha512-zz4qv/sKETv7nAkATqSJ9YMbKD8NXRPuA8d17VdYCuNYrVstB1S6UAMU6aytf5vRa9MESbZN7jLZdcmrOxz4gg==}
+    engines: {node: '>=14.6'}
+    dependencies:
+      ini: 3.0.1
+      strip-bom: 4.0.0
+    dev: false
 
   /read-pkg-up/7.0.1:
     resolution: {integrity: sha512-zK0TB7Xd6JpCLmlLmufqykGE+/TlOePD6qKClNW7hHDKFh/J7/7gCWGR7joEQEW1bKq3a3yUZSObOoWLFQ4ohg==}
@@ -17194,6 +17256,15 @@ packages:
       imurmurhash: 0.1.4
       signal-exit: 3.0.7
 
+  /write-ini-file/4.0.1:
+    resolution: {integrity: sha512-8XPBFS/EqPls2V4vYSc8kPVXjLg2b0GgVVC52w2WEH4sVDXew9rgch60ckXLiTfiYQKmkxezRaRctbGQr7oj5Q==}
+    engines: {node: '>=14.6'}
+    dependencies:
+      ini: 3.0.1
+      make-dir: 3.1.0
+      write-file-atomic: 5.0.0
+    dev: false
+
   /write-json-file/3.2.0:
     resolution: {integrity: sha512-3xZqT7Byc2uORAatYiP3DHUUAVEkNOswEWNs9H5KXiicRTvzYzYqKjYc4G7p+8pltvAw641lVByKVtMpf+4sYQ==}
     engines: {node: '>=6'}
@@ -17427,6 +17498,7 @@ time:
   /@types/fs-extra/9.0.13: '2021-09-21T19:02:27.512Z'
   /@types/graceful-fs/4.1.5: '2021-02-11T21:49:02.172Z'
   /@types/hosted-git-info/3.0.2: '2021-07-06T21:35:19.353Z'
+  /@types/ini/1.3.31: '2021-10-07T21:01:49.672Z'
   /@types/is-ci/3.0.0: '2021-03-07T11:49:37.729Z'
   /@types/is-windows/1.0.0: '2019-11-19T19:37:55.992Z'
   /@types/isexe/2.0.1: '2021-07-06T21:42:29.330Z'
@@ -17524,6 +17596,7 @@ time:
   /graceful-git/3.1.2: '2021-09-16T00:23:26.185Z'
   /husky/8.0.2: '2022-11-08T03:41:05.629Z'
   /hyperdrive-schemas/2.0.0: '2020-07-14T11:16:33.671Z'
+  /ini/3.0.1: '2022-08-22T17:22:43.830Z'
   /is-ci/3.0.1: '2021-10-26T04:02:03.835Z'
   /is-inner-link/4.0.0: '2021-02-11T22:54:33.386Z'
   /is-port-reachable/3.0.0: '2019-11-12T09:49:42.096Z'
@@ -17578,7 +17651,7 @@ time:
   /proxyquire/2.1.3: '2019-08-12T13:54:46.049Z'
   /ps-list/7.2.0: '2020-06-17T09:02:36.119Z'
   /publish-packed/4.1.1: '2022-01-04T09:56:54.476Z'
-  /read-ini-file/3.1.0: '2021-02-11T22:53:37.619Z'
+  /read-ini-file/4.0.0: '2022-12-23T20:19:57.971Z'
   /read-yaml-file/2.1.0: '2021-02-11T22:53:46.064Z'
   /realpath-missing/1.1.0: '2021-02-11T22:53:50.718Z'
   /remark-parse/9.0.0: '2020-10-14T08:48:35.392Z'
@@ -17630,6 +17703,7 @@ time:
   /which/3.0.0: '2022-11-01T19:20:24.475Z'
   /wrap-ansi/7.0.0: '2020-04-22T16:53:23.889Z'
   /write-file-atomic/5.0.0: '2022-10-14T05:22:38.937Z'
+  /write-ini-file/4.0.1: '2022-12-23T20:19:59.977Z'
   /write-json-file/4.3.0: '2020-02-07T08:54:49.528Z'
   /write-json5-file/3.1.0: '2021-02-11T22:54:24.439Z'
   /write-pkg/4.0.0: '2019-04-29T10:37:09.855Z'

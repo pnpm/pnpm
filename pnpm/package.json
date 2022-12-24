@@ -41,6 +41,7 @@
     "@pnpm/parse-cli-args": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/plugin-commands-audit": "workspace:*",
+    "@pnpm/plugin-commands-config": "workspace:*",
     "@pnpm/plugin-commands-deploy": "workspace:*",
     "@pnpm/plugin-commands-doctor": "workspace:*",
     "@pnpm/plugin-commands-env": "workspace:*",

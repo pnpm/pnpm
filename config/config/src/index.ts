@@ -235,7 +235,15 @@ export async function getConfig (
     'registry-supports-time-field': false,
   })
 
-  npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
+  const configDir = getConfigDir(process)
+  {
+    const warn = npmConfig.addFile(path.join(configDir as string, 'rc'), 'pnpm-global')
+    if (warn) warnings.push(warn)
+  }
+  {
+    const warn = npmConfig.addFile(path.resolve(path.join(__dirname, 'pnpmrc')), 'pnpm-builtin')
+    if (warn) warnings.push(warn)
+  }
 
   delete cliOptions.prefix
 
@@ -252,6 +260,7 @@ export async function getConfig (
   pnpmConfig.maxSockets = npmConfig.maxsockets
   delete pnpmConfig['maxsockets']
 
+  pnpmConfig.configDir = configDir
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.workspaceRoot = cliOptions['workspace-root'] as boolean // This is needed to prevent pnpm reading workspaceRoot from env variables
   pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [
@@ -427,9 +436,6 @@ export async function getConfig (
   }
   if (!pnpmConfig.stateDir) {
     pnpmConfig.stateDir = getStateDir(process)
-  }
-  if (!pnpmConfig.configDir) {
-    pnpmConfig.configDir = getConfigDir(process)
   }
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern

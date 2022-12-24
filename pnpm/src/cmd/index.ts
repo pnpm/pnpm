@@ -1,6 +1,7 @@
 import { CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { audit } from '@pnpm/plugin-commands-audit'
+import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
 import { doctor } from '@pnpm/plugin-commands-doctor'
 import { env } from '@pnpm/plugin-commands-env'
 import { deploy } from '@pnpm/plugin-commands-deploy'
@@ -99,6 +100,9 @@ const commands: CommandDefinition[] = [
   add,
   audit,
   bin,
+  config,
+  getCommand,
+  setCommand,
   create,
   deploy,
   dlx,
