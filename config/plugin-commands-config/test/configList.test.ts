@@ -10,7 +10,7 @@ test('config list', async () => {
     },
   }, ['list'])
 
-  expect(output).toEqual(`fetch-retries=2
+  expect(output.replace(/\/r\/n/g, '\n')).toEqual(`fetch-retries=2
 store-dir=~/store
 `)
 })
