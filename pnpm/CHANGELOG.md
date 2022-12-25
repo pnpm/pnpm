@@ -1,5 +1,32 @@
 # pnpm
 
+## 7.20.0
+
+### Minor Changes
+
+- pnpm gets its own implementation of the following commands:
+
+  - `pnpm config get`
+  - `pnpm config set`
+  - `pnpm config delete`
+  - `pnpm config list`
+
+  In previous versions these commands were passing through to npm CLI.
+
+  PR: [#5829](https://github.com/pnpm/pnpm/pull/5829)
+  Related issue: [#5621](https://github.com/pnpm/pnpm/issues/5621)
+
+- Add show alias to `pnpm view` [#5835](https://github.com/pnpm/pnpm/pull/5835).
+- pnpm reads settings from its own global configuration file at `$XDG_CONFIG_HOME/pnpm/rc` [#5829](https://github.com/pnpm/pnpm/pull/5829).
+- Add the 'description'-field to the licenses output [#5836](https://github.com/pnpm/pnpm/pull/5836).
+
+### Patch Changes
+
+- `pnpm rebuild` should not fail if `node_modules` was created by pnpm version 7.18 or older [#5815](https://github.com/pnpm/pnpm/issues/5815).
+- `pnpm env` should print help.
+- Run the prepublish scripts of packages installed from Git [#5826](https://github.com/pnpm/pnpm/issues/5826).
+- `pnpm rebuild` should print a better error message when a hoisted dependency is not found [#5815](https://github.com/pnpm/pnpm/issues/5815).
+
 ## 7.19.0
 
 ### Minor Changes

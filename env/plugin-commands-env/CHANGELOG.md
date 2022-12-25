@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-env
 
+## 3.1.12
+
+### Patch Changes
+
+- 4700b095e: `pnpm env` should print help.
+- Updated dependencies [841f52e70]
+  - @pnpm/config@16.2.0
+  - @pnpm/node.fetcher@2.0.6
+  - @pnpm/cli-utils@1.0.18
+  - @pnpm/node.resolver@1.1.3
+
 ## 3.1.11
 
 ### Patch Changes

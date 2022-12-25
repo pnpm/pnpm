@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-licenses
 
+## 1.0.9
+
+### Patch Changes
+
+- 1d3995fe3: Add the 'description'-field to the licenses output [#5836](https://github.com/pnpm/pnpm/pull/5836).
+- Updated dependencies [1d3995fe3]
+- Updated dependencies [841f52e70]
+  - @pnpm/license-scanner@1.0.6
+  - @pnpm/config@16.2.0
+  - @pnpm/cli-utils@1.0.18
+
 ## 1.0.8
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/license-scanner
 
+## 1.0.6
+
+### Patch Changes
+
+- 1d3995fe3: Add the 'description'-field to the licenses output [#5836](https://github.com/pnpm/pnpm/pull/5836).
+
 ## 1.0.5
 
 ### Patch Changes

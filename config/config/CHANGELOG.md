@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 16.2.0
+
+### Minor Changes
+
+- 841f52e70: pnpm reads settings from its own global configuration file at `$XDG_CONFIG_HOME/pnpm/rc` [#5829](https://github.com/pnpm/pnpm/pull/5829).
+
 ## 16.1.11
 
 ### Patch Changes

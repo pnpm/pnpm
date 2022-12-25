@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-rebuild
 
+## 7.0.18
+
+### Patch Changes
+
+- 5c75ff3ec: `pnpm rebuild` should not fail if node_modules was created by pnpm version 7.18 or older [#5815](https://github.com/pnpm/pnpm/issues/5815).
+- 5c75ff3ec: `pnpm rebuild` should print a better error message when a hoisted dependency is not found [#5815](https://github.com/pnpm/pnpm/issues/5815).
+- Updated dependencies [841f52e70]
+  - @pnpm/config@16.2.0
+  - @pnpm/store-connection-manager@5.1.11
+  - @pnpm/cli-utils@1.0.18
+  - @pnpm/find-workspace-packages@5.0.18
+
 ## 7.0.17
 
 ### Patch Changes

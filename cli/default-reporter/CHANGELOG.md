@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 11.0.18
+
+### Patch Changes
+
+- 0048e0e64: Fix the command in the hint about how to update the store location globally.
+- Updated dependencies [841f52e70]
+  - @pnpm/config@16.2.0
+
 ## 11.0.17
 
 ### Patch Changes

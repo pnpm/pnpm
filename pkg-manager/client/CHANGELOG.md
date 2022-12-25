@@ -1,5 +1,17 @@
 # @pnpm/client
 
+## 9.0.0
+
+### Major Changes
+
+- 339c0a704: A new required option added to the prepare package function: rawConfig. It is needed in order to create a proper environment for the package manager executed during the preparation of a git-hosted dependency.
+
+### Patch Changes
+
+- Updated dependencies [339c0a704]
+  - @pnpm/git-fetcher@7.0.0
+  - @pnpm/tarball-fetcher@14.0.0
+
 ## 8.1.3
 
 ### Patch Changes

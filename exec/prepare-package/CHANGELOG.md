@@ -1,5 +1,15 @@
 # @pnpm/prepare-package
 
+## 4.0.0
+
+### Major Changes
+
+- 339c0a704: A new required option added to the prepare package function: rawConfig. It is needed in order to create a proper environment for the package manager executed during the preparation of a git-hosted dependency.
+
+### Patch Changes
+
+- 339c0a704: Run the prepublish scripts of packages installed from Git [#5826](https://github.com/pnpm/pnpm/issues/5826).
+
 ## 3.0.4
 
 ### Patch Changes
