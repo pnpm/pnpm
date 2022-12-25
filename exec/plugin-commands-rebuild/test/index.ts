@@ -111,11 +111,14 @@ test('rebuilds specific dependencies', async () => {
     '--save-dev',
     '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
     'pnpm-e2e/install-scripts-example#b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b',
-    `--registry=${REGISTRY}`,
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
-  ])
+  ], {
+    env: {
+      npm_config_registry: REGISTRY,
+    },
+  })
 
   const modulesManifest = await project.readModulesManifest()
   await rebuild.handler({
@@ -154,11 +157,14 @@ test('rebuild with pending option', async () => {
     pnpmBin,
     'add',
     'pnpm-e2e/install-scripts-example#b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b',
-    `--registry=${REGISTRY}`,
     `--store-dir=${storeDir}`,
     `--cache-dir=${cacheDir}`,
     '--ignore-scripts',
-  ])
+  ], {
+    env: {
+      npm_config_registry: REGISTRY,
+    },
+  })
 
   let modules = await project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
