@@ -45,6 +45,7 @@ const argv = process.argv.slice(2)
   case 'se':
   case 'search':
   case 'set-script':
+  case 'show':
   case 'star':
   case 'stars':
   case 'team':
