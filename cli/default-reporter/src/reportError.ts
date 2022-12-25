@@ -131,7 +131,7 @@ pnpm now wants to use the store at "${msg.actualStorePath}" to link dependencies
 
 If you want to use the new store location, reinstall your dependencies with "pnpm install".
 
-You may change the global store location by running "pnpm config set store-dir <dir>".
+You may change the global store location by running "pnpm config set store-dir <dir> --global".
 (This error may happen if the node_modules was installed with a different major version of pnpm)`,
   }
 }
