@@ -1242,6 +1242,9 @@ importers:
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
 
   exec/run-npm:
     dependencies:

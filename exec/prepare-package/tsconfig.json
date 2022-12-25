@@ -13,6 +13,9 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../pkg-manifest/read-package-json"
     }
   ]
