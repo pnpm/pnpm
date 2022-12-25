@@ -20,7 +20,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
   return fetch as FetchFunction
 }
 
-async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs, rawConfig: Object) {
+async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs, rawConfig: object) {
   const tempLocation = await cafs.tempDir()
   await cafs.importPackage(tempLocation, {
     filesResponse: {
@@ -29,7 +29,7 @@ async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs, rawConfi
     },
     force: true,
   })
-  await preparePackage(tempLocation, { rawConfig })
+  await preparePackage({ rawConfig }, tempLocation)
   const newFilesIndex = await cafs.addFilesFromDir(tempLocation)
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,

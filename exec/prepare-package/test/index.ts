@@ -9,7 +9,7 @@ const f = fixtures(__dirname)
 test('prepare package runs the prepbublish script', async () => {
   const tmp = tempDir()
   f.copy('has-prepublish-script', tmp)
-  await preparePackage(tmp, { rawConfig: {} })
+  await preparePackage({ rawConfig: {} }, tmp)
   expect(loadJsonFile(path.join(tmp, 'output.json'))).toStrictEqual([
     'prepublish',
   ])

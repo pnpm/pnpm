@@ -16,7 +16,7 @@ const PREPUBLISH_SCRIPTS = [
   'postpublish',
 ]
 
-export async function preparePackage (pkgDir: string, opts: { rawConfig: object }) {
+export async function preparePackage (opts: { rawConfig: object }, pkgDir: string) {
   const manifest = await safeReadPackageJsonFromDir(pkgDir)
   if (manifest?.scripts == null || !packageShouldBeBuilt(manifest.scripts)) return
   const pm = (await preferredPM(pkgDir))?.name ?? 'npm'
