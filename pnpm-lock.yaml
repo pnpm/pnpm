@@ -1239,12 +1239,21 @@ importers:
         specifier: ^3.0.3
         version: 3.0.3
     devDependencies:
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      load-json-file:
+        specifier: ^6.2.0
+        version: 6.2.0
 
   exec/run-npm:
     dependencies:

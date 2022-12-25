@@ -1,0 +1,10 @@
+{
+  "name": "has-prepublish-script",
+  "version": "1.0.0",
+  "scripts": {
+    "prepublish": "node -e \"process.stdout.write('prepublish')\" | json-append output.json"
+  },
+  "devDependencies": {
+    "json-append": "1.1.1"
+  }
+}
