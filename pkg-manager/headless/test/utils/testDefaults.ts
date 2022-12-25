@@ -45,6 +45,7 @@ export async function testDefaults (
   const authConfig = { registry }
   const { resolve, fetchers } = createClient({
     authConfig,
+    rawConfig: {},
     retry: retryOpts,
     cacheDir,
     ...resolveOpts,

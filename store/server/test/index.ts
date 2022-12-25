@@ -23,6 +23,7 @@ async function createStoreController (storeDir?: string) {
   const { resolve, fetchers } = createClient({
     authConfig,
     cacheDir,
+    rawConfig: {},
   })
   return createPackageStore(resolve, fetchers, {
     networkConcurrency: 1,
