@@ -5,8 +5,9 @@ import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { URL } from 'url'
 
-export function createGitFetcher (createOpts?: { gitShallowHosts?: string[] }) {
+export function createGitFetcher (createOpts: { gitShallowHosts?: string[], rawConfig: object }) {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
+  const preparePkg = preparePackage.bind(null, { rawConfig: createOpts.rawConfig })
 
   const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
     const tempLocation = await cafs.tempDir()
@@ -18,7 +19,7 @@ export function createGitFetcher (createOpts?: { gitShallowHosts?: string[] }) {
       await execGit(['clone', resolution.repo, tempLocation])
     }
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
-    await preparePackage(tempLocation)
+    await preparePkg(tempLocation)
     // removing /.git to make directory integrity calculation faster
     await rimraf(path.join(tempLocation, '.git'))
     const filesIndex = await cafs.addFilesFromDir(tempLocation, opts.manifest)

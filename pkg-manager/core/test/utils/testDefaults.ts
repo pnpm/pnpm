@@ -39,6 +39,7 @@ export async function testDefaults<T> (
   const cacheDir = path.resolve('cache')
   const { resolve, fetchers } = createClient({
     authConfig,
+    rawConfig: {},
     retry: retryOpts,
     cacheDir,
     ...resolveOpts,

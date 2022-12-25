@@ -10,17 +10,17 @@ interface Resolution {
   tarball: string
 }
 
-export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction): FetchFunction {
+export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, rawConfig: object): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const { filesIndex } = await fetchRemoteTarball(cafs, resolution, opts)
 
-    return { filesIndex: await prepareGitHostedPkg(filesIndex as FilesIndex, cafs) }
+    return { filesIndex: await prepareGitHostedPkg(filesIndex as FilesIndex, cafs, rawConfig) }
   }
 
   return fetch as FetchFunction
 }
 
-async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
+async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs, rawConfig: object) {
   const tempLocation = await cafs.tempDir()
   await cafs.importPackage(tempLocation, {
     filesResponse: {
@@ -29,7 +29,7 @@ async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs) {
     },
     force: true,
   })
-  await preparePackage(tempLocation)
+  await preparePackage({ rawConfig }, tempLocation)
   const newFilesIndex = await cafs.addFilesFromDir(tempLocation)
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,

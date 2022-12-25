@@ -14,6 +14,7 @@ describe('store.importPackage()', () => {
     const { resolve, fetchers } = createClient({
       authConfig,
       cacheDir: path.join(tmp, 'cache'),
+      rawConfig: {},
     })
     const storeController = await createPackageStore(resolve, fetchers, {
       storeDir,
@@ -51,6 +52,7 @@ describe('store.importPackage()', () => {
     const { resolve, fetchers } = createClient({
       authConfig,
       cacheDir: path.join(tmp, 'cache'),
+      rawConfig: {},
     })
     const storeController = await createPackageStore(resolve, fetchers, {
       packageImportMethod: 'copy',

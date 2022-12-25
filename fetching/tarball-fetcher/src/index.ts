@@ -31,6 +31,7 @@ export function createTarballFetcher (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
   opts: {
+    rawConfig: object
     timeout?: number
     retry?: RetryTimeoutOptions
     offline?: boolean
@@ -50,7 +51,7 @@ export function createTarballFetcher (
   return {
     localTarball: createLocalTarballFetcher(),
     remoteTarball: remoteTarballFetcher,
-    gitHostedTarball: createGitHostedTarballFetcher(remoteTarballFetcher),
+    gitHostedTarball: createGitHostedTarballFetcher(remoteTarballFetcher, opts.rawConfig),
   }
 }
 

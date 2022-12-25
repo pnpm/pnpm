@@ -64,10 +64,16 @@ test('rebuilds dependencies', async () => {
 
   {
     const scripts = project.requireModule('test-git-fetch/output.json')
-    expect(scripts[0]).toBe('preinstall')
-    expect(scripts[1]).toBe('install')
-    expect(scripts[2]).toBe('postinstall')
-    expect(scripts[3]).toBe('prepare')
+    expect(scripts).toStrictEqual([
+      'preinstall',
+      'install',
+      'postinstall',
+      'prepare',
+      'prepublishOnly',
+      'preinstall',
+      'install',
+      'postinstall',
+    ])
   }
 })
 
