@@ -6,13 +6,7 @@ import { PackageScripts } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import preferredPM from 'preferred-pm'
-
-const PREPARE_SCRIPTS = [
-  'preinstall',
-  'install',
-  'postinstall',
-  'prepare',
-]
+import omit from 'ramda/src/omit'
 
 const PREPUBLISH_SCRIPTS = [
   'prepublish',
@@ -26,7 +20,10 @@ export async function preparePackage (pkgDir: string, opts: { rawConfig: object 
   const manifest = await safeReadPackageJsonFromDir(pkgDir)
   if (manifest?.scripts == null || !packageShouldBeBuilt(manifest.scripts)) return
   const pm = (await preferredPM(pkgDir))?.name ?? 'npm'
-  const env = lifecycle.makeEnv(manifest, { config: opts.rawConfig })
+  // We can't prepare a package without running its lifecycle scripts.
+  // An alternative solution could be to throw an exception.
+  const config = omit(['ignore-scripts'], opts.rawConfig)
+  const env = lifecycle.makeEnv(manifest, { config })
   const execOpts = { cwd: pkgDir, env, extendEnv: true }
   try {
     await execa(pm, ['install'], execOpts)
@@ -43,6 +40,6 @@ export async function preparePackage (pkgDir: string, opts: { rawConfig: object 
 function packageShouldBeBuilt (packageScripts: PackageScripts): boolean {
   return [
     ...PREPUBLISH_SCRIPTS,
-    ...PREPARE_SCRIPTS,
+    'prepare',
   ].some((scriptName) => packageScripts[scriptName] != null && packageScripts[scriptName] !== '')
 }

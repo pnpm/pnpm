@@ -1241,6 +1241,9 @@ importers:
       preferred-pm:
         specifier: ^3.0.3
         version: 3.0.3
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda/0.28.1
     devDependencies:
       '@pnpm/prepare':
         specifier: workspace:*
@@ -1254,6 +1257,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@types/ramda':
+        specifier: 0.28.20
+        version: 0.28.20
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0

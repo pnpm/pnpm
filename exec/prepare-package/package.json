@@ -34,7 +34,8 @@
     "@pnpm/read-package-json": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "execa": "npm:safe-execa@^0.1.2",
-    "preferred-pm": "^3.0.3"
+    "preferred-pm": "^3.0.3",
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
@@ -42,6 +43,7 @@
     "@pnpm/prepare-package": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@types/ramda": "0.28.20",
     "load-json-file": "^6.2.0"
   },
   "exports": {
