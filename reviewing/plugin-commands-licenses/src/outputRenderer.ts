@@ -35,6 +35,9 @@ function renderDetails (licensePackage: LicensePackage) {
   if (licensePackage.author) {
     outputs.push(licensePackage.author)
   }
+  if (licensePackage.description) {
+    outputs.push(licensePackage.description)
+  }
   if (licensePackage.homepage) {
     outputs.push(chalk.underline(licensePackage.homepage))
   }
@@ -63,6 +66,7 @@ function renderLicensesJson (licensePackages: readonly LicensePackage[]) {
         licenseContents: licensePkg.licenseContents,
         author: licensePkg.author,
         homepage: licensePkg.homepage,
+        description: licensePkg.description,
       } as LicensePackageJson
     }),
   ].flat()

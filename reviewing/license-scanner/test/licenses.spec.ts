@@ -76,6 +76,7 @@ describe('licences', () => {
     expect(licensePackages).toEqual([
       {
         belongsTo: 'dependencies',
+        description: 'Package Description',
         version: '1.0.0',
         name: 'bar',
         license: 'MIT',
@@ -87,6 +88,7 @@ describe('licences', () => {
       },
       {
         belongsTo: 'dependencies',
+        description: 'Package Description',
         version: '1.0.0',
         name: 'foo',
         license: 'Unknown',

@@ -118,6 +118,7 @@ test('pnpm licenses: output as json', async () => {
     'license',
     'author',
     'homepage',
+    'description',
   ])
   expect(packagesWithMIT[0].name).toBe('is-positive')
 })

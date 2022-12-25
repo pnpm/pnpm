@@ -17,6 +17,7 @@ export interface LicenseNode {
   dir: string
   author?: string
   homepage?: string
+  description?: string
   repository?: string
   integrity?: string
   requires?: Record<string, string>
@@ -90,6 +91,7 @@ export async function lockfileToLicenseNode (
       licenseContents: packageInfo.licenseContents,
       author: packageInfo.author,
       homepage: packageInfo.homepage,
+      description: packageInfo.description,
       repository: packageInfo.repository,
       dir: packageInfo.path as string,
     }
