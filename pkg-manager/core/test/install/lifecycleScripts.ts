@@ -278,6 +278,7 @@ test('run prepare script for git-hosted dependencies', async () => {
     'install',
     'postinstall',
     'prepare',
+    'prepublishOnly',
     'preinstall',
     'install',
     'postinstall',
