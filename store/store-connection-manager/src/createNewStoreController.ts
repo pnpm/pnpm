@@ -63,6 +63,7 @@ export async function createNewStoreController (
     noProxy: opts.noProxy,
     offline: opts.offline,
     preferOffline: opts.preferOffline,
+    rawConfig: opts.rawConfig,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

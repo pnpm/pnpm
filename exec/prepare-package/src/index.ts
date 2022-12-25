@@ -1,5 +1,6 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
+import lifecycle from '@pnpm/npm-lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { PackageScripts } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
@@ -21,15 +22,17 @@ const PREPUBLISH_SCRIPTS = [
   'postpublish',
 ]
 
-export async function preparePackage (pkgDir: string) {
+export async function preparePackage (pkgDir: string, opts: { rawConfig: object }) {
   const manifest = await safeReadPackageJsonFromDir(pkgDir)
   if (manifest?.scripts == null || !packageShouldBeBuilt(manifest.scripts)) return
   const pm = (await preferredPM(pkgDir))?.name ?? 'npm'
+  const env = lifecycle.makeEnv(manifest, { config: opts.rawConfig })
+  const execOpts = { cwd: pkgDir, env, extendEnv: true }
   try {
-    await execa(pm, ['install'], { cwd: pkgDir })
+    await execa(pm, ['install'], execOpts)
     for (const scriptName of PREPUBLISH_SCRIPTS) {
       if (manifest.scripts[scriptName] == null || manifest.scripts[scriptName] === '') continue
-      await execa(pm, ['run', scriptName], { cwd: pkgDir })
+      await execa(pm, ['run', scriptName], execOpts)
     }
   } catch (err: any) { // eslint-disable-line
     throw new PnpmError('PREPARE_PKG_FAILURE', err.shortMessage ?? err.message)
