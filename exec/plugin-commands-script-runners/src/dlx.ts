@@ -46,9 +46,7 @@ export function help () {
             name: '--package',
           },
           {
-            description: 'If exist, runs file inside of a shell. \
-  Uses /bin/sh on UNIX and \\cmd.exe on Windows. \
-  The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
+            description: 'Runs the script inside of a shell. Uses /bin/sh on UNIX and \\cmd.exe on Windows.',
             name: '--shell-mode',
             shortAlias: '-c',
           },
