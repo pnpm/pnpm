@@ -16,11 +16,16 @@ import { makeEnv } from './makeEnv'
 
 export const commandNames = ['dlx']
 
+export const shorthands = {
+  c: '--shell-mode',
+}
+
 export function rcOptionsTypes () {
   return {
     ...pick([
       'use-node-version',
     ], types),
+    'shell-mode': Boolean,
   }
 }
 
@@ -35,11 +40,17 @@ export function help () {
     descriptionLists: [
       {
         title: 'Options',
-
         list: [
           {
             description: 'The package to install before running the command',
             name: '--package',
+          },
+          {
+            description: 'If exist, runs file inside of a shell. \
+  Uses /bin/sh on UNIX and \\cmd.exe on Windows. \
+  The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
+            name: '--shell-mode',
+            shortAlias: '-c',
           },
         ],
       },
@@ -52,6 +63,7 @@ export function help () {
 
 export type DlxCommandOptions = {
   package?: string[]
+  shellMode?: boolean
 } & Pick<Config, 'reporter' | 'userAgent'> & add.AddCommandOptions
 
 export async function handler (
@@ -87,8 +99,10 @@ export async function handler (
     ? command
     : await getBinName(modulesDir, await getPkgName(prefix))
   await execa(binName, args, {
+    cwd: process.cwd(),
     env,
     stdio: 'inherit',
+    shell: opts.shellMode ?? false,
   })
 }
 

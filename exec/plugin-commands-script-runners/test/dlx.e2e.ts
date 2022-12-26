@@ -90,3 +90,19 @@ test('dlx should fail when the package has no bins', async () => {
     }, ['is-positive'])
   ).rejects.toThrow(/No binaries found in is-positive/)
 })
+
+test('dlx should work in shell mode', async () => {
+  prepareEmpty()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    package: [
+      'is-positive',
+    ],
+    shellMode: true,
+  }, ['echo "some text" > foo'])
+
+  expect(fs.existsSync('foo')).toBeTruthy()
+})
