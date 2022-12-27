@@ -338,7 +338,7 @@ test('add: fail when global bin directory is not found', async () => {
   try {
     await add.handler({
       ...DEFAULT_OPTIONS,
-      bin: undefined as any,
+      bin: undefined as any, // eslint-disable-line
       dir: path.resolve('project-1'),
       global: true,
       linkWorkspacePackages: false,
