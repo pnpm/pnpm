@@ -1,7 +1,7 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { add, remove } from '@pnpm/plugin-commands-installation'
-import { prepare, preparePackages } from '@pnpm/prepare'
+import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import loadJsonFile from 'load-json-file'
 import tempy from 'tempy'
@@ -329,4 +329,24 @@ test('pnpm add automatically installs missing peer dependencies', async () => {
 
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages).length).toBe(5)
+})
+
+test('add: fail when global bin directory is not found', async () => {
+  prepareEmpty()
+
+  let err!: PnpmError
+  try {
+    await add.handler({
+      ...DEFAULT_OPTIONS,
+      bin: undefined as any, // eslint-disable-line
+      dir: path.resolve('project-1'),
+      global: true,
+      linkWorkspacePackages: false,
+      saveWorkspaceProtocol: false,
+      workspace: true,
+    }, ['@pnpm.e2e/hello-world-js-bin'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_NO_GLOBAL_BIN_DIR')
 })
