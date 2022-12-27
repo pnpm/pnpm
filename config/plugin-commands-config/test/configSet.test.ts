@@ -42,6 +42,25 @@ test('config set using the location=global option', async () => {
   })
 })
 
+test('config set using the location=project option', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(tmp, '.npmrc'), 'store-dir=~/store')
+
+  await config.handler({
+    dir: process.cwd(),
+    configDir,
+    location: 'project',
+    rawConfig: {},
+  }, ['set', 'fetch-retries', '1'])
+
+  expect(readIniFileSync(path.join(tmp, '.npmrc'))).toEqual({
+    'store-dir': '~/store',
+    'fetch-retries': '1',
+  })
+})
+
 test('config set in project .npmrc file', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')
