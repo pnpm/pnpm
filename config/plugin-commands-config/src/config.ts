@@ -13,6 +13,7 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return {
     global: Boolean,
+    location: ['global', 'project'],
     json: Boolean,
   }
 }
@@ -70,6 +71,9 @@ export async function handler (opts: ConfigCommandOptions, params: string[]) {
     throw new PnpmError('CONFIG_NO_SUBCOMMAND', 'Please specify the subcommand', {
       hint: help(),
     })
+  }
+  if (opts.location) {
+    opts.global = opts.location === 'global'
   }
   switch (params[0]) {
   case 'set': {
