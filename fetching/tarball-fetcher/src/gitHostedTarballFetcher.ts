@@ -16,7 +16,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
     try {
       return { filesIndex: await prepareGitHostedPkg(filesIndex as FilesIndex, cafs, rawConfig) }
     } catch (err: any) { // eslint-disable-line
-      err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}`
+      err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}` // eslint-disable-line
       throw err
     }
   }

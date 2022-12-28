@@ -22,7 +22,7 @@ export function createGitFetcher (createOpts: { gitShallowHosts?: string[], rawC
     try {
       await preparePkg(tempLocation)
     } catch (err: any) { // eslint-disable-line
-      err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}`
+      err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}` // eslint-disable-line
       throw err
     }
     // removing /.git to make directory integrity calculation faster

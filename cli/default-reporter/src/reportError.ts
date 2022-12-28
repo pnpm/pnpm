@@ -397,7 +397,7 @@ function reportPreparePackage (
   msg: {
     stderr: string
     stdout: string
-  },
+  }
 ) {
   return {
     title: err.message,

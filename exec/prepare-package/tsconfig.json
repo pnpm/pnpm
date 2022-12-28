@@ -16,9 +16,6 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../packages/error"
-    },
-    {
       "path": "../../packages/types"
     },
     {

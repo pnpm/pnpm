@@ -1,5 +1,4 @@
 import path from 'path'
-import { PnpmError } from '@pnpm/error'
 import lifecycle from '@pnpm/npm-lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { PackageScripts } from '@pnpm/types'
