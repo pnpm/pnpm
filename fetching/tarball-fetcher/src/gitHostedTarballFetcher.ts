@@ -13,8 +13,12 @@ interface Resolution {
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, rawConfig: object): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const { filesIndex } = await fetchRemoteTarball(cafs, resolution, opts)
-
-    return { filesIndex: await prepareGitHostedPkg(filesIndex as FilesIndex, cafs, rawConfig) }
+    try {
+      return { filesIndex: await prepareGitHostedPkg(filesIndex as FilesIndex, cafs, rawConfig) }
+    } catch (err: any) { // eslint-disable-line
+      err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}`
+      throw err
+    }
   }
 
   return fetch as FetchFunction

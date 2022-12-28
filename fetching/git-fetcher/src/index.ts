@@ -19,7 +19,12 @@ export function createGitFetcher (createOpts: { gitShallowHosts?: string[], rawC
       await execGit(['clone', resolution.repo, tempLocation])
     }
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
-    await preparePkg(tempLocation)
+    try {
+      await preparePkg(tempLocation)
+    } catch (err: any) { // eslint-disable-line
+      err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}`
+      throw err
+    }
     // removing /.git to make directory integrity calculation faster
     await rimraf(path.join(tempLocation, '.git'))
     const filesIndex = await cafs.addFilesFromDir(tempLocation, opts.manifest)

@@ -20,6 +20,9 @@ const colorPath = chalk.gray
 export function reportError (logObj: Log, config?: Config) {
   const errorInfo = getErrorInfo(logObj, config)
   let output = formatErrorSummary(errorInfo.title, logObj['err']['code'])
+  if (errorInfo.prepend) {
+    output = `${errorInfo.prepend}\n${output}`
+  }
   if (logObj['pkgsStack'] != null) {
     if (logObj['pkgsStack'].length > 0) {
       output += `\n\n${formatPkgsStack(logObj['pkgsStack'])}`
@@ -36,6 +39,7 @@ export function reportError (logObj: Log, config?: Config) {
 function getErrorInfo (logObj: Log, config?: Config): {
   title: string
   body?: string
+  prepend?: string
 } {
   if (logObj['err']) {
     const err = logObj['err'] as (PnpmError & { stack: object })
@@ -69,6 +73,8 @@ function getErrorInfo (logObj: Log, config?: Config): {
     case 'ERR_PNPM_FETCH_401':
     case 'ERR_PNPM_FETCH_403':
       return reportAuthError(err, logObj as any, config) // eslint-disable-line @typescript-eslint/no-explicit-any
+    case 'ERR_PNPM_PREPARE_PACKAGE':
+      return reportPreparePackage(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     default: {
       // Errors with unknown error codes are printed with stack trace
       if (!err.code?.startsWith?.('ERR_PNPM_')) {
@@ -383,6 +389,19 @@ ${foundSettings.join('\n')}`
   return {
     title: err.message,
     body: output,
+  }
+}
+
+function reportPreparePackage (
+  err: Error,
+  msg: {
+    stderr: string
+    stdout: string
+  },
+) {
+  return {
+    title: err.message,
+    prepend: `STDOUT:\n${msg.stdout}\nSTDERR:\n${msg.stderr}`,
   }
 }
 

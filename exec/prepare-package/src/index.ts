@@ -32,7 +32,9 @@ export async function preparePackage (opts: { rawConfig: object }, pkgDir: strin
       await execa(pm, ['run', scriptName], execOpts)
     }
   } catch (err: any) { // eslint-disable-line
-    throw new PnpmError('PREPARE_PKG_FAILURE', err.shortMessage ?? err.message)
+    err.code = 'ERR_PNPM_PREPARE_PACKAGE'
+    err.message = err.shortMessage
+    throw err
   }
   await rimraf(path.join(pkgDir, 'node_modules'))
 }
