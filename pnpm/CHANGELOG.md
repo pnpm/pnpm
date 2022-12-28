@@ -1,5 +1,16 @@
 # pnpm
 
+## 7.21.0
+
+### Minor Changes
+
+- The `pnpm dlx` command supports the `--shell-mode` (or `-c`) option. When used, the script is executed by a shell [#5679](https://github.com/pnpm/pnpm/issues/5679).
+
+### Patch Changes
+
+- The config command should work with the `--location=global` CLI option [#5841](https://github.com/pnpm/pnpm/issues/5841).
+- Only the `pnpm add --global <pkg>` command should fail if there is no global pnpm bin directory in the system PATH [#5841](https://github.com/pnpm/pnpm/issues/5841).
+
 ## 7.20.0
 
 ### Minor Changes

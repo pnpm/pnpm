@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-script-runners
 
+## 6.2.0
+
+### Minor Changes
+
+- b3dfa3ba8: The `pnpm dlx` command supports the `--shell-mode` (or `-c`) option. When used, the script is executed by a shell [#5679](https://github.com/pnpm/pnpm/issues/5679).
+
+### Patch Changes
+
+- Updated dependencies [d71dbf230]
+  - @pnpm/config@16.2.1
+  - @pnpm/plugin-commands-installation@11.1.6
+  - @pnpm/cli-utils@1.0.19
+
 ## 6.1.1
 
 ### Patch Changes

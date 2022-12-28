@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-config
 
+## 1.0.1
+
+### Patch Changes
+
+- 83a627a25: The config command should work with the `--location=global` CLI option [#5841](https://github.com/pnpm/pnpm/issues/5841).
+- Updated dependencies [d71dbf230]
+  - @pnpm/config@16.2.1
+  - @pnpm/cli-utils@1.0.19
+
 ## 1.0.0
 
 ### Major Changes

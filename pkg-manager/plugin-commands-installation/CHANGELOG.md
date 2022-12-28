@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-installation
 
+## 11.1.6
+
+### Patch Changes
+
+- d71dbf230: Only the `pnpm add --global <pkg>` command should fail if there is no global pnpm bin directory in the system PATH [#5841](https://github.com/pnpm/pnpm/issues/5841).
+- Updated dependencies [d71dbf230]
+  - @pnpm/config@16.2.1
+  - @pnpm/cli-utils@1.0.19
+  - @pnpm/plugin-commands-rebuild@7.0.19
+  - @pnpm/store-connection-manager@5.1.12
+  - @pnpm/find-workspace-packages@5.0.19
+  - @pnpm/filter-workspace-packages@6.0.19
+
 ## 11.1.5
 
 ### Patch Changes
