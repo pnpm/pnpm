@@ -147,4 +147,334 @@ describe('getTree', () => {
       ])
     })
   })
+
+  // This group of tests attempts to check that package tree caching still
+  // respects max depth. See https://github.com/pnpm/pnpm/issues/4814
+  //
+  // This doesn't test the cache directly, but sets up situations that would
+  // result in incorrect output if the cache was used when it's not supposed to.
+  describe('prints at expected depth for cache regression testing cases', () => {
+    const commonMockGetTreeArgs = {
+      modulesDir: '',
+      includeOptionalDependencies: false,
+      skipped: new Set<string>(),
+      registries: {
+        default: 'mock-registry-for-testing.example',
+      },
+    }
+
+    test('revisiting package at lower depth prints dependenices not previously printed', () => {
+      // This tests the "glob" npm package on a subset of its dependency tree.
+      // Requested depth (max depth - current depth) shown in square brackets.
+      //
+      // root
+      // └─┬ glob [2]
+      //   ├─┬ inflight [1]
+      //   │ └── once [0]    <-- 1st time seen. No dependencies of "once" printed due to max depth.
+      //   └─┬ once [1]      <-- 2nd time seen, but at different depth. The "wrappy" dependency below should be printed.
+      //     └── wrappy [0]
+      //
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['glob'],
+        glob: ['inflight', 'once'],
+        inflight: ['once'],
+        once: ['wrappy'],
+      })
+      const rootDepPath = refToRelativeOrThrow(version, 'root')
+
+      const result = getTree({
+        ...commonMockGetTreeArgs,
+        currentDepth: 0,
+        maxDepth: 2,
+        currentPackages,
+        wantedPackages: currentPackages,
+      }, [rootDepPath], rootDepPath)
+
+      expect(normalizePackageNodeForTesting(result)).toEqual([
+        // depth 0
+        expect.objectContaining({
+          alias: 'glob',
+          dependencies: expect.arrayContaining([
+
+            // depth 1
+            expect.objectContaining({
+              alias: 'inflight',
+              dependencies: expect.arrayContaining([
+                // depth 2
+                expect.objectContaining({
+                  // The "once" package is first seen here at depth 2.
+                  alias: 'once',
+                }),
+              ]),
+            }),
+
+            // depth 1
+            expect.objectContaining({
+              alias: 'once',
+              dependencies: [
+                // The "once" package is seen again at depth 1. The "once"
+                // package contains a "wrappy" package that should be listed.
+                expect.objectContaining({ alias: 'wrappy' }),
+              ],
+            }),
+          ]),
+        }),
+      ])
+    })
+
+    test('revisiting package at higher depth does not print extra dependenices', () => {
+      // This tests the "glob" npm package on a subset of its dependency tree.
+      // Requested depth (max depth - current depth) shown in square brackets.
+      //
+      // root
+      // └─┬ a [2]
+      //   ├─┬ b [1]   <-- 1st time "b" is seen.
+      //   │ └── c [0]
+      //   └─┬ d [1]
+      //     └── b [0] <-- 2nd time "b" is seen. Dependencies should not be printed since "max depth === current depth".
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a'],
+        a: ['b', 'd'],
+        b: ['c'],
+        d: ['b'],
+      })
+      const rootDepPath = refToRelativeOrThrow(version, 'root')
+
+      const result = getTree({
+        ...commonMockGetTreeArgs,
+        currentDepth: 0,
+        maxDepth: 2,
+        currentPackages,
+        wantedPackages: currentPackages,
+      }, [rootDepPath], rootDepPath)
+
+      expect(normalizePackageNodeForTesting(result)).toEqual([
+        expect.objectContaining({
+          alias: 'a',
+          dependencies: [
+
+            expect.objectContaining({
+              alias: 'b',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'c',
+                }),
+              ],
+            }),
+
+            expect.objectContaining({
+              alias: 'd',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'b',
+
+                  // The "b" package has a "c" dependency, but it should not be
+                  // printed since the max depth was reached.
+                  dependencies: undefined,
+                }),
+              ],
+            }),
+          ],
+        }),
+      ])
+    })
+  })
+
+  // This group of tests attempts to check that situations when the "fully
+  // visited cache" can be reused is correct.
+  //
+  // This doesn't test the cache directly, but sets up situations that would
+  // result in incorrect output if the cache was used when it's not supposed to.
+  describe('fully visited cache optimization handles requested depth correctly', () => {
+    const commonMockGetTreeArgs = {
+      modulesDir: '',
+      includeOptionalDependencies: false,
+      skipped: new Set<string>(),
+      registries: {
+        default: 'mock-registry-for-testing.example',
+      },
+    }
+
+    // The fully visited cache can be used in this situation.
+    test('height < requestedDepth', () => {
+      // Requested depth (max depth - current depth) shown in square brackets.
+      //
+      // root
+      // ├─┬ a [3]
+      // │ └─┬ b [2]   <-- 1st time "b" is seen, its dependencies are recorded to the cache with a height of 1.
+      // │   └── c [1]
+      // └─┬ b [3]     <-- 2nd time "b" is seen. Cache should be reused since requested depth is 3.
+      //   └── c [2]
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a', 'b'],
+        a: ['b'],
+        b: ['c'],
+      })
+      const rootDepPath = refToRelativeOrThrow(version, 'root')
+
+      const result = getTree({
+        ...commonMockGetTreeArgs,
+        currentDepth: 0,
+        maxDepth: 3,
+        currentPackages,
+        wantedPackages: currentPackages,
+      }, [rootDepPath], rootDepPath)
+
+      expect(normalizePackageNodeForTesting(result)).toEqual([
+        expect.objectContaining({
+          alias: 'a',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'c',
+                }),
+              ],
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          alias: 'b',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'c',
+              dependencies: undefined,
+            }),
+          ],
+        }),
+      ])
+    })
+
+    test('height === requestedDepth', () => {
+      // Requested depth (max depth - current depth) shown in square brackets.
+      //
+      // root
+      // ├─┬ a [3]       <-- 1st time "a" is seen, its dependencies are recorded to the cache with a height of 1.
+      // │ └── b [2]
+      // └─┬ c [3]
+      //   └─┬ d [2]
+      //     └─┬ a [1]   <-- 2nd time "a" is seen. Cache should be reused since requested depth is 1 and height is 1.
+      //       └── b [0]
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a', 'c'],
+        a: ['b'],
+        c: ['d'],
+        d: ['a'],
+      })
+      const rootDepPath = refToRelativeOrThrow(version, 'root')
+
+      const result = getTree({
+        ...commonMockGetTreeArgs,
+        currentDepth: 0,
+        maxDepth: 3,
+        currentPackages,
+        wantedPackages: currentPackages,
+      }, [rootDepPath], rootDepPath)
+
+      const expectedA = expect.objectContaining({
+        alias: 'a',
+        dependencies: [
+          expect.objectContaining({
+            alias: 'b',
+            dependencies: undefined,
+          }),
+        ],
+      })
+
+      expect(normalizePackageNodeForTesting(result)).toEqual([
+        expectedA,
+        expect.objectContaining({
+          alias: 'c',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'd',
+              dependencies: [
+                expectedA,
+              ],
+            }),
+          ],
+        }),
+      ])
+    })
+
+    test('height > requestedDepth', () => {
+      // Requested depth (max depth - current depth) shown in square brackets.
+      //
+      // root
+      // ├─┬ a [3]       <-- 1st time "a" is seen. Its dependencies are recorded to the cache with a height of 1.
+      // │ └─┬ b [2]
+      // │   └─┬ c [1]
+      // │     └── d [0]
+      // └─┬ e [3]
+      //   └─┬ f [2]
+      //     └─┬ a [1]   <-- 2nd time "a" is seen. Cache should not be used.
+      //       └── b [0]
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a', 'e'],
+        a: ['b'],
+        b: ['c'],
+        c: ['d'],
+        e: ['f'],
+        f: ['a'],
+      })
+      const rootDepPath = refToRelativeOrThrow(version, 'root')
+
+      const result = getTree({
+        ...commonMockGetTreeArgs,
+        currentDepth: 0,
+        maxDepth: 3,
+        currentPackages,
+        wantedPackages: currentPackages,
+      }, [rootDepPath], rootDepPath)
+
+      expect(normalizePackageNodeForTesting(result)).toEqual([
+        expect.objectContaining({
+          alias: 'a',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'c',
+                  dependencies: [
+                    expect.objectContaining({
+                      alias: 'd',
+                      dependencies: undefined,
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          alias: 'e',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'f',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'a',
+                  dependencies: [
+                    expect.objectContaining({
+                      alias: 'b',
+                      // The "b" dependency has more dependencies, but they
+                      // should not be printed to respect max depth.
+                      dependencies: undefined,
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ],
+        }),
+      ])
+    })
+  })
 })

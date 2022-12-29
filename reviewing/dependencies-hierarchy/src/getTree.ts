@@ -6,6 +6,7 @@ import { refToRelative } from '@pnpm/dependency-path'
 import { SearchFunction } from './types'
 import { PackageNode } from './PackageNode'
 import { getPkgInfo } from './getPkgInfo'
+import { DependenciesCache } from './DependenciesCache'
 
 interface GetTreeOpts {
   currentDepth: number
@@ -19,26 +20,47 @@ interface GetTreeOpts {
   wantedPackages: PackageSnapshots
 }
 
-interface DependencyInfo { circular?: true, dependencies: PackageNode[] }
+interface DependencyInfo {
+  dependencies: PackageNode[]
+
+  circular?: true
+
+  /**
+   * Whether or not the dependencies array was fully enumerated. This may not be
+   * the case if a max depth was hit.
+   */
+  isPartiallyVisited: boolean
+
+  /**
+   * The number of edges along longest path. null if the dependencies array is
+   * empty.
+   */
+  height: number | null
+}
 
 export function getTree (
   opts: GetTreeOpts,
   keypath: string[],
   parentId: string
 ): PackageNode[] {
-  const dependenciesCache = new Map<string, PackageNode[]>()
+  const dependenciesCache = new DependenciesCache()
 
   return getTreeHelper(dependenciesCache, opts, keypath, parentId).dependencies
 }
 
 function getTreeHelper (
-  dependenciesCache: Map<string, PackageNode[]>,
+  dependenciesCache: DependenciesCache,
   opts: GetTreeOpts,
   keypath: string[],
   parentId: string
 ): DependencyInfo {
-  const result: DependencyInfo = { dependencies: [] }
-  if (opts.currentDepth > opts.maxDepth || !opts.currentPackages || !opts.currentPackages[parentId]) return result
+  if (opts.currentDepth > opts.maxDepth) {
+    return { dependencies: [], isPartiallyVisited: true, height: null }
+  }
+
+  if (!opts.currentPackages?.[parentId]) {
+    return { dependencies: [], isPartiallyVisited: false, height: null }
+  }
 
   const deps = !opts.includeOptionalDependencies
     ? opts.currentPackages[parentId].dependencies
@@ -47,7 +69,9 @@ function getTreeHelper (
       ...opts.currentPackages[parentId].optionalDependencies,
     }
 
-  if (deps == null) return result
+  if (deps == null) {
+    return { dependencies: [], isPartiallyVisited: false, height: null }
+  }
 
   const getChildrenTree = getTreeHelper.bind(null, dependenciesCache, {
     ...opts,
@@ -55,6 +79,11 @@ function getTreeHelper (
   })
 
   const peers = new Set(Object.keys(opts.currentPackages[parentId].peerDependencies ?? {}))
+
+  const resultDependencies: PackageNode[] = []
+  let resultHeight = 0
+  let resultCircular: boolean = false
+  let resultIsPartiallyVisited = false
 
   Object.entries(deps).forEach(([alias, ref]) => {
     const { packageInfo, packageAbsolutePath } = getPkgInfo({
@@ -84,16 +113,28 @@ function getTreeHelper (
       if (circular) {
         dependencies = []
       } else {
-        dependencies = dependenciesCache.get(packageAbsolutePath)
+        const requestedDepth = opts.maxDepth - opts.currentDepth
+        dependencies = dependenciesCache.get({ packageAbsolutePath, requestedDepth })
 
         if (dependencies == null) {
           const children = getChildrenTree(keypath.concat([relativeId]), relativeId)
           dependencies = children.dependencies
+          const heightOfCurrentDepNode = children.height == null ? 0 : children.height + 1
+          resultHeight = Math.max(resultHeight, heightOfCurrentDepNode + 1)
+          resultIsPartiallyVisited = resultIsPartiallyVisited || children.isPartiallyVisited
 
           if (children.circular) {
-            result.circular = true
+            resultCircular = true
+          } else if (children.isPartiallyVisited) {
+            dependenciesCache.addPartiallyVisitedResult(packageAbsolutePath, {
+              dependencies,
+              depth: requestedDepth,
+            })
           } else {
-            dependenciesCache.set(packageAbsolutePath, dependencies)
+            dependenciesCache.addFullyVisitedResult(packageAbsolutePath, {
+              dependencies,
+              height: heightOfCurrentDepNode,
+            })
           }
         }
       }
@@ -110,14 +151,24 @@ function getTreeHelper (
     if (newEntry != null) {
       if (circular) {
         newEntry.circular = true
-        result.circular = true
+        resultCircular = true
       }
       if (matchedSearched) {
         newEntry.searched = true
       }
-      result.dependencies.push(newEntry)
+      resultDependencies.push(newEntry)
     }
   })
+
+  const result: DependencyInfo = {
+    dependencies: resultDependencies,
+    isPartiallyVisited: resultIsPartiallyVisited,
+    height: resultHeight,
+  }
+
+  if (resultCircular) {
+    result.circular = resultCircular
+  }
 
   return result
 }
