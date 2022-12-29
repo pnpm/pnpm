@@ -20,8 +20,15 @@ export interface PackageMeta {
   name: string
   'dist-tags': Record<string, string>
   versions: Record<string, PackageInRegistry>
-  time?: Record<string, string>
+  time?: PackageMetaTime
   cachedAt?: number
+}
+
+export type PackageMetaTime = Record<string, string> & {
+  unpublished?: {
+    time: string
+    versions: string[]
+  }
 }
 
 export interface PackageMetaCache {

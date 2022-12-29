@@ -1732,3 +1732,22 @@ test('resolveFromNpm() should normalize the registry', async () => {
   expect(resolveResult!.manifest!.name).toBe('is-positive')
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
 })
+
+test('fail when the installed package has no versions', async () => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      name: 'is-positive',
+      modified: '2021-09-28T14:21:36.303Z',
+    })
+
+  const cacheDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    cacheDir,
+  })
+
+  await expect(resolve({ alias: 'is-positive', pref: '1.0.0' }, { registry })).rejects
+    .toThrow(
+      new PnpmError('NO_VERSIONS', 'No versions available for is-positive. The package may be unpublished.')
+    )
+})
