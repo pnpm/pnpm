@@ -16,6 +16,7 @@ import {
   PARALLEL_OPTION_HELP,
   shorthands as runShorthands,
 } from './run'
+import { PnpmError } from '@pnpm/error'
 
 export const shorthands = {
   parallel: runShorthands.parallel,
@@ -34,6 +35,7 @@ export function rcOptionsTypes () {
       'workspace-concurrency',
     ], types),
     'shell-mode': Boolean,
+    'resume-from': String,
   }
 }
 
@@ -66,6 +68,10 @@ The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
             name: '--shell-mode',
             shortAlias: '-c',
           },
+          {
+            description: 'command executed from given package',
+            name: '--resume-from',
+          },
         ],
       },
     ],
@@ -83,6 +89,7 @@ export async function handler (
     sort?: boolean
     workspaceConcurrency?: number
     shellMode?: boolean
+    resumeFrom?: string
   } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
   params: string[]
 ) {
@@ -120,6 +127,19 @@ export async function handler (
       }
     }
   }
+
+  if (opts.resumeFrom) {
+    const resumeFromPackagePrefix = Object.keys(opts.selectedProjectsGraph)
+      .find((prefix) => opts.selectedProjectsGraph?.[prefix]?.package.manifest.name === opts.resumeFrom)
+
+    if (!resumeFromPackagePrefix) {
+      throw new PnpmError('RECURSIVE_EXEC_FAIL', `Cannot find package ${opts.resumeFrom}. Could not determine where to resume from.`)
+    }
+
+    const chunkPosition = chunks.findIndex(chunk => chunk.includes(resumeFromPackagePrefix))
+    chunks = chunks.slice(chunkPosition)
+  }
+
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
