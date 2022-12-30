@@ -94,7 +94,7 @@ describe('getTree', () => {
     }
 
     test('full test case to print when max depth is large', () => {
-      const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, currentDepth: 0, maxDepth: 9999 }, [], startingDepPath))
+      const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, currentDepth: 1, maxDepth: 9999 }, [], startingDepPath))
 
       expect(result).toEqual([
         expect.objectContaining({
@@ -118,8 +118,8 @@ describe('getTree', () => {
       expect(result).toEqual([])
     })
 
-    test('max depth of 0 to print flat dependencies', () => {
-      const result = getTree({ ...getTreeArgs, currentDepth: 0, maxDepth: 0 }, [], startingDepPath)
+    test('max depth of 1 to print flat dependencies', () => {
+      const result = getTree({ ...getTreeArgs, currentDepth: 1, maxDepth: 1 }, [], startingDepPath)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({ alias: 'b1', dependencies: undefined }),
@@ -128,8 +128,8 @@ describe('getTree', () => {
       ])
     })
 
-    test('max depth of 1 to print a1 -> b1 -> c1, but not d1', () => {
-      const result = getTree({ ...getTreeArgs, currentDepth: 0, maxDepth: 1 }, [], startingDepPath)
+    test('max depth of 2 to print a1 -> b1 -> c1, but not d1', () => {
+      const result = getTree({ ...getTreeArgs, currentDepth: 1, maxDepth: 2 }, [], startingDepPath)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -185,8 +185,8 @@ describe('getTree', () => {
 
       const result = getTree({
         ...commonMockGetTreeArgs,
-        currentDepth: 0,
-        maxDepth: 2,
+        currentDepth: 1,
+        maxDepth: 3,
         currentPackages,
         wantedPackages: currentPackages,
       }, [rootDepPath], rootDepPath)
@@ -244,8 +244,8 @@ describe('getTree', () => {
 
       const result = getTree({
         ...commonMockGetTreeArgs,
-        currentDepth: 0,
-        maxDepth: 2,
+        currentDepth: 1,
+        maxDepth: 3,
         currentPackages,
         wantedPackages: currentPackages,
       }, [rootDepPath], rootDepPath)
@@ -317,8 +317,8 @@ describe('getTree', () => {
 
       const result = getTree({
         ...commonMockGetTreeArgs,
-        currentDepth: 0,
-        maxDepth: 3,
+        currentDepth: 1,
+        maxDepth: 4,
         currentPackages,
         wantedPackages: currentPackages,
       }, [rootDepPath], rootDepPath)
@@ -370,8 +370,8 @@ describe('getTree', () => {
 
       const result = getTree({
         ...commonMockGetTreeArgs,
-        currentDepth: 0,
-        maxDepth: 3,
+        currentDepth: 1,
+        maxDepth: 4,
         currentPackages,
         wantedPackages: currentPackages,
       }, [rootDepPath], rootDepPath)
@@ -427,8 +427,8 @@ describe('getTree', () => {
 
       const result = getTree({
         ...commonMockGetTreeArgs,
-        currentDepth: 0,
-        maxDepth: 3,
+        currentDepth: 1,
+        maxDepth: 4,
         currentPackages,
         wantedPackages: currentPackages,
       }, [rootDepPath], rootDepPath)
