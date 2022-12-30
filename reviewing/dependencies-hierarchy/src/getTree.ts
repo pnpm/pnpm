@@ -38,12 +38,11 @@ interface DependencyInfo {
 
 export function getTree (
   opts: GetTreeOpts,
-  keypath: string[],
   parentId: string
 ): PackageNode[] {
   const dependenciesCache = new DependenciesCache()
 
-  return getTreeHelper(dependenciesCache, opts, keypath, parentId).dependencies
+  return getTreeHelper(dependenciesCache, opts, [parentId], parentId).dependencies
 }
 
 function getTreeHelper (

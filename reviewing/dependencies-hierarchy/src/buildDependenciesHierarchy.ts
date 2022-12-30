@@ -138,7 +138,7 @@ async function dependenciesHierarchyForPackage (
       } else {
         const relativeId = refToRelative(ref, alias)
         if (relativeId) {
-          const dependencies = getChildrenTree([relativeId], relativeId)
+          const dependencies = getChildrenTree(relativeId)
           if (dependencies.length > 0) {
             newEntry = {
               ...packageInfo,

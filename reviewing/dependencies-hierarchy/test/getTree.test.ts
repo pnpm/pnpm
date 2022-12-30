@@ -94,7 +94,7 @@ describe('getTree', () => {
     }
 
     test('full test case to print when max depth is large', () => {
-      const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, maxDepth: 9999 }, [], startingDepPath))
+      const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, maxDepth: 9999 }, startingDepPath))
 
       expect(result).toEqual([
         expect.objectContaining({
@@ -114,12 +114,12 @@ describe('getTree', () => {
     })
 
     test('no result when current depth exceeds max depth', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 0 }, [], startingDepPath)
+      const result = getTree({ ...getTreeArgs, maxDepth: 0 }, startingDepPath)
       expect(result).toEqual([])
     })
 
     test('max depth of 1 to print flat dependencies', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 1 }, [], startingDepPath)
+      const result = getTree({ ...getTreeArgs, maxDepth: 1 }, startingDepPath)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({ alias: 'b1', dependencies: undefined }),
@@ -129,7 +129,7 @@ describe('getTree', () => {
     })
 
     test('max depth of 2 to print a1 -> b1 -> c1, but not d1', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 2 }, [], startingDepPath)
+      const result = getTree({ ...getTreeArgs, maxDepth: 2 }, startingDepPath)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -188,7 +188,7 @@ describe('getTree', () => {
         maxDepth: 3,
         currentPackages,
         wantedPackages: currentPackages,
-      }, [rootDepPath], rootDepPath)
+      }, rootDepPath)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         // depth 0
@@ -246,7 +246,7 @@ describe('getTree', () => {
         maxDepth: 3,
         currentPackages,
         wantedPackages: currentPackages,
-      }, [rootDepPath], rootDepPath)
+      }, rootDepPath)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -318,7 +318,7 @@ describe('getTree', () => {
         maxDepth: 4,
         currentPackages,
         wantedPackages: currentPackages,
-      }, [rootDepPath], rootDepPath)
+      }, rootDepPath)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -370,7 +370,7 @@ describe('getTree', () => {
         maxDepth: 4,
         currentPackages,
         wantedPackages: currentPackages,
-      }, [rootDepPath], rootDepPath)
+      }, rootDepPath)
 
       const expectedA = expect.objectContaining({
         alias: 'a',
@@ -421,7 +421,7 @@ describe('getTree', () => {
         maxDepth: 3,
         currentPackages,
         wantedPackages: currentPackages,
-      }, [rootDepPath], rootDepPath)
+      }, rootDepPath)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -482,7 +482,7 @@ describe('getTree', () => {
         maxDepth: 5,
         currentPackages,
         wantedPackages: currentPackages,
-      }, [rootDepPath], rootDepPath)
+      }, rootDepPath)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
