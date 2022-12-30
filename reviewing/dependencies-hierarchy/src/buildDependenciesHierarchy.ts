@@ -11,13 +11,13 @@ import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { DependenciesField, DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
-import { refToRelative } from '@pnpm/dependency-path'
 import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
 import { PackageNode } from './PackageNode'
 import { SearchFunction } from './types'
 import { getTree } from './getTree'
+import { getTreeNodeChildId } from './getTreeNodeChildId'
 import { getPkgInfo } from './getPkgInfo'
 
 export interface DependenciesHierarchy {
@@ -132,12 +132,12 @@ async function dependenciesHierarchyForPackage (
       })
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.(packageInfo)
-      const packageAbsolutePath = refToRelative(ref, alias)
-      if (packageAbsolutePath === null) {
+      const nodeId = getTreeNodeChildId({ dep: { alias, ref } })
+      if (nodeId == null) {
         if ((opts.search != null) && !matchedSearched) return
         newEntry = packageInfo
       } else {
-        const dependencies = getChildrenTree(packageAbsolutePath)
+        const dependencies = getChildrenTree(nodeId)
         if (dependencies.length > 0) {
           newEntry = {
             ...packageInfo,

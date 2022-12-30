@@ -2,11 +2,12 @@ import {
   PackageSnapshots,
 } from '@pnpm/lockfile-file'
 import { Registries } from '@pnpm/types'
-import { refToRelative } from '@pnpm/dependency-path'
 import { SearchFunction } from './types'
 import { PackageNode } from './PackageNode'
 import { getPkgInfo } from './getPkgInfo'
+import { getTreeNodeChildId } from './getTreeNodeChildId'
 import { DependenciesCache } from './DependenciesCache'
+import { serializeTreeNodeId, TreeNodeId } from './TreeNodeId'
 
 interface GetTreeOpts {
   maxDepth: number
@@ -38,32 +39,41 @@ interface DependencyInfo {
 
 export function getTree (
   opts: GetTreeOpts,
-  parentId: string
+  parentId: TreeNodeId
 ): PackageNode[] {
   const dependenciesCache = new DependenciesCache()
 
-  return getTreeHelper(dependenciesCache, opts, [parentId], parentId).dependencies
+  return getTreeHelper(dependenciesCache, opts, Keypath.initialize(parentId), parentId).dependencies
 }
 
 function getTreeHelper (
   dependenciesCache: DependenciesCache,
   opts: GetTreeOpts,
-  keypath: string[],
-  parentId: string
+  keypath: Keypath,
+  parentId: TreeNodeId
 ): DependencyInfo {
   if (opts.maxDepth <= 0) {
     return { dependencies: [], height: 'unknown' }
   }
 
-  if (!opts.currentPackages?.[parentId]) {
+  function getSnapshot (treeNodeId: TreeNodeId) {
+    switch (treeNodeId.type) {
+    case 'package':
+      return opts.currentPackages[treeNodeId.depPath]
+    }
+  }
+
+  const snapshot = getSnapshot(parentId)
+
+  if (!snapshot) {
     return { dependencies: [], height: 0 }
   }
 
   const deps = !opts.includeOptionalDependencies
-    ? opts.currentPackages[parentId].dependencies
+    ? snapshot.dependencies
     : {
-      ...opts.currentPackages[parentId].dependencies,
-      ...opts.currentPackages[parentId].optionalDependencies,
+      ...snapshot.dependencies,
+      ...snapshot.optionalDependencies,
     }
 
   if (deps == null) {
@@ -76,7 +86,7 @@ function getTreeHelper (
     maxDepth: childTreeMaxDepth,
   })
 
-  const peers = new Set(Object.keys(opts.currentPackages[parentId].peerDependencies ?? {}))
+  const peers = new Set(Object.keys(opts.currentPackages[parentDepPath].peerDependencies ?? {}))
 
   const resultDependencies: PackageNode[] = []
   let resultHeight: number | 'unknown' = 0
@@ -96,8 +106,8 @@ function getTreeHelper (
     let circular: boolean
     const matchedSearched = opts.search?.(packageInfo)
     let newEntry: PackageNode | null = null
-    const packageAbsolutePath = refToRelative(ref, alias)
-    if (packageAbsolutePath === null) {
+    const nodeId = getTreeNodeChildId({ dep: { alias, ref } })
+    if (nodeId == null) {
       circular = false
       if (opts.search == null || matchedSearched) {
         newEntry = packageInfo
@@ -105,22 +115,22 @@ function getTreeHelper (
     } else {
       let dependencies: PackageNode[] | undefined
 
-      circular = keypath.includes(packageAbsolutePath)
+      circular = keypath.includes(nodeId)
 
       if (circular) {
         dependencies = []
       } else {
-        const cacheEntry = dependenciesCache.get({ packageAbsolutePath, requestedDepth: childTreeMaxDepth })
-        const children = cacheEntry ?? getChildrenTree(keypath.concat([packageAbsolutePath]), packageAbsolutePath)
+        const cacheEntry = dependenciesCache.get({ parentId: nodeId, requestedDepth: childTreeMaxDepth })
+        const children = cacheEntry ?? getChildrenTree(keypath.concat(nodeId), nodeId)
 
         if (cacheEntry == null && !children.circular) {
           if (children.height === 'unknown') {
-            dependenciesCache.addPartiallyVisitedResult(packageAbsolutePath, {
+            dependenciesCache.addPartiallyVisitedResult(nodeId, {
               dependencies: children.dependencies,
               depth: childTreeMaxDepth,
             })
           } else {
-            dependenciesCache.addFullyVisitedResult(packageAbsolutePath, {
+            dependenciesCache.addFullyVisitedResult(nodeId, {
               dependencies: children.dependencies,
               height: children.height,
             })
@@ -169,4 +179,23 @@ function getTreeHelper (
   }
 
   return result
+}
+
+/**
+ * Useful for detecting cycles.
+ */
+class Keypath {
+  private constructor (private readonly keypath: readonly string[]) {}
+
+  public static initialize (treeNodeId: TreeNodeId): Keypath {
+    return new Keypath([serializeTreeNodeId(treeNodeId)])
+  }
+
+  public includes (treeNodeId: TreeNodeId): boolean {
+    return this.keypath.includes(serializeTreeNodeId(treeNodeId))
+  }
+
+  public concat (treeNodeId: TreeNodeId): Keypath {
+    return new Keypath([...this.keypath, serializeTreeNodeId(treeNodeId)])
+  }
 }
