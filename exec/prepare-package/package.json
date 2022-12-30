@@ -33,7 +33,7 @@
     "@pnpm/npm-lifecycle": "^2.0.0",
     "@pnpm/read-package-json": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
-    "execa": "npm:safe-execa@^0.1.2",
+    "execa": "npm:safe-execa@0.1.2",
     "preferred-pm": "^3.0.3",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },

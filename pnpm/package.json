@@ -16,7 +16,7 @@
     "bin"
   ],
   "optionalDependencies": {
-    "node-gyp": "^9.3.0"
+    "node-gyp": "^9.3.1"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
@@ -82,8 +82,8 @@
     "deep-require-cwd": "1.0.0",
     "delay": "^5.0.0",
     "dir-is-case-sensitive": "^2.0.0",
-    "esbuild": "^0.15.16",
-    "execa": "npm:safe-execa@^0.1.2",
+    "esbuild": "^0.15.18",
+    "execa": "npm:safe-execa@0.1.2",
     "exists-link": "2.0.0",
     "is-ci": "^3.0.1",
     "is-windows": "^1.0.2",
