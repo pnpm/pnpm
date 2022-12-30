@@ -106,7 +106,6 @@ async function dependenciesHierarchyForPackage (
   const wantedLockfile = await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false }) ?? { packages: {} }
 
   const getChildrenTree = getTree.bind(null, {
-    currentDepth: 1,
     currentPackages: currentLockfile.packages ?? {},
     includeOptionalDependencies: opts.include.optionalDependencies,
     lockfileDir: opts.lockfileDir,
