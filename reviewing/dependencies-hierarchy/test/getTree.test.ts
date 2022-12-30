@@ -85,7 +85,9 @@ describe('getTree', () => {
     const getTreeArgs = {
       maxDepth: 0,
       modulesDir: '',
+      importers: {},
       includeOptionalDependencies: false,
+      lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
         default: 'mock-registry-for-testing.example',
@@ -157,7 +159,9 @@ describe('getTree', () => {
   describe('prints at expected depth for cache regression testing cases', () => {
     const commonMockGetTreeArgs = {
       modulesDir: '',
+      importers: {},
       includeOptionalDependencies: false,
+      lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
         default: 'mock-registry-for-testing.example',
@@ -289,7 +293,9 @@ describe('getTree', () => {
   describe('fully visited cache optimization handles requested depth correctly', () => {
     const commonMockGetTreeArgs = {
       modulesDir: '',
+      importers: {},
       includeOptionalDependencies: false,
+      lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
         default: 'mock-registry-for-testing.example',

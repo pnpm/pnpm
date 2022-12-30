@@ -19,6 +19,7 @@ import { SearchFunction } from './types'
 import { getTree } from './getTree'
 import { getTreeNodeChildId } from './getTreeNodeChildId'
 import { getPkgInfo } from './getPkgInfo'
+import { TreeNodeId } from './TreeNodeId'
 
 export interface DependenciesHierarchy {
   dependencies?: PackageNode[]
@@ -107,6 +108,7 @@ async function dependenciesHierarchyForPackage (
 
   const getChildrenTree = getTree.bind(null, {
     currentPackages: currentLockfile.packages ?? {},
+    importers: currentLockfile.importers,
     includeOptionalDependencies: opts.include.optionalDependencies,
     lockfileDir: opts.lockfileDir,
     maxDepth: opts.depth,
@@ -116,6 +118,7 @@ async function dependenciesHierarchyForPackage (
     skipped: opts.skipped,
     wantedPackages: wantedLockfile.packages ?? {},
   })
+  const parentId: TreeNodeId = { type: 'importer', importerId }
   const result: DependenciesHierarchy = {}
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciedField => opts.include[dependenciedField])) {
     const topDeps = currentLockfile.importers[importerId][dependenciesField] ?? {}
@@ -132,7 +135,12 @@ async function dependenciesHierarchyForPackage (
       })
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.(packageInfo)
-      const nodeId = getTreeNodeChildId({ dep: { alias, ref } })
+      const nodeId = getTreeNodeChildId({
+        parentId,
+        dep: { alias, ref },
+        lockfileDir: opts.lockfileDir,
+        importers: currentLockfile.importers,
+      })
       if (nodeId == null) {
         if ((opts.search != null) && !matchedSearched) return
         newEntry = packageInfo

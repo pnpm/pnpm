@@ -1,6 +1,4 @@
-import {
-  PackageSnapshots,
-} from '@pnpm/lockfile-file'
+import { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile-file'
 import { Registries } from '@pnpm/types'
 import { SearchFunction } from './types'
 import { PackageNode } from './PackageNode'
@@ -13,9 +11,11 @@ interface GetTreeOpts {
   maxDepth: number
   modulesDir: string
   includeOptionalDependencies: boolean
+  lockfileDir: string
   search?: SearchFunction
   skipped: Set<string>
   registries: Registries
+  importers: Record<string, ProjectSnapshot>
   currentPackages: PackageSnapshots
   wantedPackages: PackageSnapshots
 }
@@ -58,6 +58,8 @@ function getTreeHelper (
 
   function getSnapshot (treeNodeId: TreeNodeId) {
     switch (treeNodeId.type) {
+    case 'importer':
+      return opts.importers[treeNodeId.importerId]
     case 'package':
       return opts.currentPackages[treeNodeId.depPath]
     }
@@ -86,7 +88,18 @@ function getTreeHelper (
     maxDepth: childTreeMaxDepth,
   })
 
-  const peers = new Set(Object.keys(opts.currentPackages[parentDepPath].peerDependencies ?? {}))
+  function getPeerDependencies () {
+    switch (parentId.type) {
+    case 'importer':
+      // Projects in the pnpm workspace can declare peer dependencies, but pnpm
+      // doesn't record this block to the importers lockfile object. Returning
+      // undefined for now.
+      return undefined
+    case 'package':
+      return opts.currentPackages[parentId.depPath]?.peerDependencies
+    }
+  }
+  const peers = new Set(Object.keys(getPeerDependencies() ?? {}))
 
   const resultDependencies: PackageNode[] = []
   let resultHeight: number | 'unknown' = 0
@@ -106,7 +119,13 @@ function getTreeHelper (
     let circular: boolean
     const matchedSearched = opts.search?.(packageInfo)
     let newEntry: PackageNode | null = null
-    const nodeId = getTreeNodeChildId({ dep: { alias, ref } })
+    const nodeId = getTreeNodeChildId({
+      parentId,
+      dep: { alias, ref },
+      lockfileDir: opts.lockfileDir,
+      importers: opts.importers,
+    })
+
     if (nodeId == null) {
       circular = false
       if (opts.search == null || matchedSearched) {

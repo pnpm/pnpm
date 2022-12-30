@@ -1,4 +1,12 @@
-export type TreeNodeId = TreeNodeIdPackage
+export type TreeNodeId = TreeNodeIdImporter | TreeNodeIdPackage
+
+/**
+ * A project local to the pnpm workspace.
+ */
+interface TreeNodeIdImporter {
+  readonly type: 'importer'
+  readonly importerId: string
+}
 
 /**
  * An npm package depended on externally.
@@ -10,9 +18,13 @@ interface TreeNodeIdPackage {
 
 export function serializeTreeNodeId (treeNodeId: TreeNodeId): string {
   switch (treeNodeId.type) {
-  case 'package': {
+  case 'importer': {
     // Only serialize known fields from TreeNodeId. TypeScript is duck typed and
     // objects can have any number of unknown extra fields.
+    const { type, importerId } = treeNodeId
+    return JSON.stringify({ type, importerId })
+  }
+  case 'package': {
     const { type, depPath } = treeNodeId
     return JSON.stringify({ type, depPath })
   }
