@@ -398,6 +398,60 @@ describe('getTree', () => {
       ])
     })
 
+    test('height === requestedDepth + 1', () => {
+      // Max depth shown in square brackets.
+      //
+      // root [3]
+      // ├─┬ a [2]      <-- 1st time "a" is seen. Its dependencies are recorded to the cache with a height of 1.
+      // │ └── b [1]    <-- Max depth remaining must be >=1 for parent nodes to enter the fully visited cache.
+      // └─┬ c [2]
+      //   └─┬ d [1]
+      //     └── a [0]  <-- 2nd time "a" is seen. Cache should not be reused since requested depth is 0 and height is 1.
+      const version = '1.0.0'
+      const currentPackages = generateMockCurrentPackages(version, {
+        root: ['a', 'c'],
+        a: ['b'],
+        c: ['d'],
+        d: ['a'],
+      })
+      const rootDepPath = refToRelativeOrThrow(version, 'root')
+
+      const result = getTree({
+        ...commonMockGetTreeArgs,
+        maxDepth: 3,
+        currentPackages,
+        wantedPackages: currentPackages,
+      }, [rootDepPath], rootDepPath)
+
+      expect(normalizePackageNodeForTesting(result)).toEqual([
+        expect.objectContaining({
+          alias: 'a',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'b',
+              dependencies: undefined,
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          alias: 'c',
+          dependencies: [
+            expect.objectContaining({
+              alias: 'd',
+              dependencies: [
+                expect.objectContaining({
+                  alias: 'a',
+                  // The "a" dependency has more dependencies, but they
+                  // should not be printed to respect max depth.
+                  dependencies: undefined,
+                }),
+              ],
+            }),
+          ],
+        }),
+      ])
+    })
+
     test('height > requestedDepth', () => {
       // Max depth shown in square brackets.
       //
