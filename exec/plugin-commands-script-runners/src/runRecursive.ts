@@ -13,6 +13,7 @@ import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'
 import { existsInDir } from './existsInDir'
 import { getResumedPackageChunks } from './exec'
+import { runScript } from './run'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'
@@ -113,21 +114,7 @@ export async function runRecursive (
               ...makeNodeRequireOption(pnpPath),
             }
           }
-          if (
-            opts.enablePrePostScripts &&
-            pkg.package.manifest.scripts?.[`pre${scriptName}`] &&
-            !pkg.package.manifest.scripts[scriptName].includes(`pre${scriptName}`)
-          ) {
-            await runLifecycleHook(`pre${scriptName}`, pkg.package.manifest, lifecycleOpts)
-          }
-          await runLifecycleHook(scriptName, pkg.package.manifest, { ...lifecycleOpts, args: passedThruArgs })
-          if (
-            opts.enablePrePostScripts &&
-            pkg.package.manifest.scripts?.[`post${scriptName}`] &&
-            !pkg.package.manifest.scripts[scriptName].includes(`post${scriptName}`)
-          ) {
-            await runLifecycleHook(`post${scriptName}`, pkg.package.manifest, lifecycleOpts)
-          }
+          await runScript(scriptName, pkg.package.manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs)
           result.passes++
         } catch (err: any) { // eslint-disable-line
           logger.info(err)

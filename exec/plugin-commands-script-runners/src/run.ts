@@ -203,21 +203,7 @@ so you may run "pnpm -w run ${scriptName}"`,
     }
   }
   try {
-    if (
-      opts.enablePrePostScripts &&
-      manifest.scripts?.[`pre${scriptName}`] &&
-      !manifest.scripts[scriptName].includes(`pre${scriptName}`)
-    ) {
-      await runLifecycleHook(`pre${scriptName}`, manifest, lifecycleOpts)
-    }
-    await runLifecycleHook(scriptName, manifest, { ...lifecycleOpts, args: passedThruArgs })
-    if (
-      opts.enablePrePostScripts &&
-      manifest.scripts?.[`post${scriptName}`] &&
-      !manifest.scripts[scriptName].includes(`post${scriptName}`)
-    ) {
-      await runLifecycleHook(`post${scriptName}`, manifest, lifecycleOpts)
-    }
+    await runScript(scriptName, manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs)
   } catch (err: any) { // eslint-disable-line
     if (opts.bail !== false) {
       throw err
@@ -298,6 +284,28 @@ function printProjectCommands (
   output += `Commands of the root workspace project (to run them, use "pnpm -w run"):
 ${renderCommands(rootScripts)}`
   return output
+}
+
+interface RunScriptOptions {
+  enablePrePostScripts: boolean
+}
+
+export const runScript: (scriptName: string, manifest: ProjectManifest, lifecycleOpts: RunLifecycleHookOptions, runScriptOptions: RunScriptOptions, passedThruArgs: string[]) => Promise<void> = async function(scriptName, manifest, lifecycleOpts, runScriptOptions, passedThruArgs) {
+  if (
+    runScriptOptions.enablePrePostScripts &&
+    manifest.scripts?.[`pre${scriptName}`] &&
+    !manifest.scripts[scriptName].includes(`pre${scriptName}`)
+  ) {
+    await runLifecycleHook(`pre${scriptName}`, manifest, lifecycleOpts)
+  }
+  await runLifecycleHook(scriptName, manifest, { ...lifecycleOpts, args: passedThruArgs })
+  if (
+    runScriptOptions.enablePrePostScripts &&
+    manifest.scripts?.[`post${scriptName}`] &&
+    !manifest.scripts[scriptName].includes(`post${scriptName}`)
+  ) {
+    await runLifecycleHook(`post${scriptName}`, manifest, lifecycleOpts)
+  }
 }
 
 function renderCommands (commands: string[][]) {
