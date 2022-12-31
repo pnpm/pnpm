@@ -113,29 +113,29 @@ function getTreeHelper (
       if (circular) {
         dependencies = []
       } else {
-        dependencies = dependenciesCache.get({ packageAbsolutePath, requestedDepth: childTreeMaxDepth })
+        const cacheEntry = dependenciesCache.get({ packageAbsolutePath, requestedDepth: childTreeMaxDepth })
+        const children = cacheEntry ?? getChildrenTree(keypath.concat([relativeId]), relativeId)
 
-        if (dependencies == null) {
-          const children = getChildrenTree(keypath.concat([relativeId]), relativeId)
-          dependencies = children.dependencies
-          const heightOfCurrentDepNode = children.height == null ? 0 : children.height + 1
-          resultHeight = Math.max(resultHeight ?? 0, heightOfCurrentDepNode)
-          resultIsPartiallyVisited = resultIsPartiallyVisited || children.isPartiallyVisited
+        const heightOfCurrentDepNode = children.height == null ? 0 : children.height + 1
 
-          if (children.circular) {
-            resultCircular = true
-          } else if (children.isPartiallyVisited) {
+        if (cacheEntry == null && !children.circular) {
+          if (children.isPartiallyVisited) {
             dependenciesCache.addPartiallyVisitedResult(packageAbsolutePath, {
-              dependencies,
+              dependencies: children.dependencies,
               depth: childTreeMaxDepth,
             })
           } else {
             dependenciesCache.addFullyVisitedResult(packageAbsolutePath, {
-              dependencies,
+              dependencies: children.dependencies,
               height: heightOfCurrentDepNode,
             })
           }
         }
+
+        dependencies = children.dependencies
+        resultIsPartiallyVisited = resultIsPartiallyVisited || children.isPartiallyVisited
+        resultHeight = Math.max(resultHeight ?? 0, heightOfCurrentDepNode)
+        resultCircular = resultCircular || (children.circular ?? false)
       }
 
       if (dependencies.length > 0) {
