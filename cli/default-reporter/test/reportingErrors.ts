@@ -541,3 +541,29 @@ ${ERROR_PAD}or add the auth tokens manually to the ~/.npmrc file.`)
     },
   })
 })
+
+test('prints error about git-hosted package preparation', (done) => {
+  const output$ = toOutput$({
+    context: { argv: ['install'], config: { rawConfig: {} } as any }, // eslint-disable-line
+    streamParser: createStreamParser(),
+  })
+
+  const err = new PnpmError('PREPARE_PACKAGE', 'Failed to prepare git-hosted package fetched from "https://codeload.github.com/ethereumjs/ethereumjs-abi/tar.gz/ee3994657fa7a427238e6ba92a84d0b529bbcde0": Command failed with exit code 1: npm install')
+  err['stdout'] = 'stdout'
+  err['stderr'] = 'stderr'
+  logger.error(err, err)
+
+  expect.assertions(1)
+
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
+    complete: () => done(),
+    error: done,
+    next: output => {
+      expect(output).toBe(`STDOUT:
+stdout
+STDERR:
+stderr
+${formatError('ERR_PNPM_PREPARE_PACKAGE', 'Failed to prepare git-hosted package fetched from "https://codeload.github.com/ethereumjs/ethereumjs-abi/tar.gz/ee3994657fa7a427238e6ba92a84d0b529bbcde0": Command failed with exit code 1: npm install')}`)
+    },
+  })
+})
