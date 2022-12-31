@@ -72,9 +72,10 @@ function getTreeHelper (
     return { dependencies: [], isPartiallyVisited: false, height: null }
   }
 
+  const childTreeMaxDepth = opts.maxDepth - 1
   const getChildrenTree = getTreeHelper.bind(null, dependenciesCache, {
     ...opts,
-    maxDepth: opts.maxDepth - 1,
+    maxDepth: childTreeMaxDepth,
   })
 
   const peers = new Set(Object.keys(opts.currentPackages[parentId].peerDependencies ?? {}))
@@ -112,8 +113,7 @@ function getTreeHelper (
       if (circular) {
         dependencies = []
       } else {
-        const requestedDepth = opts.maxDepth
-        dependencies = dependenciesCache.get({ packageAbsolutePath, requestedDepth })
+        dependencies = dependenciesCache.get({ packageAbsolutePath, requestedDepth: childTreeMaxDepth })
 
         if (dependencies == null) {
           const children = getChildrenTree(keypath.concat([relativeId]), relativeId)
@@ -127,7 +127,7 @@ function getTreeHelper (
           } else if (children.isPartiallyVisited) {
             dependenciesCache.addPartiallyVisitedResult(packageAbsolutePath, {
               dependencies,
-              depth: requestedDepth,
+              depth: childTreeMaxDepth,
             })
           } else {
             dependenciesCache.addFullyVisitedResult(packageAbsolutePath, {
