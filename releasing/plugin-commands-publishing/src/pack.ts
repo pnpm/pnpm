@@ -55,7 +55,7 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig' | 'embedReadme'> & Partial<Pick<Config, 'extraBinPaths'>> & {
+  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig' | 'embedReadme'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
     argv: {
       original: string[]
     }
@@ -68,6 +68,7 @@ export async function handler (
   const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: opts.dir,
     extraBinPaths: opts.extraBinPaths,
+    extraEnv: opts.extraEnv,
     pkgRoot: opts.dir,
     rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(opts.dir, 'node_modules')),

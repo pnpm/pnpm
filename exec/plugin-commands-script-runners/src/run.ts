@@ -175,7 +175,17 @@ so you may run "pnpm -w run ${scriptName}"`,
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
     extraBinPaths: opts.extraBinPaths,
-    extraEnv: opts.extraEnv,
+    // Follow the behavior of npm by setting 'npm_command' env variable to 'run-script' when running scripts (e.g. pnpm run dev)
+    // and setting it to the command name otherwise (e.g. pnpm test)
+    extraEnv: {
+      ...opts.extraEnv,
+      ...(opts.extraEnv.npm_command && {
+        npm_command:
+                  opts.extraEnv.npm_command === 'run'
+                    ? 'run-script'
+                    : opts.extraEnv.npm_command,
+      }),
+    },
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
