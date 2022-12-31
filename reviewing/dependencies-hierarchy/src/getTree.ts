@@ -119,7 +119,7 @@ function getTreeHelper (
           const children = getChildrenTree(keypath.concat([relativeId]), relativeId)
           dependencies = children.dependencies
           const heightOfCurrentDepNode = children.height == null ? 0 : children.height + 1
-          resultHeight = Math.max(resultHeight ?? 0, heightOfCurrentDepNode + 1)
+          resultHeight = Math.max(resultHeight ?? 0, heightOfCurrentDepNode)
           resultIsPartiallyVisited = resultIsPartiallyVisited || children.isPartiallyVisited
 
           if (children.circular) {
