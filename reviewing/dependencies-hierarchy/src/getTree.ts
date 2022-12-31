@@ -9,7 +9,6 @@ import { getPkgInfo } from './getPkgInfo'
 import { DependenciesCache } from './DependenciesCache'
 
 interface GetTreeOpts {
-  currentDepth: number
   maxDepth: number
   modulesDir: string
   includeOptionalDependencies: boolean
@@ -54,7 +53,7 @@ function getTreeHelper (
   keypath: string[],
   parentId: string
 ): DependencyInfo {
-  if (opts.currentDepth > opts.maxDepth) {
+  if (opts.maxDepth <= 0) {
     return { dependencies: [], isPartiallyVisited: true, height: null }
   }
 
@@ -75,7 +74,7 @@ function getTreeHelper (
 
   const getChildrenTree = getTreeHelper.bind(null, dependenciesCache, {
     ...opts,
-    currentDepth: opts.currentDepth + 1,
+    maxDepth: opts.maxDepth - 1,
   })
 
   const peers = new Set(Object.keys(opts.currentPackages[parentId].peerDependencies ?? {}))
@@ -113,7 +112,7 @@ function getTreeHelper (
       if (circular) {
         dependencies = []
       } else {
-        const requestedDepth = opts.maxDepth - opts.currentDepth
+        const requestedDepth = opts.maxDepth
         dependencies = dependenciesCache.get({ packageAbsolutePath, requestedDepth })
 
         if (dependencies == null) {

@@ -94,7 +94,7 @@ describe('getTree', () => {
     }
 
     test('full test case to print when max depth is large', () => {
-      const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, currentDepth: 0, maxDepth: 9999 }, [], startingDepPath))
+      const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, maxDepth: 9999 }, [], startingDepPath))
 
       expect(result).toEqual([
         expect.objectContaining({
@@ -114,12 +114,12 @@ describe('getTree', () => {
     })
 
     test('no result when current depth exceeds max depth', () => {
-      const result = getTree({ ...getTreeArgs, currentDepth: 1, maxDepth: 0 }, [], startingDepPath)
+      const result = getTree({ ...getTreeArgs, maxDepth: 0 }, [], startingDepPath)
       expect(result).toEqual([])
     })
 
-    test('max depth of 0 to print flat dependencies', () => {
-      const result = getTree({ ...getTreeArgs, currentDepth: 0, maxDepth: 0 }, [], startingDepPath)
+    test('max depth of 1 to print flat dependencies', () => {
+      const result = getTree({ ...getTreeArgs, maxDepth: 1 }, [], startingDepPath)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({ alias: 'b1', dependencies: undefined }),
@@ -128,8 +128,8 @@ describe('getTree', () => {
       ])
     })
 
-    test('max depth of 1 to print a1 -> b1 -> c1, but not d1', () => {
-      const result = getTree({ ...getTreeArgs, currentDepth: 0, maxDepth: 1 }, [], startingDepPath)
+    test('max depth of 2 to print a1 -> b1 -> c1, but not d1', () => {
+      const result = getTree({ ...getTreeArgs, maxDepth: 2 }, [], startingDepPath)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -165,7 +165,7 @@ describe('getTree', () => {
 
     test('revisiting package at lower depth prints dependenices not previously printed', () => {
       // This tests the "glob" npm package on a subset of its dependency tree.
-      // Requested depth (max depth - current depth) shown in square brackets.
+      // Max depth shown in square brackets.
       //
       // root
       // └─┬ glob [2]
@@ -185,8 +185,7 @@ describe('getTree', () => {
 
       const result = getTree({
         ...commonMockGetTreeArgs,
-        currentDepth: 0,
-        maxDepth: 2,
+        maxDepth: 3,
         currentPackages,
         wantedPackages: currentPackages,
       }, [rootDepPath], rootDepPath)
@@ -225,7 +224,7 @@ describe('getTree', () => {
 
     test('revisiting package at higher depth does not print extra dependenices', () => {
       // This tests the "glob" npm package on a subset of its dependency tree.
-      // Requested depth (max depth - current depth) shown in square brackets.
+      // Max depth shown in square brackets.
       //
       // root
       // └─┬ a [2]
@@ -244,8 +243,7 @@ describe('getTree', () => {
 
       const result = getTree({
         ...commonMockGetTreeArgs,
-        currentDepth: 0,
-        maxDepth: 2,
+        maxDepth: 3,
         currentPackages,
         wantedPackages: currentPackages,
       }, [rootDepPath], rootDepPath)
@@ -299,7 +297,7 @@ describe('getTree', () => {
 
     // The fully visited cache can be used in this situation.
     test('height < requestedDepth', () => {
-      // Requested depth (max depth - current depth) shown in square brackets.
+      // Max depth shown in square brackets.
       //
       // root
       // ├─┬ a [3]
@@ -317,8 +315,7 @@ describe('getTree', () => {
 
       const result = getTree({
         ...commonMockGetTreeArgs,
-        currentDepth: 0,
-        maxDepth: 3,
+        maxDepth: 4,
         currentPackages,
         wantedPackages: currentPackages,
       }, [rootDepPath], rootDepPath)
@@ -350,7 +347,7 @@ describe('getTree', () => {
     })
 
     test('height === requestedDepth', () => {
-      // Requested depth (max depth - current depth) shown in square brackets.
+      // Max depth shown in square brackets.
       //
       // root
       // ├─┬ a [3]       <-- 1st time "a" is seen, its dependencies are recorded to the cache with a height of 1.
@@ -370,8 +367,7 @@ describe('getTree', () => {
 
       const result = getTree({
         ...commonMockGetTreeArgs,
-        currentDepth: 0,
-        maxDepth: 3,
+        maxDepth: 4,
         currentPackages,
         wantedPackages: currentPackages,
       }, [rootDepPath], rootDepPath)
@@ -403,7 +399,7 @@ describe('getTree', () => {
     })
 
     test('height > requestedDepth', () => {
-      // Requested depth (max depth - current depth) shown in square brackets.
+      // Max depth shown in square brackets.
       //
       // root
       // ├─┬ a [3]       <-- 1st time "a" is seen. Its dependencies are recorded to the cache with a height of 1.
@@ -427,8 +423,7 @@ describe('getTree', () => {
 
       const result = getTree({
         ...commonMockGetTreeArgs,
-        currentDepth: 0,
-        maxDepth: 3,
+        maxDepth: 4,
         currentPackages,
         wantedPackages: currentPackages,
       }, [rootDepPath], rootDepPath)
