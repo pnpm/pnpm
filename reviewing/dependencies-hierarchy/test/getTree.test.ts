@@ -302,7 +302,7 @@ describe('getTree', () => {
       // root
       // ├─┬ a [3]
       // │ └─┬ b [2]   <-- 1st time "b" is seen, its dependencies are recorded to the cache with a height of 1.
-      // │   └── c [1]
+      // │   └── c [1] <-- Max depth remaining must be >=1 for parent nodes to enter the fully visited cache.
       // └─┬ b [3]     <-- 2nd time "b" is seen. Cache should be reused since requested depth is 3.
       //   └── c [2]
       const version = '1.0.0'
@@ -351,7 +351,7 @@ describe('getTree', () => {
       //
       // root
       // ├─┬ a [3]       <-- 1st time "a" is seen, its dependencies are recorded to the cache with a height of 1.
-      // │ └── b [2]
+      // │ └── b [2]     <-- Max depth remaining must be >=1 for parent nodes to enter the fully visited cache.
       // └─┬ c [3]
       //   └─┬ d [2]
       //     └─┬ a [1]   <-- 2nd time "a" is seen. Cache should be reused since requested depth is 1 and height is 1.
@@ -401,15 +401,16 @@ describe('getTree', () => {
     test('height > requestedDepth', () => {
       // Max depth shown in square brackets.
       //
-      // root
-      // ├─┬ a [3]       <-- 1st time "a" is seen. Its dependencies are recorded to the cache with a height of 1.
-      // │ └─┬ b [2]
-      // │   └─┬ c [1]
-      // │     └── d [0]
-      // └─┬ e [3]
-      //   └─┬ f [2]
-      //     └─┬ a [1]   <-- 2nd time "a" is seen. Cache should not be used.
-      //       └── b [0]
+      // root [5]
+      // ├─┬ a [4]         <-- 1st time "a" is seen. Its dependencies are recorded to the cache with a height of 3.
+      // │ └─┬ b [3]
+      // │   └─┬ c [2]
+      // │     └── d [1]   <-- Max depth remaining must be >=1 for parent nodes to enter the fully visited cache.
+      // └─┬ e [4]
+      //   └─┬ f [3]
+      //     └─┬ g [2]
+      //       └─┬ a [1]   <-- 2nd time "a" is seen. Cache should not be used.
+      //         └── b [0]
       const version = '1.0.0'
       const currentPackages = generateMockCurrentPackages(version, {
         root: ['a', 'e'],
@@ -417,13 +418,14 @@ describe('getTree', () => {
         b: ['c'],
         c: ['d'],
         e: ['f'],
-        f: ['a'],
+        f: ['g'],
+        g: ['a'],
       })
       const rootDepPath = refToRelativeOrThrow(version, 'root')
 
       const result = getTree({
         ...commonMockGetTreeArgs,
-        maxDepth: 4,
+        maxDepth: 5,
         currentPackages,
         wantedPackages: currentPackages,
       }, [rootDepPath], rootDepPath)
@@ -455,13 +457,18 @@ describe('getTree', () => {
               alias: 'f',
               dependencies: [
                 expect.objectContaining({
-                  alias: 'a',
+                  alias: 'g',
                   dependencies: [
                     expect.objectContaining({
-                      alias: 'b',
-                      // The "b" dependency has more dependencies, but they
-                      // should not be printed to respect max depth.
-                      dependencies: undefined,
+                      alias: 'a',
+                      dependencies: [
+                        expect.objectContaining({
+                          alias: 'b',
+                          // The "b" dependency has more dependencies, but they
+                          // should not be printed to respect max depth.
+                          dependencies: undefined,
+                        }),
+                      ],
                     }),
                   ],
                 }),
