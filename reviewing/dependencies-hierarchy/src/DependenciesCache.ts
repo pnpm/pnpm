@@ -32,6 +32,14 @@ export interface TraversalResultPartiallyVisited {
   readonly depth: number
 }
 
+export interface CacheHit {
+  readonly dependencies: PackageNode[]
+  readonly height: number
+  readonly isPartiallyVisited: boolean
+  // Circular dependencies are not stored in the cache.
+  readonly circular: false
+}
+
 /**
  * A cache for the dependencies of a package.
  *
@@ -72,7 +80,7 @@ export class DependenciesCache {
    */
   private readonly partiallyVisitedCache = new Map<string, Map<number, PackageNode[]>>()
 
-  public get (args: GetDependenciesCacheEntryArgs): PackageNode[] | undefined {
+  public get (args: GetDependenciesCacheEntryArgs): CacheHit | undefined {
     // The fully visited cache is only usable if the height doesn't exceed the
     // requested depth. Otherwise the final dependencies listing will print
     // entries with a greater depth than requested.
@@ -81,10 +89,25 @@ export class DependenciesCache {
     // if dependencies were requested at that exact depth before.
     const fullyVisitedEntry = this.fullyVisitedCache.get(args.packageAbsolutePath)
     if (fullyVisitedEntry !== undefined && fullyVisitedEntry.height <= args.requestedDepth) {
-      return fullyVisitedEntry.dependencies
+      return {
+        dependencies: fullyVisitedEntry.dependencies,
+        height: fullyVisitedEntry.height,
+        isPartiallyVisited: false,
+        circular: false,
+      }
     }
 
-    return this.partiallyVisitedCache.get(args.packageAbsolutePath)?.get(args.requestedDepth)
+    const partiallyVisitedEntry = this.partiallyVisitedCache.get(args.packageAbsolutePath)?.get(args.requestedDepth)
+    if (partiallyVisitedEntry != null) {
+      return {
+        dependencies: partiallyVisitedEntry,
+        height: args.requestedDepth,
+        isPartiallyVisited: true,
+        circular: false,
+      }
+    }
+
+    return undefined
   }
 
   public addFullyVisitedResult (packageAbsolutePath: string, result: TraversalResultFullyVisited): void {
