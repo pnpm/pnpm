@@ -80,7 +80,7 @@ function getTreeHelper (
   const peers = new Set(Object.keys(opts.currentPackages[parentId].peerDependencies ?? {}))
 
   const resultDependencies: PackageNode[] = []
-  let resultHeight = 0
+  let resultHeight: number | null = null
   let resultCircular: boolean = false
   let resultIsPartiallyVisited = false
 
@@ -119,7 +119,7 @@ function getTreeHelper (
           const children = getChildrenTree(keypath.concat([relativeId]), relativeId)
           dependencies = children.dependencies
           const heightOfCurrentDepNode = children.height == null ? 0 : children.height + 1
-          resultHeight = Math.max(resultHeight, heightOfCurrentDepNode + 1)
+          resultHeight = Math.max(resultHeight ?? 0, heightOfCurrentDepNode + 1)
           resultIsPartiallyVisited = resultIsPartiallyVisited || children.isPartiallyVisited
 
           if (children.circular) {
