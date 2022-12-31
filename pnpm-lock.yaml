@@ -2760,7 +2760,7 @@ importers:
         specifier: 4.0.0-rc.27
         version: 4.0.0-rc.27_typanion@3.12.1
       ci-info:
-        specifier: 3.7.0
+        specifier: ^3.7.0
         version: 3.7.0
       deep-require-cwd:
         specifier: 1.0.0
@@ -2860,7 +2860,7 @@ importers:
         specifier: ^2.1.2
         version: 2.1.2
       ci-info:
-        specifier: 3.7.0
+        specifier: ^3.7.0
         version: 3.7.0
       path-absolute:
         specifier: ^1.0.1
@@ -3489,7 +3489,7 @@ importers:
         specifier: ^4.1.2
         version: 4.1.2
       ci-info:
-        specifier: 3.7.0
+        specifier: ^3.7.0
         version: 3.7.0
       enquirer:
         specifier: ^2.3.6
@@ -4115,7 +4115,7 @@ importers:
         specifier: ^4.1.2
         version: 4.1.2
       ci-info:
-        specifier: 3.7.0
+        specifier: ^3.7.0
         version: 3.7.0
       cross-spawn:
         specifier: ^7.0.3
@@ -4439,7 +4439,7 @@ importers:
         specifier: ^2.2.2
         version: 2.2.2
       ci-info:
-        specifier: 3.7.0
+        specifier: ^3.7.0
         version: 3.7.0
       cross-spawn:
         specifier: ^7.0.3
@@ -5714,7 +5714,7 @@ importers:
         specifier: ^3.1.2
         version: 3.1.2
       ci-info:
-        specifier: 3.7.0
+        specifier: ^3.7.0
         version: 3.7.0
       is-windows:
         specifier: ^1.0.2
