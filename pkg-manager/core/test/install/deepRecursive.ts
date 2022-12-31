@@ -1,6 +1,6 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage } from '@pnpm/core'
-import isCI from 'is-ci'
+import { isCI } from 'ci-info'
 import exists from 'path-exists'
 import { testDefaults } from '../utils'
 

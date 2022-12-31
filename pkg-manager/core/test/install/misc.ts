@@ -22,7 +22,7 @@ import {
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
-import isCI from 'is-ci'
+import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
 import exists from 'path-exists'
 import semver from 'semver'

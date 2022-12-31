@@ -4,7 +4,7 @@ import { filterWorkspacePackages, PackageGraph } from '@pnpm/filter-workspace-pa
 import './parsePackageSelector'
 import fs from 'fs'
 import execa from 'execa'
-import isCI from 'is-ci'
+import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
 import path from 'path'
 import omit from 'ramda/src/omit'

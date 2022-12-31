@@ -3,7 +3,7 @@ import { FILTERING, OPTIONS, OUTPUT_OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/com
 import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import isCI from 'is-ci'
+import { isCI } from 'ci-info'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { installDeps } from './installDeps'
