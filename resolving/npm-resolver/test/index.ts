@@ -11,6 +11,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import exists from 'path-exists'
+import omit from 'ramda/src/omit'
 import tempy from 'tempy'
 
 const f = fixtures(__dirname)
@@ -44,6 +45,15 @@ async function retryLoadJsonFile<T> (filePath: string) {
     }
   }
 }
+
+afterEach(() => {
+  nock.cleanAll()
+  nock.disableNetConnect()
+})
+
+beforeEach(() => {
+  nock.enableNetConnect()
+})
 
 test('resolveFromNpm()', async () => {
   nock(registry)
@@ -1653,17 +1663,46 @@ test('request to metadata is retried if the received JSON is broken', async () =
   expect(resolveResult?.id).toBe('registry.npmjs.org/is-positive/1.0.0')
 })
 
-test('request to a package with malformed metadata', async () => {
+test('request to a package with unpublished versions', async () => {
   nock(registry)
     .get('/code-snippet')
-    .reply(200, loadJsonFile.sync(f.find('malformed.json')))
+    .reply(200, loadJsonFile.sync(f.find('unpublished.json')))
 
   const cacheDir = tempy.directory()
   const resolve = createResolveFromNpm({ cacheDir })
 
   await expect(resolve({ alias: 'code-snippet' }, { registry })).rejects
     .toThrow(
-      new PnpmError('MALFORMED_METADATA', 'Received malformed metadata for "code-snippet"')
+      new PnpmError('NO_VERSIONS', 'No versions available for code-snippet because it was unpublished')
+    )
+})
+
+test('request to a package with no versions', async () => {
+  nock(registry)
+    .get('/code-snippet')
+    .reply(200, { name: 'code-snippet' })
+
+  const cacheDir = tempy.directory()
+  const resolve = createResolveFromNpm({ cacheDir })
+
+  await expect(resolve({ alias: 'code-snippet' }, { registry })).rejects
+    .toThrow(
+      new PnpmError('NO_VERSIONS', 'No versions available for code-snippet. The package may be unpublished.')
+    )
+})
+
+test('request to a package with no dist-tags', async () => {
+  const isPositiveMeta = omit(['dist-tags'], loadJsonFile.sync(f.find('is-positive.json')))
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = tempy.directory()
+  const resolve = createResolveFromNpm({ cacheDir })
+
+  await expect(resolve({ alias: 'is-positive' }, { registry })).rejects
+    .toThrow(
+      new PnpmError('MALFORMED_METADATA', 'Received malformed metadata for "is-positive"')
     )
 })
 

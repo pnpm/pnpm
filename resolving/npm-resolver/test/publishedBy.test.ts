@@ -18,6 +18,15 @@ const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
 const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
 
+afterEach(() => {
+  nock.cleanAll()
+  nock.disableNetConnect()
+})
+
+beforeEach(() => {
+  nock.enableNetConnect()
+})
+
 test('fall back to a newer version if there is no version published by the given date', async () => {
   nock(registry)
     .get('/bad-dates')
