@@ -18,7 +18,7 @@ export function pickPackageFromMeta (
   meta: PackageMeta,
   publishedBy?: Date
 ): PackageInRegistry | null {
-  if (!meta.versions || Object.keys(meta.versions).length === 0) {
+  if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
     // Unfortunately, the npm registry doesn't return the time field in the abbreviated metadata.
     // So we won't always know if the package was unpublished.
     if (meta.time?.unpublished?.versions?.length) {
@@ -51,9 +51,6 @@ export function pickPackageFromMeta (
     }
     return manifest
   } catch (err: any) { // eslint-disable-line
-    // if (meta.unpublished) {
-    // throw new PnpmError('UNPUBLISHED_PKG', `Package ${spec.name} has been unpublished`)
-    // }
     throw new PnpmError('MALFORMED_METADATA',
       `Received malformed metadata for "${spec.name}"`,
       { hint: 'This might mean that the package was unpublished from the registry' }
