@@ -34,8 +34,7 @@ export interface TraversalResultPartiallyVisited {
 
 export interface CacheHit {
   readonly dependencies: PackageNode[]
-  readonly height: number
-  readonly isPartiallyVisited: boolean
+  readonly height: number | 'unknown'
   // Circular dependencies are not stored in the cache.
   readonly circular: false
 }
@@ -92,7 +91,6 @@ export class DependenciesCache {
       return {
         dependencies: fullyVisitedEntry.dependencies,
         height: fullyVisitedEntry.height,
-        isPartiallyVisited: false,
         circular: false,
       }
     }
@@ -101,8 +99,7 @@ export class DependenciesCache {
     if (partiallyVisitedEntry != null) {
       return {
         dependencies: partiallyVisitedEntry,
-        height: args.requestedDepth,
-        isPartiallyVisited: true,
+        height: 'unknown',
         circular: false,
       }
     }
