@@ -25,16 +25,15 @@ interface DependencyInfo {
   circular?: true
 
   /**
-   * Whether or not the dependencies array was fully enumerated. This may not be
-   * the case if a max depth was hit.
+   * The number of edges along the longest path, including the parent node.
+   *
+   *   - `"unknown"` if traversal was limited by a max depth option, therefore
+   *      making the true height of a package undetermined.
+   *   - `0` if the dependencies array is empty.
+   *   - `1` if the dependencies array has at least 1 element and no child
+   *     dependencies.
    */
-  isPartiallyVisited: boolean
-
-  /**
-   * The number of edges along longest path. null if the dependencies array is
-   * empty.
-   */
-  height: number | null
+  height: number | 'unknown'
 }
 
 export function getTree (
@@ -54,11 +53,11 @@ function getTreeHelper (
   parentId: string
 ): DependencyInfo {
   if (opts.maxDepth <= 0) {
-    return { dependencies: [], isPartiallyVisited: true, height: null }
+    return { dependencies: [], height: 'unknown' }
   }
 
   if (!opts.currentPackages?.[parentId]) {
-    return { dependencies: [], isPartiallyVisited: false, height: null }
+    return { dependencies: [], height: 0 }
   }
 
   const deps = !opts.includeOptionalDependencies
@@ -69,7 +68,7 @@ function getTreeHelper (
     }
 
   if (deps == null) {
-    return { dependencies: [], isPartiallyVisited: false, height: null }
+    return { dependencies: [], height: 0 }
   }
 
   const childTreeMaxDepth = opts.maxDepth - 1
@@ -81,9 +80,8 @@ function getTreeHelper (
   const peers = new Set(Object.keys(opts.currentPackages[parentId].peerDependencies ?? {}))
 
   const resultDependencies: PackageNode[] = []
-  let resultHeight: number | null = null
+  let resultHeight: number | 'unknown' = 0
   let resultCircular: boolean = false
-  let resultIsPartiallyVisited = false
 
   Object.entries(deps).forEach(([alias, ref]) => {
     const { packageInfo, packageAbsolutePath } = getPkgInfo({
@@ -116,10 +114,8 @@ function getTreeHelper (
         const cacheEntry = dependenciesCache.get({ packageAbsolutePath, requestedDepth: childTreeMaxDepth })
         const children = cacheEntry ?? getChildrenTree(keypath.concat([relativeId]), relativeId)
 
-        const heightOfCurrentDepNode = children.height == null ? 0 : children.height + 1
-
         if (cacheEntry == null && !children.circular) {
-          if (children.isPartiallyVisited) {
+          if (children.height === 'unknown') {
             dependenciesCache.addPartiallyVisitedResult(packageAbsolutePath, {
               dependencies: children.dependencies,
               depth: childTreeMaxDepth,
@@ -127,14 +123,19 @@ function getTreeHelper (
           } else {
             dependenciesCache.addFullyVisitedResult(packageAbsolutePath, {
               dependencies: children.dependencies,
-              height: heightOfCurrentDepNode,
+              height: children.height,
             })
           }
         }
 
+        const heightOfCurrentDepNode = children.height === 'unknown'
+          ? 'unknown'
+          : children.height + 1
+
         dependencies = children.dependencies
-        resultIsPartiallyVisited = resultIsPartiallyVisited || children.isPartiallyVisited
-        resultHeight = Math.max(resultHeight ?? 0, heightOfCurrentDepNode)
+        resultHeight = resultHeight === 'unknown' || heightOfCurrentDepNode === 'unknown'
+          ? 'unknown'
+          : Math.max(resultHeight, heightOfCurrentDepNode)
         resultCircular = resultCircular || (children.circular ?? false)
       }
 
@@ -161,7 +162,6 @@ function getTreeHelper (
 
   const result: DependencyInfo = {
     dependencies: resultDependencies,
-    isPartiallyVisited: resultIsPartiallyVisited,
     height: resultHeight,
   }
 
