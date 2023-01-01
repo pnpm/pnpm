@@ -41,12 +41,11 @@
   },
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:*",
-    "@types/is-ci": "^3.0.0",
     "@types/is-windows": "^1.0.0",
     "@types/micromatch": "^4.0.2",
     "@types/ramda": "0.28.20",
     "@types/touch": "^3.1.2",
-    "is-ci": "^3.0.1",
+    "ci-info": "^3.7.0",
     "is-windows": "^1.0.2",
     "tempy": "^1.0.1",
     "touch": "3.1.0"

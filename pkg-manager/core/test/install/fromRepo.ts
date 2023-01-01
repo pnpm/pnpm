@@ -5,7 +5,7 @@ import {
   addDependenciesToPackage,
   install,
 } from '@pnpm/core'
-import isCI from 'is-ci'
+import { isCI } from 'ci-info'
 import exists from 'path-exists'
 import sinon from 'sinon'
 import { testDefaults } from '../utils'

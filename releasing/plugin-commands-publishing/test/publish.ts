@@ -1,7 +1,7 @@
 import { existsSync, promises as fs } from 'fs'
 import path from 'path'
 import execa from 'execa'
-import isCI from 'is-ci'
+import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { prepare, preparePackages } from '@pnpm/prepare'

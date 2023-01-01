@@ -30,7 +30,6 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/get-context#readme",
   "devDependencies": {
     "@pnpm/get-context": "workspace:*",
-    "@types/is-ci": "^3.0.0",
     "@types/ramda": "0.28.20"
   },
   "peerDependencies": {
@@ -45,7 +44,7 @@
     "@pnpm/read-projects-context": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
-    "is-ci": "^3.0.1",
+    "ci-info": "^3.7.0",
     "path-absolute": "^1.0.1",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },

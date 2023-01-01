@@ -11,7 +11,7 @@ import {
   readWantedLockfileAndAutofixConflicts,
 } from '@pnpm/lockfile-file'
 import { logger } from '@pnpm/logger'
-import isCI from 'is-ci'
+import { isCI } from 'ci-info'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
 

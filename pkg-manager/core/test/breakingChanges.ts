@@ -5,7 +5,7 @@ import { PnpmError } from '@pnpm/error'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDependenciesToPackage, install } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
-import isCI from 'is-ci'
+import { isCI } from 'ci-info'
 import { testDefaults } from './utils'
 
 test('fail on non-compatible node_modules', async () => {
