@@ -113,8 +113,13 @@ function renderCollapsedScriptOutput (
     maxWidth: number
   }
 ) {
-  messageCache.label = messageCache.label ??
-    `${highlightLastFolder(formatPrefixNoTrim(opts.cwd, log.wd))}: Running ${log.stage} script`
+  if (!messageCache.label) {
+    messageCache.label = `${highlightLastFolder(formatPrefixNoTrim(opts.cwd, log.wd))}` // : Running ${log.stage} script`
+    if (!log.wd.includes(log.depPath.replace(/\//g, '+'))) {
+      messageCache.label += ` [${log.depPath}]`//  ${chalk.gray('>')}`
+    }
+    messageCache.label += `: Running ${log.stage} script`
+  }
   if (!opts.exit) {
     updateMessageCache(log, messageCache, opts)
     return `${messageCache.label}...`
@@ -191,7 +196,7 @@ function updateMessageCache (
     if (log['exitCode'] === 0) {
       messageCache.status = formatIndentedStatus(chalk.magentaBright(`Done in ${time}`))
     } else {
-      messageCache.status = formatIndentedStatus(chalk.red(`Failed in ${time}`))
+      messageCache.status = formatIndentedStatus(chalk.red(`Failed in ${time} at ${log.wd}`))
     }
   } else {
     messageCache.output.push(formatIndentedOutput(opts.maxWidth, log))
