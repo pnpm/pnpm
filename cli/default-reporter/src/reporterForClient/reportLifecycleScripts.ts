@@ -10,6 +10,7 @@ import { formatPrefix, formatPrefixNoTrim } from './utils/formatPrefix'
 import { hlValue } from './outputConstants'
 
 const NODE_MODULES = `${path.sep}node_modules${path.sep}`
+const TMP_DIR_IN_STORE = `tmp${path.sep}_tmp_` // git-hosted dependencies are built in these temporary directories
 
 // When streaming processes are spawned, use this color for prefix
 const colorWheel = ['cyan', 'magenta', 'blue', 'yellow', 'green', 'red']
@@ -65,7 +66,7 @@ export function reportLifecycleScripts (
     .forEach((log: LifecycleLog) => {
       const key = `${log.stage}:${log.depPath}`
       lifecycleMessages[key] = lifecycleMessages[key] || {
-        collapsed: log.wd.includes(NODE_MODULES),
+        collapsed: log.wd.includes(NODE_MODULES) || log.wd.includes(TMP_DIR_IN_STORE),
         output: [],
         startTime: process.hrtime(),
         status: formatIndentedStatus(chalk.magentaBright('Running...')),
@@ -114,9 +115,9 @@ function renderCollapsedScriptOutput (
   }
 ) {
   if (!messageCache.label) {
-    messageCache.label = `${highlightLastFolder(formatPrefixNoTrim(opts.cwd, log.wd))}` // : Running ${log.stage} script`
-    if (!log.wd.includes(log.depPath.replace(/\//g, '+'))) {
-      messageCache.label += ` [${log.depPath}]`//  ${chalk.gray('>')}`
+    messageCache.label = highlightLastFolder(formatPrefixNoTrim(opts.cwd, log.wd))
+    if (log.wd.includes(TMP_DIR_IN_STORE)) {
+      messageCache.label += ` [${log.depPath}]`
     }
     messageCache.label += `: Running ${log.stage} script`
   }

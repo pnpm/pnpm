@@ -17,7 +17,6 @@ const OUTPUT_INDENTATION = chalk.magentaBright('│')
 const STATUS_INDENTATION = chalk.magentaBright('└─')
 const STATUS_RUNNING = chalk.magentaBright('Running...')
 const STATUS_DONE = chalk.magentaBright('Done in 1s')
-const STATUS_FAILED = chalk.red('Failed in 1s')
 const EOL = '\n'
 
 function replaceTimeWith1Sec (text: string) {
@@ -734,7 +733,7 @@ test('output of failed non-optional dependency is printed', (done) => {
 ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s
 .../foo/1.0.0/node_modules/foo ${INSTALL}$ node foo
 ${OUTPUT_INDENTATION} foo 0 1 2 3 4 5 6 7 8 9
-${STATUS_INDENTATION} ${STATUS_FAILED}`)
+${STATUS_INDENTATION} ${failedAt(wd)}`)
     },
   })
 })
@@ -780,7 +779,7 @@ test('do not fail if the debug log has no output', (done) => {
 ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s
 .../foo/1.0.0/node_modules/foo ${INSTALL}$ node foo
 ${OUTPUT_INDENTATION} 
-${STATUS_INDENTATION} ${STATUS_FAILED}`)
+${STATUS_INDENTATION} ${failedAt(wd)}`)
     },
   })
 })
@@ -844,3 +843,7 @@ Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/bar/1.0.0')}: ${childOu
     },
   })
 })
+
+function failedAt (wd: string) {
+  return chalk.red(`Failed in 1s at ${wd}`)
+}
