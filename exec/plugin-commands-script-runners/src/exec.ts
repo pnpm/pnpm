@@ -5,7 +5,7 @@ import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { sortPackages } from '@pnpm/sort-packages'
-import { Project } from '@pnpm/types'
+import { Project, ProjectsGraph } from '@pnpm/types'
 import execa from 'execa'
 import pLimit from 'p-limit'
 import pick from 'ramda/src/pick'
@@ -80,6 +80,26 @@ The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
   })
 }
 
+export function getResumedPackageChunks ({
+  resumeFrom,
+  chunks,
+  selectedProjectsGraph,
+}: {
+  resumeFrom: string
+  chunks: string[][]
+  selectedProjectsGraph: ProjectsGraph
+}) {
+  const resumeFromPackagePrefix = Object.keys(selectedProjectsGraph)
+    .find((prefix) => selectedProjectsGraph[prefix]?.package.manifest.name === resumeFrom)
+
+  if (!resumeFromPackagePrefix) {
+    throw new PnpmError('RECURSIVE_EXEC_FAIL', `Cannot find package ${resumeFrom}. Could not determine where to resume from.`)
+  }
+
+  const chunkPosition = chunks.findIndex(chunk => chunk.includes(resumeFromPackagePrefix))
+  return chunks.slice(chunkPosition)
+}
+
 export async function handler (
   opts: Required<Pick<Config, 'selectedProjectsGraph'>> & {
     bail?: boolean
@@ -129,15 +149,11 @@ export async function handler (
   }
 
   if (opts.resumeFrom) {
-    const resumeFromPackagePrefix = Object.keys(opts.selectedProjectsGraph)
-      .find((prefix) => opts.selectedProjectsGraph?.[prefix]?.package.manifest.name === opts.resumeFrom)
-
-    if (!resumeFromPackagePrefix) {
-      throw new PnpmError('RECURSIVE_EXEC_FAIL', `Cannot find package ${opts.resumeFrom}. Could not determine where to resume from.`)
-    }
-
-    const chunkPosition = chunks.findIndex(chunk => chunk.includes(resumeFromPackagePrefix))
-    chunks = chunks.slice(chunkPosition)
+    chunks = getResumedPackageChunks({
+      resumeFrom: opts.resumeFrom,
+      chunks,
+      selectedProjectsGraph: opts.selectedProjectsGraph,
+    })
   }
 
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
@@ -156,7 +172,7 @@ export async function handler (
           const env = makeEnv({
             extraEnv: {
               ...extraEnv,
-              PNPM_PACKAGE_NAME: opts.selectedProjectsGraph?.[prefix]?.package.manifest.name,
+              PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix]?.package.manifest.name,
             },
             prependPaths: [
               path.join(prefix, 'node_modules/.bin'),

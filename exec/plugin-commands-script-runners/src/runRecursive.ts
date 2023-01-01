@@ -12,6 +12,7 @@ import { sortPackages } from '@pnpm/sort-packages'
 import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'
 import { existsInDir } from './existsInDir'
+import { getResumedPackageChunks } from './exec'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'
@@ -26,6 +27,7 @@ export type RecursiveRunOpts = Pick<Config,
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
+  resumeFrom?: string
 }
 
 export async function runRecursive (
@@ -41,7 +43,15 @@ export async function runRecursive (
   const sortedPackageChunks = opts.sort
     ? sortPackages(opts.selectedProjectsGraph)
     : [Object.keys(opts.selectedProjectsGraph).sort()]
-  const packageChunks = opts.reverse ? sortedPackageChunks.reverse() : sortedPackageChunks
+  let packageChunks = opts.reverse ? sortedPackageChunks.reverse() : sortedPackageChunks
+
+  if (opts.resumeFrom) {
+    packageChunks = getResumedPackageChunks({
+      resumeFrom: opts.resumeFrom,
+      chunks: packageChunks,
+      selectedProjectsGraph: opts.selectedProjectsGraph,
+    })
+  }
 
   const result = {
     fails: [],
