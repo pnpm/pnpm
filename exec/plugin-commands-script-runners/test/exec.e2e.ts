@@ -658,6 +658,6 @@ test('should throw error when the package specified by resume-from does not exis
       resumeFrom: 'project-2',
     }, ['npm', 'run', 'build'])
   } catch (err: any) { // eslint-disable-line
-    expect(err.code).toBe('ERR_PNPM_RECURSIVE_EXEC_FAIL')
+    expect(err.code).toBe('ERR_PNPM_RESUME_FROM_NOT_FOUND')
   }
 })

@@ -93,7 +93,7 @@ export function getResumedPackageChunks ({
     .find((prefix) => selectedProjectsGraph[prefix]?.package.manifest.name === resumeFrom)
 
   if (!resumeFromPackagePrefix) {
-    throw new PnpmError('RECURSIVE_EXEC_FAIL', `Cannot find package ${resumeFrom}. Could not determine where to resume from.`)
+    throw new PnpmError('RESUME_FROM_NOT_FOUND', `Cannot find package ${resumeFrom}. Could not determine where to resume from.`)
   }
 
   const chunkPosition = chunks.findIndex(chunk => chunk.includes(resumeFromPackagePrefix))
