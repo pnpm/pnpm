@@ -121,7 +121,7 @@ async function dependenciesHierarchyForPackage (
     const topDeps = currentLockfile.importers[importerId][dependenciesField] ?? {}
     result[dependenciesField] = []
     Object.entries(topDeps).forEach(([alias, ref]) => {
-      const { packageInfo, packageAbsolutePath } = getPkgInfo({
+      const packageInfo = getPkgInfo({
         alias,
         currentPackages: currentLockfile.packages ?? {},
         modulesDir,
@@ -132,21 +132,19 @@ async function dependenciesHierarchyForPackage (
       })
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.(packageInfo)
+      const packageAbsolutePath = refToRelative(ref, alias)
       if (packageAbsolutePath === null) {
         if ((opts.search != null) && !matchedSearched) return
         newEntry = packageInfo
       } else {
-        const relativeId = refToRelative(ref, alias)
-        if (relativeId) {
-          const dependencies = getChildrenTree(relativeId)
-          if (dependencies.length > 0) {
-            newEntry = {
-              ...packageInfo,
-              dependencies,
-            }
-          } else if ((opts.search == null) || matchedSearched) {
-            newEntry = packageInfo
+        const dependencies = getChildrenTree(packageAbsolutePath)
+        if (dependencies.length > 0) {
+          newEntry = {
+            ...packageInfo,
+            dependencies,
           }
+        } else if ((opts.search == null) || matchedSearched) {
+          newEntry = packageInfo
         }
       }
       if (newEntry != null) {

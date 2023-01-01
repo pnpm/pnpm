@@ -57,7 +57,6 @@ export function getPkgInfo (
     name = opts.alias
     version = opts.ref
   }
-  const packageAbsolutePath = refToRelative(opts.ref, opts.alias)
   const packageInfo = {
     alias: opts.alias,
     isMissing,
@@ -76,8 +75,5 @@ export function getPkgInfo (
   if (typeof dev === 'boolean') {
     packageInfo['dev'] = dev
   }
-  return {
-    packageAbsolutePath,
-    packageInfo,
-  }
+  return packageInfo
 }

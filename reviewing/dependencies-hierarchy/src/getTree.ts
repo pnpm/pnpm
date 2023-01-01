@@ -83,7 +83,7 @@ function getTreeHelper (
   let resultCircular: boolean = false
 
   Object.entries(deps).forEach(([alias, ref]) => {
-    const { packageInfo, packageAbsolutePath } = getPkgInfo({
+    const packageInfo = getPkgInfo({
       alias,
       currentPackages: opts.currentPackages,
       modulesDir: opts.modulesDir,
@@ -96,6 +96,7 @@ function getTreeHelper (
     let circular: boolean
     const matchedSearched = opts.search?.(packageInfo)
     let newEntry: PackageNode | null = null
+    const packageAbsolutePath = refToRelative(ref, alias)
     if (packageAbsolutePath === null) {
       circular = false
       if (opts.search == null || matchedSearched) {
@@ -104,14 +105,13 @@ function getTreeHelper (
     } else {
       let dependencies: PackageNode[] | undefined
 
-      const relativeId = refToRelative(ref, alias) as string // we know for sure that relative is not null if pkgPath is not null
-      circular = keypath.includes(relativeId)
+      circular = keypath.includes(packageAbsolutePath)
 
       if (circular) {
         dependencies = []
       } else {
         const cacheEntry = dependenciesCache.get({ packageAbsolutePath, requestedDepth: childTreeMaxDepth })
-        const children = cacheEntry ?? getChildrenTree(keypath.concat([relativeId]), relativeId)
+        const children = cacheEntry ?? getChildrenTree(keypath.concat([packageAbsolutePath]), packageAbsolutePath)
 
         if (cacheEntry == null && !children.circular) {
           if (children.height === 'unknown') {
