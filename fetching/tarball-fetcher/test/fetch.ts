@@ -364,6 +364,16 @@ test('fetch a big repository', async () => {
   expect(result.filesIndex).toBeTruthy()
 })
 
+test('fail when preparing a git-hosted package', async () => {
+  process.chdir(tempy.directory())
+
+  const resolution = { tarball: 'https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7' }
+
+  await expect(
+    fetch.gitHostedTarball(cafs, resolution, { lockfileDir: process.cwd() })
+  ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
+})
+
 test('fail when extracting a broken tarball', async () => {
   const scope = nock(registry)
     .get('/foo.tgz')

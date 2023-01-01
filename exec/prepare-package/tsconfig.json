@@ -16,13 +16,13 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../packages/error"
-    },
-    {
       "path": "../../packages/types"
     },
     {
       "path": "../../pkg-manifest/read-package-json"
+    },
+    {
+      "path": "../lifecycle"
     }
   ]
 }

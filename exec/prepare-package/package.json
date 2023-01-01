@@ -29,8 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/prepare-package#readme",
   "dependencies": {
-    "@pnpm/error": "workspace:*",
-    "@pnpm/npm-lifecycle": "^2.0.0",
+    "@pnpm/lifecycle": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "execa": "npm:safe-execa@0.1.2",

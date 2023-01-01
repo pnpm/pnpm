@@ -34,9 +34,11 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
   }
   const getAuthHeader = () => undefined
   const fetchers = createTarballFetcher(fetch, getAuthHeader, {
-    rawConfig: {}, // This is not needed for fetching Node.js
     retry: opts.retry,
     timeout: opts.fetchTimeout,
+    // These are not needed for fetching Node.js
+    rawConfig: {},
+    unsafePerm: false,
   })
   const cafs = createCafsStore(opts.cafsDir)
   const fetchTarball = pickFetcher(fetchers, { tarball })

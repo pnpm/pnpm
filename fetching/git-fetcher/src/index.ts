@@ -5,9 +5,15 @@ import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { URL } from 'url'
 
-export function createGitFetcher (createOpts: { gitShallowHosts?: string[], rawConfig: object }) {
+export interface CreateGitFetcherOptions {
+  gitShallowHosts?: string[]
+  rawConfig: object
+  unsafePerm?: boolean
+}
+
+export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
-  const preparePkg = preparePackage.bind(null, { rawConfig: createOpts.rawConfig })
+  const preparePkg = preparePackage.bind(null, { rawConfig: createOpts.rawConfig, unsafePerm: createOpts.unsafePerm })
 
   const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
     const tempLocation = await cafs.tempDir()
@@ -19,7 +25,12 @@ export function createGitFetcher (createOpts: { gitShallowHosts?: string[], rawC
       await execGit(['clone', resolution.repo, tempLocation])
     }
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
-    await preparePkg(tempLocation)
+    try {
+      await preparePkg(tempLocation)
+    } catch (err: any) { // eslint-disable-line
+      err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}` // eslint-disable-line
+      throw err
+    }
     // removing /.git to make directory integrity calculation faster
     await rimraf(path.join(tempLocation, '.git'))
     const filesIndex = await cafs.addFilesFromDir(tempLocation, opts.manifest)

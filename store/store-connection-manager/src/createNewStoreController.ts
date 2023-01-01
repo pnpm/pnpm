@@ -37,6 +37,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'registrySupportsTimeField'
 | 'resolutionMode'
 | 'strictSsl'
+| 'unsafePerm'
 | 'userAgent'
 | 'verifyStoreIntegrity'
 > & {
@@ -50,6 +51,7 @@ export async function createNewStoreController (
   const { resolve, fetchers } = createClient({
     customFetchers: opts.hooks?.fetchers,
     userConfig: opts.userConfig,
+    unsafePerm: opts.unsafePerm,
     authConfig: opts.rawConfig,
     ca: opts.ca,
     cacheDir: opts.cacheDir,

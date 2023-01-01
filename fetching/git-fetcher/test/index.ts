@@ -124,6 +124,20 @@ test('still able to shallow fetch for allowed hosts', async () => {
   expect(name).toEqual('is-positive')
 })
 
+test('fail when preparing a git-hosted package', async () => {
+  const cafsDir = tempy.directory()
+  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const manifest = pDefer<DependencyManifest>()
+  await expect(
+    fetch(createCafsStore(cafsDir),
+      {
+        commit: 'ba58874aae1210a777eb309dd01a9fdacc7e54e7',
+        repo: 'https://github.com/pnpm-e2e/prepare-script-fails.git',
+        type: 'git',
+      }, { manifest })
+  ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-fails.git": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
+})
+
 function prefixGitArgs (): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
