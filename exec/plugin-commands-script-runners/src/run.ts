@@ -1,4 +1,5 @@
 import path from 'path'
+import pLimit from 'p-limit'
 import {
   docsUrl,
   readProjectManifestOnly,
@@ -159,7 +160,13 @@ export async function handler (
       : undefined
     return printProjectCommands(manifest, rootManifest ?? undefined)
   }
-  if (scriptName !== 'start' && !manifest.scripts?.[scriptName]) {
+
+  const multiScriptSelectorSpecified = scriptName.slice(-2) === ':*'
+  // extract XXX:YYY: from XXX:YYY:ZZZ
+  const multiScriptSelectorPrefix = scriptName.slice(0, -1)
+  const specifiedScriptsWithSelector = Object.keys(manifest.scripts ?? {}).filter(script => script.startsWith(multiScriptSelectorPrefix) && script !== multiScriptSelectorPrefix)
+
+  if (scriptName !== 'start' && !manifest.scripts?.[scriptName] && !(multiScriptSelectorSpecified && specifiedScriptsWithSelector.length > 0)) {
     if (opts.ifPresent) return
     if (opts.fallbackCommandUsed) {
       if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
@@ -170,7 +177,7 @@ export async function handler (
     }
     if (opts.workspaceDir) {
       const { manifest: rootManifest } = await tryReadProjectManifest(opts.workspaceDir, opts)
-      if (rootManifest?.scripts?.[scriptName]) {
+      if (rootManifest?.scripts?.[scriptName] && !(multiScriptSelectorSpecified && specifiedScriptsWithSelector.length > 0)) {
         throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`, {
           hint: `But ${scriptName} is present in the root of the workspace,
 so you may run "pnpm -w run ${scriptName}"`,
@@ -203,7 +210,13 @@ so you may run "pnpm -w run ${scriptName}"`,
     }
   }
   try {
-    await runScript(scriptName, manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs)
+    if (multiScriptSelectorSpecified) {
+      const limitRun = pLimit(1)
+
+      await Promise.all(specifiedScriptsWithSelector.map(script => limitRun(() => runScript(script, manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs))))
+    } else {
+      await runScript(scriptName, manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs)
+    }
   } catch (err: any) { // eslint-disable-line
     if (opts.bail !== false) {
       throw err
@@ -286,11 +299,11 @@ ${renderCommands(rootScripts)}`
   return output
 }
 
-interface RunScriptOptions {
+export interface RunScriptOptions {
   enablePrePostScripts: boolean
 }
 
-export const runScript: (scriptName: string, manifest: ProjectManifest, lifecycleOpts: RunLifecycleHookOptions, runScriptOptions: RunScriptOptions, passedThruArgs: string[]) => Promise<void> = async function(scriptName, manifest, lifecycleOpts, runScriptOptions, passedThruArgs) {
+export const runScript: (scriptName: string, manifest: ProjectManifest, lifecycleOpts: RunLifecycleHookOptions, runScriptOptions: RunScriptOptions, passedThruArgs: string[]) => Promise<void> = async function (scriptName, manifest, lifecycleOpts, runScriptOptions, passedThruArgs) {
   if (
     runScriptOptions.enablePrePostScripts &&
     manifest.scripts?.[`pre${scriptName}`] &&
