@@ -650,6 +650,79 @@ ${chalk.gray('node_modules/.registry.npmjs.org/qar/1.0.0/node_modules/')}qar: Ru
   })
 })
 
+test('collapses lifecycle output from preparation of a git-hosted dependency', (done) => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    reportingOptions: { outputMaxWidth: 79 },
+    streamParser: createStreamParser(),
+  })
+
+  const wdOfFoo = path.resolve(process.cwd(), 'tmp/_tmp_01243')
+
+  lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
+    optional: false,
+    script: 'node foo',
+    stage: 'preinstall',
+    wd: wdOfFoo,
+  })
+  lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
+    line: 'foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20',
+    stage: 'preinstall',
+    stdio: 'stdout',
+    wd: wdOfFoo,
+  })
+  lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
+    optional: false,
+    script: 'node foo',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: wdOfFoo,
+  })
+  lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
+    line: 'foo I',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: wdOfFoo,
+  })
+  lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
+    line: 'foo II',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: wdOfFoo,
+  })
+  lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
+    line: 'foo III',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: wdOfFoo,
+  })
+  lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
+    exitCode: 0,
+    optional: false,
+    stage: 'postinstall',
+    wd: wdOfFoo,
+  })
+
+  expect.assertions(1)
+
+  output$.pipe(skip(2), take(1), map(normalizeNewline)).subscribe({
+    complete: () => done(),
+    error: done,
+    next: (output: unknown) => {
+      expect(replaceTimeWith1Sec(output as string)).toBe(`\
+${chalk.gray('tmp')}_tmp_01234: Running preinstall script...
+${chalk.gray('tmp')}_tmp_01234: Running postinstall script, done in 1s`)
+    },
+  })
+})
+
 test('output of failed optional dependency is not shown', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
