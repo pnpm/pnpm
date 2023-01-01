@@ -14,7 +14,12 @@ const PREPUBLISH_SCRIPTS = [
   'postpublish',
 ]
 
-export async function preparePackage (opts: { rawConfig: object }, pkgDir: string) {
+export interface PreparePackageOptions {
+  rawConfig: object
+  unsafePerm?: boolean
+}
+
+export async function preparePackage (opts: PreparePackageOptions, pkgDir: string) {
   const manifest = await safeReadPackageJsonFromDir(pkgDir)
   if (manifest?.scripts == null || !packageShouldBeBuilt(manifest.scripts)) return
   const pm = (await preferredPM(pkgDir))?.name ?? 'npm'
@@ -25,7 +30,7 @@ export async function preparePackage (opts: { rawConfig: object }, pkgDir: strin
     // An alternative solution could be to throw an exception.
     rawConfig: omit(['ignore-scripts'], opts.rawConfig),
     rootModulesDir: pkgDir, // We don't need this property but there is currently no way to not set it.
-    unsafePerm: false,
+    unsafePerm: Boolean(opts.unsafePerm),
   }
   try {
     const installScriptName = `${pm}-install`

@@ -5,9 +5,15 @@ import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { URL } from 'url'
 
-export function createGitFetcher (createOpts: { gitShallowHosts?: string[], rawConfig: object }) {
+export interface CreateGitFetcherOptions {
+  gitShallowHosts?: string[]
+  rawConfig: object
+  unsafePerm?: boolean
+}
+
+export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
-  const preparePkg = preparePackage.bind(null, { rawConfig: createOpts.rawConfig })
+  const preparePkg = preparePackage.bind(null, { rawConfig: createOpts.rawConfig, unsafePerm: createOpts.unsafePerm })
 
   const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
     const tempLocation = await cafs.tempDir()

@@ -20,6 +20,7 @@ export type ClientOptions = {
   rawConfig: object
   retry?: RetryTimeoutOptions
   timeout?: number
+  unsafePerm?: boolean
   userAgent?: string
   userConfig?: Record<string, string>
   gitShallowHosts?: string[]
@@ -54,7 +55,7 @@ type Fetchers = {
 function createFetchers (
   fetchFromRegistry: FetchFromRegistry,
   getAuthHeader: GetAuthHeader,
-  opts: Pick<ClientOptions, 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs'>,
+  opts: Pick<ClientOptions, 'rawConfig' | 'retry' | 'gitShallowHosts' | 'resolveSymlinksInInjectedDirs' | 'unsafePerm'>,
   customFetchers?: CustomFetchers
 ): Fetchers {
   const defaultFetchers = {

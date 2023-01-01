@@ -10,11 +10,16 @@ interface Resolution {
   tarball: string
 }
 
-export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, rawConfig: object): FetchFunction {
+export interface CreateGitHostedTarballFetcher {
+  rawConfig: object
+  unsafePerm?: boolean
+}
+
+export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const { filesIndex } = await fetchRemoteTarball(cafs, resolution, opts)
     try {
-      return { filesIndex: await prepareGitHostedPkg(filesIndex as FilesIndex, cafs, rawConfig) }
+      return { filesIndex: await prepareGitHostedPkg(filesIndex as FilesIndex, cafs, fetcherOpts) }
     } catch (err: any) { // eslint-disable-line
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}` // eslint-disable-line
       throw err
@@ -24,7 +29,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
   return fetch as FetchFunction
 }
 
-async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs, rawConfig: object) {
+async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs, opts: CreateGitHostedTarballFetcher) {
   const tempLocation = await cafs.tempDir()
   await cafs.importPackage(tempLocation, {
     filesResponse: {
@@ -33,7 +38,7 @@ async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs, rawConfi
     },
     force: true,
   })
-  await preparePackage({ rawConfig }, tempLocation)
+  await preparePackage(opts, tempLocation)
   const newFilesIndex = await cafs.addFilesFromDir(tempLocation)
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,

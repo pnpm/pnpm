@@ -32,6 +32,7 @@ export function createTarballFetcher (
   getAuthHeader: GetAuthHeader,
   opts: {
     rawConfig: object
+    unsafePerm?: boolean
     timeout?: number
     retry?: RetryTimeoutOptions
     offline?: boolean
@@ -51,7 +52,7 @@ export function createTarballFetcher (
   return {
     localTarball: createLocalTarballFetcher(),
     remoteTarball: remoteTarballFetcher,
-    gitHostedTarball: createGitHostedTarballFetcher(remoteTarballFetcher, opts.rawConfig),
+    gitHostedTarball: createGitHostedTarballFetcher(remoteTarballFetcher, opts),
   }
 }
 
