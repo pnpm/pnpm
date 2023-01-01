@@ -399,6 +399,7 @@ function reportPreparePackage (
     stdout: string
   }
 ) {
+  // maybe prefix it?
   return {
     title: err.message,
     prepend: `STDOUT:\n${msg.stdout}\nSTDERR:\n${msg.stderr}`,
