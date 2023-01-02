@@ -890,3 +890,73 @@ test('`pnpm -r --resume-from run` should executed from given package', async () 
   expect(output1).toContain('project-2')
   expect(output1).toContain('project-3')
 })
+
+test('pnpm run with multiple script selector should work on recursive', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        'build:a': 'node -e "process.stdout.write(\'1/a\')" | json-append ../output-1-a.json',
+        'build:b': 'node -e "process.stdout.write(\'1/b\')" | json-append ../output-1-b.json',
+        'build:c': 'node -e "process.stdout.write(\'1/c\')" | json-append ../output-1-c.json',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        'build:a': 'node -e "process.stdout.write(\'2/a\')" | json-append ../output-2-a.json',
+        'build:b': 'node -e "process.stdout.write(\'2/b\')" | json-append ../output-2-b.json',
+        'build:c': 'node -e "process.stdout.write(\'2/c\')" | json-append ../output-2-c.json',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        'build:a': 'node -e "process.stdout.write(\'3/a\')" | json-append ../output-3-a.json',
+        'build:b': 'node -e "process.stdout.write(\'3/b\')" | json-append ../output-3-b.json',
+        'build:c': 'node -e "process.stdout.write(\'3/c\')" | json-append ../output-3-c.json',
+      },
+    },
+  ])
+
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), [{ namePattern: '*' }]),
+    dir: process.cwd(),
+    recursive: true,
+    rootProjectManifest: {
+      name: 'test-workspaces',
+      private: true,
+    },
+    workspaceDir: process.cwd(),
+  }, ['build:*'])
+  expect((await import(path.resolve('output-1-a.json'))).default).toStrictEqual(['1/a'])
+  expect((await import(path.resolve('output-1-b.json'))).default).toStrictEqual(['1/b'])
+  expect((await import(path.resolve('output-1-c.json'))).default).toStrictEqual(['1/c'])
+  expect((await import(path.resolve('output-2-a.json'))).default).toStrictEqual(['2/a'])
+  expect((await import(path.resolve('output-2-b.json'))).default).toStrictEqual(['2/b'])
+  expect((await import(path.resolve('output-2-c.json'))).default).toStrictEqual(['2/c'])
+  expect((await import(path.resolve('output-3-a.json'))).default).toStrictEqual(['3/a'])
+  expect((await import(path.resolve('output-3-b.json'))).default).toStrictEqual(['3/b'])
+  expect((await import(path.resolve('output-3-c.json'))).default).toStrictEqual(['3/c'])
+})

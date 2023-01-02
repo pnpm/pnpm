@@ -465,3 +465,72 @@ test('pnpm run with custom shell', async () => {
 
   expect((await import(path.resolve('shell-input.json'))).default).toStrictEqual(['-c', 'foo bar'])
 })
+
+test('pnpm run with multiple script selector should work', async () => {
+  prepare({
+    scripts: {
+      'build:a': 'node -e "process.stdout.write(\'a\')" | json-append ./output-a.json',
+      'build:b': 'node -e "process.stdout.write(\'b\')" | json-append ./output-b.json',
+      'build:c': 'node -e "process.stdout.write(\'c\')" | json-append ./output-c.json',
+    },
+  })
+
+  await execa('pnpm', ['add', 'json-append@1'])
+
+  await run.handler({
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    rawConfig: {},
+  }, ['build:*'])
+
+  expect((await import(path.resolve('output-a.json'))).default).toStrictEqual(['a'])
+  expect((await import(path.resolve('output-b.json'))).default).toStrictEqual(['b'])
+  expect((await import(path.resolve('output-c.json'))).default).toStrictEqual(['c'])
+})
+
+test('pnpm run with multiple script selector should work also for pre/post script', async () => {
+  prepare({
+    scripts: {
+      'build:a': 'node -e "process.stdout.write(\'a\')" | json-append ./output-a.json',
+      'prebuild:a': 'node -e "process.stdout.write(\'pre-a\')" | json-append ./output-pre-a.json',
+    },
+  })
+
+  await execa('pnpm', ['add', 'json-append@1'])
+
+  await run.handler({
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    rawConfig: {},
+    enablePrePostScripts: true,
+  }, ['build:*'])
+
+  expect((await import(path.resolve('output-a.json'))).default).toStrictEqual(['a'])
+  expect((await import(path.resolve('output-pre-a.json'))).default).toStrictEqual(['pre-a'])
+})
+
+test('pnpm run with multiple script selector should work with parallel mode', async () => {
+  prepare({
+    scripts: {
+      'build:a': 'node -e "let i = 20;setInterval(() => {if (!--i) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-a.json\');},50)"',
+      'build:b': 'node -e "let i = 40;setInterval(() => {if (!--i) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-b.json\');},25)"',
+    },
+  })
+
+  await execa('pnpm', ['add', 'json-append@1'])
+
+  await run.handler({
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    rawConfig: {},
+    maxParallel: 2,
+  }, ['build:*'])
+
+  const { default: outputsA } = await import(path.resolve('output-a.json'))
+  const { default: outputsB } = await import(path.resolve('output-b.json'))
+
+  expect(Math.max(outputsA[0], outputsB[0]) < Math.min(outputsA[outputsA.length - 1], outputsB[outputsB.length - 1])).toBeTruthy()
+})
