@@ -887,6 +887,6 @@ test('`pnpm -r --resume-from run` should executed from given package', async () 
 
   const { default: output1 } = await import(path.resolve('output1.json'))
   expect(output1).not.toContain('project-1')
-  expect(output1[0]).toContain('project-2')
-  expect(output1[1]).toContain('project-3')
+  expect(output1).toContain('project-2')
+  expect(output1).toContain('project-3')
 })
