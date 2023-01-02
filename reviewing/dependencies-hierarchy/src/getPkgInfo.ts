@@ -10,18 +10,18 @@ import {
 import { Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
 
-export function getPkgInfo (
-  opts: {
-    alias: string
-    modulesDir: string
-    ref: string
-    currentPackages: PackageSnapshots
-    peers?: Set<string>
-    registries: Registries
-    skipped: Set<string>
-    wantedPackages: PackageSnapshots
-  }
-) {
+export interface GetPkgInfoOpts {
+  readonly alias: string
+  readonly modulesDir: string
+  readonly ref: string
+  readonly currentPackages: PackageSnapshots
+  readonly peers?: Set<string>
+  readonly registries: Registries
+  readonly skipped: Set<string>
+  readonly wantedPackages: PackageSnapshots
+}
+
+export function getPkgInfo (opts: GetPkgInfoOpts) {
   let name!: string
   let version!: string
   let resolved: string | undefined
