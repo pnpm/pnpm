@@ -25,6 +25,7 @@ export async function listForPackages (
     lockfileDir: string
     long?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
+    onlyProjects?: boolean
     reportAs?: 'parseable' | 'tree' | 'json'
     registries?: Registries
   }
@@ -38,6 +39,7 @@ export async function listForPackages (
       depth: opts.depth,
       include: maybeOpts?.include,
       lockfileDir: maybeOpts?.lockfileDir,
+      onlyProjects: maybeOpts?.onlyProjects,
       registries: opts.registries,
       search,
     }))
@@ -71,6 +73,7 @@ export async function list (
     lockfileDir: string
     long?: boolean
     include?: { [dependenciesField in DependenciesField]: boolean }
+    onlyProjects?: boolean
     reportAs?: 'parseable' | 'tree' | 'json'
     registries?: Registries
     showExtraneous?: boolean
@@ -89,6 +92,7 @@ export async function list (
           depth: opts.depth,
           include: maybeOpts?.include,
           lockfileDir: maybeOpts?.lockfileDir,
+          onlyProjects: maybeOpts?.onlyProjects,
           registries: opts.registries,
         })
     )

@@ -14,6 +14,7 @@ interface GetTreeOpts {
   modulesDir: string
   includeOptionalDependencies: boolean
   lockfileDir: string
+  onlyProjects?: boolean
   search?: SearchFunction
   skipped: Set<string>
   registries: Registries
@@ -143,7 +144,9 @@ function getTreeHelper (
       importers: opts.importers,
     })
 
-    if (nodeId == null) {
+    if (opts.onlyProjects && nodeId?.type !== 'importer') {
+      return
+    } else if (nodeId == null) {
       circular = false
       if (opts.search == null || matchedSearched) {
         newEntry = packageInfo

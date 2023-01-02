@@ -34,6 +34,7 @@ export async function buildDependenciesHierarchy (
     depth: number
     include?: { [dependenciesField in DependenciesField]: boolean }
     registries?: Registries
+    onlyProjects?: boolean
     search?: SearchFunction
     lockfileDir: string
   }
@@ -66,6 +67,7 @@ export async function buildDependenciesHierarchy (
       optionalDependencies: true,
     },
     lockfileDir: maybeOpts.lockfileDir,
+    onlyProjects: maybeOpts.onlyProjects,
     registries,
     search: maybeOpts.search,
     skipped: new Set(modules?.skipped ?? []),
@@ -90,6 +92,7 @@ async function dependenciesHierarchyForPackage (
     depth: number
     include: { [dependenciesField in DependenciesField]: boolean }
     registries: Registries
+    onlyProjects?: boolean
     search?: SearchFunction
     skipped: Set<string>
     lockfileDir: string
@@ -111,6 +114,7 @@ async function dependenciesHierarchyForPackage (
     importers: currentLockfile.importers,
     includeOptionalDependencies: opts.include.optionalDependencies,
     lockfileDir: opts.lockfileDir,
+    onlyProjects: opts.onlyProjects,
     rewriteLinkVersionDir: projectPath,
     maxDepth: opts.depth,
     modulesDir,
@@ -144,7 +148,9 @@ async function dependenciesHierarchyForPackage (
         lockfileDir: opts.lockfileDir,
         importers: currentLockfile.importers,
       })
-      if (nodeId == null) {
+      if (opts.onlyProjects && nodeId?.type !== 'importer') {
+        return
+      } else if (nodeId == null) {
         if ((opts.search != null) && !matchedSearched) return
         newEntry = packageInfo
       } else {
