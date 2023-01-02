@@ -5,7 +5,7 @@ import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import { sortPackages } from '@pnpm/sort-packages'
-import { Project } from '@pnpm/types'
+import { Project, ProjectsGraph } from '@pnpm/types'
 import execa from 'execa'
 import pLimit from 'p-limit'
 import pick from 'ramda/src/pick'
@@ -16,6 +16,7 @@ import {
   PARALLEL_OPTION_HELP,
   shorthands as runShorthands,
 } from './run'
+import { PnpmError } from '@pnpm/error'
 
 export const shorthands = {
   parallel: runShorthands.parallel,
@@ -34,6 +35,7 @@ export function rcOptionsTypes () {
       'workspace-concurrency',
     ], types),
     'shell-mode': Boolean,
+    'resume-from': String,
   }
 }
 
@@ -66,12 +68,36 @@ The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
             name: '--shell-mode',
             shortAlias: '-c',
           },
+          {
+            description: 'command executed from given package',
+            name: '--resume-from',
+          },
         ],
       },
     ],
     url: docsUrl('exec'),
     usages: ['pnpm [-r] [-c] exec <command> [args...]'],
   })
+}
+
+export function getResumedPackageChunks ({
+  resumeFrom,
+  chunks,
+  selectedProjectsGraph,
+}: {
+  resumeFrom: string
+  chunks: string[][]
+  selectedProjectsGraph: ProjectsGraph
+}) {
+  const resumeFromPackagePrefix = Object.keys(selectedProjectsGraph)
+    .find((prefix) => selectedProjectsGraph[prefix]?.package.manifest.name === resumeFrom)
+
+  if (!resumeFromPackagePrefix) {
+    throw new PnpmError('RESUME_FROM_NOT_FOUND', `Cannot find package ${resumeFrom}. Could not determine where to resume from.`)
+  }
+
+  const chunkPosition = chunks.findIndex(chunk => chunk.includes(resumeFromPackagePrefix))
+  return chunks.slice(chunkPosition)
 }
 
 export async function handler (
@@ -83,6 +109,7 @@ export async function handler (
     sort?: boolean
     workspaceConcurrency?: number
     shellMode?: boolean
+    resumeFrom?: string
   } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
   params: string[]
 ) {
@@ -120,6 +147,15 @@ export async function handler (
       }
     }
   }
+
+  if (opts.resumeFrom) {
+    chunks = getResumedPackageChunks({
+      resumeFrom: opts.resumeFrom,
+      chunks,
+      selectedProjectsGraph: opts.selectedProjectsGraph,
+    })
+  }
+
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
@@ -136,7 +172,7 @@ export async function handler (
           const env = makeEnv({
             extraEnv: {
               ...extraEnv,
-              PNPM_PACKAGE_NAME: opts.selectedProjectsGraph?.[prefix]?.package.manifest.name,
+              PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix]?.package.manifest.name,
             },
             prependPaths: [
               path.join(prefix, 'node_modules/.bin'),

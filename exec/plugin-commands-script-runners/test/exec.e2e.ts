@@ -552,3 +552,112 @@ testOnPosixOnly('pnpm recursive exec works with PnP', async () => {
   expect(outputs1).toStrictEqual(['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
   expect(outputs2).toStrictEqual(['project-1', 'project-3'])
 })
+
+test('pnpm recursive exec --resume-from should work', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output1.json',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-4\')" | json-append ../output1.json',
+      },
+    },
+  ])
+
+  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    selectedProjectsGraph,
+    recursive: true,
+    sort: true,
+    resumeFrom: 'project-3',
+  }, ['npm', 'run', 'build'])
+
+  const { default: outputs1 } = await import(path.resolve('output1.json'))
+  expect(outputs1).not.toContain('project-1')
+  expect(outputs1).not.toContain('project-4')
+  expect(outputs1).toContain('project-2')
+  expect(outputs1).toContain('project-3')
+})
+
+test('should throw error when the package specified by resume-from does not exist', async () => {
+  preparePackages([
+    {
+      name: 'foo',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: 'echo foo',
+      },
+    },
+  ])
+
+  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      selectedProjectsGraph,
+      recursive: true,
+      sort: true,
+      resumeFrom: 'project-2',
+    }, ['npm', 'run', 'build'])
+  } catch (err: any) { // eslint-disable-line
+    expect(err.code).toBe('ERR_PNPM_RESUME_FROM_NOT_FOUND')
+  }
+})

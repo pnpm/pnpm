@@ -832,3 +832,61 @@ test('`pnpm recursive run` should fail when no script in package with requiredSc
   expect(err.message).toContain('Missing script "build" in packages: project-1, project-3')
   expect(err.code).toBe('ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
 })
+
+test('`pnpm -r --resume-from run` should executed from given package', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json',
+      },
+      dependencies: {
+        'json-append': '1',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
+      },
+      dependencies: {
+        'project-1': '1',
+        'json-append': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output1.json',
+      },
+      dependencies: {
+        'project-1': '1',
+        'json-append': '1',
+      },
+    },
+  ])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), [{ namePattern: '*' }]),
+    dir: process.cwd(),
+    recursive: true,
+    resumeFrom: 'project-3',
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  const { default: output1 } = await import(path.resolve('output1.json'))
+  expect(output1).not.toContain('project-1')
+  expect(output1).toContain('project-2')
+  expect(output1).toContain('project-3')
+})

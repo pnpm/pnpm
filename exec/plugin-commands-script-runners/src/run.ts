@@ -69,6 +69,7 @@ export function cliOptionsTypes () {
     ...IF_PRESENT_OPTION,
     recursive: Boolean,
     reverse: Boolean,
+    'resume-from': String,
   }
 }
 
