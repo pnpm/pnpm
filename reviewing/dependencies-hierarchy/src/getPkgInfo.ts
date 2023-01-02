@@ -9,6 +9,7 @@ import {
 } from '@pnpm/lockfile-utils'
 import { Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
+import normalizePath from 'normalize-path'
 
 export interface GetPkgInfoOpts {
   readonly alias: string
@@ -24,6 +25,15 @@ export interface GetPkgInfoOpts {
    * The base dir if the `ref` argument is a `"link:"` relative path.
    */
   readonly linkedPathBaseDir: string
+
+  /**
+   * If the `ref` argument is a `"link:"` relative path, the ref is reused for
+   * the version field. (Since the true semver may not be known.)
+   *
+   * Optionally rewrite this relative path to a base dir before writing it to
+   * version.
+   */
+  readonly rewriteLinkVersionDir?: string
 }
 
 export function getPkgInfo (opts: GetPkgInfoOpts) {
@@ -62,15 +72,21 @@ export function getPkgInfo (opts: GetPkgInfoOpts) {
     name = opts.alias
     version = opts.ref
   }
+  const fullPackagePath = depPath
+    ? path.join(opts.modulesDir, '.pnpm', depPathToFilename(depPath))
+    : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
+
+  if (version.startsWith('link:') && opts.rewriteLinkVersionDir) {
+    version = `link:${normalizePath(path.relative(opts.rewriteLinkVersionDir, fullPackagePath))}`
+  }
+
   const packageInfo = {
     alias: opts.alias,
     isMissing,
     isPeer: Boolean(opts.peers?.has(opts.alias)),
     isSkipped,
     name,
-    path: depPath
-      ? path.join(opts.modulesDir, '.pnpm', depPathToFilename(depPath))
-      : path.join(opts.linkedPathBaseDir, opts.ref.slice(5)),
+    path: fullPackagePath,
     version,
   }
   if (resolved) {

@@ -111,6 +111,7 @@ async function dependenciesHierarchyForPackage (
     importers: currentLockfile.importers,
     includeOptionalDependencies: opts.include.optionalDependencies,
     lockfileDir: opts.lockfileDir,
+    rewriteLinkVersionDir: projectPath,
     maxDepth: opts.depth,
     modulesDir,
     registries: opts.registries,
@@ -127,6 +128,7 @@ async function dependenciesHierarchyForPackage (
       const packageInfo = getPkgInfo({
         alias,
         currentPackages: currentLockfile.packages ?? {},
+        rewriteLinkVersionDir: projectPath,
         linkedPathBaseDir: projectPath,
         modulesDir,
         ref,

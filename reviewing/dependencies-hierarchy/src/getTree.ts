@@ -10,6 +10,7 @@ import { serializeTreeNodeId, TreeNodeId } from './TreeNodeId'
 
 interface GetTreeOpts {
   maxDepth: number
+  rewriteLinkVersionDir: string
   modulesDir: string
   includeOptionalDependencies: boolean
   lockfileDir: string
@@ -123,6 +124,7 @@ function getTreeHelper (
     const packageInfo = getPkgInfo({
       alias,
       currentPackages: opts.currentPackages,
+      rewriteLinkVersionDir: opts.rewriteLinkVersionDir,
       linkedPathBaseDir,
       modulesDir: opts.modulesDir,
       peers,

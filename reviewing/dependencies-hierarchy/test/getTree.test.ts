@@ -84,6 +84,7 @@ describe('getTree', () => {
 
     const getTreeArgs = {
       maxDepth: 0,
+      rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},
       includeOptionalDependencies: false,
@@ -158,6 +159,7 @@ describe('getTree', () => {
   // result in incorrect output if the cache was used when it's not supposed to.
   describe('prints at expected depth for cache regression testing cases', () => {
     const commonMockGetTreeArgs = {
+      rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},
       includeOptionalDependencies: false,
@@ -292,6 +294,7 @@ describe('getTree', () => {
   // result in incorrect output if the cache was used when it's not supposed to.
   describe('fully visited cache optimization handles requested depth correctly', () => {
     const commonMockGetTreeArgs = {
+      rewriteLinkVersionDir: '',
       modulesDir: '',
       importers: {},
       includeOptionalDependencies: false,
