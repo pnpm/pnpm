@@ -3,7 +3,6 @@ import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import {
-  runLifecycleHook,
   makeNodeRequireOption,
   RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
@@ -69,12 +68,15 @@ export async function runRecursive (
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
+  const multiScriptSelectorSpecified = scriptName.slice(-2) === ':*'
+  const multiScriptSelectorPrefix = scriptName.slice(0, -1)
+
   const requiredScripts = opts.rootProjectManifest?.pnpm?.requiredScripts ?? []
   if (requiredScripts.includes(scriptName)) {
     const missingScriptPackages: string[] = packageChunks
       .flat()
       .map((prefix) => opts.selectedProjectsGraph[prefix])
-      .filter((pkg) => !pkg.package.manifest.scripts?.[scriptName])
+      .filter((pkg) => multiScriptSelectorSpecified ? !Object.keys(pkg.package.manifest.scripts ?? {}).some(script => script.startsWith(multiScriptSelectorPrefix) && script !== multiScriptSelectorPrefix) : !pkg.package.manifest.scripts?.[scriptName])
       .map((pkg) => pkg.package.manifest.name ?? pkg.package.dir)
     if (missingScriptPackages.length) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in packages: ${missingScriptPackages.join(', ')}`)
@@ -85,8 +87,9 @@ export async function runRecursive (
     await Promise.all(chunk.map(async (prefix: string) =>
       limitRun(async () => {
         const pkg = opts.selectedProjectsGraph[prefix]
+        const specifiedScriptsWithSelector = Object.keys(pkg.package.manifest.scripts ?? {}).filter(script => script.startsWith(multiScriptSelectorPrefix) && script !== multiScriptSelectorPrefix)
         if (
-          !pkg.package.manifest.scripts?.[scriptName] ||
+          !((pkg.package.manifest.scripts?.[scriptName] ?? multiScriptSelectorSpecified) || specifiedScriptsWithSelector.length > 0) ||
           process.env.npm_lifecycle_event === scriptName &&
           process.env.PNPM_SCRIPT_SRC_DIR === prefix
         ) {
@@ -114,7 +117,13 @@ export async function runRecursive (
               ...makeNodeRequireOption(pnpPath),
             }
           }
-          await runScript(scriptName, pkg.package.manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs)
+          if (multiScriptSelectorSpecified) {
+            const limitRunForMultiScriptSelector = pLimit(3)
+
+            await Promise.all(specifiedScriptsWithSelector.map(script => limitRunForMultiScriptSelector(() => runScript(script, pkg.package.manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs))))
+          } else {
+            await runScript(scriptName, pkg.package.manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs)
+          }
           result.passes++
         } catch (err: any) { // eslint-disable-line
           logger.info(err)
