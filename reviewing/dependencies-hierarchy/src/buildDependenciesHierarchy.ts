@@ -127,6 +127,7 @@ async function dependenciesHierarchyForPackage (
       const packageInfo = getPkgInfo({
         alias,
         currentPackages: currentLockfile.packages ?? {},
+        linkedPathBaseDir: projectPath,
         modulesDir,
         ref,
         registries: opts.registries,

@@ -1,3 +1,4 @@
+import path from 'path'
 import { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile-file'
 import { Registries } from '@pnpm/types'
 import { SearchFunction } from './types'
@@ -101,6 +102,19 @@ function getTreeHelper (
   }
   const peers = new Set(Object.keys(getPeerDependencies() ?? {}))
 
+  // If the "ref" of any dependency is a file system path (e.g. link:../), the
+  // base directory of this relative path depends on whether the dependent
+  // package is in the pnpm workspace or from node_modules.
+  function getLinkedPathBaseDir () {
+    switch (parentId.type) {
+    case 'importer':
+      return path.join(opts.lockfileDir, parentId.importerId)
+    case 'package':
+      return opts.lockfileDir
+    }
+  }
+  const linkedPathBaseDir = getLinkedPathBaseDir()
+
   const resultDependencies: PackageNode[] = []
   let resultHeight: number | 'unknown' = 0
   let resultCircular: boolean = false
@@ -109,6 +123,7 @@ function getTreeHelper (
     const packageInfo = getPkgInfo({
       alias,
       currentPackages: opts.currentPackages,
+      linkedPathBaseDir,
       modulesDir: opts.modulesDir,
       peers,
       ref,

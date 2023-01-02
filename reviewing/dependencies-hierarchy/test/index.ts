@@ -395,14 +395,17 @@ test('on a package with nested workspace links', async () => {
         expect.objectContaining({
           alias: '@scope/a',
           version: 'link:packages/a',
+          path: path.join(workspaceWithNestedWorkspaceDeps, 'packages/a'),
           dependencies: [
             expect.objectContaining({
               alias: '@scope/b',
               version: 'link:../b',
+              path: path.join(workspaceWithNestedWorkspaceDeps, 'packages/b'),
               dependencies: [
                 expect.objectContaining({
                   alias: '@scope/c',
                   version: 'link:../c',
+                  path: path.join(workspaceWithNestedWorkspaceDeps, 'packages/c'),
                 }),
                 expect.objectContaining({
                   alias: 'is-positive',

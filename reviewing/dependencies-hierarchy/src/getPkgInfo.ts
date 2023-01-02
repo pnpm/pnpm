@@ -19,6 +19,11 @@ export interface GetPkgInfoOpts {
   readonly registries: Registries
   readonly skipped: Set<string>
   readonly wantedPackages: PackageSnapshots
+
+  /**
+   * The base dir if the `ref` argument is a `"link:"` relative path.
+   */
+  readonly linkedPathBaseDir: string
 }
 
 export function getPkgInfo (opts: GetPkgInfoOpts) {
@@ -63,7 +68,9 @@ export function getPkgInfo (opts: GetPkgInfoOpts) {
     isPeer: Boolean(opts.peers?.has(opts.alias)),
     isSkipped,
     name,
-    path: depPath ? path.join(opts.modulesDir, '.pnpm', depPathToFilename(depPath)) : path.join(opts.modulesDir, '..', opts.ref.slice(5)),
+    path: depPath
+      ? path.join(opts.modulesDir, '.pnpm', depPathToFilename(depPath))
+      : path.join(opts.linkedPathBaseDir, opts.ref.slice(5)),
     version,
   }
   if (resolved) {
