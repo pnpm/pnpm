@@ -526,7 +526,7 @@ test('pnpm run with multiple script selector should work with parallel mode', as
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    maxParallel: 2,
+    workspaceConcurrency: 2,
   }, ['build:*'])
 
   const { default: outputsA } = await import(path.resolve('output-a.json'))
