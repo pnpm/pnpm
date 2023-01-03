@@ -1,7 +1,8 @@
+import fs from 'fs'
 import path from 'path'
 import { runLifecycleHook, RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { PackageScripts } from '@pnpm/types'
+import { PackageManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import preferredPM from 'preferred-pm'
 import omit from 'ramda/src/omit'
@@ -21,7 +22,7 @@ export interface PreparePackageOptions {
 
 export async function preparePackage (opts: PreparePackageOptions, pkgDir: string) {
   const manifest = await safeReadPackageJsonFromDir(pkgDir)
-  if (manifest?.scripts == null || !packageShouldBeBuilt(manifest.scripts)) return
+  if (manifest?.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) return
   const pm = (await preferredPM(pkgDir))?.name ?? 'npm'
   const execOpts: RunLifecycleHookOptions = {
     depPath: `${manifest.name}@${manifest.version}`,
@@ -47,9 +48,12 @@ export async function preparePackage (opts: PreparePackageOptions, pkgDir: strin
   await rimraf(path.join(pkgDir, 'node_modules'))
 }
 
-function packageShouldBeBuilt (packageScripts: PackageScripts): boolean {
-  return [
-    ...PREPUBLISH_SCRIPTS,
-    'prepare',
-  ].some((scriptName) => packageScripts[scriptName] != null && packageScripts[scriptName] !== '')
+function packageShouldBeBuilt (manifest: PackageManifest, pkgDir: string): boolean {
+  if (manifest.scripts == null) return false
+  const scripts = manifest.scripts
+  if (scripts.prepare != null && scripts.prepare !== '') return true
+  const hasPrepublishScript = PREPUBLISH_SCRIPTS.some((scriptName) => scripts[scriptName] != null && scripts[scriptName] !== '')
+  if (!hasPrepublishScript) return false
+  const mainFile = manifest.main ?? 'index.js'
+  return !fs.existsSync(path.join(pkgDir, mainFile))
 }
