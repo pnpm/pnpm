@@ -108,10 +108,7 @@ export async function main (inputArgv: string[]) {
         ...config.extraEnv,
         // Follow the behavior of npm by setting it to 'run-script' when running scripts (e.g. pnpm run dev)
         // and to the command name otherwise (e.g. pnpm test)
-        npm_command:
-                  cmd === 'run'
-                    ? 'run-script'
-                    : cmd,
+        npm_command: cmd === 'run' ? 'run-script' : cmd,
       }
     }
   } catch (err: any) { // eslint-disable-line
