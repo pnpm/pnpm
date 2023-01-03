@@ -93,7 +93,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             shortAlias: '-D',
           },
           {
-            description: 'Display only dependencies that are also projects within the monorepo.',
+            description: 'Display only dependencies that are also projects within the workspace',
             name: '--only-projects',
           },
           {
