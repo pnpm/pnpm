@@ -1,5 +1,13 @@
 # @pnpm/node.fetcher
 
+## 2.0.7
+
+### Patch Changes
+
+- ec97a3105: Report to the console when a git-hosted dependency is built [#5847](https://github.com/pnpm/pnpm/pull/5847).
+- Updated dependencies [ec97a3105]
+  - @pnpm/tarball-fetcher@14.0.1
+
 ## 2.0.6
 
 ### Patch Changes

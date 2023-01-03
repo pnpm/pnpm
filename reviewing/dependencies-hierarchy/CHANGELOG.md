@@ -1,5 +1,16 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1.1.0
+
+### Minor Changes
+
+- 395a33a50: The `path` field for direct dependencies returned from `buildDependenciesHierarchy` was incorrect if the dependency used the `workspace:` or `link:` protocols.
+- 395a33a50: The `pnpm list` and `pnpm why` commands will now look through transitive dependencies of `workspace:` packages. A new `--only-projects` flag is available to only print `workspace:` packages.
+
+### Patch Changes
+
+- 7853a26e1: Fix a situation where `pnpm list` and `pnpm why` may not respect the `--depth` argument.
+
 ## 1.0.1
 
 ### Patch Changes

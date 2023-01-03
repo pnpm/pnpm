@@ -1,5 +1,16 @@
 # @pnpm/store-connection-manager
 
+## 5.1.13
+
+### Patch Changes
+
+- ec97a3105: Report to the console when a git-hosted dependency is built [#5847](https://github.com/pnpm/pnpm/pull/5847).
+- Updated dependencies [ec97a3105]
+  - @pnpm/client@9.0.1
+  - @pnpm/package-store@15.0.5
+  - @pnpm/server@14.0.5
+  - @pnpm/config@16.2.2
+
 ## 5.1.12
 
 ### Patch Changes

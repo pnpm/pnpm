@@ -1,5 +1,12 @@
 # @pnpm/filter-workspace-packages
 
+## 6.0.20
+
+### Patch Changes
+
+- 08ceaf3fc: replace dependency `is-ci` by `ci-info` (`is-ci` is just a simple wrapper around `ci-info`).
+  - @pnpm/find-workspace-packages@5.0.20
+
 ## 6.0.19
 
 ### Patch Changes

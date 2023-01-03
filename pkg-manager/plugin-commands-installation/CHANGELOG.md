@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-installation
 
+## 11.1.7
+
+### Patch Changes
+
+- 08ceaf3fc: replace dependency `is-ci` by `ci-info` (`is-ci` is just a simple wrapper around `ci-info`).
+- Updated dependencies [ec97a3105]
+- Updated dependencies [08ceaf3fc]
+  - @pnpm/store-connection-manager@5.1.13
+  - @pnpm/filter-workspace-packages@6.0.20
+  - @pnpm/core@7.4.1
+  - @pnpm/plugin-commands-rebuild@7.0.20
+  - @pnpm/cli-utils@1.0.20
+  - @pnpm/outdated@11.0.11
+  - @pnpm/package-store@15.0.5
+  - @pnpm/pnpmfile@4.0.18
+  - @pnpm/find-workspace-packages@5.0.20
+  - @pnpm/config@16.2.2
+
 ## 11.1.6
 
 ### Patch Changes

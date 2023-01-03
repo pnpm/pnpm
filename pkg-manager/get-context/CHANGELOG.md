@@ -1,5 +1,11 @@
 # @pnpm/get-context
 
+## 8.0.6
+
+### Patch Changes
+
+- 08ceaf3fc: replace dependency `is-ci` by `ci-info` (`is-ci` is just a simple wrapper around `ci-info`).
+
 ## 8.0.5
 
 ### Patch Changes

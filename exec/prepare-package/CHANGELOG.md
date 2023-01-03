@@ -1,5 +1,12 @@
 # @pnpm/prepare-package
 
+## 4.0.1
+
+### Patch Changes
+
+- ec97a3105: Report to the console when a git-hosted dependency is built [#5847](https://github.com/pnpm/pnpm/pull/5847).
+- 40a481840: Only run prepublish scripts of git-hosted dependencies, if the dependency doesn't have a main file. In this case we can assume that the dependencies has to be built.
+
 ## 4.0.0
 
 ### Major Changes

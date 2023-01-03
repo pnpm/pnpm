@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 11.0.20
+
+### Patch Changes
+
+- ec97a3105: Report to the console when a git-hosted dependency is built [#5847](https://github.com/pnpm/pnpm/pull/5847).
+  - @pnpm/config@16.2.2
+
 ## 11.0.19
 
 ### Patch Changes

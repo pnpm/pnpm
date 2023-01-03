@@ -1,5 +1,22 @@
 # pnpm
 
+## 7.22.0
+
+### Minor Changes
+
+- The `pnpm list` and `pnpm why` commands will now look through transitive dependencies of `workspace:` packages. A new `--only-projects` flag is available to only print `workspace:` packages.
+- `pnpm exec` and `pnpm run` command support `--resume-from` option. When used, the command will executed from given package [#4690](https://github.com/pnpm/pnpm/issues/4690).
+- Expose the `npm_command` environment variable to lifecycle hooks & scripts.
+
+### Patch Changes
+
+- Fix a situation where `pnpm list` and `pnpm why` may not respect the `--depth` argument.
+- Report to the console when a git-hosted dependency is built [#5847](https://github.com/pnpm/pnpm/pull/5847).
+- Throw an accurate error message when trying to install a package that has no versions, or all of its versions are unpublished [#5849](https://github.com/pnpm/pnpm/issues/5849).
+- replace dependency `is-ci` by `ci-info` (`is-ci` is just a simple wrapper around `ci-info`).
+- Only run prepublish scripts of git-hosted dependencies, if the dependency doesn't have a main file. In this case we can assume that the dependencies has to be built.
+- Print more contextual information when a git-hosted package fails to be prepared for installation [#5847](https://github.com/pnpm/pnpm/pull/5847).
+
 ## 7.21.0
 
 ### Minor Changes

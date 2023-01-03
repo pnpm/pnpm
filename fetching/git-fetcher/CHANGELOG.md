@@ -1,5 +1,14 @@
 # @pnpm/git-fetcher
 
+## 7.0.1
+
+### Patch Changes
+
+- ec97a3105: Print more contextual information when a git-hosted package fails to be prepared for installation [#5847](https://github.com/pnpm/pnpm/pull/5847).
+- Updated dependencies [ec97a3105]
+- Updated dependencies [40a481840]
+  - @pnpm/prepare-package@4.0.1
+
 ## 7.0.0
 
 ### Major Changes

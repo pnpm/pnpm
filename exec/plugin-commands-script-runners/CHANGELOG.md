@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-script-runners
 
+## 6.3.0
+
+### Minor Changes
+
+- da15828ec: `pnpm exec` and `pnpm run` command support `--resume-from` option. When used, the command will executed from given package [#4690](https://github.com/pnpm/pnpm/issues/4690).
+
+### Patch Changes
+
+- Updated dependencies [08ceaf3fc]
+  - @pnpm/plugin-commands-installation@11.1.7
+  - @pnpm/cli-utils@1.0.20
+  - @pnpm/config@16.2.2
+
 ## 6.2.0
 
 ### Minor Changes

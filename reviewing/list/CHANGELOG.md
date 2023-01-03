@@ -1,5 +1,14 @@
 # @pnpm/list
 
+## 8.0.10
+
+### Patch Changes
+
+- Updated dependencies [7853a26e1]
+- Updated dependencies [395a33a50]
+- Updated dependencies [395a33a50]
+  - @pnpm/reviewing.dependencies-hierarchy@1.1.0
+
 ## 8.0.9
 
 ### Patch Changes

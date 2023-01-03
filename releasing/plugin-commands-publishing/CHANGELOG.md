@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-publishing
 
+## 6.1.0
+
+### Minor Changes
+
+- a02f1fea1: expose the `npm_command` environment variable to lifecycle hooks & scripts.
+
+### Patch Changes
+
+- ec97a3105: Report to the console when a git-hosted dependency is built [#5847](https://github.com/pnpm/pnpm/pull/5847).
+- 08ceaf3fc: replace dependency `is-ci` by `ci-info` (`is-ci` is just a simple wrapper around `ci-info`).
+- Updated dependencies [ec97a3105]
+  - @pnpm/client@9.0.1
+  - @pnpm/cli-utils@1.0.20
+  - @pnpm/config@16.2.2
+
 ## 6.0.19
 
 ### Patch Changes

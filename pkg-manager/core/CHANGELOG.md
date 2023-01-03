@@ -1,5 +1,16 @@
 # @pnpm/core
 
+## 7.4.1
+
+### Patch Changes
+
+- 08ceaf3fc: replace dependency `is-ci` by `ci-info` (`is-ci` is just a simple wrapper around `ci-info`).
+- Updated dependencies [08ceaf3fc]
+  - @pnpm/get-context@8.0.6
+  - @pnpm/headless@19.4.0
+  - @pnpm/package-requester@20.0.5
+  - @pnpm/resolve-dependencies@29.0.12
+
 ## 7.4.0
 
 ### Minor Changes
