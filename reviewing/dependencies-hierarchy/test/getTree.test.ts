@@ -2,6 +2,7 @@ import { refToRelative } from '@pnpm/dependency-path'
 import { PackageSnapshots } from '@pnpm/lockfile-file'
 import { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { getTree } from '../lib/getTree'
+import { TreeNodeId } from '../lib/TreeNodeId'
 
 /**
  * Maps an npm package name to its dependencies.
@@ -79,12 +80,15 @@ describe('getTree', () => {
       b1: ['c1'],
       c1: ['d1'],
     })
-    const startingDepPath = refToRelativeOrThrow(version, 'a')
+    const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'a') }
 
     const getTreeArgs = {
       maxDepth: 0,
+      rewriteLinkVersionDir: '',
       modulesDir: '',
+      importers: {},
       includeOptionalDependencies: false,
+      lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
         default: 'mock-registry-for-testing.example',
@@ -94,7 +98,7 @@ describe('getTree', () => {
     }
 
     test('full test case to print when max depth is large', () => {
-      const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, maxDepth: 9999 }, [], startingDepPath))
+      const result = normalizePackageNodeForTesting(getTree({ ...getTreeArgs, maxDepth: 9999 }, rootNodeId))
 
       expect(result).toEqual([
         expect.objectContaining({
@@ -114,12 +118,12 @@ describe('getTree', () => {
     })
 
     test('no result when current depth exceeds max depth', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 0 }, [], startingDepPath)
+      const result = getTree({ ...getTreeArgs, maxDepth: 0 }, rootNodeId)
       expect(result).toEqual([])
     })
 
     test('max depth of 1 to print flat dependencies', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 1 }, [], startingDepPath)
+      const result = getTree({ ...getTreeArgs, maxDepth: 1 }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({ alias: 'b1', dependencies: undefined }),
@@ -129,7 +133,7 @@ describe('getTree', () => {
     })
 
     test('max depth of 2 to print a1 -> b1 -> c1, but not d1', () => {
-      const result = getTree({ ...getTreeArgs, maxDepth: 2 }, [], startingDepPath)
+      const result = getTree({ ...getTreeArgs, maxDepth: 2 }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -155,8 +159,11 @@ describe('getTree', () => {
   // result in incorrect output if the cache was used when it's not supposed to.
   describe('prints at expected depth for cache regression testing cases', () => {
     const commonMockGetTreeArgs = {
+      rewriteLinkVersionDir: '',
       modulesDir: '',
+      importers: {},
       includeOptionalDependencies: false,
+      lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
         default: 'mock-registry-for-testing.example',
@@ -181,14 +188,14 @@ describe('getTree', () => {
         inflight: ['once'],
         once: ['wrappy'],
       })
-      const rootDepPath = refToRelativeOrThrow(version, 'root')
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
       const result = getTree({
         ...commonMockGetTreeArgs,
         maxDepth: 3,
         currentPackages,
         wantedPackages: currentPackages,
-      }, [rootDepPath], rootDepPath)
+      }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         // depth 0
@@ -239,14 +246,14 @@ describe('getTree', () => {
         b: ['c'],
         d: ['b'],
       })
-      const rootDepPath = refToRelativeOrThrow(version, 'root')
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
       const result = getTree({
         ...commonMockGetTreeArgs,
         maxDepth: 3,
         currentPackages,
         wantedPackages: currentPackages,
-      }, [rootDepPath], rootDepPath)
+      }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -287,8 +294,11 @@ describe('getTree', () => {
   // result in incorrect output if the cache was used when it's not supposed to.
   describe('fully visited cache optimization handles requested depth correctly', () => {
     const commonMockGetTreeArgs = {
+      rewriteLinkVersionDir: '',
       modulesDir: '',
+      importers: {},
       includeOptionalDependencies: false,
+      lockfileDir: '',
       skipped: new Set<string>(),
       registries: {
         default: 'mock-registry-for-testing.example',
@@ -311,14 +321,14 @@ describe('getTree', () => {
         a: ['b'],
         b: ['c'],
       })
-      const rootDepPath = refToRelativeOrThrow(version, 'root')
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
       const result = getTree({
         ...commonMockGetTreeArgs,
         maxDepth: 4,
         currentPackages,
         wantedPackages: currentPackages,
-      }, [rootDepPath], rootDepPath)
+      }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -363,14 +373,14 @@ describe('getTree', () => {
         c: ['d'],
         d: ['a'],
       })
-      const rootDepPath = refToRelativeOrThrow(version, 'root')
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
       const result = getTree({
         ...commonMockGetTreeArgs,
         maxDepth: 4,
         currentPackages,
         wantedPackages: currentPackages,
-      }, [rootDepPath], rootDepPath)
+      }, rootNodeId)
 
       const expectedA = expect.objectContaining({
         alias: 'a',
@@ -414,14 +424,14 @@ describe('getTree', () => {
         c: ['d'],
         d: ['a'],
       })
-      const rootDepPath = refToRelativeOrThrow(version, 'root')
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
       const result = getTree({
         ...commonMockGetTreeArgs,
         maxDepth: 3,
         currentPackages,
         wantedPackages: currentPackages,
-      }, [rootDepPath], rootDepPath)
+      }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({
@@ -475,14 +485,14 @@ describe('getTree', () => {
         f: ['g'],
         g: ['a'],
       })
-      const rootDepPath = refToRelativeOrThrow(version, 'root')
+      const rootNodeId: TreeNodeId = { type: 'package', depPath: refToRelativeOrThrow(version, 'root') }
 
       const result = getTree({
         ...commonMockGetTreeArgs,
         maxDepth: 5,
         currentPackages,
         wantedPackages: currentPackages,
-      }, [rootDepPath], rootDepPath)
+      }, rootNodeId)
 
       expect(normalizePackageNodeForTesting(result)).toEqual([
         expect.objectContaining({

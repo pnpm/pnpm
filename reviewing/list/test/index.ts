@@ -796,3 +796,20 @@ ${highlighted(`ajv ${VERSION_CLR('6.10.2')}`)}
 ajv-keywords ${VERSION_CLR('3.4.1')}
 └── ${highlighted(`ajv ${VERSION_CLR('6.10.2')} peer`)}`)
 })
+
+test('--only-projects shows only projects', async () => {
+  const fixture = f.find('workspace-with-nested-workspace-deps')
+  const output = await list([fixture], { depth: 999, lockfileDir: fixture, onlyProjects: true })
+
+  // The "workspace-with-nested-workspace-deps" test case has an external
+  // dependency under @scope/b, but that package should not be printed when
+  // --only-projects is passed to the list command.
+  expect(output).toBe(`${LEGEND}
+
+${boldHighlighted(`root@1.0.0 ${fixture}`)}
+
+${DEPENDENCIES}
+@scope/a ${VERSION_CLR('link:packages/a')}
+└─┬ @scope/b ${VERSION_CLR('link:packages/b')}
+  └── @scope/c ${VERSION_CLR('link:packages/c')}`)
+})

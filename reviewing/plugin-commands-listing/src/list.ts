@@ -24,6 +24,7 @@ export function rcOptionsTypes () {
 
 export const cliOptionsTypes = () => ({
   ...rcOptionsTypes(),
+  'only-projects': Boolean,
   recursive: Boolean,
 })
 
@@ -92,6 +93,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             shortAlias: '-D',
           },
           {
+            description: 'Display only dependencies that are also projects within the workspace',
+            name: '--only-projects',
+          },
+          {
             description: "Don't display packages from `optionalDependencies`",
             name: '--no-optional',
           },
@@ -121,6 +126,7 @@ export type ListCommandOptions = Pick<Config,
   lockfileDir?: string
   long?: boolean
   parseable?: boolean
+  onlyProjects?: boolean
   recursive?: boolean
 }
 
@@ -156,6 +162,7 @@ export async function render (
     lockfileDir: string
     long?: boolean
     json?: boolean
+    onlyProjects?: boolean
     parseable?: boolean
   }
 ) {
@@ -165,6 +172,7 @@ export async function render (
     include: opts.include,
     lockfileDir: opts.lockfileDir,
     long: opts.long,
+    onlyProjects: opts.onlyProjects,
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
     showExtraneous: false,
   }

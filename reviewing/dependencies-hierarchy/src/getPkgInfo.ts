@@ -9,19 +9,34 @@ import {
 } from '@pnpm/lockfile-utils'
 import { Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
+import normalizePath from 'normalize-path'
 
-export function getPkgInfo (
-  opts: {
-    alias: string
-    modulesDir: string
-    ref: string
-    currentPackages: PackageSnapshots
-    peers?: Set<string>
-    registries: Registries
-    skipped: Set<string>
-    wantedPackages: PackageSnapshots
-  }
-) {
+export interface GetPkgInfoOpts {
+  readonly alias: string
+  readonly modulesDir: string
+  readonly ref: string
+  readonly currentPackages: PackageSnapshots
+  readonly peers?: Set<string>
+  readonly registries: Registries
+  readonly skipped: Set<string>
+  readonly wantedPackages: PackageSnapshots
+
+  /**
+   * The base dir if the `ref` argument is a `"link:"` relative path.
+   */
+  readonly linkedPathBaseDir: string
+
+  /**
+   * If the `ref` argument is a `"link:"` relative path, the ref is reused for
+   * the version field. (Since the true semver may not be known.)
+   *
+   * Optionally rewrite this relative path to a base dir before writing it to
+   * version.
+   */
+  readonly rewriteLinkVersionDir?: string
+}
+
+export function getPkgInfo (opts: GetPkgInfoOpts) {
   let name!: string
   let version!: string
   let resolved: string | undefined
@@ -57,14 +72,21 @@ export function getPkgInfo (
     name = opts.alias
     version = opts.ref
   }
-  const packageAbsolutePath = refToRelative(opts.ref, opts.alias)
+  const fullPackagePath = depPath
+    ? path.join(opts.modulesDir, '.pnpm', depPathToFilename(depPath))
+    : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
+
+  if (version.startsWith('link:') && opts.rewriteLinkVersionDir) {
+    version = `link:${normalizePath(path.relative(opts.rewriteLinkVersionDir, fullPackagePath))}`
+  }
+
   const packageInfo = {
     alias: opts.alias,
     isMissing,
     isPeer: Boolean(opts.peers?.has(opts.alias)),
     isSkipped,
     name,
-    path: depPath ? path.join(opts.modulesDir, '.pnpm', depPathToFilename(depPath)) : path.join(opts.modulesDir, '..', opts.ref.slice(5)),
+    path: fullPackagePath,
     version,
   }
   if (resolved) {
@@ -76,8 +98,5 @@ export function getPkgInfo (
   if (typeof dev === 'boolean') {
     packageInfo['dev'] = dev
   }
-  return {
-    packageAbsolutePath,
-    packageInfo,
-  }
+  return packageInfo
 }

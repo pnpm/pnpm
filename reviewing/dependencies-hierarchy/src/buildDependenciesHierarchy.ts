@@ -11,14 +11,15 @@ import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { DependenciesField, DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
-import { refToRelative } from '@pnpm/dependency-path'
 import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
 import { PackageNode } from './PackageNode'
 import { SearchFunction } from './types'
 import { getTree } from './getTree'
+import { getTreeNodeChildId } from './getTreeNodeChildId'
 import { getPkgInfo } from './getPkgInfo'
+import { TreeNodeId } from './TreeNodeId'
 
 export interface DependenciesHierarchy {
   dependencies?: PackageNode[]
@@ -33,6 +34,7 @@ export async function buildDependenciesHierarchy (
     depth: number
     include?: { [dependenciesField in DependenciesField]: boolean }
     registries?: Registries
+    onlyProjects?: boolean
     search?: SearchFunction
     lockfileDir: string
   }
@@ -65,6 +67,7 @@ export async function buildDependenciesHierarchy (
       optionalDependencies: true,
     },
     lockfileDir: maybeOpts.lockfileDir,
+    onlyProjects: maybeOpts.onlyProjects,
     registries,
     search: maybeOpts.search,
     skipped: new Set(modules?.skipped ?? []),
@@ -89,6 +92,7 @@ async function dependenciesHierarchyForPackage (
     depth: number
     include: { [dependenciesField in DependenciesField]: boolean }
     registries: Registries
+    onlyProjects?: boolean
     search?: SearchFunction
     skipped: Set<string>
     lockfileDir: string
@@ -107,8 +111,11 @@ async function dependenciesHierarchyForPackage (
 
   const getChildrenTree = getTree.bind(null, {
     currentPackages: currentLockfile.packages ?? {},
+    importers: currentLockfile.importers,
     includeOptionalDependencies: opts.include.optionalDependencies,
     lockfileDir: opts.lockfileDir,
+    onlyProjects: opts.onlyProjects,
+    rewriteLinkVersionDir: projectPath,
     maxDepth: opts.depth,
     modulesDir,
     registries: opts.registries,
@@ -116,14 +123,17 @@ async function dependenciesHierarchyForPackage (
     skipped: opts.skipped,
     wantedPackages: wantedLockfile.packages ?? {},
   })
+  const parentId: TreeNodeId = { type: 'importer', importerId }
   const result: DependenciesHierarchy = {}
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciedField => opts.include[dependenciedField])) {
     const topDeps = currentLockfile.importers[importerId][dependenciesField] ?? {}
     result[dependenciesField] = []
     Object.entries(topDeps).forEach(([alias, ref]) => {
-      const { packageInfo, packageAbsolutePath } = getPkgInfo({
+      const packageInfo = getPkgInfo({
         alias,
         currentPackages: currentLockfile.packages ?? {},
+        rewriteLinkVersionDir: projectPath,
+        linkedPathBaseDir: projectPath,
         modulesDir,
         ref,
         registries: opts.registries,
@@ -132,21 +142,26 @@ async function dependenciesHierarchyForPackage (
       })
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.(packageInfo)
-      if (packageAbsolutePath === null) {
+      const nodeId = getTreeNodeChildId({
+        parentId,
+        dep: { alias, ref },
+        lockfileDir: opts.lockfileDir,
+        importers: currentLockfile.importers,
+      })
+      if (opts.onlyProjects && nodeId?.type !== 'importer') {
+        return
+      } else if (nodeId == null) {
         if ((opts.search != null) && !matchedSearched) return
         newEntry = packageInfo
       } else {
-        const relativeId = refToRelative(ref, alias)
-        if (relativeId) {
-          const dependencies = getChildrenTree([relativeId], relativeId)
-          if (dependencies.length > 0) {
-            newEntry = {
-              ...packageInfo,
-              dependencies,
-            }
-          } else if ((opts.search == null) || matchedSearched) {
-            newEntry = packageInfo
+        const dependencies = getChildrenTree(nodeId)
+        if (dependencies.length > 0) {
+          newEntry = {
+            ...packageInfo,
+            dependencies,
           }
+        } else if ((opts.search == null) || matchedSearched) {
+          newEntry = packageInfo
         }
       }
       if (newEntry != null) {

@@ -14,6 +14,7 @@ const withLinksOnlyFixture = f.find('fixtureWithLinks/with-links-only')
 const withUnsavedDepsFixture = f.find('with-unsaved-deps')
 const fixtureMonorepo = path.join(__dirname, '..', 'fixtureMonorepo')
 const withAliasedDepFixture = f.find('with-aliased-dep')
+const workspaceWithNestedWorkspaceDeps = f.find('workspace-with-nested-workspace-deps')
 
 test('one package depth 0', async () => {
   const tree = await buildDependenciesHierarchy([generalFixture], { depth: 0, lockfileDir: generalFixture })
@@ -374,6 +375,46 @@ test('on a package that has only links', async () => {
           path: path.join(f.find('fixtureWithLinks'), 'general'),
           version: 'link:../general',
         },
+      ],
+      devDependencies: [],
+      optionalDependencies: [],
+    },
+  })
+})
+
+// Test for feature request at https://github.com/pnpm/pnpm/issues/4154
+test('on a package with nested workspace links', async () => {
+  const tree = await buildDependenciesHierarchy(
+    [workspaceWithNestedWorkspaceDeps],
+    { depth: 1000, lockfileDir: workspaceWithNestedWorkspaceDeps }
+  )
+
+  expect(tree).toEqual({
+    [workspaceWithNestedWorkspaceDeps]: {
+      dependencies: [
+        expect.objectContaining({
+          alias: '@scope/a',
+          version: 'link:packages/a',
+          path: path.join(workspaceWithNestedWorkspaceDeps, 'packages/a'),
+          dependencies: [
+            expect.objectContaining({
+              alias: '@scope/b',
+              version: 'link:packages/b',
+              path: path.join(workspaceWithNestedWorkspaceDeps, 'packages/b'),
+              dependencies: [
+                expect.objectContaining({
+                  alias: '@scope/c',
+                  version: 'link:packages/c',
+                  path: path.join(workspaceWithNestedWorkspaceDeps, 'packages/c'),
+                }),
+                expect.objectContaining({
+                  alias: 'is-positive',
+                  version: '1.0.0',
+                }),
+              ],
+            }),
+          ],
+        }),
       ],
       devDependencies: [],
       optionalDependencies: [],
