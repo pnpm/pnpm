@@ -102,6 +102,15 @@ export async function main (inputArgv: string[]) {
     config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
     config.argv = argv
     config.fallbackCommandUsed = fallbackCommandUsed
+    // Set 'npm_command' env variable to current command name
+    if (cmd) {
+      config.extraEnv = {
+        ...config.extraEnv,
+        // Follow the behavior of npm by setting it to 'run-script' when running scripts (e.g. pnpm run dev)
+        // and to the command name otherwise (e.g. pnpm test)
+        npm_command: cmd === 'run' ? 'run-script' : cmd,
+      }
+    }
   } catch (err: any) { // eslint-disable-line
     // Reporting is not initialized at this point, so just printing the error
     const hint = err['hint'] ? err['hint'] : `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`
