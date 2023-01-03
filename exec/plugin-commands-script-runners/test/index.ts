@@ -529,3 +529,27 @@ test('pnpm run with multiple script selector should work parallel as a default b
 
   expect(Math.max(outputsA[0], outputsB[0]) < Math.min(outputsA[outputsA.length - 1], outputsB[outputsB.length - 1])).toBeTruthy()
 })
+
+test('pnpm run with multiple script selector should work sequentially with --workspace-concurrency=1', async () => {
+  prepare({
+    scripts: {
+      'build:a': 'node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-a.json\');},16)"',
+      'build:b': 'node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-b.json\');},16)"',
+    },
+  })
+
+  await execa('pnpm', ['add', 'json-append@1'])
+
+  await run.handler({
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    rawConfig: {},
+    workspaceConcurrency: 1,
+  }, ['build:*'])
+
+  const { default: outputsA } = await import(path.resolve('output-a.json'))
+  const { default: outputsB } = await import(path.resolve('output-b.json'))
+
+  expect(outputsA[0] < outputsB[0] && outputsA[1] < outputsB[1]).toBeTruthy()
+})

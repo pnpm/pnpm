@@ -44,12 +44,21 @@ export const RESUME_FROM_OPTION_HELP = {
   name: '--resume-from',
 }
 
+export const SEQUENTIAL_OPTION_HELP = {
+  description: 'Run a multiple scripts specified with workspace selector or a wildcard script selector sequential.\
+This is the preferred flag for tasks which has dependency on execution order.',
+  name: '--sequential',
+}
+
 export const shorthands = {
   parallel: [
     '--workspace-concurrency=Infinity',
     '--no-sort',
     '--stream',
     '--recursive',
+  ],
+  sequential: [
+    '--workspace-concurrency=1',
   ],
 }
 
@@ -113,6 +122,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           PARALLEL_OPTION_HELP,
           RESUME_FROM_OPTION_HELP,
           ...UNIVERSAL_OPTIONS,
+          SEQUENTIAL_OPTION_HELP,
         ],
       },
       FILTERING,
@@ -211,7 +221,7 @@ so you may run "pnpm -w run ${scriptName}"`,
   }
   try {
     if (multiScriptSelectorSpecified) {
-      const limitRun = pLimit(opts.workspaceConcurrency ?? 1)
+      const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
       await Promise.all(specifiedScriptsWithSelector.map(script => limitRun(() => runScript(script, manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs))))
     } else {
