@@ -52,7 +52,7 @@ function packageShouldBeBuilt (manifest: PackageManifest, pkgDir: string): boole
   if (manifest.scripts == null) return false
   const scripts = manifest.scripts
   if (scripts.prepare != null && scripts.prepare !== '') return true
-  const hasPrepublishScript = !PREPUBLISH_SCRIPTS.some((scriptName) => scripts[scriptName] != null && scripts[scriptName] !== '')
+  const hasPrepublishScript = PREPUBLISH_SCRIPTS.some((scriptName) => scripts[scriptName] != null && scripts[scriptName] !== '')
   if (!hasPrepublishScript) return false
   const mainFile = manifest.main ?? 'index.js'
   return !fs.existsSync(path.join(pkgDir, mainFile))
