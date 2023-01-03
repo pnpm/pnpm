@@ -661,3 +661,38 @@ test('should throw error when the package specified by resume-from does not exis
     expect(err.code).toBe('ERR_PNPM_RESUME_FROM_NOT_FOUND')
   }
 })
+
+test('pnpm exec in directory with path delimiter', async () => {
+  preparePackages([
+    {
+      name: `foo${path.delimiter}delimiter`,
+      version: '1.0.0',
+      dependencies: {
+        cowsay: '1.5.0',
+      },
+    },
+  ])
+
+  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  let error
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      selectedProjectsGraph,
+      recursive: true,
+    }, ['cowsay', 'hi'])
+  } catch (err: any) { // eslint-disable-line
+    error = err
+  }
+  expect(error).toBeUndefined()
+})

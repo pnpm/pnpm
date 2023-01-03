@@ -1,4 +1,3 @@
-import path from 'path'
 import { docsUrl, RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config, types } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
@@ -175,7 +174,7 @@ export async function handler (
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix]?.package.manifest.name,
             },
             prependPaths: [
-              path.join(prefix, 'node_modules/.bin'),
+              './node_modules/.bin',
               ...opts.extraBinPaths,
             ],
             userAgent: opts.userAgent,
