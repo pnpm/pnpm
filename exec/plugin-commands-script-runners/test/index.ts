@@ -469,13 +469,11 @@ test('pnpm run with custom shell', async () => {
 test('pnpm run with multiple script selector should work', async () => {
   prepare({
     scripts: {
-      'build:a': 'node -e "process.stdout.write(\'a\')" | json-append ./output-a.json',
-      'build:b': 'node -e "process.stdout.write(\'b\')" | json-append ./output-b.json',
-      'build:c': 'node -e "process.stdout.write(\'c\')" | json-append ./output-c.json',
+      'build:a': 'node -e "require(\'fs\').writeFileSync(\'./output-a.txt\', \'a\', \'utf8\')"',
+      'build:b': 'node -e "require(\'fs\').writeFileSync(\'./output-b.txt\', \'b\', \'utf8\')"',
+      'build:c': 'node -e "require(\'fs\').writeFileSync(\'./output-c.txt\', \'c\', \'utf8\')"',
     },
   })
-
-  await execa('pnpm', ['add', 'json-append@1'])
 
   await run.handler({
     dir: process.cwd(),
@@ -484,20 +482,18 @@ test('pnpm run with multiple script selector should work', async () => {
     rawConfig: {},
   }, ['build:*'])
 
-  expect((await import(path.resolve('output-a.json'))).default).toStrictEqual(['a'])
-  expect((await import(path.resolve('output-b.json'))).default).toStrictEqual(['b'])
-  expect((await import(path.resolve('output-c.json'))).default).toStrictEqual(['c'])
+  expect(await fs.readFile('output-a.txt', { encoding: 'utf-8' })).toEqual('a')
+  expect(await fs.readFile('output-b.txt', { encoding: 'utf-8' })).toEqual('b')
+  expect(await fs.readFile('output-c.txt', { encoding: 'utf-8' })).toEqual('c')
 })
 
 test('pnpm run with multiple script selector should work also for pre/post script', async () => {
   prepare({
     scripts: {
-      'build:a': 'node -e "process.stdout.write(\'a\')" | json-append ./output-a.json',
-      'prebuild:a': 'node -e "process.stdout.write(\'pre-a\')" | json-append ./output-pre-a.json',
+      'build:a': 'node -e "require(\'fs\').writeFileSync(\'./output-a.txt\', \'a\', \'utf8\')"',
+      'prebuild:a': 'node -e "require(\'fs\').writeFileSync(\'./output-pre-a.txt\', \'pre-a\', \'utf8\')"',
     },
   })
-
-  await execa('pnpm', ['add', 'json-append@1'])
 
   await run.handler({
     dir: process.cwd(),
@@ -507,11 +503,11 @@ test('pnpm run with multiple script selector should work also for pre/post scrip
     enablePrePostScripts: true,
   }, ['build:*'])
 
-  expect((await import(path.resolve('output-a.json'))).default).toStrictEqual(['a'])
-  expect((await import(path.resolve('output-pre-a.json'))).default).toStrictEqual(['pre-a'])
+  expect(await fs.readFile('output-a.txt', { encoding: 'utf-8' })).toEqual('a')
+  expect(await fs.readFile('output-pre-a.txt', { encoding: 'utf-8' })).toEqual('pre-a')
 })
 
-test('pnpm run with multiple script selector should work with parallel mode', async () => {
+test('pnpm run with multiple script selector should work parallel as a default behavior (parallel execution limits number is four)', async () => {
   prepare({
     scripts: {
       'build:a': 'node -e "let i = 20;setInterval(() => {if (!--i) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-a.json\');},50)"',
@@ -526,7 +522,6 @@ test('pnpm run with multiple script selector should work with parallel mode', as
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    workspaceConcurrency: 2,
   }, ['build:*'])
 
   const { default: outputsA } = await import(path.resolve('output-a.json'))

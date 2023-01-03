@@ -1,3 +1,4 @@
+import { promises as fs } from 'fs'
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { run } from '@pnpm/plugin-commands-script-runners'
@@ -896,37 +897,28 @@ test('pnpm run with multiple script selector should work on recursive', async ()
     {
       name: 'project-1',
       version: '1.0.0',
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        'build:a': 'node -e "process.stdout.write(\'1/a\')" | json-append ../output-1-a.json',
-        'build:b': 'node -e "process.stdout.write(\'1/b\')" | json-append ../output-1-b.json',
-        'build:c': 'node -e "process.stdout.write(\'1/c\')" | json-append ../output-1-c.json',
+        'build:a': 'node -e "require(\'fs\').writeFileSync(\'../output-1-a.txt\', \'1-a\', \'utf8\')"',
+        'build:b': 'node -e "require(\'fs\').writeFileSync(\'../output-1-b.txt\', \'1-b\', \'utf8\')"',
+        'build:c': 'node -e "require(\'fs\').writeFileSync(\'../output-1-c.txt\', \'1-c\', \'utf8\')"',
       },
     },
     {
       name: 'project-2',
       version: '1.0.0',
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        'build:a': 'node -e "process.stdout.write(\'2/a\')" | json-append ../output-2-a.json',
-        'build:b': 'node -e "process.stdout.write(\'2/b\')" | json-append ../output-2-b.json',
-        'build:c': 'node -e "process.stdout.write(\'2/c\')" | json-append ../output-2-c.json',
+        'build:a': 'node -e "require(\'fs\').writeFileSync(\'../output-2-a.txt\', \'2-a\', \'utf8\')"',
+        'build:b': 'node -e "require(\'fs\').writeFileSync(\'../output-2-b.txt\', \'2-b\', \'utf8\')"',
+        'build:c': 'node -e "require(\'fs\').writeFileSync(\'../output-2-c.txt\', \'2-c\', \'utf8\')"',
       },
     },
     {
       name: 'project-3',
       version: '1.0.0',
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        'build:a': 'node -e "process.stdout.write(\'3/a\')" | json-append ../output-3-a.json',
-        'build:b': 'node -e "process.stdout.write(\'3/b\')" | json-append ../output-3-b.json',
-        'build:c': 'node -e "process.stdout.write(\'3/c\')" | json-append ../output-3-c.json',
+        'build:a': 'node -e "require(\'fs\').writeFileSync(\'../output-3-a.txt\', \'3-a\', \'utf8\')"',
+        'build:b': 'node -e "require(\'fs\').writeFileSync(\'../output-3-b.txt\', \'3-b\', \'utf8\')"',
+        'build:c': 'node -e "require(\'fs\').writeFileSync(\'../output-3-c.txt\', \'3-c\', \'utf8\')"',
       },
     },
   ])
@@ -950,13 +942,13 @@ test('pnpm run with multiple script selector should work on recursive', async ()
     },
     workspaceDir: process.cwd(),
   }, ['build:*'])
-  expect((await import(path.resolve('output-1-a.json'))).default).toStrictEqual(['1/a'])
-  expect((await import(path.resolve('output-1-b.json'))).default).toStrictEqual(['1/b'])
-  expect((await import(path.resolve('output-1-c.json'))).default).toStrictEqual(['1/c'])
-  expect((await import(path.resolve('output-2-a.json'))).default).toStrictEqual(['2/a'])
-  expect((await import(path.resolve('output-2-b.json'))).default).toStrictEqual(['2/b'])
-  expect((await import(path.resolve('output-2-c.json'))).default).toStrictEqual(['2/c'])
-  expect((await import(path.resolve('output-3-a.json'))).default).toStrictEqual(['3/a'])
-  expect((await import(path.resolve('output-3-b.json'))).default).toStrictEqual(['3/b'])
-  expect((await import(path.resolve('output-3-c.json'))).default).toStrictEqual(['3/c'])
+  expect(await fs.readFile('output-1-a.txt', { encoding: 'utf-8' })).toEqual('1-a')
+  expect(await fs.readFile('output-1-b.txt', { encoding: 'utf-8' })).toEqual('1-b')
+  expect(await fs.readFile('output-1-c.txt', { encoding: 'utf-8' })).toEqual('1-c')
+  expect(await fs.readFile('output-2-a.txt', { encoding: 'utf-8' })).toEqual('2-a')
+  expect(await fs.readFile('output-2-b.txt', { encoding: 'utf-8' })).toEqual('2-b')
+  expect(await fs.readFile('output-2-c.txt', { encoding: 'utf-8' })).toEqual('2-c')
+  expect(await fs.readFile('output-3-a.txt', { encoding: 'utf-8' })).toEqual('3-a')
+  expect(await fs.readFile('output-3-b.txt', { encoding: 'utf-8' })).toEqual('3-b')
+  expect(await fs.readFile('output-3-c.txt', { encoding: 'utf-8' })).toEqual('3-c')
 })
