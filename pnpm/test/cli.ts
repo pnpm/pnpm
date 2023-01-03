@@ -193,6 +193,7 @@ test('if an unknown command is executed, run it', async () => {
 
 test.each([
   { message: 'npm_command env available on special lifecycle hooks', script: 'prepare', command: 'install' },
+  { message: 'npm_command env available on special lifecycle hooks (alias)', script: 'prepare', command: 'i', expected: 'install' },
   { message: 'npm_command env available on pre lifecycle hooks', script: 'prepack', command: 'pack' },
   { message: 'npm_command env available on special commands', script: 'test', command: 'test' },
   { message: 'npm_command env available on scripts', script: 'dev', command: 'dev', expected: 'run-script' },
