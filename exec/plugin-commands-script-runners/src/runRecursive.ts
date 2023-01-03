@@ -84,12 +84,25 @@ export async function runRecursive (
   }
 
   for (const chunk of packageChunks) {
-    await Promise.all(chunk.map(async (prefix: string) =>
+    const selectedScripts = chunk.map(prefix => {
+      if (!multiScriptSelectorSpecified) {
+        return {
+          prefix,
+          scriptName,
+        }
+      }
+
+      const pkg = opts.selectedProjectsGraph[prefix]
+      const specifiedScriptsWithSelector = Object.keys(pkg.package.manifest.scripts ?? {}).filter(script => script.startsWith(multiScriptSelectorPrefix) && script !== multiScriptSelectorPrefix)
+
+      return specifiedScriptsWithSelector.map(script => ({ prefix, scriptName: script }))
+    }).flat()
+
+    await Promise.all(selectedScripts.map(async ({ prefix, scriptName }) =>
       limitRun(async () => {
         const pkg = opts.selectedProjectsGraph[prefix]
-        const specifiedScriptsWithSelector = Object.keys(pkg.package.manifest.scripts ?? {}).filter(script => script.startsWith(multiScriptSelectorPrefix) && script !== multiScriptSelectorPrefix)
         if (
-          !((pkg.package.manifest.scripts?.[scriptName] ?? multiScriptSelectorSpecified) || specifiedScriptsWithSelector.length > 0) ||
+          !pkg.package.manifest.scripts?.[scriptName] ||
           process.env.npm_lifecycle_event === scriptName &&
           process.env.PNPM_SCRIPT_SRC_DIR === prefix
         ) {
@@ -117,13 +130,8 @@ export async function runRecursive (
               ...makeNodeRequireOption(pnpPath),
             }
           }
-          if (multiScriptSelectorSpecified) {
-            const limitRunForMultiScriptSelector = pLimit(3)
 
-            await Promise.all(specifiedScriptsWithSelector.map(script => limitRunForMultiScriptSelector(() => runScript(script, pkg.package.manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs))))
-          } else {
-            await runScript(scriptName, pkg.package.manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs)
-          }
+          await runScript(scriptName, pkg.package.manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs)
           result.passes++
         } catch (err: any) { // eslint-disable-line
           logger.info(err)

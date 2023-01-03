@@ -211,7 +211,7 @@ so you may run "pnpm -w run ${scriptName}"`,
   }
   try {
     if (multiScriptSelectorSpecified) {
-      const limitRun = pLimit(1)
+      const limitRun = pLimit(opts.workspaceConcurrency ?? 1)
 
       await Promise.all(specifiedScriptsWithSelector.map(script => limitRun(() => runScript(script, manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs))))
     } else {
