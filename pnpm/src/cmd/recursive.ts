@@ -77,7 +77,7 @@ and must recompile all your C++ addons with the new binary.',
 
         list: [
           {
-            description: 'Continues executing other tasks even if a task threw an error.',
+            description: 'Continues executing other tasks even if a task threw an error',
             name: '--no-bail',
           },
           {
@@ -101,6 +101,10 @@ Convenient to use in a multi-package repository.',
             description: `Creates a single ${WANTED_LOCKFILE} file in the root of the workspace. \
 A shared lockfile also means that all dependencies of all projects will be in a single node_modules.`,
             name: '--shared-workspace-lockfile',
+          },
+          {
+            description: 'When executing commands recursively in a workspace, execute them on the root workspace project as well',
+            name: '--include-workspace-root',
           },
         ],
       },
