@@ -68,11 +68,16 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = {}
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
+  const rootProject = opts.projects.length > 1 ? opts.projects.find(({ id }) => id === '.') : null
+   const rootPkgsByName = rootProject == null ? {} : _createPkgsByName(rootProject)
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
 
   for (const { directNodeIdsByAlias, topParents, rootDir, id } of opts.projects) {
     const peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'> = { bad: {}, missing: {} }
-    const pkgsByName = _createPkgsByName({ directNodeIdsByAlias, topParents })
+    const pkgsByName = {
+      ...rootPkgsByName,
+      ..._createPkgsByName({ directNodeIdsByAlias, topParents }),
+    }
 
     resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
       dependenciesTree: opts.dependenciesTree,
