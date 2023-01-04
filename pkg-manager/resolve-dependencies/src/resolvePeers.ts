@@ -69,7 +69,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   const pathsByNodeId = {}
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootProject = opts.projects.length > 1 ? opts.projects.find(({ id }) => id === '.') : null
-   const rootPkgsByName = rootProject == null ? {} : _createPkgsByName(rootProject)
+  const rootPkgsByName = rootProject == null ? {} : _createPkgsByName(rootProject)
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
 
   for (const { directNodeIdsByAlias, topParents, rootDir, id } of opts.projects) {

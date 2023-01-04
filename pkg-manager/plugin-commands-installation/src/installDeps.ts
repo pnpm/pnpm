@@ -143,13 +143,20 @@ when running add/update with the --workspace option')
         })
       }
 
+      let allProjectsGraph = selectedProjectsGraph
+      if (!allProjectsGraph[opts.workspaceDir]) {
+        allProjectsGraph = {
+          ...allProjectsGraph,
+          ...selectProjectByDir(allProjects, opts.workspaceDir),
+        }
+      }
       await recursive(allProjects,
         params,
         {
           ...opts,
           forceHoistPattern,
           forcePublicHoistPattern,
-          allProjectsGraph: selectedProjectsGraph,
+          allProjectsGraph,
           selectedProjectsGraph,
           workspaceDir: opts.workspaceDir,
         },
