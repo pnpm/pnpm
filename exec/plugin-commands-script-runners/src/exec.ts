@@ -14,6 +14,7 @@ import { existsInDir } from './existsInDir'
 import { makeEnv } from './makeEnv'
 import {
   PARALLEL_OPTION_HELP,
+  RESUME_FROM_OPTION_HELP,
   shorthands as runShorthands,
 } from './run'
 import { PnpmError } from '@pnpm/error'
@@ -68,10 +69,7 @@ The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
             name: '--shell-mode',
             shortAlias: '-c',
           },
-          {
-            description: 'command executed from given package',
-            name: '--resume-from',
-          },
+          RESUME_FROM_OPTION_HELP,
         ],
       },
     ],

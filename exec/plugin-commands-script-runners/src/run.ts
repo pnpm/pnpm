@@ -38,6 +38,11 @@ for long-running processes such as watch run over many packages.',
   name: '--parallel',
 }
 
+export const RESUME_FROM_OPTION_HELP = {
+  description: 'Command executed from given package',
+  name: '--resume-from',
+}
+
 export const shorthands = {
   parallel: [
     '--workspace-concurrency=Infinity',
@@ -105,6 +110,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           },
           IF_PRESENT_OPTION_HELP,
           PARALLEL_OPTION_HELP,
+          RESUME_FROM_OPTION_HELP,
           ...UNIVERSAL_OPTIONS,
         ],
       },
