@@ -202,7 +202,9 @@ export async function handler (
             return
           }
 
-          err['code'] = 'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL'
+          if (!err['code']?.startsWith('ERR_PNPM_')) {
+            err['code'] = 'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL'
+          }
           err['prefix'] = prefix
           /* eslint-enable @typescript-eslint/dot-notation */
           throw err
