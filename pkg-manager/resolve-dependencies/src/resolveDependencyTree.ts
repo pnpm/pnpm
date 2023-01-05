@@ -77,6 +77,7 @@ export interface ResolveDependenciesOptions {
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
   resolutionMode?: 'highest' | 'time-based'
+  resolvePeersFromWorkspaceRoot?: boolean
   updateMatching?: (pkgName: string) => boolean
   linkWorkspacePackagesDepth?: number
   lockfileDir: string

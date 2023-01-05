@@ -104,6 +104,7 @@ export interface StrictInstallOptions {
   allowNonAppliedPatches: boolean
   preferSymlinkedExecutables: boolean
   resolutionMode: 'highest' | 'time-based'
+  resolvePeersFromWorkspaceRoot: boolean
 
   publicHoistPattern: string[] | undefined
   hoistPattern: string[] | undefined
@@ -204,6 +205,7 @@ const defaults = async (opts: InstallOptions) => {
     modulesCacheMaxAge: 7 * 24 * 60,
     resolveSymlinksInInjectedDirs: false,
     dedupeDirectDeps: false,
+    resolvePeersFromWorkspaceRoot: false,
   } as StrictInstallOptions
 }
 

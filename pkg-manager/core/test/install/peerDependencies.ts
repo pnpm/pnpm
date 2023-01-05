@@ -233,6 +233,82 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
   })
 })
 
+test('peer dependency is resolved from the dependencies of the workspace root project', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: { name: 'root' },
+    },
+    {
+      location: 'pkg',
+      package: {},
+    },
+  ])
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'root',
+        version: '1.0.0',
+
+        dependencies: {
+          ajv: '4.10.0',
+        },
+      },
+      rootDir: process.cwd(),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'pkg',
+        version: '1.0.0',
+
+        dependencies: {
+          'ajv-keywords': '1.5.0',
+        },
+      },
+      rootDir: path.resolve('pkg'),
+    },
+  ]
+  const reporter = jest.fn()
+  await mutateModules([
+    {
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('pkg'),
+    },
+  ], await testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true }))
+
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+    name: 'pnpm:peer-dependency-issues',
+  }))
+
+  {
+    const lockfile = await projects.root.readLockfile()
+    expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords']).toBe('1.5.0_ajv@4.10.0')
+  }
+
+  allProjects[1].manifest.dependencies['is-positive'] = '1.0.0'
+  await mutateModules([
+    {
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('pkg'),
+    },
+  ], await testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true }))
+
+  {
+    const lockfile = await projects.root.readLockfile()
+    expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords']).toBe('1.5.0_ajv@4.10.0')
+  }
+})
+
 test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async () => {
   prepareEmpty()
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })

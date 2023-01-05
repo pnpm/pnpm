@@ -92,6 +92,7 @@ export const types = Object.assign({
   'recursive-install': Boolean,
   reporter: String,
   'resolution-mode': ['highest', 'time-based'],
+  'resolve-peers-from-workspace-root': Boolean,
   'aggregate-output': Boolean,
   'save-peer': Boolean,
   'save-workspace-protocol': Boolean,

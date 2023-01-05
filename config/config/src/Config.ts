@@ -87,6 +87,7 @@ export interface Config {
   resolutionMode?: 'highest' | 'time-based'
   registrySupportsTimeField?: boolean
   failedToLoadBuiltInConfig: boolean
+  resolvePeersFromWorkspaceRoot?: boolean
 
   // proxy
   httpProxy?: string
