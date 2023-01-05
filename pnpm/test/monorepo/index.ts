@@ -1741,7 +1741,7 @@ test('peer dependencies are resolved from the root of the workspace when a new d
 
   process.chdir('project-2')
 
-  await execPnpm(['add', 'ajv-keywords@1.5.0', '--strict-peer-dependencies'])
+  await execPnpm(['add', 'ajv-keywords@1.5.0', '--strict-peer-dependencies', '--config.resolve-peers-from-workspace-root=true'])
 
   const lockfile = await projects['project-1'].readLockfile()
   expect(lockfile.packages).toHaveProperty(['/ajv-keywords/1.5.0_ajv@4.10.4'])

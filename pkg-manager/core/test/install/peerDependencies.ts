@@ -280,7 +280,7 @@ test('peer dependency is resolved from the dependencies of the workspace root pr
       mutation: 'install',
       rootDir: path.resolve('pkg'),
     },
-  ], await testDefaults({ allProjects, reporter }))
+  ], await testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true }))
 
   expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
     name: 'pnpm:peer-dependency-issues',
@@ -301,7 +301,7 @@ test('peer dependency is resolved from the dependencies of the workspace root pr
       mutation: 'install',
       rootDir: path.resolve('pkg'),
     },
-  ], await testDefaults({ allProjects, reporter }))
+  ], await testDefaults({ allProjects, reporter, resolvePeersFromWorkspaceRoot: true }))
 
   {
     const lockfile = await projects.root.readLockfile()

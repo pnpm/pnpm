@@ -207,6 +207,7 @@ export async function resolveDependencies (
     lockfileDir: opts.lockfileDir,
     projects: projectsToLink,
     virtualStoreDir: opts.virtualStoreDir,
+    resolvePeersFromWorkspaceRoot: Boolean(opts.resolvePeersFromWorkspaceRoot),
   })
 
   for (const { id, manifest } of projectsToLink) {

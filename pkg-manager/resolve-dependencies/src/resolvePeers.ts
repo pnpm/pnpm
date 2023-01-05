@@ -46,19 +46,22 @@ export interface GenericDependenciesGraph<T extends PartialResolvedPackage> {
   [depPath: string]: T & GenericDependenciesGraphNode
 }
 
+export interface ProjectToResolve {
+  directNodeIdsByAlias: { [alias: string]: string }
+  // only the top dependencies that were already installed
+  // to avoid warnings about unresolved peer dependencies
+  topParents: Array<{ name: string, version: string }>
+  rootDir: string // is only needed for logging
+  id: string
+}
+
 export function resolvePeers<T extends PartialResolvedPackage> (
   opts: {
-    projects: Array<{
-      directNodeIdsByAlias: { [alias: string]: string }
-      // only the top dependencies that were already installed
-      // to avoid warnings about unresolved peer dependencies
-      topParents: Array<{ name: string, version: string }>
-      rootDir: string // is only needed for logging
-      id: string
-    }>
+    projects: ProjectToResolve[]
     dependenciesTree: DependenciesTree<T>
     virtualStoreDir: string
     lockfileDir: string
+    resolvePeersFromWorkspaceRoot: boolean
   }
 ): {
     dependenciesGraph: GenericDependenciesGraph<T>
@@ -68,8 +71,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = {}
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
-  const rootProject = opts.projects.length > 1 ? opts.projects.find(({ id }) => id === '.') : null
-  const rootPkgsByName = rootProject == null ? {} : _createPkgsByName(rootProject)
+  const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
 
   for (const { directNodeIdsByAlias, topParents, rootDir, id } of opts.projects) {
@@ -111,6 +113,11 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     dependenciesByProjectId,
     peerDependencyIssuesByProjects,
   }
+}
+
+function getRootPkgsByName<T extends PartialResolvedPackage> (dependenciesTree: DependenciesTree<T>, projects: ProjectToResolve[]) {
+  const rootProject = projects.length > 1 ? projects.find(({ id }) => id === '.') : null
+  return rootProject == null ? {} : createPkgsByName(dependenciesTree, rootProject)
 }
 
 function createPkgsByName<T extends PartialResolvedPackage> (
