@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-installation
 
+## 11.2.0
+
+### Minor Changes
+
+- 1fad508b0: When the `resolve-peers-from-workspace-root` setting is set to `true`, pnpm will use dependencies installed in the root of the workspace to resolve peer dependencies in any of the workspace's projects [#5882](https://github.com/pnpm/pnpm/pull/5882).
+
+### Patch Changes
+
+- Updated dependencies [1fad508b0]
+  - @pnpm/core@7.5.0
+  - @pnpm/config@16.3.0
+  - @pnpm/pnpmfile@4.0.19
+  - @pnpm/cli-utils@1.0.21
+  - @pnpm/plugin-commands-rebuild@7.0.21
+  - @pnpm/store-connection-manager@5.1.14
+  - @pnpm/find-workspace-packages@5.0.21
+  - @pnpm/filter-workspace-packages@6.0.21
+
 ## 11.1.7
 
 ### Patch Changes

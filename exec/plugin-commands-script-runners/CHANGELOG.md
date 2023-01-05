@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-script-runners
 
+## 6.3.1
+
+### Patch Changes
+
+- 640f4666c: The help of the run command should list the `--resume-from` option.
+- Updated dependencies [1fad508b0]
+  - @pnpm/plugin-commands-installation@11.2.0
+  - @pnpm/config@16.3.0
+  - @pnpm/cli-utils@1.0.21
+
 ## 6.3.0
 
 ### Minor Changes
