@@ -61,7 +61,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     dependenciesTree: DependenciesTree<T>
     virtualStoreDir: string
     lockfileDir: string
-    resolvePeersFromWorkspaceRoot: boolean
+    resolvePeersFromWorkspaceRoot?: boolean
   }
 ): {
     dependenciesGraph: GenericDependenciesGraph<T>
