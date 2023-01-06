@@ -4,6 +4,7 @@ import { buildModules, DepsStateCache, linkBinsOfDependencies } from '@pnpm/buil
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
+  LOCKFILE_VERSION_V6,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -835,6 +836,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       patchedDependencies: opts.patchedDependencies,
       lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
       resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+      useLockfileV6: opts.useLockfileV6,
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
@@ -872,7 +874,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     : newLockfile
 
   if (opts.updateLockfileMinorVersion) {
-    newLockfile.lockfileVersion = LOCKFILE_VERSION
+    if (opts.useLockfileV6 || newLockfile.lockfileVersion.toString().startsWith('6.')) {
+      newLockfile.lockfileVersion = LOCKFILE_VERSION_V6
+    } else {
+      newLockfile.lockfileVersion = LOCKFILE_VERSION
+    }
   }
 
   const depsStateCache: DepsStateCache = {}

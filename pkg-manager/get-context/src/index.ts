@@ -91,6 +91,8 @@ export interface GetContextOptions {
 
   publicHoistPattern?: string[] | undefined
   forcePublicHoistPattern?: boolean
+
+  useLockfileV6?: boolean
 }
 
 export async function getContext (
@@ -180,6 +182,7 @@ export async function getContext (
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
       virtualStoreDir,
+      useLockfileV6: opts.useLockfileV6,
     }),
   }
   contextLogger.debug({
@@ -386,6 +389,7 @@ export async function getContextForSingleImporter (
 
     publicHoistPattern?: string[] | undefined
     forcePublicHoistPattern?: boolean
+    useLockfileV6?: boolean
   },
   alreadyPurged: boolean = false
 ): Promise<PnpmSingleContext> {
@@ -485,6 +489,7 @@ export async function getContextForSingleImporter (
       useGitBranchLockfile: opts.useGitBranchLockfile,
       mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
       virtualStoreDir,
+      useLockfileV6: opts.useLockfileV6,
     }),
   }
   packageManifestLogger.debug({
