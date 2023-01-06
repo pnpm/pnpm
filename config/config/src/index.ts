@@ -111,6 +111,7 @@ export const types = Object.assign({
   'strict-peer-dependencies': Boolean,
   'use-beta-cli': Boolean,
   'use-inline-specifiers-lockfile-format': Boolean,
+  'use-lockfile-v6': Boolean,
   'use-node-version': String,
   'use-running-store-server': Boolean,
   'use-store-server': Boolean,

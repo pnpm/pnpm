@@ -82,6 +82,22 @@ test('parse()', () => {
     version: '1.0.0',
   })
 
+  expect(parse('example.com/foo/1.0.0(bar@2.0.0)')).toStrictEqual({
+    host: 'example.com',
+    isAbsolute: true,
+    name: 'foo',
+    peersSuffix: '(bar@2.0.0)',
+    version: '1.0.0',
+  })
+
+  expect(parse('/foo/1.0.0(@types/babel__core@7.1.14)(foo@1.0.0)')).toStrictEqual({
+    host: undefined,
+    isAbsolute: false,
+    name: 'foo',
+    peersSuffix: '(@types/babel__core@7.1.14)(foo@1.0.0)',
+    version: '1.0.0',
+  })
+
   expect(() => parse('/foo/bar')).toThrow(/\/foo\/bar is an invalid relative dependency path/)
 })
 
@@ -143,4 +159,5 @@ test('depPathToFilename()', () => {
 
 test('tryGetPackageId', () => {
   expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/foo/1.0.0_@types+babel__core@7.1.14')).toEqual('registry.npmjs.org/foo/1.0.0')
+  expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/foo/1.0.0(@types+babel__core@7.1.14)')).toEqual('registry.npmjs.org/foo/1.0.0')
 })

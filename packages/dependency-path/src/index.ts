@@ -30,6 +30,10 @@ export function tryGetPackageId (registries: Registries, relDepPath: string) {
   if (relDepPath[0] !== '/') {
     return null
   }
+  const sepIndex = relDepPath.indexOf('(', relDepPath.lastIndexOf('/'))
+  if (sepIndex !== -1) {
+    return resolve(registries, relDepPath.slice(0, sepIndex))
+  }
   const underscoreIndex = relDepPath.indexOf('_', relDepPath.lastIndexOf('/'))
   if (underscoreIndex !== -1) {
     return resolve(registries, relDepPath.slice(0, underscoreIndex))
@@ -45,7 +49,7 @@ export function refToAbsolute (
   if (reference.startsWith('link:')) {
     return null
   }
-  if (!reference.includes('/')) {
+  if (!reference.includes('/') || !reference.replace(/(\([^)]+\))+$/, '').includes('/')) {
     const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
     return `${registryName}/${pkgName}/${reference}`
   }
@@ -83,7 +87,7 @@ export function refToRelative (
   if (reference.startsWith('file:')) {
     return reference
   }
-  if (!reference.includes('/')) {
+  if (!reference.includes('/') || !reference.replace(/(\([^)]+\))+$/, '').includes('/')) {
     return `/${pkgName}/${reference}`
   }
   return reference
@@ -104,13 +108,22 @@ export function parse (dependencyPath: string) {
   const name = parts[0].startsWith('@')
     ? `${parts.shift()}/${parts.shift()}` // eslint-disable-line @typescript-eslint/restrict-template-expressions
     : parts.shift()
-  let version = parts.shift()
+  let version = parts.join('/')
   if (version) {
-    const underscoreIndex = version.indexOf('_')
+    let peerSepIndex!: number
     let peersSuffix: string | undefined
-    if (underscoreIndex !== -1) {
-      peersSuffix = version.substring(underscoreIndex + 1)
-      version = version.substring(0, underscoreIndex)
+    if (version.includes('(') && version.endsWith(')')) {
+      peerSepIndex = version.indexOf('(')
+      if (peerSepIndex !== -1) {
+        peersSuffix = version.substring(peerSepIndex)
+        version = version.substring(0, peerSepIndex)
+      }
+    } else {
+      peerSepIndex = version.indexOf('_')
+      if (peerSepIndex !== -1) {
+        peersSuffix = version.substring(peerSepIndex + 1)
+        version = version.substring(0, peerSepIndex)
+      }
     }
     if (semver.valid(version)) {
       return {
@@ -146,6 +159,11 @@ function depPathToFilenameUnescaped (depPath: string) {
     return `${depPath.substring(0, index)}@${depPath.slice(index + 1)}`
   }
   return depPath.replace(':', '+')
+}
+
+export function createPeersFolderSuffixNewFormat (peers: Array<{ name: string, version: string }>): string {
+  const folderName = peers.map(({ name, version }) => `${name}@${version}`).sort().join(')(')
+  return `(${folderName})`
 }
 
 export function createPeersFolderSuffix (peers: Array<{ name: string, version: string }>): string {
