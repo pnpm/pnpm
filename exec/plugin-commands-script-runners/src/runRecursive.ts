@@ -69,14 +69,14 @@ export async function runRecursive (
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
   const multiScriptSelectorSpecified = scriptName.slice(-2) === ':*'
-  const multiScriptSelectorPrefix = scriptName.slice(0, -1)
+  const multiScriptSelectorRegExp = new RegExp(scriptName)
 
   const requiredScripts = opts.rootProjectManifest?.pnpm?.requiredScripts ?? []
   if (requiredScripts.includes(scriptName)) {
     const missingScriptPackages: string[] = packageChunks
       .flat()
       .map((prefix) => opts.selectedProjectsGraph[prefix])
-      .filter((pkg) => multiScriptSelectorSpecified ? !Object.keys(pkg.package.manifest.scripts ?? {}).some(script => script.startsWith(multiScriptSelectorPrefix) && script !== multiScriptSelectorPrefix) : !pkg.package.manifest.scripts?.[scriptName])
+      .filter((pkg) => multiScriptSelectorSpecified ? !Object.keys(pkg.package.manifest.scripts ?? {}).some(script => script.match(multiScriptSelectorRegExp)) : !pkg.package.manifest.scripts?.[scriptName])
       .map((pkg) => pkg.package.manifest.name ?? pkg.package.dir)
     if (missingScriptPackages.length) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in packages: ${missingScriptPackages.join(', ')}`)
@@ -93,7 +93,7 @@ export async function runRecursive (
       }
 
       const pkg = opts.selectedProjectsGraph[prefix]
-      const specifiedScriptsWithSelector = Object.keys(pkg.package.manifest.scripts ?? {}).filter(script => script.startsWith(multiScriptSelectorPrefix) && script !== multiScriptSelectorPrefix)
+      const specifiedScriptsWithSelector = Object.keys(pkg.package.manifest.scripts ?? {}).filter(script => script.match(multiScriptSelectorRegExp))
 
       return specifiedScriptsWithSelector.map(script => ({ prefix, scriptName: script }))
     }).flat()
