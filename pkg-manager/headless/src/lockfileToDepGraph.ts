@@ -56,6 +56,7 @@ export interface LockfileToDepGraphOptions {
   force: boolean
   importerIds: string[]
   include: IncludedDependencies
+  ignoreScripts: boolean
   lockfileDir: string
   nodeVersion: string
   pnpmVersion: string
@@ -148,6 +149,7 @@ export async function lockfileToDepGraph (
           fetchResponse = opts.storeController.fetchPackage({
             force: false,
             lockfileDir: opts.lockfileDir,
+            ignoreScripts: opts.ignoreScripts,
             pkg: {
               id: packageId,
               resolution,

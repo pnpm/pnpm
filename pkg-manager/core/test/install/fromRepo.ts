@@ -5,6 +5,7 @@ import {
   addDependenciesToPackage,
   install,
 } from '@pnpm/core'
+import rimraf from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
 import exists from 'path-exists'
 import sinon from 'sinon'
@@ -172,4 +173,24 @@ test('from a github repo the has no package.json file', async () => {
   expect(manifest.dependencies).toStrictEqual({
     'for-testing.no-package-json': 'github:pnpm/for-testing.no-package-json',
   })
+})
+
+test('from a github repo that needs to be built', async () => {
+  const project = prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({}, ['pnpm-e2e/prepare-script-works'], await testDefaults({ ignoreScripts: true }, { ignoreScripts: true }))
+
+  await project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
+
+  await rimraf('node_modules')
+  await install(manifest, await testDefaults({ preferFrozenLockfile: false }))
+  await project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
+
+  await rimraf('node_modules')
+  await install(manifest, await testDefaults({ frozenLockfile: true }))
+  await project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
+
+  await rimraf('node_modules')
+  await install(manifest, await testDefaults({ frozenLockfile: true, ignoreScripts: true }, { ignoreScripts: true }))
+  await project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
 })

@@ -17,6 +17,7 @@ export { ResolveFunction }
 export type ClientOptions = {
   authConfig: Record<string, string>
   customFetchers?: CustomFetchers
+  ignoreScripts?: boolean
   rawConfig: object
   retry?: RetryTimeoutOptions
   timeout?: number

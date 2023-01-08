@@ -68,6 +68,7 @@ export interface PkgNameVersion {
 export interface FetchPackageToStoreOptions {
   fetchRawManifest?: boolean
   force: boolean
+  ignoreScripts?: boolean
   lockfileDir: string
   pkg: PkgNameVersion & {
     id: string
@@ -98,6 +99,7 @@ export interface RequestPackageOptions {
   pickLowestVersion?: boolean
   publishedBy?: Date
   downloadPriority: number
+  ignoreScripts?: boolean
   projectDir: string
   lockfileDir: string
   preferredVersions: PreferredVersions
