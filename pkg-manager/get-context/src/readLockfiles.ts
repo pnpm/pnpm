@@ -53,7 +53,7 @@ export async function readLockfiles (
   // a latest pnpm should not break all the builds
   const lockfileOpts = {
     ignoreIncompatible: opts.force || isCI,
-    wantedVersions: [LOCKFILE_VERSION, parseFloat(LOCKFILE_VERSION_V6)],
+    wantedVersions: [LOCKFILE_VERSION.toString(), LOCKFILE_VERSION_V6],
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
