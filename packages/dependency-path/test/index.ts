@@ -111,8 +111,8 @@ test('refToAbsolute()', () => {
   expect(refToAbsolute('registry.npmjs.org/foo/1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
   expect(refToAbsolute('/foo/1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
   expect(refToAbsolute('/@foo/foo/1.0.0', '@foo/foo', registries)).toEqual('foo.com/@foo/foo/1.0.0')
-  expect(refToAbsolute('/@foo/foo/1.0.0(@foo/bar@1.0.0)', '@foo/foo', registries)).toEqual('foo.com/@foo/foo/1.0.0(@foo/bar@1.0.0)')
-  expect(refToAbsolute('/@foo/foo/1.0.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@foo/foo', registries)).toEqual('foo.com/@foo/foo/1.0.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
+  expect(refToAbsolute('/@foo/foo@1.0.0(@foo/bar@1.0.0)', '@foo/foo', registries)).toEqual('foo.com/@foo/foo@1.0.0(@foo/bar@1.0.0)')
+  expect(refToAbsolute('/@foo/foo@1.0.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@foo/foo', registries)).toEqual('foo.com/@foo/foo@1.0.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
   // linked dependencies don't have an absolute path
   expect(refToAbsolute('link:../foo', 'foo', registries)).toBeNull()
 })
