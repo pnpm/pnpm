@@ -1,4 +1,3 @@
-import path from 'path'
 import { docsUrl, RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config, types } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
@@ -173,7 +172,7 @@ export async function handler (
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix]?.package.manifest.name,
             },
             prependPaths: [
-              path.join(prefix, 'node_modules/.bin'),
+              './node_modules/.bin',
               ...opts.extraBinPaths,
             ],
             userAgent: opts.userAgent,
@@ -201,7 +200,9 @@ export async function handler (
             return
           }
 
-          err['code'] = 'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL'
+          if (!err['code']?.startsWith('ERR_PNPM_')) {
+            err['code'] = 'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL'
+          }
           err['prefix'] = prefix
           /* eslint-enable @typescript-eslint/dot-notation */
           throw err
