@@ -287,7 +287,8 @@ export async function mutateModules (
         packageExtensionsChecksum,
         patchedDependencies,
       }) ||
-      opts.fixLockfile
+      opts.fixLockfile ||
+      opts.useLockfileV6 && !ctx.wantedLockfile.lockfileVersion.toString().startsWith('6.')
     if (needsFullResolution) {
       ctx.wantedLockfile.overrides = opts.overrides
       ctx.wantedLockfile.neverBuiltDependencies = opts.neverBuiltDependencies

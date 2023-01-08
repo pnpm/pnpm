@@ -1395,3 +1395,23 @@ test('lockfile v6', async () => {
     expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo@100.0.0'])
   }
 })
+
+test('lockfile v5 is converted to lockfile v6', async () => {
+  prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], await testDefaults())
+
+  {
+    const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(lockfile.lockfileVersion).toBe(5.4)
+    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep/100.0.0'])
+  }
+
+  await install(manifest, await testDefaults({ useLockfileV6: true }))
+
+  {
+    const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(lockfile.lockfileVersion).toBe('6.0')
+    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep@100.0.0'])
+  }
+})

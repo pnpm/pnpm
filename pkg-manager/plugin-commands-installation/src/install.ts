@@ -62,6 +62,7 @@ export function rcOptionsTypes () {
     'only',
     'optional',
     'unsafe-perm',
+    'use-lockfile-v6',
     'use-running-store-server',
     'use-store-server',
     'verify-store-integrity',
