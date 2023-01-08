@@ -49,7 +49,7 @@ export function refToAbsolute (
   if (reference.startsWith('link:')) {
     return null
   }
-  if (!reference.includes('/') || !reference.replace(/(\([^)]+\))+$/, '').includes('/')) {
+  if (!reference.includes('/') || reference.includes('(') && reference.lastIndexOf('/', reference.indexOf('(')) === -1) {
     const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
     return `${registryName}/${pkgName}/${reference}`
   }
@@ -87,7 +87,7 @@ export function refToRelative (
   if (reference.startsWith('file:')) {
     return reference
   }
-  if (!reference.includes('/') || !reference.replace(/(\([^)]+\))+$/, '').includes('/')) {
+  if (!reference.includes('/') || reference.includes('(') && reference.lastIndexOf('/', reference.indexOf('(')) === -1) {
     return `/${pkgName}/${reference}`
   }
   return reference
