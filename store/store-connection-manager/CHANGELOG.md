@@ -1,5 +1,22 @@
 # @pnpm/store-connection-manager
 
+## 5.2.0
+
+### Minor Changes
+
+- c7b05cd9a: When ignoreScripts=true is passed to the fetcher, do not build git-hosted dependencies.
+
+### Patch Changes
+
+- Updated dependencies [891a8d763]
+- Updated dependencies [c7b05cd9a]
+- Updated dependencies [3ebce5db7]
+  - @pnpm/package-store@15.1.0
+  - @pnpm/server@14.1.0
+  - @pnpm/client@9.1.0
+  - @pnpm/config@16.4.0
+  - @pnpm/error@4.0.1
+
 ## 5.1.14
 
 ### Patch Changes

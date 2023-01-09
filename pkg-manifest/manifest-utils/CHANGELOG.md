@@ -1,5 +1,11 @@
 # @pnpm/manifest-utils
 
+## 4.1.4
+
+### Patch Changes
+
+- @pnpm/error@4.0.1
+
 ## 4.1.3
 
 ### Patch Changes

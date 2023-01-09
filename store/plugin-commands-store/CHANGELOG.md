@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-store
 
+## 6.0.22
+
+### Patch Changes
+
+- Updated dependencies [891a8d763]
+- Updated dependencies [c7b05cd9a]
+- Updated dependencies [3ebce5db7]
+- Updated dependencies [3ebce5db7]
+  - @pnpm/store-controller-types@14.3.0
+  - @pnpm/store-connection-manager@5.2.0
+  - @pnpm/get-context@8.1.0
+  - @pnpm/config@16.4.0
+  - @pnpm/dependency-path@1.1.0
+  - @pnpm/cafs@5.0.5
+  - @pnpm/error@4.0.1
+  - @pnpm/cli-utils@1.0.22
+  - @pnpm/lockfile-utils@5.0.3
+
 ## 6.0.21
 
 ### Patch Changes

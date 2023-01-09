@@ -1,5 +1,22 @@
 # pnpm
 
+## 7.24.0
+
+### Minor Changes
+
+- Added support for `pnpm-lock.yaml` format v6. This new format will be the new lockfile format in pnpm v8. To use the new lockfile format, use the `use-lockfile-v6=true` setting in `.npmrc`. Or run `pnpm install --use-lockfile-v6` [#5810](https://github.com/pnpm/pnpm/pull/5810).
+
+### Patch Changes
+
+- `pnpm run` should fail if the path to the project contains colon(s).
+- `pnpm config set key=value` should work the same as `pnpm config set key value` [#5889](https://github.com/pnpm/pnpm/issues/5889).
+- The upload of built artifacts (side effects) should not fail when `node-linker` is set to `hoisted` and installation runs on a project that already had a `node_modules` directory [#5823](https://github.com/pnpm/pnpm/issues/5823).
+
+  This fixes a bug introduced by [#5814](https://github.com/pnpm/pnpm/pull/5814).
+
+- `pnpm exec` should work when the path to the project contains colon(s) [#5846](https://github.com/pnpm/pnpm/issues/5846).
+- Git-hosted dependencies should not be built, when `ignore-scripts` is set to `true` [#5876](https://github.com/pnpm/pnpm/issues/5876).
+
 ## 7.23.0
 
 ### Minor Changes

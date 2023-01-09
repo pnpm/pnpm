@@ -1,5 +1,24 @@
 # @pnpm/package-requester
 
+## 20.1.0
+
+### Minor Changes
+
+- 891a8d763: New function added to the store: `getFilesIndexFilePath`.
+- c7b05cd9a: When ignoreScripts=true is passed to the fetcher, do not build git-hosted dependencies.
+
+### Patch Changes
+
+- Updated dependencies [891a8d763]
+- Updated dependencies [c7b05cd9a]
+- Updated dependencies [3ebce5db7]
+  - @pnpm/store-controller-types@14.3.0
+  - @pnpm/dependency-path@1.1.0
+  - @pnpm/cafs@5.0.5
+  - @pnpm/error@4.0.1
+  - @pnpm/package-is-installable@7.0.4
+  - @pnpm/read-package-json@7.0.5
+
 ## 20.0.5
 
 ### Patch Changes

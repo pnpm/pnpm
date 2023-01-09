@@ -1,5 +1,14 @@
 # @pnpm/audit
 
+## 6.0.5
+
+### Patch Changes
+
+- @pnpm/error@4.0.1
+- @pnpm/lockfile-utils@5.0.3
+- @pnpm/lockfile-walker@6.0.5
+- @pnpm/read-project-manifest@4.1.3
+
 ## 6.0.4
 
 ### Patch Changes

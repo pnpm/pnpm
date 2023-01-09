@@ -1,5 +1,16 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1.1.1
+
+### Patch Changes
+
+- Updated dependencies [3ebce5db7]
+- Updated dependencies [3ebce5db7]
+  - @pnpm/lockfile-file@7.0.0
+  - @pnpm/dependency-path@1.1.0
+  - @pnpm/lockfile-utils@5.0.3
+  - @pnpm/read-package-json@7.0.5
+
 ## 1.1.0
 
 ### Minor Changes

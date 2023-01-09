@@ -1,5 +1,13 @@
 # @pnpm/default-resolver
 
+## 17.0.6
+
+### Patch Changes
+
+- @pnpm/error@4.0.1
+- @pnpm/local-resolver@9.0.6
+- @pnpm/npm-resolver@15.0.5
+
 ## 17.0.5
 
 ### Patch Changes

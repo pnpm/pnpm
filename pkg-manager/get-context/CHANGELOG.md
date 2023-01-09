@@ -1,5 +1,20 @@
 # @pnpm/get-context
 
+## 8.1.0
+
+### Minor Changes
+
+- 3ebce5db7: Added support for `pnpm-lock.yaml` format v6. This new format will be the new lockfile format in pnpm v8. To use the new lockfile format, use the `use-lockfile-v6=true` setting in `.npmrc`. Or run `pnpm install --use-lockfile-v6` [#5810](https://github.com/pnpm/pnpm/pull/5810).
+
+### Patch Changes
+
+- Updated dependencies [3ebce5db7]
+- Updated dependencies [3ebce5db7]
+  - @pnpm/constants@6.2.0
+  - @pnpm/lockfile-file@7.0.0
+  - @pnpm/error@4.0.1
+  - @pnpm/read-projects-context@7.0.6
+
 ## 8.0.6
 
 ### Patch Changes

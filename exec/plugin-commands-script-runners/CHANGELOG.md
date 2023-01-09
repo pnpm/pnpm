@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-script-runners
 
+## 6.3.2
+
+### Patch Changes
+
+- 8ecbcafdd: `pnpm run` should fail if the path to the project contains colon(s).
+- 8ecbcafdd: `pnpm exec` should work when the path to the project contains colon(s) [#5846](https://github.com/pnpm/pnpm/issues/5846).
+- Updated dependencies [3ebce5db7]
+  - @pnpm/plugin-commands-installation@11.3.0
+  - @pnpm/config@16.4.0
+  - @pnpm/lifecycle@14.1.5
+  - @pnpm/error@4.0.1
+  - @pnpm/cli-utils@1.0.22
+  - @pnpm/read-package-json@7.0.5
+  - @pnpm/read-project-manifest@4.1.3
+
 ## 6.3.1
 
 ### Patch Changes

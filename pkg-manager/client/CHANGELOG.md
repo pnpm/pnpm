@@ -1,5 +1,21 @@
 # @pnpm/client
 
+## 9.1.0
+
+### Minor Changes
+
+- c7b05cd9a: When ignoreScripts=true is passed to the fetcher, do not build git-hosted dependencies.
+
+### Patch Changes
+
+- Updated dependencies [c7b05cd9a]
+- Updated dependencies [c7b05cd9a]
+  - @pnpm/tarball-fetcher@14.1.0
+  - @pnpm/git-fetcher@8.0.0
+  - @pnpm/network.auth-header@1.0.1
+  - @pnpm/default-resolver@17.0.6
+  - @pnpm/directory-fetcher@5.1.4
+
 ## 9.0.1
 
 ### Patch Changes

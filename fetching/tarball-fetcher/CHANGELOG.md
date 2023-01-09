@@ -1,5 +1,17 @@
 # @pnpm/tarball-fetcher
 
+## 14.1.0
+
+### Minor Changes
+
+- c7b05cd9a: When ignoreScripts=true is passed to the fetcher, do not build git-hosted dependencies.
+
+### Patch Changes
+
+- Updated dependencies [c7b05cd9a]
+  - @pnpm/prepare-package@4.1.0
+  - @pnpm/error@4.0.1
+
 ## 14.0.1
 
 ### Patch Changes

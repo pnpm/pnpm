@@ -1,5 +1,20 @@
 # @pnpm/package-store
 
+## 15.1.0
+
+### Minor Changes
+
+- 891a8d763: New function added to the store: `getFilesIndexFilePath`.
+
+### Patch Changes
+
+- Updated dependencies [891a8d763]
+- Updated dependencies [c7b05cd9a]
+  - @pnpm/package-requester@20.1.0
+  - @pnpm/store-controller-types@14.3.0
+  - @pnpm/cafs@5.0.5
+  - @pnpm/create-cafs-store@3.1.1
+
 ## 15.0.5
 
 ### Patch Changes

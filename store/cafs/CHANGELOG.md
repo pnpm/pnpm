@@ -1,5 +1,13 @@
 # @pnpm/cafs
 
+## 5.0.5
+
+### Patch Changes
+
+- Updated dependencies [891a8d763]
+- Updated dependencies [c7b05cd9a]
+  - @pnpm/store-controller-types@14.3.0
+
 ## 5.0.4
 
 ### Patch Changes

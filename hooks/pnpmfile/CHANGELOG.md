@@ -1,5 +1,16 @@
 # @pnpm/pnpmfile
 
+## 4.0.20
+
+### Patch Changes
+
+- Updated dependencies [891a8d763]
+- Updated dependencies [c7b05cd9a]
+- Updated dependencies [3ebce5db7]
+  - @pnpm/store-controller-types@14.3.0
+  - @pnpm/core@7.6.0
+  - @pnpm/error@4.0.1
+
 ## 4.0.19
 
 ### Patch Changes

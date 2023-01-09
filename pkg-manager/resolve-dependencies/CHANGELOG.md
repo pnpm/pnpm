@@ -1,5 +1,28 @@
 # @pnpm/resolve-dependencies
 
+## 29.2.0
+
+### Minor Changes
+
+- c7b05cd9a: When ignoreScripts=true is passed to the fetcher, do not build git-hosted dependencies.
+- 3ebce5db7: Added support for `pnpm-lock.yaml` format v6. This new format will be the new lockfile format in pnpm v8. To use the new lockfile format, use the `use-lockfile-v6=true` setting in `.npmrc`. Or run `pnpm install --use-lockfile-v6` [#5810](https://github.com/pnpm/pnpm/pull/5810).
+
+### Patch Changes
+
+- Updated dependencies [891a8d763]
+- Updated dependencies [c7b05cd9a]
+- Updated dependencies [3ebce5db7]
+- Updated dependencies [3ebce5db7]
+  - @pnpm/store-controller-types@14.3.0
+  - @pnpm/constants@6.2.0
+  - @pnpm/dependency-path@1.1.0
+  - @pnpm/prune-lockfile@4.0.21
+  - @pnpm/error@4.0.1
+  - @pnpm/lockfile-utils@5.0.3
+  - @pnpm/manifest-utils@4.1.4
+  - @pnpm/read-package-json@7.0.5
+  - @pnpm/npm-resolver@15.0.5
+
 ## 29.1.0
 
 ### Minor Changes

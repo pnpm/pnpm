@@ -1,5 +1,15 @@
 # @pnpm/dependency-path
 
+## 1.1.0
+
+### Minor Changes
+
+- 3ebce5db7: Updated the functions to support dependency paths used in the 6th version of the lockfile. Exported a new function: createPeersFolderSuffixNewFormat.
+
+### Patch Changes
+
+- @pnpm/crypto.base32-hash@1.0.1
+
 ## 1.0.1
 
 ### Patch Changes

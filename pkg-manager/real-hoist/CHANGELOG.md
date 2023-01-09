@@ -1,5 +1,14 @@
 # @pnpm/real-hoist
 
+## 1.1.2
+
+### Patch Changes
+
+- Updated dependencies [3ebce5db7]
+  - @pnpm/dependency-path@1.1.0
+  - @pnpm/error@4.0.1
+  - @pnpm/lockfile-utils@5.0.3
+
 ## 1.1.1
 
 ### Patch Changes

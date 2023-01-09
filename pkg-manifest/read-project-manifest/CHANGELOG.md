@@ -1,5 +1,11 @@
 # @pnpm/read-project-manifest
 
+## 4.1.3
+
+### Patch Changes
+
+- @pnpm/error@4.0.1
+
 ## 4.1.2
 
 ### Patch Changes

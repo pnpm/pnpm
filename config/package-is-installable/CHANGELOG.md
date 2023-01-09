@@ -1,5 +1,11 @@
 # @pnpm/package-is-installable
 
+## 7.0.4
+
+### Patch Changes
+
+- @pnpm/error@4.0.1
+
 ## 7.0.3
 
 ### Patch Changes

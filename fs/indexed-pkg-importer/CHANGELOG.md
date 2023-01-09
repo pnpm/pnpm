@@ -1,5 +1,13 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 2.1.1
+
+### Patch Changes
+
+- Updated dependencies [891a8d763]
+- Updated dependencies [c7b05cd9a]
+  - @pnpm/store-controller-types@14.3.0
+
 ## 2.1.0
 
 ### Minor Changes

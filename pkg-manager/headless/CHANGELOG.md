@@ -1,5 +1,40 @@
 # @pnpm/headless
 
+## 19.4.1
+
+### Patch Changes
+
+- 891a8d763: The upload of built artifacts (side effects) should not fail when `node-linker` is set to `hoisted` and installation runs on a project that already had a `node_modules` directory [#5823](https://github.com/pnpm/pnpm/issues/5823).
+
+  This fixes a bug introduced by [#5814](https://github.com/pnpm/pnpm/pull/5814).
+
+- c7b05cd9a: When ignoreScripts=true is passed to the fetcher, do not build git-hosted dependencies.
+- Updated dependencies [891a8d763]
+- Updated dependencies [c7b05cd9a]
+- Updated dependencies [3ebce5db7]
+- Updated dependencies [3ebce5db7]
+- Updated dependencies [3ebce5db7]
+  - @pnpm/package-requester@20.1.0
+  - @pnpm/store-controller-types@14.3.0
+  - @pnpm/constants@6.2.0
+  - @pnpm/lockfile-file@7.0.0
+  - @pnpm/dependency-path@1.1.0
+  - @pnpm/build-modules@10.1.1
+  - @pnpm/lifecycle@14.1.5
+  - @pnpm/modules-cleaner@13.0.7
+  - @pnpm/filter-lockfile@7.0.6
+  - @pnpm/calc-dep-state@3.0.2
+  - @pnpm/error@4.0.1
+  - @pnpm/hoist@7.0.9
+  - @pnpm/lockfile-to-pnp@2.0.7
+  - @pnpm/real-hoist@1.1.2
+  - @pnpm/lockfile-utils@5.0.3
+  - @pnpm/package-is-installable@7.0.4
+  - @pnpm/link-bins@8.0.6
+  - @pnpm/read-package-json@7.0.5
+  - @pnpm/read-project-manifest@4.1.3
+  - @pnpm/symlink-dependency@6.0.3
+
 ## 19.4.0
 
 ### Minor Changes

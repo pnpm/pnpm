@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 15.0.5
+
+### Patch Changes
+
+- @pnpm/error@4.0.1
+
 ## 15.0.4
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/constants
 
+## 6.2.0
+
+### Minor Changes
+
+- 3ebce5db7: Exported a constant for the new lockfile format version: `LOCKFILE_FORMAT_V6`.
+
 ## 6.1.0
 
 ### Minor Changes

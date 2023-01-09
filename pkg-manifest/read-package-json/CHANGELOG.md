@@ -1,5 +1,11 @@
 # @pnpm/read-package-json
 
+## 7.0.5
+
+### Patch Changes
+
+- @pnpm/error@4.0.1
+
 ## 7.0.4
 
 ### Patch Changes

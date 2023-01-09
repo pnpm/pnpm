@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-audit
 
+## 7.1.17
+
+### Patch Changes
+
+- Updated dependencies [3ebce5db7]
+- Updated dependencies [3ebce5db7]
+- Updated dependencies [3ebce5db7]
+  - @pnpm/constants@6.2.0
+  - @pnpm/lockfile-file@7.0.0
+  - @pnpm/config@16.4.0
+  - @pnpm/audit@6.0.5
+  - @pnpm/error@4.0.1
+  - @pnpm/cli-utils@1.0.22
+  - @pnpm/network.auth-header@1.0.1
+  - @pnpm/read-project-manifest@4.1.3
+
 ## 7.1.16
 
 ### Patch Changes

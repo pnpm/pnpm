@@ -1,5 +1,12 @@
 # @pnpm/store-controller-types
 
+## 14.3.0
+
+### Minor Changes
+
+- 891a8d763: New function added to the store: `getFilesIndexFilePath`.
+- c7b05cd9a: When ignoreScripts=true is passed to the fetcher, do not build git-hosted dependencies.
+
 ## 14.2.0
 
 ### Minor Changes

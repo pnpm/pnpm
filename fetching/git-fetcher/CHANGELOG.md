@@ -1,5 +1,20 @@
 # @pnpm/git-fetcher
 
+## 8.0.0
+
+### Major Changes
+
+- c7b05cd9a: Added `@pnpm/logger` to the peer dependencies.
+
+### Minor Changes
+
+- c7b05cd9a: When ignoreScripts=true is passed to the fetcher, do not build git-hosted dependencies.
+
+### Patch Changes
+
+- Updated dependencies [c7b05cd9a]
+  - @pnpm/prepare-package@4.1.0
+
 ## 7.0.1
 
 ### Patch Changes

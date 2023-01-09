@@ -1,5 +1,19 @@
 # @pnpm/lockfile-file
 
+## 7.0.0
+
+### Major Changes
+
+- 3ebce5db7: Breaking change to the API of the read functions. Instead of one wanted lockfile version, it now expects an array of `wantedVersions`.
+
+### Patch Changes
+
+- Updated dependencies [3ebce5db7]
+- Updated dependencies [3ebce5db7]
+  - @pnpm/constants@6.2.0
+  - @pnpm/dependency-path@1.1.0
+  - @pnpm/error@4.0.1
+
 ## 6.0.5
 
 ### Patch Changes

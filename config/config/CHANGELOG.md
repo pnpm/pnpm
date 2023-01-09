@@ -1,5 +1,19 @@
 # @pnpm/config
 
+## 16.4.0
+
+### Minor Changes
+
+- 3ebce5db7: Added support for `pnpm-lock.yaml` format v6. This new format will be the new lockfile format in pnpm v8. To use the new lockfile format, use the `use-lockfile-v6=true` setting in `.npmrc`. Or run `pnpm install --use-lockfile-v6` [#5810](https://github.com/pnpm/pnpm/pull/5810).
+
+### Patch Changes
+
+- Updated dependencies [3ebce5db7]
+  - @pnpm/constants@6.2.0
+  - @pnpm/pnpmfile@4.0.20
+  - @pnpm/error@4.0.1
+  - @pnpm/read-project-manifest@4.1.3
+
 ## 16.3.0
 
 ### Minor Changes

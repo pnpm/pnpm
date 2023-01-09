@@ -1,5 +1,16 @@
 # @pnpm/prepare-package
 
+## 4.1.0
+
+### Minor Changes
+
+- c7b05cd9a: When ignoreScripts=true is passed to the fetcher, do not build git-hosted dependencies.
+
+### Patch Changes
+
+- @pnpm/lifecycle@14.1.5
+- @pnpm/read-package-json@7.0.5
+
 ## 4.0.1
 
 ### Patch Changes

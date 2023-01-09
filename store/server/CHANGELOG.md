@@ -1,5 +1,17 @@
 # @pnpm/server
 
+## 14.1.0
+
+### Minor Changes
+
+- 891a8d763: New function added to the store: `getFilesIndexFilePath`.
+
+### Patch Changes
+
+- Updated dependencies [891a8d763]
+- Updated dependencies [c7b05cd9a]
+  - @pnpm/store-controller-types@14.3.0
+
 ## 14.0.5
 
 ### Patch Changes

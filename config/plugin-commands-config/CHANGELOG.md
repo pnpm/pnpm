@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-config
 
+## 1.0.4
+
+### Patch Changes
+
+- f76a39973: `pnpm config set key=value` should work the same as `pnpm config set key value` [#5889](https://github.com/pnpm/pnpm/issues/5889).
+- Updated dependencies [3ebce5db7]
+  - @pnpm/config@16.4.0
+  - @pnpm/error@4.0.1
+  - @pnpm/cli-utils@1.0.22
+
 ## 1.0.3
 
 ### Patch Changes

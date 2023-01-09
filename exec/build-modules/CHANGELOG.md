@@ -1,5 +1,19 @@
 # @pnpm/build-modules
 
+## 10.1.1
+
+### Patch Changes
+
+- Updated dependencies [891a8d763]
+- Updated dependencies [c7b05cd9a]
+  - @pnpm/store-controller-types@14.3.0
+  - @pnpm/lifecycle@14.1.5
+  - @pnpm/calc-dep-state@3.0.2
+  - @pnpm/error@4.0.1
+  - @pnpm/link-bins@8.0.6
+  - @pnpm/read-package-json@7.0.5
+  - @pnpm/fs.hard-link-dir@1.0.0
+
 ## 10.1.0
 
 ### Minor Changes
