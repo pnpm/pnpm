@@ -1333,6 +1333,9 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package

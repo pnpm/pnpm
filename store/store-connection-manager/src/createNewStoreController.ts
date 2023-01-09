@@ -22,6 +22,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'nodeVersion'
 | 'fetchTimeout'
 | 'gitShallowHosts'
+| 'ignoreScripts'
 | 'hooks'
 | 'httpProxy'
 | 'httpsProxy'
@@ -60,6 +61,7 @@ export async function createNewStoreController (
     filterMetadata: fullMetadata,
     httpProxy: opts.httpProxy,
     httpsProxy: opts.httpsProxy,
+    ignoreScripts: opts.ignoreScripts,
     key: opts.key,
     localAddress: opts.localAddress,
     noProxy: opts.noProxy,

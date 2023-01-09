@@ -32,6 +32,7 @@ export interface LockfileToHoistedDepGraphOptions {
   externalDependencies?: Set<string>
   importerIds: string[]
   include: IncludedDependencies
+  ignoreScripts: boolean
   currentHoistedLocations?: Record<string, string[]>
   lockfileDir: string
   nodeVersion: string
@@ -188,6 +189,7 @@ async function fetchDeps (
         fetchResponse = opts.storeController.fetchPackage({
           force: false,
           lockfileDir: opts.lockfileDir,
+          ignoreScripts: opts.ignoreScripts,
           pkg: {
             id: packageId,
             resolution,

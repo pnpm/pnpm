@@ -16,13 +16,15 @@ const PREPUBLISH_SCRIPTS = [
 ]
 
 export interface PreparePackageOptions {
+  ignoreScripts?: boolean
   rawConfig: object
   unsafePerm?: boolean
 }
 
-export async function preparePackage (opts: PreparePackageOptions, pkgDir: string) {
+export async function preparePackage (opts: PreparePackageOptions, pkgDir: string): Promise<boolean> {
   const manifest = await safeReadPackageJsonFromDir(pkgDir)
-  if (manifest?.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) return
+  if (manifest?.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) return false
+  if (opts.ignoreScripts) return true
   const pm = (await preferredPM(pkgDir))?.name ?? 'npm'
   const execOpts: RunLifecycleHookOptions = {
     depPath: `${manifest.name}@${manifest.version}`,
@@ -46,6 +48,7 @@ export async function preparePackage (opts: PreparePackageOptions, pkgDir: strin
     throw err
   }
   await rimraf(path.join(pkgDir, 'node_modules'))
+  return true
 }
 
 function packageShouldBeBuilt (manifest: PackageManifest, pkgDir: string): boolean {

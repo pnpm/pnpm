@@ -68,11 +68,6 @@ test('rebuilds dependencies', async () => {
       'preinstall',
       'install',
       'postinstall',
-      'prepare',
-      'prepublishOnly',
-      'preinstall',
-      'install',
-      'postinstall',
     ])
   }
 })

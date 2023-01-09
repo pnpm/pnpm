@@ -29,6 +29,9 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fetching/git-fetcher#readme",
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
   "dependencies": {
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",

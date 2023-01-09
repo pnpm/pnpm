@@ -813,6 +813,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       engineStrict: opts.engineStrict,
       force: opts.force,
       forceFullResolution,
+      ignoreScripts: opts.ignoreScripts,
       hooks: {
         readPackage: opts.readPackageHook,
       },

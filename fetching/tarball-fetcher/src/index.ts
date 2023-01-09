@@ -33,6 +33,7 @@ export function createTarballFetcher (
   opts: {
     rawConfig: object
     unsafePerm?: boolean
+    ignoreScripts?: boolean
     timeout?: number
     retry?: RetryTimeoutOptions
     offline?: boolean

@@ -1,5 +1,6 @@
 import path from 'path'
 import type { GitFetcher } from '@pnpm/fetcher-base'
+import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
@@ -9,11 +10,17 @@ export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[]
   rawConfig: object
   unsafePerm?: boolean
+  ignoreScripts?: boolean
 }
 
 export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
   const allowedHosts = new Set(createOpts?.gitShallowHosts ?? [])
-  const preparePkg = preparePackage.bind(null, { rawConfig: createOpts.rawConfig, unsafePerm: createOpts.unsafePerm })
+  const ignoreScripts = createOpts.ignoreScripts ?? false
+  const preparePkg = preparePackage.bind(null, {
+    ignoreScripts: createOpts.ignoreScripts,
+    rawConfig: createOpts.rawConfig,
+    unsafePerm: createOpts.unsafePerm,
+  })
 
   const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
     const tempLocation = await cafs.tempDir()
@@ -26,7 +33,10 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
     }
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
     try {
-      await preparePkg(tempLocation)
+      const shouldBeBuilt = await preparePkg(tempLocation)
+      if (ignoreScripts && shouldBeBuilt) {
+        globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
+      }
     } catch (err: any) { // eslint-disable-line
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}` // eslint-disable-line
       throw err

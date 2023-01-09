@@ -135,6 +135,7 @@ export interface ResolutionContext {
   defaultTag: string
   dryRun: boolean
   forceFullResolution: boolean
+  ignoreScripts?: boolean
   resolvedPackagesByDepPath: ResolvedPackagesByDepPath
   outdatedDependencies: { [pkgId: string]: string }
   childrenByParentDepPath: ChildrenByParentDepPath
@@ -1044,6 +1045,7 @@ async function resolveDependency (
         : undefined,
       expectedPkg: currentPkg,
       defaultTag: ctx.defaultTag,
+      ignoreScripts: ctx.ignoreScripts,
       publishedBy: options.publishedBy,
       pickLowestVersion: options.pickLowestVersion,
       downloadPriority: -options.currentDepth,

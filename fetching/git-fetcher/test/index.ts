@@ -2,6 +2,7 @@
 import path from 'path'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { createGitFetcher } from '@pnpm/git-fetcher'
+import { globalWarn } from '@pnpm/logger'
 import { DependencyManifest } from '@pnpm/types'
 import pDefer from 'p-defer'
 import tempy from 'tempy'
@@ -16,8 +17,17 @@ jest.mock('execa', () => {
   }
 })
 
+jest.mock('@pnpm/logger', () => {
+  const originalModule = jest.requireActual('@pnpm/logger')
+  return {
+    ...originalModule,
+    globalWarn: jest.fn(),
+  }
+})
+
 beforeEach(() => {
-  (execa as jest.Mock).mockClear()
+  ;(execa as jest.Mock).mockClear()
+  ;(globalWarn as jest.Mock).mockClear()
 })
 
 test('fetch', async () => {
@@ -136,6 +146,21 @@ test('fail when preparing a git-hosted package', async () => {
         type: 'git',
       }, { manifest })
   ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-fails.git": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
+})
+
+test('do not build the package when scripts are ignored', async () => {
+  const cafsDir = tempy.directory()
+  const fetch = createGitFetcher({ ignoreScripts: true, rawConfig: {} }).git
+  const manifest = pDefer<DependencyManifest>()
+  const { filesIndex } = await fetch(createCafsStore(cafsDir),
+    {
+      commit: '55416a9c468806a935636c0ad0371a14a64df8c9',
+      repo: 'https://github.com/pnpm-e2e/prepare-script-works.git',
+      type: 'git',
+    }, { manifest })
+  expect(filesIndex['package.json']).toBeTruthy()
+  expect(filesIndex['prepare.txt']).toBeFalsy()
+  expect(globalWarn).toHaveBeenCalledWith('The git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-works.git" has to be built but the build scripts were ignored.')
 })
 
 function prefixGitArgs (): string[] {

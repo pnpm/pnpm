@@ -257,6 +257,7 @@ async function resolveAndFetch (
   const fetchResult = ctx.fetchPackageToStore({
     fetchRawManifest: true,
     force: forceFetch,
+    ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {
       ...pkg,
@@ -331,7 +332,7 @@ function fetchToStore (
     const finishing = pDefer<undefined>()
     const filesIndexFile = opts.pkg.resolution['integrity']
       ? ctx.getFilePathInCafs(opts.pkg.resolution['integrity'], 'index')
-      : path.join(target, 'integrity.json')
+      : path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
 
     doFetchToStore(filesIndexFile, bundledManifest, files, finishing) // eslint-disable-line
 
