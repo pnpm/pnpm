@@ -12,8 +12,9 @@
     "node": ">=14.6"
   },
   "scripts": {
-    "lint": "eslint src/**/*.ts",
-    "test": "pnpm run compile",
+    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "_test": "jest",
+    "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
@@ -30,7 +31,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/get-context#readme",
   "devDependencies": {
     "@pnpm/get-context": "workspace:*",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "0.28.20",
+    "tempy": "^1.0.1"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

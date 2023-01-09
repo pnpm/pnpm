@@ -2889,6 +2889,9 @@ importers:
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
+      tempy:
+        specifier: ^1.0.1
+        version: 1.0.1
 
   pkg-manager/headless:
     dependencies:
