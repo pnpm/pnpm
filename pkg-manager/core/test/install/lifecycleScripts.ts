@@ -717,3 +717,40 @@ test('run pre/postinstall scripts in a workspace that uses node-linker=hoisted',
   await projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   await projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 })
+
+test('run pre/postinstall scripts in a project that uses node-linker=hoisted. Should not fail on repeat install', async () => {
+  const project = prepareEmpty()
+  const manifest = await addDependenciesToPackage({},
+    ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'],
+    await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies', nodeLinker: 'hoisted', sideEffectsCacheRead: true, sideEffectsCacheWrite: true })
+  )
+
+  {
+    expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-prepare.js')).toBeFalsy()
+    expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeTruthy()
+
+    const generatedByPreinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall')
+    expect(typeof generatedByPreinstall).toBe('function')
+
+    const generatedByPostinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
+    expect(typeof generatedByPostinstall).toBe('function')
+  }
+
+  const reporter = jest.fn()
+  await addDependenciesToPackage(manifest,
+    ['example@npm:@pnpm.e2e/pre-and-postinstall-scripts-example@2.0.0'],
+    await testDefaults({
+      fastUnpack: false,
+      targetDependenciesField: 'devDependencies',
+      nodeLinker: 'hoisted',
+      reporter,
+      sideEffectsCacheRead: true,
+      sideEffectsCacheWrite: true,
+    })
+  )
+
+  expect(reporter).not.toBeCalledWith(expect.objectContaining({
+    level: 'warn',
+    message: `An error occurred while uploading ${path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')}`,
+  }))
+})
