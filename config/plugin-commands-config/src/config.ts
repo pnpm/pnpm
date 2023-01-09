@@ -77,7 +77,13 @@ export async function handler (opts: ConfigCommandOptions, params: string[]) {
   }
   switch (params[0]) {
   case 'set': {
-    return configSet(opts, params[1], params[2] ?? '')
+    let [key, value] = params.slice(1)
+    if (value == null) {
+      const parts = key.split('=')
+      key = parts.shift()!
+      value = parts.join('=')
+    }
+    return configSet(opts, key, value ?? '')
   }
   case 'get': {
     return configGet(opts, params[1])
