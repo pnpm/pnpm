@@ -4,6 +4,7 @@ import path from 'path'
 import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/create-cafs-store'
+import { globalWarn } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
 import {
   createTarballFetcher,
@@ -13,6 +14,18 @@ import {
 import nock from 'nock'
 import ssri from 'ssri'
 import tempy from 'tempy'
+
+jest.mock('@pnpm/logger', () => {
+  const originalModule = jest.requireActual('@pnpm/logger')
+  return {
+    ...originalModule,
+    globalWarn: jest.fn(),
+  }
+})
+
+beforeEach(() => {
+  ;(globalWarn as jest.Mock).mockClear()
+})
 
 const cafsDir = tempy.directory()
 const cafs = createCafsStore(cafsDir)
@@ -393,4 +406,26 @@ test('fail when extracting a broken tarball', async () => {
   ).rejects.toThrow(`Failed to unpack the tarball from "${registry}foo.tgz": Unexpected end of data`
   )
   expect(scope.isDone()).toBeTruthy()
+})
+
+test('do not build the package when scripts are ignored', async () => {
+  process.chdir(tempy.directory())
+
+  const tarball = 'https://codeload.github.com/pnpm-e2e/prepare-script-works/tar.gz/55416a9c468806a935636c0ad0371a14a64df8c9'
+  const resolution = { tarball }
+
+  const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+    ignoreScripts: true,
+    rawConfig: {},
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
+  })
+  const { filesIndex } = await fetch.gitHostedTarball(cafs, resolution, { lockfileDir: process.cwd() })
+
+  expect(filesIndex).toHaveProperty(['package.json'])
+  expect(filesIndex).not.toHaveProperty(['prepare.txt'])
+  expect(globalWarn).toHaveBeenCalledWith(`The git-hosted package fetched from "${tarball}" has to be built but the build scripts were ignored.`)
 })

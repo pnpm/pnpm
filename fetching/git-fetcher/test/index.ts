@@ -26,7 +26,8 @@ jest.mock('@pnpm/logger', () => {
 })
 
 beforeEach(() => {
-  (execa as jest.Mock).mockClear()
+  ;(execa as jest.Mock).mockClear()
+  ;(globalWarn as jest.Mock).mockClear()
 })
 
 test('fetch', async () => {
