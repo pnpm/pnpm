@@ -175,7 +175,7 @@ test('from a github repo the has no package.json file', async () => {
   })
 })
 
-test('from a github repo that needs to be built', async () => {
+test('from a github repo that needs to be built. isolated node linker is used', async () => {
   const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['pnpm-e2e/prepare-script-works'], await testDefaults({ ignoreScripts: true }, { ignoreScripts: true }))
@@ -192,5 +192,29 @@ test('from a github repo that needs to be built', async () => {
 
   await rimraf('node_modules')
   await install(manifest, await testDefaults({ frozenLockfile: true, ignoreScripts: true }, { ignoreScripts: true }))
+  await project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
+})
+
+test('from a github repo that needs to be built. hoisted node linker is  used', async () => {
+  const project = prepareEmpty()
+
+  const manifest = await addDependenciesToPackage(
+    {},
+    ['pnpm-e2e/prepare-script-works'],
+    await testDefaults({ ignoreScripts: true, nodeLinker: 'hoisted' }, { ignoreScripts: true })
+  )
+
+  await project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
+
+  await rimraf('node_modules')
+  await install(manifest, await testDefaults({ preferFrozenLockfile: false, nodeLinker: 'hoisted' }))
+  await project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
+
+  await rimraf('node_modules')
+  await install(manifest, await testDefaults({ frozenLockfile: true, nodeLinker: 'hoisted' }))
+  await project.has('@pnpm.e2e/prepare-script-works/prepare.txt')
+
+  await rimraf('node_modules')
+  await install(manifest, await testDefaults({ frozenLockfile: true, ignoreScripts: true, nodeLinker: 'hoisted' }, { ignoreScripts: true }))
   await project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
 })
