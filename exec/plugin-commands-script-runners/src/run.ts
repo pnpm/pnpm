@@ -173,10 +173,10 @@ export async function handler (
 
   const multiScriptSelectorSpecified = scriptName.slice(-2) === ':*'
   // extract XXX:YYY: from XXX:YYY:ZZZ
-  const multiScriptSelectorRegExp = new RegExp(scriptName)
-  const specifiedScriptsWithWildcardSelector = Object.keys(manifest.scripts ?? {}).filter(script => script.match(multiScriptSelectorRegExp))
+  const multiScriptSelectorPrefix = scriptName.slice(0, -1)
+  const specifiedScriptsWithSelector = Object.keys(manifest.scripts ?? {}).filter(script => script.startsWith(multiScriptSelectorPrefix) && script !== multiScriptSelectorPrefix)
 
-  if (scriptName !== 'start' && !manifest.scripts?.[scriptName] && !(multiScriptSelectorSpecified && specifiedScriptsWithWildcardSelector.length > 0)) {
+  if (scriptName !== 'start' && !manifest.scripts?.[scriptName] && !(multiScriptSelectorSpecified && specifiedScriptsWithSelector.length > 0)) {
     if (opts.ifPresent) return
     if (opts.fallbackCommandUsed) {
       if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
@@ -187,7 +187,7 @@ export async function handler (
     }
     if (opts.workspaceDir) {
       const { manifest: rootManifest } = await tryReadProjectManifest(opts.workspaceDir, opts)
-      if (rootManifest?.scripts?.[scriptName] && !(multiScriptSelectorSpecified && specifiedScriptsWithWildcardSelector.length > 0)) {
+      if (rootManifest?.scripts?.[scriptName] && !(multiScriptSelectorSpecified && specifiedScriptsWithSelector.length > 0)) {
         throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`, {
           hint: `But ${scriptName} is present in the root of the workspace,
 so you may run "pnpm -w run ${scriptName}"`,
@@ -223,7 +223,7 @@ so you may run "pnpm -w run ${scriptName}"`,
     if (multiScriptSelectorSpecified) {
       const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
-      await Promise.all(specifiedScriptsWithWildcardSelector.map(script => limitRun(() => runScript(script, manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs))))
+      await Promise.all(specifiedScriptsWithSelector.map(script => limitRun(() => runScript(script, manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs))))
     } else {
       await runScript(scriptName, manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs)
     }
