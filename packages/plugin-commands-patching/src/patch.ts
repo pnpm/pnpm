@@ -42,7 +42,7 @@ export function help () {
   })
 }
 
-export type PatchCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir'> & CreateStoreControllerOptions & {
+export type PatchCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir' | 'rootProjectManifest'> & CreateStoreControllerOptions & {
   editDir?: string
   reporter?: (logObj: LogBase) => void
 }

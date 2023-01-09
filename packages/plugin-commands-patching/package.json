@@ -39,6 +39,7 @@
     "@types/ramda": "0.28.20"
   },
   "dependencies": {
+    "@pnpm/build-modules": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
