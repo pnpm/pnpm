@@ -45,6 +45,7 @@ export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStore
 export interface StoreController {
   requestPackage: RequestPackageFunction
   fetchPackage: FetchPackageToStoreFunction
+  getFilesIndexFilePath: GetFilesIndexFilePath
   importPackage: ImportPackageFunction
   close: () => Promise<void>
   prune: () => Promise<void>
@@ -58,6 +59,11 @@ export type FetchPackageToStoreFunction = (
   filesIndexFile: string
   files: () => Promise<PackageFilesResponse>
   finishing: () => Promise<void>
+}
+
+export type GetFilesIndexFilePath = (opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>) => {
+  filesIndexFile: string
+  target: string
 }
 
 export interface PkgNameVersion {

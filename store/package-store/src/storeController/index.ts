@@ -50,6 +50,7 @@ export async function createPackageStore (
   return {
     close: async () => {}, // eslint-disable-line:no-empty
     fetchPackage: packageRequester.fetchPackageToStore,
+    getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,
     importPackage: cafs.importPackage,
     prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir }),
     requestPackage: packageRequester.requestPackage,

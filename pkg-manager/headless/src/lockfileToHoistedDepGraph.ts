@@ -182,18 +182,23 @@ async function fetchDeps (
     const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
     let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
     const skipFetch = opts.currentHoistedLocations?.[depPath]?.includes(depLocation)
+    const pkgResolution = {
+      id: packageId,
+      resolution,
+    }
     if (skipFetch) {
-      fetchResponse = {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      const { filesIndexFile } = opts.storeController.getFilesIndexFilePath({
+        ignoreScripts: opts.ignoreScripts,
+        pkg: pkgResolution,
+      })
+      fetchResponse = { filesIndexFile } as any // eslint-disable-line @typescript-eslint/no-explicit-any
     } else {
       try {
         fetchResponse = opts.storeController.fetchPackage({
           force: false,
           lockfileDir: opts.lockfileDir,
           ignoreScripts: opts.ignoreScripts,
-          pkg: {
-            id: packageId,
-            resolution,
-          },
+          pkg: pkgResolution,
           expectedPkg: {
             name: pkgName,
             version: pkgVersion,

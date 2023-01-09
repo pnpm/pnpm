@@ -33,6 +33,7 @@ import {
   BundledManifestFunction,
   FetchPackageToStoreFunction,
   FetchPackageToStoreOptions,
+  GetFilesIndexFilePath,
   PackageResponse,
   PkgNameVersion,
   RequestPackageFunction,
@@ -96,6 +97,7 @@ export function createPackageRequester (
   }
 ): RequestPackageFunction & {
     fetchPackageToStore: FetchPackageToStoreFunction
+    getFilesIndexFilePath: GetFilesIndexFilePath
     requestPackage: RequestPackageFunction
   } {
   opts = opts || {}
@@ -135,7 +137,14 @@ export function createPackageRequester (
     storeDir: opts.storeDir,
   })
 
-  return Object.assign(requestPackage, { fetchPackageToStore, requestPackage })
+  return Object.assign(requestPackage, {
+    fetchPackageToStore,
+    getFilesIndexFilePath: getFilesIndexFilePath.bind(null, {
+      getFilePathInCafs,
+      storeDir: opts.storeDir,
+    }),
+    requestPackage,
+  })
 }
 
 async function resolveAndFetch (
@@ -296,6 +305,21 @@ interface FetchLock {
   finishing: Promise<void>
 }
 
+function getFilesIndexFilePath (
+  ctx: {
+    getFilePathInCafs: (integrity: string, fileType: FileType) => string
+    storeDir: string
+  },
+  opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>
+) {
+  const targetRelative = depPathToFilename(opts.pkg.id)
+  const target = path.join(ctx.storeDir, targetRelative)
+  const filesIndexFile = opts.pkg.resolution['integrity']
+    ? ctx.getFilePathInCafs(opts.pkg.resolution['integrity'], 'index')
+    : path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
+  return { filesIndexFile, target }
+}
+
 function fetchToStore (
   ctx: {
     checkFilesIntegrity: (
@@ -323,18 +347,14 @@ function fetchToStore (
   if (!opts.pkg.name) {
     opts.fetchRawManifest = true
   }
-  const targetRelative = depPathToFilename(opts.pkg.id)
-  const target = path.join(ctx.storeDir, targetRelative)
 
   if (!ctx.fetchingLocker.has(opts.pkg.id)) {
     const bundledManifest = pDefer<BundledManifest>()
     const files = pDefer<PackageFilesResponse>()
     const finishing = pDefer<undefined>()
-    const filesIndexFile = opts.pkg.resolution['integrity']
-      ? ctx.getFilePathInCafs(opts.pkg.resolution['integrity'], 'index')
-      : path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
+    const { filesIndexFile, target } = getFilesIndexFilePath(ctx, opts)
 
-    doFetchToStore(filesIndexFile, bundledManifest, files, finishing) // eslint-disable-line
+    doFetchToStore(filesIndexFile, bundledManifest, files, finishing, target) // eslint-disable-line
 
     if (opts.fetchRawManifest) {
       ctx.fetchingLocker.set(opts.pkg.id, {
@@ -426,7 +446,8 @@ function fetchToStore (
     filesIndexFile: string,
     bundledManifest: pDefer.DeferredPromise<BundledManifest>,
     files: pDefer.DeferredPromise<PackageFilesResponse>,
-    finishing: pDefer.DeferredPromise<void>
+    finishing: pDefer.DeferredPromise<void>,
+    target: string
   ) {
     try {
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')

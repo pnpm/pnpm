@@ -30,6 +30,7 @@ export async function connectStoreController (
     resolve({
       close: async () => { },
       fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
+      getFilesIndexFilePath: () => ({ filesIndexFile: '', target: '' }), // NOT IMPLEMENTED
       importPackage: async (to: string, opts: {
         filesResponse: PackageFilesResponse
         force: boolean
