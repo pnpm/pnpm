@@ -1,2 +1,5 @@
 * @zkochan
-/packages/plugin-commands-installation/src/import/* @fireairforce
+/pkg-manager/plugin-commands-installation/src/import/* @fireairforce
+/reviewing/dependencies-hierarchy/* @gluxon
+/reviewing/list/* @gluxon
+/reviewing/plugin-commands-listing/* @gluxon
