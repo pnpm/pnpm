@@ -82,6 +82,22 @@ test('parse()', () => {
     version: '1.0.0',
   })
 
+  expect(parse('example.com/foo/1.0.0(bar@2.0.0)')).toStrictEqual({
+    host: 'example.com',
+    isAbsolute: true,
+    name: 'foo',
+    peersSuffix: '(bar@2.0.0)',
+    version: '1.0.0',
+  })
+
+  expect(parse('/foo/1.0.0(@types/babel__core@7.1.14)(foo@1.0.0)')).toStrictEqual({
+    host: undefined,
+    isAbsolute: false,
+    name: 'foo',
+    peersSuffix: '(@types/babel__core@7.1.14)(foo@1.0.0)',
+    version: '1.0.0',
+  })
+
   expect(() => parse('/foo/bar')).toThrow(/\/foo\/bar is an invalid relative dependency path/)
 })
 
@@ -95,15 +111,21 @@ test('refToAbsolute()', () => {
   expect(refToAbsolute('registry.npmjs.org/foo/1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
   expect(refToAbsolute('/foo/1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
   expect(refToAbsolute('/@foo/foo/1.0.0', '@foo/foo', registries)).toEqual('foo.com/@foo/foo/1.0.0')
+  expect(refToAbsolute('/@foo/foo@1.0.0(@foo/bar@1.0.0)', '@foo/foo', registries)).toEqual('foo.com/@foo/foo@1.0.0(@foo/bar@1.0.0)')
+  expect(refToAbsolute('/@foo/foo@1.0.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@foo/foo', registries)).toEqual('foo.com/@foo/foo@1.0.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
   // linked dependencies don't have an absolute path
   expect(refToAbsolute('link:../foo', 'foo', registries)).toBeNull()
 })
 
 test('refToRelative()', () => {
   expect(refToRelative('/@most/multicast/1.3.0/most@1.7.3', '@most/multicast')).toEqual('/@most/multicast/1.3.0/most@1.7.3')
+  expect(refToRelative('/@most/multicast/1.3.0/most@1.7.3(@foo/bar@1.0.0)', '@most/multicast')).toEqual('/@most/multicast/1.3.0/most@1.7.3(@foo/bar@1.0.0)')
+  expect(refToRelative('/@most/multicast/1.3.0/most@1.7.3(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@most/multicast')).toEqual('/@most/multicast/1.3.0/most@1.7.3(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
   // linked dependencies don't have a relative path
   expect(refToRelative('link:../foo', 'foo')).toBeNull()
   expect(refToRelative('file:../tarball.tgz', 'foo')).toEqual('file:../tarball.tgz')
+  expect(refToRelative('1.3.0(@foo/bar@1.0.0)', '@qar/bar')).toEqual('/@qar/bar/1.3.0(@foo/bar@1.0.0)')
+  expect(refToRelative('1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@qar/bar')).toEqual('/@qar/bar/1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
 })
 
 test('relative()', () => {
@@ -143,4 +165,5 @@ test('depPathToFilename()', () => {
 
 test('tryGetPackageId', () => {
   expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/foo/1.0.0_@types+babel__core@7.1.14')).toEqual('registry.npmjs.org/foo/1.0.0')
+  expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/foo/1.0.0(@types+babel__core@7.1.14)')).toEqual('registry.npmjs.org/foo/1.0.0')
 })

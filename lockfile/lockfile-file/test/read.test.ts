@@ -35,7 +35,7 @@ test('readWantedLockfile()', async () => {
   try {
     await readWantedLockfile(path.join('fixtures', '3'), {
       ignoreIncompatible: false,
-      wantedVersion: 3,
+      wantedVersions: ['3'],
     })
     fail()
   } catch (err: any) { // eslint-disable-line
@@ -47,7 +47,7 @@ test('readWantedLockfile() when lockfileVersion is a string', async () => {
   {
     const lockfile = await readWantedLockfile(path.join('fixtures', '4'), {
       ignoreIncompatible: false,
-      wantedVersion: 3,
+      wantedVersions: ['3'],
     })
     expect(lockfile!.lockfileVersion).toEqual('v3')
   }
@@ -55,7 +55,7 @@ test('readWantedLockfile() when lockfileVersion is a string', async () => {
   {
     const lockfile = await readWantedLockfile(path.join('fixtures', '5'), {
       ignoreIncompatible: false,
-      wantedVersion: 3,
+      wantedVersions: ['3'],
     })
     expect(lockfile!.lockfileVersion).toEqual('3')
   }

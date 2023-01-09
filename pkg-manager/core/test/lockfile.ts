@@ -1374,3 +1374,44 @@ test('include tarball URL', async () => {
   expect((lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution as TarballResolution).tarball)
     .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e%2fpkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
 })
+
+test('lockfile v6', async () => {
+  prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], await testDefaults({ useLockfileV6: true }))
+
+  {
+    const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(lockfile.lockfileVersion).toBe('6.0')
+    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep@100.0.0'])
+  }
+
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/foo@100.0.0'], await testDefaults())
+
+  {
+    const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(lockfile.lockfileVersion).toBe('6.0')
+    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep@100.0.0'])
+    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo@100.0.0'])
+  }
+})
+
+test('lockfile v5 is converted to lockfile v6', async () => {
+  prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], await testDefaults())
+
+  {
+    const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(lockfile.lockfileVersion).toBe(5.4)
+    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep/100.0.0'])
+  }
+
+  await install(manifest, await testDefaults({ useLockfileV6: true }))
+
+  {
+    const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(lockfile.lockfileVersion).toBe('6.0')
+    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep@100.0.0'])
+  }
+})

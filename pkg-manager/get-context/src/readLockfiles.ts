@@ -1,5 +1,6 @@
 import {
   LOCKFILE_VERSION,
+  LOCKFILE_VERSION_V6,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -37,6 +38,7 @@ export async function readLockfiles (
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
     virtualStoreDir: string
+    useLockfileV6?: boolean
   }
 ): Promise<{
     currentLockfile: Lockfile
@@ -46,11 +48,12 @@ export async function readLockfiles (
     wantedLockfile: Lockfile
     lockfileHadConflicts: boolean
   }> {
+  const wantedLockfileVersion = opts.useLockfileV6 ? LOCKFILE_VERSION_V6 : LOCKFILE_VERSION
   // ignore `pnpm-lock.yaml` on CI servers
   // a latest pnpm should not break all the builds
   const lockfileOpts = {
     ignoreIncompatible: opts.force || isCI,
-    wantedVersion: LOCKFILE_VERSION,
+    wantedVersions: [LOCKFILE_VERSION.toString(), LOCKFILE_VERSION_V6],
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
@@ -99,7 +102,7 @@ export async function readLockfiles (
     })()
   )
   const files = await Promise.all<Lockfile | null | undefined>(fileReads)
-  const sopts = { lockfileVersion: LOCKFILE_VERSION }
+  const sopts = { lockfileVersion: wantedLockfileVersion }
   const importerIds = opts.projects.map((importer) => importer.id)
   const currentLockfile = files[1] ?? createLockfileObject(importerIds, sopts)
   for (const importerId of importerIds) {

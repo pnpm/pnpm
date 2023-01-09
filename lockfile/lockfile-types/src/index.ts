@@ -4,7 +4,7 @@ export { PatchFile }
 
 export interface Lockfile {
   importers: Record<string, ProjectSnapshot>
-  lockfileVersion: number
+  lockfileVersion: number | string
   time?: Record<string, string>
   packages?: PackageSnapshots
   neverBuiltDependencies?: string[]

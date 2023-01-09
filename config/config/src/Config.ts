@@ -88,6 +88,7 @@ export interface Config {
   registrySupportsTimeField?: boolean
   failedToLoadBuiltInConfig: boolean
   resolvePeersFromWorkspaceRoot?: boolean
+  useLockfileV6?: boolean
 
   // proxy
   httpProxy?: string

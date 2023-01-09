@@ -87,6 +87,7 @@ export interface ResolveDependenciesOptions {
   virtualStoreDir: string
   wantedLockfile: Lockfile
   workspacePackages: WorkspacePackages
+  useLockfileV6?: boolean
 }
 
 export async function resolveDependencyTree<T> (
