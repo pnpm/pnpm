@@ -177,7 +177,7 @@ describe('patch and commit', () => {
     expect(fs.existsSync('patches/is-positive@1.0.0.patch')).toBe(true)
 
     // re-patch with --ignore-patches
-    output = await patch.handler({ ...defaultPatchOption, ignorePatches: true }, ['is-positive@1.0.0'])
+    output = await patch.handler({ ...defaultPatchOption, ignoreExisting: true }, ['is-positive@1.0.0'])
     patchDir = getPatchDirFromPatchOutput(output)
 
     expect(fs.existsSync(patchDir)).toBe(true)

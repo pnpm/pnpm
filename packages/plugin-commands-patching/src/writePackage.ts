@@ -13,7 +13,7 @@ import { PnpmError } from '@pnpm/error'
 
 export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'registries' | 'rootProjectManifest' | 'lockfileDir'> & {
   isCommit?: boolean
-  ignorePatches?: boolean
+  ignoreExisting?: boolean
 }
 
 export async function writePackage (pkg: string, dest: string, opts: WritePackageOptions) {
@@ -35,7 +35,7 @@ export async function writePackage (pkg: string, dest: string, opts: WritePackag
     force: true,
   })
 
-  if (!opts.isCommit && !opts.ignorePatches) {
+  if (!opts.isCommit && !opts.ignoreExisting) {
     const { rootProjectManifest } = opts
     const existedPatchFile = dep.alias && dep.pref && rootProjectManifest?.pnpm?.patchedDependencies?.[`${dep.alias}@${dep.pref}`]
     const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()

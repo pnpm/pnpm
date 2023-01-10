@@ -16,7 +16,7 @@ export function rcOptionsTypes () {
 }
 
 export function cliOptionsTypes () {
-  return { ...rcOptionsTypes(), 'edit-dir': String, 'ignore-patches': Boolean }
+  return { ...rcOptionsTypes(), 'edit-dir': String, 'ignore-existing': Boolean }
 }
 
 export const shorthands = {
@@ -37,7 +37,7 @@ export function help () {
         },
         {
           description: 'Ignore existing patch files when patching',
-          name: '--ignore-patches',
+          name: '--ignore-existing',
         },
       ],
     }],
@@ -49,7 +49,7 @@ export function help () {
 export type PatchCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir' | 'rootProjectManifest'> & CreateStoreControllerOptions & {
   editDir?: string
   reporter?: (logObj: LogBase) => void
-  ignorePatches?: boolean
+  ignoreExisting?: boolean
 }
 
 export async function handler (opts: PatchCommandOptions, params: string[]) {
