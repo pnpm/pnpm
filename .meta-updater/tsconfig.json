@@ -9,5 +9,9 @@
     "src/**/*.ts",
     "../typings/**/*.d.ts"
   ],
-  "references": []
+  "references": [
+    {
+      "path": "../lockfile/lockfile-file"
+    }
+  ]
 }
