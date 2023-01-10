@@ -360,7 +360,7 @@ export async function mutateModules (
               wantedLockfile: ctx.wantedLockfile,
               wantedLockfileDir: ctx.lockfileDir,
               forceSharedFormat: opts.forceSharedLockfile,
-              useInlineSpecifiersFormat: opts.useInlineSpecifiersLockfileFormat,
+              useInlineSpecifiersFormat: opts.useInlineSpecifiersLockfileFormat || opts.useLockfileV6,
               useGitBranchLockfile: opts.useGitBranchLockfile,
               mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
             })
@@ -886,7 +886,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   const depsStateCache: DepsStateCache = {}
   const lockfileOpts = {
     forceSharedFormat: opts.forceSharedLockfile,
-    useInlineSpecifiersFormat: opts.useInlineSpecifiersLockfileFormat,
+    useInlineSpecifiersFormat: opts.useInlineSpecifiersLockfileFormat || opts.useLockfileV6,
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
