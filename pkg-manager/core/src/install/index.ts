@@ -279,6 +279,9 @@ export async function mutateModules (
         path: path.join(opts.lockfileDir, patchFile.path),
       }), patchedDependencies)
       : undefined
+    if (opts.useLockfileV6 == null) {
+      opts.useLockfileV6 = ctx.wantedLockfile.lockfileVersion.toString().startsWith('6.')
+    }
     let needsFullResolution = !maybeOpts.ignorePackageManifest &&
       lockfileIsUpToDate(ctx.wantedLockfile, {
         overrides: opts.overrides,
@@ -879,7 +882,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     : newLockfile
 
   if (opts.updateLockfileMinorVersion) {
-    if (opts.useLockfileV6 || newLockfile.lockfileVersion.toString().startsWith('6.')) {
+    if (opts.useLockfileV6) {
       newLockfile.lockfileVersion = LOCKFILE_VERSION_V6
     } else {
       newLockfile.lockfileVersion = LOCKFILE_VERSION
