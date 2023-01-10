@@ -71,13 +71,14 @@ async function writeLockfile (
     return rimraf(lockfilePath)
   }
 
-  const lockfileToStringify = (Boolean(opts?.useInlineSpecifiersFormat) || wantedLockfile['lockfileVersion'].toString().startsWith('6.'))
+  const isLockfileV6 = wantedLockfile['lockfileVersion'].toString().startsWith('6.')
+  const lockfileToStringify = (Boolean(opts?.useInlineSpecifiersFormat) || isLockfileV6)
     ? convertToInlineSpecifiersFormat(wantedLockfile) as unknown as Lockfile
     : wantedLockfile
 
   const yamlDoc = yamlStringify(lockfileToStringify, {
     forceSharedFormat: opts?.forceSharedFormat === true,
-    includeEmptySpecifiersField: !opts?.useInlineSpecifiersFormat,
+    includeEmptySpecifiersField: !opts?.useInlineSpecifiersFormat && !isLockfileV6,
   })
 
   return writeFileAtomic(lockfilePath, yamlDoc)
@@ -247,12 +248,13 @@ export async function writeLockfiles (
   }
 
   const forceSharedFormat = opts?.forceSharedFormat === true
-  const wantedLockfileToStringify = (Boolean(opts.useInlineSpecifiersFormat) || opts.wantedLockfile.lockfileVersion.toString().startsWith('6.'))
+  const isLockfileV6 = opts.wantedLockfile.lockfileVersion.toString().startsWith('6.')
+  const wantedLockfileToStringify = (Boolean(opts.useInlineSpecifiersFormat) || isLockfileV6)
     ? convertToInlineSpecifiersFormat(opts.wantedLockfile) as unknown as Lockfile
     : opts.wantedLockfile
   const normalizeOpts = {
     forceSharedFormat,
-    includeEmptySpecifiersField: !opts.useInlineSpecifiersFormat,
+    includeEmptySpecifiersField: !opts.useInlineSpecifiersFormat && !isLockfileV6,
   }
   const yamlDoc = yamlStringify(wantedLockfileToStringify, normalizeOpts)
 
