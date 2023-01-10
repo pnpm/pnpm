@@ -36,7 +36,7 @@ export async function writePackage (pkg: string, dest: string, opts: WritePackag
   })
 
   if (!opts.isCommit && !opts.ignoreExisting && dep.alias && dep.pref) {
-    const existingPatchFile = opts?.rootProjectManifest?.pnpm?.patchedDependencies?.[`${dep.alias}@${dep.pref}`]
+    const existingPatchFile = opts.rootProjectManifest?.pnpm?.patchedDependencies?.[`${dep.alias}@${dep.pref}`]
     if (existingPatchFile) {
       const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
       const existingPatchFilePath = path.resolve(lockfileDir, existingPatchFile)
