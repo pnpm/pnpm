@@ -1,5 +1,6 @@
 
 import path from 'path'
+import fs from 'fs'
 import { Config } from '@pnpm/config'
 import {
   createOrConnectStoreController,
@@ -8,9 +9,11 @@ import {
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { applyPatchToDep } from '@pnpm/build-modules'
+import { PnpmError } from '@pnpm/error'
 
 export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'registries' | 'rootProjectManifest' | 'lockfileDir'> & {
   isCommit?: boolean
+  ignorePatches?: boolean
 }
 
 export async function writePackage (pkg: string, dest: string, opts: WritePackageOptions) {
@@ -32,12 +35,17 @@ export async function writePackage (pkg: string, dest: string, opts: WritePackag
     force: true,
     requiresBuild: true,
   })
-  if (!opts.isCommit) {
+
+  if (!opts.isCommit && !opts.ignorePatches) {
     const { rootProjectManifest } = opts
     const existedPatchFile = dep.alias && dep.pref && rootProjectManifest?.pnpm?.patchedDependencies?.[`${dep.alias}@${dep.pref}`]
     const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
     if (existedPatchFile) {
-      applyPatchToDep(dest, path.resolve(lockfileDir, existedPatchFile))
+      const existedPatchFilePath = path.resolve(lockfileDir, existedPatchFile)
+      if (!fs.existsSync(existedPatchFilePath)) {
+        throw new PnpmError('PATCH_FILE_NOT_FOUND', `Unable to find patch file ${existedPatchFilePath}`)
+      }
+      applyPatchToDep(dest, existedPatchFilePath)
     }
   }
 }
