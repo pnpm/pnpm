@@ -35,16 +35,15 @@ export async function writePackage (pkg: string, dest: string, opts: WritePackag
     force: true,
   })
 
-  if (!opts.isCommit && !opts.ignoreExisting) {
-    const { rootProjectManifest } = opts
-    const existedPatchFile = dep.alias && dep.pref && rootProjectManifest?.pnpm?.patchedDependencies?.[`${dep.alias}@${dep.pref}`]
-    const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
-    if (existedPatchFile) {
-      const existedPatchFilePath = path.resolve(lockfileDir, existedPatchFile)
-      if (!fs.existsSync(existedPatchFilePath)) {
-        throw new PnpmError('PATCH_FILE_NOT_FOUND', `Unable to find patch file ${existedPatchFilePath}`)
+  if (!opts.isCommit && !opts.ignoreExisting && dep.alias && dep.pref) {
+    const existingPatchFile = opts?.rootProjectManifest?.pnpm?.patchedDependencies?.[`${dep.alias}@${dep.pref}`]
+    if (existingPatchFile) {
+      const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
+      const existingPatchFilePath = path.resolve(lockfileDir, existingPatchFile)
+      if (!fs.existsSync(existingPatchFilePath)) {
+        throw new PnpmError('PATCH_FILE_NOT_FOUND', `Unable to find patch file ${existingPatchFilePath}`)
       }
-      applyPatchToDep(dest, existedPatchFilePath)
+      applyPatchToDep(dest, existingPatchFilePath)
     }
   }
 }
