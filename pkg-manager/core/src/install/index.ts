@@ -310,7 +310,10 @@ export async function mutateModules (
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
         ctx.existsWantedLockfile &&
-        ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
+        (
+          ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION ||
+          ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V6
+        ) &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
           autoInstallPeers: opts.autoInstallPeers,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
