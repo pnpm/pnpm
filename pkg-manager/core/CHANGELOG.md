@@ -1,5 +1,15 @@
 # @pnpm/core
 
+## 7.6.2
+
+### Patch Changes
+
+- Updated dependencies [9a68ebbae]
+  - @pnpm/lockfile-file@7.0.2
+  - @pnpm/lockfile-to-pnp@2.0.9
+  - @pnpm/get-context@8.1.2
+  - @pnpm/headless@19.4.3
+
 ## 7.6.1
 
 ### Patch Changes

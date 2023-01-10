@@ -1,5 +1,13 @@
 # @pnpm/mount-modules
 
+## 0.3.24
+
+### Patch Changes
+
+- Updated dependencies [9a68ebbae]
+  - @pnpm/lockfile-file@7.0.2
+  - @pnpm/config@16.4.2
+
 ## 0.3.23
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 7.0.2
+
+### Patch Changes
+
+- 9a68ebbae: Fix lockfile v6.
+
 ## 7.0.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # pnpm
 
+## 7.24.2
+
+### Patch Changes
+
+- Fix lockfile v6.
+
 ## 7.24.1
 
 ### Patch Changes
