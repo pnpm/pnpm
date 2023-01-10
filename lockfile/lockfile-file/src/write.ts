@@ -275,7 +275,10 @@ export async function writeLockfiles (
     prefix: opts.wantedLockfileDir,
   })
 
-  const currentYamlDoc = yamlStringify(opts.currentLockfile, normalizeOpts)
+  const currentLockfileToStringify = (Boolean(opts.useInlineSpecifiersFormat) || opts.wantedLockfile.lockfileVersion.toString().startsWith('6.'))
+    ? convertToInlineSpecifiersFormat(opts.currentLockfile) as unknown as Lockfile
+    : opts.currentLockfile
+  const currentYamlDoc = yamlStringify(currentLockfileToStringify, normalizeOpts)
 
   await Promise.all([
     writeFileAtomic(wantedLockfilePath, yamlDoc),
