@@ -33,7 +33,6 @@ export async function writePackage (pkg: string, dest: string, opts: WritePackag
   await store.ctrl.importPackage(dest, {
     filesResponse,
     force: true,
-    requiresBuild: true,
   })
 
   if (!opts.isCommit && !opts.ignorePatches) {
