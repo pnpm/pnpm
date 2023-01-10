@@ -33,7 +33,7 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/graceful-fs": "workspace:*",
-    "@types/graceful-fs": "^4.1.5"
+    "@types/graceful-fs": "^4.1.6"
   },
   "exports": {
     ".": "./lib/index.js"

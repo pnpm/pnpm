@@ -45,7 +45,7 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "p-defer": "^3.0.0",
-    "patch-package": "^6.5.0",
+    "patch-package": "^6.5.1",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "run-groups": "^3.0.1"
   },

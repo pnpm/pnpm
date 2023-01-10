@@ -41,7 +41,7 @@
     "@pnpm/meta-updater": "0.2.2",
     "@pnpm/registry-mock": "3.2.0",
     "@pnpm/tsconfig": "workspace:*",
-    "@types/jest": "^29.2.4",
+    "@types/jest": "^29.2.5",
     "@types/node": "^14.18.36",
     "c8": "^7.12.0",
     "cross-env": "^7.0.3",
@@ -75,7 +75,8 @@
       "nopt@5": "npm:@pnpm/nopt@^0.2.1",
       "clipanion": "3.2.0-rc.6",
       "jsonwebtoken@<=8.5.1": ">=9.0.0",
-      "json5@<2.2.2": ">=2.2.2"
+      "json5@<2.2.2": ">=2.2.2",
+      "debug@<3.1.0": ">=3.1.0"
     },
     "packageExtensions": {
       "@babel/parser": {
