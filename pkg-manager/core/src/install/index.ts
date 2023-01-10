@@ -310,7 +310,10 @@ export async function mutateModules (
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
         ctx.existsWantedLockfile &&
-        ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
+        (
+          ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION ||
+          ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V6
+        ) &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
           autoInstallPeers: opts.autoInstallPeers,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
@@ -360,7 +363,7 @@ export async function mutateModules (
               wantedLockfile: ctx.wantedLockfile,
               wantedLockfileDir: ctx.lockfileDir,
               forceSharedFormat: opts.forceSharedLockfile,
-              useInlineSpecifiersFormat: opts.useInlineSpecifiersLockfileFormat,
+              useInlineSpecifiersFormat: opts.useInlineSpecifiersLockfileFormat || opts.useLockfileV6,
               useGitBranchLockfile: opts.useGitBranchLockfile,
               mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
             })
@@ -886,7 +889,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   const depsStateCache: DepsStateCache = {}
   const lockfileOpts = {
     forceSharedFormat: opts.forceSharedLockfile,
-    useInlineSpecifiersFormat: opts.useInlineSpecifiersLockfileFormat,
+    useInlineSpecifiersFormat: opts.useInlineSpecifiersLockfileFormat || opts.useLockfileV6,
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }

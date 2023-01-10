@@ -30,7 +30,7 @@ export function tryGetPackageId (registries: Registries, relDepPath: string) {
   if (relDepPath[0] !== '/') {
     return null
   }
-  const sepIndex = relDepPath.indexOf('(', relDepPath.lastIndexOf('/'))
+  const sepIndex = relDepPath.indexOf('(')
   if (sepIndex !== -1) {
     return resolve(registries, relDepPath.slice(0, sepIndex))
   }
