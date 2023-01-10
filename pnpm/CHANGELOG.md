@@ -1,5 +1,11 @@
 # pnpm
 
+## 7.24.1
+
+### Patch Changes
+
+- The new lockfile format should not be broken on repeat install.
+
 ## 7.24.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/dependency-path
 
+## 1.1.1
+
+### Patch Changes
+
+- 0f6e95872: The new lockfile format should not be broken on repeat install.
+
 ## 1.1.0
 
 ### Minor Changes

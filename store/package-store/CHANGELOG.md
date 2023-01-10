@@ -1,5 +1,11 @@
 # @pnpm/package-store
 
+## 15.1.1
+
+### Patch Changes
+
+- @pnpm/package-requester@20.1.1
+
 ## 15.1.0
 
 ### Minor Changes
