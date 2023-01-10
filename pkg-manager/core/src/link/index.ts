@@ -103,7 +103,9 @@ export async function link (
 
   const updatedCurrentLockfile = pruneSharedLockfile(ctx.currentLockfile)
 
-  const warn = (message: string) => logger.warn({ message, prefix: opts.dir })
+  const warn = (message: string) => {
+    logger.warn({ message, prefix: opts.dir })
+  }
   const updatedWantedLockfile = pruneSharedLockfile(ctx.wantedLockfile, { warn })
 
   // Linking should happen after removing orphans

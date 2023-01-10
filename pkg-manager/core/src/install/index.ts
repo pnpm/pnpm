@@ -996,7 +996,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     }
 
-    const binWarn = (prefix: string, message: string) => logger.info({ message, prefix })
+    const binWarn = (prefix: string, message: string) => {
+      logger.info({ message, prefix })
+    }
     if (result.newDepPaths?.length) {
       const newPkgs = props<string, DependenciesGraphNode>(result.newDepPaths, dependenciesGraph)
       await linkAllBins(newPkgs, dependenciesGraph, {

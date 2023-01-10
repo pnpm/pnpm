@@ -28,6 +28,7 @@
             }
         }
     ],
+    "@typescript-eslint/consistent-indexed-object-style": "off",
     "@typescript-eslint/naming-convention": "error",
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/no-explicit-any": "error",

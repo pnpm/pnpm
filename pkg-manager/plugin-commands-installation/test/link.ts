@@ -72,7 +72,9 @@ test('link global bin', async function () {
   })
   process.env[PATH] = oldPath
 
-  await isExecutable((value) => expect(value).toBeTruthy(), path.join(globalBin, 'package-with-bin'))
+  await isExecutable((value) => {
+    expect(value).toBeTruthy()
+  }, path.join(globalBin, 'package-with-bin'))
 })
 
 test('link to global bin from the specified directory', async function () {
@@ -99,7 +101,9 @@ test('link to global bin from the specified directory', async function () {
   })
   process.env[PATH] = oldPath
 
-  await isExecutable((value) => expect(value).toBeTruthy(), path.join(globalBin, 'package-with-bin-in-dir'))
+  await isExecutable((value) => {
+    expect(value).toBeTruthy()
+  }, path.join(globalBin, 'package-with-bin-in-dir'))
 })
 
 test('link a global package to the specified directory', async function () {

@@ -17,7 +17,11 @@ import { getWantedLockfileName } from './lockfileName'
 import { convertToInlineSpecifiersFormat } from './experiments/inlineSpecifiersLockfileConverters'
 
 async function writeFileAtomic (filename: string, data: string) {
-  return new Promise<void>((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err?: Error) => (err != null) ? reject(err) : resolve()))
+  return new Promise<void>((resolve, reject) => {
+    writeFileAtomicCB(filename, data, {}, (err?: Error) => {
+      (err != null) ? reject(err) : resolve()
+    })
+  })
 }
 
 const LOCKFILE_YAML_FORMAT = {

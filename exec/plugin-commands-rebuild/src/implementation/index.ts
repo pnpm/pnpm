@@ -269,7 +269,9 @@ async function _rebuild (
     groups: [nodesToBuildAndTransitiveArray],
   })
   const chunks = graphSequencerResult.chunks as string[][]
-  const warn = (message: string) => logger.info({ message, prefix: opts.dir })
+  const warn = (message: string) => {
+    logger.info({ message, prefix: opts.dir })
+  }
   const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath)).map((depPath) =>
     async () => {
       const pkgSnapshot = pkgSnapshots[depPath]

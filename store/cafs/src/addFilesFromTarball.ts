@@ -38,7 +38,9 @@ export async function addFilesFromTarball (
       next()
     })
     // listener
-    extract.on('finish', () => resolve())
+    extract.on('finish', () => {
+      resolve()
+    })
     extract.on('error', reject)
 
     // pipe through extractor

@@ -96,12 +96,14 @@ export function requireHooks (
 
 function createReadPackageHookContext (calledFrom: string, prefix: string, hook: string): HookContext {
   return {
-    log: (message: string) => hookLogger.debug({
-      from: calledFrom,
-      hook,
-      message,
-      prefix,
-    }),
+    log: (message: string) => {
+      hookLogger.debug({
+        from: calledFrom,
+        hook,
+        message,
+        prefix,
+      })
+    },
   }
 }
 

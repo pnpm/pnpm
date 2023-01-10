@@ -49,7 +49,7 @@ export async function fromRegistry (
 ): Promise<PackageMeta> {
   const uri = toUri(pkgName, registry)
   const op = retry.operation(fetchOpts.retry)
-  return new Promise((resolve, reject) =>
+  return new Promise((resolve, reject) => {
     op.attempt(async (attempt) => {
       let response: RegistryResponse
       try {
@@ -94,7 +94,7 @@ export async function fromRegistry (
         })
       }
     })
-  )
+  })
 }
 
 function toUri (pkgName: string, registry: string) {

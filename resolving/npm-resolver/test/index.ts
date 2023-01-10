@@ -27,7 +27,9 @@ const brokenIntegrity = loadJsonFile.sync<any>(f.find('broken-integrity.json'))
 
 const registry = 'https://registry.npmjs.org/'
 
-const delay = async (time: number) => new Promise<void>((resolve) => setTimeout(() => resolve(), time))
+const delay = async (time: number) => new Promise<void>((resolve) => setTimeout(() => {
+  resolve()
+}, time))
 
 const fetch = createFetchFromRegistry({})
 const getAuthHeader = () => undefined
