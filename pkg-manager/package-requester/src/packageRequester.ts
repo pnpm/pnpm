@@ -505,7 +505,9 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
             })
             if (manifest != null) {
               manifest()
-                .then((manifest) => bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest)))
+                .then((manifest) => {
+                  bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest))
+                })
                 .catch(bundledManifest.reject)
             }
             finishing.resolve(undefined)
@@ -532,7 +534,9 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
         : undefined
       if (fetchManifest != null) {
         fetchManifest()
-          .then((manifest) => bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest)))
+          .then((manifest) => {
+            bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest))
+          })
           .catch(bundledManifest.reject)
       }
       const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(

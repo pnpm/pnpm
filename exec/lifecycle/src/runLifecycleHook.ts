@@ -78,7 +78,9 @@ export async function runLifecycleHook (
       showProgress: noop,
       silly: npmLog,
       verbose: npmLog,
-      warn: (...msg: string[]) => globalWarn(msg.join(' ')),
+      warn: (...msg: string[]) => {
+        globalWarn(msg.join(' '))
+      },
     },
     runConcurrently: true,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,

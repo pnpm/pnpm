@@ -139,7 +139,9 @@ test('keep dependencies used by others', async () => {
   const lockfile = await project.readLockfile() as Lockfile
   expect(isEmpty(lockfile.packages)).toBeFalsy()
 
-  Object.entries(lockfile.packages ?? {}).forEach(([depPath, dep]) => expect(dep.dev).toBeTruthy())
+  Object.entries(lockfile.packages ?? {}).forEach(([_, dep]) => {
+    expect(dep.dev).toBeTruthy()
+  })
 
   await store.handler({
     cacheDir,

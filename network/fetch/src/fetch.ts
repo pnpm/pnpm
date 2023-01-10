@@ -35,36 +35,38 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
   })
 
   try {
-    return await new Promise((resolve, reject) => op.attempt(async (attempt) => {
-      try {
-        // this will be retried
-        const res = await nodeFetch(url as any, opts) // eslint-disable-line
-        // A retry on 409 sometimes helps when making requests to the Bit registry.
-        if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
-          throw new ResponseError(res)
-        } else {
-          resolve(res)
-          return
+    return await new Promise((resolve, reject) => {
+      op.attempt(async (attempt) => {
+        try {
+          // this will be retried
+          const res = await nodeFetch(url as any, opts) // eslint-disable-line
+          // A retry on 409 sometimes helps when making requests to the Bit registry.
+          if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
+            throw new ResponseError(res)
+          } else {
+            resolve(res)
+            return
+          }
+        } catch (error: any) { // eslint-disable-line
+          if (error.code && NO_RETRY_ERROR_CODES.has(error.code)) {
+            throw error
+          }
+          const timeout = op.retry(error)
+          if (timeout === false) {
+            reject(op.mainError())
+            return
+          }
+          requestRetryLogger.debug({
+            attempt,
+            error,
+            maxRetries,
+            method: opts.method ?? 'GET',
+            timeout,
+            url: url.toString(),
+          })
         }
-      } catch (error: any) { // eslint-disable-line
-        if (error.code && NO_RETRY_ERROR_CODES.has(error.code)) {
-          throw error
-        }
-        const timeout = op.retry(error)
-        if (timeout === false) {
-          reject(op.mainError())
-          return
-        }
-        requestRetryLogger.debug({
-          attempt,
-          error,
-          maxRetries,
-          method: opts.method ?? 'GET',
-          timeout,
-          url: url.toString(),
-        })
-      }
-    }))
+      })
+    })
   } catch (err) {
     if (err instanceof ResponseError) {
       return err.res

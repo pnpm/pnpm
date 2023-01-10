@@ -48,7 +48,9 @@ export function updateLockfile (
       lockfileIncludeTarballUrl,
     })
   }
-  const warn = (message: string) => logger.warn({ message, prefix })
+  const warn = (message: string) => {
+    logger.warn({ message, prefix })
+  }
   return {
     newLockfile: pruneSharedLockfile(lockfile, { warn }),
     pendingRequiresBuilds,

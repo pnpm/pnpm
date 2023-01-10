@@ -19,6 +19,8 @@ export function parseJsonStream (
   deferred: DeferredManifestPromise
 ) {
   stream.pipe(
-    concatStream((buffer) => parseJsonBuffer(buffer, deferred))
+    concatStream((buffer) => {
+      parseJsonBuffer(buffer, deferred)
+    })
   )
 }

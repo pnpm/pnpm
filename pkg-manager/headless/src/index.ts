@@ -622,7 +622,9 @@ async function linkBinsOfImporter (
   },
   { extraNodePaths, preferSymlinkedExecutables }: { extraNodePaths?: string[], preferSymlinkedExecutables?: boolean } = {}
 ) {
-  const warn = (message: string) => logger.info({ message, prefix: rootDir })
+  const warn = (message: string) => {
+    logger.info({ message, prefix: rootDir })
+  }
   return linkBins(modulesDir, binsDir, {
     extraNodePaths,
     allowExoticManifests: true,

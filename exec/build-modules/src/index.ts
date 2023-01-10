@@ -43,7 +43,9 @@ export async function buildModules (
     hoistedLocations?: Record<string, string[]>
   }
 ) {
-  const warn = (message: string) => logger.warn({ message, prefix: opts.lockfileDir })
+  const warn = (message: string) => {
+    logger.warn({ message, prefix: opts.lockfileDir })
+  }
   // postinstall hooks
 
   const buildDepOpts = { ...opts, warn }

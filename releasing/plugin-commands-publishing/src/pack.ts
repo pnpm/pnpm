@@ -165,6 +165,8 @@ async function packPkg (opts: {
   pack.pipe(createGzip()).pipe(tarball)
   pack.finalize()
   return new Promise((resolve, reject) => {
-    tarball.on('close', () => resolve()).on('error', reject)
+    tarball.on('close', () => {
+      resolve()
+    }).on('error', reject)
   })
 }
