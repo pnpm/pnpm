@@ -55,8 +55,9 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
       })
     },
     release (p: string, fd: number, cb: (exitCode: number) => void) {
-      // eslint-disable-next-line n/no-callback-literal
-      fs.close(fd, (err) => cb((err != null) ? -1 : 0))
+      fs.close(fd, (err) => {
+        cb((err != null) ? -1 : 0) // eslint-disable-line n/no-callback-literal
+      })
     },
     read (p: string, fd: number, buffer: Buffer, length: number, position: number, cb: (readBytes: number) => void) {
       fs.read(fd, buffer, position, length, position, (err, bytesRead) => {
