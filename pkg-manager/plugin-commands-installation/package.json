@@ -89,7 +89,7 @@
     "@zkochan/table": "^1.0.0",
     "@zkochan/which": "^2.0.3",
     "chalk": "^4.1.2",
-    "ci-info": "^3.7.0",
+    "ci-info": "^3.7.1",
     "enquirer": "^2.3.6",
     "is-subdir": "^1.2.0",
     "load-json-file": "^6.2.0",

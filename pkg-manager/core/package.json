@@ -87,7 +87,7 @@
     "@types/semver": "7.3.13",
     "@types/sinon": "^10.0.13",
     "@yarnpkg/core": "4.0.0-rc.27",
-    "ci-info": "^3.7.0",
+    "ci-info": "^3.7.1",
     "deep-require-cwd": "1.0.0",
     "execa": "npm:safe-execa@0.1.2",
     "exists-link": "2.0.0",
