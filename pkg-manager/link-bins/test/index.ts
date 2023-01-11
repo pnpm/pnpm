@@ -12,6 +12,7 @@ import isWindows from 'is-windows'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import tempy from 'tempy'
+import { spawnSync } from 'child_process'
 
 jest.mock('@pnpm/logger', () => {
   const debug = jest.fn()
@@ -68,6 +69,34 @@ test('linkBins()', async () => {
     const stat = await fs.stat(binFile)
     expect(stat.mode).toBe(parseInt('100755', 8))
     expect(stat.isFile()).toBe(true)
+  }
+})
+
+test('linkBins() should work when prefer-symlinked-executables enabled', async () => {
+  const binTarget = tempy.directory()
+  const warn = jest.fn()
+  const simpleFixture = f.prepare('simple-fixture')
+
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn, preferSymlinkedExecutables: true })
+
+  expect(warn).not.toHaveBeenCalled()
+  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
+  const binLocation = path.join(binTarget, 'simple')
+  expect(await exists(binLocation)).toBe(true)
+  const content = await fs.readFile(binLocation, 'utf8')
+  if (IS_WINDOWS) {
+    expect(content).toMatch('node_modules/simple/index.js')
+  } else {
+    expect(content).toMatch('console.log(\'hello_world\')')
+  }
+
+  if (EXECUTABLE_SHEBANG_SUPPORTED) {
+    const binFile = path.join(binTarget, 'simple')
+    const stat = await fs.stat(binFile)
+    expect(stat.mode).toBe(parseInt('100755', 8))
+    expect(stat.isFile()).toBe(true)
+    const stdout = spawnSync(binFile).stdout.toString('utf-8')
+    expect(stdout).toMatch('hello_world')
   }
 })
 
