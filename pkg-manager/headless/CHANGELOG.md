@@ -1,5 +1,15 @@
 # @pnpm/headless
 
+## 19.4.4
+
+### Patch Changes
+
+- Updated dependencies [1e6de89b6]
+  - @pnpm/package-requester@20.1.2
+  - @pnpm/symlink-dependency@6.0.3
+  - @pnpm/lifecycle@14.1.5
+  - @pnpm/link-bins@8.0.6
+
 ## 19.4.3
 
 ### Patch Changes

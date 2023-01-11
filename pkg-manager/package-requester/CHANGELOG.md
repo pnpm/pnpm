@@ -1,5 +1,13 @@
 # @pnpm/package-requester
 
+## 20.1.2
+
+### Patch Changes
+
+- 1e6de89b6: Update ssri to v10.0.1.
+- Updated dependencies [1e6de89b6]
+  - @pnpm/cafs@5.0.6
+
 ## 20.1.1
 
 ### Patch Changes

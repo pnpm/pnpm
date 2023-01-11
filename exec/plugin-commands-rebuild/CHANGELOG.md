@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-rebuild
 
+## 7.0.25
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@5.2.3
+- @pnpm/config@16.4.3
+- @pnpm/cli-utils@1.0.25
+- @pnpm/fs.hard-link-dir@1.0.0
+- @pnpm/find-workspace-packages@5.0.25
+- @pnpm/lifecycle@14.1.5
+- @pnpm/link-bins@8.0.6
+
 ## 7.0.24
 
 ### Patch Changes

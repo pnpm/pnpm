@@ -1,5 +1,15 @@
 # @pnpm/package-store
 
+## 15.1.2
+
+### Patch Changes
+
+- 1e6de89b6: Update ssri to v10.0.1.
+- Updated dependencies [1e6de89b6]
+  - @pnpm/package-requester@20.1.2
+  - @pnpm/cafs@5.0.6
+  - @pnpm/create-cafs-store@3.1.2
+
 ## 15.1.1
 
 ### Patch Changes

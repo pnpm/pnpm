@@ -1,5 +1,19 @@
 # @pnpm/core
 
+## 7.6.3
+
+### Patch Changes
+
+- 9d425962f: Don't break lockfile v6 on repeat install if `use-lockfile-v6` is not set to `true`.
+- Updated dependencies [1e6de89b6]
+  - @pnpm/package-requester@20.1.2
+  - @pnpm/headless@19.4.4
+  - @pnpm/resolve-dependencies@29.2.2
+  - @pnpm/symlink-dependency@6.0.3
+  - @pnpm/crypto.base32-hash@1.0.1
+  - @pnpm/lifecycle@14.1.5
+  - @pnpm/link-bins@8.0.6
+
 ## 7.6.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 15.0.6
+
+### Patch Changes
+
+- 1e6de89b6: Update ssri to v10.0.1.
+
 ## 15.0.5
 
 ### Patch Changes

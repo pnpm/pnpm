@@ -1,5 +1,12 @@
 # @pnpm/tarball-fetcher
 
+## 14.1.1
+
+### Patch Changes
+
+- 1e6de89b6: Update ssri to v10.0.1.
+  - @pnpm/prepare-package@4.1.0
+
 ## 14.1.0
 
 ### Minor Changes

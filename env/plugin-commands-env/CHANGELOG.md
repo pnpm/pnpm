@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-env
 
+## 3.1.19
+
+### Patch Changes
+
+- @pnpm/node.fetcher@2.0.9
+- @pnpm/node.resolver@1.1.6
+- @pnpm/config@16.4.3
+- @pnpm/cli-utils@1.0.25
+
 ## 3.1.18
 
 ### Patch Changes
