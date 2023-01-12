@@ -1131,6 +1131,11 @@ async function resolveDependency (
   if (ctx.readPackageHook != null) {
     pkg = await ctx.readPackageHook(pkg)
   }
+
+  if (!pkg.dependencies) {
+    pkg.dependencies = {}
+  }
+
   if (pkg.peerDependencies && pkg.dependencies) {
     if (ctx.autoInstallPeers) {
       pkg = {
