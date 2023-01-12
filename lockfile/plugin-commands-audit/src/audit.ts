@@ -221,7 +221,7 @@ ${JSON.stringify(newOverrides, null, 2)}`,
       ['Package', advisory.module_name],
       ['Vulnerable versions', advisory.vulnerable_versions],
       ['Patched versions', advisory.patched_versions],
-      ['Path', advisory.findings.map(({ paths }) => paths).flat().join('\n\n')],
+      ['Paths', advisory.findings.map(({ paths }) => paths).flat().join('\n')],
       ['More info', advisory.url],
     ], TABLE_OPTIONS)
   }
