@@ -4,11 +4,13 @@ import {
   CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
+import { parseWantedDependency, ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
+
+export { ParseWantedDependencyResult }
 
 export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'registries'>
 
-export async function writePackage (pkg: string, dest: string, opts: WritePackageOptions) {
+export async function writePackage (pkg: string, dest: string, opts: WritePackageOptions): Promise<ParseWantedDependencyResult> {
   const dep = parseWantedDependency(pkg)
   const store = await createOrConnectStoreController({
     ...opts,
@@ -26,4 +28,5 @@ export async function writePackage (pkg: string, dest: string, opts: WritePackag
     filesResponse,
     force: true,
   })
+  return dep
 }

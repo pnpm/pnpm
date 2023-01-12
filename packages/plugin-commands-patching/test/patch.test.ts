@@ -112,6 +112,78 @@ describe('patch and commit', () => {
 
     expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
   })
+
+  test('should reuse existing patch file by default', async () => {
+    let output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    let patchDir = getPatchDirFromPatchOutput(output)
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+    fs.unlinkSync(path.join(patchDir, 'license'))
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+    })
+    expect(fs.existsSync('patches/is-positive@1.0.0.patch')).toBe(true)
+
+    // re-patch
+    output = await patch.handler({ ...defaultPatchOption, rootProjectManifest: manifest }, ['is-positive@1.0.0'])
+    patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(fs.existsSync(patchDir)).toBe(true)
+    expect(fs.existsSync(path.join(patchDir, 'license'))).toBe(false)
+    expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).toContain('// test patching')
+  })
+
+  test('if the patch file is not existed when patching, should throw an error', async () => {
+    const { writeProjectManifest, manifest } = await readProjectManifest(process.cwd())
+    await writeProjectManifest({
+      ...manifest,
+      pnpm: {
+        patchedDependencies: {
+          'is-positive@1.0.0': 'patches/not-found.patch',
+        },
+      },
+    })
+
+    try {
+      await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    } catch (err: any) { // eslint-disable-line
+      expect(err.code).toBe('ERR_PNPM_PATCH_FILE_NOT_FOUND')
+    }
+  })
+
+  test('should ignore patch files with --ignore-patches', async () => {
+    let output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    let patchDir = getPatchDirFromPatchOutput(output)
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+    fs.unlinkSync(path.join(patchDir, 'license'))
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+    })
+    expect(fs.existsSync('patches/is-positive@1.0.0.patch')).toBe(true)
+
+    // re-patch with --ignore-patches
+    output = await patch.handler({ ...defaultPatchOption, ignoreExisting: true }, ['is-positive@1.0.0'])
+    patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(fs.existsSync(patchDir)).toBe(true)
+    expect(fs.existsSync(path.join(patchDir, 'license'))).toBe(true)
+    expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).not.toContain('// test patching')
+  })
 })
 
 describe('patching should work when there is a no EOL in the patched file', () => {

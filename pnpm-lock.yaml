@@ -897,9 +897,6 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../../fs/hard-link-dir
@@ -915,6 +912,9 @@ importers:
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
+      '@pnpm/patching.apply-patch':
+        specifier: workspace:*
+        version: link:../../patching/apply-patch
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -927,9 +927,6 @@ importers:
       p-defer:
         specifier: ^3.0.0
         version: 3.0.0
-      patch-package:
-        specifier: ^6.5.1
-        version: 6.5.1
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
@@ -2394,6 +2391,9 @@ importers:
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../parse-wanted-dependency
+      '@pnpm/patching.apply-patch':
+        specifier: workspace:*
+        version: link:../../patching/apply-patch
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
@@ -2501,6 +2501,19 @@ importers:
         version: 1.1.4
     devDependencies:
       '@pnpm/which-version-is-pinned':
+        specifier: workspace:*
+        version: 'link:'
+
+  patching/apply-patch:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      patch-package:
+        specifier: ^6.5.1
+        version: 6.5.1
+    devDependencies:
+      '@pnpm/patching.apply-patch':
         specifier: workspace:*
         version: 'link:'
 

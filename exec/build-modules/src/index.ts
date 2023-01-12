@@ -1,16 +1,15 @@
 import path from 'path'
 import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
+import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { DependencyManifest } from '@pnpm/types'
 import pDefer, { DeferredPromise } from 'p-defer'
-import { applyPatch } from 'patch-package/dist/applyPatches'
 import pickBy from 'ramda/src/pickBy'
 import runGroups from 'run-groups'
 import { buildSequence, DependenciesGraph, DependenciesGraphNode } from './buildSequence'
@@ -106,7 +105,7 @@ async function buildDependency (
     await linkBinsOfDependencies(depNode, depGraph, opts)
     const isPatched = depNode.patchFile?.path != null
     if (isPatched) {
-      applyPatchToDep(depNode.dir, depNode.patchFile!.path)
+      applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: depNode.patchFile!.path })
     }
     const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
       depPath,
@@ -176,21 +175,6 @@ async function buildDependency (
     if (opts.builtHoistedDeps) {
       opts.builtHoistedDeps[depNode.depPath].resolve()
     }
-  }
-}
-
-function applyPatchToDep (patchDir: string, patchFilePath: string) {
-  // Ideally, we would just run "patch" or "git apply".
-  // However, "patch" is not available on Windows and "git apply" is hard to execute on a subdirectory of an existing repository
-  const cwd = process.cwd()
-  process.chdir(patchDir)
-  const success = applyPatch({
-    patchFilePath,
-    patchDir,
-  })
-  process.chdir(cwd)
-  if (!success) {
-    throw new PnpmError('PATCH_FAILED', `Could not apply patch ${patchFilePath} to ${patchDir}`)
   }
 }
 

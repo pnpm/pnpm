@@ -19,10 +19,10 @@
       "path": "../../packages/core-loggers"
     },
     {
-      "path": "../../packages/error"
+      "path": "../../packages/types"
     },
     {
-      "path": "../../packages/types"
+      "path": "../../patching/apply-patch"
     },
     {
       "path": "../../pkg-manager/link-bins"

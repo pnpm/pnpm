@@ -1,13 +1,18 @@
 import validateNpmPackageName from 'validate-npm-package-name'
 
-interface ParsedWantedDependency {
+export interface ParsedWantedDependency {
   alias: string
   pref: string
 }
 
-export function parseWantedDependency (
-  rawWantedDependency: string
-): Partial<ParsedWantedDependency> & (Omit<ParsedWantedDependency, 'pref'> | Omit<ParsedWantedDependency, 'alias'> | ParsedWantedDependency) {
+export type ParseWantedDependencyResult = Partial<ParsedWantedDependency> &
+(
+  Omit<ParsedWantedDependency, 'pref'>
+  | Omit<ParsedWantedDependency, 'alias'>
+  | ParsedWantedDependency
+)
+
+export function parseWantedDependency (rawWantedDependency: string): ParseWantedDependencyResult {
   const versionDelimiter = rawWantedDependency.indexOf('@', 1) // starting from 1 to skip the @ that marks scope
   if (versionDelimiter !== -1) {
     const alias = rawWantedDependency.slice(0, versionDelimiter)

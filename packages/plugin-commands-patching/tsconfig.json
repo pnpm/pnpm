@@ -22,6 +22,9 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
+      "path": "../../patching/apply-patch"
+    },
+    {
       "path": "../../pkg-manager/plugin-commands-installation"
     },
     {
