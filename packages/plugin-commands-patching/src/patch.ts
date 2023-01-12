@@ -1,4 +1,6 @@
 import fs from 'fs'
+import path from 'path'
+import { applyPatchToDep } from '@pnpm/build-modules'
 import { docsUrl } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
 import { LogBase } from '@pnpm/logger'
@@ -9,7 +11,7 @@ import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
 import { PnpmError } from '@pnpm/error'
-import { writePackage } from './writePackage'
+import { writePackage, ParseWantedDependencyResult } from './writePackage'
 
 export function rcOptionsTypes () {
   return pick([], allTypes)
@@ -46,7 +48,7 @@ export function help () {
   })
 }
 
-export type PatchCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir' | 'rootProjectManifest'> & CreateStoreControllerOptions & {
+export type PatchCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir' | 'rootProjectManifest' | 'lockfileDir'> & CreateStoreControllerOptions & {
   editDir?: string
   reporter?: (logObj: LogBase) => void
   ignoreExisting?: boolean
@@ -57,8 +59,43 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
     throw new PnpmError('PATCH_EDIT_DIR_EXISTS', `The target directory already exists: '${opts.editDir}'`)
   }
   const editDir = opts.editDir ?? tempy.directory()
-  await writePackage(params[0], editDir, opts)
+  const patchedDep = await writePackage(params[0], editDir, opts)
+  if (!opts.ignoreExisting && opts.rootProjectManifest?.pnpm?.patchedDependencies) {
+    tryPatchWithExistingPatchFile({
+      patchedDep,
+      patchedDir: editDir,
+      patchedDependencies: opts.rootProjectManifest.pnpm.patchedDependencies,
+      lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
+    })
+  }
   return `You can now edit the following folder: ${editDir}
 
 Once you're done with your changes, run "pnpm patch-commit ${editDir}"`
+}
+
+function tryPatchWithExistingPatchFile (
+  {
+    patchedDep,
+    patchedDir,
+    patchedDependencies,
+    lockfileDir,
+  }: {
+    patchedDep: ParseWantedDependencyResult
+    patchedDir: string
+    patchedDependencies: Record<string, string>
+    lockfileDir: string
+  }
+) {
+  if (!patchedDep.alias || !patchedDep.pref) {
+    return
+  }
+  const existingPatchFile = patchedDependencies[`${patchedDep.alias}@${patchedDep.pref}`]
+  if (!existingPatchFile) {
+    return
+  }
+  const existingPatchFilePath = path.resolve(lockfileDir, existingPatchFile)
+  if (!fs.existsSync(existingPatchFilePath)) {
+    throw new PnpmError('PATCH_FILE_NOT_FOUND', `Unable to find patch file ${existingPatchFilePath}`)
+  }
+  applyPatchToDep(patchedDir, existingPatchFilePath)
 }

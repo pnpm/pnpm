@@ -37,10 +37,7 @@ export async function handler (opts: install.InstallCommandOptions, params: stri
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
   const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
   const srcDir = tempy.directory()
-  await writePackage(pkgNameAndVersion, srcDir, {
-    ...opts,
-    isCommit: true,
-  })
+  await writePackage(pkgNameAndVersion, srcDir, opts)
   const patchContent = await diffFolders(srcDir, userDir)
   const patchFileName = pkgNameAndVersion.replace('/', '__')
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')

@@ -1,22 +1,16 @@
-
-import path from 'path'
-import fs from 'fs'
 import { Config } from '@pnpm/config'
 import {
   createOrConnectStoreController,
   CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import { applyPatchToDep } from '@pnpm/build-modules'
-import { PnpmError } from '@pnpm/error'
+import { parseWantedDependency, ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 
-export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'registries' | 'rootProjectManifest' | 'lockfileDir'> & {
-  isCommit?: boolean
-  ignoreExisting?: boolean
-}
+export { ParseWantedDependencyResult }
 
-export async function writePackage (pkg: string, dest: string, opts: WritePackageOptions) {
+export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'registries'>
+
+export async function writePackage (pkg: string, dest: string, opts: WritePackageOptions): Promise<ParseWantedDependencyResult> {
   const dep = parseWantedDependency(pkg)
   const store = await createOrConnectStoreController({
     ...opts,
@@ -34,13 +28,5 @@ export async function writePackage (pkg: string, dest: string, opts: WritePackag
     filesResponse,
     force: true,
   })
-  if (opts.isCommit === true || opts.ignoreExisting === true || !dep.alias || !dep.pref) return
-  const existingPatchFile = opts.rootProjectManifest?.pnpm?.patchedDependencies?.[`${dep.alias}@${dep.pref}`]
-  if (!existingPatchFile) return
-  const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
-  const existingPatchFilePath = path.resolve(lockfileDir, existingPatchFile)
-  if (!fs.existsSync(existingPatchFilePath)) {
-    throw new PnpmError('PATCH_FILE_NOT_FOUND', `Unable to find patch file ${existingPatchFilePath}`)
-  }
-  applyPatchToDep(dest, existingPatchFilePath)
+  return dep
 }
