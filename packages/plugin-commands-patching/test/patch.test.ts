@@ -113,7 +113,7 @@ describe('patch and commit', () => {
     expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
   })
 
-  test('should reuse existed patch file by default', async () => {
+  test('should reuse existing patch file by default', async () => {
     let output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     let patchDir = getPatchDirFromPatchOutput(output)
 
