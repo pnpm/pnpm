@@ -39,10 +39,10 @@
     "@types/ramda": "0.28.20"
   },
   "dependencies": {
-    "@pnpm/build-modules": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/patching.apply-patch": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",

@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { applyPatchToDep } from '@pnpm/build-modules'
+import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { docsUrl } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
 import { LogBase } from '@pnpm/logger'
@@ -97,5 +97,5 @@ function tryPatchWithExistingPatchFile (
   if (!fs.existsSync(existingPatchFilePath)) {
     throw new PnpmError('PATCH_FILE_NOT_FOUND', `Unable to find patch file ${existingPatchFilePath}`)
   }
-  applyPatchToDep(patchedDir, existingPatchFilePath)
+  applyPatchToDir({ patchedDir, patchFilePath: existingPatchFilePath })
 }

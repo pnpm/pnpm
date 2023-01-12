@@ -22,7 +22,7 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
-      "path": "../../exec/build-modules"
+      "path": "../../patching/apply-patch"
     },
     {
       "path": "../../pkg-manager/plugin-commands-installation"
