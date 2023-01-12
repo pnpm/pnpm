@@ -469,9 +469,14 @@ test('pnpm run with custom shell', async () => {
 test('pnpm run with multiple script selector should work', async () => {
   prepare({
     scripts: {
-      'build:a': 'node -e "require(\'fs\').writeFileSync(\'./output-a.txt\', \'a\', \'utf8\')"',
-      'build:b': 'node -e "require(\'fs\').writeFileSync(\'./output-b.txt\', \'b\', \'utf8\')"',
-      'build:c': 'node -e "require(\'fs\').writeFileSync(\'./output-c.txt\', \'c\', \'utf8\')"',
+      'build:a': 'node -e "require(\'fs\').writeFileSync(\'./output-build-a.txt\', \'a\', \'utf8\')"',
+      'build:b': 'node -e "require(\'fs\').writeFileSync(\'./output-build-b.txt\', \'b\', \'utf8\')"',
+      'build:c': 'node -e "require(\'fs\').writeFileSync(\'./output-build-c.txt\', \'c\', \'utf8\')"',
+      build: 'node -e "require(\'fs\').writeFileSync(\'./output-build-a.txt\', \'should not run\', \'utf8\')"',
+      'lint:a': 'node -e "require(\'fs\').writeFileSync(\'./output-lint-a.txt\', \'a\', \'utf8\')"',
+      'lint:b': 'node -e "require(\'fs\').writeFileSync(\'./output-lint-b.txt\', \'b\', \'utf8\')"',
+      'lint:c': 'node -e "require(\'fs\').writeFileSync(\'./output-lint-c.txt\', \'c\', \'utf8\')"',
+      lint: 'node -e "require(\'fs\').writeFileSync(\'./output-lint-a.txt\', \'should not run\', \'utf8\')"',
     },
   })
 
@@ -482,9 +487,20 @@ test('pnpm run with multiple script selector should work', async () => {
     rawConfig: {},
   }, ['build:*'])
 
-  expect(await fs.readFile('output-a.txt', { encoding: 'utf-8' })).toEqual('a')
-  expect(await fs.readFile('output-b.txt', { encoding: 'utf-8' })).toEqual('b')
-  expect(await fs.readFile('output-c.txt', { encoding: 'utf-8' })).toEqual('c')
+  expect(await fs.readFile('output-build-a.txt', { encoding: 'utf-8' })).toEqual('a')
+  expect(await fs.readFile('output-build-b.txt', { encoding: 'utf-8' })).toEqual('b')
+  expect(await fs.readFile('output-build-c.txt', { encoding: 'utf-8' })).toEqual('c')
+
+  await run.handler({
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    rawConfig: {},
+  }, ['lint:*'])
+
+  expect(await fs.readFile('output-lint-a.txt', { encoding: 'utf-8' })).toEqual('a')
+  expect(await fs.readFile('output-lint-b.txt', { encoding: 'utf-8' })).toEqual('b')
+  expect(await fs.readFile('output-lint-c.txt', { encoding: 'utf-8' })).toEqual('c')
 })
 
 test('pnpm run with multiple script selector should work also for pre/post script', async () => {
