@@ -231,7 +231,7 @@ async function validateModules (
     throw new PnpmError(
       'PUBLIC_HOIST_PATTERN_DIFF',
       'This modules directory was created using a different public-hoist-pattern value.' +
-      ' Run "pnpm install" to recreate the modules directory.'
+      ' Run "pnpm install --force" to recreate the modules directory.'
     )
   }
   let purged = false
@@ -242,7 +242,7 @@ async function validateModules (
         throw new PnpmError(
           'HOIST_PATTERN_DIFF',
           'This modules directory was created using a different hoist-pattern value.' +
-          ' Run "pnpm install" to recreate the modules directory.'
+          ' Run "pnpm install --force" to recreate the modules directory.'
         )
       }
     } catch (err: any) { // eslint-disable-line
