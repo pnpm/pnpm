@@ -1,3 +1,4 @@
+import pathExists from 'path-exists'
 import path from 'path'
 import {
   Lockfile,
@@ -181,7 +182,12 @@ async function fetchDeps (
     const depLocation = path.relative(opts.lockfileDir, dir)
     const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
     let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
-    const skipFetch = opts.currentHoistedLocations?.[depPath]?.includes(depLocation)
+    // We check for the existence of the package inside node_modules.
+    // It will only be missing if the user manually removed it.
+    // That shouldn't normally happen but Bit CLI does remove node_modules in component directories:
+    // https://github.com/teambit/bit/blob/5e1eed7cd122813ad5ea124df956ee89d661d770/scopes/dependencies/dependency-resolver/dependency-installer.ts#L169
+    const skipFetch = opts.currentHoistedLocations?.[depPath]?.includes(depLocation) &&
+      await pathExists(path.join(opts.lockfileDir, depLocation))
     const pkgResolution = {
       id: packageId,
       resolution,
