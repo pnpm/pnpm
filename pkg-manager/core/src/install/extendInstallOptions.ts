@@ -121,6 +121,7 @@ export interface StrictInstallOptions {
   resolveSymlinksInInjectedDirs: boolean
   dedupeDirectDeps: boolean
   useLockfileV6?: boolean
+  extendNodePath: boolean
 }
 
 export type InstallOptions =
@@ -207,6 +208,7 @@ const defaults = async (opts: InstallOptions) => {
     resolveSymlinksInInjectedDirs: false,
     dedupeDirectDeps: false,
     resolvePeersFromWorkspaceRoot: false,
+    extendNodePath: true,
   } as StrictInstallOptions
 }
 

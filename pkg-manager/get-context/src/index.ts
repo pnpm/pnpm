@@ -74,6 +74,7 @@ export interface GetContextOptions {
   forceSharedLockfile: boolean
   frozenLockfile?: boolean
   extraBinPaths: string[]
+  extendNodePath?: boolean
   lockfileDir: string
   modulesDir?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
@@ -153,7 +154,7 @@ export async function getContext (
   const hoistPattern = importersContext.currentHoistPattern ?? opts.hoistPattern
   const ctx: PnpmContext = {
     extraBinPaths,
-    extraNodePaths: getExtraNodePaths({ nodeLinker: opts.nodeLinker, hoistPattern, virtualStoreDir }),
+    extraNodePaths: getExtraNodePaths({ extendNodePath: opts.extendNodePath, nodeLinker: opts.nodeLinker, hoistPattern, virtualStoreDir }),
     hoistedDependencies: importersContext.hoistedDependencies,
     hoistedModulesDir,
     hoistPattern,
@@ -371,6 +372,7 @@ export async function getContextForSingleImporter (
     forceNewModules?: boolean
     forceSharedLockfile: boolean
     extraBinPaths: string[]
+    extendNodePath?: boolean
     lockfileDir: string
     nodeLinker: 'isolated' | 'hoisted' | 'pnp'
     modulesDir?: string
@@ -457,7 +459,7 @@ export async function getContextForSingleImporter (
   const hoistPattern = currentHoistPattern ?? opts.hoistPattern
   const ctx: PnpmSingleContext = {
     extraBinPaths,
-    extraNodePaths: getExtraNodePaths({ nodeLinker: opts.nodeLinker, hoistPattern, virtualStoreDir }),
+    extraNodePaths: getExtraNodePaths({ extendNodePath: opts.extendNodePath, nodeLinker: opts.nodeLinker, hoistPattern, virtualStoreDir }),
     hoistedDependencies,
     hoistedModulesDir,
     hoistPattern,
@@ -506,13 +508,14 @@ export async function getContextForSingleImporter (
 }
 
 function getExtraNodePaths (
-  { hoistPattern, nodeLinker, virtualStoreDir }: {
+  { extendNodePath = true, hoistPattern, nodeLinker, virtualStoreDir }: {
+    extendNodePath?: boolean
     hoistPattern?: string[]
     nodeLinker: 'isolated' | 'hoisted' | 'pnp'
     virtualStoreDir: string
   }
 ) {
-  if (nodeLinker === 'isolated' && hoistPattern?.length) {
+  if (extendNodePath && nodeLinker === 'isolated' && hoistPattern?.length) {
     return [path.join(virtualStoreDir, 'node_modules')]
   }
   return []
