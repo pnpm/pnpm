@@ -1,5 +1,15 @@
 # @pnpm/config
 
+## 16.5.0
+
+### Minor Changes
+
+- 28b47a156: When `extend-node-path` is set to `false`, the `NODE_PATH` environment variable is not set in the command shims [#5910](https://github.com/pnpm/pnpm/pull/5910)
+
+### Patch Changes
+
+- @pnpm/pnpmfile@4.0.24
+
 ## 16.4.3
 
 ### Patch Changes

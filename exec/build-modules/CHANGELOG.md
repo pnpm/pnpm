@@ -1,5 +1,14 @@
 # @pnpm/build-modules
 
+## 10.1.2
+
+### Patch Changes
+
+- Updated dependencies [2ae1c449d]
+- Updated dependencies [4008a5236]
+  - @pnpm/patching.apply-patch@1.0.0
+  - @pnpm/link-bins@8.0.7
+
 ## 10.1.1
 
 ### Patch Changes

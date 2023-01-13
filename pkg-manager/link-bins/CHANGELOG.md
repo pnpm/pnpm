@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 8.0.7
+
+### Patch Changes
+
+- 4008a5236: Ensure the permission of bin file when `prefer-symlinked-executables` is set to `true` [#5913](https://github.com/pnpm/pnpm/pull/5913).
+
 ## 8.0.6
 
 ### Patch Changes

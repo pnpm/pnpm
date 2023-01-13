@@ -1,5 +1,13 @@
 # @pnpm/hooks.read-package-hook
 
+## 2.0.11
+
+### Patch Changes
+
+- Updated dependencies [2ae1c449d]
+  - @pnpm/parse-wanted-dependency@4.1.0
+  - @pnpm/parse-overrides@3.0.3
+
 ## 2.0.10
 
 ### Patch Changes

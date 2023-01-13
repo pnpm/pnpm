@@ -1,5 +1,17 @@
 # pnpm
 
+## 7.25.0
+
+### Minor Changes
+
+- When patching a dependency that is already patched, the existing patch is applied to the dependency, so that the new edit are applied on top of the existing ones. To ignore the existing patches, run the patch command with the `--ignore-existing` option [#5632](https://github.com/pnpm/pnpm/issues/5632).
+- When `extend-node-path` is set to `false`, the `NODE_PATH` environment variable is not set in the command shims [#5910](https://github.com/pnpm/pnpm/pull/5910)
+
+### Patch Changes
+
+- Ensure the permission of bin file when `prefer-symlinked-executables` is set to `true` [#5913](https://github.com/pnpm/pnpm/pull/5913).
+- If an external tool or a user have removed a package from node_modules, pnpm should add it back on install. This was only an issue with `node-linker=hoisted`.
+
 ## 7.24.3
 
 ### Patch Changes

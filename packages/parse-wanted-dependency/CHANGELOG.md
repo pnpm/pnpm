@@ -1,5 +1,11 @@
 # @pnpm/parse-wanted-dependency
 
+## 4.1.0
+
+### Minor Changes
+
+- 2ae1c449d: Export `ParseWantedDependencyResult`.
+
 ## 4.0.1
 
 ### Patch Changes

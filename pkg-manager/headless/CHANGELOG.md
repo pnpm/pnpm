@@ -1,5 +1,15 @@
 # @pnpm/headless
 
+## 19.4.5
+
+### Patch Changes
+
+- bc8df3787: If an external tool or a user have removed a package from node_modules, pnpm should add it back on install. This was only an issue with `node-linker=hoisted`.
+- Updated dependencies [4008a5236]
+  - @pnpm/link-bins@8.0.7
+  - @pnpm/build-modules@10.1.2
+  - @pnpm/hoist@7.0.11
+
 ## 19.4.4
 
 ### Patch Changes

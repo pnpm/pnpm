@@ -1,5 +1,21 @@
 # @pnpm/core
 
+## 7.6.4
+
+### Patch Changes
+
+- Updated dependencies [2ae1c449d]
+- Updated dependencies [28b47a156]
+- Updated dependencies [4008a5236]
+- Updated dependencies [bc8df3787]
+  - @pnpm/parse-wanted-dependency@4.1.0
+  - @pnpm/get-context@8.2.0
+  - @pnpm/link-bins@8.0.7
+  - @pnpm/headless@19.4.5
+  - @pnpm/hooks.read-package-hook@2.0.11
+  - @pnpm/build-modules@10.1.2
+  - @pnpm/hoist@7.0.11
+
 ## 7.6.3
 
 ### Patch Changes

@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-patching
 
+## 2.1.0
+
+### Minor Changes
+
+- 2ae1c449d: apply existing patch file when re-patch [#5632](https://github.com/pnpm/pnpm/issues/5632)
+
+### Patch Changes
+
+- Updated dependencies [2ae1c449d]
+- Updated dependencies [2ae1c449d]
+- Updated dependencies [28b47a156]
+  - @pnpm/parse-wanted-dependency@4.1.0
+  - @pnpm/patching.apply-patch@1.0.0
+  - @pnpm/config@16.5.0
+  - @pnpm/plugin-commands-installation@11.3.4
+  - @pnpm/cli-utils@1.0.26
+  - @pnpm/store-connection-manager@5.2.4
+
 ## 2.0.25
 
 ### Patch Changes
