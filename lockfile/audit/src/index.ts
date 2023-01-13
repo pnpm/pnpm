@@ -1,3 +1,4 @@
+import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { AgentOptions, fetchWithAgent, RetryTimeoutOptions } from '@pnpm/fetch'
 import { GetAuthHeader } from '@pnpm/fetching-types'
@@ -5,6 +6,7 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
 import { lockfileToAuditTree } from './lockfileToAuditTree'
 import { AuditReport } from './types'
+import { searchPackages, flatten } from '@pnpm/list'
 
 export * from './types'
 
@@ -44,7 +46,11 @@ export async function audit (
   if (res.status !== 200) {
     throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
   }
-  return res.json() as Promise<AuditReport>
+  return fixFindingPaths(await (res.json() as Promise<AuditReport>), {
+    lockfile,
+    lockfileDir: opts.lockfileDir,
+    include: opts.include,
+  })
 }
 
 function getAuthHeaders (authHeaderValue: string | undefined) {
@@ -53,6 +59,43 @@ function getAuthHeaders (authHeaderValue: string | undefined) {
     headers['authorization'] = authHeaderValue
   }
   return headers
+}
+
+async function fixFindingPaths (auditReport: AuditReport, opts: {
+  lockfile: Lockfile
+  lockfileDir: string
+  include?: { [dependenciesField in DependenciesField]: boolean }
+}): Promise<AuditReport> {
+  const { advisories } = auditReport
+  if (Object.keys(advisories).length) {
+    const prefixes = Object.keys(opts.lockfile.importers).map(importer => path.join(opts.lockfileDir, importer))
+    for (const { findings, module_name: moduleName } of Object.values(advisories)) {
+      for (const finding of findings) {
+        finding.paths = await searchPackagePaths([`${moduleName}@${finding.version}`], prefixes, {
+          lockfileDir: opts.lockfileDir,
+          depth: Infinity,
+          include: opts.include,
+        })
+      }
+    }
+  }
+  return auditReport
+}
+
+async function searchPackagePaths (packages: string[], projectPaths: string[], searchOpts: {
+  lockfileDir: string
+  depth: number
+  include?: { [dependenciesField in DependenciesField]: boolean }
+}) {
+  const pkgs = await searchPackages(packages, projectPaths, searchOpts)
+
+  return pkgs
+    .map(pkg => [path.relative(searchOpts.lockfileDir, pkg.path) || '.', ...(flatten([
+      ...(pkg.optionalDependencies ?? []),
+      ...(pkg.dependencies ?? []),
+      ...(pkg.devDependencies ?? []),
+      ...(pkg.unsavedDependencies ?? []),
+    ]).map((pkg) => `${pkg.name}@${pkg.version}`))].join('>'))
 }
 
 export class AuditEndpointNotExistsError extends PnpmError {

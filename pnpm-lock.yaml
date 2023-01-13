@@ -1652,6 +1652,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/list':
+        specifier: workspace:*
+        version: link:../../reviewing/list
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../lockfile-types
@@ -2015,6 +2018,9 @@ importers:
       '@pnpm/plugin-commands-audit':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/plugin-commands-installation':
+        specifier: workspace:*
+        version: link:../../pkg-manager/plugin-commands-installation
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures

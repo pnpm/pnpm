@@ -7,6 +7,8 @@ import { renderParseable } from './renderParseable'
 import { renderTree } from './renderTree'
 import { PackageDependencyHierarchy } from './types'
 
+export { flatten } from './renderParseable'
+
 const DEFAULTS = {
   alwaysPrintRootPackage: true,
   depth: 0,
@@ -14,6 +16,41 @@ const DEFAULTS = {
   registries: undefined,
   reportAs: 'tree' as const,
   showExtraneous: true,
+}
+
+export async function searchPackages (
+  packages: string[],
+  projectPaths: string[],
+  opts: {
+    depth: number
+    lockfileDir: string
+    include?: { [dependenciesField in DependenciesField]: boolean }
+    onlyProjects?: boolean
+    registries?: Registries
+  }
+) {
+  const search = createPackagesSearcher(packages)
+
+  return Promise.all(
+    Object.entries(await buildDependenciesHierarchy(projectPaths, {
+      depth: opts.depth,
+      include: opts.include,
+      lockfileDir: opts.lockfileDir,
+      onlyProjects: opts.onlyProjects,
+      registries: opts.registries,
+      search,
+    }))
+      .map(async ([projectPath, buildDependenciesHierarchy]) => {
+        const entryPkg = await readProjectManifestOnly(projectPath)
+        return {
+          name: entryPkg.name,
+          version: entryPkg.version,
+
+          path: projectPath,
+          ...buildDependenciesHierarchy,
+        } as PackageDependencyHierarchy
+      })
+  )
 }
 
 export async function listForPackages (
@@ -32,28 +69,7 @@ export async function listForPackages (
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
 
-  const search = createPackagesSearcher(packages)
-
-  const pkgs = await Promise.all(
-    Object.entries(await buildDependenciesHierarchy(projectPaths, {
-      depth: opts.depth,
-      include: maybeOpts?.include,
-      lockfileDir: maybeOpts?.lockfileDir,
-      onlyProjects: maybeOpts?.onlyProjects,
-      registries: opts.registries,
-      search,
-    }))
-      .map(async ([projectPath, buildDependenciesHierarchy]) => {
-        const entryPkg = await readProjectManifestOnly(projectPath)
-        return {
-          name: entryPkg.name,
-          version: entryPkg.version,
-
-          path: projectPath,
-          ...buildDependenciesHierarchy,
-        } as PackageDependencyHierarchy
-      })
-  )
+  const pkgs = await searchPackages(packages, projectPaths, opts)
 
   const print = getPrinter(opts.reportAs)
   return print(pkgs, {
