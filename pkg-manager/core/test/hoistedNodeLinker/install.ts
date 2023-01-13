@@ -3,6 +3,7 @@ import path from 'path'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
+import rimraf from '@zkochan/rimraf'
 import { sync as loadJsonFile } from 'load-json-file'
 import { sync as readYamlFile } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
@@ -11,13 +12,14 @@ import { testDefaults } from '../utils'
 test('installing with hoisted node-linker', async () => {
   prepareEmpty()
 
-  await install({
+  const manifest = {
     dependencies: {
       send: '0.17.2',
       'has-flag': '1.0.0',
       ms: '1.0.0',
     },
-  }, await testDefaults({
+  }
+  await install(manifest, await testDefaults({
     nodeLinker: 'hoisted',
   }))
 
@@ -27,6 +29,13 @@ test('installing with hoisted node-linker', async () => {
   expect(fs.existsSync('node_modules/send/node_modules/ms')).toBeTruthy()
 
   expect(readYamlFile<{ nodeLinker: string }>('node_modules/.modules.yaml').nodeLinker).toBe('hoisted')
+
+  // If a package from node_modules is removed, it should be re-added.
+  await rimraf('node_modules/send')
+  await install(manifest, await testDefaults({
+    nodeLinker: 'hoisted',
+  }))
+  expect(fs.realpathSync('node_modules/send')).toEqual(path.resolve('node_modules/send'))
 })
 
 test('installing with hoisted node-linker and no lockfile', async () => {
