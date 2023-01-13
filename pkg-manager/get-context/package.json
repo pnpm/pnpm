@@ -31,8 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/get-context#readme",
   "devDependencies": {
     "@pnpm/get-context": "workspace:*",
-    "@types/ramda": "0.28.20",
-    "tempy": "^1.0.1"
+    "@types/ramda": "0.28.20"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

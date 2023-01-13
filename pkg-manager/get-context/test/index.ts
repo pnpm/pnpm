@@ -1,17 +1,14 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import { getContext } from '@pnpm/get-context'
-import tempy from 'tempy'
 import path from 'path'
 import { GetContextOptions } from '../src'
-
-const tmp = tempy.directory()
 
 const DEFAULT_OPTIONS: GetContextOptions = {
   allProjects: [],
   extraBinPaths: [],
   force: false,
   forceSharedLockfile: false,
-  lockfileDir: path.join(tmp, 'lockfile'),
+  lockfileDir: path.join(__dirname, 'lockfile'),
   nodeLinker: 'isolated',
   hoistPattern: ['*'],
   registries: { default: '' },
@@ -21,7 +18,7 @@ const DEFAULT_OPTIONS: GetContextOptions = {
     devDependencies: true,
     optionalDependencies: true,
   },
-  storeDir: path.join(tmp, 'store'),
+  storeDir: path.join(__dirname, 'store'),
 }
 
 test('getContext - extendNodePath false', async () => {
