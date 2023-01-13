@@ -778,7 +778,7 @@ test('should add extra node paths to command shims', async () => {
   await addDependenciesToPackage({}, ['@pnpm.e2e/hello-world-js-bin'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   const cmdShim = fs.readFileSync(path.join('node_modules', '.bin', 'hello-world-js-bin'), 'utf8')
-  expect(cmdShim).toContain(path.resolve('node_modules/.pnpm/node_modules'))
+  expect(cmdShim).toContain('node_modules/.pnpm/node_modules')
 })
 
 test('should not add extra node paths to command shims, when extend-node-path is set to false', async () => {
@@ -792,5 +792,5 @@ test('should not add extra node paths to command shims, when extend-node-path is
 
   const cmdShim = fs.readFileSync(path.join('node_modules', '.bin', 'hello-world-js-bin'), 'utf8')
   console.log(cmdShim)
-  expect(cmdShim).not.toContain(path.resolve('node_modules/.pnpm/node_modules'))
+  expect(cmdShim).not.toContain('node_modules/.pnpm/node_modules')
 })
