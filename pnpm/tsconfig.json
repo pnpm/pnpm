@@ -82,13 +82,13 @@
       "path": "../packages/plugin-commands-init"
     },
     {
-      "path": "../packages/plugin-commands-patching"
-    },
-    {
       "path": "../packages/plugin-commands-setup"
     },
     {
       "path": "../packages/types"
+    },
+    {
+      "path": "../patching/plugin-commands-patching"
     },
     {
       "path": "../pkg-manager/client"

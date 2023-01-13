@@ -2374,70 +2374,6 @@ importers:
         specifier: ^6.2.0
         version: 6.2.0
 
-  packages/plugin-commands-patching:
-    dependencies:
-      '@pnpm/cli-utils':
-        specifier: workspace:*
-        version: link:../../cli/cli-utils
-      '@pnpm/config':
-        specifier: workspace:*
-        version: link:../../config/config
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../error
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@pnpm/parse-wanted-dependency':
-        specifier: workspace:*
-        version: link:../parse-wanted-dependency
-      '@pnpm/patching.apply-patch':
-        specifier: workspace:*
-        version: link:../../patching/apply-patch
-      '@pnpm/pick-registry-for-package':
-        specifier: workspace:*
-        version: link:../../config/pick-registry-for-package
-      '@pnpm/plugin-commands-installation':
-        specifier: workspace:*
-        version: link:../../pkg-manager/plugin-commands-installation
-      '@pnpm/read-package-json':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-package-json
-      '@pnpm/read-project-manifest':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-project-manifest
-      '@pnpm/store-connection-manager':
-        specifier: workspace:*
-        version: link:../../store/store-connection-manager
-      escape-string-regexp:
-        specifier: ^4.0.0
-        version: 4.0.0
-      ramda:
-        specifier: npm:@pnpm/ramda@0.28.1
-        version: /@pnpm/ramda@0.28.1
-      render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
-      safe-execa:
-        specifier: ^0.1.3
-        version: 0.1.3
-      tempy:
-        specifier: ^1.0.1
-        version: 1.0.1
-    devDependencies:
-      '@pnpm/plugin-commands-patching':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../__utils__/prepare
-      '@pnpm/registry-mock':
-        specifier: 3.2.0
-        version: 3.2.0(typanion@3.12.1)
-      '@types/ramda':
-        specifier: 0.28.20
-        version: 0.28.20
-
   packages/plugin-commands-setup:
     dependencies:
       '@pnpm/cli-utils':
@@ -2516,6 +2452,70 @@ importers:
       '@pnpm/patching.apply-patch':
         specifier: workspace:*
         version: 'link:'
+
+  patching/plugin-commands-patching:
+    dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:*
+        version: link:../../cli/cli-utils
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/parse-wanted-dependency':
+        specifier: workspace:*
+        version: link:../../packages/parse-wanted-dependency
+      '@pnpm/patching.apply-patch':
+        specifier: workspace:*
+        version: link:../apply-patch
+      '@pnpm/pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
+      '@pnpm/plugin-commands-installation':
+        specifier: workspace:*
+        version: link:../../pkg-manager/plugin-commands-installation
+      '@pnpm/read-package-json':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-package-json
+      '@pnpm/read-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-project-manifest
+      '@pnpm/store-connection-manager':
+        specifier: workspace:*
+        version: link:../../store/store-connection-manager
+      escape-string-regexp:
+        specifier: ^4.0.0
+        version: 4.0.0
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda@0.28.1
+      render-help:
+        specifier: ^1.0.2
+        version: 1.0.2
+      safe-execa:
+        specifier: ^0.1.3
+        version: 0.1.3
+      tempy:
+        specifier: ^1.0.1
+        version: 1.0.1
+    devDependencies:
+      '@pnpm/plugin-commands-patching':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/registry-mock':
+        specifier: 3.2.0
+        version: 3.2.0(typanion@3.12.1)
+      '@types/ramda':
+        specifier: 0.28.20
+        version: 0.28.20
 
   pkg-manager/client:
     dependencies:
@@ -4052,7 +4052,7 @@ importers:
         version: link:../reviewing/plugin-commands-outdated
       '@pnpm/plugin-commands-patching':
         specifier: workspace:*
-        version: link:../packages/plugin-commands-patching
+        version: link:../patching/plugin-commands-patching
       '@pnpm/plugin-commands-publishing':
         specifier: workspace:*
         version: link:../releasing/plugin-commands-publishing

@@ -22,7 +22,10 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
-      "path": "../../patching/apply-patch"
+      "path": "../../packages/error"
+    },
+    {
+      "path": "../../packages/parse-wanted-dependency"
     },
     {
       "path": "../../pkg-manager/plugin-commands-installation"
@@ -37,10 +40,7 @@
       "path": "../../store/store-connection-manager"
     },
     {
-      "path": "../error"
-    },
-    {
-      "path": "../parse-wanted-dependency"
+      "path": "../apply-patch"
     }
   ]
 }
