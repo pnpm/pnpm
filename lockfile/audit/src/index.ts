@@ -6,7 +6,8 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
 import { lockfileToAuditTree } from './lockfileToAuditTree'
 import { AuditReport } from './types'
-import { searchPackages, flatten } from '@pnpm/list'
+import { searchPackages } from '@pnpm/list'
+import { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 
 export * from './types'
 
@@ -88,14 +89,28 @@ async function searchPackagePaths (packages: string[], projectPaths: string[], s
   include?: { [dependenciesField in DependenciesField]: boolean }
 }) {
   const pkgs = await searchPackages(packages, projectPaths, searchOpts)
+  const paths: string[] = []
 
-  return pkgs
-    .map(pkg => [path.relative(searchOpts.lockfileDir, pkg.path) || '.', ...(flatten([
+  function _walker (packages: PackageNode[], depPath: string) {
+    for (const pkg of packages) {
+      const nextDepPath = `${depPath}>${pkg.name}@${pkg.version}`
+      if (pkg.dependencies?.length) {
+        _walker(pkg.dependencies, nextDepPath)
+      } else {
+        paths.push(nextDepPath)
+      }
+    }
+  }
+
+  for (const pkg of pkgs) {
+    _walker([
       ...(pkg.optionalDependencies ?? []),
       ...(pkg.dependencies ?? []),
       ...(pkg.devDependencies ?? []),
       ...(pkg.unsavedDependencies ?? []),
-    ]).map((pkg) => `${pkg.name}@${pkg.version}`))].join('>'))
+    ], path.relative(searchOpts.lockfileDir, pkg.path) || '.')
+  }
+  return paths
 }
 
 export class AuditEndpointNotExistsError extends PnpmError {

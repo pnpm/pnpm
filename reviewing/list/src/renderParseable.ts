@@ -61,7 +61,7 @@ function renderParseableForPackage (
 
 interface PackageInfo {name: string, version: string, path: string}
 
-export function flatten (
+function flatten (
   nodes: PackageNode[]
 ): PackageInfo[] {
   let packages: PackageInfo[] = []

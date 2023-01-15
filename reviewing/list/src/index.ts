@@ -7,8 +7,6 @@ import { renderParseable } from './renderParseable'
 import { renderTree } from './renderTree'
 import { PackageDependencyHierarchy } from './types'
 
-export { flatten } from './renderParseable'
-
 const DEFAULTS = {
   alwaysPrintRootPackage: true,
   depth: 0,
