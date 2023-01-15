@@ -233,3 +233,94 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
   })
   expect(lockfile.packages?.['/regenerator-runtime/0.13.9']?.dev).toBeFalsy()
 })
+
+test(
+  '--fix-lockfile should install successfully when package has no dependencies but has peer dependencies with version like /vite/4.0.4_@types+node@17.0.45',
+  async () => {
+    preparePackages([
+      {
+        location: '.',
+        package: { name: 'root' },
+      },
+      {
+        location: 'project-1',
+        package: { name: 'project-1', devDependencies: { vite: '4.0.4' } },
+      },
+      {
+        location: 'project-2',
+        package: { name: 'project-2', devDependencies: { vite: '4.0.4', '@types/node': '17.0.45', '@vitejs/plugin-basic-ssl': '1.0.1' } },
+      },
+    ])
+
+    const importers: MutatedProject[] = [
+      {
+        mutation: 'install',
+        rootDir: path.resolve('.'),
+      },
+      {
+        mutation: 'install',
+        rootDir: path.resolve('project-1'),
+      },
+      {
+        mutation: 'install',
+        rootDir: path.resolve('project-2'),
+      },
+    ]
+
+    const allProjects = [
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'root',
+          version: '1.0.0',
+        },
+        rootDir: path.resolve('.'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'project-1',
+          devDependencies: {
+            vite: '4.0.4',
+          },
+        },
+        rootDir: path.resolve('project-1'),
+      },
+      {
+        buildIndex: 0,
+        manifest: {
+          name: 'project-2',
+          devDependencies: {
+            vite: '4.0.4',
+            '@types/node': '17.0.45',
+            '@vitejs/plugin-basic-ssl': '1.0.1',
+          },
+        },
+        rootDir: path.resolve('project-2'),
+      },
+    ]
+
+    // install first time to generate lock file
+    await mutateModules(importers, await testDefaults({
+      // ignoreScripts to avoid install error
+      ignoreScripts: true,
+      allProjects,
+    }))
+
+    const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
+
+    // @vitejs/plugin-basic-ssl has no dependencies filed in package.json, but has peer dependencies vite
+    // @vitejs/plugin-basic-ssl in lockfile will have a dependencies { vite: "4.0.4_@types+node@17.0.45" }
+    // pnpm should resolve the version 4.0.4_@types+node@17.0.45 correctly when install with fixLockfile
+    expect(lockfile.packages?.['/@vitejs/plugin-basic-ssl/1.0.1_vite@4.0.4']).toBeTruthy()
+    expect(lockfile.packages?.['/@vitejs/plugin-basic-ssl/1.0.1_vite@4.0.4']?.dependencies?.vite).toBe('4.0.4_@types+node@17.0.45')
+
+    // install second time to check whether install successfully with lockfileOnly
+    await mutateModules(importers, await testDefaults({
+      fixLockfile: true,
+      lockfileOnly: true,
+      ignoreScripts: true,
+      allProjects,
+    }))
+  }
+)
