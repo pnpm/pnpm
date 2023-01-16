@@ -31,9 +31,6 @@
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
-      "path": "../../reviewing/dependencies-hierarchy"
-    },
-    {
       "path": "../../reviewing/list"
     },
     {

@@ -1683,9 +1683,6 @@ importers:
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../lockfile-file
-      '@pnpm/reviewing.dependencies-hierarchy':
-        specifier: workspace:*
-        version: link:../../reviewing/dependencies-hierarchy
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures

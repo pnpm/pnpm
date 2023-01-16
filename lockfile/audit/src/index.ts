@@ -3,12 +3,10 @@ import { PnpmError } from '@pnpm/error'
 import { AgentOptions, fetchWithAgent, RetryTimeoutOptions } from '@pnpm/fetch'
 import { GetAuthHeader } from '@pnpm/fetching-types'
 import { Lockfile } from '@pnpm/lockfile-types'
-import { DependenciesField } from '@pnpm/types'
+import { DependenciesField, PackageNode } from '@pnpm/types'
 import { lockfileToAuditTree } from './lockfileToAuditTree'
 import { AuditReport } from './types'
-import { searchPackages } from '@pnpm/list'
-import { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
-
+import { searchForPackages } from '@pnpm/list'
 export * from './types'
 
 export async function audit (
@@ -47,7 +45,7 @@ export async function audit (
   if (res.status !== 200) {
     throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
   }
-  return fixFindingPaths(await (res.json() as Promise<AuditReport>), {
+  return extendWithDependencyPaths(await (res.json() as Promise<AuditReport>), {
     lockfile,
     lockfileDir: opts.lockfileDir,
     include: opts.include,
@@ -62,17 +60,17 @@ function getAuthHeaders (authHeaderValue: string | undefined) {
   return headers
 }
 
-async function fixFindingPaths (auditReport: AuditReport, opts: {
+async function extendWithDependencyPaths (auditReport: AuditReport, opts: {
   lockfile: Lockfile
   lockfileDir: string
   include?: { [dependenciesField in DependenciesField]: boolean }
 }): Promise<AuditReport> {
   const { advisories } = auditReport
   if (Object.keys(advisories).length) {
-    const prefixes = Object.keys(opts.lockfile.importers).map(importer => path.join(opts.lockfileDir, importer))
+    const projectDirs = Object.keys(opts.lockfile.importers).map(importer => path.join(opts.lockfileDir, importer))
     for (const { findings, module_name: moduleName } of Object.values(advisories)) {
       for (const finding of findings) {
-        finding.paths = await searchPackagePaths([`${moduleName}@${finding.version}`], prefixes, {
+        finding.paths = await searchPackagePaths(`${moduleName}@${finding.version}`, projectDirs, {
           lockfileDir: opts.lockfileDir,
           depth: Infinity,
           include: opts.include,
@@ -83,12 +81,12 @@ async function fixFindingPaths (auditReport: AuditReport, opts: {
   return auditReport
 }
 
-async function searchPackagePaths (packages: string[], projectPaths: string[], searchOpts: {
+async function searchPackagePaths (pkg: string, projectDirs: string[], searchOpts: {
   lockfileDir: string
   depth: number
   include?: { [dependenciesField in DependenciesField]: boolean }
 }) {
-  const pkgs = await searchPackages(packages, projectPaths, searchOpts)
+  const pkgs = await searchForPackages([pkg], projectDirs, searchOpts)
   const paths: string[] = []
 
   function _walker (packages: PackageNode[], depPath: string) {

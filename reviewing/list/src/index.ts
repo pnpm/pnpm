@@ -16,7 +16,7 @@ const DEFAULTS = {
   showExtraneous: true,
 }
 
-export async function searchPackages (
+export async function searchForPackages (
   packages: string[],
   projectPaths: string[],
   opts: {
@@ -67,7 +67,7 @@ export async function listForPackages (
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
 
-  const pkgs = await searchPackages(packages, projectPaths, opts)
+  const pkgs = await searchForPackages(packages, projectPaths, opts)
 
   const print = getPrinter(opts.reportAs)
   return print(pkgs, {
