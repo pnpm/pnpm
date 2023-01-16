@@ -214,6 +214,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   if (manifest.name === CLI_PKG_NAME || manifest.name?.endsWith('/pnpm')) {
     files.push('dist')
     files.push('bin')
+    files.push('!*.map')
   } else {
     // the order is important
     files.push('lib')

@@ -13,7 +13,8 @@
   "unpkg": "dist/pnpm.cjs",
   "files": [
     "dist",
-    "bin"
+    "bin",
+    "!*.map"
   ],
   "optionalDependencies": {
     "node-gyp": "^9.3.1"
@@ -149,7 +150,7 @@
     "url": "git+https://github.com/pnpm/pnpm.git"
   },
   "scripts": {
-    "bundle": "cross-var esbuild lib/pnpm.js --bundle --platform=node --outfile=dist/pnpm.cjs --external:node-gyp --define:process.env.npm_package_name=\\\"$npm_package_name\\\" --define:process.env.npm_package_version=\\\"$npm_package_version\\\"",
+    "bundle": "cross-var esbuild lib/pnpm.js --bundle --platform=node --outfile=dist/pnpm.cjs --external:node-gyp --define:process.env.npm_package_name=\\\"$npm_package_name\\\" --define:process.env.npm_package_version=\\\"$npm_package_version\\\" --sourcemap",
     "start": "tsc --watch",
     "lint": "eslint src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
