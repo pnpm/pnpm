@@ -218,5 +218,4 @@ test('a corrupted side-effects cache is ignored', async () => {
   await install(manifest, opts2)
 
   expect(await exists(path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeTruthy() // side effects cache correctly used
-  expect(await exists(path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'))).toBeFalsy() // side effects cache correctly used
 })

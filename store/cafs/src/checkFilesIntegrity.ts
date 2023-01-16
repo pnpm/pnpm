@@ -28,21 +28,40 @@ export interface PackageFilesIndex {
   sideEffects?: Record<string, Record<string, PackageFileInfo>>
 }
 
+const verifiedFilesCache = new Set<string>()
+
+export async function checkFilesIntegrityAndClearSideEffects (
+  cafsDir: string,
+  pkgIndex: PackageFilesIndex,
+  manifest?: DeferredManifestPromise
+) {
+  const verified = await checkFilesIntegrity(cafsDir, pkgIndex.files, manifest)
+  if (!verified) return false
+  if (pkgIndex.sideEffects) {
+    for (const [sideEffectsKey, sideEffectsFiles] of Object.entries(pkgIndex.sideEffects)) {
+      if (!await checkFilesIntegrity(cafsDir, sideEffectsFiles)) {
+        delete pkgIndex.sideEffects[sideEffectsKey]
+      }
+    }
+  }
+  return true
+}
+
 export async function checkFilesIntegrity (
   cafsDir: string,
-  pkgIndex: Record<string, PackageFileInfo>,
+  files: Record<string, PackageFileInfo>,
   manifest?: DeferredManifestPromise
 ): Promise<boolean> {
   let verified = true
   await Promise.all(
-    Object.entries(pkgIndex)
+    Object.entries(files)
       .map(async ([f, fstat]) =>
         limit(async () => {
           if (!fstat.integrity) {
             throw new Error(`Integrity checksum is missing for ${f}`)
           }
           if (
-            !await verifyFile(
+            !await verifyFileCached(
               getFilePathByModeInCafs(cafsDir, fstat.integrity, fstat.mode),
               fstat,
               f === 'package.json' ? manifest : undefined
@@ -58,6 +77,15 @@ export async function checkFilesIntegrity (
 
 type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt'> & {
   integrity: string | ssri.IntegrityLike
+}
+
+async function verifyFileCached (
+  filename: string,
+  fstat: FileInfo,
+  deferredManifest?: DeferredManifestPromise
+): Promise<boolean> {
+  if (verifiedFilesCache.has(filename)) return true
+  return verifyFile(filename, fstat, deferredManifest)
 }
 
 async function verifyFile (

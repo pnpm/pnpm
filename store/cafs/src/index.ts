@@ -9,6 +9,7 @@ import { addFilesFromDir } from './addFilesFromDir'
 import { addFilesFromTarball } from './addFilesFromTarball'
 import {
   checkFilesIntegrity,
+  checkFilesIntegrityAndClearSideEffects,
   PackageFilesIndex,
   verifyFileIntegrity,
 } from './checkFilesIntegrity'
@@ -26,6 +27,7 @@ export { IntegrityLike } from 'ssri'
 
 export {
   checkFilesIntegrity,
+  checkFilesIntegrityAndClearSideEffects,
   readManifestFromStore,
   FileType,
   getFilePathByModeInCafs,
