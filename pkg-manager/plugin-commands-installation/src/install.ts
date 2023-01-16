@@ -215,7 +215,9 @@ by any dependencies, so it is an emulation of a flat node_modules',
             name: '--package-import-method clone',
           },
           {
-            description: 'Force reinstall dependencies: refetch packages modified in store, recreate a lockfile and/or modules directory created by a non-compatible version of pnpm',
+            description: 'Force reinstall dependencies: refetch packages modified in store, \
+recreate a lockfile and/or modules directory created by a non-compatible version of pnpm. \
+Install all optionalDependencies even they don\'t satisfy the current environment(cpu, os, arch)',
             name: '--force',
           },
           {
