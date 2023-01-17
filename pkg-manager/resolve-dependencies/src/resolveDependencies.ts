@@ -1128,14 +1128,12 @@ async function resolveDependency (
   let prepare!: boolean
   let hasBin!: boolean
   let pkg: PackageManifest = await getManifestFromResponse(pkgResponse, wantedDependency)
-  if (ctx.readPackageHook != null) {
-    pkg = await ctx.readPackageHook(pkg)
-  }
-
   if (!pkg.dependencies) {
     pkg.dependencies = {}
   }
-
+  if (ctx.readPackageHook != null) {
+    pkg = await ctx.readPackageHook(pkg)
+  }
   if (pkg.peerDependencies && pkg.dependencies) {
     if (ctx.autoInstallPeers) {
       pkg = {
