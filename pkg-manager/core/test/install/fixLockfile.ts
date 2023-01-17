@@ -233,3 +233,28 @@ test('--fix-lockfile should preserve all locked dependencies version', async () 
   })
   expect(lockfile.packages?.['/regenerator-runtime/0.13.9']?.dev).toBeFalsy()
 })
+
+test(
+  '--fix-lockfile should install successfully when package has no dependencies but has peer dependencies with version like 1.0.0_@pnpm+y@1.0.0',
+  async () => {
+    prepareEmpty()
+
+    const packages = {
+      dependencies: {
+        // @pnpm.e2e/has-has-y-peer-peer has no dependencies but has peer dependencies @pnpm.e2e/has-y-peer
+        // the version of @pnpm.e2e/has-y-peer will be 1.0.0_@pnpm+y@1.0.0
+        // version 1.0.0_@pnpm+y@1.0.0 should be parsed correctly
+        '@pnpm.e2e/has-has-y-peer-peer': '1.0.0',
+        '@pnpm.e2e/has-y-peer': '^1.0.0',
+        '@pnpm/y': '^1.0.0',
+      },
+    }
+    // install first time to generate lock file
+    await install(packages, await testDefaults())
+
+    // install second time to check whether install successfully with lockfileOnly
+    await install(packages, await testDefaults({
+      fixLockfile: true,
+    }))
+  }
+)
