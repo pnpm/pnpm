@@ -2,6 +2,9 @@ import path from 'path'
 import { promises as fs } from 'fs'
 
 export async function hardLinkDir (src: string, destDirs: string[]) {
+  if (destDirs.length === 0) return
+  // Don't try to hard link the source directory to itself
+  destDirs = destDirs.filter((destDir) => path.relative(destDir, src) !== '')
   const files = await fs.readdir(src)
   await Promise.all(
     files.map(async (file) => {
