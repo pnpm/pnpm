@@ -956,7 +956,7 @@ test('pnpm run with multiple script selector should work on recursive', async ()
       private: true,
     },
     workspaceDir: process.cwd(),
-  }, ['build:*'])
+  }, ['/^(lint|build):.*/'])
   expect(await fs.readFile('output-build-1-a.txt', { encoding: 'utf-8' })).toEqual('1-a')
   expect(await fs.readFile('output-build-1-b.txt', { encoding: 'utf-8' })).toEqual('1-b')
   expect(await fs.readFile('output-build-1-c.txt', { encoding: 'utf-8' })).toEqual('1-c')
@@ -967,17 +967,6 @@ test('pnpm run with multiple script selector should work on recursive', async ()
   expect(await fs.readFile('output-build-3-b.txt', { encoding: 'utf-8' })).toEqual('3-b')
   expect(await fs.readFile('output-build-3-c.txt', { encoding: 'utf-8' })).toEqual('3-c')
 
-  await run.handler({
-    ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), [{ namePattern: '*' }]),
-    dir: process.cwd(),
-    recursive: true,
-    rootProjectManifest: {
-      name: 'test-workspaces',
-      private: true,
-    },
-    workspaceDir: process.cwd(),
-  }, ['lint:*'])
   expect(await fs.readFile('output-lint-1-a.txt', { encoding: 'utf-8' })).toEqual('1-a')
   expect(await fs.readFile('output-lint-1-b.txt', { encoding: 'utf-8' })).toEqual('1-b')
   expect(await fs.readFile('output-lint-1-c.txt', { encoding: 'utf-8' })).toEqual('1-c')

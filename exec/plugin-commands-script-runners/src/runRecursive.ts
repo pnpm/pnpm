@@ -13,6 +13,7 @@ import realpathMissing from 'realpath-missing'
 import { existsInDir } from './existsInDir'
 import { getResumedPackageChunks } from './exec'
 import { runScript } from './run'
+import { buildRegExpFromCommand } from './regexp-command'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'
@@ -68,15 +69,14 @@ export async function runRecursive (
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
-  const multiScriptSelectorSpecified = scriptName.slice(-2) === ':*'
-  const multiScriptSelectorPrefix = scriptName.slice(0, -1)
+  const multiScriptSelectorRegExp = buildRegExpFromCommand(scriptName)
 
   const requiredScripts = opts.rootProjectManifest?.pnpm?.requiredScripts ?? []
   if (requiredScripts.includes(scriptName)) {
     const missingScriptPackages: string[] = packageChunks
       .flat()
       .map((prefix) => opts.selectedProjectsGraph[prefix])
-      .filter((pkg) => multiScriptSelectorSpecified ? !Object.keys(pkg.package.manifest.scripts ?? {}).some(script => script.startsWith(multiScriptSelectorPrefix) && script !== multiScriptSelectorPrefix) : !pkg.package.manifest.scripts?.[scriptName])
+      .filter((pkg) => multiScriptSelectorRegExp ? !Object.keys(pkg.package.manifest.scripts ?? {}).some(script => script.match(multiScriptSelectorRegExp)) : !pkg.package.manifest.scripts?.[scriptName])
       .map((pkg) => pkg.package.manifest.name ?? pkg.package.dir)
     if (missingScriptPackages.length) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in packages: ${missingScriptPackages.join(', ')}`)
@@ -85,17 +85,10 @@ export async function runRecursive (
 
   for (const chunk of packageChunks) {
     const selectedScripts = chunk.map(prefix => {
-      if (!multiScriptSelectorSpecified) {
-        return {
-          prefix,
-          scriptName,
-        }
-      }
-
       const pkg = opts.selectedProjectsGraph[prefix]
-      const specifiedScriptsWithSelector = Object.keys(pkg.package.manifest.scripts ?? {}).filter(script => script.startsWith(multiScriptSelectorPrefix) && script !== multiScriptSelectorPrefix)
+      const specifiedScripts = multiScriptSelectorRegExp ? Object.keys(pkg.package.manifest.scripts ?? {}).filter(script => script.match(multiScriptSelectorRegExp)) : [scriptName]
 
-      return specifiedScriptsWithSelector.map(script => ({ prefix, scriptName: script }))
+      return specifiedScripts.map(script => ({ prefix, scriptName: script }))
     }).flat()
 
     await Promise.all(selectedScripts.map(async ({ prefix, scriptName }) =>

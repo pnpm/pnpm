@@ -485,18 +485,11 @@ test('pnpm run with multiple script selector should work', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-  }, ['build:*'])
+  }, ['/^(lint|build):.*/'])
 
   expect(await fs.readFile('output-build-a.txt', { encoding: 'utf-8' })).toEqual('a')
   expect(await fs.readFile('output-build-b.txt', { encoding: 'utf-8' })).toEqual('b')
   expect(await fs.readFile('output-build-c.txt', { encoding: 'utf-8' })).toEqual('c')
-
-  await run.handler({
-    dir: process.cwd(),
-    extraBinPaths: [],
-    extraEnv: {},
-    rawConfig: {},
-  }, ['lint:*'])
 
   expect(await fs.readFile('output-lint-a.txt', { encoding: 'utf-8' })).toEqual('a')
   expect(await fs.readFile('output-lint-b.txt', { encoding: 'utf-8' })).toEqual('b')
@@ -517,7 +510,7 @@ test('pnpm run with multiple script selector should work also for pre/post scrip
     extraEnv: {},
     rawConfig: {},
     enablePrePostScripts: true,
-  }, ['build:*'])
+  }, ['/build:.*/'])
 
   expect(await fs.readFile('output-a.txt', { encoding: 'utf-8' })).toEqual('a')
   expect(await fs.readFile('output-pre-a.txt', { encoding: 'utf-8' })).toEqual('pre-a')
@@ -538,7 +531,7 @@ test('pnpm run with multiple script selector should work parallel as a default b
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-  }, ['build:*'])
+  }, ['/build:.*/'])
 
   const { default: outputsA } = await import(path.resolve('output-a.json'))
   const { default: outputsB } = await import(path.resolve('output-b.json'))
@@ -562,7 +555,7 @@ test('pnpm run with multiple script selector should work sequentially with --wor
     extraEnv: {},
     rawConfig: {},
     workspaceConcurrency: 1,
-  }, ['build:*'])
+  }, ['/build:.*/'])
 
   const { default: outputsA } = await import(path.resolve('output-a.json'))
   const { default: outputsB } = await import(path.resolve('output-b.json'))
