@@ -30,7 +30,7 @@ export interface PackageFilesIndex {
 
 const verifiedFilesCache = new Set<string>()
 
-export async function checkFilesIntegrityAndClearSideEffects (
+export async function checkPkgFilesIntegrity (
   cafsDir: string,
   pkgIndex: PackageFilesIndex,
   manifest?: DeferredManifestPromise
@@ -47,7 +47,7 @@ export async function checkFilesIntegrityAndClearSideEffects (
   return true
 }
 
-export async function checkFilesIntegrity (
+async function checkFilesIntegrity (
   cafsDir: string,
   files: Record<string, PackageFileInfo>,
   manifest?: DeferredManifestPromise

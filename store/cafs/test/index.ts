@@ -5,7 +5,7 @@ import path from 'path'
 import tempy from 'tempy'
 import {
   createCafs,
-  checkFilesIntegrity,
+  checkPkgFilesIntegrity,
   getFilePathInCafs,
 } from '../src'
 
@@ -45,14 +45,16 @@ describe('cafs', () => {
   })
 })
 
-describe('checkFilesIntegrity()', () => {
+describe('checkPkgFilesIntegrity()', () => {
   it("doesn't fail if file was removed from the store", async () => {
     const storeDir = tempy.directory()
-    expect(await checkFilesIntegrity(storeDir, {
-      foo: {
-        integrity: 'sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==',
-        mode: 420,
-        size: 10,
+    expect(await checkPkgFilesIntegrity(storeDir, {
+      files: {
+        foo: {
+          integrity: 'sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==',
+          mode: 420,
+          size: 10,
+        },
       },
     })).toBeFalsy()
   })

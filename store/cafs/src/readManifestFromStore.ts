@@ -1,6 +1,6 @@
 import type { DeferredManifestPromise } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
-import { PackageFilesIndex } from './checkFilesIntegrity'
+import { PackageFilesIndex } from './checkPkgFilesIntegrity'
 import { getFilePathByModeInCafs } from './getFilePathInCafs'
 import { parseJsonBuffer } from './parseJson'
 

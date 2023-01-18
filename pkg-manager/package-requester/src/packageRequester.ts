@@ -1,7 +1,7 @@
 import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
 import {
-  checkFilesIntegrityAndClearSideEffects as _checkFilesIntegrity,
+  checkPkgFilesIntegrity as _checkFilesIntegrity,
   readManifestFromStore as _readManifestFromStore,
   FileType,
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
