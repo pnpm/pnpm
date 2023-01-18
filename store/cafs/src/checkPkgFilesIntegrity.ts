@@ -70,8 +70,9 @@ async function checkFilesIntegrity (
             throw new Error(`Integrity checksum is missing for ${f}`)
           }
           const filename = getFilePathByModeInCafs(cafsDir, fstat.integrity, fstat.mode)
-          if (verifiedFilesCache.has(filename)) return
-          if (await verifyFile(filename, fstat, manifest)) {
+          const deferredManifest = manifest && f === 'package.json' ? manifest : undefined
+          if (!deferredManifest && verifiedFilesCache.has(filename)) return
+          if (await verifyFile(filename, fstat, deferredManifest)) {
             verifiedFilesCache.add(filename)
           } else {
             allVerified = false
