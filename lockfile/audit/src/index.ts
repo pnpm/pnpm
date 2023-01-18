@@ -3,10 +3,10 @@ import { PnpmError } from '@pnpm/error'
 import { AgentOptions, fetchWithAgent, RetryTimeoutOptions } from '@pnpm/fetch'
 import { GetAuthHeader } from '@pnpm/fetching-types'
 import { Lockfile } from '@pnpm/lockfile-types'
-import { DependenciesField, PackageNode } from '@pnpm/types'
+import { DependenciesField } from '@pnpm/types'
 import { lockfileToAuditTree } from './lockfileToAuditTree'
 import { AuditReport } from './types'
-import { searchForPackages } from '@pnpm/list'
+import { searchForPackages, PackageNode } from '@pnpm/list'
 export * from './types'
 
 export async function audit (
