@@ -31,6 +31,9 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../pkg-manager/plugin-commands-installation"
+    },
+    {
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
