@@ -1,14 +1,15 @@
-import type { DeferredManifestPromise, PackageFileInfo } from '@pnpm/cafs-types'
+import type { DeferredManifestPromise } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
+import { PackageFilesIndex } from './checkPkgFilesIntegrity'
 import { getFilePathByModeInCafs } from './getFilePathInCafs'
 import { parseJsonBuffer } from './parseJson'
 
 export async function readManifestFromStore (
   cafsDir: string,
-  pkgIndex: Record<string, PackageFileInfo>,
+  pkgIndex: PackageFilesIndex,
   deferredManifest?: DeferredManifestPromise
 ) {
-  const pkg = pkgIndex['package.json']
+  const pkg = pkgIndex.files['package.json']
 
   if (deferredManifest) {
     if (pkg) {

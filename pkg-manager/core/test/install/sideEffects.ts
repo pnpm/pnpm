@@ -1,7 +1,7 @@
-import { promises as fs, readFileSync } from 'fs'
+import { promises as fs, existsSync, readFileSync } from 'fs'
 import path from 'path'
-import { addDependenciesToPackage } from '@pnpm/core'
-import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'
+import { addDependenciesToPackage, install } from '@pnpm/core'
+import { getFilePathInCafs, getFilePathByModeInCafs, PackageFilesIndex } from '@pnpm/cafs'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { prepareEmpty } from '@pnpm/prepare'
 import { ENGINE_NAME } from '@pnpm/constants'
@@ -185,4 +185,37 @@ test('a postinstall script does not modify the original sources added to the sto
   expect(originalFileIntegrity).not.toEqual(patchedFileIntegrity)
 
   expect(readFileSync(getFilePathInCafs(cafsDir, originalFileIntegrity, 'nonexec'), 'utf8')).toEqual('')
+})
+
+test('a corrupted side-effects cache is ignored', async () => {
+  prepareEmpty()
+
+  const opts = await testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+  })
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'], opts)
+
+  const cafsDir = path.join(opts.storeDir, 'files')
+  const filesIndexFile = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
+  const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+  expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
+  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin/1.0.0': {} })}`
+  expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'generated-by-preinstall.js'])
+  const sideEffectFileStat = filesIndex.sideEffects![sideEffectsKey]['generated-by-preinstall.js']
+  const sideEffectFile = getFilePathByModeInCafs(cafsDir, sideEffectFileStat.integrity, sideEffectFileStat.mode)
+  expect(existsSync(sideEffectFile)).toBeTruthy()
+  await rimraf(sideEffectFile) // we remove the side effect file to break the store
+
+  await rimraf('node_modules')
+  const opts2 = await testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    storeDir: opts.storeDir,
+  })
+  await install(manifest, opts2)
+
+  expect(await exists(path.resolve('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))).toBeTruthy() // side effects cache correctly used
 })

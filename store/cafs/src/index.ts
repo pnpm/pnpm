@@ -8,10 +8,10 @@ import ssri from 'ssri'
 import { addFilesFromDir } from './addFilesFromDir'
 import { addFilesFromTarball } from './addFilesFromTarball'
 import {
-  checkFilesIntegrity,
+  checkPkgFilesIntegrity,
   PackageFilesIndex,
   verifyFileIntegrity,
-} from './checkFilesIntegrity'
+} from './checkPkgFilesIntegrity'
 import { readManifestFromStore } from './readManifestFromStore'
 import {
   getFilePathInCafs,
@@ -25,7 +25,7 @@ import { writeFile } from './writeFile'
 export { IntegrityLike } from 'ssri'
 
 export {
-  checkFilesIntegrity,
+  checkPkgFilesIntegrity,
   readManifestFromStore,
   FileType,
   getFilePathByModeInCafs,

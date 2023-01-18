@@ -28,32 +28,59 @@ export interface PackageFilesIndex {
   sideEffects?: Record<string, Record<string, PackageFileInfo>>
 }
 
-export async function checkFilesIntegrity (
+export async function checkPkgFilesIntegrity (
   cafsDir: string,
-  pkgIndex: Record<string, PackageFileInfo>,
+  pkgIndex: PackageFilesIndex,
+  manifest?: DeferredManifestPromise
+) {
+  // It might make sense to use this cache for all files in the store
+  // but there's a smaller chance that the same file will be checked twice
+  // so it's probably not worth the memory (this assumption should be verified)
+  const verifiedFilesCache = new Set<string>()
+  const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, cafsDir)
+  const verified = await _checkFilesIntegrity(pkgIndex.files, manifest)
+  if (!verified) return false
+  if (pkgIndex.sideEffects) {
+    // We verify all side effects cache. We could optimize it to verify only the side effects cache
+    // that satisfies the current os/arch/platform.
+    // However, it likely won't make a big difference.
+    await Promise.all(
+      Object.entries(pkgIndex.sideEffects).map(async ([sideEffectName, files]) => {
+        if (!await _checkFilesIntegrity(files)) {
+          delete pkgIndex.sideEffects![sideEffectName]
+        }
+      })
+    )
+  }
+  return true
+}
+
+async function checkFilesIntegrity (
+  verifiedFilesCache: Set<string>,
+  cafsDir: string,
+  files: Record<string, PackageFileInfo>,
   manifest?: DeferredManifestPromise
 ): Promise<boolean> {
-  let verified = true
+  let allVerified = true
   await Promise.all(
-    Object.entries(pkgIndex)
+    Object.entries(files)
       .map(async ([f, fstat]) =>
         limit(async () => {
           if (!fstat.integrity) {
             throw new Error(`Integrity checksum is missing for ${f}`)
           }
-          if (
-            !await verifyFile(
-              getFilePathByModeInCafs(cafsDir, fstat.integrity, fstat.mode),
-              fstat,
-              f === 'package.json' ? manifest : undefined
-            )
-          ) {
-            verified = false
+          const filename = getFilePathByModeInCafs(cafsDir, fstat.integrity, fstat.mode)
+          const deferredManifest = manifest && f === 'package.json' ? manifest : undefined
+          if (!deferredManifest && verifiedFilesCache.has(filename)) return
+          if (await verifyFile(filename, fstat, deferredManifest)) {
+            verifiedFilesCache.add(filename)
+          } else {
+            allVerified = false
           }
         })
       )
   )
-  return verified
+  return allVerified
 }
 
 type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt'> & {

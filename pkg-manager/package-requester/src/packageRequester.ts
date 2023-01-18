@@ -1,7 +1,7 @@
 import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
 import {
-  checkFilesIntegrity as _checkFilesIntegrity,
+  checkPkgFilesIntegrity as _checkFilesIntegrity,
   readManifestFromStore as _readManifestFromStore,
   FileType,
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
@@ -323,7 +323,7 @@ function getFilesIndexFilePath (
 function fetchToStore (
   ctx: {
     checkFilesIntegrity: (
-      pkgIndex: Record<string, PackageFileInfo>,
+      pkgIndex: PackageFilesIndex,
       manifest?: DeferredManifestPromise
     ) => Promise<boolean>
     fetch: (
@@ -496,7 +496,7 @@ This means that the lockfile is broken. Expected package: ${opts.expectedPkg.nam
 Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`)
             /* eslint-enable @typescript-eslint/restrict-template-expressions */
           }
-          const verified = await ctx.checkFilesIntegrity(pkgFilesIndex.files, manifest)
+          const verified = await ctx.checkFilesIntegrity(pkgFilesIndex, manifest)
           if (verified) {
             files.resolve({
               filesIndex: pkgFilesIndex.files,
