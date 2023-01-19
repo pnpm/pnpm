@@ -209,6 +209,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   }
 
   if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null) {
+    // Checking if the file exists because symlinkDir will create a symlink even if the target does not exist
     if (existsSync(cmd.path)) {
       await symlinkDir(cmd.path, externalBinPath)
       await fixBin(cmd.path, 0o755)
