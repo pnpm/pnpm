@@ -72,34 +72,6 @@ test('linkBins()', async () => {
   }
 })
 
-test('linkBins() should work when prefer-symlinked-executables enabled', async () => {
-  const binTarget = tempy.directory()
-  const warn = jest.fn()
-  const simpleFixture = f.prepare('simple-fixture')
-
-  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn, preferSymlinkedExecutables: true })
-
-  expect(warn).not.toHaveBeenCalled()
-  expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
-  const binLocation = path.join(binTarget, 'simple')
-  expect(await exists(binLocation)).toBe(true)
-  const content = await fs.readFile(binLocation, 'utf8')
-  if (IS_WINDOWS) {
-    expect(content).toMatch('node_modules/simple/index.js')
-  } else {
-    expect(content).toMatch('console.log(\'hello_world\')')
-  }
-
-  if (EXECUTABLE_SHEBANG_SUPPORTED) {
-    const binFile = path.join(binTarget, 'simple')
-    const stat = await fs.stat(binFile)
-    expect(stat.mode).toBe(parseInt('100755', 8))
-    expect(stat.isFile()).toBe(true)
-    const stdout = spawnSync(binFile).stdout.toString('utf-8')
-    expect(stdout).toMatch('hello_world')
-  }
-})
-
 test('linkBins() never creates a PowerShell shim for the pnpm CLI', async () => {
   const binTarget = tempy.directory()
   const fixture = f.prepare('pnpm-cli')
@@ -403,7 +375,7 @@ test("linkBins() emits global warning when bin points to path that doesn't exist
   ).toHaveBeenCalled()
 })
 
-testOnWindows('linkBins() shoud remove an existing .exe file from the target directory', async () => {
+testOnWindows('linkBins() should remove an existing .exe file from the target directory', async () => {
   const binTarget = tempy.directory()
   writeFileSync(path.join(binTarget, 'simple.exe'), '', 'utf8')
   const warn = jest.fn()
@@ -412,4 +384,56 @@ testOnWindows('linkBins() shoud remove an existing .exe file from the target dir
   await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
 
   expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
+})
+
+describe('enable prefer-symlinked-executables', () => {
+  test('linkBins()', async () => {
+    const binTarget = tempy.directory()
+    const warn = jest.fn()
+    const simpleFixture = f.prepare('simple-fixture')
+
+    await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn, preferSymlinkedExecutables: true })
+
+    expect(warn).not.toHaveBeenCalled()
+    expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['simple']))
+    const binLocation = path.join(binTarget, 'simple')
+    expect(await exists(binLocation)).toBe(true)
+    const content = await fs.readFile(binLocation, 'utf8')
+    if (IS_WINDOWS) {
+      expect(content).toMatch('node_modules/simple/index.js')
+    } else {
+      expect(content).toMatch('console.log(\'hello_world\')')
+    }
+
+    if (EXECUTABLE_SHEBANG_SUPPORTED) {
+      const binFile = path.join(binTarget, 'simple')
+      const stat = await fs.stat(binFile)
+      expect(stat.mode).toBe(parseInt('100755', 8))
+      expect(stat.isFile()).toBe(true)
+      const stdout = spawnSync(binFile).stdout.toString('utf-8')
+      expect(stdout).toMatch('hello_world')
+    }
+  })
+
+  test("linkBins() emits global warning when bin points to path that doesn't exist", async () => {
+    const binTarget = tempy.directory()
+    const binNotExistFixture = f.prepare('bin-not-exist')
+
+    await linkBins(path.join(binNotExistFixture, 'node_modules'), binTarget, {
+      allowExoticManifests: true,
+      warn: () => {},
+      preferSymlinkedExecutables: true,
+    })
+
+    if (IS_WINDOWS) {
+      // cmdShim
+      expect(await fs.readdir(binTarget)).toEqual(getExpectedBins([]))
+    } else {
+      // it will fix symlink file permission
+      expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['meow']))
+    }
+    expect(
+      globalWarn
+    ).toHaveBeenCalled()
+  })
 })
