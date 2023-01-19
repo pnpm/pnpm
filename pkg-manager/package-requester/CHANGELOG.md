@@ -1,5 +1,14 @@
 # @pnpm/package-requester
 
+## 20.1.3
+
+### Patch Changes
+
+- 98d6603f3: The store integrity check should validate the side effects cache of the installed package. If the side effects cache is broken, the package needs to be rebuilt [#4997](https://github.com/pnpm/pnpm/issues/4997).
+- Updated dependencies [98d6603f3]
+- Updated dependencies [98d6603f3]
+  - @pnpm/cafs@6.0.0
+
 ## 20.1.2
 
 ### Patch Changes

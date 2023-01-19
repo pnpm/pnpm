@@ -1,5 +1,15 @@
 # pnpm
 
+## 7.25.1
+
+### Patch Changes
+
+- Show dependency paths info in `pnpm audit` output [#3073](https://github.com/pnpm/pnpm/issues/3073)
+- The store integrity check should validate the side effects cache of the installed package. If the side effects cache is broken, the package needs to be rebuilt [#4997](https://github.com/pnpm/pnpm/issues/4997).
+- Add more info to the description of the `--force` option in the `pnpm install` command [#5932](https://github.com/pnpm/pnpm/pull/5932).
+- Don't crash when a bin file is not found and `prefer-symlinked-executables` is `true` [#5946](https://github.com/pnpm/pnpm/pull/5946).
+- `pnpm install --fix-lockfile` should not fail if the package has no dependencies [#5878](https://github.com/pnpm/pnpm/issues/5878).
+
 ## 7.25.0
 
 ### Minor Changes

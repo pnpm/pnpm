@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 8.0.8
+
+### Patch Changes
+
+- 90d26c449: Don't crash when a bin file is not found and `prefer-symlinked-executables` is `true` [#5946](https://github.com/pnpm/pnpm/pull/5946).
+
 ## 8.0.7
 
 ### Patch Changes

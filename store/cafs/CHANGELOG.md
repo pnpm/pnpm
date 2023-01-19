@@ -1,5 +1,15 @@
 # @pnpm/cafs
 
+## 6.0.0
+
+### Major Changes
+
+- 98d6603f3: checkFilesIntegrity renamed to checkPkgFilesIntegrity and its API has changed.
+
+### Patch Changes
+
+- 98d6603f3: The store integrity check should validate the side effects cache of the installed package. If the side effects cache is broken, the package needs to be rebuilt [#4997](https://github.com/pnpm/pnpm/issues/4997).
+
 ## 5.0.6
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1.2.0
+
+### Minor Changes
+
+- 94ef3299e: Show dependency paths info in `pnpm audit` output [#3073](https://github.com/pnpm/pnpm/issues/3073)
+
 ## 1.1.3
 
 ### Patch Changes

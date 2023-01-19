@@ -1,5 +1,16 @@
 # @pnpm/list
 
+## 8.1.0
+
+### Minor Changes
+
+- 94ef3299e: Show dependency paths info in `pnpm audit` output [#3073](https://github.com/pnpm/pnpm/issues/3073)
+
+### Patch Changes
+
+- Updated dependencies [94ef3299e]
+  - @pnpm/reviewing.dependencies-hierarchy@1.2.0
+
 ## 8.0.13
 
 ### Patch Changes

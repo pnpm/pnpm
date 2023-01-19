@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "6.0.26",
+  "version": "6.0.27",
   "description": "Commands for controlling the store",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

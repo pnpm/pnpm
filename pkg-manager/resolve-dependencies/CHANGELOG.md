@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 29.2.3
+
+### Patch Changes
+
+- 6c7ac6320: `pnpm install --fix-lockfile` should not fail if the package has no dependencies [#5878](https://github.com/pnpm/pnpm/issues/5878).
+  - @pnpm/npm-resolver@15.0.6
+
 ## 29.2.2
 
 ### Patch Changes

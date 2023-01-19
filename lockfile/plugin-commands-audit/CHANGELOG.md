@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-audit
 
+## 7.2.0
+
+### Minor Changes
+
+- 94ef3299e: Show dependency paths info in `pnpm audit` output [#3073](https://github.com/pnpm/pnpm/issues/3073)
+
+### Patch Changes
+
+- Updated dependencies [94ef3299e]
+  - @pnpm/audit@6.1.0
+  - @pnpm/config@16.5.1
+  - @pnpm/cli-utils@1.0.27
+
 ## 7.1.21
 
 ### Patch Changes

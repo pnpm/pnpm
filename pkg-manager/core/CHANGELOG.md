@@ -1,5 +1,22 @@
 # @pnpm/core
 
+## 7.6.5
+
+### Patch Changes
+
+- Updated dependencies [98d6603f3]
+- Updated dependencies [90d26c449]
+- Updated dependencies [6c7ac6320]
+  - @pnpm/package-requester@20.1.3
+  - @pnpm/link-bins@8.0.8
+  - @pnpm/resolve-dependencies@29.2.3
+  - @pnpm/headless@19.4.6
+  - @pnpm/build-modules@10.1.3
+  - @pnpm/hoist@7.0.12
+  - @pnpm/symlink-dependency@6.0.3
+  - @pnpm/crypto.base32-hash@1.0.1
+  - @pnpm/lifecycle@14.1.5
+
 ## 7.6.4
 
 ### Patch Changes

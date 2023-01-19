@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-installation
 
+## 11.3.5
+
+### Patch Changes
+
+- 4655dd41e: Add more info to the description of the `--force` option in the `pnpm install` command.
+  - @pnpm/core@7.6.5
+  - @pnpm/package-store@15.1.3
+  - @pnpm/plugin-commands-rebuild@7.0.27
+  - @pnpm/store-connection-manager@5.2.5
+  - @pnpm/pnpmfile@4.0.25
+  - @pnpm/config@16.5.1
+  - @pnpm/cli-utils@1.0.27
+  - @pnpm/find-workspace-packages@5.0.27
+  - @pnpm/filter-workspace-packages@6.0.27
+
 ## 11.3.4
 
 ### Patch Changes
