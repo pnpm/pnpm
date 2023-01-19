@@ -209,11 +209,13 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   }
 
   if (opts?.preferSymlinkedExecutables && !IS_WINDOWS && cmd.nodeExecPath == null) {
-    // Checking if the file exists because symlinkDir will create a symlink even if the target does not exist
-    if (existsSync(cmd.path)) {
+    try {
       await symlinkDir(cmd.path, externalBinPath)
       await fixBin(cmd.path, 0o755)
-    } else {
+    } catch (err: any) { // eslint-disable-line
+      if (err.code !== 'ENOENT') {
+        throw err
+      }
       globalWarn(`Failed to create bin at ${externalBinPath}. The source file at ${cmd.path} does not exist.`)
     }
     return

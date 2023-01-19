@@ -425,7 +425,13 @@ describe('enable prefer-symlinked-executables', () => {
       preferSymlinkedExecutables: true,
     })
 
-    expect(await fs.readdir(binTarget)).toEqual(getExpectedBins([]))
+    if (IS_WINDOWS) {
+      // cmdShim
+      expect(await fs.readdir(binTarget)).toEqual(getExpectedBins([]))
+    } else {
+      // it will fix symlink file permission
+      expect(await fs.readdir(binTarget)).toEqual(getExpectedBins(['meow']))
+    }
     expect(
       globalWarn
     ).toHaveBeenCalled()
