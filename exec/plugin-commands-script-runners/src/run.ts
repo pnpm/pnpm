@@ -173,7 +173,7 @@ export async function handler (
   }
 
   const multiScriptSelectorRegExp = buildRegExpFromCommand(scriptName)
-  const specifiedScripts = multiScriptSelectorRegExp ? Object.keys(manifest.scripts ?? {}).filter(script => script.match(multiScriptSelectorRegExp)) : manifest.scripts?.[scriptName] ? [scriptName] : []
+  const specifiedScripts = multiScriptSelectorRegExp ? Object.keys(manifest.scripts ?? {}).filter(script => script.match(multiScriptSelectorRegExp)) : (!!manifest.scripts?.[scriptName] || scriptName === 'start') ? [scriptName] : []
 
   if (scriptName !== 'start' && specifiedScripts.length < 1) {
     if (opts.ifPresent) return

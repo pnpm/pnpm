@@ -1,16 +1,15 @@
-export function isRegExpCommand (
-  command: string
-) {
-  const flags = ['d', 'g', 'i', 'm', 's', 'u', 'y']
-  return (new RegExp(`^/.+/(${flags.join('|')})*$`)).test(command)
-}
-
 export function buildRegExpFromCommand (
   command: string
 ): RegExp | null {
-  if (!isRegExpCommand(command)) {
+  if (command.length < 3) {
     return null
   }
-
-  return new RegExp(command.slice(0, command.lastIndexOf('/')).slice(1))
+  if (command[0] !== '/' || command.lastIndexOf('/') < 1) {
+    return null
+  }
+  try {
+    return new RegExp(command.slice(0, command.lastIndexOf('/')).slice(1))
+  } catch {
+    return null
+  }
 }
