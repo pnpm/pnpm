@@ -1,5 +1,6 @@
 ---
+"pnpm": patch
 "@pnpm/link-bins": patch
 ---
 
-Add try catch block to prevent errors when the file does not exist when symlink bin file
+Don't crash when a bin file is not found and `prefer-symlinked-executables` is `true` [#5946](https://github.com/pnpm/pnpm/pull/5946).
