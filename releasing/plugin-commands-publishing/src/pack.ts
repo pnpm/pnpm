@@ -77,10 +77,8 @@ export async function handler (
   })
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent([
-      'prepublish',
-      'prepare',
-      'prepublishOnly',
       'prepack',
+      'prepare',
     ], entryManifest)
   }
   const dir = entryManifest.publishConfig?.directory
