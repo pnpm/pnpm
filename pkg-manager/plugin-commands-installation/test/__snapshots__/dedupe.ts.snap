@@ -1,0 +1,197 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`removes packages from pnpm-lock.yaml 1`] = `
+{
+  "importers": {
+    ".": {
+      "specifiers": {},
+    },
+    "packages/bar": {
+      "dependencies": {
+        "ajv": "6.10.2",
+      },
+      "specifiers": {
+        "ajv": "^6.10.2",
+      },
+    },
+    "packages/foo": {
+      "dependencies": {
+        "ajv": "6.12.6",
+      },
+      "specifiers": {
+        "ajv": "^6.12.5",
+      },
+    },
+  },
+  "lockfileVersion": 5.4,
+  "packages": {
+    "/ajv/6.10.2": {
+      "dependencies": {
+        "fast-deep-equal": "2.0.1",
+        "fast-json-stable-stringify": "2.0.0",
+        "json-schema-traverse": "0.4.1",
+        "uri-js": "4.2.2",
+      },
+      "dev": false,
+      "resolution": {
+        "integrity": "sha512-TXtUUEYHuaTEbLZWIKUr5pmBuhDLy+8KYtPYdcV8qC+pOZL+NKqYwvWSRrVXHn+ZmRRAu8vJTAznH7Oag6RVRw==",
+      },
+    },
+    "/ajv/6.12.6": {
+      "dependencies": {
+        "fast-deep-equal": "3.1.3",
+        "fast-json-stable-stringify": "2.1.0",
+        "json-schema-traverse": "0.4.1",
+        "uri-js": "4.4.1",
+      },
+      "dev": false,
+      "resolution": {
+        "integrity": "sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==",
+      },
+    },
+    "/fast-deep-equal/2.0.1": {
+      "dev": false,
+      "resolution": {
+        "integrity": "sha512-bCK/2Z4zLidyB4ReuIsvALH6w31YfAQDmXMqMx6FyfHqvBxtjC0eRumeSu4Bs3XtXwpyIywtSTrVT99BxY1f9w==",
+      },
+    },
+    "/fast-deep-equal/3.1.3": {
+      "dev": false,
+      "resolution": {
+        "integrity": "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==",
+      },
+    },
+    "/fast-json-stable-stringify/2.0.0": {
+      "dev": false,
+      "resolution": {
+        "integrity": "sha1-1RQsDK7msRifh9OnYREGT4bIu/I=",
+      },
+    },
+    "/fast-json-stable-stringify/2.1.0": {
+      "dev": false,
+      "resolution": {
+        "integrity": "sha512-lhd/wF+Lk98HZoTCtlVraHtfh5XYijIjalXck7saUtuanSDyLMxnHhSXEDJqHxD7msR8D0uCmqlkwjCV8xvwHw==",
+      },
+    },
+    "/json-schema-traverse/0.4.1": {
+      "dev": false,
+      "resolution": {
+        "integrity": "sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==",
+      },
+    },
+    "/punycode/2.1.1": {
+      "dev": false,
+      "engines": {
+        "node": ">=6",
+      },
+      "resolution": {
+        "integrity": "sha512-XRsRjdf+j5ml+y/6GKHPZbrF/8p2Yga0JPtdqTIY2Xe5ohJPD9saDJJLPvp9+NSBprVvevdXZybnj2cv8OEd0A==",
+      },
+    },
+    "/punycode/2.3.0": {
+      "dev": false,
+      "engines": {
+        "node": ">=6",
+      },
+      "resolution": {
+        "integrity": "sha512-rRV+zQD8tVFys26lAGR9WUuS4iUAngJScM+ZRSKtvl5tKeZ2t5bvdNFdNHBW9FWR4guGHlgmsZ1G7BSm2wTbuA==",
+      },
+    },
+    "/uri-js/4.2.2": {
+      "dependencies": {
+        "punycode": "2.1.1",
+      },
+      "dev": false,
+      "resolution": {
+        "integrity": "sha512-KY9Frmirql91X2Qgjry0Wd4Y+YTdrdZheS8TFwvkbLWf/G5KNJDCh6pKL5OZctEW4+0Baa5idK2ZQuELRwPznQ==",
+      },
+    },
+    "/uri-js/4.4.1": {
+      "dependencies": {
+        "punycode": "2.3.0",
+      },
+      "dev": false,
+      "resolution": {
+        "integrity": "sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==",
+      },
+    },
+  },
+}
+`;
+
+exports[`removes packages from pnpm-lock.yaml 2`] = `
+{
+  "importers": {
+    ".": {
+      "specifiers": {},
+    },
+    "packages/bar": {
+      "dependencies": {
+        "ajv": "6.12.6",
+      },
+      "specifiers": {
+        "ajv": "^6.10.2",
+      },
+    },
+    "packages/foo": {
+      "dependencies": {
+        "ajv": "6.12.6",
+      },
+      "specifiers": {
+        "ajv": "^6.12.5",
+      },
+    },
+  },
+  "lockfileVersion": 5.4,
+  "packages": {
+    "/ajv/6.12.6": {
+      "dependencies": {
+        "fast-deep-equal": "3.1.3",
+        "fast-json-stable-stringify": "2.1.0",
+        "json-schema-traverse": "0.4.1",
+        "uri-js": "4.4.1",
+      },
+      "dev": false,
+      "resolution": {
+        "integrity": "sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==",
+      },
+    },
+    "/fast-deep-equal/3.1.3": {
+      "dev": false,
+      "resolution": {
+        "integrity": "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==",
+      },
+    },
+    "/fast-json-stable-stringify/2.1.0": {
+      "dev": false,
+      "resolution": {
+        "integrity": "sha512-lhd/wF+Lk98HZoTCtlVraHtfh5XYijIjalXck7saUtuanSDyLMxnHhSXEDJqHxD7msR8D0uCmqlkwjCV8xvwHw==",
+      },
+    },
+    "/json-schema-traverse/0.4.1": {
+      "dev": false,
+      "resolution": {
+        "integrity": "sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==",
+      },
+    },
+    "/punycode/2.3.0": {
+      "dev": false,
+      "engines": {
+        "node": ">=6",
+      },
+      "resolution": {
+        "integrity": "sha512-rRV+zQD8tVFys26lAGR9WUuS4iUAngJScM+ZRSKtvl5tKeZ2t5bvdNFdNHBW9FWR4guGHlgmsZ1G7BSm2wTbuA==",
+      },
+    },
+    "/uri-js/4.4.1": {
+      "dependencies": {
+        "punycode": "2.3.0",
+      },
+      "dev": false,
+      "resolution": {
+        "integrity": "sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==",
+      },
+    },
+  },
+}
+`;
