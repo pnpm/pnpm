@@ -645,10 +645,10 @@ test('publish: runs all the lifecycle scripts', async () => {
 
   const { default: outputs } = await import(path.resolve('output.json'))
   expect(outputs).toStrictEqual([
-    'prepublish',
-    'prepare',
     'prepublishOnly',
+    'prepublish',
     'prepack',
+    'prepare',
     'publish',
     'postpublish',
   ])

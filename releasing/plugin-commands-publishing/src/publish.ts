@@ -198,6 +198,12 @@ Do you want to continue?`,
       args.splice(index, 2)
     }
   }
+  if (!opts.ignoreScripts) {
+    await _runScriptsIfPresent([
+      'prepublishOnly',
+      'prepublish',
+    ], manifest)
+  }
 
   // We have to publish the tarball from another location.
   // Otherwise, npm would publish the package with the package.json file
