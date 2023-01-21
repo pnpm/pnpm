@@ -112,11 +112,18 @@ export function parse (dependencyPath: string) {
   if (version) {
     let peerSepIndex!: number
     let peersSuffix: string | undefined
+    let patchSuffix: string | undefined
     if (version.includes('(') && version.endsWith(')')) {
       peerSepIndex = version.indexOf('(')
       if (peerSepIndex !== -1) {
         peersSuffix = version.substring(peerSepIndex)
         version = version.substring(0, peerSepIndex)
+      }
+
+      const patchSepIndex = version.indexOf('_')
+      if (patchSepIndex !== -1) {
+        patchSuffix = version.substring(patchSepIndex)
+        version = version.substring(0, patchSepIndex)
       }
     } else {
       peerSepIndex = version.indexOf('_')
@@ -131,7 +138,7 @@ export function parse (dependencyPath: string) {
         isAbsolute: _isAbsolute,
         name,
         peersSuffix,
-        version,
+        version: patchSuffix ? `${version}${patchSuffix}` : version,
       }
     }
   }

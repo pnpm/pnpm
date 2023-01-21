@@ -98,6 +98,14 @@ test('parse()', () => {
     version: '1.0.0',
   })
 
+  expect(parse('/foo/1.0.0_k5brw22k7hadiw3hedogf4eiee(bar@1.0.0)')).toStrictEqual({
+    host: undefined,
+    isAbsolute: false,
+    name: 'foo',
+    peersSuffix: '(bar@1.0.0)',
+    version: '1.0.0_k5brw22k7hadiw3hedogf4eiee',
+  })
+
   expect(() => parse('/foo/bar')).toThrow(/\/foo\/bar is an invalid relative dependency path/)
 })
 
