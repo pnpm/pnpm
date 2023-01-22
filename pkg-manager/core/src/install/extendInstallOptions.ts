@@ -26,7 +26,7 @@ export interface StrictInstallOptions {
   frozenLockfileIfExists: boolean
   enablePnp: boolean
   extraBinPaths: string[]
-  extraEnv: Record<string, string>
+  extraEnv?: Record<string, string>
   hoistingLimits?: HoistingLimits
   externalDependencies?: Set<string>
   useLockfile: boolean
@@ -34,7 +34,7 @@ export interface StrictInstallOptions {
   useGitBranchLockfile: boolean
   mergeGitBranchLockfiles: boolean
   useInlineSpecifiersLockfileFormat: boolean
-  linkWorkspacePackagesDepth: number
+  linkWorkspacePackagesDepth?: number
   lockfileOnly: boolean
   fixLockfile: boolean
   ignoreCompatibilityDb: boolean
@@ -50,15 +50,15 @@ export interface StrictInstallOptions {
   shellEmulator: boolean
   storeController: StoreController
   storeDir: string
-  reporter: ReporterFunction
+  reporter?: ReporterFunction
   force: boolean
-  forcePublicHoistPattern: boolean
+  forcePublicHoistPattern?: boolean
   update: boolean
   updateMatching?: (pkgName: string) => boolean
   updatePackageManifest?: boolean
   depth: number
   lockfileDir: string
-  modulesDir: string
+  modulesDir?: string
   rawConfig: object
   verifyStoreIntegrity: boolean
   engineStrict: boolean
@@ -95,25 +95,25 @@ export interface StrictInstallOptions {
   workspacePackages: WorkspacePackages
   pruneStore: boolean
   virtualStoreDir?: string
-  dir: string
+  dir?: string
   symlink: boolean
   enableModulesDir: boolean
   modulesCacheMaxAge: number
-  peerDependencyRules: PeerDependencyRules
+  peerDependencyRules?: PeerDependencyRules
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allowNonAppliedPatches: boolean
-  preferSymlinkedExecutables: boolean
+  preferSymlinkedExecutables?: boolean
   resolutionMode: 'highest' | 'time-based'
   resolvePeersFromWorkspaceRoot: boolean
 
   publicHoistPattern: string[] | undefined
   hoistPattern: string[] | undefined
-  forceHoistPattern: boolean
+  forceHoistPattern?: boolean
 
   shamefullyHoist: boolean
-  forceShamefullyHoist: boolean
+  forceShamefullyHoist?: boolean
 
-  global: boolean
+  global?: boolean
   globalBin?: string
   patchedDependencies?: Record<string, string>
 
@@ -128,12 +128,16 @@ export type InstallOptions =
   & Partial<StrictInstallOptions>
   & Pick<StrictInstallOptions, 'storeDir' | 'storeController'>
 
-const defaults = async (opts: InstallOptions) => {
+const defaults = async (opts: InstallOptions): Promise<StrictInstallOptions> => {
   const packageManager = opts.packageManager ?? {
     name: pnpmPkgJson.name,
     version: pnpmPkgJson.version,
   }
   return {
+    extraBinPaths: [],
+    allProjects: [],
+    frozenLockfileIfExists: false,
+    fixLockfile: false,
     allowedDeprecatedVersions: {},
     allowNonAppliedPatches: false,
     autoInstallPeers: false,
@@ -209,7 +213,7 @@ const defaults = async (opts: InstallOptions) => {
     dedupeDirectDeps: false,
     resolvePeersFromWorkspaceRoot: false,
     extendNodePath: true,
-  } as StrictInstallOptions
+  }
 }
 
 export type ProcessedInstallOptions = StrictInstallOptions & {
