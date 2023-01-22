@@ -156,7 +156,7 @@ export async function prune (
           .map((orphanDepPath) => depPathToFilename(orphanDepPath))
           .map(async (orphanDepPath) => _tryRemovePkg(orphanDepPath))
       )
-      const neededPkgs: Set<string> = new Set()
+      const neededPkgs: Set<string> = new Set(['node_modules'])
       for (const depPath of Object.keys(opts.wantedLockfile.packages ?? {})) {
         if (opts.skipped.has(depPath)) continue
         neededPkgs.add(depPathToFilename(depPath))
