@@ -1,5 +1,5 @@
 import path from 'path'
-import type { PreResolutioneHook, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/core'
+import type { PreResolutionHook, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/core'
 import { hookLogger } from '@pnpm/core-loggers'
 import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
@@ -15,7 +15,7 @@ interface HookContext {
 interface Hooks {
   // eslint-disable-next-line
   readPackage?: (pkg: any, context: HookContext) => any
-  preResolution?: PreResolutioneHook
+  preResolution?: PreResolutionHook
   afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile | Promise<Lockfile>
   filterLog?: (log: Log) => boolean
   importPackage?: ImportIndexedPackage
