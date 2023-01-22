@@ -245,7 +245,9 @@ export async function linkPackages (
   }
 
   let newHoistedDependencies!: HoistedDependencies
-  if ((opts.hoistPattern != null || opts.publicHoistPattern != null) && (newDepPaths.length > 0 || removedDepPaths.size > 0)) {
+  if (opts.hoistPattern == null && opts.publicHoistPattern == null) {
+    newHoistedDependencies = {}
+  } else if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
     // It is important to keep the skipped packages in the lockfile which will be saved as the "current lockfile".
     // pnpm is comparing the current lockfile to the wanted one and they should match.
     // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
@@ -264,7 +266,7 @@ export async function linkPackages (
       virtualStoreDir: opts.virtualStoreDir,
     })
   } else {
-    newHoistedDependencies = {}
+    newHoistedDependencies = opts.hoistedDependencies
   }
 
   return {

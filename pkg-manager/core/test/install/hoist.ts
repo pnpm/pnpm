@@ -20,7 +20,7 @@ import { testDefaults } from '../utils'
 test('should hoist dependencies', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['express', '@foo/has-dep-from-same-scope'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
+  const manifest = await addDependenciesToPackage({}, ['express', '@foo/has-dep-from-same-scope'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   await project.has('express')
   await project.has('.pnpm/node_modules/debug')
@@ -31,6 +31,19 @@ test('should hoist dependencies', async () => {
 
   // should also hoist bins
   await project.isExecutable('.pnpm/node_modules/.bin/mime')
+
+  const modules = await project.readModulesManifest()
+  expect(Object.keys(modules!.hoistedDependencies).length > 0).toBeTruthy()
+
+  // On repeat install the hoisted packages are preserved (non-headless install)
+  await install(manifest, await testDefaults({ fastUnpack: false, hoistPattern: '*', preferFrozenLockfile: false, modulesCacheMaxAge: 0 }))
+  await project.has('.pnpm/node_modules/debug')
+  expect((await project.readModulesManifest())!.hoistedDependencies).toStrictEqual(modules!.hoistedDependencies)
+
+  // On repeat install the hoisted packages are preserved (headless install)
+  await install(manifest, await testDefaults({ fastUnpack: false, hoistPattern: '*', frozenLockfile: true, modulesCacheMaxAge: 0 }))
+  await project.has('.pnpm/node_modules/debug')
+  expect((await project.readModulesManifest())!.hoistedDependencies).toStrictEqual(modules!.hoistedDependencies)
 })
 
 test('should hoist dependencies to the root of node_modules when publicHoistPattern is used', async () => {
