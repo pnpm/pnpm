@@ -245,30 +245,28 @@ export async function linkPackages (
   }
 
   let newHoistedDependencies!: HoistedDependencies
-  if (opts.hoistPattern != null || opts.publicHoistPattern != null) {
-    if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
-      // It is important to keep the skipped packages in the lockfile which will be saved as the "current lockfile".
-      // pnpm is comparing the current lockfile to the wanted one and they should match.
-      // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
-      const hoistLockfile = {
-        ...currentLockfile,
-        packages: omit(Array.from(opts.skipped), currentLockfile.packages),
-      }
-      newHoistedDependencies = await hoist({
-        extraNodePath: opts.extraNodePaths,
-        lockfile: hoistLockfile,
-        importerIds: projectIds,
-        privateHoistedModulesDir: opts.hoistedModulesDir,
-        privateHoistPattern: opts.hoistPattern ?? [],
-        publicHoistedModulesDir: opts.rootModulesDir,
-        publicHoistPattern: opts.publicHoistPattern ?? [],
-        virtualStoreDir: opts.virtualStoreDir,
-      })
-    } else {
-      newHoistedDependencies = opts.hoistedDependencies
-    }
-  } else {
+  if (opts.hoistPattern == null && opts.publicHoistPattern == null) {
     newHoistedDependencies = {}
+  } else if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
+    // It is important to keep the skipped packages in the lockfile which will be saved as the "current lockfile".
+    // pnpm is comparing the current lockfile to the wanted one and they should match.
+    // But for hoisting, we need a version of the lockfile w/o the skipped packages, so we're making a copy.
+    const hoistLockfile = {
+      ...currentLockfile,
+      packages: omit(Array.from(opts.skipped), currentLockfile.packages),
+    }
+    newHoistedDependencies = await hoist({
+      extraNodePath: opts.extraNodePaths,
+      lockfile: hoistLockfile,
+      importerIds: projectIds,
+      privateHoistedModulesDir: opts.hoistedModulesDir,
+      privateHoistPattern: opts.hoistPattern ?? [],
+      publicHoistedModulesDir: opts.rootModulesDir,
+      publicHoistPattern: opts.publicHoistPattern ?? [],
+      virtualStoreDir: opts.virtualStoreDir,
+    })
+  } else {
+    newHoistedDependencies = opts.hoistedDependencies
   }
 
   return {
