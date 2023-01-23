@@ -91,3 +91,34 @@ exports[`pnpm dedupe updates old resolutions from importers block and removes ol
       },
       "/uri-js/4.4.1": Object {"
 `;
+
+exports[`pnpm dedupe updates old resolutions from package block 1`] = `
+"- Expected
++ Received
+
+@@ -22,15 +22,6 @@
+    },
+    "lockfileVersion": 5.4,
+    "packages": Object {
+-     "/punycode/2.1.1": Object {
+-       "dev": false,
+-       "engines": Object {
+-         "node": ">=6",
+-       },
+-       "resolution": Object {
+-         "integrity": "sha512-XRsRjdf+j5ml+y/6GKHPZbrF/8p2Yga0JPtdqTIY2Xe5ohJPD9saDJJLPvp9+NSBprVvevdXZybnj2cv8OEd0A==",
+-       },
+-     },
+      "/punycode/2.3.0": Object {
+        "dev": false,
+        "engines": Object {
+@@ -42,7 +33,7 @@
+      },
+      "/uri-js/4.2.2": Object {
+        "dependencies": Object {
+-         "punycode": "2.1.1",
++         "punycode": "2.3.0",
+        },
+        "dev": false,
+        "resolution": Object {"
+`;

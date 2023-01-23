@@ -16,6 +16,13 @@ describe('pnpm dedupe', () => {
     // Many old packages should be deleted as result of deduping. See snapshot file for details.
     expect(diff(originalLockfile, dedupedLockfile, diffOptsForLockfile)).toMatchSnapshot()
   })
+
+  test('updates old resolutions from package block', async () => {
+    const { originalLockfile, dedupedLockfile } = await testFixture('workspace-with-lockfile-subdep-dupes')
+    // This is a smaller scale test that should just update uri-js@4.2.2 to
+    // punycode@2.3.0 and remove punycode@2.1.1. See snapshot file for details.
+    expect(diff(originalLockfile, dedupedLockfile, diffOptsForLockfile)).toMatchSnapshot()
+  })
 })
 
 const noColor = (str: string) => str
@@ -65,7 +72,7 @@ async function testFixture (fixtureName: string) {
 
   const dedupedLockfile = await readProjectLockfile()
 
-  // It's possible to remove many packages from the fixture lockfile.
+  // It should be possible to remove packages from the fixture lockfile.
   const originalLockfilePackageNames = Object.keys(originalLockfile.packages ?? {})
   const dedupedLockfilePackageNames = Object.keys(dedupedLockfile.packages ?? {})
   expect(dedupedLockfilePackageNames.length).toBeLessThan(originalLockfilePackageNames.length)
