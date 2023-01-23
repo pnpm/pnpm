@@ -1,17 +1,42 @@
 import path from 'path'
 import { readProjects } from '@pnpm/filter-workspace-packages'
+import { Lockfile } from '@pnpm/lockfile-types'
 import { dedupe, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import { diff } from 'jest-diff'
 import readYamlFile from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils'
-import { Lockfile } from '@pnpm/lockfile-types'
 
 const f = fixtures(__dirname)
 
-test('removes packages from pnpm-lock.yaml', async () => {
+describe('pnpm dedupe', () => {
+  test('updates old resolutions from importers block and removes old packages', async () => {
+    const { originalLockfile, dedupedLockfile } = await testFixture('workspace-with-lockfile-dupes')
+    // Many old packages should be deleted as result of deduping. See snapshot file for details.
+    expect(diff(originalLockfile, dedupedLockfile, diffOptsForLockfile)).toMatchSnapshot()
+  })
+})
+
+const noColor = (str: string) => str
+const diffOptsForLockfile = {
+  // Avoid showing common lines to make the snapshot smaller and less noisy.
+  // https://github.com/facebook/jest/tree/05deb8393c4ad71/packages/jest-diff#example-of-options-to-limit-common-lines
+  contextLines: 3,
+  expand: false,
+
+  // Remove color from snapshots
+  // https://github.com/facebook/jest/tree/05deb8393c4ad71/packages/jest-diff#example-of-options-for-no-colors
+  aColor: noColor,
+  bColor: noColor,
+  changeColor: noColor,
+  commonColor: noColor,
+  patchColor: noColor,
+}
+
+async function testFixture (fixtureName: string) {
   const project = prepare(undefined)
-  f.copy('workspace-with-lockfile-dupes', project.dir())
+  f.copy(fixtureName, project.dir())
 
   const { allProjects, selectedProjectsGraph } = await readProjects(project.dir(), [])
 
@@ -31,7 +56,6 @@ test('removes packages from pnpm-lock.yaml', async () => {
 
   // Sanity check that this test is set up correctly by ensuring the lockfile is
   // unmodified after a regular install.
-  expect(originalLockfile).toMatchSnapshot()
   await install.handler(opts)
   expect(await readProjectLockfile()).toEqual(originalLockfile)
 
@@ -40,7 +64,6 @@ test('removes packages from pnpm-lock.yaml', async () => {
   await dedupe.handler(opts)
 
   const dedupedLockfile = await readProjectLockfile()
-  expect(dedupedLockfile).toMatchSnapshot()
 
   // It's possible to remove many packages from the fixture lockfile.
   const originalLockfilePackageNames = Object.keys(originalLockfile.packages ?? {})
@@ -56,4 +79,6 @@ test('removes packages from pnpm-lock.yaml', async () => {
   // make any further edits to the lockfile.
   await install.handler(opts)
   expect(await readProjectLockfile()).toEqual(dedupedLockfile)
-})
+
+  return { originalLockfile, dedupedLockfile }
+}

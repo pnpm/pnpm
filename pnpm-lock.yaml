@@ -3584,6 +3584,9 @@ importers:
       delay:
         specifier: ^5.0.0
         version: 5.0.0
+      jest-diff:
+        specifier: ^29.3.1
+        version: 29.3.1
       path-name:
         specifier: ^1.0.0
         version: 1.0.0
@@ -17550,6 +17553,7 @@ time:
   /is-subdir@1.2.0: '2021-01-05T16:52:45.485Z'
   /is-windows@1.0.2: '2018-02-14T07:36:43.207Z'
   /isexe@2.0.0: '2017-03-23T00:53:16.356Z'
+  /jest-diff@29.3.1: '2022-11-08T22:56:23.491Z'
   /jest@29.3.1: '2022-11-08T22:56:40.420Z'
   /json-append@1.1.1: '2017-01-07T04:45:27.600Z'
   /json5@2.2.3: '2022-12-31T17:11:32.047Z'
