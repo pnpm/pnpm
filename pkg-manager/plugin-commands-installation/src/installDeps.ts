@@ -90,6 +90,7 @@ export type InstallDepsOptions = Pick<Config,
   updatePackageManifest?: boolean
   useBetaCli?: boolean
   recursive?: boolean
+  dedupe?: boolean
   workspace?: boolean
 } & Partial<Pick<Config, 'pnpmHomeDir'>>
 

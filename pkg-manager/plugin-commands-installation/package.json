@@ -46,6 +46,7 @@
     "@types/yarnpkg__lockfile": "^1.1.5",
     "@types/zkochan__table": "npm:@types/table@6.0.0",
     "delay": "^5.0.0",
+    "jest-diff": "^29.3.1",
     "path-name": "^1.0.0",
     "proxyquire": "^2.1.3",
     "read-yaml-file": "^2.1.0",

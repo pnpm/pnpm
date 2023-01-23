@@ -37,6 +37,7 @@ export interface StrictInstallOptions {
   linkWorkspacePackagesDepth: number
   lockfileOnly: boolean
   fixLockfile: boolean
+  dedupe: boolean
   ignoreCompatibilityDb: boolean
   ignoreDepScripts: boolean
   ignorePackageManifest: boolean

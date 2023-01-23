@@ -305,6 +305,7 @@ export async function mutateModules (
       !ctx.lockfileHadConflicts &&
       !opts.update &&
       !opts.fixLockfile &&
+      !opts.dedupe &&
       installsOnly &&
       (
         frozenLockfile && !opts.lockfileOnly ||
@@ -644,6 +645,27 @@ function forgetResolutionsOfPrevWantedDeps (importer: ProjectSnapshot, wantedDep
   }
 }
 
+function forgetResolutionsOfAllPrevWantedDeps (wantedLockfile: Lockfile) {
+  // Similar to the forgetResolutionsOfPrevWantedDeps function above, we can
+  // delete existing resolutions in importers to make sure they're resolved
+  // again.
+  if ((wantedLockfile.importers != null) && !isEmpty(wantedLockfile.importers)) {
+    wantedLockfile.importers = mapValues(
+      ({ dependencies, devDependencies, optionalDependencies, ...rest }) => rest,
+      wantedLockfile.importers)
+  }
+
+  // The resolveDependencies function looks at previous PackageSnapshot
+  // dependencies/optionalDependencies blocks and merges them with new resolved
+  // deps. Clear the previous PackageSnapshot fields so the newly resolved deps
+  // are always used.
+  if ((wantedLockfile.packages != null) && !isEmpty(wantedLockfile.packages)) {
+    wantedLockfile.packages = mapValues(
+      ({ dependencies, optionalDependencies, ...rest }) => rest,
+      wantedLockfile.packages)
+  }
+}
+
 export async function addDependenciesToPackage (
   manifest: ProjectManifest,
   dependencySelectors: string[],
@@ -796,6 +818,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       optionalDependencies,
       resolution,
     }), ctx.wantedLockfile.packages)
+  }
+
+  if (opts.dedupe) {
+    // Deleting recorded version resolutions from importers and packages. These
+    // fields will be regenerated using the preferred versions computed above.
+    //
+    // This is a bit different from a "full resolution", which completely
+    // ignores preferred versions from the lockfile.
+    forgetResolutionsOfAllPrevWantedDeps(ctx.wantedLockfile)
   }
 
   let {

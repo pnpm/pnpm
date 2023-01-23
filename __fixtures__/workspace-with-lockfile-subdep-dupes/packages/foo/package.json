@@ -1,0 +1,6 @@
+{
+  "name": "foo",
+  "dependencies": {
+    "uri-js": "=4.4.1"
+  }
+}

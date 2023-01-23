@@ -1,0 +1,6 @@
+{
+  "name": "bar",
+  "dependencies": {
+    "ajv": "^6.10.2"
+  }
+}
