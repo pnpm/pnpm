@@ -76,7 +76,8 @@
       "clipanion": "3.2.0-rc.6",
       "jsonwebtoken@<=8.5.1": ">=9.0.0",
       "json5@<2.2.2": ">=2.2.2",
-      "debug@<3.1.0": ">=3.1.0"
+      "debug@<3.1.0": ">=3.1.0",
+      "symlink-dir": "zkochan/symlink-dir#07ca65be5df5c84b902d1a1479b101a3b233e73b"
     },
     "packageExtensions": {
       "@babel/parser": {

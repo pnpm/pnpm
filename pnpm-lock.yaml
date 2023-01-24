@@ -16,6 +16,7 @@ overrides:
   jsonwebtoken@<=8.5.1: '>=9.0.0'
   json5@<2.2.2: '>=2.2.2'
   debug@<3.1.0: '>=3.1.0'
+  symlink-dir: zkochan/symlink-dir#07ca65be5df5c84b902d1a1479b101a3b233e73b
 
 packageExtensionsChecksum: 66c6aa53b7057053eae6c4a5ea9612f3
 
@@ -610,8 +611,8 @@ importers:
         specifier: ^2.0.1
         version: 2.0.1
       symlink-dir:
-        specifier: ^5.1.0
-        version: 5.1.0
+        specifier: zkochan/symlink-dir#07ca65be5df5c84b902d1a1479b101a3b233e73b
+        version: github.com/zkochan/symlink-dir/07ca65be5df5c84b902d1a1479b101a3b233e73b
 
   config/matcher:
     dependencies:
@@ -1551,8 +1552,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       symlink-dir:
-        specifier: ^5.1.0
-        version: 5.1.0
+        specifier: zkochan/symlink-dir#07ca65be5df5c84b902d1a1479b101a3b233e73b
+        version: github.com/zkochan/symlink-dir/07ca65be5df5c84b902d1a1479b101a3b233e73b
     devDependencies:
       '@pnpm/prepare':
         specifier: workspace:*
@@ -2810,8 +2811,8 @@ importers:
         specifier: ^15.0.1
         version: 15.0.1
       symlink-dir:
-        specifier: ^5.1.0
-        version: 5.1.0
+        specifier: zkochan/symlink-dir#07ca65be5df5c84b902d1a1479b101a3b233e73b
+        version: github.com/zkochan/symlink-dir/07ca65be5df5c84b902d1a1479b101a3b233e73b
       write-json-file:
         specifier: ^4.3.0
         version: 4.3.0
@@ -3098,8 +3099,8 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       symlink-dir:
-        specifier: ^5.1.0
-        version: 5.1.0
+        specifier: zkochan/symlink-dir#07ca65be5df5c84b902d1a1479b101a3b233e73b
+        version: github.com/zkochan/symlink-dir/07ca65be5df5c84b902d1a1479b101a3b233e73b
     devDependencies:
       '@pnpm/hoist':
         specifier: workspace:*
@@ -3159,8 +3160,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       symlink-dir:
-        specifier: ^5.1.0
-        version: 5.1.0
+        specifier: zkochan/symlink-dir#07ca65be5df5c84b902d1a1479b101a3b233e73b
+        version: github.com/zkochan/symlink-dir/07ca65be5df5c84b902d1a1479b101a3b233e73b
     devDependencies:
       '@pnpm/link-bins':
         specifier: workspace:*
@@ -3600,8 +3601,8 @@ importers:
         specifier: ^15.0.1
         version: 15.0.1
       symlink-dir:
-        specifier: ^5.1.0
-        version: 5.1.0
+        specifier: zkochan/symlink-dir#07ca65be5df5c84b902d1a1479b101a3b233e73b
+        version: github.com/zkochan/symlink-dir/07ca65be5df5c84b902d1a1479b101a3b233e73b
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -4213,8 +4214,8 @@ importers:
         specifier: ^6.0.1
         version: 6.0.1
       symlink-dir:
-        specifier: ^5.1.0
-        version: 5.1.0
+        specifier: zkochan/symlink-dir#07ca65be5df5c84b902d1a1479b101a3b233e73b
+        version: github.com/zkochan/symlink-dir/07ca65be5df5c84b902d1a1479b101a3b233e73b
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -7775,7 +7776,7 @@ packages:
       is-subdir: 1.2.0
       ramda: /@pnpm/ramda@0.28.1
       resolve-link-target: 2.0.0
-      symlink-dir: 5.1.0
+      symlink-dir: github.com/zkochan/symlink-dir/07ca65be5df5c84b902d1a1479b101a3b233e73b
     dev: true
 
   /@pnpm/hooks.read-package-hook@2.0.10(@yarnpkg/core@4.0.0-rc.14):
@@ -7838,7 +7839,7 @@ packages:
       normalize-path: 3.0.0
       p-settle: 4.1.1
       ramda: /@pnpm/ramda@0.28.1
-      symlink-dir: 5.1.0
+      symlink-dir: github.com/zkochan/symlink-dir/07ca65be5df5c84b902d1a1479b101a3b233e73b
     dev: true
 
   /@pnpm/lockfile-file@7.0.0(@pnpm/logger@5.0.0):
@@ -8465,7 +8466,7 @@ packages:
       '@pnpm/core-loggers': 8.0.3(@pnpm/logger@5.0.0)
       '@pnpm/logger': 5.0.0
       '@pnpm/types': 8.10.0
-      symlink-dir: 5.1.0
+      symlink-dir: github.com/zkochan/symlink-dir/07ca65be5df5c84b902d1a1479b101a3b233e73b
     dev: true
 
   /@pnpm/tabtab@0.1.2:
@@ -16209,14 +16210,6 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
-  /symlink-dir@5.1.0:
-    resolution: {integrity: sha512-nrwSDbmMYGwc+wu6gzmTdQIV9GzItMG/0LX4c9Co0bhtx2KK1WUKjNIyhjhAdIKaA5eIwVhB2tqFsn8ooUsRKA==}
-    engines: {node: '>=12.10'}
-    hasBin: true
-    dependencies:
-      better-path-resolve: 1.0.0
-      rename-overwrite: 4.0.3
-
   /syncpack@8.4.11:
     resolution: {integrity: sha512-qYhkDvPr0goemEqykGaUKF4TD9sRlPQXNy0wn60SXsatAVaZPrNn/nFtfYBLGBp4gNlrpVzixnzBOTihQZxhmg==}
     engines: {node: '>=10'}
@@ -17411,6 +17404,16 @@ packages:
     dev: true
     patched: true
 
+  github.com/zkochan/symlink-dir/07ca65be5df5c84b902d1a1479b101a3b233e73b:
+    resolution: {commit: 07ca65be5df5c84b902d1a1479b101a3b233e73b, repo: git+ssh://git@github.com/zkochan/symlink-dir.git, type: git}
+    name: symlink-dir
+    version: 5.0.1
+    engines: {node: '>=12.10'}
+    hasBin: true
+    dependencies:
+      better-path-resolve: 1.0.0
+      rename-overwrite: 4.0.3
+
 time:
   /@babel/core@7.20.12: '2023-01-04T16:02:21.147Z'
   /@babel/plugin-proposal-dynamic-import@7.18.6: '2022-06-27T19:49:50.843Z'
@@ -17636,7 +17639,6 @@ time:
   /strip-ansi@6.0.1: '2021-09-23T16:34:41.798Z'
   /strip-bom@4.0.0: '2019-04-28T04:40:47.887Z'
   /strip-comments-strings@1.2.0: '2022-06-12T23:34:53.852Z'
-  /symlink-dir@5.1.0: '2022-11-20T16:48:15.918Z'
   /syncpack@8.4.11: '2022-12-01T10:23:30.151Z'
   /tar-stream@2.2.0: '2020-12-29T10:22:57.508Z'
   /tar@6.1.13: '2022-12-07T20:32:39.620Z'
