@@ -1,5 +1,16 @@
 # pnpm
 
+## 7.26.0
+
+### Minor Changes
+
+- Add a `pnpm dedupe` command that removes dependencies from the lockfile by re-resolving the dependency graph. This work similar to yarn's [`yarn dedupe --strategy highest`](https://yarnpkg.com/cli/dedupe) command [#5958](https://github.com/pnpm/pnpm/pull/5958)
+
+### Patch Changes
+
+- Packages hoisted to the virtual store are not removed on repeat install, when the non-headless algorithm runs the installation [#5971](https://github.com/pnpm/pnpm/pull/5971).
+- `prepublishOnly` and `prepublish` should not be executed on `pnpm pack` [#2941](https://github.com/pnpm/pnpm/issues/2941).
+
 ## 7.25.1
 
 ### Patch Changes

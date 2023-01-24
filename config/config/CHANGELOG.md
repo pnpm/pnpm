@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 16.5.2
+
+### Patch Changes
+
+- @pnpm/pnpmfile@4.0.26
+
 ## 16.5.1
 
 ### Patch Changes

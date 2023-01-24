@@ -1,5 +1,18 @@
 # @pnpm/core
 
+## 7.7.0
+
+### Minor Changes
+
+- e8f6ab683: Add a `pnpm dedupe` command that removes dependencies from the lockfile by re-resolving the dependency graph. This work similar to yarn's [`yarn dedupe --strategy highest`](https://yarnpkg.com/cli/dedupe) command.
+
+### Patch Changes
+
+- 1072ec128: Packages hoisted to the virtual store are not removed on repeat install, when the non-headless algorithm runs the installation.
+- Updated dependencies [1072ec128]
+  - @pnpm/modules-cleaner@13.0.9
+  - @pnpm/headless@19.4.7
+
 ## 7.6.5
 
 ### Patch Changes

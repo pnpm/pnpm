@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-installation
 
+## 11.4.0
+
+### Minor Changes
+
+- e8f6ab683: Add a `pnpm dedupe` command that removes dependencies from the lockfile by re-resolving the dependency graph. This work similar to yarn's [`yarn dedupe --strategy highest`](https://yarnpkg.com/cli/dedupe) command.
+
+### Patch Changes
+
+- Updated dependencies [e8f6ab683]
+- Updated dependencies [1072ec128]
+  - @pnpm/core@7.7.0
+  - @pnpm/pnpmfile@4.0.26
+  - @pnpm/config@16.5.2
+  - @pnpm/cli-utils@1.0.28
+  - @pnpm/plugin-commands-rebuild@7.0.28
+  - @pnpm/store-connection-manager@5.2.6
+  - @pnpm/find-workspace-packages@5.0.28
+  - @pnpm/filter-workspace-packages@6.0.28
+
 ## 11.3.5
 
 ### Patch Changes

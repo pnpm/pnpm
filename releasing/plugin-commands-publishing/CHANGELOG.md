@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-publishing
 
+## 6.1.8
+
+### Patch Changes
+
+- d51cb2a3f: `prepublishOnly` and `prepublish` should not be executed on `pnpm pack` [#2941](https://github.com/pnpm/pnpm/issues/2941).
+  - @pnpm/config@16.5.2
+  - @pnpm/cli-utils@1.0.28
+
 ## 6.1.7
 
 ### Patch Changes

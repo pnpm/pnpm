@@ -1,5 +1,11 @@
 # @pnpm/modules-cleaner
 
+## 13.0.9
+
+### Patch Changes
+
+- 1072ec128: Packages hoisted to the virtual store are not removed on repeat install, when the non-headless algorithm runs the installation.
+
 ## 13.0.8
 
 ### Patch Changes

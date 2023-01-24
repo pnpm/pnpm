@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 19.4.7
+
+### Patch Changes
+
+- Updated dependencies [1072ec128]
+  - @pnpm/modules-cleaner@13.0.9
+
 ## 19.4.6
 
 ### Patch Changes
