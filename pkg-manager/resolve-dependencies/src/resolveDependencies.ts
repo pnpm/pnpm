@@ -159,6 +159,7 @@ export interface ResolutionContext {
   resolutionMode?: 'highest' | 'time-based'
   virtualStoreDir: string
   updateMatching?: (pkgName: string) => boolean
+  useLockfileV6?: boolean
   workspacePackages?: WorkspacePackages
   missingPeersOfChildrenByPkgId: Record<string, { parentImporterId: string, missingPeersOfChildren: MissingPeersOfChildren }>
 }
@@ -1158,7 +1159,7 @@ async function resolveDependency (
   const patchFile = ctx.patchedDependencies?.[nameAndVersion]
   if (patchFile) {
     ctx.appliedPatches.add(nameAndVersion)
-    depPath += `_${patchFile.hash}`
+    depPath += ctx.useLockfileV6 ? `(patch_hash=${patchFile.hash})` : `_${patchFile.hash}`
   }
 
   // We are building the dependency tree only until there are new packages
