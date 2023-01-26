@@ -843,8 +843,8 @@ importers:
         specifier: workspace:*
         version: link:../../store/store-path
       '@zkochan/cmd-shim':
-        specifier: ^5.4.0
-        version: 5.4.0
+        specifier: ^5.4.1
+        version: 5.4.1
       '@zkochan/rimraf':
         specifier: ^2.1.2
         version: 2.1.2
@@ -3135,8 +3135,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/cmd-shim':
-        specifier: ^5.4.0
-        version: 5.4.0
+        specifier: ^5.4.1
+        version: 5.4.1
       '@zkochan/rimraf':
         specifier: ^2.1.2
         version: 2.1.2
@@ -7830,7 +7830,7 @@ packages:
       '@pnpm/read-package-json': 7.0.5
       '@pnpm/read-project-manifest': 4.1.3
       '@pnpm/types': 8.10.0
-      '@zkochan/cmd-shim': 5.4.0
+      '@zkochan/cmd-shim': 5.4.1
       '@zkochan/rimraf': 2.1.2
       bin-links: 4.0.1
       is-subdir: 1.2.0
@@ -8654,7 +8654,7 @@ packages:
   /@types/concat-stream@2.0.0:
     resolution: {integrity: sha512-t3YCerNM7NTVjLuICZo5gYAXYoDvpuuTceCcFQWcDQz26kxUR5uIWolxbIR5jRNIXpMqhOpW/b8imCR1LEmuJw==}
     dependencies:
-      '@types/node': 14.18.36
+      '@types/node': 18.11.18
     dev: true
 
   /@types/cross-spawn@6.0.2:
@@ -8709,7 +8709,7 @@ packages:
   /@types/isexe@2.0.1:
     resolution: {integrity: sha512-leMb+b2fOo1s7NsCVGQr07/zXI/CNodvhHE3IMizhWVzoN/8+gSdyqlo/SWxL/zEoVcYdV6F8/RZHg5Hm+wrfw==}
     dependencies:
-      '@types/node': 14.18.36
+      '@types/node': 18.11.18
     dev: true
 
   /@types/istanbul-lib-coverage@2.0.4:
@@ -8889,7 +8889,7 @@ packages:
   /@types/touch@3.1.2:
     resolution: {integrity: sha512-6YYYfTc90glAZBvyjpmz6JFLtBRyLWXckmlNgK4R2czsWg63cRCI9Rb3aKJ6LPbw8jpHf7nZdVvMd6gUg4hVsw==}
     dependencies:
-      '@types/node': 14.18.36
+      '@types/node': 18.11.18
     dev: true
 
   /@types/treeify@1.0.0:
@@ -9316,11 +9316,12 @@ packages:
     transitivePeerDependencies:
       - typanion
 
-  /@zkochan/cmd-shim@5.4.0:
-    resolution: {integrity: sha512-Ldv5OxVJNNoHgwDPkJVdTT4l31hA4YLhJxpNNx3I5C9E3xXej66w6sQTL9Q/ZNVVTLplqDxTy+UjcnPx6cxwuA==}
+  /@zkochan/cmd-shim@5.4.1:
+    resolution: {integrity: sha512-odWb1qUzt0dIOEUPyWBEpFDYQPRjEMr/dbHHAfgBkVkYR9aO7Zo+I7oYWrXIxl+cKlC7+49ftPm8uJxL1MA9kw==}
     engines: {node: '>=10.13'}
     dependencies:
       cmd-extension: 1.0.2
+      graceful-fs: 4.2.10
       is-windows: 1.0.2
 
   /@zkochan/diable@1.0.2:
@@ -17487,7 +17488,7 @@ time:
   /@yarnpkg/nm@4.0.0-rc.27: '2022-10-28T20:14:26.306Z'
   /@yarnpkg/parsers@3.0.0-rc.27: '2022-10-28T20:12:42.896Z'
   /@yarnpkg/pnp@2.3.2: '2020-11-30T14:45:51.504Z'
-  /@zkochan/cmd-shim@5.4.0: '2022-12-14T00:23:38.517Z'
+  /@zkochan/cmd-shim@5.4.1: '2023-01-26T01:54:06.870Z'
   /@zkochan/diable@1.0.2: '2020-07-07T02:01:35.635Z'
   /@zkochan/hosted-git-info@4.0.2: '2021-09-05T21:33:51.709Z'
   /@zkochan/js-yaml@0.0.6: '2022-05-10T14:42:39.813Z'
