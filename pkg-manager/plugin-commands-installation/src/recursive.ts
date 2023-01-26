@@ -28,6 +28,9 @@ import {
   MutatedProject,
   mutateModules,
   ProjectOptions,
+  mutateProjectsIndependently,
+  MutateModulesOptions,
+  UpdatedProject,
 } from '@pnpm/core'
 import isSubdir from 'is-subdir'
 import mem from 'mem'
@@ -39,6 +42,7 @@ import { updateToLatestSpecsFromManifest, createLatestSpecs } from './updateToLa
 import { getSaveType } from './getSaveType'
 import { getPinnedVersion } from './getPinnedVersion'
 import { PreferredVersions } from '@pnpm/resolver-base'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -160,8 +164,10 @@ export async function recursive (
   } else {
     updateMatch = null
   }
-  // For a workspace with shared lockfile
-  if (opts.lockfileDir && ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)) {
+  const workspaceWithSharedLockfile = Boolean(opts.lockfileDir)
+  const workspaceWithoutSharedLockfile = opts.sharedWorkspaceLockfile === false && opts.workspaceDir
+  const mutatedCmd = ['add', 'install', 'remove', 'update', 'import'].includes(cmdFullName)
+  if ((workspaceWithSharedLockfile || workspaceWithoutSharedLockfile) && mutatedCmd) {
     let importers = getImporters(opts)
     const calculatedRepositoryRoot = await fs.realpath(calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir)))
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
@@ -263,15 +269,32 @@ export async function recursive (
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies of any of the projects.')
     }
-    const mutatedPkgs = await mutateModules(mutatedImporters, {
+    const maybeOpts = {
       ...installOpts,
       storeController: store.ctrl,
-    })
-    if (opts.save !== false) {
-      await Promise.all(
-        mutatedPkgs
-          .map(async ({ originalManifest, manifest }, index) => writeProjectManifests[index](originalManifest ?? manifest))
-      )
+    }
+    if (workspaceWithSharedLockfile) {
+      const mutatedPkgs = await mutateModules(mutatedImporters, maybeOpts)
+      if (opts.save !== false) {
+        await Promise.all(
+          mutatedPkgs
+            .map(async ({ originalManifest, manifest }, index) => writeProjectManifests[index](originalManifest ?? manifest))
+        )
+      }
+    } else {
+      const mutatedPkgs = await splitLockfileInstall(mutatedImporters, {
+        ...maybeOpts,
+        workspaceDir: opts.workspaceDir,
+      })
+      if (opts.save !== false) {
+        await Promise.all(
+          mutatedPkgs
+            .map(async ({ originalManifest, manifest, rootDir }, index) => {
+              const { writeProjectManifest } = manifestsByPath[rootDir]
+              return writeProjectManifest(originalManifest ?? manifest)
+            })
+        )
+      }
     }
     return true
   }
@@ -411,6 +434,41 @@ export async function recursive (
   return true
 }
 
+async function splitLockfileInstall (
+  projects: MutatedProject[],
+  maybeOpts: MutateModulesOptions & { workspaceDir: string }
+): Promise<UpdatedProject[]> {
+  delete maybeOpts.hooks
+  delete maybeOpts.lockfileDir
+  delete maybeOpts.neverBuiltDependencies
+  delete maybeOpts.onlyBuiltDependencies
+  delete maybeOpts.overrides
+  delete maybeOpts.packageExtensions
+  delete maybeOpts.peerDependencyRules
+  delete maybeOpts.allowedDeprecatedVersions
+  delete maybeOpts.allowNonAppliedPatches
+  delete maybeOpts.patchedDependencies
+
+  const promises = maybeOpts.allProjects?.map(project => {
+    const dir = project.rootDir
+    return readProjectManifest(dir).then(({ manifest }) => {
+      const pnpmOptions = getOptionsFromRootManifest(manifest)
+      const hooks = requireHooks(dir, {})
+      return {
+        ...pnpmOptions,
+        ...project,
+        hooks,
+      }
+    })
+  })
+  const allProjects = promises ? await Promise.all(promises) : []
+  const opts = {
+    ...maybeOpts,
+    allProjects,
+  }
+  return mutateProjectsIndependently(projects, opts)
+}
+
 async function unlink (manifest: ProjectManifest, opts: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
   return mutateModules(
     [
@@ -510,7 +568,7 @@ function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: Pro
 
 interface ManifestsByPath { [dir: string]: Omit<Project, 'dir'> }
 
-function getManifestsByPath (projects: Project[]) {
+function getManifestsByPath (projects: Project[]): ManifestsByPath {
   return projects.reduce((manifestsByPath, { dir, manifest, writeProjectManifest }) => {
     manifestsByPath[dir] = { manifest, writeProjectManifest }
     return manifestsByPath

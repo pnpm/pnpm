@@ -168,7 +168,7 @@ export async function main (inputArgv: string[]) {
   }
 
   if (
-    (cmd === 'install' || cmd === 'import' || cmd === "dedupe") &&
+    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe') &&
     typeof workspaceDir === 'string'
   ) {
     cliOptions['recursive'] = true
@@ -232,7 +232,9 @@ export async function main (inputArgv: string[]) {
 
   let { output, exitCode }: { output: string | null, exitCode: number } = await (async () => {
     // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
-    await new Promise<void>((resolve) => setTimeout(() => resolve(), 0))
+    await new Promise<void>((resolve) => setTimeout(() => {
+      resolve()
+    }, 0))
 
     if (
       config.updateNotifier !== false &&

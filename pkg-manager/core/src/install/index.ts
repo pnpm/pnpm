@@ -216,9 +216,14 @@ export async function mutateModules (
     })
   }
 
-  const pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
-    ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
-    : true
+  let pruneVirtualStore: boolean
+  if (typeof opts.pruneVirtualStore !== 'undefined') {
+    pruneVirtualStore = opts.pruneVirtualStore
+  } else {
+    pruneVirtualStore = ctx.modulesFile?.prunedAt && opts.modulesCacheMaxAge > 0
+      ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
+      : true
+  }
 
   if (!maybeOpts.ignorePackageManifest) {
     for (const { manifest, rootDir } of Object.values(ctx.projects)) {
@@ -571,6 +576,8 @@ export async function mutateModules (
     return result.projects
   }
 }
+
+export { mutateProjectsIndependently } from './noSharedLockfile'
 
 async function calcPatchHashes (patches: Record<string, string>, lockfileDir: string) {
   return pMapValues(async (patchFileRelativePath) => {

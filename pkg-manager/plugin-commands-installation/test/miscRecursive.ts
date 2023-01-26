@@ -798,3 +798,195 @@ test('pass readPackage with shared lockfile', async () => {
   await projects['project-2'].has('is-positive')
   await projects['project-2'].hasNot('is-negative')
 })
+
+describe('--no-shared-workspace-lockfile', () => {
+  test('should pointed to same virtual store', async () => {
+    const projects = preparePackages([
+      {
+        location: '.',
+        package: {
+          name: 'root',
+          version: '1.0.0',
+          dependencies: {
+            'is-positive': '1.0.0',
+          },
+        },
+      },
+      {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '1.0.0',
+          'project-2': 'workspace:*',
+        },
+      },
+      {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    ])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+    await install.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: false,
+      workspaceDir: process.cwd(),
+    })
+
+    expect(projects['root'].requireModule('is-positive')).toBeTruthy()
+    expect(projects['project-1'].requireModule('is-positive')).toBeTruthy()
+    expect(projects['project-2'].requireModule('is-positive')).toBeTruthy()
+
+    const virtualStorePath = require.resolve('is-positive', {
+      paths: [projects['root'].dir()],
+    })
+    expect(virtualStorePath).toEqual(require.resolve('is-positive', {
+      paths: [projects['project-1'].dir()],
+    }))
+    expect(virtualStorePath).toEqual(require.resolve('is-positive', {
+      paths: [projects['project-2'].dir()],
+    }))
+
+    const realStorePath = await projects['root'].resolve('is-positive')
+    expect(realStorePath).toEqual(await projects['project-1'].resolve('is-positive'))
+    expect(realStorePath).toEqual(await projects['project-2'].resolve('is-positive'))
+
+    const storePath = await projects['root'].getStorePath()
+    expect(storePath).toEqual(await projects['project-1'].getStorePath())
+    expect(storePath).toEqual(await projects['project-2'].getStorePath())
+
+    await expect(projects['root'].readLockfile()).resolves.not.toThrowError()
+    await expect(projects['project-1'].readLockfile()).resolves.not.toThrowError()
+    await expect(projects['project-2'].readLockfile()).resolves.not.toThrowError()
+  })
+
+  test('pnpm options should works in workspace', async () => {
+    const projects = preparePackages([
+      {
+        location: '.',
+        package: {
+          name: 'root',
+          version: '1.0.0',
+          dependencies: {
+            'is-positive': '1.0.0',
+          },
+          pnpm: {
+            overrides: {
+              'is-positive': '2.0.0',
+            },
+          },
+        },
+      },
+      {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+        pnpm: {
+          overrides: {
+            'is-positive': '3.0.0',
+          },
+        },
+      },
+    ])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+    await install.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: false,
+      workspaceDir: process.cwd(),
+    })
+
+    expect(projects['root'].requireModule('is-positive/package.json').version).toBe('2.0.0')
+    expect(projects['project-1'].requireModule('is-positive/package.json').version).toBe('3.0.0')
+  })
+
+  test('.pnpmfile.cjs should works in workspace', async () => {
+    const projects = preparePackages([
+      {
+        location: '.',
+        package: {
+          name: 'root',
+          version: '0.0.1',
+          dependencies: {
+            'is-positive': '1.0.0',
+          },
+        },
+      },
+      {
+        name: 'project-1',
+        version: '0.0.1',
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    ])
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+    {
+      // root
+      const hookFilePath = path.resolve(projects['root'].dir(), '.pnpmfile.cjs')
+      const hookFile = `
+function readPackage(pkg) {
+  if (pkg.version === '0.0.1') {
+    pkg.dependencies = {
+      'is-positive': '2.0.0',
+    }
+  }
+  return pkg;
+}
+
+module.exports = {
+  hooks: {
+    readPackage
+  }
+}`
+      await fs.writeFile(hookFilePath, hookFile, 'utf8')
+    }
+    {
+      // project-1
+      const hookFilePath = path.resolve(projects['project-1'].dir(), '.pnpmfile.cjs')
+      const hookFile = `
+function readPackage(pkg) {
+  if (pkg.version === '0.0.1') {
+    pkg.dependencies = {
+      'is-positive': '3.0.0',
+    }
+  }
+  return pkg;
+}
+
+module.exports = {
+  hooks: {
+    readPackage
+  }
+}`
+      await fs.writeFile(hookFilePath, hookFile, 'utf8')
+    }
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: false,
+      workspaceDir: process.cwd(),
+    })
+
+    expect(projects['root'].requireModule('is-positive/package.json').version).toBe('2.0.0')
+    expect(projects['project-1'].requireModule('is-positive/package.json').version).toBe('3.0.0')
+  })
+})

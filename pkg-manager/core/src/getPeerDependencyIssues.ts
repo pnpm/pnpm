@@ -3,24 +3,24 @@ import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import { getContext, GetContextOptions, ProjectOptions } from '@pnpm/get-context'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { getPreferredVersionsFromLockfile } from './install/getPreferredVersions'
-import { InstallOptions } from './install/extendInstallOptions'
+import { Hooks, InstallOptions } from './install/extendInstallOptions'
 import { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 
 export type ListMissingPeersOptions = Partial<GetContextOptions>
-& Pick<InstallOptions, 'hooks'
-| 'ignoreCompatibilityDb'
+& Pick<InstallOptions, 'ignoreCompatibilityDb'
 | 'linkWorkspacePackagesDepth'
 | 'nodeVersion'
 | 'nodeLinker'
-| 'overrides'
 | 'packageExtensions'
 | 'preferWorkspacePackages'
 | 'saveWorkspaceProtocol'
 | 'storeController'
 | 'useGitBranchLockfile'
 | 'workspacePackages'
->
-& Pick<GetContextOptions, 'storeDir'>
+> & {
+  hooks: Hooks
+  overrides: Record<string, string>
+} & Pick<GetContextOptions, 'storeDir'>
 
 export async function getPeerDependencyIssues (
   projects: ProjectOptions[],

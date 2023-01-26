@@ -58,6 +58,7 @@
     "is-inner-link": "^4.0.0",
     "load-json-file": "^6.2.0",
     "normalize-path": "^3.0.0",
+    "path-absolute": "^1.0.1",
     "p-every": "^2.0.0",
     "p-filter": "^2.1.0",
     "p-limit": "^3.1.0",

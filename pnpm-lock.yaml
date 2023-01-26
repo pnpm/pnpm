@@ -2709,6 +2709,9 @@ importers:
       p-map-values:
         specifier: ^1.0.0
         version: 1.0.0
+      path-absolute:
+        specifier: ^1.0.1
+        version: 1.0.1
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -4260,7 +4263,7 @@ importers:
         version: /safe-execa@0.1.2
       pkg:
         specifier: github:vercel/pkg#5.7.0
-        version: github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2_pp6fkuhwkrqq7cjcj7uqpf37e4
+        version: github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2(patch_hash=pp6fkuhwkrqq7cjcj7uqpf37e4)
 
   pnpm/artifacts/linux-arm64:
     devDependencies:
@@ -17378,7 +17381,7 @@ packages:
     resolution: {integrity: sha512-V50KMwwzqJV0NpZIZFwfOD5/lyny3WlSzRiXgA0G7VUnRlqttta1L6UQIHzd6EuBY/cHGfwTIck7w1yH6Q5zUw==}
     dev: false
 
-  github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2_pp6fkuhwkrqq7cjcj7uqpf37e4:
+  github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2(patch_hash=pp6fkuhwkrqq7cjcj7uqpf37e4):
     resolution: {tarball: https://codeload.github.com/vercel/pkg/tar.gz/7e4fef9f0828b11c7a9655b95425f32094f2daa2}
     id: github.com/vercel/pkg/7e4fef9f0828b11c7a9655b95425f32094f2daa2
     name: pkg

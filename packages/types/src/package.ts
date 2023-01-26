@@ -119,16 +119,19 @@ export interface PeerDependencyRules {
 
 export type AllowedDeprecatedVersions = Record<string, string>
 
-export type ProjectManifest = BaseManifest & {
-  pnpm?: {
-    neverBuiltDependencies?: string[]
-    onlyBuiltDependencies?: string[]
-    overrides?: Record<string, string>
-    packageExtensions?: Record<string, PackageExtension>
-    peerDependencyRules?: PeerDependencyRules
-    allowedDeprecatedVersions?: AllowedDeprecatedVersions
-    allowNonAppliedPatches?: boolean
-    patchedDependencies?: Record<string, string>
+export interface PnpmOptions {
+  neverBuiltDependencies?: string[]
+  onlyBuiltDependencies?: string[]
+  overrides?: Record<string, string>
+  packageExtensions?: Record<string, PackageExtension>
+  peerDependencyRules?: PeerDependencyRules
+  allowedDeprecatedVersions?: AllowedDeprecatedVersions
+  allowNonAppliedPatches?: boolean
+  patchedDependencies?: Record<string, string>
+}
+
+export interface PnpmManiFest {
+  pnpm?: PnpmOptions & {
     updateConfig?: {
       ignoreDependencies?: string[]
     }
@@ -137,8 +140,11 @@ export type ProjectManifest = BaseManifest & {
     }
     requiredScripts?: string[]
   }
-  private?: boolean
   resolutions?: Record<string, string>
+}
+
+export type ProjectManifest = BaseManifest & PnpmManiFest & {
+  private?: boolean
 }
 
 export type PackageManifest = DependencyManifest & {

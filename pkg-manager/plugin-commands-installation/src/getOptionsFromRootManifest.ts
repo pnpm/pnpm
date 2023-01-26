@@ -1,22 +1,11 @@
 import { PnpmError } from '@pnpm/error'
 import {
-  AllowedDeprecatedVersions,
-  PackageExtension,
-  PeerDependencyRules,
+  PnpmOptions,
   ProjectManifest,
 } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
 
-export function getOptionsFromRootManifest (manifest: ProjectManifest): {
-  allowedDeprecatedVersions?: AllowedDeprecatedVersions
-  allowNonAppliedPatches?: boolean
-  overrides?: Record<string, string>
-  neverBuiltDependencies?: string[]
-  onlyBuiltDependencies?: string[]
-  packageExtensions?: Record<string, PackageExtension>
-  patchedDependencies?: Record<string, string>
-  peerDependencyRules?: PeerDependencyRules
-} {
+export function getOptionsFromRootManifest (manifest: ProjectManifest): PnpmOptions {
   // We read Yarn's resolutions field for compatibility
   // but we really replace the version specs to any other version spec, not only to exact versions,
   // so we cannot call it resolutions

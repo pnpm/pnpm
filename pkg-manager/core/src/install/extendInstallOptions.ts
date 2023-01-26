@@ -19,6 +19,12 @@ import { pnpmPkgJson } from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 import { PreResolutionHookContext } from './hooks'
 
+export interface Hooks {
+  readPackage?: ReadPackageHook[]
+  preResolution?: (ctx: PreResolutionHookContext) => Promise<void>
+  afterAllResolved?: Array<(lockfile: Lockfile) => Lockfile | Promise<Lockfile>>
+}
+
 export interface StrictInstallOptions {
   autoInstallPeers: boolean
   forceSharedLockfile: boolean
@@ -74,11 +80,7 @@ export interface StrictInstallOptions {
     version: string
   }
   pruneLockfileImporters: boolean
-  hooks: {
-    readPackage?: ReadPackageHook[]
-    preResolution?: (ctx: PreResolutionHookContext) => Promise<void>
-    afterAllResolved?: Array<(lockfile: Lockfile) => Lockfile | Promise<Lockfile>>
-  }
+  hooks: Hooks
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
   strictPeerDependencies: boolean
@@ -123,6 +125,7 @@ export interface StrictInstallOptions {
   dedupeDirectDeps: boolean
   useLockfileV6?: boolean
   extendNodePath: boolean
+  pruneVirtualStore?: boolean
 }
 
 export type InstallOptions =
