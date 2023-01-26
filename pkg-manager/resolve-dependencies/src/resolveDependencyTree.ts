@@ -129,6 +129,7 @@ export async function resolveDependencyTree<T> (
     updatedSet: new Set<string>(),
     workspacePackages: opts.workspacePackages,
     missingPeersOfChildrenByPkgId: {},
+    useLockfileV6: opts.useLockfileV6,
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
