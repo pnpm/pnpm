@@ -13,7 +13,7 @@ import realpathMissing from 'realpath-missing'
 import { existsInDir } from './existsInDir'
 import { getResumedPackageChunks } from './exec'
 import { runScript } from './run'
-import { buildRegExpFromCommand } from './regexp-command'
+import { buildRegExpFromCommand } from './regexpCommand'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'

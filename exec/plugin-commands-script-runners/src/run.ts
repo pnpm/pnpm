@@ -21,7 +21,7 @@ import renderHelp from 'render-help'
 import { runRecursive, RecursiveRunOpts } from './runRecursive'
 import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
-import { buildRegExpFromCommand } from './regexp-command'
+import { buildRegExpFromCommand } from './regexpCommand'
 
 export const IF_PRESENT_OPTION = {
   'if-present': Boolean,
