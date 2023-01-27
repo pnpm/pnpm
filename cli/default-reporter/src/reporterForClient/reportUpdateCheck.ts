@@ -61,5 +61,6 @@ function renderUpdateCommand (opts: UpdateMessageOptions) {
 }
 
 function detectIfCurrentPkgIsExecutable (process: NodeJS.Process) {
+  // @ts-ignore
   return process['pkg'] != null
 }

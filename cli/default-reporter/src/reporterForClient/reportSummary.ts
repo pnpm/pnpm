@@ -64,6 +64,7 @@ export function reportSummary (
             msg += EOL
             msg += printDiffs(diffs, { prefix: opts.cwd })
             msg += EOL
+          // @ts-ignore
           } else if (opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
             msg += EOL
             msg += `${chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)} skipped`

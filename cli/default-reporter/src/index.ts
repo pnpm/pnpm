@@ -134,6 +134,7 @@ export function toOutput$ (
   const requestRetryPushStream = new Rx.Subject<logs.RequestRetryLog>()
   const updateCheckPushStream = new Rx.Subject<logs.UpdateCheckLog>()
   setTimeout(() => {
+    // @ts-ignore
     opts.streamParser['on']('data', (log: logs.Log) => {
       switch (log.name) {
       case 'pnpm:context':
