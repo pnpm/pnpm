@@ -108,7 +108,7 @@ async function updateTSConfig (
   }, { indent: 2 })
   return {
     ...tsConfig,
-    extends: '@pnpm/tsconfig',
+    extends: normalizePath(path.relative(dir, path.join(context.workspaceDir, 'node_modules/@pnpm/tsconfig/tsconfig.json'))),
     composite: true,
     compilerOptions: {
       ...(tsConfig as any)['compilerOptions'],
