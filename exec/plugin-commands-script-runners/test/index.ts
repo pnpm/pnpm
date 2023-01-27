@@ -411,7 +411,7 @@ test('if a script is not found but is present in the root, print an info message
   }
 
   expect(err).toBeTruthy()
-  expect(err.hint).toMatch(/But build is present in the root/)
+  expect(err.hint).toMatch(/But script matched with build is present in the root/)
 })
 
 test('scripts work with PnP', async () => {

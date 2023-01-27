@@ -173,7 +173,7 @@ export async function handler (
 
   const specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName)
 
-  if (scriptName !== 'start' && specifiedScripts.length < 1) {
+  if (specifiedScripts.length < 1) {
     if (opts.ifPresent) return
     if (opts.fallbackCommandUsed) {
       if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
@@ -184,9 +184,9 @@ export async function handler (
     }
     if (opts.workspaceDir) {
       const { manifest: rootManifest } = await tryReadProjectManifest(opts.workspaceDir, opts)
-      if (rootManifest?.scripts?.[scriptName] && specifiedScripts.length < 1) {
+      if (getSpecifiedScripts(rootManifest.scripts ?? {}, scriptName).length > 0 && specifiedScripts.length < 1) {
         throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`, {
-          hint: `But ${scriptName} is present in the root of the workspace,
+          hint: `But script matched with ${scriptName} is present in the root of the workspace,
 so you may run "pnpm -w run ${scriptName}"`,
         })
       }
