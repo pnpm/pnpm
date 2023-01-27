@@ -21,7 +21,7 @@ import renderHelp from 'render-help'
 import { runRecursive, RecursiveRunOpts } from './runRecursive'
 import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
-import { buildRegExpFromCommand } from './regexpCommand'
+import { tryBuildRegExpFromCommand } from './regexpCommand'
 
 export const IF_PRESENT_OPTION = {
   'if-present': Boolean,
@@ -171,8 +171,8 @@ export async function handler (
     return printProjectCommands(manifest, rootManifest ?? undefined)
   }
 
-  const multiScriptSelectorRegExp = buildRegExpFromCommand(scriptName)
-  const specifiedScripts = multiScriptSelectorRegExp ? Object.keys(manifest.scripts ?? {}).filter(script => script.match(multiScriptSelectorRegExp)) : (!!manifest.scripts?.[scriptName] || scriptName === 'start') ? [scriptName] : []
+  const scriptSelector = tryBuildRegExpFromCommand(scriptName)
+  const specifiedScripts = scriptSelector ? Object.keys(manifest.scripts ?? {}).filter(script => script.match(scriptSelector)) : (!!manifest.scripts?.[scriptName] || scriptName === 'start') ? [scriptName] : []
 
   if (scriptName !== 'start' && specifiedScripts.length < 1) {
     if (opts.ifPresent) return

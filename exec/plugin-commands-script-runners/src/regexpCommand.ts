@@ -1,4 +1,4 @@
-export function buildRegExpFromCommand (
+export function tryBuildRegExpFromCommand (
   command: string
 ): RegExp | null {
   if (command.length < 3) {

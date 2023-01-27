@@ -13,7 +13,7 @@ import realpathMissing from 'realpath-missing'
 import { existsInDir } from './existsInDir'
 import { getResumedPackageChunks } from './exec'
 import { runScript } from './run'
-import { buildRegExpFromCommand } from './regexpCommand'
+import { tryBuildRegExpFromCommand } from './regexpCommand'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'
@@ -69,14 +69,14 @@ export async function runRecursive (
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
-  const multiScriptSelectorRegExp = buildRegExpFromCommand(scriptName)
+  const scriptSelector = tryBuildRegExpFromCommand(scriptName)
 
   const requiredScripts = opts.rootProjectManifest?.pnpm?.requiredScripts ?? []
   if (requiredScripts.includes(scriptName)) {
     const missingScriptPackages: string[] = packageChunks
       .flat()
       .map((prefix) => opts.selectedProjectsGraph[prefix])
-      .filter((pkg) => multiScriptSelectorRegExp ? !Object.keys(pkg.package.manifest.scripts ?? {}).some(script => script.match(multiScriptSelectorRegExp)) : !pkg.package.manifest.scripts?.[scriptName])
+      .filter((pkg) => scriptSelector ? !Object.keys(pkg.package.manifest.scripts ?? {}).some(script => script.match(scriptSelector)) : !pkg.package.manifest.scripts?.[scriptName])
       .map((pkg) => pkg.package.manifest.name ?? pkg.package.dir)
     if (missingScriptPackages.length) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in packages: ${missingScriptPackages.join(', ')}`)
@@ -86,7 +86,7 @@ export async function runRecursive (
   for (const chunk of packageChunks) {
     const selectedScripts = chunk.map(prefix => {
       const pkg = opts.selectedProjectsGraph[prefix]
-      const specifiedScripts = multiScriptSelectorRegExp ? Object.keys(pkg.package.manifest.scripts ?? {}).filter(script => script.match(multiScriptSelectorRegExp)) : [scriptName]
+      const specifiedScripts = scriptSelector ? Object.keys(pkg.package.manifest.scripts ?? {}).filter(script => script.match(scriptSelector)) : [scriptName]
 
       return specifiedScripts.map(script => ({ prefix, scriptName: script }))
     }).flat()
