@@ -11,6 +11,7 @@ import {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store-controller-types'
+import pLimit from 'p-limit'
 import difference from 'ramda/src/difference'
 import isEmpty from 'ramda/src/isEmpty'
 import rimraf from '@zkochan/rimraf'
@@ -18,6 +19,8 @@ import {
   DepHierarchy,
   DependenciesGraph,
 } from './lockfileToDepGraph'
+
+const limitLinking = pLimit(16)
 
 export async function linkHoistedModules (
   storeController: StoreController,
@@ -111,22 +114,27 @@ async function linkAllPkgsInOrder (
             patchFileHash: depNode.patchFile?.hash,
           })
         }
-        const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
-          filesResponse,
-          force: opts.force || depNode.depPath !== prevGraph[dir]?.depPath,
-          keepModulesDir: true,
-          requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
-          sideEffectsCacheKey,
-        })
-        if (importMethod) {
-          progressLogger.debug({
-            method: importMethod,
-            requester: opts.lockfileDir,
-            status: 'imported',
-            to: depNode.dir,
+        // Limiting the concurrency here fixes an out of memory error.
+        // It is not clear why it helps as importing is also limited inside fs.indexed-pkg-importer.
+        // The out of memory error was reproduced on the teambit/bit repository with the "rootComponents" feature turned on
+        await limitLinking(async () => {
+          const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
+            filesResponse,
+            force: opts.force || depNode.depPath !== prevGraph[dir]?.depPath,
+            keepModulesDir: true,
+            requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
+            sideEffectsCacheKey,
           })
-        }
-        depNode.isBuilt = isBuilt
+          if (importMethod) {
+            progressLogger.debug({
+              method: importMethod,
+              requester: opts.lockfileDir,
+              status: 'imported',
+              to: depNode.dir,
+            })
+          }
+          depNode.isBuilt = isBuilt
+        })
       }
       return linkAllPkgsInOrder(storeController, graph, prevGraph, deps, dir, opts)
     })
