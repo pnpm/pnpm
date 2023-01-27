@@ -46,8 +46,7 @@ export const RESUME_FROM_OPTION_HELP = {
 }
 
 export const SEQUENTIAL_OPTION_HELP = {
-  description: 'Run a multiple scripts specified with workspace selector or a wildcard script selector sequential.\
-This is the preferred flag for tasks which has dependency on execution order.',
+  description: 'Run specified scripts one after one.',
   name: '--sequential',
 }
 
