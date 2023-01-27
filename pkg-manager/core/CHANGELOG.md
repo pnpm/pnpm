@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 7.7.1
+
+### Patch Changes
+
+- Updated dependencies [04efe8646]
+- Updated dependencies [5cfe9e77a]
+  - @pnpm/headless@19.4.8
+  - @pnpm/resolve-dependencies@29.2.4
+
 ## 7.7.0
 
 ### Minor Changes

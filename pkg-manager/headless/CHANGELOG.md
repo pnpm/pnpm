@@ -1,5 +1,11 @@
 # @pnpm/headless
 
+## 19.4.8
+
+### Patch Changes
+
+- 04efe8646: Fixed out of memory error that sometimes happens when `node-linker` is set to `hoisted`.
+
 ## 19.4.7
 
 ### Patch Changes

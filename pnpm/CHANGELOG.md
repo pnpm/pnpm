@@ -1,5 +1,13 @@
 # pnpm
 
+## 7.26.1
+
+### Patch Changes
+
+- Fixed out of memory error that sometimes happens when `node-linker` is set to `hoisted` [#5988](https://github.com/pnpm/pnpm/pull/5988).
+- Fixed `EMFILE: too many open files` by using graceful-fs for reading bin files of dependencies [#5887](https://github.com/pnpm/pnpm/issues/5887).
+- Fix lockfile v6 on projects that use patched dependencies [#5967](https://github.com/pnpm/pnpm/issues/5967).
+
 ## 7.26.0
 
 ### Minor Changes

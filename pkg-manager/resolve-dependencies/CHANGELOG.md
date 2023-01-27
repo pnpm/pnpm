@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 29.2.4
+
+### Patch Changes
+
+- 5cfe9e77a: Fix lockfile v6 on projects that use patched dependencies [#5967](https://github.com/pnpm/pnpm/issues/5967).
+
 ## 29.2.3
 
 ### Patch Changes
