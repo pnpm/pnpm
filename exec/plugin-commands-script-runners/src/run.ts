@@ -219,7 +219,9 @@ so you may run "pnpm -w run ${scriptName}"`,
   try {
     const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
-    await Promise.all(specifiedScripts.map(script => limitRun(() => runScript(script, manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs))))
+    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
+
+    await Promise.all(specifiedScripts.map(script => limitRun(() => _runScript(script))))
   } catch (err: any) { // eslint-disable-line
     if (opts.bail !== false) {
       throw err
@@ -306,21 +308,26 @@ export interface RunScriptOptions {
   enablePrePostScripts: boolean
 }
 
-export const runScript: (scriptName: string, manifest: ProjectManifest, lifecycleOpts: RunLifecycleHookOptions, runScriptOptions: RunScriptOptions, passedThruArgs: string[]) => Promise<void> = async function (scriptName, manifest, lifecycleOpts, runScriptOptions, passedThruArgs) {
+export const runScript: (opts: {
+  manifest: ProjectManifest
+  lifecycleOpts: RunLifecycleHookOptions
+  runScriptOptions: RunScriptOptions
+  passedThruArgs: string[]
+}, scriptName: string) => Promise<void> = async function (opts, scriptName) {
   if (
-    runScriptOptions.enablePrePostScripts &&
-    manifest.scripts?.[`pre${scriptName}`] &&
-    !manifest.scripts[scriptName].includes(`pre${scriptName}`)
+    opts.runScriptOptions.enablePrePostScripts &&
+    opts.manifest.scripts?.[`pre${scriptName}`] &&
+    !opts.manifest.scripts[scriptName].includes(`pre${scriptName}`)
   ) {
-    await runLifecycleHook(`pre${scriptName}`, manifest, lifecycleOpts)
+    await runLifecycleHook(`pre${scriptName}`, opts.manifest, opts.lifecycleOpts)
   }
-  await runLifecycleHook(scriptName, manifest, { ...lifecycleOpts, args: passedThruArgs })
+  await runLifecycleHook(scriptName, opts.manifest, { ...opts.lifecycleOpts, args: opts.passedThruArgs })
   if (
-    runScriptOptions.enablePrePostScripts &&
-    manifest.scripts?.[`post${scriptName}`] &&
-    !manifest.scripts[scriptName].includes(`post${scriptName}`)
+    opts.runScriptOptions.enablePrePostScripts &&
+    opts.manifest.scripts?.[`post${scriptName}`] &&
+    !opts.manifest.scripts[scriptName].includes(`post${scriptName}`)
   ) {
-    await runLifecycleHook(`post${scriptName}`, manifest, lifecycleOpts)
+    await runLifecycleHook(`post${scriptName}`, opts.manifest, opts.lifecycleOpts)
   }
 }
 

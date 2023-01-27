@@ -123,7 +123,8 @@ export async function runRecursive (
             }
           }
 
-          await runScript(scriptName, pkg.package.manifest, lifecycleOpts, { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs)
+          const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
+          await _runScript(scriptName)
           result.passes++
         } catch (err: any) { // eslint-disable-line
           logger.info(err)
