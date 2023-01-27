@@ -31,7 +31,7 @@
     "eslint-plugin-n": "^15.6.1",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-promise": "^6.1.1",
-    "typescript": "4.9.4"
+    "typescript": "5.0.0-beta"
   },
   "devDependencies": {
     "@pnpm/eslint-config": "workspace:*"
