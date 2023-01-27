@@ -14,7 +14,7 @@ import {
   makeNodeRequireOption,
   RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
-import { ProjectManifest } from '@pnpm/types'
+import { PackageScripts, ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
@@ -171,8 +171,7 @@ export async function handler (
     return printProjectCommands(manifest, rootManifest ?? undefined)
   }
 
-  const scriptSelector = tryBuildRegExpFromCommand(scriptName)
-  const specifiedScripts = scriptSelector ? Object.keys(manifest.scripts ?? {}).filter(script => script.match(scriptSelector)) : (!!manifest.scripts?.[scriptName] || scriptName === 'start') ? [scriptName] : []
+  const specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName)
 
   if (scriptName !== 'start' && specifiedScripts.length < 1) {
     if (opts.ifPresent) return
@@ -327,4 +326,26 @@ export const runScript: (scriptName: string, manifest: ProjectManifest, lifecycl
 
 function renderCommands (commands: string[][]) {
   return commands.map(([scriptName, script]) => `  ${scriptName}\n    ${script}`).join('\n')
+}
+
+function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
+  const scriptSelector = tryBuildRegExpFromCommand(scriptName)
+
+  // if scriptName which a user passes is RegExp (like /build:.*/), multiple scripts to execute will be selected with RegExp
+  if (scriptSelector) {
+    const scriptKeys = Object.keys(scripts)
+    return scriptKeys.filter(script => script.match(scriptSelector))
+  }
+
+  // if scripts in package.json has script which is equal to scriptName a user passes, return it.
+  if (scripts[scriptName]) {
+    return [scriptName]
+  }
+
+  // if a user passes start command as scriptName, `node server.js` will be executed as a fallback, so return start command even if start command is not defined in package.json
+  if (scriptName === 'start') {
+    return [scriptName]
+  }
+
+  return []
 }

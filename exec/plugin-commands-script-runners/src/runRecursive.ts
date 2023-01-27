@@ -14,6 +14,7 @@ import { existsInDir } from './existsInDir'
 import { getResumedPackageChunks } from './exec'
 import { runScript } from './run'
 import { tryBuildRegExpFromCommand } from './regexpCommand'
+import { PackageScripts } from '@pnpm/types'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'
@@ -69,14 +70,12 @@ export async function runRecursive (
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
-  const scriptSelector = tryBuildRegExpFromCommand(scriptName)
-
   const requiredScripts = opts.rootProjectManifest?.pnpm?.requiredScripts ?? []
   if (requiredScripts.includes(scriptName)) {
     const missingScriptPackages: string[] = packageChunks
       .flat()
       .map((prefix) => opts.selectedProjectsGraph[prefix])
-      .filter((pkg) => scriptSelector ? !Object.keys(pkg.package.manifest.scripts ?? {}).some(script => script.match(scriptSelector)) : !pkg.package.manifest.scripts?.[scriptName])
+      .filter((pkg) => getSpecifiedScripts(pkg.package.manifest.scripts ?? {}, scriptName).length < 1)
       .map((pkg) => pkg.package.manifest.name ?? pkg.package.dir)
     if (missingScriptPackages.length) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in packages: ${missingScriptPackages.join(', ')}`)
@@ -86,7 +85,7 @@ export async function runRecursive (
   for (const chunk of packageChunks) {
     const selectedScripts = chunk.map(prefix => {
       const pkg = opts.selectedProjectsGraph[prefix]
-      const specifiedScripts = scriptSelector ? Object.keys(pkg.package.manifest.scripts ?? {}).filter(script => script.match(scriptSelector)) : [scriptName]
+      const specifiedScripts = getSpecifiedScripts(pkg.package.manifest.scripts ?? {}, scriptName)
 
       return specifiedScripts.map(script => ({ prefix, scriptName: script }))
     }).flat()
@@ -160,4 +159,19 @@ export async function runRecursive (
   }
 
   throwOnCommandFail('pnpm recursive run', result)
+}
+
+function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
+  const scriptSelector = tryBuildRegExpFromCommand(scriptName)
+
+  if (scriptSelector) {
+    const scriptKeys = Object.keys(scripts)
+    return scriptKeys.filter(script => script.match(scriptSelector))
+  }
+
+  if (scripts[scriptName]) {
+    return [scriptName]
+  }
+
+  return []
 }
