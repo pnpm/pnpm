@@ -55,7 +55,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
   expect(lockfile.packages!['file:project/pkg.tgz']).toBeTruthy()
-  expect(lockfile.packages!['file:project/pkg.tgz'].resolution['tarball']).toBe('file:project/pkg.tgz')
+  expect(lockfile.packages!['file:project/pkg.tgz'].resolution).toHaveProperty(['tarball'], 'file:project/pkg.tgz')
 
   await rimraf('node_modules')
 
