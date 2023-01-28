@@ -184,7 +184,7 @@ export async function handler (
     }
     if (opts.workspaceDir) {
       const { manifest: rootManifest } = await tryReadProjectManifest(opts.workspaceDir, opts)
-      if (getSpecifiedScripts(rootManifest.scripts ?? {}, scriptName).length > 0 && specifiedScripts.length < 1) {
+      if (getSpecifiedScripts(rootManifest?.scripts ?? {}, scriptName).length > 0 && specifiedScripts.length < 1) {
         throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`, {
           hint: `But script matched with ${scriptName} is present in the root of the workspace,
 so you may run "pnpm -w run ${scriptName}"`,
