@@ -320,7 +320,7 @@ export async function mutateModules (
         ) &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
           autoInstallPeers: opts.autoInstallPeers,
-          linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
+          linkWorkspacePackages: typeof opts.linkWorkspacePackagesDepth === 'number' && opts.linkWorkspacePackagesDepth >= 0,
           wantedLockfile: ctx.wantedLockfile,
           workspacePackages: opts.workspacePackages,
         })
