@@ -18,7 +18,6 @@ import { SafePromiseDefer } from 'safe-promise-defer'
 import { depPathToRef } from './depPathToRef'
 import { ResolvedPackage } from './resolveDependencies'
 import { DependenciesGraph } from '.'
-import {SafePromiseDefer} from 'safe-promise-defer'
 
 export function updateLockfile (
   { dependenciesGraph, lockfile, prefix, registries, lockfileIncludeTarballUrl }: {
