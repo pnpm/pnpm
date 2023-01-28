@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import { promises as fs, statSync } from 'fs'
 import path from 'path'
-import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'
+import { getFilePathInCafs, PackageFilesIndex, PackageFileInfo } from '@pnpm/cafs'
 import { createClient } from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
 import { createPackageRequester, PackageResponse } from '@pnpm/package-requester'
@@ -489,7 +489,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[0]
     const files = await fetchResult.files()
 
-    ino1 = statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json']['integrity'], 'nonexec')).ino
+    ino1 = statSync(getFilePathInCafs(cafsDir, (files.filesIndex['package.json'] as PackageFileInfo).integrity, 'nonexec')).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.fromStore).toBeFalsy()
@@ -501,7 +501,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[1]
     const files = await fetchResult.files()
 
-    ino2 = statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json']['integrity'], 'nonexec')).ino
+    ino2 = statSync(getFilePathInCafs(cafsDir, (files.filesIndex['package.json'] as PackageFileInfo).integrity, 'nonexec')).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.fromStore).toBeFalsy()
@@ -726,7 +726,7 @@ test('refetch package to store if it has been modified', async () => {
     })
 
     const { filesIndex } = await fetchResult.files()
-    indexJsFile = getFilePathInCafs(cafsDir, filesIndex['index.js']['integrity'], 'nonexec')
+    indexJsFile = getFilePathInCafs(cafsDir, (filesIndex['index.js'] as PackageFileInfo).integrity, 'nonexec')
   }
 
   await delay(200)
