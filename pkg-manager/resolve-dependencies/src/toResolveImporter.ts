@@ -116,7 +116,9 @@ function getPreferredVersionsFromPackage (
   return getVersionSpecsByRealNames(getAllDependenciesFromManifest(pkg))
 }
 
-function getVersionSpecsByRealNames (deps: Dependencies) {
+type VersionSpecsByRealNames = Record<string, Record<string, 'version' | 'range' | 'tag'>>
+
+function getVersionSpecsByRealNames (deps: Dependencies): VersionSpecsByRealNames {
   return Object.entries(deps)
     .reduce((acc, [depName, currentPref]) => {
       if (currentPref.startsWith('npm:')) {
@@ -137,5 +139,5 @@ function getVersionSpecsByRealNames (deps: Dependencies) {
         }
       }
       return acc
-    }, {})
+    }, {} as VersionSpecsByRealNames)
 }

@@ -33,5 +33,6 @@
     {
       "path": "../tarball-resolver"
     }
-  ]
+  ],
+  "composite": true
 }

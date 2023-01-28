@@ -82,8 +82,8 @@ export async function extendRebuildOptions (
 ): Promise<StrictRebuildOptions> {
   if (opts) {
     for (const key in opts) {
-      if (opts[key] === undefined) {
-        delete opts[key]
+      if (opts[key as keyof RebuildOptions] === undefined) {
+        delete opts[key as keyof RebuildOptions]
       }
     }
   }

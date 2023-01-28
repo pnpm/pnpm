@@ -5,16 +5,18 @@ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import * as dp from '@pnpm/dependency-path'
 import normalize from 'normalize-path'
 
+interface DirDirEntry {
+  entryType: 'directory'
+  entries: Record<string, DirEntry>
+}
+
 type DirEntry = {
   entryType: 'index'
   depPath: string
 } | {
   entryType: 'symlink'
   target: string
-} | {
-  entryType: 'directory'
-  entries: Record<string, DirEntry>
-}
+} | DirDirEntry
 
 export function makeVirtualNodeModules (lockfile: Lockfile): DirEntry {
   const entries: Record<string, DirEntry> = {
@@ -81,7 +83,7 @@ function addDirEntry (target: Record<string, DirEntry>, subPath: string[] | stri
     } else if (target[p].entryType !== 'directory') {
       throw new Error()
     }
-    addDirEntry(target[p]['entries'], subPathArray, newEntry)
+    addDirEntry((target[p] as DirDirEntry).entries, subPathArray, newEntry)
   } else {
     target[p] = newEntry
   }

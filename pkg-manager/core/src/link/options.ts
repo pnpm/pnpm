@@ -42,8 +42,8 @@ export type LinkOptions =
 export async function extendOptions (opts: LinkOptions): Promise<StrictLinkOptions> {
   if (opts) {
     for (const key in opts) {
-      if (opts[key] === undefined) {
-        delete opts[key]
+      if (opts[key as keyof LinkOptions] === undefined) {
+        delete opts[key as keyof LinkOptions]
       }
     }
   }

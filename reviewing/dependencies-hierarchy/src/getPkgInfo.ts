@@ -2,6 +2,7 @@ import path from 'path'
 import {
   PackageSnapshot,
   PackageSnapshots,
+  TarballResolution,
 } from '@pnpm/lockfile-file'
 import {
   nameVerFromPkgSnapshot,
@@ -36,7 +37,7 @@ export interface GetPkgInfoOpts {
   readonly rewriteLinkVersionDir?: string
 }
 
-export function getPkgInfo (opts: GetPkgInfoOpts) {
+export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
   let name!: string
   let version!: string
   let resolved: string | undefined
@@ -65,7 +66,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts) {
       isMissing = true
       isSkipped = opts.skipped.has(depPath)
     }
-    resolved = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)['tarball']
+    resolved = (pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries) as TarballResolution).tarball
     dev = pkgSnapshot.dev
     optional = pkgSnapshot.optional
   } else {
@@ -80,7 +81,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts) {
     version = `link:${normalizePath(path.relative(opts.rewriteLinkVersionDir, fullPackagePath))}`
   }
 
-  const packageInfo = {
+  const packageInfo: PackageInfo = {
     alias: opts.alias,
     isMissing,
     isPeer: Boolean(opts.peers?.has(opts.alias)),
@@ -90,13 +91,26 @@ export function getPkgInfo (opts: GetPkgInfoOpts) {
     version,
   }
   if (resolved) {
-    packageInfo['resolved'] = resolved
+    packageInfo.resolved = resolved
   }
   if (optional === true) {
-    packageInfo['optional'] = true
+    packageInfo.optional = true
   }
   if (typeof dev === 'boolean') {
-    packageInfo['dev'] = dev
+    packageInfo.dev = dev
   }
   return packageInfo
+}
+
+interface PackageInfo {
+  alias: string
+  isMissing: boolean
+  isPeer: boolean
+  isSkipped: boolean
+  name: string
+  path: string
+  version: string
+  resolved?: string
+  optional?: true
+  dev?: boolean
 }

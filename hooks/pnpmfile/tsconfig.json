@@ -30,5 +30,6 @@
     {
       "path": "../../store/store-controller-types"
     }
-  ]
+  ],
+  "composite": true
 }

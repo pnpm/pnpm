@@ -1,5 +1,5 @@
 import path from 'path'
-import { Lockfile } from '@pnpm/lockfile-types'
+import { Lockfile, TarballResolution } from '@pnpm/lockfile-types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 
 type GetLocalLocations = (depPath: string, pkgName: string) => string[]
@@ -19,7 +19,7 @@ export function extendProjectsWithTargetDirs<T> (
     Object.fromEntries(projects.map((project) => [project.id, { ...project, targetDirs: [] as string[] }]))
   Object.entries(lockfile.packages ?? {})
     .forEach(([depPath, pkg]) => {
-      if (pkg.resolution?.['type'] !== 'directory') return
+      if ((pkg.resolution as TarballResolution)?.type !== 'directory') return
       const pkgId = pkg.id ?? depPath
       const importerId = pkgId.replace(/^file:/, '')
       if (projectsById[importerId] == null) return

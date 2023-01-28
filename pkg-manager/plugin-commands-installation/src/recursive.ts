@@ -28,6 +28,7 @@ import {
   MutatedProject,
   mutateModules,
   ProjectOptions,
+  WorkspacePackages,
 } from '@pnpm/core'
 import isSubdir from 'is-subdir'
 import mem from 'mem'
@@ -113,8 +114,8 @@ export async function recursive (
 
   const store = await createOrConnectStoreController(opts)
 
-  const workspacePackages = cmdFullName !== 'unlink'
-    ? arrayOfWorkspacePackagesToMap(allProjects)
+  const workspacePackages: WorkspacePackages = cmdFullName !== 'unlink'
+    ? arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
     : {}
   const targetDependenciesField = getSaveType(opts)
   const installOpts = Object.assign(opts, {
@@ -510,11 +511,11 @@ function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: Pro
 
 interface ManifestsByPath { [dir: string]: Omit<Project, 'dir'> }
 
-function getManifestsByPath (projects: Project[]) {
+function getManifestsByPath (projects: Project[]): Record<string, Omit<Project, 'dir'>> {
   return projects.reduce((manifestsByPath, { dir, manifest, writeProjectManifest }) => {
     manifestsByPath[dir] = { manifest, writeProjectManifest }
     return manifestsByPath
-  }, {})
+  }, {} as Record<string, Omit<Project, 'dir'>>)
 }
 
 function getImporters (opts: Pick<RecursiveOptions, 'selectedProjectsGraph' | 'ignoredPackages'>) {

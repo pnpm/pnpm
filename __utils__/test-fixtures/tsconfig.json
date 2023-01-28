@@ -12,5 +12,6 @@
     {
       "path": "../prepare"
     }
-  ]
+  ],
+  "composite": true
 }

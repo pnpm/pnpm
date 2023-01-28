@@ -47,7 +47,7 @@ export async function hoist (
             acc[alias] = depPath
           }
           return acc
-        }, {}),
+        }, {} as Record<string, string>),
       depPath: '',
       depth: -1,
     },

@@ -1,4 +1,4 @@
-import { Lockfile } from '@pnpm/lockfile-types'
+import { Lockfile, PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile-types'
 import comverToSemver from 'comver-to-semver'
 import semver from 'semver'
 
@@ -14,13 +14,13 @@ export function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile) {
     newLockfile.importers[importerId] = {
       specifiers: {},
     }
-    for (const key of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+    for (const key of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
       newLockfile.importers[importerId][key] = mergeDict(
         ours.importers[importerId]?.[key] ?? {},
         theirs.importers[importerId]?.[key] ?? {},
         mergeVersions
       )
-      if (Object.keys(newLockfile.importers[importerId][key]).length === 0) {
+      if (Object.keys(newLockfile.importers[importerId][key] ?? {}).length === 0) {
         delete newLockfile.importers[importerId][key]
       }
     }
@@ -31,7 +31,7 @@ export function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile) {
     )
   }
 
-  const packages = {}
+  const packages: PackageSnapshots = {}
   for (const depPath of Array.from(new Set([...Object.keys(ours.packages ?? {}), ...Object.keys(theirs.packages ?? {})]))) {
     const ourPkg = ours.packages?.[depPath]
     const theirPkg = theirs.packages?.[depPath]
@@ -39,17 +39,17 @@ export function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile) {
       ...ourPkg,
       ...theirPkg,
     }
-    for (const key of ['dependencies', 'optionalDependencies']) {
+    for (const key of ['dependencies', 'optionalDependencies'] as const) {
       pkg[key] = mergeDict(
         ourPkg?.[key] ?? {},
         theirPkg?.[key] ?? {},
         mergeVersions
       )
-      if (Object.keys(pkg[key]).length === 0) {
+      if (Object.keys(pkg[key] ?? {}).length === 0) {
         delete pkg[key]
       }
     }
-    packages[depPath] = pkg
+    packages[depPath] = pkg as PackageSnapshot
   }
   newLockfile.packages = packages
 
@@ -63,7 +63,7 @@ function mergeDict<T> (
   theirDict: Record<string, T>,
   valueMerger: ValueMerger<T>
 ) {
-  const newDict = {}
+  const newDict: Record<string, T> = {}
   for (const key of Object.keys(ourDict).concat(Object.keys(theirDict))) {
     const changedValue = valueMerger(
       ourDict[key],

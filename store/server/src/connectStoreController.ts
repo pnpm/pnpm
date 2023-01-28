@@ -96,7 +96,7 @@ async function requestPackage (
     options,
     wantedDependency,
   })
-    .then((packageResponseBody: object) => {
+    .then((packageResponseBody: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
     const fetchingBundledManifest = !packageResponseBody['fetchingBundledManifestInProgress'] // eslint-disable-line
         ? undefined
         : limitedFetch(`${remotePrefix}/rawManifestResponse`, {

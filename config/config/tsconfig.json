@@ -36,5 +36,6 @@
     {
       "path": "../matcher"
     }
-  ]
+  ],
+  "composite": true
 }

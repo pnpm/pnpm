@@ -13,7 +13,7 @@ const NEXT_TAG = 'next-7'
 const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => {
-  const pnpmManifest = loadJsonFile.sync(path.join(workspaceDir, 'pnpm/package.json'))
+  const pnpmManifest = loadJsonFile.sync<any>(path.join(workspaceDir, 'pnpm/package.json'))
   const pnpmVersion = pnpmManifest!['version'] // eslint-disable-line
   const pnpmMajorKeyword = `pnpm${pnpmVersion.split('.')[0]}`
   const utilsDir = path.join(workspaceDir, '__utils__')
@@ -108,8 +108,10 @@ async function updateTSConfig (
   }, { indent: 2 })
   return {
     ...tsConfig,
+    extends: '@pnpm/tsconfig',
+    composite: true,
     compilerOptions: {
-      ...tsConfig['compilerOptions'],
+      ...(tsConfig as any)['compilerOptions'],
       rootDir: 'src',
     },
     references: references.sort((r1, r2) => r1.path.localeCompare(r2.path)),

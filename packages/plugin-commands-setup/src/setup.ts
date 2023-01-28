@@ -41,6 +41,7 @@ export function help () {
 }
 
 function getExecPath () {
+  // @ts-expect-error
   if (process['pkg'] != null) {
     // If the pnpm CLI was bundled by vercel/pkg then we cannot use the js path for npm_execpath
     // because in that case the js is in a virtual filesystem inside the executor.

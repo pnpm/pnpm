@@ -25,5 +25,6 @@ export const TABLE_OPTIONS = {
 }
 
 for (const [key, value] of Object.entries(TABLE_OPTIONS.border)) {
+  // @ts-expect-error
   TABLE_OPTIONS.border[key] = chalk.grey(value)
 }

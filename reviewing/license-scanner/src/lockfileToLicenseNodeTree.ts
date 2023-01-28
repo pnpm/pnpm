@@ -1,4 +1,4 @@
-import { Lockfile } from '@pnpm/lockfile-types'
+import { Lockfile, TarballResolution } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import {
@@ -42,7 +42,7 @@ export async function lockfileToLicenseNode (
   step: LockfileWalkerStep,
   options: LicenseExtractOptions
 ) {
-  const dependencies = {}
+  const dependencies: Record<string, LicenseNode> = {}
   for (const dependency of step.dependencies) {
     const { depPath, pkgSnapshot, next } = dependency
     const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
@@ -85,7 +85,7 @@ export async function lockfileToLicenseNode (
     const dep: LicenseNode = {
       name,
       dev: pkgSnapshot.dev === true,
-      integrity: pkgSnapshot.resolution['integrity'],
+      integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
       version,
       license: packageInfo.license,
       licenseContents: packageInfo.licenseContents,
@@ -126,7 +126,7 @@ export async function lockfileToLicenseNodeTree (
     Object.keys(lockfile.importers),
     { include: opts?.include }
   )
-  const dependencies = {}
+  const dependencies: any = {} // eslint-disable-line @typescript-eslint/no-explicit-any
 
   for (const importerWalker of importerWalkers) {
     const importerDeps = await lockfileToLicenseNode(importerWalker.step, {
@@ -142,6 +142,7 @@ export async function lockfileToLicenseNodeTree (
       dependencies: importerDeps,
       requires: toRequires(importerDeps),
       version: '0.0.0',
+      license: undefined,
     }
   }
 

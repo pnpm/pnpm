@@ -16,7 +16,7 @@
     "@types/node": "^14.18.36"
   },
   "scripts": {
-    "lint": "tslint -c ../../tslint.json --project .",
+    "lint": "eslint src/**/*.ts",
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile",
     "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build"

@@ -33,5 +33,6 @@
     {
       "path": "../types"
     }
-  ]
+  ],
+  "composite": true
 }

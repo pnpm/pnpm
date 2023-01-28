@@ -39,5 +39,6 @@
     {
       "path": "../../workspace/filter-workspace-packages"
     }
-  ]
+  ],
+  "composite": true
 }

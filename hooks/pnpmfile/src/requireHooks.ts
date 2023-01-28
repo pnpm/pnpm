@@ -60,16 +60,16 @@ export function requireHooks (
     filterLog: [],
     readPackage: [],
   }
-  for (const hookName of ['readPackage', 'afterAllResolved']) {
+  for (const hookName of ['readPackage', 'afterAllResolved'] as const) {
     if (globalHooks[hookName]) {
       const globalHook = globalHooks[hookName]
       const context = createReadPackageHookContext(globalPnpmfile.filename, prefix, hookName)
-      cookedHooks[hookName].push((pkg: object) => globalHook(pkg, context))
+      cookedHooks[hookName]!.push((pkg: object) => globalHook!(pkg as any, context)) // eslint-disable-line @typescript-eslint/no-explicit-any
     }
     if (hooks[hookName]) {
       const hook = hooks[hookName]
       const context = createReadPackageHookContext(pnpmFile.filename, prefix, hookName)
-      cookedHooks[hookName].push((pkg: object) => hook(pkg, context))
+      cookedHooks[hookName]!.push((pkg: object) => hook!(pkg as any, context)) // eslint-disable-line @typescript-eslint/no-explicit-any
     }
   }
   if (globalHooks.filterLog != null) {

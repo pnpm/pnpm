@@ -14,6 +14,7 @@ const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
 // It should be rare that a files content should be checked.
 // If it happens too frequently, something is wrong.
 // Checking a file's integrity is an expensive operation!
+// @ts-expect-error
 global['verifiedFileIntegrity'] = 0
 
 export interface PackageFilesIndex {
@@ -114,6 +115,7 @@ export async function verifyFileIntegrity (
   expectedFile: FileInfo,
   deferredManifest?: DeferredManifestPromise
 ) {
+  // @ts-expect-error
   global['verifiedFileIntegrity']++
   try {
     if (expectedFile.size > MAX_BULK_SIZE && (deferredManifest == null)) {

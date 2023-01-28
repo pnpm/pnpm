@@ -197,6 +197,7 @@ export async function mutateModules (
 
   const installsOnly = projects.every((project) => project.mutation === 'install')
   if (!installsOnly) opts.strictPeerDependencies = false
+  // @ts-expect-error
   opts['forceNewModules'] = installsOnly
   const rootProjectManifest = opts.allProjects.find(({ rootDir }) => rootDir === opts.lockfileDir)?.manifest ??
     // When running install/update on a subset of projects, the root project might not be included,
@@ -230,7 +231,9 @@ export async function mutateModules (
 
   const result = await _install()
 
+  // @ts-expect-error
   if (global['verifiedFileIntegrity'] > 1000) {
+    // @ts-expect-error
     globalInfo(`The integrity of ${global['verifiedFileIntegrity']} files was checked. This might have caused installation to take longer.`) // eslint-disable-line
   }
   if ((reporter != null) && typeof reporter === 'function') {
@@ -1048,7 +1051,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
               prev[alias] = node
             }
             return prev
-          }, {})
+          }, {} as Record<string, string>)
         linkedPackages = await linkBins(project.modulesDir, project.binsDir, {
           allowExoticManifests: true,
           preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
@@ -1118,7 +1121,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()
         }
-        const injectedDeps = {}
+        const injectedDeps: Record<string, string[]> = {}
         for (const project of projectsWithTargetDirs) {
           if (project.targetDirs.length > 0) {
             injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))

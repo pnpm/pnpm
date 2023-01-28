@@ -46,8 +46,8 @@ export async function extendStoreStatusOptions (
 ): Promise<StrictStoreStatusOptions> {
   if (opts) {
     for (const key in opts) {
-      if (opts[key] === undefined) {
-        delete opts[key]
+      if (opts[key as keyof StoreStatusOptions] === undefined) {
+        delete opts[key as keyof StoreStatusOptions]
       }
     }
   }

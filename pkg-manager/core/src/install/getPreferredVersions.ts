@@ -31,5 +31,5 @@ export function getPreferredVersionsFromLockfile (snapshots: PackageSnapshots): 
         preferredVersions[name][version] = 'version'
       }
       return preferredVersions
-    }, {})
+    }, {} as PreferredVersions)
 }

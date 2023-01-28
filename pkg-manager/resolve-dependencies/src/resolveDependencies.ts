@@ -392,7 +392,7 @@ async function resolveDependenciesOfImporters (
   }
   const pkgAddressesByImportersWithoutPeers = await Promise.all(zipWith(async (importer, { pkgAddresses, postponedResolutionsQueue, postponedPeersResolutionQueue }) => {
     const newPreferredVersions = { ...importer.preferredVersions }
-    const currentParentPkgAliases = {}
+    const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
     for (const pkgAddress of pkgAddresses) {
       if (currentParentPkgAliases[pkgAddress.alias] !== true) {
         currentParentPkgAliases[pkgAddress.alias] = pkgAddress
@@ -514,7 +514,7 @@ export async function resolveDependencies (
     }
   })
   const newPreferredVersions = { ...preferredVersions }
-  const currentParentPkgAliases = {}
+  const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
   for (const pkgAddress of pkgAddresses) {
     if (currentParentPkgAliases[pkgAddress.alias] !== true) {
       currentParentPkgAliases[pkgAddress.alias] = pkgAddress
@@ -802,9 +802,9 @@ async function resolveChildren (
   }))
   ctx.dependenciesTree[parentPkg.nodeId] = {
     children: pkgAddresses.reduce((chn, child) => {
-      chn[child.alias] = child['nodeId'] ?? child.pkgId
+      chn[child.alias] = (child as PkgAddress).nodeId ?? child.pkgId
       return chn
-    }, {}),
+    }, {} as Record<string, string>),
     depth: parentDepth,
     installable: parentPkg.installable,
     resolvedPackage: ctx.resolvedPackagesByDepPath[parentPkg.depPath],
@@ -1302,7 +1302,7 @@ async function resolveDependency (
   }
 
   const rootDir = pkgResponse.body.resolution.type === 'directory'
-    ? path.resolve(ctx.lockfileDir, pkgResponse.body.resolution['directory'])
+    ? path.resolve(ctx.lockfileDir, (pkgResponse.body.resolution as DirectoryResolution).directory)
     : options.prefix
   let missingPeersOfChildren!: MissingPeersOfChildren | undefined
   if (ctx.autoInstallPeers && !nodeIdContains(options.parentPkg.nodeId, depPath)) {
@@ -1433,7 +1433,7 @@ function peerDependenciesWithoutOwn (pkg: PackageManifest) {
     ...Object.keys(pkg.dependencies ?? {}),
     ...Object.keys(pkg.optionalDependencies ?? {}),
   ])
-  const result = {}
+  const result: Record<string, string> = {}
   if (pkg.peerDependencies != null) {
     for (const [peerName, peerRange] of Object.entries(pkg.peerDependencies)) {
       if (ownDeps.has(peerName)) continue

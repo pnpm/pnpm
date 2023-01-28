@@ -12,5 +12,6 @@
     {
       "path": "../types"
     }
-  ]
+  ],
+  "composite": true
 }

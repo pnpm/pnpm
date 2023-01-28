@@ -32,12 +32,12 @@ function extendPkgHook (extensionsByPkgName: Record<string, PackageExtensionMatc
 function extendPkg (manifest: PackageManifest, extensions: PackageExtensionMatch[]) {
   for (const { range, packageExtension } of extensions) {
     if (range != null && !semver.satisfies(manifest.version, range)) continue
-    for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta']) {
+    for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'] as const) {
       if (!packageExtension[field]) continue
       manifest[field] = {
         ...packageExtension[field],
         ...manifest[field],
-      }
+      } as any // eslint-disable-line @typescript-eslint/no-explicit-any
     }
   }
 }

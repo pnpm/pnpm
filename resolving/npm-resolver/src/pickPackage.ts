@@ -190,7 +190,7 @@ export async function pickPackage (
 }
 
 function clearMeta (pkg: PackageMeta): PackageMeta {
-  const versions = {}
+  const versions: PackageMeta['versions'] = {}
   for (const [version, info] of Object.entries(pkg.versions)) {
     // The list taken from https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object
     versions[version] = pick([

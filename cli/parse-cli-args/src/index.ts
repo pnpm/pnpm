@@ -187,7 +187,7 @@ const CUSTOM_OPTION_PREFIX = 'config.'
 
 function normalizeOptions (options: Record<string, unknown>, knownOptions: Set<string>) {
   const standardOptionNames = []
-  const normalizedOptions = {}
+  const normalizedOptions: Record<string, unknown> = {}
   for (const [optionName, optionValue] of Object.entries(options)) {
     if (optionName.startsWith(CUSTOM_OPTION_PREFIX)) {
       normalizedOptions[optionName.substring(CUSTOM_OPTION_PREFIX.length)] = optionValue

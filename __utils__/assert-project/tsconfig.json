@@ -24,5 +24,6 @@
     {
       "path": "../assert-store"
     }
-  ]
+  ],
+  "composite": true
 }

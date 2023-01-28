@@ -36,7 +36,7 @@ export function hoist (
         // It is only needed to prevent the hoister from hoisting deps with this name to the root of node_modules.
         acc[dep] = 'link:'
         return acc
-      }, {}),
+      }, {} as Record<string, string>),
     }),
   }
   for (const [importerId, importer] of Object.entries(lockfile.importers)) {

@@ -145,7 +145,7 @@ export function createLockfileObject (
       specifiers: {},
     }
     return acc
-  }, {})
+  }, {} as Lockfile['importers'])
   return {
     importers,
     lockfileVersion: opts.lockfileVersion || LOCKFILE_VERSION,

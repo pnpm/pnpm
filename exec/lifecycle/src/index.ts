@@ -3,6 +3,7 @@ import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import exists from 'path-exists'
 import { runLifecycleHook, RunLifecycleHookOptions } from './runLifecycleHook'
 import { runLifecycleHooksConcurrently, RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently'
+import { PackageScripts } from '@pnpm/types'
 
 export function makeNodeRequireOption (modulePath: string) {
   let { NODE_OPTIONS } = process.env
@@ -51,9 +52,9 @@ export async function runPostinstallHooks (
  */
 async function checkBindingGyp (
   root: string,
-  scripts: {}
+  scripts: PackageScripts
 ) {
   if (await exists(path.join(root, 'binding.gyp'))) {
-    scripts['install'] = 'node-gyp rebuild'
+    scripts.install = 'node-gyp rebuild'
   }
 }

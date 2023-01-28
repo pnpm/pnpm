@@ -39,5 +39,6 @@
     {
       "path": "../list"
     }
-  ]
+  ],
+  "composite": true
 }

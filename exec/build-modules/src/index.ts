@@ -47,9 +47,10 @@ export async function buildModules (
   }
   // postinstall hooks
 
-  const buildDepOpts = { ...opts, warn }
-  if (opts.hoistedLocations) {
-    buildDepOpts['builtHoistedDeps'] = {}
+  const buildDepOpts = {
+    ...opts,
+    builtHoistedDeps: opts.hoistedLocations ? {} : undefined,
+    warn,
   }
   const chunks = buildSequence(depGraph, rootDepPaths)
   const groups = chunks.map((chunk) => {

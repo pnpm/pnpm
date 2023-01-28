@@ -45,7 +45,7 @@ export async function allProjectsAreUpToDate (
 }
 
 function getWorkspacePackagesByDirectory (workspacePackages: WorkspacePackages) {
-  const workspacePackagesByDirectory = {}
+  const workspacePackagesByDirectory: Record<string, DependencyManifest> = {}
   Object.keys(workspacePackages || {}).forEach((pkgName) => {
     Object.keys(workspacePackages[pkgName] || {}).forEach((pkgVersion) => {
       workspacePackagesByDirectory[workspacePackages[pkgName][pkgVersion].dir] = workspacePackages[pkgName][pkgVersion].manifest

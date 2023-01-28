@@ -15,5 +15,6 @@
     {
       "path": "../fetching-types"
     }
-  ]
+  ],
+  "composite": true
 }

@@ -262,6 +262,7 @@ export async function getConfig (
   const cwd = (cliOptions.dir && path.resolve(cliOptions.dir)) ?? npmConfig.localPrefix
 
   pnpmConfig.maxSockets = npmConfig.maxsockets
+  // @ts-expect-error
   delete pnpmConfig['maxsockets']
 
   pnpmConfig.configDir = configDir
@@ -286,11 +287,14 @@ export async function getConfig (
     ...getScopeRegistries(pnpmConfig.rawConfig),
   }
   pnpmConfig.useLockfile = (() => {
+    // @ts-expect-error
     if (typeof pnpmConfig['lockfile'] === 'boolean') return pnpmConfig['lockfile']
+    // @ts-expect-error
     if (typeof pnpmConfig['packageLock'] === 'boolean') return pnpmConfig['packageLock']
     return false
   })()
   pnpmConfig.useGitBranchLockfile = (() => {
+    // @ts-expect-error
     if (typeof pnpmConfig['gitBranchLockfile'] === 'boolean') return pnpmConfig['gitBranchLockfile']
     return false
   })()
@@ -309,7 +313,9 @@ export async function getConfig (
 
   if (cliOptions['global']) {
     let globalDirRoot
+    // @ts-expect-error
     if (pnpmConfig['globalDir']) {
+      // @ts-expect-error
       globalDirRoot = pnpmConfig['globalDir']
     } else {
       globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
@@ -427,6 +433,7 @@ export async function getConfig (
     }
   }
 
+  // @ts-expect-error
   if (pnpmConfig['shamefullyFlatten']) {
     warnings.push('The "shamefully-flatten" setting has been renamed to "shamefully-hoist". Also, in most cases you won\'t need "shamefully-hoist". Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).')
     pnpmConfig.shamefullyHoist = true
@@ -437,6 +444,7 @@ export async function getConfig (
   if (!pnpmConfig.stateDir) {
     pnpmConfig.stateDir = getStateDir(process)
   }
+  // @ts-expect-error
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern
   }
@@ -486,6 +494,7 @@ export async function getConfig (
     pnpmConfig.httpProxy = pnpmConfig.httpsProxy ?? getProcessEnv('http_proxy') ?? getProcessEnv('proxy')
   }
   if (!pnpmConfig.noProxy) {
+    // @ts-expect-error
     pnpmConfig.noProxy = pnpmConfig['noproxy'] ?? getProcessEnv('no_proxy')
   }
   switch (pnpmConfig.nodeLinker) {
@@ -526,7 +535,7 @@ export async function getConfig (
     pnpmConfig.hooks = requireHooks(pnpmConfig.lockfileDir ?? pnpmConfig.dir, pnpmConfig)
   }
   pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir) ?? undefined
-  if (pnpmConfig.rootProjectManifest?.['workspaces']?.length && !pnpmConfig.workspaceDir) {
+  if (pnpmConfig.rootProjectManifest?.workspaces?.length && !pnpmConfig.workspaceDir) {
     warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
   }
 

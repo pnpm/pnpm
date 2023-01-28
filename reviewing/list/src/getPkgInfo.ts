@@ -1,15 +1,21 @@
+import { ProjectManifest } from '@pnpm/types'
 import path from 'path'
 import { readPkg } from './readPkg'
 
-export async function getPkgInfo (
-  pkg: {
-    alias: string
-    name: string
-    version: string
-    path: string
-    resolved?: string
-  }
-) {
+interface PkgData {
+  alias: string | undefined
+  name: string
+  version: string
+  path: string
+  resolved?: string
+}
+
+export type PkgInfo = Omit<PkgData, 'name' | 'path'> & Pick<ProjectManifest, 'description' | 'license' | 'author' | 'homepage'> & {
+  from: string
+  repository?: string
+}
+
+export async function getPkgInfo (pkg: PkgData): Promise<PkgInfo> {
   let manifest
   try {
     manifest = await readPkg(path.join(pkg.path, 'node_modules', pkg.name, 'package.json'))

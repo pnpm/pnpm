@@ -99,12 +99,12 @@ async function tryImportIndexedDir (importFile: ImportFile, newDir: string, file
 
 function getUniqueFileMap (fileMap: Record<string, string>) {
   const lowercaseFiles = new Map<string, string>()
-  const conflictingFileNames = {}
-  const uniqueFileMap = {}
+  const conflictingFileNames: Record<string, string> = {}
+  const uniqueFileMap: Record<string, string> = {}
   for (const filename of Object.keys(fileMap).sort()) {
     const lowercaseFilename = filename.toLowerCase()
     if (lowercaseFiles.has(lowercaseFilename)) {
-      conflictingFileNames[filename] = lowercaseFiles.get(lowercaseFilename)
+      conflictingFileNames[filename] = lowercaseFiles.get(lowercaseFilename)!
       continue
     }
     lowercaseFiles.set(lowercaseFilename, filename)

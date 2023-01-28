@@ -105,6 +105,7 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
     }
     if ((s != null) && !s.isDirectory()) {
       const err = new Error(`"${projectDir}" is not a directory`)
+      // @ts-expect-error
       err['code'] = 'ENOTDIR'
       throw err
     }
@@ -214,13 +215,13 @@ const dependencyKeys = new Set([
 
 function normalize (manifest: ProjectManifest) {
   manifest = JSON.parse(JSON.stringify(manifest))
-  const result = {}
+  const result: Record<string, any> = {} // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  for (const key of Object.keys(manifest)) {
+  for (const [key, value] of Object.entries(manifest)) {
     if (!dependencyKeys.has(key)) {
-      result[key] = manifest[key]
-    } else if (Object.keys(manifest[key]).length !== 0) {
-      result[key] = sortKeys(manifest[key])
+      result[key] = value
+    } else if (Object.keys(value).length !== 0) {
+      result[key] = sortKeys(value)
     }
   }
 

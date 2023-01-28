@@ -27,5 +27,6 @@
     {
       "path": "../error"
     }
-  ]
+  ],
+  "composite": true
 }

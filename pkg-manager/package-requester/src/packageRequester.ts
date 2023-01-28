@@ -13,6 +13,7 @@ import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { PnpmError } from '@pnpm/error'
 import {
+  DirectoryFetcherResult,
   Fetchers,
   FetchOptions,
   FetchResult,
@@ -27,6 +28,7 @@ import {
   Resolution,
   ResolveFunction,
   ResolveResult,
+  TarballResolution,
 } from '@pnpm/resolver-base'
 import {
   BundledManifest,
@@ -106,8 +108,6 @@ export function createPackageRequester (
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
   })
-  requestsQueue['counter'] = 0
-  requestsQueue['concurrency'] = networkConcurrency
 
   const cafsDir = path.join(opts.storeDir, 'files')
   const getFilePathInCafs = _getFilePathInCafs.bind(null, cafsDir)
@@ -123,7 +123,10 @@ export function createPackageRequester (
     fetchingLocker: new Map(),
     getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, cafsDir),
     getFilePathInCafs,
-    requestsQueue,
+    requestsQueue: Object.assign(requestsQueue, {
+      counter: 0,
+      concurrency: networkConcurrency,
+    }),
     storeDir: opts.storeDir,
   })
   const requestPackage = resolveAndFetch.bind(null, {
@@ -201,7 +204,7 @@ async function resolveAndFetch (
     forceFetch = Boolean(
       ((options.currentPkg?.resolution) != null) &&
       pkgId?.startsWith('file:') &&
-      options.currentPkg?.resolution['integrity'] !== resolveResult.resolution['integrity']
+      (options.currentPkg?.resolution as TarballResolution).integrity !== (resolveResult.resolution as TarballResolution).integrity
     )
 
     updated = pkgId !== resolveResult.id || !resolution || forceFetch
@@ -314,8 +317,8 @@ function getFilesIndexFilePath (
 ) {
   const targetRelative = depPathToFilename(opts.pkg.id)
   const target = path.join(ctx.storeDir, targetRelative)
-  const filesIndexFile = opts.pkg.resolution['integrity']
-    ? ctx.getFilePathInCafs(opts.pkg.resolution['integrity'], 'index')
+  const filesIndexFile = (opts.pkg.resolution as TarballResolution).integrity
+    ? ctx.getFilePathInCafs((opts.pkg.resolution as TarballResolution).integrity!, 'index')
     : path.join(target, opts.ignoreScripts ? 'integrity-not-built.json' : 'integrity.json')
   return { filesIndexFile, target }
 }
@@ -334,7 +337,11 @@ function fetchToStore (
     fetchingLocker: Map<string, FetchLock>
     getFilePathInCafs: (integrity: string, fileType: FileType) => string
     getFilePathByModeInCafs: (integrity: string, mode: number) => string
-    requestsQueue: { add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T> }
+    requestsQueue: {
+      add: <T>(fn: () => Promise<T>, opts: { priority: number }) => Promise<T>
+      counter: number
+      concurrency: number
+    }
     storeDir: string
   },
   opts: FetchPackageToStoreOptions
@@ -527,7 +534,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       // However, when one line is left available, allow it to be picked up by a metadata request.
       // This is done in order to avoid situations when tarballs are downloaded in chunks
       // As many tarballs should be downloaded simultaneously as possible.
-      const priority = (++ctx.requestsQueue['counter'] % ctx.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000
+      const priority = (++ctx.requestsQueue.counter % ctx.requestsQueue.concurrency === 0 ? -1 : 1) * 1000
 
       const fetchManifest = opts.fetchRawManifest
         ? safePromiseDefer<DependencyManifest | undefined>()
@@ -604,13 +611,13 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           local: true,
           fromStore: false,
           filesIndex: fetchedPackage.filesIndex,
-          packageImportMethod: fetchedPackage['packageImportMethod'],
+          packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
         }
       }
 
-      if (isLocalTarballDep && opts.pkg.resolution['integrity']) {
+      if (isLocalTarballDep && (opts.pkg.resolution as TarballResolution).integrity) {
         await fs.mkdir(target, { recursive: true })
-        await gfs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.pkg.resolution['integrity'], 'utf8')
+        await gfs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), (opts.pkg.resolution as TarballResolution).integrity!, 'utf8')
       }
 
       files.resolve(filesResult)
@@ -688,7 +695,7 @@ async function fetcher (
 ): Promise<FetchResult> {
   const fetch = pickFetcher(fetcherByHostingType, resolution)
   try {
-    return await fetch(cafs, resolution, opts)
+    return await fetch(cafs, resolution as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
   } catch (err: any) { // eslint-disable-line
     packageRequestLogger.warn({
       message: `Fetching ${packageId} failed!`,

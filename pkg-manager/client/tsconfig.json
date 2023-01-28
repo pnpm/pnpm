@@ -36,5 +36,6 @@
     {
       "path": "../../resolving/resolver-base"
     }
-  ]
+  ],
+  "composite": true
 }

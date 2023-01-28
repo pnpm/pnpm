@@ -96,7 +96,7 @@ export async function lockfileToDepGraph (
   const graph: DependenciesGraph = {}
   const directDependenciesByImporterId: DirectDependenciesByImporterId = {}
   if (lockfile.packages != null) {
-    const pkgSnapshotByLocation = {}
+    const pkgSnapshotByLocation: Record<string, PackageSnapshot> = {}
     await Promise.all(
       Object.entries(lockfile.packages).map(async ([depPath, pkgSnapshot]) => {
         if (opts.skipped.has(depPath)) return

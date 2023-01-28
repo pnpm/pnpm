@@ -36,5 +36,6 @@
     {
       "path": "../link-bins"
     }
-  ]
+  ],
+  "composite": true
 }
