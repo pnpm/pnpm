@@ -860,8 +860,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
 
     await fs.writeFile('.npmrc', npmrc, 'utf8')
 
-    // @ts-expect-error
-    getCurrentBranch['mockReturnValue']('develop')
+    ;(getCurrentBranch as jest.Mock).mockReturnValue('develop')
     const { config } = await getConfig({
       cliOptions: {
         global: false,
@@ -876,8 +875,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
     expect(config.mergeGitBranchLockfiles).toBe(false)
   }
   {
-    // @ts-expect-error
-    getCurrentBranch['mockReturnValue']('main')
+    (getCurrentBranch as jest.Mock).mockReturnValue('main')
     const { config } = await getConfig({
       cliOptions: {
         global: false,
@@ -890,8 +888,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
     expect(config.mergeGitBranchLockfiles).toBe(true)
   }
   {
-    // @ts-expect-error
-    getCurrentBranch['mockReturnValue']('release/1.0.0')
+    (getCurrentBranch as jest.Mock).mockReturnValue('release/1.0.0')
     const { config } = await getConfig({
       cliOptions: {
         global: false,
