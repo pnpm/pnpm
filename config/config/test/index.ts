@@ -588,6 +588,7 @@ test('read only supported settings from config', async () => {
   })
 
   expect(config.storeDir).toEqual('__store__')
+  // @ts-expect-error
   expect(config['foo']).toBeUndefined()
   expect(config.rawConfig['foo']).toEqual('bar')
 })
@@ -603,6 +604,7 @@ test('all CLI options are added to the config', async () => {
     },
   })
 
+  // @ts-expect-error
   expect(config['fooBar']).toEqual('qar')
 })
 
@@ -858,6 +860,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
 
     await fs.writeFile('.npmrc', npmrc, 'utf8')
 
+    // @ts-expect-error
     getCurrentBranch['mockReturnValue']('develop')
     const { config } = await getConfig({
       cliOptions: {
@@ -873,6 +876,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
     expect(config.mergeGitBranchLockfiles).toBe(false)
   }
   {
+    // @ts-expect-error
     getCurrentBranch['mockReturnValue']('main')
     const { config } = await getConfig({
       cliOptions: {
@@ -886,6 +890,7 @@ test('getConfig() sets merge-git-branch-lockfiles when branch matches merge-git-
     expect(config.mergeGitBranchLockfiles).toBe(true)
   }
   {
+    // @ts-expect-error
     getCurrentBranch['mockReturnValue']('release/1.0.0')
     const { config } = await getConfig({
       cliOptions: {
