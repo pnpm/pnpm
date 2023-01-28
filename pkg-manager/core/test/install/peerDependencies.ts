@@ -13,6 +13,7 @@ import {
   mutateModules,
   mutateModulesInSingleProject,
   PeerDependencyIssuesError,
+  ProjectOptions,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import exists from 'path-exists'
@@ -244,7 +245,7 @@ test('peer dependency is resolved from the dependencies of the workspace root pr
       package: {},
     },
   ])
-  const allProjects = [
+  const allProjects: ProjectOptions[] = [
     {
       buildIndex: 0,
       manifest: {
@@ -291,7 +292,7 @@ test('peer dependency is resolved from the dependencies of the workspace root pr
     expect(lockfile.importers.pkg?.dependencies?.['ajv-keywords']).toBe('1.5.0_ajv@4.10.0')
   }
 
-  allProjects[1].manifest.dependencies['is-positive'] = '1.0.0'
+  allProjects[1].manifest.dependencies!['is-positive'] = '1.0.0'
   await mutateModules([
     {
       mutation: 'install',

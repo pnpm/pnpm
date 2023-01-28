@@ -27,7 +27,7 @@ test('readPackage, afterAllResolved hooks', async () => {
   }
 
   const afterAllResolved = jest.fn((lockfile: Lockfile) => {
-    lockfile['foo'] = 'foo'
+    Object.assign(lockfile, { foo: 'foo' })
     return lockfile
   })
 
@@ -43,7 +43,7 @@ test('readPackage, afterAllResolved hooks', async () => {
   expect(afterAllResolved.mock.calls[0][0].lockfileVersion).toEqual(LOCKFILE_VERSION)
 
   const wantedLockfile = await project.readLockfile()
-  expect(wantedLockfile['foo']).toEqual('foo')
+  expect(wantedLockfile).toHaveProperty(['foo'], 'foo')
 })
 
 test('readPackage, afterAllResolved async hooks', async () => {
@@ -65,7 +65,7 @@ test('readPackage, afterAllResolved async hooks', async () => {
   }
 
   const afterAllResolved = jest.fn(async (lockfile: Lockfile) => {
-    lockfile['foo'] = 'foo'
+    Object.assign(lockfile, { foo: 'foo' })
     return lockfile
   })
 
@@ -81,7 +81,7 @@ test('readPackage, afterAllResolved async hooks', async () => {
   expect(afterAllResolved.mock.calls[0][0].lockfileVersion).toEqual(LOCKFILE_VERSION)
 
   const wantedLockfile = await project.readLockfile()
-  expect(wantedLockfile['foo']).toEqual('foo')
+  expect(wantedLockfile).toHaveProperty(['foo'], 'foo')
 })
 
 test('readPackage hooks array', async () => {

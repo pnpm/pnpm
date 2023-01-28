@@ -553,11 +553,11 @@ test('do not override the direct dependency with an auto installed peer dependen
       // The only reason the hook was added to remove the packages that aren't needed for the tests and make the test faster.
       readPackage: [
         (pkg: PackageManifest) => {
-          for (const depType of ['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta']) {
+          for (const depType of ['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'] as const) {
             if (pkg[depType]) {
-              for (const depName of Object.keys(pkg[depType])) {
+              for (const depName of Object.keys(pkg[depType] ?? {})) {
                 if (!includedDeps.has(depName)) {
-                  delete pkg[depType][depName]
+                  delete pkg[depType]![depName]
                 }
               }
             }

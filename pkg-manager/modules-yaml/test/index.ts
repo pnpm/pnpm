@@ -30,9 +30,9 @@ test('writeModulesManifest() and readModulesManifest()', async () => {
   await writeModulesManifest(modulesDir, modulesYaml)
   expect(await readModulesManifest(modulesDir)).toEqual(modulesYaml)
 
-  const raw = await readYamlFile<object>(path.join(modulesDir, '.modules.yaml'))
-  expect(raw['virtualStoreDir']).toBeDefined()
-  expect(path.isAbsolute(raw['virtualStoreDir'])).toEqual(isWindows())
+  const raw = await readYamlFile<any>(path.join(modulesDir, '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(raw.virtualStoreDir).toBeDefined()
+  expect(path.isAbsolute(raw.virtualStoreDir)).toEqual(isWindows())
 })
 
 test('backward compatible read of .modules.yaml created with shamefully-hoist=true', async () => {

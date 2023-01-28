@@ -129,7 +129,7 @@ test('do not save manifest if it had no changes', async () => {
 })
 
 test('fail on invalid JSON', async () => {
-  let err!: Error
+  let err!: Error & { code: string }
   try {
     await readProjectManifest(path.join(fixtures, 'invalid-package-json'))
   } catch (_err: any) { // eslint-disable-line
@@ -137,7 +137,7 @@ test('fail on invalid JSON', async () => {
   }
 
   expect(err).toBeTruthy()
-  expect(err['code']).toBe('ERR_PNPM_JSON_PARSE')
+  expect(err.code).toBe('ERR_PNPM_JSON_PARSE')
 
   const nodeMajorVersion = parseInt(process.version.slice(1).split('.')[0])
   const expectedMessage = nodeMajorVersion >= 19
@@ -147,7 +147,7 @@ test('fail on invalid JSON', async () => {
 })
 
 test('fail on invalid JSON5', async () => {
-  let err!: Error
+  let err!: Error & { code: string }
   try {
     await readProjectManifest(path.join(fixtures, 'invalid-package-json5'))
   } catch (_err: any) { // eslint-disable-line
@@ -155,12 +155,12 @@ test('fail on invalid JSON5', async () => {
   }
 
   expect(err).toBeTruthy()
-  expect(err['code']).toBe('ERR_PNPM_JSON5_PARSE')
+  expect(err.code).toBe('ERR_PNPM_JSON5_PARSE')
   expect(err.message).toMatch(/^JSON5: invalid character 'v' at 3:3 in/)
 })
 
 test('fail on invalid YAML', async () => {
-  let err!: Error
+  let err!: Error & { code: string }
   try {
     await readProjectManifest(path.join(fixtures, 'invalid-package-yaml'))
   } catch (_err: any) { // eslint-disable-line
@@ -168,7 +168,7 @@ test('fail on invalid YAML', async () => {
   }
 
   expect(err).toBeTruthy()
-  expect(err['code']).toBe('ERR_PNPM_YAML_PARSE')
+  expect(err.code).toBe('ERR_PNPM_YAML_PARSE')
   expect(err.message).toMatch(/^missed comma between flow collection entries \(3:3\)/)
 })
 

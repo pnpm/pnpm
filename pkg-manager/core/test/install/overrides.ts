@@ -12,7 +12,7 @@ test('versions are replaced with versions specified through overrides option', a
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.0.0', distTag: 'latest' })
 
-  const overrides = {
+  const overrides: Record<string, string> = {
     '@pnpm.e2e/foobarqar>@pnpm.e2e/foo': 'npm:@pnpm.e2e/qar@100.0.0',
     '@pnpm.e2e/bar@^100.0.0': '100.1.0',
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',

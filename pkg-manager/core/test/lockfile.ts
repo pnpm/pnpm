@@ -807,9 +807,9 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   process.chdir('..')
 
-  const modules = await readYamlFile<object>(path.resolve('node_modules', '.modules.yaml'))
+  const modules = await readYamlFile<any>(path.resolve('node_modules', '.modules.yaml')) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(modules).toBeTruthy()
-  expect(modules['pendingBuilds'].length).toBe(0)
+  expect(modules.pendingBuilds.length).toBe(0)
 
   {
     const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
