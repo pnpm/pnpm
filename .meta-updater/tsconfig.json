@@ -1,5 +1,5 @@
 {
-  "extends": "../node_modules/@pnpm/tsconfig/tsconfig.json",
+  "extends": "@pnpm/tsconfig",
   "compilerOptions": {
     "outDir": "lib",
     "rootDir": "src",
