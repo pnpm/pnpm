@@ -557,7 +557,7 @@ test('dependency without a package.json', async () => {
   expect(tree[withNonPackageDepFixture].dependencies!.length).toBeGreaterThan(0)
   expect(tree[withNonPackageDepFixture].dependencies![0]).toBeDefined()
   // verify that dependency without a package.json has no further dependencies
-  expect(tree[withNonPackageDepFixture].dependencies![0]['dependencies']).toBeUndefined()
-  expect(tree[withNonPackageDepFixture].dependencies![0]['devDependencies']).toBeUndefined()
-  expect(tree[withNonPackageDepFixture].dependencies![0]['optionalDependencies']).toBeUndefined()
+  expect(tree[withNonPackageDepFixture].dependencies![0]).not.toHaveProperty(['dependencies'])
+  expect(tree[withNonPackageDepFixture].dependencies![0]).not.toHaveProperty(['devDependencies'])
+  expect(tree[withNonPackageDepFixture].dependencies![0]).not.toHaveProperty(['optionalDependencies'])
 })
