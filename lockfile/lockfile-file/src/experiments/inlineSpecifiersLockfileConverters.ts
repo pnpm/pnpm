@@ -239,7 +239,7 @@ function revertProjectSnapshot (from: InlineSpecifiersProjectSnapshot): ProjectS
 }
 
 function mapValues<T, U> (obj: Record<string, T>, mapper: (val: T, key: string) => U): Record<string, U> {
-  const result = {}
+  const result: Record<string, U> = {}
   for (const [key, value] of Object.entries(obj)) {
     result[key] = mapper(value, key)
   }

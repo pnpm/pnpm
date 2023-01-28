@@ -14,6 +14,7 @@ import { KeyValuePair } from 'ramda'
 import isEmpty from 'ramda/src/isEmpty'
 import mergeRight from 'ramda/src/mergeRight'
 import partition from 'ramda/src/partition'
+import { SafePromiseDefer } from 'safe-promise-defer'
 import { depPathToRef } from './depPathToRef'
 import { ResolvedPackage } from './resolveDependencies'
 import { DependenciesGraph } from '.'
@@ -92,7 +93,7 @@ function toLockfileDependency (
   )
   const result = {
     resolution: lockfileResolution,
-  }
+  } as PackageSnapshot
   if (dp.isAbsolute(opts.depPath)) {
     result['name'] = pkg.name
 
@@ -126,7 +127,7 @@ function toLockfileDependency (
     result['transitivePeerDependencies'] = Array.from(pkg.transitivePeerDependencies).sort()
   }
   if (pkg.peerDependenciesMeta != null) {
-    const normalizedPeerDependenciesMeta = {}
+    const normalizedPeerDependenciesMeta: Record<string, { optional: true }> = {}
     for (const [peer, { optional }] of Object.entries(pkg.peerDependenciesMeta)) {
       if (optional) {
         normalizedPeerDependenciesMeta[peer] = { optional: true }
@@ -139,8 +140,8 @@ function toLockfileDependency (
   if (pkg.additionalInfo.engines != null) {
     for (const [engine, version] of Object.entries(pkg.additionalInfo.engines)) {
       if (version === '*') continue
-      result['engines'] = result['engines'] || {}
-      result['engines'][engine] = version
+      result.engines = result.engines ?? {} as any // eslint-disable-line @typescript-eslint/no-explicit-any
+      result.engines![engine] = version
     }
   }
   if (pkg.additionalInfo.cpu != null) {
@@ -185,7 +186,7 @@ function toLockfileDependency (
     pending = true
   }
   if (!requiresBuildIsKnown && !pending) {
-    pkg.requiresBuild['resolve'](result['requiresBuild'] ?? false)
+    (pkg.requiresBuild as SafePromiseDefer<boolean>).resolve(result.requiresBuild ?? false)
   }
   /* eslint-enable @typescript-eslint/dot-notation */
   return result

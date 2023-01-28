@@ -1,3 +1,4 @@
+import { ProjectManifest } from '@pnpm/types'
 import { createPeerDependencyPatcher } from '../lib/createPeerDependencyPatcher'
 
 test('createPeerDependencyPatcher() ignores missing', () => {
@@ -9,8 +10,8 @@ test('createPeerDependencyPatcher() ignores missing', () => {
       foo: '*',
       bar: '*',
     },
-  })
-  expect(patchedPkg['peerDependenciesMeta']).toStrictEqual({
+  }) as ProjectManifest
+  expect(patchedPkg.peerDependenciesMeta).toStrictEqual({
     foo: {
       optional: true,
     },
@@ -26,8 +27,8 @@ test('createPeerDependencyPatcher() pattern matches to ignore missing', () => {
       foobar: '*',
       bar: '*',
     },
-  })
-  expect(patchedPkg['peerDependenciesMeta']).toStrictEqual({
+  }) as ProjectManifest
+  expect(patchedPkg.peerDependenciesMeta).toStrictEqual({
     foobar: {
       optional: true,
     },
@@ -49,8 +50,8 @@ test('createPeerDependencyPatcher() extends peer ranges', () => {
       qar: '*',
       baz: '1',
     },
-  })
-  expect(patchedPkg['peerDependencies']).toStrictEqual({
+  }) as ProjectManifest
+  expect(patchedPkg.peerDependencies).toStrictEqual({
     foo: '0 || 1',
     bar: '0',
     qar: '*',
@@ -69,8 +70,8 @@ test('createPeerDependencyPatcher() ignores peer versions from allowAny', () => 
       qar: '2',
       baz: '2',
     },
-  })
-  expect(patchedPkg['peerDependencies']).toStrictEqual({
+  }) as ProjectManifest
+  expect(patchedPkg.peerDependencies).toStrictEqual({
     foo: '*',
     bar: '*',
     qar: '2',
@@ -102,8 +103,8 @@ test('createPeerDependencyPatcher() does not create duplicate extended ranges', 
   // double apply the same patch to the same package
   // this can occur in a monorepo when several packages
   // all try to apply the same patch
-  const patchedAgainPkg = patcher(await patchedPkg)
-  expect(patchedAgainPkg['peerDependencies']).toStrictEqual({
+  const patchedAgainPkg = patcher(await patchedPkg) as ProjectManifest
+  expect(patchedAgainPkg.peerDependencies).toStrictEqual({
     // the patch is applied only once (not 0 || 1 || 1)
     foo: '0 || 1',
     same: '12',

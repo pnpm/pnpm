@@ -518,7 +518,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
         }
       }))
     }
-    const injectedDeps = {}
+    const injectedDeps: Record<string, string[]> = {}
     for (const project of projectsToBeBuilt) {
       if (project.targetDirs.length > 0) {
         injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))

@@ -114,7 +114,7 @@ function directDepsMap (directDepDirs: string[], graph: DependenciesGraph): Reco
   return directDepDirs.reduce((acc, dir) => {
     acc[graph[dir].alias!] = dir
     return acc
-  }, {})
+  }, {} as Record<string, string>)
 }
 
 function pickLinkedDirectDeps (
@@ -133,7 +133,7 @@ function pickLinkedDirectDeps (
         directDeps[alias] = path.resolve(importerDir, ref.slice(5))
       }
       return directDeps
-    }, {})
+    }, {} as Record<string, string>)
 }
 
 async function fetchDeps (
@@ -146,7 +146,7 @@ async function fetchDeps (
   modules: string,
   deps: Set<HoisterResult>
 ): Promise<DepHierarchy> {
-  const depHierarchy = {}
+  const depHierarchy: Record<string, DepHierarchy> = {}
   await Promise.all(Array.from(deps).map(async (dep) => {
     const depPath = Array.from(dep.references)[0]
     if (opts.skipped.has(depPath) || depPath.startsWith('workspace:')) return
@@ -257,7 +257,7 @@ function getChildren (
     ...pkgSnapshot.dependencies,
     ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
   }
-  const children = {}
+  const children: Record<string, string> = {}
   for (const [childName, childRef] of Object.entries(allDeps)) {
     const childDepPath = dp.refToRelative(childRef, childName)
     if (childDepPath && pkgLocationsByDepPath[childDepPath]) {

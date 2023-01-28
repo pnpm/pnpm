@@ -27,7 +27,7 @@ export async function updateProjectManifest (
       const wantedDep = importer.wantedDependencies[index]!
       return resolvedDirectDepToSpecObject({ ...rdd, isNew: wantedDep.isNew, specRaw: wantedDep.raw }, importer, {
         nodeExecPath: wantedDep.nodeExecPath,
-        pinnedVersion: wantedDep.pinnedVersion ?? importer['pinnedVersion'] ?? 'major',
+        pinnedVersion: wantedDep.pinnedVersion ?? importer.pinnedVersion ?? 'major',
         preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
         saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       })
@@ -37,8 +37,8 @@ export async function updateProjectManifest (
       specsToUpsert.push({
         alias: pkgToInstall.alias,
         nodeExecPath: pkgToInstall.nodeExecPath,
-        peer: importer['peer'],
-        saveType: importer['targetDependenciesField'],
+        peer: importer.peer,
+        saveType: importer.targetDependenciesField,
       })
     }
   }

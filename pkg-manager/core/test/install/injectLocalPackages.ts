@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
-import { MutatedProject, mutateModules } from '@pnpm/core'
+import { MutatedProject, mutateModules, ProjectOptions } from '@pnpm/core'
 import { preparePackages } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import pathExists from 'path-exists'
@@ -81,7 +81,7 @@ test('inject local packages', async () => {
       rootDir: path.resolve('project-3'),
     },
   ]
-  const allProjects = [
+  const allProjects: ProjectOptions[] = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
@@ -311,7 +311,7 @@ test('inject local packages declared via file protocol', async () => {
       rootDir: path.resolve('project-3'),
     },
   ]
-  const allProjects = [
+  const allProjects: ProjectOptions[] = [
     {
       buildIndex: 0,
       manifest: project1Manifest,
@@ -532,7 +532,7 @@ test('inject local packages when the file protocol is used', async () => {
       rootDir: path.resolve('project-3'),
     },
   ]
-  const allProjects = [
+  const allProjects: ProjectOptions[] = [
     {
       buildIndex: 0,
       manifest: project1Manifest,

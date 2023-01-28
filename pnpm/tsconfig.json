@@ -5,7 +5,8 @@
     "declaration": false,
     "outDir": "lib",
     "sourceMap": false,
-    "rootDir": "src"
+    "rootDir": "src",
+    "suppressImplicitAnyIndexErrors": true
   },
   "include": [
     "src/**/*.ts",
@@ -141,5 +142,6 @@
     {
       "path": "../workspace/pkgs-graph"
     }
-  ]
+  ],
+  "composite": true
 }

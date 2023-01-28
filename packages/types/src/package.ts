@@ -120,6 +120,7 @@ export interface PeerDependencyRules {
 export type AllowedDeprecatedVersions = Record<string, string>
 
 export type ProjectManifest = BaseManifest & {
+  workspaces?: string[]
   pnpm?: {
     neverBuiltDependencies?: string[]
     onlyBuiltDependencies?: string[]

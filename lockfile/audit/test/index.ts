@@ -59,6 +59,7 @@ describe('audit', () => {
               version: '1.0.0',
             },
           },
+          dev: false,
           requires: {
             foo: '1.0.0',
           },
@@ -125,6 +126,7 @@ describe('audit', () => {
               version: '1.0.0',
             },
           },
+          dev: false,
           requires: {
             foo: '1.0.0',
           },

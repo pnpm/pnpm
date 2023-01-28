@@ -12,5 +12,6 @@
     {
       "path": "../constants"
     }
-  ]
+  ],
+  "composite": true
 }

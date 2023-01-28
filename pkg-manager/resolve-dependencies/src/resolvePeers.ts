@@ -70,7 +70,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   } {
   const depGraph: GenericDependenciesGraph<T> = {}
-  const pathsByNodeId = {}
+  const pathsByNodeId: Record<string, string> = {}
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}

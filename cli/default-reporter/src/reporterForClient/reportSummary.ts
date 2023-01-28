@@ -52,8 +52,8 @@ export function reportSummary (
       take(1),
       map(([pkgsDiff]) => {
         let msg = ''
-        for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly']) {
-          const diffs: PackageDiff[] = Object.values(pkgsDiff[depType])
+        for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly'] as const) {
+          const diffs: PackageDiff[] = Object.values(pkgsDiff[depType as keyof typeof pkgsDiff])
           if (diffs.length > 0) {
             msg += EOL
             if (opts.pnpmConfig?.global) {

@@ -27,5 +27,6 @@
     {
       "path": "../dependencies-hierarchy"
     }
-  ]
+  ],
+  "composite": true
 }

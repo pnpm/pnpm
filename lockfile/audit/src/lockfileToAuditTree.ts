@@ -1,5 +1,5 @@
 import path from 'path'
-import { Lockfile } from '@pnpm/lockfile-types'
+import { Lockfile, TarballResolution } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { lockfileWalkerGroupImporterSteps, LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { DependenciesField } from '@pnpm/types'
@@ -29,7 +29,7 @@ export async function lockfileToAuditTree (
   }
 ): Promise<AuditTree> {
   const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, Object.keys(lockfile.importers), { include: opts?.include })
-  const dependencies = {}
+  const dependencies: Record<string, AuditNode> = {}
   await Promise.all(
     importerWalkers.map(async (importerWalker) => {
       const importerDeps = lockfileToAuditNode(importerWalker.step)
@@ -39,6 +39,7 @@ export async function lockfileToAuditTree (
       const { manifest } = await readProjectManifest(path.join(opts.lockfileDir, importerWalker.importerId))
       dependencies[depName] = {
         dependencies: importerDeps,
+        dev: false,
         requires: toRequires(importerDeps),
         version: manifest.version ?? '0.0.0',
       }
@@ -59,14 +60,14 @@ export async function lockfileToAuditTree (
   return auditTree
 }
 
-function lockfileToAuditNode (step: LockfileWalkerStep) {
-  const dependencies = {}
+function lockfileToAuditNode (step: LockfileWalkerStep): Record<string, AuditNode> {
+  const dependencies: Record<string, AuditNode> = {}
   for (const { depPath, pkgSnapshot, next } of step.dependencies) {
     const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
     const subdeps = lockfileToAuditNode(next())
     const dep: AuditNode = {
       dev: pkgSnapshot.dev === true,
-      integrity: pkgSnapshot.resolution['integrity'],
+      integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
       version,
     }
     if (Object.keys(subdeps).length > 0) {

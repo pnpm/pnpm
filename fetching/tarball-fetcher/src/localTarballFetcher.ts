@@ -57,6 +57,7 @@ async function fetchFromLocalTarball (
       sri: err['sri'],
       url: tarball,
     })
+    // @ts-expect-error
     error['resource'] = tarball
     throw error
   }

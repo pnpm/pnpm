@@ -196,7 +196,7 @@ test('existsWantedLockfile()', async () => {
 })
 
 test('readWantedLockfile() when useGitBranchLockfile', async () => {
-  getCurrentBranch['mockReturnValue']('branch')
+  (getCurrentBranch as jest.Mock).mockReturnValue('branch')
   const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
     ignoreIncompatible: false,
   })
@@ -236,7 +236,7 @@ test('readWantedLockfile() when useGitBranchLockfile', async () => {
 })
 
 test('readWantedLockfile() when useGitBranchLockfile and mergeGitBranchLockfiles', async () => {
-  getCurrentBranch['mockReturnValue']('branch')
+  (getCurrentBranch as jest.Mock).mockReturnValue('branch')
   const lockfile = await readWantedLockfile(path.join('fixtures', '6'), {
     ignoreIncompatible: false,
     useGitBranchLockfile: true,

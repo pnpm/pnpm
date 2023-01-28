@@ -137,7 +137,7 @@ export async function resolveDependencyTree<T> (
     // This may be optimized.
     // We only need to proceed resolving every dependency
     // if the newly added dependency has peer dependencies.
-    const proceed = importer.id === '.' || importer.hasRemovedDependencies === true || importer.wantedDependencies.some((wantedDep) => wantedDep['isNew'])
+    const proceed = importer.id === '.' || importer.hasRemovedDependencies === true || importer.wantedDependencies.some((wantedDep: any) => wantedDep.isNew) // eslint-disable-line @typescript-eslint/no-explicit-any
     const resolveOpts = {
       currentDepth: 0,
       parentPkg: {
@@ -215,7 +215,7 @@ export async function resolveDependencyTree<T> (
         .reduce((acc, { alias, nodeId }) => {
           acc[alias] = nodeId
           return acc
-        }, {}),
+        }, {} as Record<string, string>),
       linkedDependencies,
     }
   }
@@ -244,7 +244,7 @@ function buildTree (
   depth: number,
   installable: boolean
 ) {
-  const childrenNodeIds = {}
+  const childrenNodeIds: Record<string, string> = {}
   for (const child of children) {
     if (child.depPath.startsWith('link:')) {
       childrenNodeIds[child.alias] = child.depPath

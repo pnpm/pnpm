@@ -9,5 +9,6 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": []
+  "references": [],
+  "composite": true
 }

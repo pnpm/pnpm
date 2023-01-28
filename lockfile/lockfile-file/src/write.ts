@@ -177,9 +177,8 @@ function pruneTimeInLockfileV6 (time: Record<string, string>, importers: Record<
   for (const importer of Object.values(importers)) {
     for (const depType of DEPENDENCIES_FIELDS) {
       for (let [depName, ref] of Object.entries(importer[depType] ?? {})) {
-        if (ref['version']) {
-          ref = ref['version']
-        }
+        // @ts-expect-error
+        if (ref['version']) ref = ref['version']
         const suffixStart = ref.indexOf('(')
         const refWithoutPeerSuffix = suffixStart === -1 ? ref : ref.slice(0, suffixStart)
         const depPath = refToRelative(refWithoutPeerSuffix, depName)
@@ -212,9 +211,8 @@ function pruneTime (time: Record<string, string>, importers: Record<string, Proj
   for (const importer of Object.values(importers)) {
     for (const depType of DEPENDENCIES_FIELDS) {
       for (let [depName, ref] of Object.entries(importer[depType] ?? {})) {
-        if (ref['version']) {
-          ref = ref['version']
-        }
+        // @ts-expect-error
+        if (ref['version']) ref = ref['version']
         const suffixStart = ref.indexOf('_')
         const refWithoutPeerSuffix = suffixStart === -1 ? ref : ref.slice(0, suffixStart)
         const depPath = dp.refToRelative(refWithoutPeerSuffix, depName)

@@ -3,6 +3,7 @@ import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import normalize from 'normalize-path'
 
+// @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
 const isFilename = /[.](?:tgz|tar.gz|tar)$/i
@@ -42,7 +43,9 @@ export function parsePref (
   if (wd.pref.startsWith('path:')) {
     const err = new PnpmError('PATH_IS_UNSUPPORTED_PROTOCOL', 'Local dependencies via `path:` protocol are not supported. ' +
       'Use the `link:` protocol for folder dependencies and `file:` for local tarballs')
+    // @ts-expect-error
     err['pref'] = wd.pref
+    // @ts-expect-error
     err['protocol'] = 'path:'
     /* eslint-enable @typescript-eslint/dot-notation */
     throw err

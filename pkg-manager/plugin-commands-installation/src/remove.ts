@@ -176,6 +176,7 @@ export async function handler (
     storeDir: store.dir,
     include,
   })
+  // @ts-expect-error
   removeOpts['workspacePackages'] = opts.workspaceDir
     ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))
     : undefined

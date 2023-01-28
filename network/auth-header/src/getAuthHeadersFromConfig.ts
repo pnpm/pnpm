@@ -10,7 +10,7 @@ export function getAuthHeadersFromConfig (
     userSettings: Record<string, string>
   }
 ) {
-  const authHeaderValueByURI = {}
+  const authHeaderValueByURI: Record<string, string> = {}
   for (const [key, value] of Object.entries(allSettings)) {
     const [uri, authType] = splitKey(key)
     switch (authType) {

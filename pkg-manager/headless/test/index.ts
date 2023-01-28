@@ -683,11 +683,11 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
 
   const cafsDir = path.join(opts.storeDir, 'files')
   const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
-  const cacheIntegrity = await loadJsonFile(cacheIntegrityPath)
-  expect(cacheIntegrity!['sideEffects']).toBeTruthy()
+  const cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(cacheIntegrity!.sideEffects).toBeTruthy()
   const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin/1.0.0': {} })}`
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
-  delete cacheIntegrity!['sideEffects'][sideEffectsKey]['generated-by-postinstall.js']
+  delete cacheIntegrity!.sideEffects[sideEffectsKey]['generated-by-postinstall.js']
 
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-preinstall.js'])
   await writeJsonFile(cacheIntegrityPath, cacheIntegrity)

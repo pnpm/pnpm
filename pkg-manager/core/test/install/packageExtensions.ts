@@ -1,6 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
+import { PackageExtension } from '@pnpm/types'
 import { createObjectChecksum } from '../../lib/install/index'
 import {
   testDefaults,
@@ -9,7 +10,7 @@ import {
 test('manifests are extended with fields specified by packageExtensions', async () => {
   const project = prepareEmpty()
 
-  const packageExtensions = {
+  const packageExtensions: Record<string, PackageExtension> = {
     'is-positive': {
       dependencies: {
         '@pnpm.e2e/bar': '100.1.0',

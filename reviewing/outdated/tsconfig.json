@@ -45,5 +45,6 @@
     {
       "path": "../../resolving/npm-resolver"
     }
-  ]
+  ],
+  "composite": true
 }

@@ -27,7 +27,7 @@ test('CLI fails when store status finds modified packages', async () => {
 
   await rimraf('node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive/index.js')
 
-  let err!: PnpmError
+  let err!: PnpmError & { modified: string[] }
   const modulesState = await project.readModulesManifest()
   try {
     await store.handler({
@@ -45,8 +45,8 @@ test('CLI fails when store status finds modified packages', async () => {
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_MODIFIED_DEPENDENCY')
-  expect(err['modified'].length).toBe(1)
-  expect(err['modified'][0]).toMatch(/is-positive/)
+  expect(err.modified.length).toBe(1)
+  expect(err.modified[0]).toMatch(/is-positive/)
 })
 
 test('CLI does not fail when store status does not find modified packages', async () => {

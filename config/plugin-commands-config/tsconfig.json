@@ -21,5 +21,6 @@
     {
       "path": "../config"
     }
-  ]
+  ],
+  "composite": true
 }

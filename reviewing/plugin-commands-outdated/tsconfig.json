@@ -60,5 +60,6 @@
     {
       "path": "../outdated"
     }
-  ]
+  ],
+  "composite": true
 }

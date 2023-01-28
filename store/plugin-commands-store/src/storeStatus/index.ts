@@ -14,6 +14,7 @@ import {
   extendStoreStatusOptions,
   StoreStatusOptions,
 } from './extendStoreStatusOptions'
+import { TarballResolution } from '@pnpm/store-controller-types'
 
 export async function storeStatus (maybeOpts: StoreStatusOptions) {
   const reporter = maybeOpts?.reporter
@@ -40,7 +41,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions) {
       return {
         depPath,
         id,
-        integrity: pkgSnapshot.resolution['integrity'],
+        integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
         pkgPath: dp.resolve(registries, depPath),
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
       }

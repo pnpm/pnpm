@@ -107,7 +107,7 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
 }
 
 function createPkgMap (pkgs: Package[]): Record<string, Package> {
-  const pkgMap = {}
+  const pkgMap: Record<string, Package> = {}
   for (const pkg of pkgs) {
     pkgMap[pkg.dir] = pkg
   }

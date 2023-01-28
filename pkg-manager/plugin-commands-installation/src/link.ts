@@ -30,6 +30,7 @@ import * as installCommand from './install'
 import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { getSaveType } from './getSaveType'
 
+// @ts-expect-error
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
 const installLimit = pLimit(4)
@@ -100,7 +101,7 @@ export async function handler (
   let workspacePackages!: WorkspacePackages
   if (opts.workspaceDir) {
     workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
-    workspacePackages = arrayOfWorkspacePackagesToMap(workspacePackagesArr)
+    workspacePackages = arrayOfWorkspacePackagesToMap(workspacePackagesArr) as WorkspacePackages
   } else {
     workspacePackages = {}
   }

@@ -128,9 +128,7 @@ test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', 
   const importPackage = createIndexedPkgImporter('hardlink')
   fsMock.promises.link = jest.fn((src: string, dest: string) => {
     if (dest.endsWith('license')) {
-      const err = new Error('')
-      err['code'] = 'EEXIST'
-      throw err
+      throw Object.assign(new Error(''), { code: 'EEXIST' })
     }
     throw new Error('This file system does not support hard linking')
   })
@@ -207,9 +205,7 @@ test('packageImportMethod=hardlink links packages when they are not found', asyn
   fsMock.promises.rename = jest.fn()
   fsMock.promises.stat = jest.fn((file) => {
     if (file === path.join('project/package', 'package.json')) {
-      const err = new Error()
-      err['code'] = 'ENOENT'
-      throw err
+      throw Object.assign(new Error(), { code: 'ENOENT' })
     }
     return { ino: 0 }
   })

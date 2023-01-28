@@ -16,6 +16,7 @@ import {
 } from '@pnpm/manifest-utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
+  DependenciesField,
   DEPENDENCIES_FIELDS,
   DependencyManifest,
   ProjectManifest,
@@ -74,10 +75,13 @@ export type ImporterToResolve = Importer<{
   updateSpec?: boolean
 }>
 & {
+  peer?: boolean
+  pinnedVersion?: PinnedVersion
   binsDir: string
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
   updatePackageManifest: boolean
+  targetDependenciesField?: DependenciesField
 }
 
 export async function resolveDependencies (
@@ -367,7 +371,7 @@ function addDirectDependenciesToLockfile (
   const directDependenciesByAlias = directDependencies.reduce((acc, directDependency) => {
     acc[directDependency.alias] = directDependency
     return acc
-  }, {})
+  }, {} as Record<string, ResolvedDirectDependency>)
 
   const allDeps = Array.from(new Set(Object.keys(getAllDependenciesFromManifest(newManifest))))
 
@@ -413,14 +417,14 @@ function alignDependencyTypes (manifest: ProjectManifest, projectSnapshot: Proje
     if (projectSnapshot[depType] == null) continue
     for (const [alias, ref] of Object.entries(projectSnapshot[depType] ?? {})) {
       if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias]) continue
-      projectSnapshot[depTypesOfAliases[alias]][alias] = ref
+      projectSnapshot[depTypesOfAliases[alias]]![alias] = ref
       delete projectSnapshot[depType]![alias]
     }
   }
 }
 
-function getAliasToDependencyTypeMap (manifest: ProjectManifest) {
-  const depTypesOfAliases = {}
+function getAliasToDependencyTypeMap (manifest: ProjectManifest): Record<string, DependenciesField> {
+  const depTypesOfAliases: Record<string, DependenciesField> = {}
   for (const depType of DEPENDENCIES_FIELDS) {
     if (manifest[depType] == null) continue
     for (const alias of Object.keys(manifest[depType] ?? {})) {

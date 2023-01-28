@@ -53,9 +53,11 @@ async function requirePackagesManifest (dir: string): Promise<{ packages?: strin
   }
 }
 
+type ArrayOfWorkspacePackagesToMapResult = Record<string, Record<string, Pick<Project, 'manifest'>>>
+
 export function arrayOfWorkspacePackagesToMap (
   pkgs: Array<Pick<Project, 'manifest'>>
-) {
+): ArrayOfWorkspacePackagesToMapResult {
   return pkgs.reduce((acc, pkg) => {
     if (!pkg.manifest.name) return acc
     if (!acc[pkg.manifest.name]) {
@@ -63,5 +65,5 @@ export function arrayOfWorkspacePackagesToMap (
     }
     acc[pkg.manifest.name][pkg.manifest.version ?? '0.0.0'] = pkg
     return acc
-  }, {})
+  }, {} as ArrayOfWorkspacePackagesToMapResult)
 }

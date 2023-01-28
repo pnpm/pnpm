@@ -1,6 +1,6 @@
 import fs from 'fs'
 import { getFilePathInCafs, getFilePathByModeInCafs, PackageFilesIndex } from '@pnpm/cafs'
-import { Lockfile, readWantedLockfile, PackageSnapshot } from '@pnpm/lockfile-file'
+import { Lockfile, readWantedLockfile, PackageSnapshot, TarballResolution } from '@pnpm/lockfile-file'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
@@ -169,7 +169,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
     if (!pkgSnapshotCache.has(depPath)) {
       const pkgSnapshot = lockfile.packages?.[depPath]
       if (pkgSnapshot == null) return undefined
-      const indexPath = getFilePathInCafs(cafsDir, pkgSnapshot.resolution['integrity'], 'index')
+      const indexPath = getFilePathInCafs(cafsDir, (pkgSnapshot.resolution as TarballResolution).integrity!, 'index')
       pkgSnapshotCache.set(depPath, {
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
         pkgSnapshot,

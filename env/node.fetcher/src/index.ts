@@ -42,7 +42,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
   })
   const cafs = createCafsStore(opts.cafsDir)
   const fetchTarball = pickFetcher(fetchers, { tarball })
-  const { filesIndex } = await fetchTarball(cafs, { tarball }, {
+  const { filesIndex } = await fetchTarball(cafs, { tarball } as any, { // eslint-disable-line @typescript-eslint/no-explicit-any
     lockfileDir: process.cwd(),
   })
   await cafs.importPackage(targetDir, {

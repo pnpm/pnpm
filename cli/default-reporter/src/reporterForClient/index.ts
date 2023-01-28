@@ -101,7 +101,7 @@ export function reporterForClient (
     outputs.push(reportContext(log$, { cwd }))
   }
 
-  if (PRINT_EXECUTION_TIME_IN_COMMANDS[opts.cmd]) {
+  if (opts.cmd in PRINT_EXECUTION_TIME_IN_COMMANDS) {
     outputs.push(reportExecutionTime(log$.executionTime))
   }
 

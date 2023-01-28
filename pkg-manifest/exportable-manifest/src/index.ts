@@ -29,7 +29,7 @@ export async function createExportableManifest (
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
   }
-  for (const depsField of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
+  for (const depsField of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const) {
     const deps = await makePublishDependencies(dir, originalManifest[depsField], opts?.modulesDir)
     if (deps != null) {
       publishManifest[depsField] = deps

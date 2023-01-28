@@ -58,16 +58,16 @@ export function getPkgsDiff (
       const deprecationSet = args[1] as Set<string>
       let action: '-' | '+' | undefined
       let log!: any // eslint-disable-line
-      if (rootLog['added']) {
+      if ('added' in rootLog) {
         action = '+'
         log = rootLog['added']
-      } else if (rootLog['removed']) {
+      } else if ('removed' in rootLog) {
         action = '-'
         log = rootLog['removed']
       } else {
         return pkgsDiff
       }
-      const depType = log.dependencyType || 'nodeModulesOnly'
+      const depType = (log.dependencyType || 'nodeModulesOnly') as keyof typeof pkgsDiff
       const oppositeKey = `${action === '-' ? '+' : '-'}${log.name as string}`
       const previous = pkgsDiff[depType][oppositeKey]
       if (previous && previous.version === log.version) {
@@ -126,7 +126,7 @@ export function getPkgsDiff (
           const initialPackageManifest = removeOptionalFromProdDeps(packageManifests['initial'])
           const updatedPackageManifest = removeOptionalFromProdDeps(packageManifests['updated'])
 
-          for (const depType of ['peer', 'prod', 'optional', 'dev']) {
+          for (const depType of ['peer', 'prod', 'optional', 'dev'] as const) {
             const prop = propertyByDependencyType[depType]
             const initialDeps = Object.keys(initialPackageManifest[prop] || {})
             const updatedDeps = Object.keys(updatedPackageManifest[prop] || {})

@@ -41,6 +41,7 @@ export function getOptionsFromRootManifest (manifest: ProjectManifest): {
     patchedDependencies,
   }
   if (onlyBuiltDependencies) {
+    // @ts-expect-error
     settings['onlyBuiltDependencies'] = onlyBuiltDependencies
   }
   return settings

@@ -1,6 +1,8 @@
 import http, { IncomingMessage, Server, ServerResponse } from 'http'
 import { globalInfo } from '@pnpm/logger'
 import {
+  BundledManifestFunction,
+  PackageFilesResponse,
   RequestPackageOptions,
   StoreController,
   WantedDependency,
@@ -32,8 +34,8 @@ export function createServer (
     ignoreUploadRequests?: boolean
   }
 ) {
-  const rawManifestPromises = {}
-  const filesPromises = {}
+  const rawManifestPromises: Record<string, BundledManifestFunction> = {}
+  const filesPromises: Record<string, () => Promise<PackageFilesResponse>> = {}
 
   // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
   const lock = locking<void>()
@@ -73,12 +75,13 @@ export function createServer (
         try {
           body = await bodyPromise
           const pkgResponse = await store.requestPackage(body.wantedDependency, body.options)
-            if (pkgResponse['bundledManifest']) { // eslint-disable-line
-              rawManifestPromises[body.msgId] = pkgResponse['bundledManifest'] // eslint-disable-line
-              pkgResponse.body['fetchingBundledManifestInProgress'] = true // eslint-disable-line
+          if (pkgResponse['bundledManifest']) {
+            rawManifestPromises[body.msgId] = pkgResponse['bundledManifest']
+            // @ts-expect-error
+            pkgResponse.body['fetchingBundledManifestInProgress'] = true
           }
-            if (pkgResponse['files']) { // eslint-disable-line
-              filesPromises[body.msgId] = pkgResponse['files'] // eslint-disable-line
+          if (pkgResponse['files']) {
+            filesPromises[body.msgId] = pkgResponse['files']
           }
           res.end(JSON.stringify(pkgResponse.body))
         } catch (err: any) { // eslint-disable-line

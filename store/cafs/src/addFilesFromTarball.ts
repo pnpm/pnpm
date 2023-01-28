@@ -12,7 +12,7 @@ export async function addFilesFromTarball (
 ): Promise<FilesIndex> {
   const ignore = _ignore ?? (() => false)
   const extract = tar.extract()
-  const filesIndex = {}
+  const filesIndex: FilesIndex = {}
   await new Promise<void>((resolve, reject) => {
     extract.on('entry', (header, fileStream, next) => {
       // There are some edge cases, where the same files are extracted multiple times.
@@ -32,7 +32,7 @@ export async function addFilesFromTarball (
       const writeResult = addStreamToCafs(fileStream, header.mode!)
       filesIndex[filename] = {
         mode: header.mode!,
-        size: header.size,
+        size: header.size!,
         writeResult,
       }
       next()

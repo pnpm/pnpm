@@ -42,5 +42,6 @@
     {
       "path": "../apply-patch"
     }
-  ]
+  ],
+  "composite": true
 }

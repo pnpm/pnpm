@@ -25,7 +25,7 @@ const fetchMock = jest.fn(async (url: string) => {
 })
 
 beforeEach(() => {
-  isNonGlibcLinux['mockReturnValue'](Promise.resolve(false))
+  (isNonGlibcLinux as jest.Mock).mockReturnValue(Promise.resolve(false))
   fetchMock.mockClear()
 })
 
@@ -60,7 +60,7 @@ test('install Node using the default node mirror', async () => {
 })
 
 test('install Node using a custom node mirror', async () => {
-  isNonGlibcLinux['mockReturnValue'](Promise.resolve(true))
+  (isNonGlibcLinux as jest.Mock).mockReturnValue(Promise.resolve(true))
   tempDir()
 
   const opts: FetchNodeOptions = {

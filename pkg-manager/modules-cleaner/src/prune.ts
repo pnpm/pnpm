@@ -217,7 +217,7 @@ function getPkgsDepPaths (
     if (skipped.has(depPath)) return acc
     acc[depPath] = packageIdFromSnapshot(depPath, pkg, registries)
     return acc
-  }, {})
+  }, {} as Record<string, string>)
 }
 
 function getPkgsDepPathsOwnedOnlyByImporters (

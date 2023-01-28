@@ -20,7 +20,7 @@ import {
   DependenciesGraphNode,
   LinkedDependency,
 } from '@pnpm/resolve-dependencies'
-import { StoreController } from '@pnpm/store-controller-types'
+import { StoreController, TarballResolution } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import {
   HoistedDependencies,
@@ -380,7 +380,7 @@ async function selectNewFromWantedDeps (
         const prevDep = prevDeps[depPath]
         if (
           prevDep &&
-          depNode.resolution['integrity'] === prevDep.resolution['integrity']
+          (depNode.resolution as TarballResolution).integrity === (prevDep.resolution as TarballResolution).integrity
         ) {
           if (await pathExists(depNode.dir)) {
             return

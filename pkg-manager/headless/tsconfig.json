@@ -105,5 +105,6 @@
     {
       "path": "../real-hoist"
     }
-  ]
+  ],
+  "composite": true
 }

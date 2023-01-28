@@ -91,7 +91,7 @@ export interface PackageSnapshot {
   }
   transitivePeerDependencies?: string[]
   bundledDependencies?: string[]
-  engines?: {
+  engines?: Record<string, string> & {
     node: string
   }
   os?: string[]

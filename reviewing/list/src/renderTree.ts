@@ -1,6 +1,6 @@
 import path from 'path'
 import { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, DependenciesField } from '@pnpm/types'
 import archy from 'archy'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
@@ -66,7 +66,7 @@ async function renderTreeForPackage (
   }
   let output = `${chalk.bold.underline(label)}\n`
   const useColumns = opts.depth === 0 && !opts.long && !opts.search
-  const dependenciesFields: string[] = [
+  const dependenciesFields: Array<DependenciesField | 'unsavedDependencies'> = [
     ...DEPENDENCIES_FIELDS.sort(),
   ]
   if (opts.showExtraneous) {
@@ -81,8 +81,8 @@ async function renderTreeForPackage (
       )
       output += `\n${depsLabel}\n`
       const gPkgColor = dependenciesField === 'unsavedDependencies' ? () => NOT_SAVED_DEP_CLR : getPkgColor
-      if (useColumns && pkg[dependenciesField].length > 10) {
-        output += cliColumns(pkg[dependenciesField].map(printLabel.bind(printLabel, gPkgColor))) + '\n'
+      if (useColumns && pkg[dependenciesField]!.length > 10) {
+        output += cliColumns(pkg[dependenciesField]!.map(printLabel.bind(printLabel, gPkgColor))) + '\n'
         continue
       }
       const data = await toArchyTree(gPkgColor, pkg[dependenciesField]!, {

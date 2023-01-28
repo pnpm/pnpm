@@ -3,6 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import {
   getLockfileImporterId,
   Lockfile,
+  ProjectSnapshot,
 } from '@pnpm/lockfile-file'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
@@ -93,7 +94,7 @@ export async function outdated (
             throw new Error(`Invalid ${WANTED_LOCKFILE} file. ${relativeDepPath} not found in packages field`)
           }
 
-          const currentRef = currentLockfile.importers[importerId]?.[depType]?.[alias]
+          const currentRef = (currentLockfile.importers[importerId] as ProjectSnapshot)?.[depType]?.[alias]
           const currentRelative = currentRef && dp.refToRelative(currentRef, alias)
           const current = (currentRelative && dp.parse(currentRelative).version) ?? currentRef
           const wanted = dp.parse(relativeDepPath).version ?? ref

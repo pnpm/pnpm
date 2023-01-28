@@ -33,7 +33,7 @@ export function overridePublishConfig (publishManifest: ProjectManifest): void {
   Object.entries(publishConfig)
     .filter(([key]) => PUBLISH_CONFIG_WHITELIST.has(key))
     .forEach(([key, value]) => {
-      publishManifest[key] = value
+      publishManifest[key as keyof ProjectManifest] = value as any // eslint-disable-line @typescript-eslint/no-explicit-any
       delete publishConfig[key]
     })
 

@@ -115,6 +115,7 @@ when running add/update with the --workspace option')
         opts.saveWorkspaceProtocol = true
       }
     }
+    // @ts-expect-error
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
   const includeDirect = opts.includeDirect ?? {
@@ -173,7 +174,7 @@ when running add/update with the --workspace option')
   let workspacePackages!: WorkspacePackages
 
   if (opts.workspaceDir) {
-    workspacePackages = arrayOfWorkspacePackagesToMap(allProjects)
+    workspacePackages = arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
   }
 
   let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)

@@ -103,7 +103,7 @@ export async function list (
         ? projectPaths.reduce((acc, projectPath) => {
           acc[projectPath] = {}
           return acc
-        }, {})
+        }, {} as Record<string, {}>)
         : await buildDependenciesHierarchy(projectPaths, {
           depth: opts.depth,
           include: maybeOpts?.include,

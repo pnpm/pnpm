@@ -15,9 +15,9 @@ export async function configSet (opts: ConfigCommandOptions, key: string, value:
   await writeIniFile(configPath, settings)
 }
 
-async function safeReadIniFile (configPath: string) {
+async function safeReadIniFile (configPath: string): Promise<Record<string, unknown>> {
   try {
-    return await readIniFile(configPath)
+    return await readIniFile(configPath) as Record<string, unknown>
   } catch (err: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
     if (err.code === 'ENOENT') return {}
     throw err

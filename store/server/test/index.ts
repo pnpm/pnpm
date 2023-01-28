@@ -174,7 +174,7 @@ test('server upload', async () => {
     filesIndexFile,
   })
 
-  const cacheIntegrity = await loadJsonFile(filesIndexFile)
+  const cacheIntegrity = await loadJsonFile<any>(filesIndexFile) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(Object.keys(cacheIntegrity?.['sideEffects'][fakeEngine]).sort()).toStrictEqual(['side-effect.js', 'side-effect.txt'])
 
   await server.close()

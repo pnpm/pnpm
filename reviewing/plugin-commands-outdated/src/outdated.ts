@@ -289,7 +289,7 @@ function renderOutdatedJSON (outdatedPackages: readonly OutdatedPackage[], opts:
         acc[outdatedPkg.packageName].latestManifest = outdatedPkg.latestManifest
       }
       return acc
-    }, {})
+    }, {} as Record<string, OutdatedPackageJSONOutput>)
   return JSON.stringify(outdatedPackagesJSON, null, 2)
 }
 

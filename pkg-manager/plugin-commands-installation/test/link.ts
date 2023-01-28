@@ -43,8 +43,8 @@ test('linking multiple packages', async () => {
   await project.has('linked-foo')
   await project.has('linked-bar')
 
-  const modules = await readYamlFile<object>('../linked-bar/node_modules/.modules.yaml')
-  expect(modules['hoistPattern']).toStrictEqual(['*']) // the linked package used its own configs during installation // eslint-disable-line @typescript-eslint/dot-notation
+  const modules = await readYamlFile<any>('../linked-bar/node_modules/.modules.yaml') // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(modules.hoistPattern).toStrictEqual(['*']) // the linked package used its own configs during installation // eslint-disable-line @typescript-eslint/dot-notation
 })
 
 test('link global bin', async function () {

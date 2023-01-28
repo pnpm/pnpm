@@ -2,7 +2,8 @@
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
     "outDir": "lib",
-    "rootDir": "src"
+    "rootDir": "src",
+    "suppressImplicitAnyIndexErrors": true
   },
   "include": [
     "src/**/*.ts",
@@ -42,5 +43,6 @@
     {
       "path": "../lockfile-file"
     }
-  ]
+  ],
+  "composite": true
 }

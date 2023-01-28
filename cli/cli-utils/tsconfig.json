@@ -33,5 +33,6 @@
     {
       "path": "../default-reporter"
     }
-  ]
+  ],
+  "composite": true
 }

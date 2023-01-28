@@ -27,8 +27,13 @@ export function tempDir (chdir: boolean = true) {
   return tmpDir
 }
 
+interface LocationAndManifest {
+  location: string
+  package: ProjectManifest
+}
+
 export function preparePackages (
-  pkgs: Array<{ location: string, package: ProjectManifest } | ProjectManifest>,
+  pkgs: Array<LocationAndManifest | ProjectManifest>,
   opts?: {
     manifestFormat?: ManifestFormat
     tempDir?: string
@@ -40,15 +45,15 @@ export function preparePackages (
   const dirname = path.dirname(pkgTmpPath)
   const result: { [name: string]: Project } = {}
   for (const aPkg of pkgs) {
-    if (typeof aPkg['location'] === 'string') {
-      result[aPkg['package']['name']] = prepare(aPkg['package'], {
+    if (typeof (aPkg as LocationAndManifest).location === 'string') {
+      result[(aPkg as LocationAndManifest).package.name!] = prepare((aPkg as LocationAndManifest).package, {
         manifestFormat,
-        tempDir: path.join(dirname, aPkg['location']),
+        tempDir: path.join(dirname, (aPkg as LocationAndManifest).location),
       })
     } else {
-      result[aPkg['name']] = prepare(aPkg as ProjectManifest, {
+      result[(aPkg as ProjectManifest).name!] = prepare(aPkg as ProjectManifest, {
         manifestFormat,
-        tempDir: path.join(dirname, aPkg['name']),
+        tempDir: path.join(dirname, (aPkg as ProjectManifest).name!),
       })
     }
   }

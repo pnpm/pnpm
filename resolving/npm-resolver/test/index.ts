@@ -1564,7 +1564,7 @@ test('workspace protocol: resolution fails if there is no matching local package
   })
 
   const projectDir = '/home/istvan/src'
-  let err!: Error
+  let err!: Error & { code: string }
   try {
     await resolve({ alias: 'is-positive', pref: 'workspace:^3.0.0' }, {
       projectDir,
@@ -1576,7 +1576,7 @@ test('workspace protocol: resolution fails if there is no matching local package
   }
 
   expect(err).toBeTruthy()
-  expect(err['code']).toBe('ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE')
+  expect(err.code).toBe('ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE')
   expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@^3.0.0 inside the workspace`)
 })
 

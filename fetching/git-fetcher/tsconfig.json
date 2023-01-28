@@ -24,5 +24,6 @@
     {
       "path": "../fetcher-base"
     }
-  ]
+  ],
+  "composite": true
 }

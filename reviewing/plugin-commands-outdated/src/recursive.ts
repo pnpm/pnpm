@@ -189,13 +189,13 @@ function renderOutdatedJSON (
         wanted: outdatedPkg.wanted,
         isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
         dependencyType: outdatedPkg.belongsTo,
-        dependentPackages: outdatedPkg.dependentPkgs.map(({ manifest, location }) => ({ name: manifest.name, location })),
+        dependentPackages: outdatedPkg.dependentPkgs.map(({ manifest, location }) => ({ name: manifest.name!, location })),
       }
       if (opts.long) {
         acc[outdatedPkg.packageName].latestManifest = outdatedPkg.latestManifest
       }
       return acc
-    }, {})
+    }, {} as Record<string, OutdatedPackageInWorkspaceJSONOutput>)
   return JSON.stringify(outdatedPackagesJSON, null, 2)
 }
 

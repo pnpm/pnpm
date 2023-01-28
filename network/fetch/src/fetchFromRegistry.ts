@@ -19,6 +19,7 @@ export function fetchWithAgent (url: RequestInfo, opts: FetchWithAgentOptions) {
     strictSsl: opts.agentOptions.strictSsl ?? true,
   } as any) as any // eslint-disable-line
   const headers = opts.headers ?? {}
+  // @ts-expect-error
   headers['connection'] = agent ? 'keep-alive' : 'close'
   return fetch(url, {
     ...opts,

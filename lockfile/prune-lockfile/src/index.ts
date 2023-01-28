@@ -52,18 +52,18 @@ export function pruneLockfile (
   const optionalDependencies = Object.keys(pkg.optionalDependencies ?? {})
   const dependencies = difference(Object.keys(pkg.dependencies ?? {}), optionalDependencies)
   const devDependencies = difference(difference(Object.keys(pkg.devDependencies ?? {}), optionalDependencies), dependencies)
-  const allDeps = [
+  const allDeps = new Set([
     ...optionalDependencies,
     ...devDependencies,
     ...dependencies,
-  ]
+  ])
   const specifiers: ResolvedDependencies = {}
   const lockfileDependencies: ResolvedDependencies = {}
   const lockfileOptionalDependencies: ResolvedDependencies = {}
   const lockfileDevDependencies: ResolvedDependencies = {}
 
   Object.entries(lockfileSpecs).forEach(([depName, spec]) => {
-    if (!allDeps.includes(depName)) return
+    if (!allDeps.has(depName)) return
     specifiers[depName] = spec
     if (importer.dependencies?.[depName]) {
       lockfileDependencies[depName] = importer.dependencies[depName]
@@ -79,7 +79,7 @@ export function pruneLockfile (
         !lockfileDependencies[alias] && dep.startsWith('link:') &&
         // If the linked dependency was removed from package.json
         // then it is removed from pnpm-lock.yaml as well
-        !(lockfileSpecs[alias] && !allDeps[alias])
+        !(lockfileSpecs[alias] && !allDeps.has(alias))
       ) {
         lockfileDependencies[alias] = dep
       }

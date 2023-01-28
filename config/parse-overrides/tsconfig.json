@@ -15,5 +15,6 @@
     {
       "path": "../../packages/parse-wanted-dependency"
     }
-  ]
+  ],
+  "composite": true
 }

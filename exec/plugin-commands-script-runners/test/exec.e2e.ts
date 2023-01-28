@@ -436,7 +436,7 @@ test('pnpm exec on single project should return non-zero exit code when the proc
       selectedProjectsGraph: {},
     }, ['node'])
 
-    expect(runResult['exitCode']).toBe(1)
+    expect(runResult).toHaveProperty(['exitCode'], 1)
   }
 })
 

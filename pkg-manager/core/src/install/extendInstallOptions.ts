@@ -60,7 +60,7 @@ export interface StrictInstallOptions {
   depth: number
   lockfileDir: string
   modulesDir: string
-  rawConfig: object
+  rawConfig: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
   verifyStoreIntegrity: boolean
   engineStrict: boolean
   neverBuiltDependencies?: string[]
@@ -222,8 +222,8 @@ export async function extendOptions (
 ): Promise<ProcessedInstallOptions> {
   if (opts) {
     for (const key in opts) {
-      if (opts[key] === undefined) {
-        delete opts[key]
+      if (opts[key as keyof InstallOptions] === undefined) {
+        delete opts[key as keyof InstallOptions]
       }
     }
   }
