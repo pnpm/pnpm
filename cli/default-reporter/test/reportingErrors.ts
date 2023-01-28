@@ -181,9 +181,10 @@ test('prints test error', (done) => {
     },
   })
 
-  const err = new Error('Tests failed')
-  err['stage'] = 'test'
-  err['code'] = 'ELIFECYCLE'
+  const err = Object.assign(new Error('Tests failed'), {
+    code: 'ELIFECYCLE',
+    stage: 'test',
+  })
   logger.error(err, err)
 })
 
