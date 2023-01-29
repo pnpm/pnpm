@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-audit
 
+## 7.2.3
+
+### Patch Changes
+
+- 2ff11e77a: Wrap text in `pnpm audit` output for better readability [#5981](https://github.com/pnpm/pnpm/issues/5981)
+- Updated dependencies [2ff11e77a]
+  - @pnpm/audit@6.1.1
+  - @pnpm/config@16.5.4
+  - @pnpm/cli-utils@1.0.30
+
 ## 7.2.2
 
 ### Patch Changes

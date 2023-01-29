@@ -1,5 +1,11 @@
 # @pnpm/audit
 
+## 6.1.1
+
+### Patch Changes
+
+- 2ff11e77a: Wrap text in `pnpm audit` output for better readability [#5981](https://github.com/pnpm/pnpm/issues/5981)
+
 ## 6.1.0
 
 ### Minor Changes

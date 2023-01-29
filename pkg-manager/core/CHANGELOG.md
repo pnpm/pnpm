@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 7.7.2
+
+### Patch Changes
+
+- @pnpm/build-modules@10.1.4
+- @pnpm/headless@19.4.9
+- @pnpm/package-requester@20.1.3
+
 ## 7.7.1
 
 ### Patch Changes

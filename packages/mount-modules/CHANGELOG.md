@@ -1,5 +1,11 @@
 # @pnpm/mount-modules
 
+## 0.3.30
+
+### Patch Changes
+
+- @pnpm/config@16.5.4
+
 ## 0.3.29
 
 ### Patch Changes

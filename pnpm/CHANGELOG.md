@@ -1,5 +1,12 @@
 # pnpm
 
+## 7.26.2
+
+### Patch Changes
+
+- Wrap text in `pnpm audit` output for better readability [#5981](https://github.com/pnpm/pnpm/issues/5981)
+- Fix "cross-device link not permitted" error when `node-linker` is set to `hoisted` [#5992](https://github.com/pnpm/pnpm/issues/5992).
+
 ## 7.26.1
 
 ### Patch Changes
