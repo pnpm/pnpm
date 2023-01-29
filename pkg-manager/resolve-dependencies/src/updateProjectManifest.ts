@@ -170,7 +170,7 @@ function getPrefPreferSpecifiedExoticSpec (
       }
     }
     const selector = versionSelectorType(specWithoutName)
-    if (!selector || opts.isNew === undefined) {
+    if (!((selector != null) && (selector.type === 'version' || selector.type === 'range')) && opts.isNew === undefined) {
       return opts.specRaw.slice(opts.alias.length + 1)
     }
   }

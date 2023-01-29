@@ -345,7 +345,7 @@ test('should not update tag version when --latest not set', async () => {
     dependencies: {
       '@pnpm.e2e/peer-a': 'latest',
       '@pnpm.e2e/peer-c': 'canary',
-      '@pnpm.e2e/foo': '^1.0.0',
+      '@pnpm.e2e/foo': '1.0.0',
     },
   })
 
@@ -363,5 +363,5 @@ test('should not update tag version when --latest not set', async () => {
   const manifest = await loadJsonFile<ProjectManifest>('package.json')
   expect(manifest.dependencies?.['@pnpm.e2e/peer-a']).toBe('latest')
   expect(manifest.dependencies?.['@pnpm.e2e/peer-c']).toBe('canary')
-  expect(manifest.dependencies?.['@pnpm.e2e/foo']).toBe('^1.0.0')
+  expect(manifest.dependencies?.['@pnpm.e2e/foo']).toBe('1.0.0')
 })
