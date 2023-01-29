@@ -28,11 +28,11 @@ export async function hardLinkDir (src: string, destDirs: string[]) {
         destDirs.map(async (destDir) => {
           const destFile = path.join(destDir, file)
           try {
-            await fs.link(srcFile, destFile)
+            await linkOrCopy(srcFile, destFile)
           } catch (err: any) { // eslint-disable-line
             if (err.code === 'ENOENT') {
               await fs.mkdir(destDir, { recursive: true })
-              await fs.link(srcFile, destFile)
+              await linkOrCopy(srcFile, destFile)
               return
             }
             if (err.code !== 'EEXIST') {
@@ -43,4 +43,17 @@ export async function hardLinkDir (src: string, destDirs: string[]) {
       )
     })
   )
+}
+
+/*
+ * This function could be optimized because we don't really need to try linking again
+ * if linking failed once.
+ */
+async function linkOrCopy (srcFile: string, destFile: string) {
+  try {
+    await fs.link(srcFile, destFile)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code !== 'EXDEV') throw err
+    await fs.copyFile(srcFile, destFile)
+  }
 }
