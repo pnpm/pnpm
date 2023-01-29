@@ -103,6 +103,7 @@ function resolvedDirectDepToSpecObject (
         specRaw,
         version,
         rolling: shouldUseWorkspaceProtocol && opts.saveWorkspaceProtocol === 'rolling',
+        isNew,
       })
     }
     if (
@@ -156,6 +157,7 @@ function getPrefPreferSpecifiedExoticSpec (
     specRaw: string
     pinnedVersion: PinnedVersion
     rolling: boolean
+    isNew?: Boolean
   }
 ) {
   const prefix = getPrefix(opts.alias, opts.name)
@@ -168,7 +170,7 @@ function getPrefPreferSpecifiedExoticSpec (
       }
     }
     const selector = versionSelectorType(specWithoutName)
-    if (!selector) {
+    if (!selector || opts.isNew === undefined) {
       return opts.specRaw.slice(opts.alias.length + 1)
     }
   }
