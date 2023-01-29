@@ -28,6 +28,14 @@ const AUDIT_COLOR = {
   high: chalk.bold.red,
   critical: chalk.bold.red,
 }
+
+const AUDIT_TABLE_OPTIONS = TABLE_OPTIONS
+AUDIT_TABLE_OPTIONS.columns = {
+  1: {
+    width: 54, // = table width of 80
+    wrapWord: true,
+  },
+}
 // eslint-enable
 
 export const rcOptionsTypes = cliOptionsTypes
@@ -223,7 +231,7 @@ ${JSON.stringify(newOverrides, null, 2)}`,
       ['Patched versions', advisory.patched_versions],
       ['Paths', advisory.findings.map(({ paths }) => paths).flat().join('\n\n')],
       ['More info', advisory.url],
-    ], TABLE_OPTIONS)
+    ], AUDIT_TABLE_OPTIONS)
   }
   return {
     exitCode: output ? 1 : 0,

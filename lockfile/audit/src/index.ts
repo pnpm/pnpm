@@ -109,7 +109,7 @@ async function searchPackagePaths (
 
   function _walker (packages: PackageNode[], depPath: string) {
     for (const pkg of packages) {
-      const nextDepPath = `${depPath}>${pkg.name}@${pkg.version}`
+      const nextDepPath = `${depPath} > ${pkg.name}@${pkg.version}`
       if (pkg.dependencies?.length) {
         _walker(pkg.dependencies, nextDepPath)
       } else {
