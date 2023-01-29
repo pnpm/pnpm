@@ -18,6 +18,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
+    "fs-extra": "^11.1.0",
     "make-empty-dir": "^2.0.0",
     "p-limit": "^3.1.0",
     "path-exists": "^4.0.0",
@@ -27,7 +28,8 @@
   },
   "devDependencies": {
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
-    "@pnpm/prepare": "workspace:*"
+    "@pnpm/prepare": "workspace:*",
+    "@types/fs-extra": "^9.0.13"
   },
   "directories": {
     "test": "test"

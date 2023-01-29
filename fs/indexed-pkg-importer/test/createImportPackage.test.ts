@@ -11,6 +11,9 @@ jest.mock('fs', () => {
 })
 jest.mock('path-temp', () => (dir: string) => path.join(dir, '_tmp'))
 jest.mock('rename-overwrite', () => jest.fn())
+jest.mock('fs-extra', () => ({
+  copy: jest.fn(),
+}))
 const globalInfo = jest.fn()
 const globalWarn = jest.fn()
 const logger = jest.fn(() => ({ debug: jest.fn() }))
