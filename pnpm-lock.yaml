@@ -717,8 +717,8 @@ importers:
         specifier: 4.0.0
         version: 4.0.0
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
       sort-keys:
         specifier: ^4.2.0
         version: 4.2.0
@@ -852,8 +852,8 @@ importers:
         specifier: ^6.2.0
         version: 6.2.0
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
       semver:
         specifier: ^7.3.8
         version: 7.3.8
@@ -1074,8 +1074,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
       run-groups:
         specifier: ^3.0.1
         version: 3.0.1
@@ -1192,8 +1192,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
     devDependencies:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
@@ -2018,8 +2018,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
     devDependencies:
       '@pnpm/plugin-commands-audit':
         specifier: workspace:*
@@ -2345,8 +2345,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
     devDependencies:
       '@pnpm/plugin-commands-doctor':
         specifier: workspace:*
@@ -2370,8 +2370,8 @@ importers:
         specifier: ^6.2.2
         version: 6.2.2
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
     devDependencies:
       '@pnpm/plugin-commands-init':
         specifier: workspace:*
@@ -2398,8 +2398,8 @@ importers:
         specifier: ^0.2.8
         version: 0.2.8
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
     devDependencies:
       '@pnpm/error':
         specifier: workspace:*
@@ -2507,8 +2507,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
       safe-execa:
         specifier: ^0.1.3
         version: 0.1.3
@@ -3545,8 +3545,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
       version-selector-type:
         specifier: ^3.0.0
         version: 3.0.0
@@ -4207,8 +4207,8 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
       semver:
         specifier: ^7.3.8
         version: 7.3.8
@@ -4325,8 +4325,8 @@ importers:
         specifier: ^2.1.2
         version: 2.1.2
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -4419,8 +4419,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
       tar-stream:
         specifier: ^2.2.0
         version: 2.2.0
@@ -4973,8 +4973,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
     devDependencies:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
@@ -5034,8 +5034,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
     devDependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -5125,8 +5125,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
       strip-ansi:
         specifier: ^6.0.1
         version: 6.0.1
@@ -5396,8 +5396,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
       signal-exit:
         specifier: ^3.0.7
         version: 3.0.7
@@ -5481,8 +5481,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       render-help:
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.3
+        version: 1.0.3
     devDependencies:
       '@pnpm/assert-store':
         specifier: workspace:*
@@ -15462,8 +15462,8 @@ packages:
       '@zkochan/rimraf': 2.1.2
       fs-extra: 10.1.0
 
-  /render-help@1.0.2:
-    resolution: {integrity: sha512-v680o6DdO/y/Aa2GVfdKAz78DCL6FfkMjlVOE9KkVtq+SAd0TCF3PkxvKr95Zf3UaEuiCbFB/w3v62SE743bmw==}
+  /render-help@1.0.3:
+    resolution: {integrity: sha512-oC1+EZEeVpinZDtG0j7Frby2HRGUtU+x62/0QRH/1FcZR9U/OgsI7HKpy/a36iXdI9by0SouWTHm8CDaOeqx3A==}
     engines: {node: '>=10'}
     dependencies:
       table: 6.8.1
@@ -17702,7 +17702,7 @@ time:
   /remark-parse@9.0.0: '2020-10-14T08:48:35.392Z'
   /remark-stringify@9.0.1: '2020-12-09T17:54:33.099Z'
   /rename-overwrite@4.0.3: '2022-10-31T02:06:57.577Z'
-  /render-help@1.0.2: '2021-02-11T22:54:07.157Z'
+  /render-help@1.0.3: '2023-01-29T01:46:41.262Z'
   /resolve-link-target@2.0.0: '2021-02-11T22:54:11.438Z'
   /rfc4648@1.5.2: '2022-05-30T17:55:52.370Z'
   /right-pad@1.0.1: '2016-08-04T20:06:31.415Z'
