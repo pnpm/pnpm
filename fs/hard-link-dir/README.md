@@ -14,4 +14,4 @@ pnpm add @pnpm/fs.hard-link-dir
 
 ## License
 
-MIT © [Zoltan Kochan](https://www.kochan.io)
+MIT
