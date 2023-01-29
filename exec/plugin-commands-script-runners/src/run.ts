@@ -336,21 +336,10 @@ function renderCommands (commands: string[][]) {
 }
 
 function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
-  const scriptSelector = tryBuildRegExpFromCommand(scriptName)
-
-  // if scriptName which a user passes is RegExp (like /build:.*/), multiple scripts to execute will be selected with RegExp
-  if (scriptSelector) {
-    const scriptKeys = Object.keys(scripts)
-    return scriptKeys.filter(script => script.match(scriptSelector))
-  }
-
-  // if scripts in package.json has script which is equal to scriptName a user passes, return it.
-  if (scripts[scriptName]) {
-    return [scriptName]
-  }
+  const specifiedSelector = getSpecifiedScripts(scripts, scriptName)
 
   // if a user passes start command as scriptName, `node server.js` will be executed as a fallback, so return start command even if start command is not defined in package.json
-  if (scriptName === 'start') {
+  if (specifiedSelector.length < 1 && scriptName === 'start') {
     return [scriptName]
   }
 

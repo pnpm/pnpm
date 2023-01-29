@@ -162,14 +162,16 @@ export async function runRecursive (
   throwOnCommandFail('pnpm recursive run', result)
 }
 
-function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
+export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
   const scriptSelector = tryBuildRegExpFromCommand(scriptName)
 
+  // if scriptName which a user passes is RegExp (like /build:.*/), multiple scripts to execute will be selected with RegExp
   if (scriptSelector) {
     const scriptKeys = Object.keys(scripts)
     return scriptKeys.filter(script => script.match(scriptSelector))
   }
 
+  // if scripts in package.json has script which is equal to scriptName a user passes, return it.
   if (scripts[scriptName]) {
     return [scriptName]
   }
