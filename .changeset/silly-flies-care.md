@@ -1,5 +1,6 @@
 ---
 "@pnpm/plugin-commands-script-runners": minor
+"pnpm": minor
 ---
 
-feat: support wildcard selector to specify multiple scripts to execute"
+feat: support script selector with RegExp such as `pnpm run /build:.*/` and execute the matched scripts with the RegExp.
