@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/fs.hard-link-dir",
   "version": "1.0.1",
-  "description": "Hard link all files from a directory to several target directories.",
+  "description": "Hard link (or copy if linking fails) all files from a directory to several target directories.",
   "main": "lib/index.js",
   "files": [
     "lib",

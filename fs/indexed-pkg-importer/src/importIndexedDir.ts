@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs'
+import { copy } from 'fs-extra'
 import path from 'path'
 import { globalWarn, logger } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
@@ -118,7 +119,7 @@ function getUniqueFileMap (fileMap: Record<string, string>) {
 
 async function moveOrMergeModulesDirs (src: string, dest: string) {
   try {
-    await fs.rename(src, dest)
+    await renameEvenAcrossDevices(src, dest)
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
     case 'ENOENT':
@@ -135,9 +136,18 @@ async function moveOrMergeModulesDirs (src: string, dest: string) {
   }
 }
 
+async function renameEvenAcrossDevices (src: string, dest: string) {
+  try {
+    await fs.rename(src, dest)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code !== 'EXDEV') throw err
+    await copy(src, dest)
+  }
+}
+
 async function mergeModulesDirs (src: string, dest: string) {
   const srcFiles = await fs.readdir(src)
   const destFiles = new Set(await fs.readdir(dest))
   const filesToMove = srcFiles.filter((file) => !destFiles.has(file))
-  await Promise.all(filesToMove.map((file) => fs.rename(path.join(src, file), path.join(dest, file))))
+  await Promise.all(filesToMove.map((file) => renameEvenAcrossDevices(path.join(src, file), path.join(dest, file))))
 }
