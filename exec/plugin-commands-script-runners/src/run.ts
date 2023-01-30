@@ -18,10 +18,9 @@ import { PackageScripts, ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
-import { runRecursive, RecursiveRunOpts } from './runRecursive'
+import { runRecursive, RecursiveRunOpts, getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand } from './runRecursive'
 import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
-import { tryBuildRegExpFromCommand } from './regexpCommand'
 
 export const IF_PRESENT_OPTION = {
   'if-present': Boolean,
@@ -336,7 +335,7 @@ function renderCommands (commands: string[][]) {
 }
 
 function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
-  const specifiedSelector = getSpecifiedScripts(scripts, scriptName)
+  const specifiedSelector = getSpecifiedScriptWithoutStartCommand(scripts, scriptName)
 
   // if a user passes start command as scriptName, `node server.js` will be executed as a fallback, so return start command even if start command is not defined in package.json
   if (specifiedSelector.length < 1 && scriptName === 'start') {
