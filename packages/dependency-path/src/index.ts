@@ -146,8 +146,7 @@ export function depPathToFilename (depPath: string) {
   let filename = depPathToFilenameUnescaped(depPath).replace(/[\\/:*?"<>|]/g, '+')
   if (filename.includes('(')) {
     filename = filename
-      .replace(/\)\(/g, '_')
-      .replace(/\(/, '_')
+      .replace(/(\)\()|\(/g, '_')
       .replace(/\)$/, '')
   }
   if (filename.length > 120 || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
