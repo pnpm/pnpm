@@ -85,7 +85,7 @@ describe('getTree', () => {
     const getTreeArgs = {
       maxDepth: 0,
       rewriteLinkVersionDir: '',
-      modulesDir: '',
+      virtualStoreDir: '.pnpm',
       importers: {},
       includeOptionalDependencies: false,
       lockfileDir: '',

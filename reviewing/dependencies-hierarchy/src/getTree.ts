@@ -11,7 +11,6 @@ import { serializeTreeNodeId, TreeNodeId } from './TreeNodeId'
 interface GetTreeOpts {
   maxDepth: number
   rewriteLinkVersionDir: string
-  modulesDir: string
   includeOptionalDependencies: boolean
   lockfileDir: string
   onlyProjects?: boolean
@@ -21,6 +20,7 @@ interface GetTreeOpts {
   importers: Record<string, ProjectSnapshot>
   currentPackages: PackageSnapshots
   wantedPackages: PackageSnapshots
+  virtualStoreDir?: string
 }
 
 interface DependencyInfo {
@@ -127,12 +127,12 @@ function getTreeHelper (
       currentPackages: opts.currentPackages,
       rewriteLinkVersionDir: opts.rewriteLinkVersionDir,
       linkedPathBaseDir,
-      modulesDir: opts.modulesDir,
       peers,
       ref,
       registries: opts.registries,
       skipped: opts.skipped,
       wantedPackages: opts.wantedPackages,
+      virtualStoreDir: opts.virtualStoreDir,
     })
     let circular: boolean
     const matchedSearched = opts.search?.(packageInfo)
