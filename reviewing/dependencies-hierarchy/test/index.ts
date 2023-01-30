@@ -15,6 +15,7 @@ const withUnsavedDepsFixture = f.find('with-unsaved-deps')
 const fixtureMonorepo = path.join(__dirname, '..', 'fixtureMonorepo')
 const withAliasedDepFixture = f.find('with-aliased-dep')
 const workspaceWithNestedWorkspaceDeps = f.find('workspace-with-nested-workspace-deps')
+const customModulesDirFixture = f.find('custom-modules-dir')
 
 test('one package depth 0', async () => {
   const tree = await buildDependenciesHierarchy([generalFixture], { depth: 0, lockfileDir: generalFixture })
@@ -560,4 +561,55 @@ test('dependency without a package.json', async () => {
   expect(tree[withNonPackageDepFixture].dependencies![0]).not.toHaveProperty(['dependencies'])
   expect(tree[withNonPackageDepFixture].dependencies![0]).not.toHaveProperty(['devDependencies'])
   expect(tree[withNonPackageDepFixture].dependencies![0]).not.toHaveProperty(['optionalDependencies'])
+})
+
+test('on custom modules-dir workspaces', async () => {
+  const tree = await buildDependenciesHierarchy(
+    [customModulesDirFixture, path.join(customModulesDirFixture, './packages/foo'), path.join(customModulesDirFixture, './packages/bar')],
+    { depth: 1000, lockfileDir: customModulesDirFixture, modulesDir: 'fake_modules' }
+  )
+  expect(tree).toEqual({
+    [customModulesDirFixture]: {
+      dependencies: [],
+      devDependencies: [],
+      optionalDependencies: [],
+    },
+    [path.join(customModulesDirFixture, 'packages/foo')]: {
+      dependencies: [
+        expect.objectContaining({
+          alias: '@scope/bar',
+          version: 'link:../bar',
+          path: path.join(customModulesDirFixture, 'packages/bar'),
+          dependencies: [
+            expect.objectContaining({
+              alias: 'is-positive',
+              name: 'is-positive',
+              path: path.join(customModulesDirFixture, 'fake_modules/.fake_store/is-positive@1.0.0'),
+              version: '1.0.0',
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          alias: 'is-positive',
+          name: 'is-positive',
+          path: path.join(customModulesDirFixture, 'fake_modules/.fake_store/is-positive@3.1.0'),
+          version: '3.1.0',
+        }),
+      ],
+      devDependencies: [],
+      optionalDependencies: [],
+    },
+    [path.join(customModulesDirFixture, 'packages/bar')]: {
+      dependencies: [
+        expect.objectContaining({
+          alias: 'is-positive',
+          name: 'is-positive',
+          path: path.join(customModulesDirFixture, 'fake_modules/.fake_store/is-positive@1.0.0'),
+          version: '1.0.0',
+        }),
+      ],
+      devDependencies: [],
+      optionalDependencies: [],
+    },
+  })
 })
