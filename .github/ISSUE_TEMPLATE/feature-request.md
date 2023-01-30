@@ -1,5 +1,5 @@
 ---
-name: Feature request 🔮
+name: "Feature request \U0001F52E"
 about: Propose a concrete new feature
 title: ''
 labels: 'type: feature'

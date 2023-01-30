@@ -1,9 +1,10 @@
 ---
-name: Bug report 🐛
+name: "Bug report \U0001F41B"
 about: A feature is not working as is expected, I want to report a bug
-labels: 'type: bug'
 title: ''
+labels: 'type: bug'
 assignees: ''
+
 ---
 
 <!--
