@@ -143,7 +143,11 @@ export function parse (dependencyPath: string) {
 }
 
 export function depPathToFilename (depPath: string) {
-  const filename = depPathToFilenameUnescaped(depPath).replace(/[\\/:*?"<>|]/g, '+')
+  const filename = depPathToFilenameUnescaped(depPath)
+    .replace(/[\\/:*?"<>|]/g, '+')
+    .replace(/\)\(/g, '_')
+    .replace(/\(/, '_')
+    .replace(/\)$/, '')
   if (filename.length > 120 || filename !== filename.toLowerCase() && !filename.startsWith('file+')) {
     return `${filename.substring(0, 50)}_${createBase32Hash(filename)}`
   }
