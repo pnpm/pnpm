@@ -11,17 +11,18 @@ export async function hardLinkDir (src: string, destDirs: string[]) {
       if (file === 'node_modules') return
       const srcFile = path.join(src, file)
       if ((await fs.lstat(srcFile)).isDirectory()) {
-        await Promise.all(
+        const destSubdirs = await Promise.all(
           destDirs.map(async (destDir) => {
-            const destFile = path.join(destDir, file)
+            const destSubdir = path.join(destDir, file)
             try {
-              await fs.mkdir(destFile, { recursive: true })
+              await fs.mkdir(destSubdir, { recursive: true })
             } catch (err: any) { // eslint-disable-line
               if (err.code !== 'EEXIST') throw err
             }
-            return hardLinkDir(srcFile, [destFile])
+            return destSubdir
           })
         )
+        await hardLinkDir(srcFile, destSubdirs)
         return
       }
       await Promise.all(
