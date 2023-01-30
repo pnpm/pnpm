@@ -337,8 +337,12 @@ function renderCommands (commands: string[][]) {
 function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
   const specifiedSelector = getSpecifiedScriptWithoutStartCommand(scripts, scriptName)
 
+  if (specifiedSelector.length > 0) {
+    return specifiedSelector
+  }
+
   // if a user passes start command as scriptName, `node server.js` will be executed as a fallback, so return start command even if start command is not defined in package.json
-  if (specifiedSelector.length < 1 && scriptName === 'start') {
+  if (scriptName === 'start') {
     return [scriptName]
   }
 
