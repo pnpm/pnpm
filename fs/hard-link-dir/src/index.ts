@@ -29,21 +29,33 @@ export async function hardLinkDir (src: string, destDirs: string[]) {
         destDirs.map(async (destDir) => {
           const destFile = path.join(destDir, file)
           try {
-            await linkOrCopy(srcFile, destFile)
+            await linkOrCopyFile(srcFile, destFile)
           } catch (err: any) { // eslint-disable-line
             if (err.code === 'ENOENT') {
-              await fs.mkdir(destDir, { recursive: true })
-              await linkOrCopy(srcFile, destFile)
+              // Ignore broken symlinks
               return
             }
-            if (err.code !== 'EEXIST') {
-              throw err
-            }
+            throw err
           }
         })
       )
     })
   )
+}
+
+async function linkOrCopyFile (srcFile: string, destFile: string) {
+  try {
+    await linkOrCopy(srcFile, destFile)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'ENOENT') {
+      await fs.mkdir(path.dirname(destFile), { recursive: true })
+      await linkOrCopy(srcFile, destFile)
+      return
+    }
+    if (err.code !== 'EEXIST') {
+      throw err
+    }
+  }
 }
 
 /*
