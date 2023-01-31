@@ -43,7 +43,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'verifyStoreIntegrity'
 > & {
   ignoreFile?: (filename: string) => boolean
-} & Partial<Pick<Config, 'userConfig'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
+} & Partial<Pick<Config, 'userConfig'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs' | 'includeOnlyPackageFiles'>
 
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions
@@ -84,6 +84,7 @@ export async function createNewStoreController (
     ),
     gitShallowHosts: opts.gitShallowHosts,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
+    includeOnlyPackageFiles: opts.includeOnlyPackageFiles,
   })
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {

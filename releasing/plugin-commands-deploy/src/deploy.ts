@@ -95,6 +95,7 @@ export async function handler (
       // This is a workaround to prevent frozen install in CI envs.
       'frozen-lockfile': false,
     },
+    includeOnlyPackageFiles: true,
   })
 }
 
