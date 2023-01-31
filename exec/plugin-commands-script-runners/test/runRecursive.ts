@@ -892,7 +892,7 @@ test('`pnpm -r --resume-from run` should executed from given package', async () 
   expect(output1).toContain('project-3')
 })
 
-test('pnpm run with multiple script selector should work on recursive', async () => {
+test('pnpm run with RegExp script selector should work on recursive', async () => {
   preparePackages([
     {
       name: 'project-1',

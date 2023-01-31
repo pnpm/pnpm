@@ -466,7 +466,7 @@ test('pnpm run with custom shell', async () => {
   expect((await import(path.resolve('shell-input.json'))).default).toStrictEqual(['-c', 'foo bar'])
 })
 
-test('pnpm run with multiple script selector should work', async () => {
+test('pnpm run with RegExp script selector should work', async () => {
   prepare({
     scripts: {
       'build:a': 'node -e "require(\'fs\').writeFileSync(\'./output-build-a.txt\', \'a\', \'utf8\')"',
@@ -496,7 +496,7 @@ test('pnpm run with multiple script selector should work', async () => {
   expect(await fs.readFile('output-lint-c.txt', { encoding: 'utf-8' })).toEqual('c')
 })
 
-test('pnpm run with multiple script selector should work also for pre/post script', async () => {
+test('pnpm run with RegExp script selector should work also for pre/post script', async () => {
   prepare({
     scripts: {
       'build:a': 'node -e "require(\'fs\').writeFileSync(\'./output-a.txt\', \'a\', \'utf8\')"',
@@ -516,7 +516,7 @@ test('pnpm run with multiple script selector should work also for pre/post scrip
   expect(await fs.readFile('output-pre-a.txt', { encoding: 'utf-8' })).toEqual('pre-a')
 })
 
-test('pnpm run with multiple script selector should work parallel as a default behavior (parallel execution limits number is four)', async () => {
+test('pnpm run with RegExp script selector should work parallel as a default behavior (parallel execution limits number is four)', async () => {
   prepare({
     scripts: {
       'build:a': 'node -e "let i = 20;setInterval(() => {if (!--i) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-a.json\');},50)"',
@@ -539,7 +539,7 @@ test('pnpm run with multiple script selector should work parallel as a default b
   expect(Math.max(outputsA[0], outputsB[0]) < Math.min(outputsA[outputsA.length - 1], outputsB[outputsB.length - 1])).toBeTruthy()
 })
 
-test('pnpm run with multiple script selector should work sequentially with --workspace-concurrency=1', async () => {
+test('pnpm run with RegExp script selector should work sequentially with --workspace-concurrency=1', async () => {
   prepare({
     scripts: {
       'build:a': 'node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-a.json\');},16)"',
