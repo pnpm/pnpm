@@ -1380,7 +1380,7 @@ test('include tarball URL', async () => {
 
   const lockfile = await project.readLockfile()
   expect((lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution as TarballResolution).tarball)
-    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e%2fpkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
+    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
 })
 
 test('lockfile v6', async () => {
