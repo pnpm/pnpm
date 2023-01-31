@@ -73,7 +73,7 @@ export type ImporterToResolve = Importer<{
   pinnedVersion?: PinnedVersion
   raw: string
   updateSpec?: boolean
-  isCaseInstall?: boolean
+  preserveNonSemverVersionSpec?: boolean
 }>
 & {
   peer?: boolean
