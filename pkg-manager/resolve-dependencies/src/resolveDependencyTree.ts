@@ -77,7 +77,7 @@ export interface ResolveDependenciesOptions {
   pnpmVersion: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
-  resolutionMode?: 'highest' | 'time-based'
+  resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   resolvePeersFromWorkspaceRoot?: boolean
   updateMatching?: (pkgName: string) => boolean
   linkWorkspacePackagesDepth?: number

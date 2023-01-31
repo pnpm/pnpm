@@ -64,3 +64,31 @@ test('time-based resolution mode should not fail when publishedBy date cannot be
   prepareEmpty()
   await install({}, await testDefaults({ resolutionMode: 'time-based' }))
 })
+
+test('the lowest version of a direct dependency is installed when resolution mode is lowest-direct', async () => {
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  let manifest = await install({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '^100.0.0',
+    },
+  }, await testDefaults({ resolutionMode: 'lowest-direct' }))
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0']).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0']).toBeTruthy()
+  }
+
+  manifest = await install(manifest, await testDefaults({ resolutionMode: 'lowest-direct', update: true }))
+
+  {
+    const lockfile = await project.readLockfile()
+    expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.1.0']).toBeTruthy()
+  }
+  expect(manifest.dependencies).toStrictEqual({
+    '@pnpm.e2e/pkg-with-1-dep': '^100.1.0',
+  })
+})

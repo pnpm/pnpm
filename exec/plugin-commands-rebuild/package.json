@@ -38,7 +38,7 @@
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.2.0",
+    "@pnpm/registry-mock": "3.3.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",

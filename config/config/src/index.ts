@@ -92,7 +92,7 @@ export const types = Object.assign({
   'publish-branch': String,
   'recursive-install': Boolean,
   reporter: String,
-  'resolution-mode': ['highest', 'time-based'],
+  'resolution-mode': ['highest', 'time-based', 'lowest-direct'],
   'resolve-peers-from-workspace-root': Boolean,
   'aggregate-output': Boolean,
   'save-peer': Boolean,
