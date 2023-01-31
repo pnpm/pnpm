@@ -562,3 +562,26 @@ test('pnpm run with RegExp script selector should work sequentially with --works
 
   expect(outputsA[0] < outputsB[0] && outputsA[1] < outputsB[1]).toBeTruthy()
 })
+
+test('pnpm run with RegExp script selector with flag should throw error', async () => {
+  prepare({
+    scripts: {
+      'build:a': 'node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-a.json\');},16)"',
+      'build:b': 'node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-b.json\');},16)"',
+    },
+  })
+
+  let err!: Error
+  try {
+    await run.handler({
+      dir: process.cwd(),
+      extraBinPaths: [],
+      extraEnv: {},
+      rawConfig: {},
+      workspaceConcurrency: 1,
+    }, ['/build:.*/i'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.message).toBe('RegExp flag is not supported in script command selector')
+})
