@@ -13,7 +13,7 @@ on:
 
 permissions: {}
 jobs:
-  build:
+  tag-in-registry:
     name: Tagging ${{ github.event.inputs.version }} as ${{ github.event.inputs.tag }}
     environment: release
     runs-on: ubuntu-latest
@@ -26,3 +26,13 @@ jobs:
       run: |
         npm dist-tag add pnpm@${{ github.event.inputs.version }} ${{ github.event.inputs.tag }}
         npm dist-tag add @pnpm/exe@${{ github.event.inputs.version }} ${{ github.event.inputs.tag }}
+
+  publish-to-winget:
+    runs-on: windows-latest # Action can only be run on windows
+    needs: build
+    environment: release
+    steps:
+      - uses: vedantmgoyal2009/winget-releaser@v1
+        with:
+          identifier: pnpm.pnpm
+          token: ${{ secrets.WINGET_TOKEN }}

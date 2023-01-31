@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  release:
     permissions:
       contents: write  # for softprops/action-gh-release to create GitHub release
     runs-on: ubuntu-latest
@@ -49,13 +49,3 @@ jobs:
           draft: true
           files: dist/*
           body_path: RELEASE.md
-
-  publish:
-    runs-on: windows-latest # Action can only be run on windows
-    needs: build
-    environment: release
-    steps:
-      - uses: vedantmgoyal2009/winget-releaser@v1
-        with:
-          identifier: pnpm.pnpm
-          token: ${{ secrets.WINGET_TOKEN }}
