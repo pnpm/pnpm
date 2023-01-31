@@ -81,17 +81,6 @@ function getChangelogEntry (changelog: string, version: string) {
         <a href="https://bit.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://nhost.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/nhost.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/nhost_light.svg" />
-            <img src="https://pnpm.io/img/users/nhost.svg" width="180" />
-          </picture>
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="middle">
         <a href="https://novu.co/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/novu.svg" />
@@ -100,6 +89,8 @@ function getChangelogEntry (changelog: string, version: string) {
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://prisma.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
@@ -109,8 +100,6 @@ function getChangelogEntry (changelog: string, version: string) {
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://www.flightcontrol.dev/?ref=pnpm" target="_blank"><img src="https://pnpm.io/img/users/flightcontrol.png" width="240"></a>
       </td>
@@ -140,11 +129,6 @@ function getChangelogEntry (changelog: string, version: string) {
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://www.takeshape.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-          <img src="https://pnpm.io/img/users/takeshape.svg" width="280">
-        </a>
-      </td>
-      <td align="center" valign="middle">
         <a href="https://doppler.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/doppler.svg" />
@@ -153,8 +137,6 @@ function getChangelogEntry (changelog: string, version: string) {
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://depot.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
