@@ -25,7 +25,7 @@ export async function updateProjectManifest (
     .filter((rdd, index) => importer.wantedDependencies[index]?.updateSpec)
     .map((rdd, index) => {
       const wantedDep = importer.wantedDependencies[index]!
-      return resolvedDirectDepToSpecObject({ ...rdd, isNew: wantedDep.isNew, specRaw: wantedDep.raw }, importer, {
+      return resolvedDirectDepToSpecObject({ ...rdd, isNew: wantedDep.isNew, specRaw: wantedDep.raw, preserveNonSemverVersionSpec: wantedDep.preserveNonSemverVersionSpec }, importer, {
         nodeExecPath: wantedDep.nodeExecPath,
         pinnedVersion: wantedDep.pinnedVersion ?? importer.pinnedVersion ?? 'major',
         preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
@@ -66,7 +66,8 @@ function resolvedDirectDepToSpecObject (
     resolution,
     specRaw,
     version,
-  }: ResolvedDirectDependency & { isNew?: Boolean, specRaw: string },
+    preserveNonSemverVersionSpec,
+  }: ResolvedDirectDependency & { isNew?: Boolean, specRaw: string, preserveNonSemverVersionSpec?: boolean },
   importer: ImporterToResolve,
   opts: {
     nodeExecPath?: string
@@ -103,6 +104,7 @@ function resolvedDirectDepToSpecObject (
         specRaw,
         version,
         rolling: shouldUseWorkspaceProtocol && opts.saveWorkspaceProtocol === 'rolling',
+        preserveNonSemverVersionSpec,
       })
     }
     if (
@@ -156,6 +158,7 @@ function getPrefPreferSpecifiedExoticSpec (
     specRaw: string
     pinnedVersion: PinnedVersion
     rolling: boolean
+    preserveNonSemverVersionSpec?: boolean
   }
 ) {
   const prefix = getPrefix(opts.alias, opts.name)
@@ -168,7 +171,10 @@ function getPrefPreferSpecifiedExoticSpec (
       }
     }
     const selector = versionSelectorType(specWithoutName)
-    if (!selector) {
+    if (
+      ((selector == null) || (selector.type !== 'version' && selector.type !== 'range')) &&
+      opts.preserveNonSemverVersionSpec
+    ) {
       return opts.specRaw.slice(opts.alias.length + 1)
     }
   }

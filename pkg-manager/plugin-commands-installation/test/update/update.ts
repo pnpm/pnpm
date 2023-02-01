@@ -335,3 +335,33 @@ test('do not update anything if all the dependencies are ignored and trying to u
   const lockfileUpdated = await project.readLockfile()
   expect(lockfileUpdated.packages['/@pnpm.e2e/foo/100.0.0']).toBeTruthy()
 })
+
+test('should not update tag version when --latest not set', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '2.0.0', distTag: 'canary' })
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '2.0.0', distTag: 'latest' })
+
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/peer-a': 'latest',
+      '@pnpm.e2e/peer-c': 'canary',
+      '@pnpm.e2e/foo': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    latest: false,
+  })
+
+  const manifest = await loadJsonFile<ProjectManifest>('package.json')
+  expect(manifest.dependencies?.['@pnpm.e2e/peer-a']).toBe('latest')
+  expect(manifest.dependencies?.['@pnpm.e2e/peer-c']).toBe('canary')
+  expect(manifest.dependencies?.['@pnpm.e2e/foo']).toBe('1.0.0')
+})

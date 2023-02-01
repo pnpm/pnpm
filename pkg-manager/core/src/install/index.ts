@@ -507,7 +507,7 @@ export async function mutateModules (
         updateWorkspaceDependencies: opts.update,
         nodeExecPath: opts.nodeExecPath,
       })
-        .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
+        .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
 
       if (ctx.wantedLockfile?.importers) {
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies)
@@ -719,7 +719,7 @@ export type ImporterToUpdate = {
   pruneDirectDependencies: boolean
   removePackages?: string[]
   updatePackageManifest: boolean
-  wantedDependencies: Array<WantedDependency & { isNew?: boolean, updateSpec?: boolean }>
+  wantedDependencies: Array<WantedDependency & { isNew?: boolean, updateSpec?: boolean, preserveNonSemverVersionSpec?: boolean }>
 } & DependenciesMutation
 
 export interface UpdatedProject {
