@@ -36,3 +36,16 @@ jobs:
         with:
           identifier: pnpm.pnpm
           token: ${{ secrets.WINGET_TOKEN }}
+
+  post-to-reddit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: bluwy/release-for-reddit-action@v1
+        with:
+          username: ${{ secrets.REDDIT_USERNAME }}
+          password: ${{ secrets.REDDIT_PASSWORD }}
+          app-id: ${{ secrets.REDDIT_APP_ID }}
+          app-secret: ${{ secrets.REDDIT_APP_SECRET }}
+          subreddit: pnpm
+          title: pnpm@${{ github.event.inputs.version }} is out!
+          url: https://github.com/pnpm/pnpm/releases/tag/v${{ github.event.inputs.version }}
