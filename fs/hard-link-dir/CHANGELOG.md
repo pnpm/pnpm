@@ -1,5 +1,12 @@
 # @pnpm/fs.hard-link-dir
 
+## 1.0.3
+
+### Patch Changes
+
+- 6add01403: Ignore broken symlinks.
+- 5c4eb0fc3: Performance optimization.
+
 ## 1.0.2
 
 ### Patch Changes

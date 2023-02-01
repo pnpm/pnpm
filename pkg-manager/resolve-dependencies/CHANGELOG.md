@@ -1,5 +1,15 @@
 # @pnpm/resolve-dependencies
 
+## 29.2.5
+
+### Patch Changes
+
+- 6348f5931: The update command should not replace dependency versions specified via dist-tags [#5996](https://github.com/pnpm/pnpm/pull/5996).
+- Updated dependencies [9247f6781]
+  - @pnpm/dependency-path@1.1.2
+  - @pnpm/lockfile-utils@5.0.5
+  - @pnpm/prune-lockfile@4.0.23
+
 ## 29.2.4
 
 ### Patch Changes

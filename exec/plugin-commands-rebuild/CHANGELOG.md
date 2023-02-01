@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-rebuild
 
+## 7.0.31
+
+### Patch Changes
+
+- Updated dependencies [6add01403]
+- Updated dependencies [5c4eb0fc3]
+- Updated dependencies [9247f6781]
+  - @pnpm/fs.hard-link-dir@1.0.3
+  - @pnpm/dependency-path@1.1.2
+  - @pnpm/lockfile-utils@5.0.5
+  - @pnpm/lockfile-walker@6.0.7
+  - @pnpm/get-context@8.2.1
+  - @pnpm/config@16.5.5
+  - @pnpm/store-connection-manager@5.2.9
+  - @pnpm/cli-utils@1.0.31
+  - @pnpm/find-workspace-packages@5.0.31
+
 ## 7.0.30
 
 ### Patch Changes

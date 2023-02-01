@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-licenses
 
+## 1.0.22
+
+### Patch Changes
+
+- @pnpm/lockfile-file@7.0.3
+- @pnpm/license-scanner@1.0.12
+- @pnpm/config@16.5.5
+- @pnpm/cli-utils@1.0.31
+
 ## 1.0.21
 
 ### Patch Changes

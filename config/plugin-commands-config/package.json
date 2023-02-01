@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-config",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Commands for reading and writing settings to/from config files",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

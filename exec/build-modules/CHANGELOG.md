@@ -1,5 +1,13 @@
 # @pnpm/build-modules
 
+## 10.1.5
+
+### Patch Changes
+
+- Updated dependencies [6add01403]
+- Updated dependencies [5c4eb0fc3]
+  - @pnpm/fs.hard-link-dir@1.0.3
+
 ## 10.1.4
 
 ### Patch Changes

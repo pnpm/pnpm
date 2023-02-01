@@ -1,5 +1,13 @@
 # pnpm
 
+## 7.26.3
+
+### Patch Changes
+
+- Directories inside the virtual store should not contain the ( or ) chars. This is to fix issues with storybook and the new v6 `pnpm-lock.yaml` lockfile format [#5976](https://github.com/pnpm/pnpm/issues/5976).
+- The update command should not replace dependency versions specified via dist-tags [#5996](https://github.com/pnpm/pnpm/pull/5996).
+- Fixed an issue that was causing pnpm to stuck forever during installation [#5909](https://github.com/pnpm/pnpm/issues/5909).
+
 ## 7.26.2
 
 ### Patch Changes

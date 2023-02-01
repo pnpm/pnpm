@@ -1,5 +1,26 @@
 # @pnpm/core
 
+## 7.7.3
+
+### Patch Changes
+
+- Updated dependencies [9247f6781]
+- Updated dependencies [6348f5931]
+  - @pnpm/dependency-path@1.1.2
+  - @pnpm/resolve-dependencies@29.2.5
+  - @pnpm/build-modules@10.1.5
+  - @pnpm/filter-lockfile@7.0.8
+  - @pnpm/lockfile-file@7.0.3
+  - @pnpm/lockfile-to-pnp@2.0.10
+  - @pnpm/lockfile-utils@5.0.5
+  - @pnpm/lockfile-walker@6.0.7
+  - @pnpm/prune-lockfile@4.0.23
+  - @pnpm/headless@19.4.10
+  - @pnpm/hoist@7.0.13
+  - @pnpm/modules-cleaner@13.0.10
+  - @pnpm/package-requester@20.1.4
+  - @pnpm/get-context@8.2.1
+
 ## 7.7.2
 
 ### Patch Changes

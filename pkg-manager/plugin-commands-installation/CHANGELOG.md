@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-installation
 
+## 11.4.3
+
+### Patch Changes
+
+- 6348f5931: The update command should not replace dependency versions specified via dist-tags [#5996](https://github.com/pnpm/pnpm/pull/5996).
+  - @pnpm/plugin-commands-rebuild@7.0.31
+  - @pnpm/core@7.7.3
+  - @pnpm/outdated@11.0.16
+  - @pnpm/pnpmfile@4.0.29
+  - @pnpm/package-store@15.1.5
+  - @pnpm/config@16.5.5
+  - @pnpm/store-connection-manager@5.2.9
+  - @pnpm/cli-utils@1.0.31
+  - @pnpm/find-workspace-packages@5.0.31
+  - @pnpm/filter-workspace-packages@6.0.31
+
 ## 11.4.2
 
 ### Patch Changes
