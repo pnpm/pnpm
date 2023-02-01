@@ -163,12 +163,12 @@ export async function runRecursive (
 }
 
 export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
-  const scriptSelector = tryBuildRegExpFromCommand(scriptName)
-
   // if scripts in package.json has script which is equal to scriptName a user passes, return it.
   if (scripts[scriptName]) {
     return [scriptName]
   }
+
+  const scriptSelector = tryBuildRegExpFromCommand(scriptName)
 
   // if scriptName which a user passes is RegExp (like /build:.*/), multiple scripts to execute will be selected with RegExp
   if (scriptSelector) {
