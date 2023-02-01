@@ -18,7 +18,7 @@ export type PkgInfo = Omit<PkgData, 'name' | 'path'> & Pick<ProjectManifest, 'de
 export async function getPkgInfo (pkg: PkgData): Promise<PkgInfo> {
   let manifest
   try {
-    manifest = await readPkg(path.join(pkg.path, 'node_modules', pkg.name, 'package.json'))
+    manifest = await readPkg(path.join(pkg.path, 'package.json'))
   } catch (err: any) { // eslint-disable-line
     // This will probably never happen
     manifest = {
