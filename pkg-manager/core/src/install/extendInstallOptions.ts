@@ -104,7 +104,7 @@ export interface StrictInstallOptions {
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allowNonAppliedPatches: boolean
   preferSymlinkedExecutables: boolean
-  resolutionMode: 'highest' | 'time-based'
+  resolutionMode: 'highest' | 'time-based' | 'lowest-direct'
   resolvePeersFromWorkspaceRoot: boolean
 
   publicHoistPattern: string[] | undefined

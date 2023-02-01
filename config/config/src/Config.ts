@@ -84,7 +84,7 @@ export interface Config {
   useStderr?: boolean
   nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
   preferSymlinkedExecutables?: boolean
-  resolutionMode?: 'highest' | 'time-based'
+  resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   registrySupportsTimeField?: boolean
   failedToLoadBuiltInConfig: boolean
   resolvePeersFromWorkspaceRoot?: boolean

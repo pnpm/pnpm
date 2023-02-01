@@ -19,6 +19,7 @@ import tempy from 'tempy'
 import symlink from 'symlink-dir'
 import writeYamlFile from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from '../utils'
+import { addDistTag } from '@pnpm/registry-mock'
 
 test('no projects matched the filters', async () => {
   preparePackages([
@@ -655,6 +656,7 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
 })
 
 test('recursive install with link-workspace-packages and shared-workspace-lockfile', async () => {
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const projects = preparePackages([
     {
       name: 'is-positive',

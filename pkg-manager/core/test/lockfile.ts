@@ -30,6 +30,7 @@ const LOCKFILE_WARN_LOG = {
 }
 
 test('lockfile has correct format', async () => {
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   await addDependenciesToPackage({},
@@ -329,6 +330,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async () => {
 test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not match the inner one`, async () => {
   const project = prepareEmpty()
 
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults())
@@ -406,6 +408,7 @@ test('repeat install with lockfile should not mutate lockfile when dependency ha
 test('package is not marked dev if it is also a subdep of a regular dependency', async () => {
   const project = prepareEmpty()
 
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults())
@@ -424,6 +427,7 @@ test('package is not marked dev if it is also a subdep of a regular dependency',
 test('package is not marked optional if it is also a subdep of a regular dependency', async () => {
   const project = prepareEmpty()
 
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults())
@@ -519,6 +523,7 @@ test('repeat install with no inner lockfile should not rewrite packages in node_
 test('packages are placed in devDependencies even if they are present as non-dev as well', async () => {
   const project = prepareEmpty()
 
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   const reporter = sinon.spy()
@@ -789,6 +794,7 @@ test('packages installed via tarball URL from the default registry are normalize
 })
 
 test('lockfile file has correct format when lockfile directory does not equal the prefix directory', async () => {
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   prepareEmpty()
 
   const storeDir = path.resolve('..', '.store')
@@ -986,6 +992,7 @@ test(`use current ${WANTED_LOCKFILE} as initial wanted one, when wanted was remo
 
 // Covers https://github.com/pnpm/pnpm/issues/1876
 test('existing dependencies are preserved when updating a lockfile to a newer format', async () => {
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
@@ -1037,6 +1044,7 @@ test('lockfile is not getting broken if the used registry changes', async () => 
 
 test('broken lockfile is fixed even if it seems like up to date at first. Unless frozenLockfile option is set to true', async () => {
   const project = prepareEmpty()
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ lockfileOnly: true }))
@@ -1372,7 +1380,7 @@ test('include tarball URL', async () => {
 
   const lockfile = await project.readLockfile()
   expect((lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution as TarballResolution).tarball)
-    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e%2fpkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
+    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
 })
 
 test('lockfile v6', async () => {

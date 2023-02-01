@@ -156,7 +156,7 @@ export interface ResolutionContext {
   nodeVersion: string
   pnpmVersion: string
   registries: Registries
-  resolutionMode?: 'highest' | 'time-based'
+  resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   virtualStoreDir: string
   updateMatching?: (pkgName: string) => boolean
   useLockfileV6?: boolean
@@ -350,7 +350,7 @@ async function resolveDependenciesOfImporters (
     registries: ctx.registries,
     resolvedDependencies: options.resolvedDependencies,
   }))
-  const pickLowestVersion = ctx.resolutionMode === 'time-based'
+  const pickLowestVersion = ctx.resolutionMode === 'time-based' || ctx.resolutionMode === 'lowest-direct'
   const resolveResults = await Promise.all(
     zipWith(async (extendedWantedDeps, importer) => {
       const postponedResolutionsQueue: PostponedResolutionFunction[] = []
