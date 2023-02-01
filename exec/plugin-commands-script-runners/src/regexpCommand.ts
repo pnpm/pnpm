@@ -12,7 +12,7 @@ export function tryBuildRegExpFromCommand (command: string): RegExp | null {
 
   // if the passed RegExp script selector includes flag, report the error because RegExp flag is not useful for script selector and pnpm does not support this.
   if (match[2]) {
-    throw new PnpmError('UNSUPPORTED_SCRIPT_COMMAND_FORMAT', 'RegExp flag is not supported in script command selector')
+    throw new PnpmError('UNSUPPORTED_SCRIPT_COMMAND_FORMAT', 'RegExp flags are not supported in script command selector')
   }
 
   try {
