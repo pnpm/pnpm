@@ -63,7 +63,7 @@ function createFetchers (
   const defaultFetchers = {
     ...createTarballFetcher(fetchFromRegistry, getAuthHeader, opts),
     ...createGitFetcher(opts),
-    ...createDirectoryFetcher({ resolveSymlinks: opts.resolveSymlinksInInjectedDirs, includeOnlyPackageFiles: opts.includeOnlyPackageFiles}),
+    ...createDirectoryFetcher({ resolveSymlinks: opts.resolveSymlinksInInjectedDirs, includeOnlyPackageFiles: opts.includeOnlyPackageFiles }),
   }
 
   const overwrites = mapValues(
