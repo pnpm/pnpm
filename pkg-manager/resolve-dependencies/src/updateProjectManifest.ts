@@ -171,7 +171,10 @@ function getPrefPreferSpecifiedExoticSpec (
       }
     }
     const selector = versionSelectorType(specWithoutName)
-    if (!((selector != null) && (selector.type === 'version' || selector.type === 'range')) && opts.preserveNonSemverVersionSpec) {
+    if (
+      ((selector == null) || (selector.type !== 'version' && selector.type !== 'range')) &&
+      opts.preserveNonSemverVersionSpec
+    ) {
       return opts.specRaw.slice(opts.alias.length + 1)
     }
   }
