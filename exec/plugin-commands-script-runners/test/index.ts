@@ -583,5 +583,5 @@ test('pnpm run with RegExp script selector with flag should throw error', async 
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
-  expect(err.message).toBe('RegExp flag is not supported in script command selector')
+  expect(err.message).toBe('RegExp flags are not supported in script command selector')
 })
