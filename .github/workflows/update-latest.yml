@@ -35,6 +35,8 @@ jobs:
       - uses: vedantmgoyal2009/winget-releaser@v1
         with:
           identifier: pnpm.pnpm
+          version: ${{ github.event.inputs.version }}
+          release-tag: v${{ github.event.inputs.version }}
           token: ${{ secrets.WINGET_TOKEN }}
 
   post-to-reddit:
