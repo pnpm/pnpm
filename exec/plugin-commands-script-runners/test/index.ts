@@ -411,7 +411,7 @@ test('if a script is not found but is present in the root, print an info message
   }
 
   expect(err).toBeTruthy()
-  expect(err.hint).toMatch(/But build is present in the root/)
+  expect(err.hint).toMatch(/But script matched with build is present in the root/)
 })
 
 test('scripts work with PnP', async () => {
@@ -464,4 +464,124 @@ test('pnpm run with custom shell', async () => {
   }, ['build'])
 
   expect((await import(path.resolve('shell-input.json'))).default).toStrictEqual(['-c', 'foo bar'])
+})
+
+test('pnpm run with RegExp script selector should work', async () => {
+  prepare({
+    scripts: {
+      'build:a': 'node -e "require(\'fs\').writeFileSync(\'./output-build-a.txt\', \'a\', \'utf8\')"',
+      'build:b': 'node -e "require(\'fs\').writeFileSync(\'./output-build-b.txt\', \'b\', \'utf8\')"',
+      'build:c': 'node -e "require(\'fs\').writeFileSync(\'./output-build-c.txt\', \'c\', \'utf8\')"',
+      build: 'node -e "require(\'fs\').writeFileSync(\'./output-build-a.txt\', \'should not run\', \'utf8\')"',
+      'lint:a': 'node -e "require(\'fs\').writeFileSync(\'./output-lint-a.txt\', \'a\', \'utf8\')"',
+      'lint:b': 'node -e "require(\'fs\').writeFileSync(\'./output-lint-b.txt\', \'b\', \'utf8\')"',
+      'lint:c': 'node -e "require(\'fs\').writeFileSync(\'./output-lint-c.txt\', \'c\', \'utf8\')"',
+      lint: 'node -e "require(\'fs\').writeFileSync(\'./output-lint-a.txt\', \'should not run\', \'utf8\')"',
+    },
+  })
+
+  await run.handler({
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    rawConfig: {},
+  }, ['/^(lint|build):.*/'])
+
+  expect(await fs.readFile('output-build-a.txt', { encoding: 'utf-8' })).toEqual('a')
+  expect(await fs.readFile('output-build-b.txt', { encoding: 'utf-8' })).toEqual('b')
+  expect(await fs.readFile('output-build-c.txt', { encoding: 'utf-8' })).toEqual('c')
+
+  expect(await fs.readFile('output-lint-a.txt', { encoding: 'utf-8' })).toEqual('a')
+  expect(await fs.readFile('output-lint-b.txt', { encoding: 'utf-8' })).toEqual('b')
+  expect(await fs.readFile('output-lint-c.txt', { encoding: 'utf-8' })).toEqual('c')
+})
+
+test('pnpm run with RegExp script selector should work also for pre/post script', async () => {
+  prepare({
+    scripts: {
+      'build:a': 'node -e "require(\'fs\').writeFileSync(\'./output-a.txt\', \'a\', \'utf8\')"',
+      'prebuild:a': 'node -e "require(\'fs\').writeFileSync(\'./output-pre-a.txt\', \'pre-a\', \'utf8\')"',
+    },
+  })
+
+  await run.handler({
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    rawConfig: {},
+    enablePrePostScripts: true,
+  }, ['/build:.*/'])
+
+  expect(await fs.readFile('output-a.txt', { encoding: 'utf-8' })).toEqual('a')
+  expect(await fs.readFile('output-pre-a.txt', { encoding: 'utf-8' })).toEqual('pre-a')
+})
+
+test('pnpm run with RegExp script selector should work parallel as a default behavior (parallel execution limits number is four)', async () => {
+  prepare({
+    scripts: {
+      'build:a': 'node -e "let i = 20;setInterval(() => {if (!--i) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-a.json\');},50)"',
+      'build:b': 'node -e "let i = 40;setInterval(() => {if (!--i) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-b.json\');},25)"',
+    },
+  })
+
+  await execa('pnpm', ['add', 'json-append@1'])
+
+  await run.handler({
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    rawConfig: {},
+  }, ['/build:.*/'])
+
+  const { default: outputsA } = await import(path.resolve('output-a.json'))
+  const { default: outputsB } = await import(path.resolve('output-b.json'))
+
+  expect(Math.max(outputsA[0], outputsB[0]) < Math.min(outputsA[outputsA.length - 1], outputsB[outputsB.length - 1])).toBeTruthy()
+})
+
+test('pnpm run with RegExp script selector should work sequentially with --workspace-concurrency=1', async () => {
+  prepare({
+    scripts: {
+      'build:a': 'node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-a.json\');},16)"',
+      'build:b': 'node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-b.json\');},16)"',
+    },
+  })
+
+  await execa('pnpm', ['add', 'json-append@1'])
+
+  await run.handler({
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    rawConfig: {},
+    workspaceConcurrency: 1,
+  }, ['/build:.*/'])
+
+  const { default: outputsA } = await import(path.resolve('output-a.json'))
+  const { default: outputsB } = await import(path.resolve('output-b.json'))
+
+  expect(outputsA[0] < outputsB[0] && outputsA[1] < outputsB[1]).toBeTruthy()
+})
+
+test('pnpm run with RegExp script selector with flag should throw error', async () => {
+  prepare({
+    scripts: {
+      'build:a': 'node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-a.json\');},16)"',
+      'build:b': 'node -e "let i = 2;setInterval(() => {if (!i--) process.exit(0); require(\'json-append\').append(Date.now(),\'./output-b.json\');},16)"',
+    },
+  })
+
+  let err!: Error
+  try {
+    await run.handler({
+      dir: process.cwd(),
+      extraBinPaths: [],
+      extraEnv: {},
+      rawConfig: {},
+      workspaceConcurrency: 1,
+    }, ['/build:.*/i'])
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.message).toBe('RegExp flags are not supported in script command selector')
 })

@@ -1,4 +1,5 @@
 import path from 'path'
+import pLimit from 'p-limit'
 import {
   docsUrl,
   readProjectManifestOnly,
@@ -13,11 +14,11 @@ import {
   makeNodeRequireOption,
   RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
-import { ProjectManifest } from '@pnpm/types'
+import { PackageScripts, ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
-import { runRecursive, RecursiveRunOpts } from './runRecursive'
+import { runRecursive, RecursiveRunOpts, getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand } from './runRecursive'
 import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 
@@ -43,12 +44,20 @@ export const RESUME_FROM_OPTION_HELP = {
   name: '--resume-from',
 }
 
+export const SEQUENTIAL_OPTION_HELP = {
+  description: 'Run the specified scripts one by one',
+  name: '--sequential',
+}
+
 export const shorthands = {
   parallel: [
     '--workspace-concurrency=Infinity',
     '--no-sort',
     '--stream',
     '--recursive',
+  ],
+  sequential: [
+    '--workspace-concurrency=1',
   ],
 }
 
@@ -112,6 +121,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           PARALLEL_OPTION_HELP,
           RESUME_FROM_OPTION_HELP,
           ...UNIVERSAL_OPTIONS,
+          SEQUENTIAL_OPTION_HELP,
         ],
       },
       FILTERING,
@@ -159,7 +169,10 @@ export async function handler (
       : undefined
     return printProjectCommands(manifest, rootManifest ?? undefined)
   }
-  if (scriptName !== 'start' && !manifest.scripts?.[scriptName]) {
+
+  const specifiedScripts = getSpecifiedScripts(manifest.scripts ?? {}, scriptName)
+
+  if (specifiedScripts.length < 1) {
     if (opts.ifPresent) return
     if (opts.fallbackCommandUsed) {
       if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
@@ -170,9 +183,9 @@ export async function handler (
     }
     if (opts.workspaceDir) {
       const { manifest: rootManifest } = await tryReadProjectManifest(opts.workspaceDir, opts)
-      if (rootManifest?.scripts?.[scriptName]) {
+      if (getSpecifiedScripts(rootManifest?.scripts ?? {}, scriptName).length > 0 && specifiedScripts.length < 1) {
         throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`, {
-          hint: `But ${scriptName} is present in the root of the workspace,
+          hint: `But script matched with ${scriptName} is present in the root of the workspace,
 so you may run "pnpm -w run ${scriptName}"`,
         })
       }
@@ -203,21 +216,11 @@ so you may run "pnpm -w run ${scriptName}"`,
     }
   }
   try {
-    if (
-      opts.enablePrePostScripts &&
-      manifest.scripts?.[`pre${scriptName}`] &&
-      !manifest.scripts[scriptName].includes(`pre${scriptName}`)
-    ) {
-      await runLifecycleHook(`pre${scriptName}`, manifest, lifecycleOpts)
-    }
-    await runLifecycleHook(scriptName, manifest, { ...lifecycleOpts, args: passedThruArgs })
-    if (
-      opts.enablePrePostScripts &&
-      manifest.scripts?.[`post${scriptName}`] &&
-      !manifest.scripts[scriptName].includes(`post${scriptName}`)
-    ) {
-      await runLifecycleHook(`post${scriptName}`, manifest, lifecycleOpts)
-    }
+    const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
+
+    const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
+
+    await Promise.all(specifiedScripts.map(script => limitRun(() => _runScript(script))))
   } catch (err: any) { // eslint-disable-line
     if (opts.bail !== false) {
       throw err
@@ -300,6 +303,48 @@ ${renderCommands(rootScripts)}`
   return output
 }
 
+export interface RunScriptOptions {
+  enablePrePostScripts: boolean
+}
+
+export const runScript: (opts: {
+  manifest: ProjectManifest
+  lifecycleOpts: RunLifecycleHookOptions
+  runScriptOptions: RunScriptOptions
+  passedThruArgs: string[]
+}, scriptName: string) => Promise<void> = async function (opts, scriptName) {
+  if (
+    opts.runScriptOptions.enablePrePostScripts &&
+    opts.manifest.scripts?.[`pre${scriptName}`] &&
+    !opts.manifest.scripts[scriptName].includes(`pre${scriptName}`)
+  ) {
+    await runLifecycleHook(`pre${scriptName}`, opts.manifest, opts.lifecycleOpts)
+  }
+  await runLifecycleHook(scriptName, opts.manifest, { ...opts.lifecycleOpts, args: opts.passedThruArgs })
+  if (
+    opts.runScriptOptions.enablePrePostScripts &&
+    opts.manifest.scripts?.[`post${scriptName}`] &&
+    !opts.manifest.scripts[scriptName].includes(`post${scriptName}`)
+  ) {
+    await runLifecycleHook(`post${scriptName}`, opts.manifest, opts.lifecycleOpts)
+  }
+}
+
 function renderCommands (commands: string[][]) {
   return commands.map(([scriptName, script]) => `  ${scriptName}\n    ${script}`).join('\n')
+}
+
+function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
+  const specifiedSelector = getSpecifiedScriptWithoutStartCommand(scripts, scriptName)
+
+  if (specifiedSelector.length > 0) {
+    return specifiedSelector
+  }
+
+  // if a user passes start command as scriptName, `node server.js` will be executed as a fallback, so return start command even if start command is not defined in package.json
+  if (scriptName === 'start') {
+    return [scriptName]
+  }
+
+  return []
 }

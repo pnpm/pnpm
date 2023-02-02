@@ -3,7 +3,6 @@ import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import {
-  runLifecycleHook,
   makeNodeRequireOption,
   RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
@@ -13,6 +12,9 @@ import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'
 import { existsInDir } from './existsInDir'
 import { getResumedPackageChunks } from './exec'
+import { runScript } from './run'
+import { tryBuildRegExpFromCommand } from './regexpCommand'
+import { PackageScripts } from '@pnpm/types'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'
@@ -73,7 +75,7 @@ export async function runRecursive (
     const missingScriptPackages: string[] = packageChunks
       .flat()
       .map((prefix) => opts.selectedProjectsGraph[prefix])
-      .filter((pkg) => !pkg.package.manifest.scripts?.[scriptName])
+      .filter((pkg) => getSpecifiedScripts(pkg.package.manifest.scripts ?? {}, scriptName).length < 1)
       .map((pkg) => pkg.package.manifest.name ?? pkg.package.dir)
     if (missingScriptPackages.length) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `Missing script "${scriptName}" in packages: ${missingScriptPackages.join(', ')}`)
@@ -81,7 +83,14 @@ export async function runRecursive (
   }
 
   for (const chunk of packageChunks) {
-    await Promise.all(chunk.map(async (prefix: string) =>
+    const selectedScripts = chunk.map(prefix => {
+      const pkg = opts.selectedProjectsGraph[prefix]
+      const specifiedScripts = getSpecifiedScripts(pkg.package.manifest.scripts ?? {}, scriptName)
+
+      return specifiedScripts.map(script => ({ prefix, scriptName: script }))
+    }).flat()
+
+    await Promise.all(selectedScripts.map(async ({ prefix, scriptName }) =>
       limitRun(async () => {
         const pkg = opts.selectedProjectsGraph[prefix]
         if (
@@ -113,21 +122,9 @@ export async function runRecursive (
               ...makeNodeRequireOption(pnpPath),
             }
           }
-          if (
-            opts.enablePrePostScripts &&
-            pkg.package.manifest.scripts?.[`pre${scriptName}`] &&
-            !pkg.package.manifest.scripts[scriptName].includes(`pre${scriptName}`)
-          ) {
-            await runLifecycleHook(`pre${scriptName}`, pkg.package.manifest, lifecycleOpts)
-          }
-          await runLifecycleHook(scriptName, pkg.package.manifest, { ...lifecycleOpts, args: passedThruArgs })
-          if (
-            opts.enablePrePostScripts &&
-            pkg.package.manifest.scripts?.[`post${scriptName}`] &&
-            !pkg.package.manifest.scripts[scriptName].includes(`post${scriptName}`)
-          ) {
-            await runLifecycleHook(`post${scriptName}`, pkg.package.manifest, lifecycleOpts)
-          }
+
+          const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
+          await _runScript(scriptName)
           result.passes++
         } catch (err: any) { // eslint-disable-line
           logger.info(err)
@@ -163,4 +160,21 @@ export async function runRecursive (
   }
 
   throwOnCommandFail('pnpm recursive run', result)
+}
+
+export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
+  // if scripts in package.json has script which is equal to scriptName a user passes, return it.
+  if (scripts[scriptName]) {
+    return [scriptName]
+  }
+
+  const scriptSelector = tryBuildRegExpFromCommand(scriptName)
+
+  // if scriptName which a user passes is RegExp (like /build:.*/), multiple scripts to execute will be selected with RegExp
+  if (scriptSelector) {
+    const scriptKeys = Object.keys(scripts)
+    return scriptKeys.filter(script => script.match(scriptSelector))
+  }
+
+  return []
 }

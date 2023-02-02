@@ -1,3 +1,4 @@
+import { promises as fs } from 'fs'
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { run } from '@pnpm/plugin-commands-script-runners'
@@ -889,4 +890,90 @@ test('`pnpm -r --resume-from run` should executed from given package', async () 
   expect(output1).not.toContain('project-1')
   expect(output1).toContain('project-2')
   expect(output1).toContain('project-3')
+})
+
+test('pnpm run with RegExp script selector should work on recursive', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      scripts: {
+        'build:a': 'node -e "require(\'fs\').writeFileSync(\'../output-build-1-a.txt\', \'1-a\', \'utf8\')"',
+        'build:b': 'node -e "require(\'fs\').writeFileSync(\'../output-build-1-b.txt\', \'1-b\', \'utf8\')"',
+        'build:c': 'node -e "require(\'fs\').writeFileSync(\'../output-build-1-c.txt\', \'1-c\', \'utf8\')"',
+        build: 'node -e "require(\'fs\').writeFileSync(\'../output-build-1-a.txt\', \'should not run\', \'utf8\')"',
+        'lint:a': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-1-a.txt\', \'1-a\', \'utf8\')"',
+        'lint:b': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-1-b.txt\', \'1-b\', \'utf8\')"',
+        'lint:c': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-1-c.txt\', \'1-c\', \'utf8\')"',
+        lint: 'node -e "require(\'fs\').writeFileSync(\'../output-lint-1-a.txt\', \'should not run\', \'utf8\')"',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      scripts: {
+        'build:a': 'node -e "require(\'fs\').writeFileSync(\'../output-build-2-a.txt\', \'2-a\', \'utf8\')"',
+        'build:b': 'node -e "require(\'fs\').writeFileSync(\'../output-build-2-b.txt\', \'2-b\', \'utf8\')"',
+        'build:c': 'node -e "require(\'fs\').writeFileSync(\'../output-build-2-c.txt\', \'2-c\', \'utf8\')"',
+        build: 'node -e "require(\'fs\').writeFileSync(\'../output-build-2-a.txt\', \'should not run\', \'utf8\')"',
+        'lint:a': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-2-a.txt\', \'2-a\', \'utf8\')"',
+        'lint:b': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-2-b.txt\', \'2-b\', \'utf8\')"',
+        'lint:c': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-2-c.txt\', \'2-c\', \'utf8\')"',
+        lint: 'node -e "require(\'fs\').writeFileSync(\'../output-lint-2-a.txt\', \'should not run\', \'utf8\')"',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      scripts: {
+        'build:a': 'node -e "require(\'fs\').writeFileSync(\'../output-build-3-a.txt\', \'3-a\', \'utf8\')"',
+        'build:b': 'node -e "require(\'fs\').writeFileSync(\'../output-build-3-b.txt\', \'3-b\', \'utf8\')"',
+        'build:c': 'node -e "require(\'fs\').writeFileSync(\'../output-build-3-c.txt\', \'3-c\', \'utf8\')"',
+        build: 'node -e "require(\'fs\').writeFileSync(\'../output-build-3-a.txt\', \'should not run\', \'utf8\')"',
+        'lint:a': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-3-a.txt\', \'3-a\', \'utf8\')"',
+        'lint:b': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-3-b.txt\', \'3-b\', \'utf8\')"',
+        'lint:c': 'node -e "require(\'fs\').writeFileSync(\'../output-lint-3-c.txt\', \'3-c\', \'utf8\')"',
+        lint: 'node -e "require(\'fs\').writeFileSync(\'../output-lint-3-a.txt\', \'should not run\', \'utf8\')"',
+      },
+    },
+  ])
+
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), [{ namePattern: '*' }]),
+    dir: process.cwd(),
+    recursive: true,
+    rootProjectManifest: {
+      name: 'test-workspaces',
+      private: true,
+    },
+    workspaceDir: process.cwd(),
+  }, ['/^(lint|build):.*/'])
+  expect(await fs.readFile('output-build-1-a.txt', { encoding: 'utf-8' })).toEqual('1-a')
+  expect(await fs.readFile('output-build-1-b.txt', { encoding: 'utf-8' })).toEqual('1-b')
+  expect(await fs.readFile('output-build-1-c.txt', { encoding: 'utf-8' })).toEqual('1-c')
+  expect(await fs.readFile('output-build-2-a.txt', { encoding: 'utf-8' })).toEqual('2-a')
+  expect(await fs.readFile('output-build-2-b.txt', { encoding: 'utf-8' })).toEqual('2-b')
+  expect(await fs.readFile('output-build-2-c.txt', { encoding: 'utf-8' })).toEqual('2-c')
+  expect(await fs.readFile('output-build-3-a.txt', { encoding: 'utf-8' })).toEqual('3-a')
+  expect(await fs.readFile('output-build-3-b.txt', { encoding: 'utf-8' })).toEqual('3-b')
+  expect(await fs.readFile('output-build-3-c.txt', { encoding: 'utf-8' })).toEqual('3-c')
+
+  expect(await fs.readFile('output-lint-1-a.txt', { encoding: 'utf-8' })).toEqual('1-a')
+  expect(await fs.readFile('output-lint-1-b.txt', { encoding: 'utf-8' })).toEqual('1-b')
+  expect(await fs.readFile('output-lint-1-c.txt', { encoding: 'utf-8' })).toEqual('1-c')
+  expect(await fs.readFile('output-lint-2-a.txt', { encoding: 'utf-8' })).toEqual('2-a')
+  expect(await fs.readFile('output-lint-2-b.txt', { encoding: 'utf-8' })).toEqual('2-b')
+  expect(await fs.readFile('output-lint-2-c.txt', { encoding: 'utf-8' })).toEqual('2-c')
+  expect(await fs.readFile('output-lint-3-a.txt', { encoding: 'utf-8' })).toEqual('3-a')
+  expect(await fs.readFile('output-lint-3-b.txt', { encoding: 'utf-8' })).toEqual('3-b')
+  expect(await fs.readFile('output-lint-3-c.txt', { encoding: 'utf-8' })).toEqual('3-c')
 })
