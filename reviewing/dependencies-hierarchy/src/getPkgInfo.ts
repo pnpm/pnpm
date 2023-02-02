@@ -14,13 +14,13 @@ import normalizePath from 'normalize-path'
 
 export interface GetPkgInfoOpts {
   readonly alias: string
-  readonly modulesDir: string
   readonly ref: string
   readonly currentPackages: PackageSnapshots
   readonly peers?: Set<string>
   readonly registries: Registries
   readonly skipped: Set<string>
   readonly wantedPackages: PackageSnapshots
+  readonly virtualStoreDir?: string
 
   /**
    * The base dir if the `ref` argument is a `"link:"` relative path.
@@ -74,7 +74,7 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
     version = opts.ref
   }
   const fullPackagePath = depPath
-    ? path.join(opts.modulesDir, '.pnpm', depPathToFilename(depPath))
+    ? path.join(opts.virtualStoreDir ?? '.pnpm', depPathToFilename(depPath), 'node_modules', name)
     : path.join(opts.linkedPathBaseDir, opts.ref.slice(5))
 
   if (version.startsWith('link:') && opts.rewriteLinkVersionDir) {

@@ -15,6 +15,7 @@ const withUnsavedDepsFixture = f.find('with-unsaved-deps')
 const fixtureMonorepo = path.join(__dirname, '..', 'fixtureMonorepo')
 const withAliasedDepFixture = f.find('with-aliased-dep')
 const workspaceWithNestedWorkspaceDeps = f.find('workspace-with-nested-workspace-deps')
+const customModulesDirFixture = f.find('custom-modules-dir')
 
 test('one package depth 0', async () => {
   const tree = await buildDependenciesHierarchy([generalFixture], { depth: 0, lockfileDir: generalFixture })
@@ -30,7 +31,7 @@ test('one package depth 0', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'minimatch',
-          path: path.join(modulesDir, '.pnpm/minimatch@3.0.4'),
+          path: path.join(modulesDir, '.pnpm/minimatch@3.0.4/node_modules/minimatch'),
           resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
           version: '3.0.4',
         },
@@ -41,7 +42,7 @@ test('one package depth 0', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'rimraf',
-          path: path.join(modulesDir, '.pnpm/rimraf@2.5.1'),
+          path: path.join(modulesDir, '.pnpm/rimraf@2.5.1/node_modules/rimraf'),
           resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
           version: '2.5.1',
         },
@@ -54,7 +55,7 @@ test('one package depth 0', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'is-positive',
-          path: path.join(modulesDir, '.pnpm/is-positive@1.0.0'),
+          path: path.join(modulesDir, '.pnpm/is-positive@1.0.0/node_modules/is-positive'),
           resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
           version: '1.0.0',
         },
@@ -68,7 +69,7 @@ test('one package depth 0', async () => {
           isSkipped: false,
           name: 'is-negative',
           optional: true,
-          path: path.join(modulesDir, '.pnpm/is-negative@1.0.0'),
+          path: path.join(modulesDir, '.pnpm/is-negative@1.0.0/node_modules/is-negative'),
           resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-1.0.0.tgz',
           version: '1.0.0',
         },
@@ -91,7 +92,7 @@ test('one package depth 1', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'minimatch',
-          path: path.join(modulesDir, '.pnpm/minimatch@3.0.4'),
+          path: path.join(modulesDir, '.pnpm/minimatch@3.0.4/node_modules/minimatch'),
           resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
           version: '3.0.4',
 
@@ -103,7 +104,7 @@ test('one package depth 1', async () => {
               isPeer: false,
               isSkipped: false,
               name: 'brace-expansion',
-              path: path.join(modulesDir, '.pnpm/brace-expansion@1.1.8'),
+              path: path.join(modulesDir, '.pnpm/brace-expansion@1.1.8/node_modules/brace-expansion'),
               resolved: 'https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.8.tgz',
               version: '1.1.8',
             },
@@ -116,7 +117,7 @@ test('one package depth 1', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'rimraf',
-          path: path.join(modulesDir, '.pnpm/rimraf@2.5.1'),
+          path: path.join(modulesDir, '.pnpm/rimraf@2.5.1/node_modules/rimraf'),
           resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
           version: '2.5.1',
 
@@ -128,7 +129,7 @@ test('one package depth 1', async () => {
               isPeer: false,
               isSkipped: false,
               name: 'glob',
-              path: path.join(modulesDir, '.pnpm/glob@6.0.4'),
+              path: path.join(modulesDir, '.pnpm/glob@6.0.4/node_modules/glob'),
               resolved: 'https://registry.npmjs.org/glob/-/glob-6.0.4.tgz',
               version: '6.0.4',
             },
@@ -143,7 +144,7 @@ test('one package depth 1', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'is-positive',
-          path: path.join(modulesDir, '.pnpm/is-positive@1.0.0'),
+          path: path.join(modulesDir, '.pnpm/is-positive@1.0.0/node_modules/is-positive'),
           resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
           version: '1.0.0',
         },
@@ -157,7 +158,7 @@ test('one package depth 1', async () => {
           isSkipped: false,
           name: 'is-negative',
           optional: true,
-          path: path.join(modulesDir, '.pnpm/is-negative@1.0.0'),
+          path: path.join(modulesDir, '.pnpm/is-negative@1.0.0/node_modules/is-negative'),
           resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-1.0.0.tgz',
           version: '1.0.0',
         },
@@ -191,7 +192,7 @@ test('only prod depth 0', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'minimatch',
-          path: path.join(modulesDir, '.pnpm/minimatch@3.0.4'),
+          path: path.join(modulesDir, '.pnpm/minimatch@3.0.4/node_modules/minimatch'),
           resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
           version: '3.0.4',
         },
@@ -202,7 +203,7 @@ test('only prod depth 0', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'rimraf',
-          path: path.join(modulesDir, '.pnpm/rimraf@2.5.1'),
+          path: path.join(modulesDir, '.pnpm/rimraf@2.5.1/node_modules/rimraf'),
           resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
           version: '2.5.1',
         },
@@ -236,7 +237,7 @@ test('only dev depth 0', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'is-positive',
-          path: path.join(modulesDir, '.pnpm/is-positive@1.0.0'),
+          path: path.join(modulesDir, '.pnpm/is-positive@1.0.0/node_modules/is-positive'),
           resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
           version: '1.0.0',
         },
@@ -282,7 +283,7 @@ test('filter 1 package with depth 0', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'rimraf',
-          path: path.join(modulesDir, '.pnpm/rimraf@2.5.1'),
+          path: path.join(modulesDir, '.pnpm/rimraf@2.5.1/node_modules/rimraf'),
           resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
           searched: true,
           version: '2.5.1',
@@ -310,7 +311,7 @@ test('circular dependency', async () => {
 })
 
 function resolvePaths (modulesDir: string, node: PackageNode): PackageNode {
-  const p = path.resolve(modulesDir, '.pnpm', node.path)
+  const p = path.resolve(modulesDir, '.pnpm', node.path, 'node_modules', node.name)
   if (node.dependencies == null) {
     return {
       ...node,
@@ -349,7 +350,7 @@ test('local package depth 0', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'is-positive',
-          path: path.join(modulesDir, '.pnpm/is-positive@3.1.0'),
+          path: path.join(modulesDir, '.pnpm/is-positive@3.1.0/node_modules/is-positive'),
           resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
           version: '3.1.0',
         },
@@ -435,7 +436,7 @@ test('unsaved dependencies are listed', async () => {
             isPeer: false,
             isSkipped: false,
             name: 'symlink-dir',
-            path: path.join(modulesDir, '.pnpm/symlink-dir@2.0.2'),
+            path: path.join(modulesDir, '.pnpm/symlink-dir@2.0.2/node_modules/symlink-dir'),
             resolved: 'https://registry.npmjs.org/symlink-dir/-/symlink-dir-2.0.2.tgz',
             version: '2.0.2',
           },
@@ -478,7 +479,7 @@ test('unsaved dependencies are listed and filtered', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'symlink-dir',
-          path: path.join(modulesDir, '.pnpm/symlink-dir@2.0.2'),
+          path: path.join(modulesDir, '.pnpm/symlink-dir@2.0.2/node_modules/symlink-dir'),
           resolved: 'https://registry.npmjs.org/symlink-dir/-/symlink-dir-2.0.2.tgz',
           searched: true,
           version: '2.0.2',
@@ -509,7 +510,7 @@ test('dependency with an alias', async () => {
           isPeer: false,
           isSkipped: false,
           name: 'is-positive',
-          path: path.join(modulesDir, '.pnpm/is-positive@1.0.0'),
+          path: path.join(modulesDir, '.pnpm/is-positive@1.0.0/node_modules/is-positive'),
           resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
           version: '1.0.0',
         },
@@ -542,7 +543,7 @@ test('dependency without a package.json', async () => {
           isPeer: false,
           isSkipped: false,
           name: `camelcase#${commit}`,
-          path: path.join(withNonPackageDepFixture, 'node_modules', '.pnpm', `github.com+${org}+${pkg}@${commit}`),
+          path: path.join(withNonPackageDepFixture, 'node_modules', '.pnpm', `github.com+${org}+${pkg}@${commit}`, 'node_modules', `camelcase#${commit}`),
           resolved: `https://codeload.github.com/${org}/${pkg}/tar.gz/${commit}`,
           version: '0.0.0',
         },
@@ -560,4 +561,55 @@ test('dependency without a package.json', async () => {
   expect(tree[withNonPackageDepFixture].dependencies![0]).not.toHaveProperty(['dependencies'])
   expect(tree[withNonPackageDepFixture].dependencies![0]).not.toHaveProperty(['devDependencies'])
   expect(tree[withNonPackageDepFixture].dependencies![0]).not.toHaveProperty(['optionalDependencies'])
+})
+
+test('on custom modules-dir workspaces', async () => {
+  const tree = await buildDependenciesHierarchy(
+    [customModulesDirFixture, path.join(customModulesDirFixture, './packages/foo'), path.join(customModulesDirFixture, './packages/bar')],
+    { depth: 1000, lockfileDir: customModulesDirFixture, modulesDir: 'fake_modules' }
+  )
+  expect(tree).toEqual({
+    [customModulesDirFixture]: {
+      dependencies: [],
+      devDependencies: [],
+      optionalDependencies: [],
+    },
+    [path.join(customModulesDirFixture, 'packages/foo')]: {
+      dependencies: [
+        expect.objectContaining({
+          alias: '@scope/bar',
+          version: 'link:../bar',
+          path: path.join(customModulesDirFixture, 'packages/bar'),
+          dependencies: [
+            expect.objectContaining({
+              alias: 'is-positive',
+              name: 'is-positive',
+              path: path.join(customModulesDirFixture, 'fake_modules/.fake_store/is-positive@1.0.0/node_modules/is-positive'),
+              version: '1.0.0',
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          alias: 'is-positive',
+          name: 'is-positive',
+          path: path.join(customModulesDirFixture, 'fake_modules/.fake_store/is-positive@3.1.0/node_modules/is-positive'),
+          version: '3.1.0',
+        }),
+      ],
+      devDependencies: [],
+      optionalDependencies: [],
+    },
+    [path.join(customModulesDirFixture, 'packages/bar')]: {
+      dependencies: [
+        expect.objectContaining({
+          alias: 'is-positive',
+          name: 'is-positive',
+          path: path.join(customModulesDirFixture, 'fake_modules/.fake_store/is-positive@1.0.0/node_modules/is-positive'),
+          version: '1.0.0',
+        }),
+      ],
+      devDependencies: [],
+      optionalDependencies: [],
+    },
+  })
 })

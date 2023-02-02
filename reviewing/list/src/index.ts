@@ -27,6 +27,7 @@ export async function searchForPackages (
     include?: { [dependenciesField in DependenciesField]: boolean }
     onlyProjects?: boolean
     registries?: Registries
+    modulesDir?: string
   }
 ) {
   const search = createPackagesSearcher(packages)
@@ -39,6 +40,7 @@ export async function searchForPackages (
       onlyProjects: opts.onlyProjects,
       registries: opts.registries,
       search,
+      modulesDir: opts.modulesDir,
     }))
       .map(async ([projectPath, buildDependenciesHierarchy]) => {
         const entryPkg = await readProjectManifestOnly(projectPath)
@@ -65,6 +67,7 @@ export async function listForPackages (
     onlyProjects?: boolean
     reportAs?: 'parseable' | 'tree' | 'json'
     registries?: Registries
+    modulesDir?: string
   }
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -93,6 +96,7 @@ export async function list (
     reportAs?: 'parseable' | 'tree' | 'json'
     registries?: Registries
     showExtraneous?: boolean
+    modulesDir?: string
   }
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -110,6 +114,7 @@ export async function list (
           lockfileDir: maybeOpts?.lockfileDir,
           onlyProjects: maybeOpts?.onlyProjects,
           registries: opts.registries,
+          modulesDir: opts.modulesDir,
         })
     )
       .map(async ([projectPath, dependenciesHierarchy]) => {

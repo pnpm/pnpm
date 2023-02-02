@@ -44,3 +44,6 @@ RELEASE.md
 .jest-cache
 .verdaccio-cache
 .turbo
+
+## custom modules-dir fixture
+__fixtures__/custom-modules-dir/**/fake_modules/

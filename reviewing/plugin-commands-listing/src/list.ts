@@ -120,6 +120,7 @@ export type ListCommandOptions = Pick<Config,
 | 'optional'
 | 'production'
 | 'selectedProjectsGraph'
+| 'modulesDir'
 > & Partial<Pick<Config, 'cliOptions'>> & {
   alwaysPrintRootPackage?: boolean
   depth?: number
@@ -164,6 +165,7 @@ export async function render (
     json?: boolean
     onlyProjects?: boolean
     parseable?: boolean
+    modulesDir?: string
   }
 ) {
   const listOpts = {
@@ -175,6 +177,7 @@ export async function render (
     onlyProjects: opts.onlyProjects,
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
     showExtraneous: false,
+    modulesDir: opts.modulesDir,
   }
   return (params.length > 0)
     ? listForPackages(params, prefixes, listOpts)

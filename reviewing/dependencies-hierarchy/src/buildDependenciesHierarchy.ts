@@ -37,12 +37,13 @@ export async function buildDependenciesHierarchy (
     onlyProjects?: boolean
     search?: SearchFunction
     lockfileDir: string
+    modulesDir?: string
   }
 ): Promise<{ [projectDir: string]: DependenciesHierarchy }> {
   if (!maybeOpts?.lockfileDir) {
     throw new TypeError('opts.lockfileDir is required')
   }
-  const modulesDir = await realpathMissing(path.join(maybeOpts.lockfileDir, 'node_modules'))
+  const modulesDir = await realpathMissing(path.join(maybeOpts.lockfileDir, maybeOpts.modulesDir ?? 'node_modules'))
   const modules = await readModulesManifest(modulesDir)
   const registries = normalizeRegistries({
     ...maybeOpts?.registries,
@@ -71,6 +72,8 @@ export async function buildDependenciesHierarchy (
     registries,
     search: maybeOpts.search,
     skipped: new Set(modules?.skipped ?? []),
+    modulesDir: maybeOpts.modulesDir,
+    virtualStoreDir: modules?.virtualStoreDir,
   }
   ; (
     await Promise.all(projectPaths.map(async (projectPath) => {
@@ -96,13 +99,15 @@ async function dependenciesHierarchyForPackage (
     search?: SearchFunction
     skipped: Set<string>
     lockfileDir: string
+    modulesDir?: string
+    virtualStoreDir?: string
   }
 ) {
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
 
   if (!currentLockfile.importers[importerId]) return {}
 
-  const modulesDir = path.join(projectPath, 'node_modules')
+  const modulesDir = path.join(projectPath, opts.modulesDir ?? 'node_modules')
 
   const savedDeps = getAllDirectDependencies(currentLockfile.importers[importerId])
   const allDirectDeps = await readModulesDir(modulesDir) ?? []
@@ -122,6 +127,7 @@ async function dependenciesHierarchyForPackage (
     search: opts.search,
     skipped: opts.skipped,
     wantedPackages: wantedLockfile.packages ?? {},
+    virtualStoreDir: opts.virtualStoreDir,
   })
   const parentId: TreeNodeId = { type: 'importer', importerId }
   const result: DependenciesHierarchy = {}
@@ -134,11 +140,11 @@ async function dependenciesHierarchyForPackage (
         currentPackages: currentLockfile.packages ?? {},
         rewriteLinkVersionDir: projectPath,
         linkedPathBaseDir: projectPath,
-        modulesDir,
         ref,
         registries: opts.registries,
         skipped: opts.skipped,
         wantedPackages: wantedLockfile.packages ?? {},
+        virtualStoreDir: opts.virtualStoreDir,
       })
       let newEntry: PackageNode | null = null
       const matchedSearched = opts.search?.(packageInfo)

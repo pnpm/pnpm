@@ -257,9 +257,9 @@ test('parseable list in workspace with private package', async () => {
     reportAs: 'parseable',
     lockfileDir: workspaceWithPrivatePkgs,
   })).toBe(`${path.join(workspaceWithPrivatePkgs, 'packages/private')}
-${path.join(workspaceWithPrivatePkgs, 'packages/private/node_modules/.pnpm/is-positive@1.0.0')}
+${path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')}
 ${path.join(workspaceWithPrivatePkgs, 'packages/public')}
-${path.join(workspaceWithPrivatePkgs, 'packages/public/node_modules/.pnpm/is-positive@1.0.0')}`)
+${path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')}`)
 })
 
 test('long parseable list in workspace with private package', async () => {
@@ -271,9 +271,9 @@ test('long parseable list in workspace with private package', async () => {
     long: true,
     lockfileDir: workspaceWithPrivatePkgs,
   })).toBe(`${path.join(workspaceWithPrivatePkgs, 'packages/private')}:private@1.0.0:PRIVATE
-${path.join(workspaceWithPrivatePkgs, 'packages/private/node_modules/.pnpm/is-positive@1.0.0')}:is-positive@1.0.0
+${path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')}:is-positive@1.0.0
 ${path.join(workspaceWithPrivatePkgs, 'packages/public')}:public@1.0.0
-${path.join(workspaceWithPrivatePkgs, 'packages/public/node_modules/.pnpm/is-positive@1.0.0')}:is-positive@1.0.0`)
+${path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')}:is-positive@1.0.0`)
 })
 
 test('JSON list in workspace with private package', async () => {
@@ -317,15 +317,15 @@ test('JSON list in workspace with private package', async () => {
 
 test('parseable list with depth 1', async () => {
   expect(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture })).toBe(`${fixture}
-${path.join(fixture, 'node_modules/.pnpm/detect-indent@5.0.0')}
-${path.join(fixture, 'node_modules/.pnpm/graceful-fs@4.2.2')}
-${path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0')}
-${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0')}
-${path.join(fixture, 'node_modules/.pnpm/make-dir@1.3.0')}
-${path.join(fixture, 'node_modules/.pnpm/pify@3.0.0')}
-${path.join(fixture, 'node_modules/.pnpm/sort-keys@2.0.0')}
-${path.join(fixture, 'node_modules/.pnpm/write-file-atomic@2.4.3')}
-${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0')}`)
+${path.join(fixture, 'node_modules/.pnpm/detect-indent@5.0.0/node_modules/detect-indent')}
+${path.join(fixture, 'node_modules/.pnpm/graceful-fs@4.2.2/node_modules/graceful-fs')}
+${path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-negative')}
+${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}
+${path.join(fixture, 'node_modules/.pnpm/make-dir@1.3.0/node_modules/make-dir')}
+${path.join(fixture, 'node_modules/.pnpm/pify@3.0.0/node_modules/pify')}
+${path.join(fixture, 'node_modules/.pnpm/sort-keys@2.0.0/node_modules/sort-keys')}
+${path.join(fixture, 'node_modules/.pnpm/write-file-atomic@2.4.3/node_modules/write-file-atomic')}
+${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}`)
 })
 
 test('JSON list with depth 1', async () => {
@@ -459,7 +459,7 @@ test('parseable list with depth 1 and dev only', async () => {
       reportAs: 'parseable',
     })
   ).toBe(`${fixture}
-${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0')}`
+${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}`
   )
 })
 
@@ -476,35 +476,35 @@ test('parseable list with depth 1 without unnecessary empty newlines', async () 
       reportAs: 'parseable',
     }
   )).toBe(`${path.join(workspaceWithDifferentDeps, 'packages/bar')}
-${path.join(workspaceWithDifferentDeps, 'packages/bar', 'node_modules/.pnpm/is-positive@3.1.0')}`
+${path.join(workspaceWithDifferentDeps, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}`
   )
 })
 
 test('long parseable list with depth 1', async () => {
   expect(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture, long: true })).toBe(`${fixture}:fixture@1.0.0
-${path.join(fixture, 'node_modules/.pnpm/detect-indent@5.0.0')}:detect-indent@5.0.0
-${path.join(fixture, 'node_modules/.pnpm/graceful-fs@4.2.2')}:graceful-fs@4.2.2
-${path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0')}:is-negative@2.1.0
-${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0')}:is-positive@3.1.0
-${path.join(fixture, 'node_modules/.pnpm/make-dir@1.3.0')}:make-dir@1.3.0
-${path.join(fixture, 'node_modules/.pnpm/pify@3.0.0')}:pify@3.0.0
-${path.join(fixture, 'node_modules/.pnpm/sort-keys@2.0.0')}:sort-keys@2.0.0
-${path.join(fixture, 'node_modules/.pnpm/write-file-atomic@2.4.3')}:write-file-atomic@2.4.3
-${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0')}:write-json-file@2.3.0`)
+${path.join(fixture, 'node_modules/.pnpm/detect-indent@5.0.0/node_modules/detect-indent')}:detect-indent@5.0.0
+${path.join(fixture, 'node_modules/.pnpm/graceful-fs@4.2.2/node_modules/graceful-fs')}:graceful-fs@4.2.2
+${path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-negative')}:is-negative@2.1.0
+${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}:is-positive@3.1.0
+${path.join(fixture, 'node_modules/.pnpm/make-dir@1.3.0/node_modules/make-dir')}:make-dir@1.3.0
+${path.join(fixture, 'node_modules/.pnpm/pify@3.0.0/node_modules/pify')}:pify@3.0.0
+${path.join(fixture, 'node_modules/.pnpm/sort-keys@2.0.0/node_modules/sort-keys')}:sort-keys@2.0.0
+${path.join(fixture, 'node_modules/.pnpm/write-file-atomic@2.4.3/node_modules/write-file-atomic')}:write-file-atomic@2.4.3
+${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}:write-json-file@2.3.0`)
 })
 
 test('long parseable list with depth 1 when package has no version', async () => {
   expect(await list([fixtureWithNoPkgVersion], { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgVersion, long: true })).toBe(`\
 ${fixtureWithNoPkgVersion}:fixture
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/detect-indent@5.0.0')}:detect-indent@5.0.0
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/graceful-fs@4.2.2')}:graceful-fs@4.2.2
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/is-negative@2.1.0')}:is-negative@2.1.0
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/is-positive@3.1.0')}:is-positive@3.1.0
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/make-dir@1.3.0')}:make-dir@1.3.0
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/pify@3.0.0')}:pify@3.0.0
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/sort-keys@2.0.0')}:sort-keys@2.0.0
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/write-file-atomic@2.4.3')}:write-file-atomic@2.4.3
-${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/write-json-file@2.3.0')}:write-json-file@2.3.0`)
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/detect-indent@5.0.0/node_modules/detect-indent')}:detect-indent@5.0.0
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/graceful-fs@4.2.2/node_modules/graceful-fs')}:graceful-fs@4.2.2
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-negative')}:is-negative@2.1.0
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}:is-positive@3.1.0
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/make-dir@1.3.0/node_modules/make-dir')}:make-dir@1.3.0
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/pify@3.0.0/node_modules/pify')}:pify@3.0.0
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/sort-keys@2.0.0/node_modules/sort-keys')}:sort-keys@2.0.0
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/write-file-atomic@2.4.3/node_modules/write-file-atomic')}:write-file-atomic@2.4.3
+${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}:write-json-file@2.3.0`)
 })
 
 test('long parseable list with depth 1 when package has no name and no version', async () => {
@@ -514,15 +514,15 @@ test('long parseable list with depth 1 when package has no name and no version',
       { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgNameAndNoVersion, long: true }
     )
   ).toBe(`${fixtureWithNoPkgNameAndNoVersion}
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/detect-indent@5.0.0')}:detect-indent@5.0.0
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/graceful-fs@4.2.2')}:graceful-fs@4.2.2
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/is-negative@2.1.0')}:is-negative@2.1.0
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/is-positive@3.1.0')}:is-positive@3.1.0
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/make-dir@1.3.0')}:make-dir@1.3.0
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/pify@3.0.0')}:pify@3.0.0
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/sort-keys@2.0.0')}:sort-keys@2.0.0
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/write-file-atomic@2.4.3')}:write-file-atomic@2.4.3
-${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/write-json-file@2.3.0')}:write-json-file@2.3.0`
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/detect-indent@5.0.0/node_modules/detect-indent')}:detect-indent@5.0.0
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/graceful-fs@4.2.2/node_modules/graceful-fs')}:graceful-fs@4.2.2
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-negative')}:is-negative@2.1.0
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}:is-positive@3.1.0
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/make-dir@1.3.0/node_modules/make-dir')}:make-dir@1.3.0
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/pify@3.0.0/node_modules/pify')}:pify@3.0.0
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/sort-keys@2.0.0/node_modules/sort-keys')}:sort-keys@2.0.0
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/write-file-atomic@2.4.3/node_modules/write-file-atomic')}:write-file-atomic@2.4.3
+${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}:write-json-file@2.3.0`
   )
 })
 
