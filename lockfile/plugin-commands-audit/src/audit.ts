@@ -29,11 +29,13 @@ const AUDIT_COLOR = {
   critical: chalk.bold.red,
 }
 
-const AUDIT_TABLE_OPTIONS = TABLE_OPTIONS
-AUDIT_TABLE_OPTIONS.columns = {
-  1: {
-    width: 54, // = table width of 80
-    wrapWord: true,
+const AUDIT_TABLE_OPTIONS = {
+  ...TABLE_OPTIONS,
+  columns: {
+    1: {
+      width: 54, // = table width of 80
+      wrapWord: true,
+    },
   },
 }
 // eslint-enable
