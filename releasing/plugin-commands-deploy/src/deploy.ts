@@ -4,6 +4,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import { install } from '@pnpm/plugin-commands-installation'
+import { FILTERING } from '@pnpm/common-cli-options-help'
 import { PnpmError } from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
@@ -46,6 +47,7 @@ export function help () {
           },
         ],
       },
+      FILTERING,
     ],
   })
 }
