@@ -65,6 +65,30 @@ export function pickLowestVersionByVersionRange (
   return semver.minSatisfying(Object.keys(meta.versions), versionRange, true)
 }
 
+class PreferredVersionsWithWeights {
+  private preferredVersions: Record<string, number> = {}
+
+  add (version: string) {
+    if (!this.preferredVersions[version]) {
+      this.preferredVersions[version] = 1
+    } else {
+      this.preferredVersions[version]++
+    }
+  }
+
+  groupByWeight () {
+    const grouped = Object.entries(this.preferredVersions)
+      .reduce((acc, [version, weight]) => {
+        acc[weight] = acc[weight] || []
+        acc[weight].push(version)
+        return acc
+      }, {} as Record<number, string[]>)
+    return Object.keys(grouped)
+      .sort((a, b) => parseInt(b, 10) - parseInt(a, 10))
+      .map((weight) => grouped[parseInt(weight, 10)])
+  }
+}
+
 export function pickVersionByVersionRange (
   meta: PackageMeta,
   versionRange: string,
@@ -75,13 +99,14 @@ export function pickVersionByVersionRange (
   let latest: string | undefined = meta['dist-tags'].latest
 
   const preferredVerSelsArr = Object.entries(preferredVerSels ?? {})
-  if (preferredVerSelsArr.length > 0) {
-    const preferredVersions: string[] = []
+  // We can ignore the preferred versions if the package is specified by exact version
+  if (preferredVerSelsArr.length > 0 && !semver.valid(versionRange)) {
+    const preferredVersionsWithWeights = new PreferredVersionsWithWeights()
     for (const [preferredSelector, preferredSelectorType] of preferredVerSelsArr) {
       if (preferredSelector === versionRange) continue
       switch (preferredSelectorType) {
       case 'tag': {
-        preferredVersions.push(meta['dist-tags'][preferredSelector])
+        preferredVersionsWithWeights.add(meta['dist-tags'][preferredSelector])
         break
       }
       case 'range': {
@@ -91,26 +116,28 @@ export function pickVersionByVersionRange (
         versions = Object.keys(meta.versions)
         for (const version of versions) {
           if (semver.satisfies(version, preferredSelector, true)) {
-            preferredVersions.push(version)
+            preferredVersionsWithWeights.add(version)
           }
         }
         break
       }
       case 'version': {
         if (meta.versions[preferredSelector]) {
-          preferredVersions.push(preferredSelector)
+          preferredVersionsWithWeights.add(preferredSelector)
         }
         break
       }
       }
     }
 
-    if (preferredVersions.includes(latest) && semver.satisfies(latest, versionRange, true)) {
-      return latest
-    }
-    const preferredVersion = semver.maxSatisfying(preferredVersions, versionRange, true)
-    if (preferredVersion) {
-      return preferredVersion
+    for (const preferredVersions of preferredVersionsWithWeights.groupByWeight()) {
+      if (preferredVersions.includes(latest) && semver.satisfies(latest, versionRange, true)) {
+        return latest
+      }
+      const preferredVersion = semver.maxSatisfying(preferredVersions, versionRange, true)
+      if (preferredVersion) {
+        return preferredVersion
+      }
     }
   }
 

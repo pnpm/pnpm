@@ -1,7 +1,8 @@
 import { nameVerFromPkgSnapshot, PackageSnapshots } from '@pnpm/lockfile-utils'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { PreferredVersions } from '@pnpm/resolver-base'
-import { DependencyManifest } from '@pnpm/types'
+import { DependencyManifest, ProjectManifest } from '@pnpm/types'
+import getVersionSelectorType from 'version-selector-type'
 
 export function getAllUniqueSpecs (manifests: DependencyManifest[]) {
   const allSpecs: Record<string, string> = {}
@@ -21,7 +22,22 @@ export function getAllUniqueSpecs (manifests: DependencyManifest[]) {
   return allSpecs
 }
 
-export function getPreferredVersionsFromLockfile (snapshots: PackageSnapshots): PreferredVersions {
+export function getPreferredVersionsFromLockfileAndManifests (snapshots: PackageSnapshots | undefined, manifests: Array<DependencyManifest | ProjectManifest>): PreferredVersions {
+  const preferredVersions: PreferredVersions = {}
+  for (const manifest of manifests) {
+    const specs = getAllDependenciesFromManifest(manifest)
+    for (const [name, spec] of Object.entries(specs)) {
+      const selector = getVersionSelectorType(spec)
+      if (!selector) continue
+      preferredVersions[name] = preferredVersions[name] || {}
+      preferredVersions[name][spec] = selector.type
+    }
+  }
+  if (!snapshots) return preferredVersions
+  return getPreferredVersionsFromLockfile(snapshots, preferredVersions)
+}
+
+export function getPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferredVersions?: PreferredVersions): PreferredVersions {
   return Object.entries(snapshots)
     .map(([depPath, snapshot]) => nameVerFromPkgSnapshot(depPath, snapshot))
     .reduce((preferredVersions, { name, version }) => {
@@ -31,5 +47,5 @@ export function getPreferredVersionsFromLockfile (snapshots: PackageSnapshots): 
         preferredVersions[name][version] = 'version'
       }
       return preferredVersions
-    }, {} as PreferredVersions)
+    }, preferredVersions ?? {} as PreferredVersions)
 }
