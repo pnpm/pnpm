@@ -22,30 +22,32 @@ export function getAllUniqueSpecs (manifests: DependencyManifest[]) {
   return allSpecs
 }
 
-export function getPreferredVersionsFromLockfileAndManifests (snapshots: PackageSnapshots | undefined, manifests: Array<DependencyManifest | ProjectManifest>): PreferredVersions {
+export function getPreferredVersionsFromLockfileAndManifests (
+  snapshots: PackageSnapshots | undefined,
+  manifests: Array<DependencyManifest | ProjectManifest>
+): PreferredVersions {
   const preferredVersions: PreferredVersions = {}
   for (const manifest of manifests) {
     const specs = getAllDependenciesFromManifest(manifest)
     for (const [name, spec] of Object.entries(specs)) {
       const selector = getVersionSelectorType(spec)
       if (!selector) continue
-      preferredVersions[name] = preferredVersions[name] || {}
+      preferredVersions[name] = preferredVersions[name] ?? {}
       preferredVersions[name][spec] = selector.type
     }
   }
   if (!snapshots) return preferredVersions
-  return getPreferredVersionsFromLockfile(snapshots, preferredVersions)
+  getPreferredVersionsFromLockfile(snapshots, preferredVersions)
+  return preferredVersions
 }
 
-export function getPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferredVersions?: PreferredVersions): PreferredVersions {
-  return Object.entries(snapshots)
-    .map(([depPath, snapshot]) => nameVerFromPkgSnapshot(depPath, snapshot))
-    .reduce((preferredVersions, { name, version }) => {
-      if (!preferredVersions[name]) {
-        preferredVersions[name] = { [version]: 'version' }
-      } else {
-        preferredVersions[name][version] = 'version'
-      }
-      return preferredVersions
-    }, preferredVersions ?? {} as PreferredVersions)
+function getPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferredVersions: PreferredVersions) {
+  for (const [depPath, snapshot] of Object.entries(snapshots)) {
+    const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
+    if (!preferredVersions[name]) {
+      preferredVersions[name] = { [version]: 'version' }
+    } else {
+      preferredVersions[name][version] = 'version'
+    }
+  }
 }

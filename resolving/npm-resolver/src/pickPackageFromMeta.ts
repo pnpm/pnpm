@@ -116,7 +116,7 @@ export function pickVersionByVersionRange (
 function prioritizePreferredVersions (
   meta: PackageMeta,
   versionRange: string,
-  preferredVerSels?: VersionSelectors,
+  preferredVerSels?: VersionSelectors
 ): string[][] {
   const preferredVerSelsArr = Object.entries(preferredVerSels ?? {})
   const versionsPrioritizer = new PreferredVersionsPrioritizer()
