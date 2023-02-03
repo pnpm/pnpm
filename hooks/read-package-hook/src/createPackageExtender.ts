@@ -7,23 +7,25 @@ interface PackageExtensionMatch {
   range: string | undefined
 }
 
+type ExtensionsByPkgName = Map<string, PackageExtensionMatch[]>
+
 export function createPackageExtender (
   packageExtensions: Record<string, PackageExtension>
 ): ReadPackageHook {
-  const extensionsByPkgName = {} as Record<string, PackageExtensionMatch[]>
+  const extensionsByPkgName: ExtensionsByPkgName = new Map()
   Object.entries(packageExtensions)
     .forEach(([selector, packageExtension]) => {
       const { alias, pref } = parseWantedDependency(selector)
-      if (!extensionsByPkgName[alias!]) {
-        extensionsByPkgName[alias!] = []
+      if (!extensionsByPkgName.has(alias!)) {
+        extensionsByPkgName.set(alias!, [])
       }
-      extensionsByPkgName[alias!].push({ packageExtension, range: pref })
+      extensionsByPkgName.get(alias!)!.push({ packageExtension, range: pref })
     })
   return extendPkgHook.bind(null, extensionsByPkgName) as ReadPackageHook
 }
 
-function extendPkgHook (extensionsByPkgName: Record<string, PackageExtensionMatch[]>, manifest: PackageManifest) {
-  const extensions = extensionsByPkgName[manifest.name]
+function extendPkgHook (extensionsByPkgName: ExtensionsByPkgName, manifest: PackageManifest) {
+  const extensions = extensionsByPkgName.get(manifest.name)
   if (extensions == null) return manifest
   extendPkg(manifest, extensions)
   return manifest

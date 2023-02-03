@@ -96,3 +96,25 @@ test('createPackageExtender() does not override existing fields', () => {
     },
   })
 })
+
+test('createPackageExtender() should works for odd names', () => {
+  const extender = createPackageExtender({
+    constructor: {
+      dependencies: {
+        foo: '1',
+      },
+    },
+  })
+  expect(
+    extender({
+      name: 'constructor',
+      dependencies: {
+      },
+    })
+  ).toStrictEqual({
+    name: 'constructor',
+    dependencies: {
+      foo: '1',
+    },
+  })
+})
