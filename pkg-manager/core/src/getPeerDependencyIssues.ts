@@ -2,7 +2,7 @@ import { resolveDependencies, getWantedDependencies } from '@pnpm/resolve-depend
 import { PeerDependencyIssuesByProjects } from '@pnpm/types'
 import { getContext, GetContextOptions, ProjectOptions } from '@pnpm/get-context'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
-import { getPreferredVersionsFromLockfile } from './install/getPreferredVersions'
+import { getPreferredVersionsFromLockfileAndManifests } from './install/getPreferredVersions'
 import { InstallOptions } from './install/extendInstallOptions'
 import { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 
@@ -43,7 +43,10 @@ export async function getPeerDependencyIssues (
     updatePackageManifest: false,
     wantedDependencies: getWantedDependencies(project.manifest),
   }))
-  const preferredVersions = ctx.wantedLockfile.packages ? getPreferredVersionsFromLockfile(ctx.wantedLockfile.packages) : undefined
+  const preferredVersions = getPreferredVersionsFromLockfileAndManifests(
+    ctx.wantedLockfile.packages,
+    Object.values(ctx.projects).map(({ manifest }) => manifest)
+  )
   const {
     peerDependencyIssuesByProjects,
     waitTillAllFetchingsFinish,

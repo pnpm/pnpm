@@ -71,50 +71,22 @@ export function pickVersionByVersionRange (
   preferredVerSels?: VersionSelectors,
   publishedBy?: Date
 ) {
-  let versions: string[] | undefined
   let latest: string | undefined = meta['dist-tags'].latest
 
-  const preferredVerSelsArr = Object.entries(preferredVerSels ?? {})
-  if (preferredVerSelsArr.length > 0) {
-    const preferredVersions: string[] = []
-    for (const [preferredSelector, preferredSelectorType] of preferredVerSelsArr) {
-      if (preferredSelector === versionRange) continue
-      switch (preferredSelectorType) {
-      case 'tag': {
-        preferredVersions.push(meta['dist-tags'][preferredSelector])
-        break
+  if (preferredVerSels != null && Object.keys(preferredVerSels).length > 0) {
+    const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVerSels)
+    for (const preferredVersions of prioritizedPreferredVersions) {
+      if (preferredVersions.includes(latest) && semver.satisfies(latest, versionRange, true)) {
+        return latest
       }
-      case 'range': {
-        // This might be slow if there are many versions
-        // and the package is an indirect dependency many times in the project.
-        // If it will create noticeable slowdown, then might be a good idea to add some caching
-        versions = Object.keys(meta.versions)
-        for (const version of versions) {
-          if (semver.satisfies(version, preferredSelector, true)) {
-            preferredVersions.push(version)
-          }
-        }
-        break
+      const preferredVersion = semver.maxSatisfying(preferredVersions, versionRange, true)
+      if (preferredVersion) {
+        return preferredVersion
       }
-      case 'version': {
-        if (meta.versions[preferredSelector]) {
-          preferredVersions.push(preferredSelector)
-        }
-        break
-      }
-      }
-    }
-
-    if (preferredVersions.includes(latest) && semver.satisfies(latest, versionRange, true)) {
-      return latest
-    }
-    const preferredVersion = semver.maxSatisfying(preferredVersions, versionRange, true)
-    if (preferredVersion) {
-      return preferredVersion
     }
   }
 
-  versions = versions ?? Object.keys(meta.versions)
+  let versions = Object.keys(meta.versions)
   if (publishedBy) {
     versions = versions.filter(version => new Date(meta.time![version]) <= publishedBy)
     if (!versions.includes(latest)) {
@@ -139,4 +111,65 @@ export function pickVersionByVersionRange (
     if (maxNonDeprecatedVersion) return maxNonDeprecatedVersion
   }
   return maxVersion
+}
+
+function prioritizePreferredVersions (
+  meta: PackageMeta,
+  versionRange: string,
+  preferredVerSels?: VersionSelectors
+): string[][] {
+  const preferredVerSelsArr = Object.entries(preferredVerSels ?? {})
+  const versionsPrioritizer = new PreferredVersionsPrioritizer()
+  for (const [preferredSelector, preferredSelectorType] of preferredVerSelsArr) {
+    if (preferredSelector === versionRange) continue
+    switch (preferredSelectorType) {
+    case 'tag': {
+      versionsPrioritizer.add(meta['dist-tags'][preferredSelector])
+      break
+    }
+    case 'range': {
+      // This might be slow if there are many versions
+      // and the package is an indirect dependency many times in the project.
+      // If it will create noticeable slowdown, then might be a good idea to add some caching
+      const versions = Object.keys(meta.versions)
+      for (const version of versions) {
+        if (semver.satisfies(version, preferredSelector, true)) {
+          versionsPrioritizer.add(version)
+        }
+      }
+      break
+    }
+    case 'version': {
+      if (meta.versions[preferredSelector]) {
+        versionsPrioritizer.add(preferredSelector)
+      }
+      break
+    }
+    }
+  }
+  return versionsPrioritizer.versionsByPriority()
+}
+
+class PreferredVersionsPrioritizer {
+  private preferredVersions: Record<string, number> = {}
+
+  add (version: string) {
+    if (!this.preferredVersions[version]) {
+      this.preferredVersions[version] = 1
+    } else {
+      this.preferredVersions[version]++
+    }
+  }
+
+  versionsByPriority () {
+    const versionsByOccurrences = Object.entries(this.preferredVersions)
+      .reduce((acc, [version, occurrences]) => {
+        acc[occurrences] = acc[occurrences] ?? []
+        acc[occurrences].push(version)
+        return acc
+      }, {} as Record<number, string[]>)
+    return Object.keys(versionsByOccurrences)
+      .sort((a, b) => parseInt(b, 10) - parseInt(a, 10))
+      .map((occurrences) => versionsByOccurrences[parseInt(occurrences, 10)])
+  }
 }

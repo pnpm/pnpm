@@ -78,7 +78,7 @@ import {
   InstallOptions,
   ProcessedInstallOptions as StrictInstallOptions,
 } from './extendInstallOptions'
-import { getPreferredVersionsFromLockfile, getAllUniqueSpecs } from './getPreferredVersions'
+import { getAllUniqueSpecs, getPreferredVersionsFromLockfileAndManifests } from './getPreferredVersions'
 import { linkPackages } from './link'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
 
@@ -793,12 +793,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   })
 
   const preferredVersions = opts.preferredVersions ?? (
-    (
-      !opts.update &&
-      (ctx.wantedLockfile.packages != null) &&
-      !isEmpty(ctx.wantedLockfile.packages)
-    )
-      ? getPreferredVersionsFromLockfile(ctx.wantedLockfile.packages)
+    !opts.update
+      ? getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, Object.values(ctx.projects).map(({ manifest }) => manifest))
       : undefined
   )
   const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
