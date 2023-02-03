@@ -37,11 +37,11 @@ export function getPreferredVersionsFromLockfileAndManifests (
     }
   }
   if (!snapshots) return preferredVersions
-  getPreferredVersionsFromLockfile(snapshots, preferredVersions)
+  addPreferredVersionsFromLockfile(snapshots, preferredVersions)
   return preferredVersions
 }
 
-function getPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferredVersions: PreferredVersions) {
+function addPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferredVersions: PreferredVersions) {
   for (const [depPath, snapshot] of Object.entries(snapshots)) {
     const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
     if (!preferredVersions[name]) {
