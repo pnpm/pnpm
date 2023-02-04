@@ -519,8 +519,8 @@ test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
   {
     const lockfile = await project.readLockfile()
     expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
-    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
-    expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBe(undefined)
+    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBe(undefined)
+    expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBe(undefined)
   }
 
   onlyBuiltDependencies.push('@pnpm.e2e/pre-and-postinstall-scripts-example')
