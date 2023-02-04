@@ -1,27 +1,26 @@
-lockfileVersion: 5.4
-
-specifiers:
-  es6-iterator: ^2.0.1
+lockfileVersion: '6.0'
 
 dependencies:
-  es6-iterator: 2.0.1
+  es6-iterator:
+    specifier: ^2.0.1
+    version: 2.0.1
 
 packages:
 
-  /d/1.0.0:
+  /d@1.0.0:
     resolution: {integrity: sha1-dUu1v+VUUdpppYuU1F9MWwRi1Y8=}
     dependencies:
       es5-ext: 0.10.24
     dev: false
 
-  /es5-ext/0.10.24:
+  /es5-ext@0.10.24:
     resolution: {integrity: sha1-pVh3yZJLwMjZvTwsvhdJWsFwmxQ=}
     dependencies:
       es6-iterator: 2.0.1
       es6-symbol: 3.1.1
     dev: false
 
-  /es6-iterator/2.0.1:
+  /es6-iterator@2.0.1:
     resolution: {integrity: sha1-jjGcnwRTv1ddN0lAplWSDlnKVRI=}
     dependencies:
       d: 1.0.0
@@ -29,7 +28,7 @@ packages:
       es6-symbol: 3.1.1
     dev: false
 
-  /es6-symbol/3.1.1:
+  /es6-symbol@3.1.1:
     resolution: {integrity: sha1-vwDvT9q2uhtG7Le2KbTH7VcVzHc=}
     dependencies:
       d: 1.0.0
