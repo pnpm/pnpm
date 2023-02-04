@@ -155,7 +155,7 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
     expect(manifest.dependencies?.['@pnpm.e2e/peer-a']).toBe('^1.0.0')
 
     const lockfile = await project.readLockfile()
-    expect(lockfile.specifiers['@pnpm.e2e/peer-a']).toBe('^1.0.0')
+    expect(lockfile.dependencies['@pnpm.e2e/peer-a'].specifier).toBe('^1.0.0')
     expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.0']).toBeTruthy()
   }
 
@@ -173,7 +173,7 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
     expect(manifest.dependencies?.['@pnpm.e2e/peer-a']).toBe('^1.0.0')
 
     const lockfile = await project.readLockfile()
-    expect(lockfile.specifiers['@pnpm.e2e/peer-a']).toBe('^1.0.0')
+    expect(lockfile.dependencies['@pnpm.e2e/peer-a'].specifier).toBe('^1.0.0')
     expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
   }
 })
@@ -209,9 +209,9 @@ test('update should work normal when set empty string version', async () => {
   expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
   expect(lockfile.packages['/@pnpm.e2e/peer-c@2.0.0']).toBeTruthy()
   expect(lockfile.packages['/@pnpm.e2e/foo@2.0.0']).toBeTruthy()
-  expect(lockfile.dependencies['@pnpm.e2e/peer-a']).toEqual('1.0.1')
-  expect(lockfile.devDependencies['@pnpm.e2e/foo']).toEqual('2.0.0')
-  expect(lockfile.devDependencies['@pnpm.e2e/peer-c']).toEqual('2.0.0')
+  expect(lockfile.dependencies['@pnpm.e2e/peer-a'].version).toEqual('1.0.1')
+  expect(lockfile.devDependencies['@pnpm.e2e/foo'].version).toEqual('2.0.0')
+  expect(lockfile.devDependencies['@pnpm.e2e/peer-c'].version).toEqual('2.0.0')
 })
 
 test('ignore packages in package.json > updateConfig.ignoreDependencies fields in update command', async () => {
@@ -258,9 +258,9 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
 
   const lockfileUpdated = await project.readLockfile()
 
-  expect(lockfileUpdated.packages['/@pnpm.e2e/foo/100.0.0']).toBeTruthy()
-  expect(lockfileUpdated.packages['/@pnpm.e2e/bar/100.0.0']).toBeTruthy()
-  expect(lockfileUpdated.packages['/@pnpm.e2e/qar/100.1.0']).toBeTruthy()
+  expect(lockfileUpdated.packages['/@pnpm.e2e/foo@100.0.0']).toBeTruthy()
+  expect(lockfileUpdated.packages['/@pnpm.e2e/bar@100.0.0']).toBeTruthy()
+  expect(lockfileUpdated.packages['/@pnpm.e2e/qar@100.1.0']).toBeTruthy()
 })
 
 test('not ignore packages if these are specified in parameter even if these are listed in package.json > pnpm.update.ignoreDependencies fields in update command', async () => {
@@ -301,8 +301,8 @@ test('not ignore packages if these are specified in parameter even if these are 
 
   const lockfileUpdated = await project.readLockfile()
 
-  expect(lockfileUpdated.packages['/@pnpm.e2e/foo/100.1.0']).toBeTruthy()
-  expect(lockfileUpdated.packages['/@pnpm.e2e/bar/100.1.0']).toBeTruthy()
+  expect(lockfileUpdated.packages['/@pnpm.e2e/foo@100.1.0']).toBeTruthy()
+  expect(lockfileUpdated.packages['/@pnpm.e2e/bar@100.1.0']).toBeTruthy()
 })
 
 test('do not update anything if all the dependencies are ignored and trying to update to latest', async () => {
@@ -333,7 +333,7 @@ test('do not update anything if all the dependencies are ignored and trying to u
   }, [])
 
   const lockfileUpdated = await project.readLockfile()
-  expect(lockfileUpdated.packages['/@pnpm.e2e/foo/100.0.0']).toBeTruthy()
+  expect(lockfileUpdated.packages['/@pnpm.e2e/foo@100.0.0']).toBeTruthy()
 })
 
 test('should not update tag version when --latest not set', async () => {

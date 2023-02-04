@@ -50,6 +50,7 @@ test('import from shared yarn.lock of monorepo', async () => {
     workspaceDir: process.cwd(),
     lockfileDir: process.cwd(),
     dir: process.cwd(),
+    resolutionMode: 'highest', // TODO: this should work with the default resolution mode
   }, [])
 
   const project = assertProject(process.cwd())
@@ -73,6 +74,7 @@ test('import from shared package-lock.json of monorepo', async () => {
     workspaceDir: process.cwd(),
     lockfileDir: process.cwd(),
     dir: process.cwd(),
+    resolutionMode: 'highest', // TODO: this should work with the default resolution mode
   }, [])
 
   const project = assertProject(process.cwd())
@@ -96,6 +98,7 @@ test('import from shared npm-shrinkwrap.json of monorepo', async () => {
     workspaceDir: process.cwd(),
     lockfileDir: process.cwd(),
     dir: process.cwd(),
+    resolutionMode: 'highest', // TODO: this should work with the default resolution mode
   }, [])
 
   const project = assertProject(process.cwd())

@@ -173,11 +173,13 @@ test('relative link', async () => {
   await linkedProject.isExecutable('.bin/cowsay')
 
   const wantedLockfile = await project.readLockfile()
-  expect(wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
-  expect(wantedLockfile.specifiers['@pnpm.e2e/hello-world-js-bin']).toBe('*') // specifier of linked dependency added to ${WANTED_LOCKFILE}
+  expect(wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
+    specifier: '*', // specifier of linked dependency added to ${WANTED_LOCKFILE}
+    version: 'link:../hello-world-js-bin', // link added to wanted lockfile
+  })
 
   const currentLockfile = await project.readCurrentLockfile()
-  expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
+  expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin'].version).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
 })
 
 test('absolute link', async () => {
@@ -204,11 +206,13 @@ test('absolute link', async () => {
   await linkedProject.isExecutable('.bin/cowsay')
 
   const wantedLockfile = await project.readLockfile()
-  expect(wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
-  expect(wantedLockfile.specifiers['@pnpm.e2e/hello-world-js-bin']).toBe('*') // specifier of linked dependency added to ${WANTED_LOCKFILE}
+  expect(wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toStrictEqual({
+    specifier: '*', // specifier of linked dependency added to ${WANTED_LOCKFILE}
+    version: 'link:../hello-world-js-bin', // link added to wanted lockfile
+  })
 
   const currentLockfile = await project.readCurrentLockfile()
-  expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
+  expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin'].version).toBe('link:../hello-world-js-bin') // link added to wanted lockfile
 })
 
 test('link --production', async () => {
