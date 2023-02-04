@@ -1,16 +1,20 @@
+lockfileVersion: '6.0'
+
 importers:
-  .:
-    specifiers: {}
+
+  .: {}
+
   packages/bar:
     dependencies:
-      is-positive: 3.1.0
-    specifiers:
-      is-positive: 3.1.0
-  packages/foo:
-    specifiers: {}
-lockfileVersion: 5.2
+      is-positive:
+        specifier: 3.1.0
+        version: 3.1.0
+
+  packages/foo: {}
+
 packages:
-  /is-positive/3.1.0:
+
+  /is-positive@3.1.0:
     dev: false
     engines:
       node: '>=0.10.0'

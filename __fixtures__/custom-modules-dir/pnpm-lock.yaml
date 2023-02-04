@@ -1,32 +1,32 @@
-lockfileVersion: 5.4
+lockfileVersion: '6.0'
 
 importers:
 
-  .:
-    specifiers: {}
+  .: {}
 
   packages/bar:
-    specifiers:
-      is-positive: 1.0.0
     dependencies:
-      is-positive: 1.0.0
+      is-positive:
+        specifier: 1.0.0
+        version: 1.0.0
 
   packages/foo:
-    specifiers:
-      '@scope/bar': workspace:*
-      is-positive: 3.1.0
     dependencies:
-      '@scope/bar': link:../bar
-      is-positive: 3.1.0
+      '@scope/bar':
+        specifier: workspace:*
+        version: link:../bar
+      is-positive:
+        specifier: 3.1.0
+        version: 3.1.0
 
 packages:
 
-  /is-positive/1.0.0:
+  /is-positive@1.0.0:
     resolution: {integrity: sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==}
     engines: {node: '>=0.10.0'}
     dev: false
 
-  /is-positive/3.1.0:
+  /is-positive@3.1.0:
     resolution: {integrity: sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==}
     engines: {node: '>=0.10.0'}
     dev: false
