@@ -9,7 +9,7 @@ import {
   StageLog,
   StatsLog,
 } from '@pnpm/core-loggers'
-import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
 import { ProjectManifest } from '@pnpm/types'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -46,7 +46,7 @@ test('spec not specified in package.json.dependencies', async () => {
   }, await testDefaults())
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.specifiers['is-positive']).toBe('')
+  expect(lockfile.dependencies['is-positive'].specifier).toBe('')
 })
 
 test('ignoring some files in the dependency', async () => {
@@ -938,23 +938,26 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
 
   await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     dependencies: {
-      '@pnpm.e2e/foobarqar': '1.0.1',
+      '@pnpm.e2e/foobarqar': {
+        specifier: '1.0.1',
+        version: '1.0.1',
+      },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@pnpm.e2e/bar/100.0.0': {
+      '/@pnpm.e2e/bar@100.0.0': {
         dev: false,
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/bar', '100.0.0'),
         },
       },
-      '/@pnpm.e2e/foo/100.1.0': {
+      '/@pnpm.e2e/foo@100.1.0': {
         dev: false,
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/foo', '100.1.0'),
         },
       },
-      '/@pnpm.e2e/foobarqar/1.0.1': {
+      '/@pnpm.e2e/foobarqar@1.0.1': {
         dependencies: {
           '@pnpm.e2e/bar': '100.0.0',
           '@pnpm.e2e/foo': '100.1.0',
@@ -965,7 +968,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
           integrity: getIntegrity('@pnpm.e2e/foobarqar', '1.0.1'),
         },
       },
-      '/is-positive/3.1.0': {
+      '/is-positive@3.1.0': {
         dev: false,
         engines: {
           node: '>=0.10.0',
@@ -974,9 +977,6 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
           integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
       },
-    },
-    specifiers: {
-      '@pnpm.e2e/foobarqar': '1.0.1',
     },
   }, { lineWidth: 1000 })
 
@@ -1030,17 +1030,20 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
 
   await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     dependencies: {
-      '@pnpm.e2e/parent-of-pkg-with-1-dep': '1.0.0',
+      '@pnpm.e2e/parent-of-pkg-with-1-dep': {
+        specifier: '1.0.0',
+        version: '1.0.0',
+      },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0': {
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
         dev: false,
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'),
         },
       },
-      '/@pnpm.e2e/parent-of-pkg-with-1-dep/1.0.0': {
+      '/@pnpm.e2e/parent-of-pkg-with-1-dep@1.0.0': {
         dependencies: {
           '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
         },
@@ -1049,7 +1052,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
           integrity: getIntegrity('@pnpm.e2e/parent-of-pkg-with-1-dep', '1.0.0'),
         },
       },
-      '/@pnpm.e2e/pkg-with-1-dep/100.0.0': {
+      '/@pnpm.e2e/pkg-with-1-dep@100.0.0': {
         dependencies: {
           '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
         },
@@ -1058,9 +1061,6 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
           integrity: getIntegrity('@pnpm.e2e/pkg-with-1-dep', '100.0.0'),
         },
       },
-    },
-    specifiers: {
-      '@pnpm.e2e/parent-of-pkg-with-1-dep': '1.0.0',
     },
   }, { lineWidth: 1000 })
 

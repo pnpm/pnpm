@@ -46,10 +46,12 @@ test('local file', async () => {
 
   expect(lockfile).toStrictEqual({
     dependencies: {
-      'local-pkg': 'link:../local-pkg',
+      'local-pkg': {
+        specifier: expectedSpecs['local-pkg'],
+        version: 'link:../local-pkg',
+      },
     },
     lockfileVersion: LOCKFILE_VERSION,
-    specifiers: expectedSpecs,
   })
 })
 
@@ -87,10 +89,12 @@ test('local file via link:', async () => {
 
   expect(lockfile).toStrictEqual({
     dependencies: {
-      'local-pkg': 'link:../local-pkg',
+      'local-pkg': {
+        specifier: expectedSpecs['local-pkg'],
+        version: 'link:../local-pkg',
+      },
     },
     lockfileVersion: LOCKFILE_VERSION,
-    specifiers: expectedSpecs,
   })
 })
 
@@ -113,10 +117,12 @@ test('local file with symlinked node_modules', async () => {
 
   expect(lockfile).toStrictEqual({
     dependencies: {
-      'local-pkg': 'link:../local-pkg',
+      'local-pkg': {
+        specifier: expectedSpecs['local-pkg'],
+        version: 'link:../local-pkg',
+      },
     },
     lockfileVersion: LOCKFILE_VERSION,
-    specifiers: expectedSpecs,
   })
 })
 

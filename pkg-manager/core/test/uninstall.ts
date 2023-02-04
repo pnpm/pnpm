@@ -1,5 +1,5 @@
 import path from 'path'
-import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   PackageManifestLog,
   RootLog,
@@ -323,16 +323,16 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
       },
       'project-2': {
         dependencies: {
-          'is-negative': '1.0.0',
-        },
-        specifiers: {
-          'is-negative': '1.0.0',
+          'is-negative': {
+            specifier: '1.0.0',
+            version: '1.0.0',
+          },
         },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-negative/1.0.0': {
+      '/is-negative@1.0.0': {
         dev: false,
         engines: {
           node: '>=0.10.0',

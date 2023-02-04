@@ -4,7 +4,7 @@ import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingle
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf from '@zkochan/rimraf'
-import { createPeersFolderSuffix } from '@pnpm/dependency-path'
+import { createPeersFolderSuffixNewFormat as createPeersFolderSuffix } from '@pnpm/dependency-path'
 import { testDefaults } from '../utils'
 
 test('auto install non-optional peer dependencies', async () => {
@@ -182,13 +182,15 @@ test('automatically install root peer dependencies', async () => {
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.specifiers).toStrictEqual({
-      'is-positive': '^1.0.0',
-      'is-negative': '^1.0.0',
-    })
     expect(lockfile.dependencies).toStrictEqual({
-      'is-positive': '1.0.0',
-      'is-negative': '1.0.1',
+      'is-positive': {
+        specifier: '^1.0.0',
+        version: '1.0.0',
+      },
+      'is-negative': {
+        specifier: '^1.0.0',
+        version: '1.0.0',
+      },
     })
   }
 
@@ -208,15 +210,19 @@ test('automatically install root peer dependencies', async () => {
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.specifiers).toStrictEqual({
-      'is-odd': '1.0.0',
-      'is-positive': '^1.0.0',
-      'is-negative': '^1.0.0',
-    })
     expect(lockfile.dependencies).toStrictEqual({
-      'is-odd': '1.0.0',
-      'is-positive': '1.0.0',
-      'is-negative': '1.0.1',
+      'is-odd': {
+        specifier: '1.0.0',
+        version: '1.0.0',
+      },
+      'is-positive': {
+        specifier: '^1.0.0',
+        version: '1.0.0',
+      },
+      'is-negative': {
+        specifier: '^1.0.0',
+        version: '1.0.0',
+      },
     })
   }
 
@@ -233,13 +239,15 @@ test('automatically install root peer dependencies', async () => {
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.specifiers).toStrictEqual({
-      'is-positive': '^1.0.0',
-      'is-negative': '^1.0.0',
-    })
     expect(lockfile.dependencies).toStrictEqual({
-      'is-positive': '1.0.0',
-      'is-negative': '1.0.1',
+      'is-positive': {
+        specifier: '^1.0.0',
+        version: '1.0.0',
+      },
+      'is-negative': {
+        specifier: '^1.0.0',
+        version: '1.0.0',
+      },
     })
   }
 })
@@ -285,10 +293,16 @@ test('automatically install peer dependency when it is a dev dependency in anoth
   const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
   expect(lockfile.importers['project-1'].devDependencies).toStrictEqual({
-    'is-positive': '1.0.0',
+    'is-positive': {
+      specifier: '1.0.0',
+      version: '1.0.0',
+    },
   })
   expect(lockfile.importers['project-2'].dependencies).toStrictEqual({
-    'is-positive': '1.0.0',
+    'is-positive': {
+      specifier: '1.0.0',
+      version: '1.0.0',
+    },
   })
 })
 
@@ -571,5 +585,5 @@ test('do not override the direct dependency with an auto installed peer dependen
     },
   }))
   const lockfile = await project.readLockfile()
-  expect(lockfile.dependencies.rxjs).toStrictEqual('6.6.7')
+  expect(lockfile.dependencies.rxjs.version).toStrictEqual('6.6.7')
 })
