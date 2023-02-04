@@ -11,7 +11,7 @@ import {
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import resolveLinkTarget from 'resolve-link-target'
-import { LOCKFILE_VERSION_V6, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
 import symlinkDir from 'symlink-dir'
 import writeYamlFile from 'write-yaml-file'
@@ -642,7 +642,7 @@ test('hoist packages which is in the dependencies tree of the selected projects'
    * instead of using is-positive@2.0.0 and does not hoist anything
    */
   await writeYamlFile(WANTED_LOCKFILE, {
-    lockfileVersion: LOCKFILE_VERSION_V6,
+    lockfileVersion: LOCKFILE_VERSION,
     importers: {
       '.': {},
       'project-1': {
@@ -700,7 +700,7 @@ test('only hoist packages which is in the dependencies tree of the selected proj
   ])
 
   await writeYamlFile(WANTED_LOCKFILE, {
-    lockfileVersion: 5.3,
+    lockfileVersion: LOCKFILE_VERSION,
     importers: {
       '.': {},
       'project-1': {

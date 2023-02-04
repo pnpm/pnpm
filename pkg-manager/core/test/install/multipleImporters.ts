@@ -12,7 +12,7 @@ import {
   mutateModulesInSingleProject,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
-import { createPeersFolderSuffix } from '@pnpm/dependency-path'
+import { createPeersFolderSuffixNewFormat as createPeersFolderSuffix } from '@pnpm/dependency-path'
 import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
 import pick from 'ramda/src/pick'
@@ -1047,6 +1047,7 @@ test('update workspace range', async () => {
         },
       },
     },
+    saveWorkspaceProtocol: true,
   }))
 
   const expected = {
@@ -1461,6 +1462,7 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
   }
   await mutateModules(importers, await testDefaults({
     allProjects,
+    autoInstallPeers: false,
     linkWorkspacePackagesDepth: Infinity,
     strictPeerDependencies: false,
     workspacePackages,
@@ -1837,6 +1839,7 @@ test('do not symlink local package from the location described in its publishCon
     version: '1.0.0',
     publishConfig: {
       directory: 'dist',
+      linkDirectory: false,
     },
   }
   const project2Manifest = {

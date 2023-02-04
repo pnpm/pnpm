@@ -161,10 +161,10 @@ test('uninstall package with dependencies and do not touch other deps', async ()
 
   const lockfile = await project.readLockfile()
   expect(lockfile.dependencies).toStrictEqual({
-    'is-negative': '2.1.0',
-  })
-  expect(lockfile.specifiers).toStrictEqual({
-    'is-negative': '2.1.0',
+    'is-negative': {
+      specifier: '2.1.0',
+      version: '2.1.0',
+    },
   })
 })
 
@@ -318,9 +318,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
 
   expect(lockfile).toStrictEqual({
     importers: {
-      'project-1': {
-        specifiers: {},
-      },
+      'project-1': {},
       'project-2': {
         dependencies: {
           'is-negative': {

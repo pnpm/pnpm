@@ -79,8 +79,8 @@ test('prefer version ranges specified for top dependencies, even if the subdepen
   )
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
 test('ignore version of root dependency when it is incompatible with the indirect dependency\'s range', async () => {
