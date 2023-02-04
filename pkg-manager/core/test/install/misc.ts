@@ -1,6 +1,6 @@
 import * as path from 'path'
 import { promises as fs } from 'fs'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { PnpmError } from '@pnpm/error'
 import {
   PackageManifestLog,
@@ -816,7 +816,7 @@ test('should throw error when trying to install a package without name', async (
 
 // Covers https://github.com/pnpm/pnpm/issues/1193
 test('rewrites node_modules created by npm', async () => {
-  const project = prepareEmpty()
+  const project = prepare()
 
   await execa('npm', ['install', 'rimraf@2.5.1', '@types/node', '--save'])
 

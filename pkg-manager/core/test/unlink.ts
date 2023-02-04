@@ -122,7 +122,7 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
     rootDir: process.cwd(),
   }, opts)
 
-  expect(project.requireModule('@pnpm.e2e/foo/package.json').version).toBe('100.1.0')
+  expect(project.requireModule('@pnpm.e2e/foo/package.json').version).toBe('100.0.0')
   expect(unlinkResult.manifest.dependencies).toStrictEqual({ '@pnpm.e2e/foo': '^100.0.0' })
 })
 

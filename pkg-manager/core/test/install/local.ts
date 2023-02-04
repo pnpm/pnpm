@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -147,7 +147,7 @@ test('tarball local package', async () => {
   expect(manifest.dependencies).toStrictEqual({ 'tar-pkg': pkgSpec })
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages[lockfile.dependencies['tar-pkg']]).toStrictEqual({
+  expect(lockfile.packages[lockfile.dependencies['tar-pkg'].version]).toStrictEqual({
     dev: false,
     name: 'tar-pkg',
     resolution: {
@@ -177,8 +177,8 @@ test('tarball local package from project directory', async () => {
   expect(manifest.dependencies).toStrictEqual({ 'tar-pkg': pkgSpec })
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.dependencies['tar-pkg']).toBe(pkgSpec)
-  expect(lockfile.packages[lockfile.dependencies['tar-pkg']]).toStrictEqual({
+  expect(lockfile.dependencies['tar-pkg'].version).toBe(pkgSpec)
+  expect(lockfile.packages[lockfile.dependencies['tar-pkg'].version]).toStrictEqual({
     dev: false,
     name: 'tar-pkg',
     resolution: {

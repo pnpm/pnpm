@@ -99,6 +99,11 @@ test('parse()', () => {
   })
 
   expect(() => parse('/foo/bar')).toThrow(/\/foo\/bar is an invalid relative dependency path/)
+
+  expect(parse('file:project(foo@1.0.0)')).toStrictEqual({
+    host: 'file:project(foo@1.0.0)',
+    isAbsolute: true,
+  })
 })
 
 test('refToAbsolute()', () => {

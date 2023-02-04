@@ -74,7 +74,7 @@ test('dependency should not be added to package.json if it is already there', as
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.devDependencies['@pnpm.e2e/foo']).toBe('100.0.0')
+  expect(lockfile.devDependencies['@pnpm.e2e/foo'].version).toBe('100.0.0')
   expect(lockfile.packages['/@pnpm.e2e/foo@100.0.0'].dev).toBeTruthy()
 
   expect(lockfile.optionalDependencies['@pnpm.e2e/bar']).toBe('100.0.0')
@@ -184,6 +184,7 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
 })
 
 test('save to package.json with save prefix ~', async () => {
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   prepareEmpty()
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ pinnedVersion: 'minor' }))
 
