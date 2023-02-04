@@ -33,7 +33,8 @@ test('unlink 1 package that exists in package.json', async () => {
     }),
   ])
 
-  const opts = await testDefaults({ fastUnpack: false, store: path.resolve('.store') })
+  // TODO: unset useLockfileV6
+  const opts = await testDefaults({ fastUnpack: false, store: path.resolve('.store'), useLockfileV6: false })
 
   let manifest = await link(
     ['is-subdir', 'is-positive'],

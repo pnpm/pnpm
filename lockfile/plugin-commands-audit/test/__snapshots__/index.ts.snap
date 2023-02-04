@@ -2,7 +2,8 @@
 
 exports[`plugin-commands-audit audit --audit-level 1`] = `
 "┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ critical            │ Improper Certificate Validation in xmlhttprequest-ssl  │
+│ critical            │ Improper Certificate Validation in                     │
+│                     │ xmlhttprequest-ssl                                     │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ xmlhttprequest-ssl                                     │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -90,8 +91,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
 │ high                │ Arbitrary File Creation/Overwrite via insufficient     │
-│                     │ symlink protection due to directory cache poisoning    │
-│                     │ using symbolic links                                   │
+│                     │ symlink protection due to directory cache              │
+│                     │ poisoning using symbolic links                         │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ tar                                                    │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -106,8 +107,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
 │ high                │ Arbitrary File Creation/Overwrite via insufficient     │
-│                     │ symlink protection due to directory cache poisoning    │
-│                     │ using symbolic links                                   │
+│                     │ symlink protection due to directory cache              │
+│                     │ poisoning using symbolic links                         │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ tar                                                    │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -775,7 +776,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-42xw-2xvc-qx8m      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ high                │ Exposure of sensitive information in follow-redirects  │
+│ high                │ Exposure of sensitive information in                   │
+│                     │ follow-redirects                                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ follow-redirects                                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -911,7 +913,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-hh27-ffr2-f2jc      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ netmask npm package vulnerable to octal input data     │
+│ moderate            │ netmask npm package vulnerable to octal input          │
+│                     │ data                                                   │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ netmask                                                │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -940,7 +943,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-fxwf-4rqh-v8g3      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ Tmp files readable by other users in sync-exec         │
+│ moderate            │ Tmp files readable by other users in                   │
+│                     │ sync-exec                                              │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ sync-exec                                              │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -1015,7 +1019,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-jp4x-w63m-7wgm      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ json-schema is vulnerable to Prototype Pollution       │
+│ moderate            │ json-schema is vulnerable to Prototype                 │
+│                     │ Pollution                                              │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ json-schema                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -1034,6 +1039,10 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │                     │                                                        │
 │                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
 │                     │ requestretry@1.13.0 > request@2.88.0 >                 │
+│                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
+│                     │ json-schema@0.2.3                                      │
+│                     │                                                        │
+│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
 │                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
 │                     │ json-schema@0.2.3                                      │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -1066,7 +1075,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-82v2-mx6x-wq7q      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ Regular Expression Denial of Service (ReDoS) in lodash │
+│ moderate            │ Regular Expression Denial of Service (ReDoS) in        │
+│                     │ lodash                                                 │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ lodash                                                 │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -1118,12 +1128,15 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
 │                     │ requestretry@1.13.0 > request@2.88.0 >                 │
 │                     │ har-validator@5.1.3 > ajv@6.10.2                       │
+│                     │                                                        │
+│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
+│                     │ har-validator@5.1.3 > ajv@6.10.2                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-v88g-cgmw-v5xw      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ Exposure of Sensitive Information to an Unauthorized   │
-│                     │ Actor in follow-redirects                              │
+│ moderate            │ Exposure of Sensitive Information to an                │
+│                     │ Unauthorized Actor in follow-redirects                 │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ follow-redirects                                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -1186,7 +1199,8 @@ exports[`plugin-commands-audit audit --dev 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-42xw-2xvc-qx8m      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ high                │ Exposure of sensitive information in follow-redirects  │
+│ high                │ Exposure of sensitive information in                   │
+│                     │ follow-redirects                                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ follow-redirects                                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -1199,7 +1213,8 @@ exports[`plugin-commands-audit audit --dev 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-74fj-2j2h-c42q      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ Tmp files readable by other users in sync-exec         │
+│ moderate            │ Tmp files readable by other users in                   │
+│                     │ sync-exec                                              │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ sync-exec                                              │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -1212,8 +1227,8 @@ exports[`plugin-commands-audit audit --dev 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-38h8-x697-gh8q      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ Exposure of Sensitive Information to an Unauthorized   │
-│                     │ Actor in follow-redirects                              │
+│ moderate            │ Exposure of Sensitive Information to an                │
+│                     │ Unauthorized Actor in follow-redirects                 │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ follow-redirects                                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -1231,7 +1246,8 @@ Severity: 2 moderate | 4 high"
 
 exports[`plugin-commands-audit audit 1`] = `
 "┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ critical            │ Improper Certificate Validation in xmlhttprequest-ssl  │
+│ critical            │ Improper Certificate Validation in                     │
+│                     │ xmlhttprequest-ssl                                     │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ xmlhttprequest-ssl                                     │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -1319,8 +1335,8 @@ exports[`plugin-commands-audit audit 1`] = `
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
 │ high                │ Arbitrary File Creation/Overwrite via insufficient     │
-│                     │ symlink protection due to directory cache poisoning    │
-│                     │ using symbolic links                                   │
+│                     │ symlink protection due to directory cache              │
+│                     │ poisoning using symbolic links                         │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ tar                                                    │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -1335,8 +1351,8 @@ exports[`plugin-commands-audit audit 1`] = `
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
 │ high                │ Arbitrary File Creation/Overwrite via insufficient     │
-│                     │ symlink protection due to directory cache poisoning    │
-│                     │ using symbolic links                                   │
+│                     │ symlink protection due to directory cache              │
+│                     │ poisoning using symbolic links                         │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ tar                                                    │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -2004,7 +2020,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-42xw-2xvc-qx8m      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ high                │ Exposure of sensitive information in follow-redirects  │
+│ high                │ Exposure of sensitive information in                   │
+│                     │ follow-redirects                                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ follow-redirects                                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -2140,7 +2157,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-hh27-ffr2-f2jc      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ netmask npm package vulnerable to octal input data     │
+│ moderate            │ netmask npm package vulnerable to octal input          │
+│                     │ data                                                   │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ netmask                                                │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -2169,7 +2187,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-fxwf-4rqh-v8g3      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ Tmp files readable by other users in sync-exec         │
+│ moderate            │ Tmp files readable by other users in                   │
+│                     │ sync-exec                                              │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ sync-exec                                              │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -2244,7 +2263,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-jp4x-w63m-7wgm      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ json-schema is vulnerable to Prototype Pollution       │
+│ moderate            │ json-schema is vulnerable to Prototype                 │
+│                     │ Pollution                                              │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ json-schema                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -2263,6 +2283,10 @@ exports[`plugin-commands-audit audit 1`] = `
 │                     │                                                        │
 │                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
 │                     │ requestretry@1.13.0 > request@2.88.0 >                 │
+│                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
+│                     │ json-schema@0.2.3                                      │
+│                     │                                                        │
+│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
 │                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
 │                     │ json-schema@0.2.3                                      │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -2295,7 +2319,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-82v2-mx6x-wq7q      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ Regular Expression Denial of Service (ReDoS) in lodash │
+│ moderate            │ Regular Expression Denial of Service (ReDoS) in        │
+│                     │ lodash                                                 │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ lodash                                                 │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -2347,12 +2372,15 @@ exports[`plugin-commands-audit audit 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
 │                     │ requestretry@1.13.0 > request@2.88.0 >                 │
 │                     │ har-validator@5.1.3 > ajv@6.10.2                       │
+│                     │                                                        │
+│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
+│                     │ har-validator@5.1.3 > ajv@6.10.2                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-v88g-cgmw-v5xw      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ Exposure of Sensitive Information to an Unauthorized   │
-│                     │ Actor in follow-redirects                              │
+│ moderate            │ Exposure of Sensitive Information to an                │
+│                     │ Unauthorized Actor in follow-redirects                 │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ follow-redirects                                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -2384,7 +2412,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-35q2-47q7-3pc3      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ low                 │ Regular Expression Denial of Service in timespan       │
+│ low                 │ Regular Expression Denial of Service in                │
+│                     │ timespan                                               │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ timespan                                               │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -2398,7 +2427,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-f523-2f5j-gfcg      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ low                 │ Regular Expression Denial of Service in braces         │
+│ low                 │ Regular Expression Denial of Service in                │
+│                     │ braces                                                 │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ braces                                                 │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -2411,7 +2441,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-g95f-p29q-9xw4      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ low                 │ Regular Expression Denial of Service (ReDoS) in braces │
+│ low                 │ Regular Expression Denial of Service (ReDoS) in        │
+│                     │ braces                                                 │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ braces                                                 │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -2429,7 +2460,8 @@ Severity: 4 low | 17 moderate | 21 high | 4 critical"
 
 exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 "┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ critical            │ Improper Certificate Validation in xmlhttprequest-ssl  │
+│ critical            │ Improper Certificate Validation in                     │
+│                     │ xmlhttprequest-ssl                                     │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ xmlhttprequest-ssl                                     │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -2502,8 +2534,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
 │ high                │ Arbitrary File Creation/Overwrite via insufficient     │
-│                     │ symlink protection due to directory cache poisoning    │
-│                     │ using symbolic links                                   │
+│                     │ symlink protection due to directory cache              │
+│                     │ poisoning using symbolic links                         │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ tar                                                    │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -2518,8 +2550,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
 │ high                │ Arbitrary File Creation/Overwrite via insufficient     │
-│                     │ symlink protection due to directory cache poisoning    │
-│                     │ using symbolic links                                   │
+│                     │ symlink protection due to directory cache              │
+│                     │ poisoning using symbolic links                         │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ tar                                                    │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -3157,7 +3189,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-6c8f-qphg-qjgp      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ high                │ Exposure of sensitive information in follow-redirects  │
+│ high                │ Exposure of sensitive information in                   │
+│                     │ follow-redirects                                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ follow-redirects                                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -3293,7 +3326,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-hh27-ffr2-f2jc      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ netmask npm package vulnerable to octal input data     │
+│ moderate            │ netmask npm package vulnerable to octal input          │
+│                     │ data                                                   │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ netmask                                                │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -3322,7 +3356,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-fxwf-4rqh-v8g3      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ Tmp files readable by other users in sync-exec         │
+│ moderate            │ Tmp files readable by other users in                   │
+│                     │ sync-exec                                              │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ sync-exec                                              │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -3374,7 +3409,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-jp4x-w63m-7wgm      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ json-schema is vulnerable to Prototype Pollution       │
+│ moderate            │ json-schema is vulnerable to Prototype                 │
+│                     │ Pollution                                              │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ json-schema                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -3393,6 +3429,10 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │                     │                                                        │
 │                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
 │                     │ requestretry@1.13.0 > request@2.88.0 >                 │
+│                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
+│                     │ json-schema@0.2.3                                      │
+│                     │                                                        │
+│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
 │                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
 │                     │ json-schema@0.2.3                                      │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -3425,7 +3465,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │ More info           │ https://github.com/advisories/GHSA-82v2-mx6x-wq7q      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ Regular Expression Denial of Service (ReDoS) in lodash │
+│ moderate            │ Regular Expression Denial of Service (ReDoS) in        │
+│                     │ lodash                                                 │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ lodash                                                 │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -3477,12 +3518,15 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
 │                     │ requestretry@1.13.0 > request@2.88.0 >                 │
 │                     │ har-validator@5.1.3 > ajv@6.10.2                       │
+│                     │                                                        │
+│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
+│                     │ har-validator@5.1.3 > ajv@6.10.2                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-v88g-cgmw-v5xw      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 ┌─────────────────────┬────────────────────────────────────────────────────────┐
-│ moderate            │ Exposure of Sensitive Information to an Unauthorized   │
-│                     │ Actor in follow-redirects                              │
+│ moderate            │ Exposure of Sensitive Information to an                │
+│                     │ Unauthorized Actor in follow-redirects                 │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ Package             │ follow-redirects                                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
@@ -4922,7 +4966,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up when JSO
           "paths": [
             ". > karma@2.0.5 > log4js@2.11.0 > hipchat-notifier@1.1.0 > request@2.88.0 > http-signature@1.2.0 > jsprim@1.4.1 > json-schema@0.2.3",
             ". > karma@2.0.5 > log4js@2.11.0 > loggly@1.1.1 > request@2.75.0 > http-signature@1.1.1 > jsprim@1.4.1 > json-schema@0.2.3",
-            ". > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 > requestretry@1.13.0 > request@2.88.0 > http-signature@1.2.0 > jsprim@1.4.1 > json-schema@0.2.3"
+            ". > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 > requestretry@1.13.0 > request@2.88.0 > http-signature@1.2.0 > jsprim@1.4.1 > json-schema@0.2.3",
+            ". > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 > http-signature@1.2.0 > jsprim@1.4.1 > json-schema@0.2.3"
           ]
         }
       ],
@@ -5338,7 +5383,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up when JSO
           "version": "6.10.2",
           "paths": [
             ". > karma@2.0.5 > log4js@2.11.0 > hipchat-notifier@1.1.0 > request@2.88.0 > har-validator@5.1.3 > ajv@6.10.2",
-            ". > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 > requestretry@1.13.0 > request@2.88.0 > har-validator@5.1.3 > ajv@6.10.2"
+            ". > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 > requestretry@1.13.0 > request@2.88.0 > har-validator@5.1.3 > ajv@6.10.2",
+            ". > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 > har-validator@5.1.3 > ajv@6.10.2"
           ]
         }
       ],
