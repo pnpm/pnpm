@@ -56,7 +56,7 @@ test('skip non-existing optional dependency', async () => {
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.specifiers).toStrictEqual({ 'is-positive': '*' })
+  expect(lockfile.dependencies['is-positive'].specifier).toBe('*')
 })
 
 test('skip optional dependency that does not support the current OS', async () => {

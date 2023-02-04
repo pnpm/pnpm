@@ -1,6 +1,6 @@
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
-import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -701,30 +701,30 @@ test('partial installation in a monorepo does not remove dependencies of other w
     importers: {
       'project-1': {
         dependencies: {
-          'is-positive': '1.0.0',
-        },
-        specifiers: {
-          'is-positive': '1.0.0',
+          'is-positive': {
+            specifier: '1.0.0',
+            vesrion: '1.0.0',
+          },
         },
       },
       'project-2': {
         dependencies: {
-          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
-        },
-        specifiers: {
-          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+          '@pnpm.e2e/pkg-with-1-ep': {
+            specifier: '100.0.0',
+            version: '100.0.0',
+          },
         },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0': {
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
         dev: false,
         resolution: {
           integrity: 'sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw==',
         },
       },
-      '/is-positive/1.0.0': {
+      '/is-positive@1.0.0': {
         dev: false,
         engines: {
           node: '>=0.10.0',
@@ -733,7 +733,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
       },
-      '/@pnpm.e2e/pkg-with-1-dep/100.0.0': {
+      '/@pnpm.e2e/pkg-with-1-dep@100.0.0': {
         dependencies: {
           '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         },
@@ -800,30 +800,30 @@ test('partial installation in a monorepo does not remove dependencies of other w
     importers: {
       'project-1': {
         dependencies: {
-          'is-positive': '1.0.0',
-        },
-        specifiers: {
-          'is-positive': '1.0.0',
+          'is-positive': {
+            specifier: '1.0.0',
+            version: '1.0.0',
+          },
         },
       },
       'project-2': {
         dependencies: {
-          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
-        },
-        specifiers: {
-          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+          '@pnpm.e2e/pkg-with-1-dep': {
+            specifier: '100.0.0',
+            version: '100.0.0',
+          },
         },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0': {
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
         dev: false,
         resolution: {
           integrity: 'sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw==',
         },
       },
-      '/is-positive/1.0.0': {
+      '/is-positive@1.0.0': {
         dev: false,
         engines: {
           node: '>=0.10.0',
@@ -832,7 +832,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
       },
-      '/@pnpm.e2e/pkg-with-1-dep/100.0.0': {
+      '/@pnpm.e2e/pkg-with-1-dep@100.0.0': {
         dependencies: {
           '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         },
@@ -1641,11 +1641,14 @@ test('install the dependency that is already present in the workspace when addin
   const rootModules = assertProject(process.cwd())
   const currentLockfile = await rootModules.readCurrentLockfile()
 
-  expect(currentLockfile.importers['project-1'].specifiers?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^100.0.0')
-  expect(currentLockfile.importers['project-2'].specifiers?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^100.0.0')
-
-  expect(currentLockfile.importers['project-1'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
-  expect(currentLockfile.importers['project-2'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
+  expect(currentLockfile.importers['project-1'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.0.0',
+  })
+  expect(currentLockfile.importers['project-2'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.0.0',
+  })
 })
 
 test('do not update dependency that has the same name as a dependency in the workspace', async () => {
