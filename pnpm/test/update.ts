@@ -39,7 +39,7 @@ test('update --no-save', async () => {
   await execPnpm(['update', '--no-save'])
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo@100.1.0'])
 
   const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.0.0')
@@ -60,7 +60,7 @@ test('update', async () => {
   await execPnpm(['update'])
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo@100.1.0'])
 
   const pkg = await readPackageJsonFromDir(process.cwd())
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
@@ -83,7 +83,7 @@ test('recursive update --no-save', async () => {
   await execPnpm(['recursive', 'update', '--no-save'])
 
   const lockfile = await readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo@100.1.0'])
 
   const pkg = await readPackageJsonFromDir(path.resolve('project'))
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.0.0')
@@ -106,7 +106,7 @@ test('recursive update', async () => {
   await execPnpm(['recursive', 'update'])
 
   const lockfile = await readYamlFile<any>('pnpm-lock.yaml') // eslint-disable-line
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo@100.1.0'])
 
   const pkg = await readPackageJsonFromDir(path.resolve('project'))
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
@@ -131,7 +131,7 @@ test('recursive update --no-shared-workspace-lockfile', async function () {
   await execPnpm(['recursive', 'update', '--no-shared-workspace-lockfile'])
 
   const lockfile = await projects['project'].readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo@100.1.0'])
 
   const pkg = await readPackageJsonFromDir(path.resolve('project'))
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')

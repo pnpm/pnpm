@@ -21,7 +21,7 @@ test('reports warning when installing deprecated packages', async () => {
   } as DeprecationLog))
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/express/0.14.1'].deprecated).toBe('express 0.x series is deprecated')
+  expect(lockfile.packages['/express@0.14.1'].deprecated).toBe('express 0.x series is deprecated')
 
   reporter.mockReset()
 

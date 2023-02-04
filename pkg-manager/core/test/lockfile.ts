@@ -45,7 +45,7 @@ test('lockfile has correct format', async () => {
   expect(modules!.pendingBuilds.length).toBe(0)
 
   const lockfile = await project.readLockfile()
-  const id = '/@pnpm.e2e/pkg-with-1-dep/100.0.0'
+  const id = '/@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
   expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
 
@@ -221,7 +221,7 @@ test('lockfile is fixed when it does not match package.json', async () => {
   expect(lockfile.devDependencies['is-negative']).toBe('2.1.0')
   expect(lockfile.optionalDependencies['is-positive']).toBe('3.1.0')
   expect(lockfile.dependencies).toBeFalsy()
-  expect(lockfile.packages).not.toHaveProperty(['/@types/semver/5.3.31'])
+  expect(lockfile.packages).not.toHaveProperty(['/@types/semver@5.3.31'])
 })
 
 test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async () => {
@@ -339,17 +339,17 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 
-  delete lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0']
+  delete lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
 
-  lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'] = {
+  lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'] = {
     resolution: {
       integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'),
     },
   }
 
-  lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].dependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.1.0'
+  lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep'] = '100.1.0'
 
   await writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
 
@@ -421,7 +421,7 @@ test('package is not marked dev if it is also a subdep of a regular dependency',
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'].dev).toBeFalsy()
+  expect(lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].dev).toBeFalsy()
 })
 
 test('package is not marked optional if it is also a subdep of a regular dependency', async () => {
@@ -435,7 +435,7 @@ test('package is not marked optional if it is also a subdep of a regular depende
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'].optional).toBeFalsy()
+  expect(lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].optional).toBeFalsy()
 })
 
 test('scoped module from different registry', async () => {
@@ -631,7 +631,7 @@ test('dev property is correctly set for package that is duplicated to both the d
   await addDependenciesToPackage({}, ['overlap@2.2.8'], await testDefaults())
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/couleurs/5.0.0'].dev === false).toBeTruthy()
+  expect(lockfile.packages['/couleurs@5.0.0'].dev === false).toBeTruthy()
 })
 
 test('no lockfile', async () => {
@@ -741,7 +741,7 @@ test('save tarball URL when it is non-standard', async () => {
 
   const lockfile = await project.readLockfile()
 
-  expect((lockfile.packages['/esprima-fb/3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball).toBe('esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz')
+  expect((lockfile.packages['/esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball).toBe('esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz')
 })
 
 test('packages installed via tarball URL from the default registry are normalized', async () => {
@@ -857,7 +857,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     expect(lockfile.importers).toHaveProperty(['project-2'])
 
     // previous entries are not removed
-    const id = '/@pnpm.e2e/pkg-with-1-dep/100.0.0'
+    const id = '/@pnpm.e2e/pkg-with-1-dep@100.0.0'
 
     expect(lockfile.importers.project.specifiers).toBeTruthy()
     expect(lockfile.importers.project.dependencies!['@pnpm.e2e/pkg-with-1-dep']).toBe('100.0.0')
@@ -1050,8 +1050,8 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ lockfileOnly: true }))
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
-    delete lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0']
+    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+    delete lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']
     await writeYamlFile(WANTED_LOCKFILE, lockfile, { lineWidth: 1000 })
   }
 
@@ -1075,7 +1075,7 @@ test('broken lockfile is fixed even if it seems like up to date at first. Unless
 
   await project.has('@pnpm.e2e/pkg-with-1-dep')
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 })
 
 const REGISTRY_MIRROR_DIR = path.join(__dirname, './registry-mirror')
@@ -1379,7 +1379,7 @@ test('include tarball URL', async () => {
   await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
 
   const lockfile = await project.readLockfile()
-  expect((lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution as TarballResolution).tarball)
+  expect((lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).tarball)
     .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
 })
 
@@ -1412,7 +1412,7 @@ test('lockfile v5 is converted to lockfile v6', async () => {
   {
     const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(lockfile.lockfileVersion).toBe(5.4)
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep/100.0.0'])
+    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep@100.0.0'])
   }
 
   await install(manifest, await testDefaults({ useLockfileV6: true }))

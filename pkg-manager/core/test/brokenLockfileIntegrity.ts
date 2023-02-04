@@ -25,7 +25,7 @@ test('installation breaks if the lockfile contains the wrong checksum', async ()
   const corruptedLockfile = await project.readLockfile()
   const correctLockfile = clone(corruptedLockfile)
   // breaking the lockfile
-  ;(corruptedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution as TarballResolution).integrity = (corruptedLockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'].resolution as TarballResolution).integrity
+  ;(corruptedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity = (corruptedLockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity
   await writeYamlFile(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
 
   await expect(mutateModulesInSingleProject({
@@ -68,9 +68,9 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
   )
 
   const corruptedLockfile = await project.readLockfile()
-  const correctIntegrity = (corruptedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution as TarballResolution).integrity
+  const correctIntegrity = (corruptedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity
   // breaking the lockfile
-  ;(corruptedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution as TarballResolution).integrity = 'sha512-pl8WtlGAnoIQ7gPxT187/YwhKRnsFBR4h0YY+v0FPQjT5WPuZbI9dPRaKWgKBFOqWHylJ8EyPy34V5u9YArfng=='
+  ;(corruptedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity = 'sha512-pl8WtlGAnoIQ7gPxT187/YwhKRnsFBR4h0YY+v0FPQjT5WPuZbI9dPRaKWgKBFOqWHylJ8EyPy34V5u9YArfng=='
   await writeYamlFile(WANTED_LOCKFILE, corruptedLockfile, { lineWidth: 1000 })
 
   await expect(
@@ -89,7 +89,7 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
 
   {
     const lockfile = await project.readLockfile()
-    expect((lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution as TarballResolution).integrity).toBe(correctIntegrity)
+    expect((lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity).toBe(correctIntegrity)
   }
 
   // Breaking the lockfile again
@@ -112,6 +112,6 @@ test('installation breaks if the lockfile contains the wrong checksum and the st
   }))
   {
     const lockfile = await project.readLockfile()
-    expect((lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].resolution as TarballResolution).integrity).toBe(correctIntegrity)
+    expect((lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).integrity).toBe(correctIntegrity)
   }
 })

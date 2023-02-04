@@ -13,7 +13,7 @@ test('package with default peer dependency, when auto install peers is on', asyn
   await addDependenciesToPackage({}, ['@pnpm.e2e/has-default-peer'], await testDefaults({ autoInstallPeers: true }))
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
 test('don\'t install the default peer dependency when it may be resolved from parent packages', async () => {
@@ -22,8 +22,8 @@ test('don\'t install the default peer dependency when it may be resolved from pa
 
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
-    '/@pnpm.e2e/dep-of-pkg-with-1-dep/101.0.0',
-    `/@pnpm.e2e/has-default-peer/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0' }])}`,
+    '/@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0',
+    `/@pnpm.e2e/has-default-peer@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0' }])}`,
   ])
 })
 
@@ -33,8 +33,8 @@ test('install the default peer dependency when it cannot be resolved from parent
 
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
-    '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0',
-    '/@pnpm.e2e/has-default-peer/1.0.0',
+    '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+    '/@pnpm.e2e/has-default-peer@1.0.0',
   ])
 })
 
@@ -49,7 +49,7 @@ test('package that resolves its own peer dependency', async () => {
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/pkg-with-resolved-peer/1.0.0_@pnpm.e2e+peer-c@2.0.0']?.peerDependencies).toStrictEqual({ '@pnpm.e2e/peer-c': '*' })
-  expect(lockfile.packages['/@pnpm.e2e/pkg-with-resolved-peer/1.0.0_@pnpm.e2e+peer-c@2.0.0'].dependencies).toHaveProperty(['@pnpm.e2e/peer-c'])
-  expect(lockfile.packages['/@pnpm.e2e/pkg-with-resolved-peer/1.0.0_@pnpm.e2e+peer-c@2.0.0'].optionalDependencies).toHaveProperty(['@pnpm.e2e/peer-b'])
+  expect(lockfile.packages['/@pnpm.e2e/pkg-with-resolved-peer@1.0.0(@pnpm.e2e/peer-c@2.0.0)']?.peerDependencies).toStrictEqual({ '@pnpm.e2e/peer-c': '*' })
+  expect(lockfile.packages['/@pnpm.e2e/pkg-with-resolved-peer/1.0.0(@pnpm.e2e/peer-c@2.0.0)'].dependencies).toHaveProperty(['@pnpm.e2e/peer-c'])
+  expect(lockfile.packages['/@pnpm.e2e/pkg-with-resolved-peer/1.0.0(@pnpm.e2e/peer-c@2.0.0)'].optionalDependencies).toHaveProperty(['@pnpm.e2e/peer-b'])
 })

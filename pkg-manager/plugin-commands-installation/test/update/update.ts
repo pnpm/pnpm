@@ -33,9 +33,9 @@ test('update with "*" pattern', async () => {
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/peer-a/1.0.1']).toBeTruthy()
-  expect(lockfile.packages['/@pnpm.e2e/peer-c/2.0.0']).toBeTruthy()
-  expect(lockfile.packages['/@pnpm.e2e/foo/1.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/peer-c@2.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/foo@1.0.0']).toBeTruthy()
 })
 
 test('update with negation pattern', async () => {
@@ -64,9 +64,9 @@ test('update with negation pattern', async () => {
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/peer-a/1.0.0']).toBeTruthy()
-  expect(lockfile.packages['/@pnpm.e2e/peer-c/1.0.0']).toBeTruthy()
-  expect(lockfile.packages['/@pnpm.e2e/foo/2.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/peer-c@1.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/foo@2.0.0']).toBeTruthy()
 })
 
 test('update: fail when both "latest" and "workspace" are true', async () => {
@@ -156,7 +156,7 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
 
     const lockfile = await project.readLockfile()
     expect(lockfile.specifiers['@pnpm.e2e/peer-a']).toBe('^1.0.0')
-    expect(lockfile.packages['/@pnpm.e2e/peer-a/1.0.0']).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.0']).toBeTruthy()
   }
 
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
@@ -174,7 +174,7 @@ test('update --no-save should not update package.json and pnpm-lock.yaml', async
 
     const lockfile = await project.readLockfile()
     expect(lockfile.specifiers['@pnpm.e2e/peer-a']).toBe('^1.0.0')
-    expect(lockfile.packages['/@pnpm.e2e/peer-a/1.0.1']).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
   }
 })
 
@@ -206,9 +206,9 @@ test('update should work normal when set empty string version', async () => {
   }, ['*'])
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/@pnpm.e2e/peer-a/1.0.1']).toBeTruthy()
-  expect(lockfile.packages['/@pnpm.e2e/peer-c/2.0.0']).toBeTruthy()
-  expect(lockfile.packages['/@pnpm.e2e/foo/2.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/peer-a@1.0.1']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/peer-c@2.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/foo@2.0.0']).toBeTruthy()
   expect(lockfile.dependencies['@pnpm.e2e/peer-a']).toEqual('1.0.1')
   expect(lockfile.devDependencies['@pnpm.e2e/foo']).toEqual('2.0.0')
   expect(lockfile.devDependencies['@pnpm.e2e/peer-c']).toEqual('2.0.0')
@@ -242,9 +242,9 @@ test('ignore packages in package.json > updateConfig.ignoreDependencies fields i
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/foo/100.0.0']).toBeTruthy()
-  expect(lockfile.packages['/@pnpm.e2e/bar/100.0.0']).toBeTruthy()
-  expect(lockfile.packages['/@pnpm.e2e/qar/100.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/foo@100.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/bar@100.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/qar@100.0.0']).toBeTruthy()
 
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
@@ -288,8 +288,8 @@ test('not ignore packages if these are specified in parameter even if these are 
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.packages['/@pnpm.e2e/foo/100.0.0']).toBeTruthy()
-  expect(lockfile.packages['/@pnpm.e2e/bar/100.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/foo@100.0.0']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/bar@100.0.0']).toBeTruthy()
 
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })

@@ -507,7 +507,7 @@ test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async () => {
 
   const lockfile = await project.readLockfile()
   expect(
-    lockfile.packages['/@pnpm.e2e/pkg-with-bundled-dependencies/1.0.0'].bundledDependencies
+    lockfile.packages['/@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0'].bundledDependencies
   ).toStrictEqual(
     ['@pnpm.e2e/hello-world-js-bin']
   )
@@ -522,7 +522,7 @@ test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async () => {
 
   const lockfile = await project.readLockfile()
   expect(
-    lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies/1.0.0'].bundledDependencies
+    lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0'].bundledDependencies
   ).toStrictEqual(
     ['@pnpm.e2e/hello-world-js-bin']
   )
@@ -535,7 +535,7 @@ test('installing a package with bundleDependencies set to false (pkg-with-bundle
 
   const lockfile = await project.readLockfile()
   expect(
-    typeof lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies-false/1.0.0'].bundledDependencies
+    typeof lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies-false@1.0.0'].bundledDependencies
   ).toEqual('undefined')
 })
 
@@ -583,7 +583,7 @@ testOnNonWindows('building native addons', async () => {
   expect(await exists('node_modules/diskusage/build')).toBeTruthy()
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/diskusage/1.1.3', 'requiresBuild'], true)
+  expect(lockfile.packages).toHaveProperty(['/diskusage@1.1.3', 'requiresBuild'], true)
 })
 
 test('should update subdep on second install', async () => {
@@ -597,7 +597,7 @@ test('should update subdep on second install', async () => {
 
   let lockfile = await project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
@@ -616,8 +616,8 @@ test('should update subdep on second install', async () => {
 
   lockfile = await project.readLockfile()
 
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   expect(deepRequireCwd(['@pnpm.e2e/pkg-with-1-dep', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json']).version).toEqual('100.1.0')
 })
@@ -633,7 +633,7 @@ test('should not update subdep when depth is smaller than depth of package', asy
 
   let lockfile = await project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
@@ -643,8 +643,8 @@ test('should not update subdep when depth is smaller than depth of package', asy
 
   lockfile = await project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   expect(deepRequireCwd(['@pnpm.e2e/pkg-with-1-dep', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json']).version).toEqual('100.0.0')
 })
@@ -1022,9 +1022,9 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     Object.keys(lockfile.packages)
   ).toStrictEqual(
     [
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0',
-      '/@pnpm.e2e/parent-of-pkg-with-1-dep/1.0.0',
-      '/@pnpm.e2e/pkg-with-1-dep/100.0.0',
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+      '/@pnpm.e2e/parent-of-pkg-with-1-dep@1.0.0',
+      '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
     ]
   )
 

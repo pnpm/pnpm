@@ -54,8 +54,8 @@ test('import from shared yarn.lock of monorepo', async () => {
 
   const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/is-positive/1.0.0'])
-  expect(lockfile.packages).toHaveProperty(['/is-negative/1.0.1'])
+  expect(lockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/is-negative@1.0.1'])
 
   // node_modules is not created
   await project.hasNot('is-positive')
@@ -77,8 +77,8 @@ test('import from shared package-lock.json of monorepo', async () => {
 
   const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/is-positive/1.0.0'])
-  expect(lockfile.packages).toHaveProperty(['/is-negative/1.0.1'])
+  expect(lockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/is-negative@1.0.1'])
 
   // node_modules is not created
   await project.hasNot('is-positive')
@@ -100,8 +100,8 @@ test('import from shared npm-shrinkwrap.json of monorepo', async () => {
 
   const project = assertProject(process.cwd())
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/is-positive/1.0.0'])
-  expect(lockfile.packages).toHaveProperty(['/is-negative/1.0.1'])
+  expect(lockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/is-negative@1.0.1'])
 
   // node_modules is not created
   await project.hasNot('is-positive')

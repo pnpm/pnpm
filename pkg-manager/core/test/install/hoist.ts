@@ -500,10 +500,10 @@ test('hoist when updating in one of the workspace projects', async () => {
     Object.keys(lockfile.packages)
   ).toStrictEqual(
     [
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0',
-      '/@pnpm.e2e/foo/100.0.0',
-      '/@pnpm.e2e/foo/100.1.0',
-      '/@pnpm.e2e/pkg-with-1-dep/100.0.0',
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+      '/@pnpm.e2e/foo@100.0.0',
+      '/@pnpm.e2e/foo@100.1.0',
+      '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
     ]
   )
 

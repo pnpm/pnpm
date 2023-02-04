@@ -25,7 +25,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/is-positive/1.0.0'].dependencies?.['@pnpm.e2e/bar']).toBe('100.1.0')
+    expect(lockfile.packages['/is-positive@1.0.0'].dependencies?.['@pnpm.e2e/bar']).toBe('100.1.0')
     expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
       'is-positive': {
         dependencies: {
@@ -47,7 +47,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/is-positive/1.0.0'].dependencies?.['@pnpm.e2e/foobar']).toBe('100.0.0')
+    expect(lockfile.packages['/is-positive@1.0.0'].dependencies?.['@pnpm.e2e/foobar']).toBe('100.0.0')
     expect(lockfile.packageExtensionsChecksum).toStrictEqual(createObjectChecksum({
       'is-positive': {
         dependencies: {
@@ -104,7 +104,7 @@ test('manifests are patched by extensions from the compatibility database', asyn
   )
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/debug/4.0.0'].peerDependenciesMeta?.['supports-color']?.optional).toBe(true)
+  expect(lockfile.packages['/debug@4.0.0'].peerDependenciesMeta?.['supports-color']?.optional).toBe(true)
 })
 
 test('manifests are not patched by extensions from the compatibility database when ignoreCompatibilityDb is true', async () => {
@@ -119,5 +119,5 @@ test('manifests are not patched by extensions from the compatibility database wh
   )
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/debug/4.0.0'].peerDependenciesMeta).toBeUndefined()
+  expect(lockfile.packages['/debug@4.0.0'].peerDependenciesMeta).toBeUndefined()
 })
