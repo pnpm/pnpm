@@ -2749,6 +2749,9 @@ importers:
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-types
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../../store/package-store

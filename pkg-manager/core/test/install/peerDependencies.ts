@@ -909,7 +909,7 @@ test('transitive peerDependencies field does not break the lockfile on subsequen
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
-  expect(Object.keys(lockfile.packages!['/most/1.7.3'].dependencies!)).toStrictEqual([
+  expect(Object.keys(lockfile.packages!['/most@1.7.3'].dependencies!)).toStrictEqual([
     '@most/multicast',
     '@most/prelude',
     'symbol-observable',
