@@ -1,25 +1,32 @@
+lockfileVersion: '6.0'
+
 importers:
+
   bar:
     dependencies:
-      foo: 'link:../foo'
-      is-positive: 1.0.0
-    specifiers:
-      foo: 1.0.0
-      is-positive: 1.0.0
+      foo:
+        specifier: 1.0.0
+        version: 'link:../foo'
+      is-positive:
+        specifier: 1.0.0
+        version: 1.0.0
+
   foo:
     dependencies:
-      is-negative: 1.0.0
-    specifiers:
-      is-negative: 1.0.0
-lockfileVersion: 5
+      is-negative:
+        specifier: 1.0.0
+        version: 1.0.0
+
 packages:
-  /is-negative/1.0.0:
+
+  /is-negative@1.0.0:
     dev: false
     engines:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=
-  /is-positive/1.0.0:
+
+  /is-positive@1.0.0:
     dev: false
     engines:
       node: '>=0.10.0'

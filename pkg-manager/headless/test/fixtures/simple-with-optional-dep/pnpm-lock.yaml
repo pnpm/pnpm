@@ -1,22 +1,22 @@
-lockfileVersion: 5.4
-
-specifiers:
-  '@pnpm.e2e/pkg-with-good-optional': '*'
-  is-positive: 1.0.0
+lockfileVersion: '6.0'
 
 dependencies:
-  '@pnpm.e2e/pkg-with-good-optional': 1.0.0
+  '@pnpm.e2e/pkg-with-good-optional':
+    specifier: '*'
+    version: 1.0.0
 
 optionalDependencies:
-  is-positive: 1.0.0
+  is-positive:
+    specifier: 1.0.0
+    version: 1.0.0
 
 packages:
 
-  /@pnpm.e2e/dep-of-pkg-with-1-dep/101.0.0:
+  /@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0:
     resolution: {integrity: sha512-v/FQPTv+Y6j/J5a7ymlifFIhJa28wROyiTfg1vcAVKdJ9S94E32CHVUbzgvdcu9pAkLqe7INiwJ2ynqmgiTiiw==}
     dev: false
 
-  /@pnpm.e2e/pkg-with-good-optional/1.0.0:
+  /@pnpm.e2e/pkg-with-good-optional@1.0.0:
     resolution: {integrity: sha512-nHI1OeIwd3u8wEhHBIgbJmK6ryrums0YrxVB3RHkpbXXeI3YFsxiv0T0+MuQc7ajXT5/pwUvkyo2g2n37cWuRA==}
     dependencies:
       '@pnpm.e2e/dep-of-pkg-with-1-dep': 101.0.0
@@ -24,7 +24,7 @@ packages:
       is-positive: 1.0.0
     dev: false
 
-  /is-positive/1.0.0:
+  /is-positive@1.0.0:
     resolution: {integrity: sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==}
     engines: {node: '>=0.10.0'}
     requiresBuild: true
