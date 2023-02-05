@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
-import { Lockfile } from '@pnpm/lockfile-file'
+import { LockfileV6 as Lockfile } from '@pnpm/lockfile-file'
 import { store } from '@pnpm/plugin-commands-store'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
