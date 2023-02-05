@@ -1,5 +1,20 @@
 # pnpm
 
+## 7.27.0-0
+
+### Minor Changes
+
+- A new `resolution-mode` added: `lowest-direct`. With this resolution mode direct dependencies will be resolved to their lowest versions. So if there is `foo@^1.1.0` in the dependencies, then `1.1.0` will be installed, even if the latest version of `foo` is `1.2.0`.
+- Support script selector with RegExp such as `pnpm run /build:.*/` and execute the matched scripts with the RegExp [#5871](https://github.com/pnpm/pnpm/pull/5871).
+
+### Patch Changes
+
+- Deduplicate direct dependencies.
+
+  Let's say there are two projects in the workspace that dependend on `foo`. One project has `foo@1.0.0` in the dependencies while another one has `foo@^1.0.0` in the dependencies. In this case, `foo@1.0.0` should be installed to both projects as satisfies the version specs of both projects.
+
+- Use Map rather than Object in `createPackageExtender` to prevent read the prototype property to native function
+
 ## 7.26.3
 
 ### Patch Changes

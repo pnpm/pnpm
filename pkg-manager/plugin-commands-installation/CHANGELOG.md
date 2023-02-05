@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-installation
 
+## 11.4.4
+
+### Patch Changes
+
+- 308eb2c9b: Use Map rather than Object in `createPackageExtender` to prevent read the prototype property to native function
+- Updated dependencies [74b535f19]
+- Updated dependencies [308eb2c9b]
+- Updated dependencies [59ee53678]
+  - @pnpm/core@7.8.0
+  - @pnpm/config@16.6.0
+  - @pnpm/plugin-commands-rebuild@7.0.32
+  - @pnpm/outdated@11.0.17
+  - @pnpm/pnpmfile@4.0.30
+  - @pnpm/cli-utils@1.0.32
+  - @pnpm/store-connection-manager@5.2.10
+  - @pnpm/package-store@15.1.6
+  - @pnpm/find-workspace-packages@5.0.32
+  - @pnpm/filter-workspace-packages@6.0.32
+
 ## 11.4.3
 
 ### Patch Changes

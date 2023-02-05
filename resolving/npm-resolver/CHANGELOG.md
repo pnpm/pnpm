@@ -1,5 +1,15 @@
 # @pnpm/npm-resolver
 
+## 15.0.7
+
+### Patch Changes
+
+- 74b535f19: Deduplicate direct dependencies.
+
+  Let's say there are two projects in the workspace that dependend on `foo`. One project has `foo@1.0.0` in the dependencies while another one has `foo@^1.0.0` in the dependencies. In this case, `foo@1.0.0` should be installed to both projects as satisfies the version specs of both projects.
+
+- 65563ae09: Return the lowest version when `pickLowestVersion` is `true` and the only versions in the metadata are prerelease versions.
+
 ## 15.0.6
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-listing
 
+## 6.0.32
+
+### Patch Changes
+
+- 19e823bea: Show correct path info for dependenciesHierarchy tree
+- Updated dependencies [59ee53678]
+- Updated dependencies [19e823bea]
+  - @pnpm/config@16.6.0
+  - @pnpm/list@8.1.2
+  - @pnpm/cli-utils@1.0.32
+
 ## 6.0.31
 
 ### Patch Changes

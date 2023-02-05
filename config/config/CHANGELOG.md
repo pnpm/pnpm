@@ -1,5 +1,15 @@
 # @pnpm/config
 
+## 16.6.0
+
+### Minor Changes
+
+- 59ee53678: A new `resolution-mode` added: `lowest-direct`. With this resolution mode direct dependencies will be resolved to their lowest versions. So if there is `foo@^1.1.0` in the dependencies, then `1.1.0` will be installed, even if the latest version of `foo` is `1.2.0`.
+
+### Patch Changes
+
+- @pnpm/pnpmfile@4.0.30
+
 ## 16.5.5
 
 ### Patch Changes

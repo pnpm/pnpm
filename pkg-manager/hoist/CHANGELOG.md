@@ -1,5 +1,14 @@
 # @pnpm/hoist
 
+## 7.0.14
+
+### Patch Changes
+
+- Updated dependencies [d89d7a078]
+  - @pnpm/dependency-path@1.1.3
+  - @pnpm/lockfile-utils@5.0.6
+  - @pnpm/lockfile-walker@6.0.8
+
 ## 7.0.13
 
 ### Patch Changes

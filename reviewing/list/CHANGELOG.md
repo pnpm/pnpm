@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 8.1.2
+
+### Patch Changes
+
+- 19e823bea: Show correct path info for dependenciesHierarchy tree
+- Updated dependencies [19e823bea]
+  - @pnpm/reviewing.dependencies-hierarchy@1.2.2
+
 ## 8.1.1
 
 ### Patch Changes

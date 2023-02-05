@@ -1,5 +1,12 @@
 # @pnpm/package-requester
 
+## 20.1.5
+
+### Patch Changes
+
+- Updated dependencies [d89d7a078]
+  - @pnpm/dependency-path@1.1.3
+
 ## 20.1.4
 
 ### Patch Changes

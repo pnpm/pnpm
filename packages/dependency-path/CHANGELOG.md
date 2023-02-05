@@ -1,5 +1,11 @@
 # @pnpm/dependency-path
 
+## 1.1.3
+
+### Patch Changes
+
+- d89d7a078: `parse()` should not fail on dependency path pointing to a local dependency.
+
 ## 1.1.2
 
 ### Patch Changes
