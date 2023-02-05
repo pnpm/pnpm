@@ -12,13 +12,13 @@ importers:
     dependencies:
       '@scope/b':
         specifier: workspace:*
-        version: link:packages/b
+        version: link:../b
 
   packages/b:
     dependencies:
       '@scope/c':
         specifier: workspace:*
-        version: link:packages/c
+        version: link:../c
       is-positive:
         specifier: 1.0.0
         version: 1.0.0
