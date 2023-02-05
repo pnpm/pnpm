@@ -590,6 +590,7 @@ test('readPackage hook is used during removal inside a workspace', async () => {
     },
   ])
 
+  await fs.writeFile('.npmrc', 'auto-install-peers=false', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
   await fs.writeFile('.pnpmfile.cjs', `
     'use strict'
