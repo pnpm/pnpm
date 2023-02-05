@@ -178,7 +178,7 @@ const defaults = async (opts: InstallOptions) => {
     pruneStore: false,
     rawConfig: {},
     registries: DEFAULT_REGISTRIES,
-    resolutionMode: 'lowest-direct',
+    resolutionMode: 'highest',
     saveWorkspaceProtocol: 'rolling',
     lockfileIncludeTarballUrl: false,
     scriptsPrependNodePath: false,
