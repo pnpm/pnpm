@@ -13,6 +13,9 @@
       "path": "../../lockfile/lockfile-file"
     },
     {
+      "path": "../../lockfile/split-lockfile"
+    },
+    {
       "path": "../../packages/constants"
     },
     {

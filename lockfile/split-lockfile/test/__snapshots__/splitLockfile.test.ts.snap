@@ -1,0 +1,222 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`splitLockfile() should add info in root lockfile: packages/root 1`] = `
+{
+  "importers": {
+    ".": {
+      "dependencies": undefined,
+      "devDependencies": undefined,
+      "optionalDependencies": undefined,
+      "specifiers": {},
+    },
+  },
+  "lockfileVersion": "6.0",
+  "overrides": {
+    "@babel/core": "7.20.0",
+  },
+}
+`;
+
+exports[`splitLockfile() should works for v5.4: packages/a 1`] = `
+{
+  "importers": {
+    ".": {
+      "dependencies": {
+        "is-positive": "1.0.0",
+      },
+      "specifiers": {
+        "is-positive": "1.0.0",
+      },
+    },
+  },
+  "lockfileVersion": 5.4,
+  "packages": {
+    "/is-positive/1.0.0": {
+      "dev": false,
+      "engines": {
+        "node": ">=0.10.0",
+      },
+      "resolution": {
+        "integrity": "sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==",
+      },
+    },
+  },
+}
+`;
+
+exports[`splitLockfile() should works for v5.4: packages/b 1`] = `
+{
+  "importers": {
+    ".": {
+      "dependencies": {
+        "@t/a": "link:../a",
+        "is-positive": "1.0.0",
+      },
+      "devDependencies": {
+        "is-negative": "1.0.0",
+      },
+      "specifiers": {
+        "@t/a": "workspace:*",
+        "is-negative": "1.0.0",
+        "is-positive": "1.0.0",
+      },
+    },
+  },
+  "lockfileVersion": 5.4,
+  "packages": {
+    "/is-negative/1.0.0": {
+      "dev": true,
+      "engines": {
+        "node": ">=0.10.0",
+      },
+      "resolution": {
+        "integrity": "sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==",
+      },
+    },
+  },
+}
+`;
+
+exports[`splitLockfile() should works for v5.4: packages/c 1`] = `
+{
+  "importers": {
+    ".": {
+      "dependencies": {
+        "is-negative": "1.0.1",
+      },
+      "specifiers": {
+        "is-negative": "1.0.1",
+      },
+    },
+  },
+  "lockfileVersion": 5.4,
+  "packages": {
+    "/is-negative/1.0.1": {
+      "dev": false,
+      "engines": {
+        "node": ">=0.10.0",
+      },
+      "resolution": {
+        "integrity": "sha512-gmv+xZIqPGWfqTf195S+I8tw4h/VswI30Eu21e1r8qUVNHIiVdAVtpzoZBGQqrTNC+YjSwCNl33SXU7kuNwMzA==",
+      },
+    },
+  },
+}
+`;
+
+exports[`splitLockfile() should works for v5.4: packages/root 1`] = `
+{
+  "importers": {
+    ".": {
+      "specifiers": {},
+    },
+  },
+  "lockfileVersion": 5.4,
+}
+`;
+
+exports[`splitLockfile() should works for v6: packages/a 1`] = `
+{
+  "importers": {
+    ".": {
+      "dependencies": {
+        "is-positive": "1.0.0",
+      },
+      "devDependencies": undefined,
+      "optionalDependencies": undefined,
+      "specifiers": {
+        "is-positive": "1.0.0",
+      },
+    },
+  },
+  "lockfileVersion": "6.0",
+  "packages": {
+    "/is-positive/1.0.0": {
+      "dev": false,
+      "engines": {
+        "node": ">=0.10.0",
+      },
+      "resolution": {
+        "integrity": "sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==",
+      },
+    },
+  },
+}
+`;
+
+exports[`splitLockfile() should works for v6: packages/b 1`] = `
+{
+  "importers": {
+    ".": {
+      "dependencies": {
+        "@t/a": "link:../a",
+        "is-positive": "1.0.0",
+      },
+      "devDependencies": {
+        "is-negative": "1.0.0",
+      },
+      "optionalDependencies": undefined,
+      "specifiers": {
+        "@t/a": "workspace:*",
+        "is-negative": "1.0.0",
+        "is-positive": "1.0.0",
+      },
+    },
+  },
+  "lockfileVersion": "6.0",
+  "packages": {
+    "/is-negative/1.0.0": {
+      "dev": true,
+      "engines": {
+        "node": ">=0.10.0",
+      },
+      "resolution": {
+        "integrity": "sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==",
+      },
+    },
+  },
+}
+`;
+
+exports[`splitLockfile() should works for v6: packages/c 1`] = `
+{
+  "importers": {
+    ".": {
+      "dependencies": {
+        "is-negative": "1.0.1",
+      },
+      "devDependencies": undefined,
+      "optionalDependencies": undefined,
+      "specifiers": {
+        "is-negative": "1.0.1",
+      },
+    },
+  },
+  "lockfileVersion": "6.0",
+  "packages": {
+    "/is-negative/1.0.1": {
+      "dev": false,
+      "engines": {
+        "node": ">=0.10.0",
+      },
+      "resolution": {
+        "integrity": "sha512-gmv+xZIqPGWfqTf195S+I8tw4h/VswI30Eu21e1r8qUVNHIiVdAVtpzoZBGQqrTNC+YjSwCNl33SXU7kuNwMzA==",
+      },
+    },
+  },
+}
+`;
+
+exports[`splitLockfile() should works for v6: packages/root 1`] = `
+{
+  "importers": {
+    ".": {
+      "dependencies": undefined,
+      "devDependencies": undefined,
+      "optionalDependencies": undefined,
+      "specifiers": {},
+    },
+  },
+  "lockfileVersion": "6.0",
+}
+`;

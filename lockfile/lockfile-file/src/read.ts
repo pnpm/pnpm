@@ -136,7 +136,7 @@ async function _read (
 export function createLockfileObject (
   importerIds: string[],
   opts: {
-    lockfileVersion: number | string
+    lockfileVersion?: number | string
   }
 ) {
   const importers = importerIds.reduce((acc, importerId) => {
@@ -148,7 +148,7 @@ export function createLockfileObject (
   }, {} as Lockfile['importers'])
   return {
     importers,
-    lockfileVersion: opts.lockfileVersion || LOCKFILE_VERSION,
+    lockfileVersion: opts.lockfileVersion ?? LOCKFILE_VERSION,
   }
 }
 
