@@ -1201,7 +1201,7 @@ test('tarball installed through non-standard URL endpoint from the registry doma
   })
 })
 
-// TODO: fix merge conflicts with the new lockfile format
+// TODO: fix merge conflicts with the new lockfile format (TODOv8)
 test.skip('a lockfile with merge conflicts is autofixed', async () => {
   const project = prepareEmpty()
 
