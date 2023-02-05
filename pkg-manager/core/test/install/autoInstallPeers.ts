@@ -175,7 +175,7 @@ test('automatically install root peer dependencies', async () => {
     peerDependencies: {
       'is-positive': '^1.0.0',
     },
-  }, await testDefaults({ autoInstallPeers: true }))
+  }, await testDefaults({ autoInstallPeers: true, resolutionMode: 'lowest-direct' }))
 
   await project.has('is-positive')
   await project.has('is-negative')
@@ -203,7 +203,7 @@ test('automatically install root peer dependencies', async () => {
   await project.has('is-negative')
 
   // The auto installed peer is not removed when a new dependency is added
-  manifest = await addDependenciesToPackage(manifest, ['is-odd@1.0.0'], await testDefaults({ autoInstallPeers: true }))
+  manifest = await addDependenciesToPackage(manifest, ['is-odd@1.0.0'], await testDefaults({ autoInstallPeers: true, resolutionMode: 'lowest-direct' }))
   await project.has('is-odd')
   await project.has('is-positive')
   await project.has('is-negative')
@@ -232,7 +232,7 @@ test('automatically install root peer dependencies', async () => {
     manifest,
     mutation: 'uninstallSome',
     rootDir: process.cwd(),
-  }, await testDefaults({ autoInstallPeers: true }))
+  }, await testDefaults({ autoInstallPeers: true, resolutionMode: 'lowest-direct' }))
   await project.hasNot('is-odd')
   await project.has('is-positive')
   await project.has('is-negative')

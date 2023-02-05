@@ -97,7 +97,7 @@ test("don't update package when unlinking", async () => {
 test(`don't update package when unlinking. Initial link is done on a package w/o ${WANTED_LOCKFILE}`, async () => {
   const project = prepareEmpty()
 
-  const opts = await testDefaults({ dir: process.cwd() })
+  const opts = await testDefaults({ dir: process.cwd(), resolutionMode: 'lowest-direct' })
   process.chdir('..')
 
   await writeJsonFile('foo/package.json', {
