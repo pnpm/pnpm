@@ -1,5 +1,11 @@
 # @pnpm/hooks.read-package-hook
 
+## 2.0.12
+
+### Patch Changes
+
+- 308eb2c9b: Use Map rather than Object in `createPackageExtender` to prevent read the prototype property to native function
+
 ## 2.0.11
 
 ### Patch Changes

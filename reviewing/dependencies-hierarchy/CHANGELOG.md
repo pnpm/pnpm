@@ -1,5 +1,15 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1.2.2
+
+### Patch Changes
+
+- 19e823bea: Show correct path info for dependenciesHierarchy tree
+- Updated dependencies [d89d7a078]
+  - @pnpm/dependency-path@1.1.3
+  - @pnpm/lockfile-file@7.0.4
+  - @pnpm/lockfile-utils@5.0.6
+
 ## 1.2.1
 
 ### Patch Changes

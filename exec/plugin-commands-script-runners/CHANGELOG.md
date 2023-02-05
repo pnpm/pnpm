@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-script-runners
 
+## 6.4.0
+
+### Minor Changes
+
+- 9ac694044: Support script selector with RegExp such as `pnpm run /build:.*/` and execute the matched scripts with the RegExp [#5871](https://github.com/pnpm/pnpm/pull/5871).
+
+### Patch Changes
+
+- Updated dependencies [308eb2c9b]
+- Updated dependencies [59ee53678]
+  - @pnpm/plugin-commands-installation@11.4.4
+  - @pnpm/config@16.6.0
+  - @pnpm/cli-utils@1.0.32
+
 ## 6.3.11
 
 ### Patch Changes

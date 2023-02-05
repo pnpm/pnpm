@@ -1,5 +1,12 @@
 # @pnpm/lockfile-file
 
+## 7.0.4
+
+### Patch Changes
+
+- Updated dependencies [d89d7a078]
+  - @pnpm/dependency-path@1.1.3
+
 ## 7.0.3
 
 ### Patch Changes

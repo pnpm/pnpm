@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-audit
 
+## 7.2.5
+
+### Patch Changes
+
+- 93d34632f: Fix AUDIT_TABLE_OPTIONS not to overwrite TABLE_OPTIONS, which prevents breaking other table outputs such like `pnpm outdated` [#6017](https://github.com/pnpm/pnpm/issues/6017).
+- Updated dependencies [59ee53678]
+  - @pnpm/config@16.6.0
+  - @pnpm/lockfile-file@7.0.4
+  - @pnpm/cli-utils@1.0.32
+  - @pnpm/audit@6.1.3
+
 ## 7.2.4
 
 ### Patch Changes

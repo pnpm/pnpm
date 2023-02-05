@@ -1,5 +1,21 @@
 # @pnpm/resolve-dependencies
 
+## 29.3.0
+
+### Minor Changes
+
+- 59ee53678: A new `resolution-mode` added: `lowest-direct`. With this resolution mode direct dependencies will be resolved to their lowest versions. So if there is `foo@^1.1.0` in the dependencies, then `1.1.0` will be installed, even if the latest version of `foo` is `1.2.0`.
+
+### Patch Changes
+
+- Updated dependencies [d89d7a078]
+- Updated dependencies [74b535f19]
+- Updated dependencies [65563ae09]
+  - @pnpm/dependency-path@1.1.3
+  - @pnpm/npm-resolver@15.0.7
+  - @pnpm/lockfile-utils@5.0.6
+  - @pnpm/prune-lockfile@4.0.24
+
 ## 29.2.5
 
 ### Patch Changes

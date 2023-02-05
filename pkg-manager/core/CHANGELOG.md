@@ -1,5 +1,36 @@
 # @pnpm/core
 
+## 7.8.0
+
+### Minor Changes
+
+- 59ee53678: A new `resolution-mode` added: `lowest-direct`. With this resolution mode direct dependencies will be resolved to their lowest versions. So if there is `foo@^1.1.0` in the dependencies, then `1.1.0` will be installed, even if the latest version of `foo` is `1.2.0`.
+
+### Patch Changes
+
+- 74b535f19: Deduplicate direct dependencies.
+
+  Let's say there are two projects in the workspace that dependend on `foo`. One project has `foo@1.0.0` in the dependencies while another one has `foo@^1.0.0` in the dependencies. In this case, `foo@1.0.0` should be installed to both projects as satisfies the version specs of both projects.
+
+- 308eb2c9b: Use Map rather than Object in `createPackageExtender` to prevent read the prototype property to native function
+- Updated dependencies [d89d7a078]
+- Updated dependencies [308eb2c9b]
+- Updated dependencies [59ee53678]
+  - @pnpm/dependency-path@1.1.3
+  - @pnpm/hooks.read-package-hook@2.0.12
+  - @pnpm/resolve-dependencies@29.3.0
+  - @pnpm/filter-lockfile@7.0.9
+  - @pnpm/lockfile-file@7.0.4
+  - @pnpm/lockfile-to-pnp@2.0.11
+  - @pnpm/lockfile-utils@5.0.6
+  - @pnpm/lockfile-walker@6.0.8
+  - @pnpm/prune-lockfile@4.0.24
+  - @pnpm/headless@19.4.11
+  - @pnpm/hoist@7.0.14
+  - @pnpm/modules-cleaner@13.0.11
+  - @pnpm/package-requester@20.1.5
+  - @pnpm/get-context@8.2.2
+
 ## 7.7.3
 
 ### Patch Changes
