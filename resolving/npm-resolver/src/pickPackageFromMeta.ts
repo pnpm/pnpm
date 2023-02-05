@@ -62,6 +62,9 @@ export function pickLowestVersionByVersionRange (
   meta: PackageMeta,
   versionRange: string
 ) {
+  if (versionRange === '*') {
+    return Object.keys(meta.versions).sort(semver.compare)[0]
+  }
   return semver.minSatisfying(Object.keys(meta.versions), versionRange, true)
 }
 
