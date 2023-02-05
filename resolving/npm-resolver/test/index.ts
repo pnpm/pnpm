@@ -1794,3 +1794,36 @@ test('resolveFromNpm() should normalize the registry', async () => {
   expect(resolveResult!.manifest!.name).toBe('is-positive')
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
 })
+
+test('pick lowest version by * when there are only prerelease versions', async () => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      versions: {
+        '1.0.0-alpha.1': {
+          name: 'is-positive',
+          version: '1.0.0-alpha.1',
+          dist: {
+            tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0-alpha.1.tgz',
+          },
+        },
+      },
+      'dist-tags': {
+        latest: '1.0.0-alpha.1',
+      },
+    })
+
+  const cacheDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    cacheDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', pref: '*' }, {
+    pickLowestVersion: true,
+    registry,
+  })
+
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive/1.0.0-alpha.1')
+  expect(resolveResult!.manifest!.name).toBe('is-positive')
+  expect(resolveResult!.manifest!.version).toBe('1.0.0-alpha.1')
+})
