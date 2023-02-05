@@ -1,8 +1,8 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { findWorkspacePackages } from '@pnpm/find-workspace-packages'
-import { Lockfile } from '@pnpm/lockfile-types'
+import { LockfileV6 as Lockfile } from '@pnpm/lockfile-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
   prepare,
@@ -143,8 +143,8 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
 
   const { default: pkg } = await import(path.resolve('package.json'))
 
-  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^2.0.0' }) // spec of linked package added to dependencies
-  expect(pkg?.devDependencies).toStrictEqual({ 'project-3': 'workspace:^3.0.0' }) // spec of linked package added to devDependencies
+  expect(pkg?.dependencies).toStrictEqual({ 'project-2': 'workspace:^' }) // spec of linked package added to dependencies
+  expect(pkg?.devDependencies).toStrictEqual({ 'project-3': 'workspace:^' }) // spec of linked package added to devDependencies
   expect(pkg?.optionalDependencies).toStrictEqual({ 'project-4': '^4.0.0' }) // spec of linked package added to optionalDependencies
 
   await projects['project-1'].has('project-2')
@@ -257,9 +257,9 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
 
   {
     const lockfile = await projects['project-1'].readLockfile()
-    expect(lockfile.dependencies['project-2']).toBe('link:../project-2')
-    expect(lockfile.devDependencies['is-negative']).toBe('link:../is-negative')
-    expect(lockfile.optionalDependencies['is-positive']).toBe('link:../is-positive')
+    expect(lockfile.dependencies['project-2'].version).toBe('link:../project-2')
+    expect(lockfile.devDependencies['is-negative'].version).toBe('link:../is-negative')
+    expect(lockfile.optionalDependencies['is-positive'].version).toBe('link:../is-positive')
   }
 
   await projects['is-positive'].writePackageJson({
@@ -271,14 +271,14 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
 
   {
     const lockfile = await projects['project-1'].readLockfile()
-    expect(lockfile.optionalDependencies['is-positive']).toBe('1.0.0') // is-positive is unlinked and installed from registry
+    expect(lockfile.optionalDependencies['is-positive'].version).toBe('1.0.0') // is-positive is unlinked and installed from registry
   }
 
   await execPnpm(['update', 'is-negative@2.0.0'])
 
   {
     const lockfile = await projects['project-1'].readLockfile()
-    expect(lockfile.devDependencies['is-negative']).toBe('2.0.0')
+    expect(lockfile.devDependencies['is-negative'].version).toBe('2.0.0')
   }
 })
 
@@ -591,16 +591,16 @@ test('installation with --link-workspace-packages links packages even if they we
 
   {
     const lockfile = await projects.project.readLockfile()
-    expect(lockfile.dependencies['is-positive']).toBe('2.0.0')
-    expect(lockfile.dependencies.negative).toBe('/is-negative/1.0.0')
+    expect(lockfile.dependencies['is-positive'].version).toBe('2.0.0')
+    expect(lockfile.dependencies.negative.version).toBe('/is-negative@1.0.0')
   }
 
   await execPnpm(['recursive', 'install', '--link-workspace-packages'])
 
   {
     const lockfile = await projects.project.readLockfile()
-    expect(lockfile.dependencies['is-positive']).toBe('link:../is-positive')
-    expect(lockfile.dependencies.negative).toBe('link:../is-negative')
+    expect(lockfile.dependencies['is-positive'].version).toBe('link:../is-positive')
+    expect(lockfile.dependencies.negative.version).toBe('link:../is-negative')
   }
 })
 
@@ -632,8 +632,8 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
 
   {
     const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-    expect(lockfile.importers.project!.dependencies!['is-positive']).toBe('2.0.0')
-    expect(lockfile.importers.project!.dependencies!.negative).toBe('/is-negative/1.0.0')
+    expect(lockfile.importers.project!.dependencies!['is-positive'].version).toBe('2.0.0')
+    expect(lockfile.importers.project!.dependencies!.negative.version).toBe('/is-negative@1.0.0')
   }
 
   await projects['is-positive'].writePackageJson({
@@ -650,8 +650,8 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
 
   {
     const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-    expect(lockfile.importers.project!.dependencies!['is-positive']).toBe('link:../is-positive')
-    expect(lockfile.importers.project!.dependencies!.negative).toBe('link:../is-negative')
+    expect(lockfile.importers.project!.dependencies!['is-positive'].version).toBe('link:../is-positive')
+    expect(lockfile.importers.project!.dependencies!.negative.version).toBe('link:../is-negative')
   }
 })
 
@@ -708,7 +708,7 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   expect(projects['project-1'].requireModule('is-positive/package.json').author).toBeFalsy()
 
   const sharedLockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  expect(sharedLockfile.importers['project-1']!.devDependencies!['is-positive']).toBe('link:../is-positive')
+  expect(sharedLockfile.importers['project-1']!.devDependencies!['is-positive'].version).toBe('link:../is-positive')
 
   const { default: outputs } = await import(path.resolve('output.json'))
   expect(outputs).toStrictEqual(['is-positive', 'project-1'])
@@ -870,7 +870,7 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
   await execPnpm(['recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store'])
 
   const lockfile = await readYamlFile<Lockfile>(`./${WANTED_LOCKFILE}`)
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   await execPnpm(['recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store', '--filter', 'project-1'])
 
@@ -902,7 +902,7 @@ test('local packages should be preferred when running "pnpm install" inside a wo
 
   const lockfile = await projects['project-1'].readLockfile()
 
-  expect(lockfile?.dependencies?.['is-positive']).toBe('link:../is-positive')
+  expect(lockfile?.dependencies?.['is-positive'].version).toBe('link:../is-positive')
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1437
@@ -969,18 +969,20 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
     importers: {
       'package-1': {
         dependencies: {
-          'is-positive': '1.0.0',
-          'package-2': 'link:../package-2',
-        },
-        specifiers: {
-          'is-positive': '1.0.0',
-          'package-2': '1.0.0',
+          'is-positive': {
+            specifier: '1.0.0',
+            version: '1.0.0',
+          },
+          'package-2': {
+            specifier: '1.0.0',
+            version: 'link:../package-2',
+          },
         },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-positive/1.0.0': {
+      '/is-positive@1.0.0': {
         dev: false,
         engines: {
           node: '>=0.10.0',
@@ -1046,36 +1048,40 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
     importers: {
       '.': {
         dependencies: {
-          'package-1': 'link:../package-1',
-          'package-2': 'link:../package-2',
-        },
-        specifiers: {
-          'package-1': '1.0.0',
-          'package-2': '1.0.0',
+          'package-1': {
+            specifier: '1.0.0',
+            version: 'link:../package-1',
+          },
+          'package-2': {
+            specifier: '1.0.0',
+            version: 'link:../package-2',
+          },
         },
       },
       '../package-1': {
         dependencies: {
-          'is-positive': '1.0.0',
-          'package-2': 'link:../package-2',
-        },
-        specifiers: {
-          'is-positive': '1.0.0',
-          'package-2': '1.0.0',
+          'is-positive': {
+            specifier: '1.0.0',
+            version: '1.0.0',
+          },
+          'package-2': {
+            specifier: '1.0.0',
+            version: 'link:../package-2',
+          },
         },
       },
       '../package-2': {
         dependencies: {
-          'is-negative': '1.0.0',
-        },
-        specifiers: {
-          'is-negative': '1.0.0',
+          'is-negative': {
+            specifier: '1.0.0',
+            version: '1.0.0',
+          },
         },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-negative/1.0.0': {
+      '/is-negative@1.0.0': {
         dev: false,
         engines: {
           node: '>=0.10.0',
@@ -1084,7 +1090,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
           integrity: 'sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==',
         },
       },
-      '/is-positive/1.0.0': {
+      '/is-positive@1.0.0': {
         dev: false,
         engines: {
           node: '>=0.10.0',
@@ -1197,7 +1203,7 @@ test('shared-workspace-lockfile: removing a package recursively', async () => {
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
-  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/is-negative/1.0.0']) // is-positive removed from ${WANTED_LOCKFILE}
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/is-negative@1.0.0']) // is-positive removed from ${WANTED_LOCKFILE}
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1506
@@ -1218,7 +1224,9 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true\nlink-workspace-packages = true', 'utf8')
+  await fs.writeFile('.npmrc', `shared-workspace-lockfile = true
+link-workspace-packages = true
+auto-install-peers=false`, 'utf8')
 
   process.chdir('foo')
 
@@ -1228,14 +1236,18 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
     expect(lockfile.importers.foo).toStrictEqual({
       dependencies: {
-        ajv: '4.10.4',
-        'ajv-keywords': '1.5.0_ajv@4.10.4',
-        bar: 'link:../bar',
-      },
-      specifiers: {
-        ajv: '4.10.4',
-        'ajv-keywords': '1.5.0',
-        bar: 'workspace:1.0.0',
+        ajv: {
+          specifier: '4.10.4',
+          version: '4.10.4',
+        },
+        'ajv-keywords': {
+          specifier: '1.5.0',
+          version: '1.5.0(ajv@4.10.4)',
+        },
+        bar: {
+          specifier: 'workspace:1.0.0',
+          version: 'link:../bar',
+        },
       },
     })
   }
@@ -1246,12 +1258,14 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
     expect(lockfile.importers.foo).toStrictEqual({
       dependencies: {
-        'ajv-keywords': '1.5.0',
-        bar: 'link:../bar',
-      },
-      specifiers: {
-        'ajv-keywords': '1.5.0',
-        bar: 'workspace:1.0.0',
+        'ajv-keywords': {
+          specifier: '1.5.0',
+          version: '1.5.0',
+        },
+        bar: {
+          specifier: 'workspace:1.0.0',
+          version: 'link:../bar',
+        },
       },
     })
   }
@@ -1746,5 +1760,5 @@ test('peer dependencies are resolved from the root of the workspace when a new d
   await execPnpm(['add', 'ajv-keywords@1.5.0', '--strict-peer-dependencies', '--config.resolve-peers-from-workspace-root=true'])
 
   const lockfile = await projects['project-1'].readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/ajv-keywords/1.5.0_ajv@4.10.4'])
+  expect(lockfile.packages).toHaveProperty(['/ajv-keywords@1.5.0(ajv@4.10.4)'])
 })

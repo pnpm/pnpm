@@ -1,5 +1,5 @@
 import path from 'path'
-import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { install, unlink } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
@@ -42,7 +42,7 @@ test('recursive linking/unlinking', async () => {
 
   {
     const project1Lockfile = await projects['project-1'].readLockfile()
-    expect(project1Lockfile.devDependencies['is-positive']).toBe('link:../is-positive')
+    expect(project1Lockfile.devDependencies['is-positive'].version).toBe('link:../is-positive')
   }
 
   await unlink.handler({
@@ -61,8 +61,8 @@ test('recursive linking/unlinking', async () => {
   {
     const project1Lockfile = await projects['project-1'].readLockfile()
     expect(project1Lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
-    expect(project1Lockfile.devDependencies['is-positive']).toBe('1.0.0')
-    expect(project1Lockfile.packages['/is-positive/1.0.0']).toBeTruthy()
+    expect(project1Lockfile.devDependencies['is-positive'].version).toBe('1.0.0')
+    expect(project1Lockfile.packages['/is-positive@1.0.0']).toBeTruthy()
   }
 
   const isPositiveLockfile = await projects['is-positive'].readLockfile()
@@ -105,7 +105,7 @@ test('recursive unlink specific package', async () => {
 
   {
     const project1Lockfile = await projects['project-1'].readLockfile()
-    expect(project1Lockfile.devDependencies['is-positive']).toBe('link:../is-positive')
+    expect(project1Lockfile.devDependencies['is-positive'].version).toBe('link:../is-positive')
   }
 
   await unlink.handler({
@@ -124,8 +124,8 @@ test('recursive unlink specific package', async () => {
   {
     const project1Lockfile = await projects['project-1'].readLockfile()
     expect(project1Lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
-    expect(project1Lockfile.devDependencies['is-positive']).toBe('1.0.0')
-    expect(project1Lockfile.packages['/is-positive/1.0.0']).toBeTruthy()
+    expect(project1Lockfile.devDependencies['is-positive'].version).toBe('1.0.0')
+    expect(project1Lockfile.packages['/is-positive@1.0.0']).toBeTruthy()
   }
 
   const isPositiveLockfile = await projects['is-positive'].readLockfile()

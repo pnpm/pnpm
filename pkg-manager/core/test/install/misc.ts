@@ -1,6 +1,6 @@
 import * as path from 'path'
 import { promises as fs } from 'fs'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { PnpmError } from '@pnpm/error'
 import {
   PackageManifestLog,
@@ -9,7 +9,7 @@ import {
   StageLog,
   StatsLog,
 } from '@pnpm/core-loggers'
-import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
 import { ProjectManifest } from '@pnpm/types'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -46,7 +46,7 @@ test('spec not specified in package.json.dependencies', async () => {
   }, await testDefaults())
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.specifiers['is-positive']).toBe('')
+  expect(lockfile.dependencies['is-positive'].specifier).toBe('')
 })
 
 test('ignoring some files in the dependency', async () => {
@@ -507,7 +507,7 @@ test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async () => {
 
   const lockfile = await project.readLockfile()
   expect(
-    lockfile.packages['/@pnpm.e2e/pkg-with-bundled-dependencies/1.0.0'].bundledDependencies
+    lockfile.packages['/@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0'].bundledDependencies
   ).toStrictEqual(
     ['@pnpm.e2e/hello-world-js-bin']
   )
@@ -522,7 +522,7 @@ test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async () => {
 
   const lockfile = await project.readLockfile()
   expect(
-    lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies/1.0.0'].bundledDependencies
+    lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0'].bundledDependencies
   ).toStrictEqual(
     ['@pnpm.e2e/hello-world-js-bin']
   )
@@ -535,7 +535,7 @@ test('installing a package with bundleDependencies set to false (pkg-with-bundle
 
   const lockfile = await project.readLockfile()
   expect(
-    typeof lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies-false/1.0.0'].bundledDependencies
+    typeof lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies-false@1.0.0'].bundledDependencies
   ).toEqual('undefined')
 })
 
@@ -583,7 +583,7 @@ testOnNonWindows('building native addons', async () => {
   expect(await exists('node_modules/diskusage/build')).toBeTruthy()
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages).toHaveProperty(['/diskusage/1.1.3', 'requiresBuild'], true)
+  expect(lockfile.packages).toHaveProperty(['/diskusage@1.1.3', 'requiresBuild'], true)
 })
 
 test('should update subdep on second install', async () => {
@@ -597,7 +597,7 @@ test('should update subdep on second install', async () => {
 
   let lockfile = await project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
@@ -616,8 +616,8 @@ test('should update subdep on second install', async () => {
 
   lockfile = await project.readLockfile()
 
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   expect(deepRequireCwd(['@pnpm.e2e/pkg-with-1-dep', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json']).version).toEqual('100.1.0')
 })
@@ -633,7 +633,7 @@ test('should not update subdep when depth is smaller than depth of package', asy
 
   let lockfile = await project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
@@ -643,8 +643,8 @@ test('should not update subdep when depth is smaller than depth of package', asy
 
   lockfile = await project.readLockfile()
 
-  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0'])
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   expect(deepRequireCwd(['@pnpm.e2e/pkg-with-1-dep', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json']).version).toEqual('100.0.0')
 })
@@ -715,6 +715,7 @@ test('lockfile locks npm dependencies', async () => {
   const project = prepareEmpty()
   const reporter = sinon.spy()
 
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ save: true, reporter }))
@@ -815,7 +816,7 @@ test('should throw error when trying to install a package without name', async (
 
 // Covers https://github.com/pnpm/pnpm/issues/1193
 test('rewrites node_modules created by npm', async () => {
-  const project = prepareEmpty()
+  const project = prepare()
 
   await execa('npm', ['install', 'rimraf@2.5.1', '@types/node', '--save'])
 
@@ -938,23 +939,26 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
 
   await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     dependencies: {
-      '@pnpm.e2e/foobarqar': '1.0.1',
+      '@pnpm.e2e/foobarqar': {
+        specifier: '1.0.1',
+        version: '1.0.1',
+      },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@pnpm.e2e/bar/100.0.0': {
+      '/@pnpm.e2e/bar@100.0.0': {
         dev: false,
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/bar', '100.0.0'),
         },
       },
-      '/@pnpm.e2e/foo/100.1.0': {
+      '/@pnpm.e2e/foo@100.1.0': {
         dev: false,
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/foo', '100.1.0'),
         },
       },
-      '/@pnpm.e2e/foobarqar/1.0.1': {
+      '/@pnpm.e2e/foobarqar@1.0.1': {
         dependencies: {
           '@pnpm.e2e/bar': '100.0.0',
           '@pnpm.e2e/foo': '100.1.0',
@@ -965,7 +969,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
           integrity: getIntegrity('@pnpm.e2e/foobarqar', '1.0.1'),
         },
       },
-      '/is-positive/3.1.0': {
+      '/is-positive@3.1.0': {
         dev: false,
         engines: {
           node: '>=0.10.0',
@@ -974,9 +978,6 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
           integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
         },
       },
-    },
-    specifiers: {
-      '@pnpm.e2e/foobarqar': '1.0.1',
     },
   }, { lineWidth: 1000 })
 
@@ -1022,25 +1023,28 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     Object.keys(lockfile.packages)
   ).toStrictEqual(
     [
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0',
-      '/@pnpm.e2e/parent-of-pkg-with-1-dep/1.0.0',
-      '/@pnpm.e2e/pkg-with-1-dep/100.0.0',
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+      '/@pnpm.e2e/parent-of-pkg-with-1-dep@1.0.0',
+      '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
     ]
   )
 
   await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
     dependencies: {
-      '@pnpm.e2e/parent-of-pkg-with-1-dep': '1.0.0',
+      '@pnpm.e2e/parent-of-pkg-with-1-dep': {
+        specifier: '1.0.0',
+        version: '1.0.0',
+      },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0': {
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
         dev: false,
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'),
         },
       },
-      '/@pnpm.e2e/parent-of-pkg-with-1-dep/1.0.0': {
+      '/@pnpm.e2e/parent-of-pkg-with-1-dep@1.0.0': {
         dependencies: {
           '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
         },
@@ -1049,7 +1053,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
           integrity: getIntegrity('@pnpm.e2e/parent-of-pkg-with-1-dep', '1.0.0'),
         },
       },
-      '/@pnpm.e2e/pkg-with-1-dep/100.0.0': {
+      '/@pnpm.e2e/pkg-with-1-dep@100.0.0': {
         dependencies: {
           '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
         },
@@ -1058,9 +1062,6 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
           integrity: getIntegrity('@pnpm.e2e/pkg-with-1-dep', '100.0.0'),
         },
       },
-    },
-    specifiers: {
-      '@pnpm.e2e/parent-of-pkg-with-1-dep': '1.0.0',
     },
   }, { lineWidth: 1000 })
 

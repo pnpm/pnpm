@@ -11,7 +11,7 @@ import {
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import resolveLinkTarget from 'resolve-link-target'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
 import symlinkDir from 'symlink-dir'
 import writeYamlFile from 'write-yaml-file'
@@ -500,10 +500,10 @@ test('hoist when updating in one of the workspace projects', async () => {
     Object.keys(lockfile.packages)
   ).toStrictEqual(
     [
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0',
-      '/@pnpm.e2e/foo/100.0.0',
-      '/@pnpm.e2e/foo/100.1.0',
-      '/@pnpm.e2e/pkg-with-1-dep/100.0.0',
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+      '/@pnpm.e2e/foo@100.0.0',
+      '/@pnpm.e2e/foo@100.1.0',
+      '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
     ]
   )
 
@@ -642,35 +642,33 @@ test('hoist packages which is in the dependencies tree of the selected projects'
    * instead of using is-positive@2.0.0 and does not hoist anything
    */
   await writeYamlFile(WANTED_LOCKFILE, {
-    lockfileVersion: 5.3,
+    lockfileVersion: LOCKFILE_VERSION,
     importers: {
-      '.': {
-        specifiers: {},
-      },
+      '.': {},
       'project-1': {
-        specifiers: {
-          'is-positive': '2.0.0',
-        },
         dependencies: {
-          'is-positive': '2.0.0',
+          'is-positive': {
+            specifier: '2.0.0',
+            version: '2.0.0',
+          },
         },
       },
       'project-2': {
-        specifiers: {
-          'is-positive': '3.0.0',
-        },
         dependencies: {
-          'is-positive': '3.0.0',
+          'is-positive': {
+            specifier: '3.0.0',
+            version: '3.0.0',
+          },
         },
       },
     },
     packages: {
-      '/is-positive/2.0.0': {
+      '/is-positive@2.0.0': {
         resolution: { integrity: 'sha1-sU8GvS24EK5sixJ0HRNr+u8Nh70=' },
         engines: { node: '>=0.10.0' },
         dev: false,
       },
-      '/is-positive/3.0.0': {
+      '/is-positive@3.0.0': {
         resolution: { integrity: 'sha1-jvDuIvfOJPdjP4kIAw7Ei2Ks9KM=' },
         engines: { node: '>=0.10.0' },
         dev: false,
@@ -702,30 +700,28 @@ test('only hoist packages which is in the dependencies tree of the selected proj
   ])
 
   await writeYamlFile(WANTED_LOCKFILE, {
-    lockfileVersion: 5.3,
+    lockfileVersion: LOCKFILE_VERSION,
     importers: {
-      '.': {
-        specifiers: {},
-      },
+      '.': {},
       'project-1': {
-        specifiers: {
-          '@babel/runtime-corejs3': '7.15.3',
-        },
         dependencies: {
-          '@babel/runtime-corejs3': '7.15.3',
+          '@babel/runtime-corejs3': {
+            specifier: '7.15.3',
+            version: '7.15.3',
+          },
         },
       },
       'project-2': {
-        specifiers: {
-          '@babel/runtime-corejs3': '7.15.4',
-        },
         dependencies: {
-          '@babel/runtime-corejs3': '7.15.4',
+          '@babel/runtime-corejs3': {
+            specifier: '7.15.4',
+            version: '7.15.4',
+          },
         },
       },
     },
     packages: {
-      '/@babel/runtime-corejs3/7.15.3': {
+      '/@babel/runtime-corejs3@7.15.3': {
         resolution: { integrity: 'sha512-30A3lP+sRL6ml8uhoJSs+8jwpKzbw8CqBvDc1laeptxPm5FahumJxirigcbD2qTs71Sonvj1cyZB0OKGAmxQ+A==' },
         engines: { node: '>=6.9.0' },
         dependencies: {
@@ -734,7 +730,7 @@ test('only hoist packages which is in the dependencies tree of the selected proj
         },
         dev: false,
       },
-      '/@babel/runtime-corejs3/7.15.4': {
+      '/@babel/runtime-corejs3@7.15.4': {
         resolution: { integrity: 'sha512-lWcAqKeB624/twtTc3w6w/2o9RqJPaNBhPGK6DKLSiwuVWC7WFkypWyNg+CpZoyJH0jVzv1uMtXZ/5/lQOLtCg==' },
         engines: { node: '>=6.9.0' },
         dependencies: {
@@ -743,17 +739,17 @@ test('only hoist packages which is in the dependencies tree of the selected proj
         },
         dev: false,
       },
-      '/core-js-pure/3.17.2': {
+      '/core-js-pure@3.17.2': {
         resolution: { integrity: 'sha512-2VV7DlIbooyTI7Bh+yzOOWL9tGwLnQKHno7qATE+fqZzDKYr6llVjVQOzpD/QLZFgXDPb8T71pJokHEZHEYJhQ==' },
         requiresBuild: true,
         dev: false,
       },
-      '/core-js-pure/3.17.3': {
+      '/core-js-pure@3.17.3': {
         resolution: { integrity: 'sha512-YusrqwiOTTn8058JDa0cv9unbXdIiIgcgI9gXso0ey4WgkFLd3lYlV9rp9n7nDCsYxXsMDTjA4m1h3T348mdlQ==' },
         requiresBuild: true,
         dev: false,
       },
-      '/regenerator-runtime/0.13.9': {
+      '/regenerator-runtime@0.13.9': {
         resolution: { integrity: 'sha512-p3VT+cOEgxFsRRA9X4lkI1E+k2/CtnKtU4gcxyaCUreilL/vqI6CdZ3wxVUx3UOUg+gnUOQQcRI7BmSI656MYA==' },
         dev: false,
       },

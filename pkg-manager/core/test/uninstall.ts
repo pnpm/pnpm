@@ -1,5 +1,5 @@
 import path from 'path'
-import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   PackageManifestLog,
   RootLog,
@@ -161,10 +161,10 @@ test('uninstall package with dependencies and do not touch other deps', async ()
 
   const lockfile = await project.readLockfile()
   expect(lockfile.dependencies).toStrictEqual({
-    'is-negative': '2.1.0',
-  })
-  expect(lockfile.specifiers).toStrictEqual({
-    'is-negative': '2.1.0',
+    'is-negative': {
+      specifier: '2.1.0',
+      version: '2.1.0',
+    },
   })
 })
 
@@ -318,21 +318,19 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
 
   expect(lockfile).toStrictEqual({
     importers: {
-      'project-1': {
-        specifiers: {},
-      },
+      'project-1': {},
       'project-2': {
         dependencies: {
-          'is-negative': '1.0.0',
-        },
-        specifiers: {
-          'is-negative': '1.0.0',
+          'is-negative': {
+            specifier: '1.0.0',
+            version: '1.0.0',
+          },
         },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-negative/1.0.0': {
+      '/is-negative@1.0.0': {
         dev: false,
         engines: {
           node: '>=0.10.0',

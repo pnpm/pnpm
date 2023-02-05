@@ -176,10 +176,10 @@ test('recursive installation of packages with hooks', async () => {
   await execPnpm(['recursive', 'install'])
 
   const lockfile1 = await projects['project-1'].readLockfile()
-  expect(lockfile1.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile1.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   const lockfile2 = await projects['project-2'].readLockfile()
-  expect(lockfile2.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile2.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
 test('recursive installation of packages in workspace ignores hooks in packages', async () => {
@@ -233,8 +233,8 @@ test('recursive installation of packages in workspace ignores hooks in packages'
   await execPnpm(['recursive', 'install'])
 
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
-  expect(lockfile.packages).toHaveProperty(['/is-number/1.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(lockfile.packages).toHaveProperty(['/is-number@1.0.0'])
   /* eslint-enable @typescript-eslint/no-unnecessary-type-assertion */
 })
 
@@ -279,10 +279,10 @@ test('ignores .pnpmfile.cjs during recursive installation when --ignore-pnpmfile
   await execPnpm(['recursive', 'install', '--ignore-pnpmfile'])
 
   const lockfile1 = await projects['project-1'].readLockfile()
-  expect(lockfile1.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile1.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 
   const lockfile2 = await projects['project-2'].readLockfile()
-  expect(lockfile2.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0'])
+  expect(lockfile2.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
 test('recursive command with filter from config', async () => {

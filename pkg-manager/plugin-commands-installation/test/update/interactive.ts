@@ -109,9 +109,9 @@ test('interactively update', async () => {
   {
     const lockfile = await project.readLockfile()
 
-    expect(lockfile.packages['/micromatch/3.0.0']).toBeTruthy()
-    expect(lockfile.packages['/is-negative/1.0.1']).toBeTruthy()
-    expect(lockfile.packages['/is-positive/2.0.0']).toBeTruthy()
+    expect(lockfile.packages['/micromatch@3.0.0']).toBeTruthy()
+    expect(lockfile.packages['/is-negative@1.0.1']).toBeTruthy()
+    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy()
   }
 
   // t.comment('update to latest versions')
@@ -153,9 +153,9 @@ test('interactively update', async () => {
   {
     const lockfile = await project.readLockfile()
 
-    expect(lockfile.packages['/micromatch/3.0.0']).toBeTruthy()
-    expect(lockfile.packages['/is-negative/2.1.0']).toBeTruthy()
-    expect(lockfile.packages['/is-positive/2.0.0']).toBeTruthy()
+    expect(lockfile.packages['/micromatch@3.0.0']).toBeTruthy()
+    expect(lockfile.packages['/is-negative@2.1.0']).toBeTruthy()
+    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy()
   }
 })
 
@@ -220,7 +220,7 @@ test('interactive update of dev dependencies only', async () => {
   expect(
     Object.keys(lockfile.packages ?? {})
   ).toStrictEqual(
-    ['/is-negative/1.0.1', '/is-negative/2.1.0']
+    ['/is-negative@1.0.1', '/is-negative@2.1.0']
   )
 })
 
@@ -288,8 +288,8 @@ test('interactively update should ignore dependencies from the ignoreDependencie
   {
     const lockfile = await project.readLockfile()
 
-    expect(lockfile.packages['/micromatch/3.1.10']).toBeTruthy()
-    expect(lockfile.packages['/is-negative/1.0.0']).toBeTruthy()
-    expect(lockfile.packages['/is-positive/2.0.0']).toBeTruthy()
+    expect(lockfile.packages['/micromatch@3.1.10']).toBeTruthy()
+    expect(lockfile.packages['/is-negative@1.0.0']).toBeTruthy()
+    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy()
   }
 })

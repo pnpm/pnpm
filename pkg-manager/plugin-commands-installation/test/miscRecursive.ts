@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
-import { Lockfile } from '@pnpm/lockfile-types'
+import { LockfileV6 as Lockfile } from '@pnpm/lockfile-types'
 import { add, install, remove, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -726,7 +726,7 @@ test('prefer-workspace-package', async () => {
   })
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve('pnpm-lock.yaml'))
-  expect(lockfile.importers['project-1'].dependencies?.['@pnpm.e2e/foo']).toBe('link:../foo')
+  expect(lockfile.importers['project-1'].dependencies?.['@pnpm.e2e/foo'].version).toBe('link:../foo')
 })
 
 test('installing in monorepo with shared lockfile should work on virtual drives', async () => {

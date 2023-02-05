@@ -1,7 +1,6 @@
-lockfileVersion: 5.4
-
-specifiers:
-  example: link:example
+lockfileVersion: '6.0'
 
 dependencies:
-  example: link:example
+  example:
+    specifier: link:example
+    version: link:example

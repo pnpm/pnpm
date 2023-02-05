@@ -180,7 +180,7 @@ export async function getConfig (
   }
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
   const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, {
-    'auto-install-peers': false,
+    'auto-install-peers': true,
     bail: true,
     color: 'auto',
     'enable-modules-dir': true,
@@ -217,8 +217,9 @@ export async function getConfig (
     'recursive-install': true,
     registry: npmDefaults.registry,
     'resolution-mode': 'highest',
+    'resolve-peers-from-workspace-root': true,
     'save-peer': false,
-    'save-workspace-protocol': true,
+    'save-workspace-protocol': 'rolling',
     'scripts-prepend-node-path': false,
     'side-effects-cache': true,
     symlink: true,
@@ -229,6 +230,7 @@ export async function getConfig (
     'strict-peer-dependencies': false,
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'use-beta-cli': false,
+    'use-lockfile-v6': true,
     'use-inline-specifiers-lockfile-format': false,
     userconfig: npmDefaults.userconfig,
     'verify-store-integrity': true,

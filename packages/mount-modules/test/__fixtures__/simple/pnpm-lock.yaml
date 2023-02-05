@@ -1,28 +1,29 @@
-lockfileVersion: 5.4
+lockfileVersion: '6.0'
 
 importers:
 
   .:
-    specifiers:
-      '@zkochan/git-config': 0.1.0
-      is-positive: 1.0.0
     dependencies:
-      '@zkochan/git-config': 0.1.0
-      is-positive: 1.0.0
+      '@zkochan/git-config':
+        specifier: 0.1.0
+        version: 0.1.0
+      is-positive:
+        specifier: 1.0.0
+        version: 1.0.0
 
 packages:
 
-  /@zkochan/git-config/0.1.0:
+  /@zkochan/git-config@0.1.0:
     resolution: {integrity: sha1-lHdoOUuwyBsfrnA+/pjQDYyXl+A=}
     dependencies:
       ini: 1.3.8
     dev: false
 
-  /ini/1.3.8:
+  /ini@1.3.8:
     resolution: {integrity: sha512-JV/yugV2uzW5iMRSiZAyDtQd+nxtUnjeLt0acNdw98kKLrvuRVyB80tsREOE7yvGVgalhZ6RNXCmEHkUKBKxew==}
     dev: false
 
-  /is-positive/1.0.0:
+  /is-positive@1.0.0:
     resolution: {integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=}
     engines: {node: '>=0.10.0'}
     dev: false

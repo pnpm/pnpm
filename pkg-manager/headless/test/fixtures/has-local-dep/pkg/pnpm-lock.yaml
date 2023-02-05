@@ -1,10 +1,9 @@
-lockfileVersion: 5.4
-
-specifiers:
-  tar-pkg: file:../tar-pkg-1.0.0.tgz
+lockfileVersion: '6.0'
 
 dependencies:
-  tar-pkg: file:../tar-pkg-1.0.0.tgz
+  tar-pkg:
+    specifier: file:../tar-pkg-1.0.0.tgz
+    version: file:../tar-pkg-1.0.0.tgz
 
 packages:
 

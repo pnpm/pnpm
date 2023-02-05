@@ -54,7 +54,16 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
     expect(
       (await projects['project-1'].readLockfile()).devDependencies
     ).toStrictEqual(
-      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
+      {
+        'is-positive': {
+          specifier: '1.0.0',
+          version: '1.0.0',
+        },
+        'is-negative': {
+          specifier: '1.0.0',
+          version: '1.0.0',
+        },
+      }
     )
   }
 
@@ -73,7 +82,16 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
     expect(
       (await projects['project-2'].readLockfile()).devDependencies
     ).toStrictEqual(
-      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
+      {
+        'is-positive': {
+          specifier: '1.0.0',
+          version: '1.0.0',
+        },
+        'is-negative': {
+          specifier: '1.0.0',
+          version: '1.0.0',
+        },
+      }
     )
   }
 })
@@ -145,6 +163,15 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
   expect(
     lockfile.importers['project-1'].devDependencies
   ).toStrictEqual(
-    { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
+    {
+      'is-positive': {
+        specifier: '1.0.0',
+        version: '1.0.0',
+      },
+      'is-negative': {
+        specifier: '1.0.0',
+        version: '1.0.0',
+      },
+    }
   )
 })

@@ -29,8 +29,7 @@ test('install with lockfileOnly = true', async () => {
 
   const lockfile = await project.readLockfile()
   expect(lockfile.dependencies['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
-  expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0']).toBeTruthy()
-  expect(lockfile.specifiers['@pnpm.e2e/pkg-with-1-dep']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0']).toBeTruthy()
 
   const currentLockfile = await project.readCurrentLockfile()
   expect(currentLockfile).toBeFalsy()
@@ -70,11 +69,10 @@ test('warn when installing with lockfileOnly = true and node_modules exists', as
 
   const lockfile = await project.readLockfile()
   expect(lockfile.dependencies.rimraf).toBeTruthy()
-  expect(lockfile.packages['/rimraf/2.5.1']).toBeTruthy()
-  expect(lockfile.specifiers.rimraf).toBeTruthy()
+  expect(lockfile.packages['/rimraf@2.5.1']).toBeTruthy()
 
   const currentLockfile = await project.readCurrentLockfile()
-  expect(currentLockfile.packages['/rimraf/2.5.1']).toBeFalsy()
+  expect(currentLockfile.packages['/rimraf@2.5.1']).toBeFalsy()
 })
 
 // For @pnpm/core it might make sense to throw an exception in this case but for now it is better than having
@@ -94,5 +92,5 @@ test('always update the lockfile when lockfileOnly is used, even if frozenLockfi
   }))
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.specifiers['is-positive']).toBe('2.0.0')
+  expect(lockfile.dependencies['is-positive'].specifier).toBe('2.0.0')
 })

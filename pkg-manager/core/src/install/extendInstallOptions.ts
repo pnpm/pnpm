@@ -137,7 +137,7 @@ const defaults = async (opts: InstallOptions) => {
   return {
     allowedDeprecatedVersions: {},
     allowNonAppliedPatches: false,
-    autoInstallPeers: false,
+    autoInstallPeers: true,
     childConcurrency: 5,
     depth: 0,
     enablePnp: false,
@@ -179,7 +179,7 @@ const defaults = async (opts: InstallOptions) => {
     rawConfig: {},
     registries: DEFAULT_REGISTRIES,
     resolutionMode: 'highest',
-    saveWorkspaceProtocol: true,
+    saveWorkspaceProtocol: 'rolling',
     lockfileIncludeTarballUrl: false,
     scriptsPrependNodePath: false,
     shamefullyHoist: false,
@@ -197,6 +197,7 @@ const defaults = async (opts: InstallOptions) => {
       process.getuid() !== 0,
     update: false,
     useLockfile: true,
+    useLockfileV6: true,
     saveLockfile: true,
     useGitBranchLockfile: false,
     useInlineSpecifiersLockfileFormat: false,
@@ -207,8 +208,8 @@ const defaults = async (opts: InstallOptions) => {
     enableModulesDir: true,
     modulesCacheMaxAge: 7 * 24 * 60,
     resolveSymlinksInInjectedDirs: false,
-    dedupeDirectDeps: false,
-    resolvePeersFromWorkspaceRoot: false,
+    dedupeDirectDeps: true,
+    resolvePeersFromWorkspaceRoot: true,
     extendNodePath: true,
   } as StrictInstallOptions
 }

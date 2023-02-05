@@ -1,6 +1,6 @@
 {
   "name": "foo",
   "dependencies": {
-    "ajv": "^6.12.5"
+    "ajv": "^6.12.6"
   }
 }
