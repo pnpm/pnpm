@@ -220,7 +220,7 @@ test('interactive update of dev dependencies only', async () => {
   expect(
     Object.keys(lockfile.packages ?? {})
   ).toStrictEqual(
-    ['/is-negative@1.0.1', '/is-negative@2.1.0']
+    ['/is-negative@1.0.0', '/is-negative@2.1.0']
   )
 })
 
