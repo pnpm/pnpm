@@ -44,6 +44,7 @@ export function preparePackages (
 
   const dirname = path.dirname(pkgTmpPath)
   const result: { [name: string]: Project } = {}
+  const cwd = process.cwd()
   for (const aPkg of pkgs) {
     if (typeof (aPkg as LocationAndManifest).location === 'string') {
       result[(aPkg as LocationAndManifest).package.name!] = prepare((aPkg as LocationAndManifest).package, {
@@ -57,7 +58,7 @@ export function preparePackages (
       })
     }
   }
-  process.chdir('..')
+  process.chdir(cwd)
   return result
 }
 
