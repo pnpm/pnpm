@@ -70,8 +70,9 @@ test('workspace deps are replaced', async () => {
     version: '1.0.0',
 
     dependencies: {
-      baz: 'workspace:baz@^',
       bar: 'workspace:@foo/bar@*',
+      baz: 'workspace:baz@^',
+      foo: 'workspace:*',
     },
   }
 
@@ -84,6 +85,10 @@ test('workspace deps are replaced', async () => {
     {
       name: '@foo/bar',
       version: '3.2.1',
+    },
+    {
+      name: 'foo',
+      version: '4.5.6',
     },
   ])
 
@@ -99,6 +104,7 @@ test('workspace deps are replaced', async () => {
     dependencies: {
       bar: 'npm:@foo/bar@3.2.1',
       baz: '^1.2.3',
+      foo: '4.5.6',
     },
   })
 })
