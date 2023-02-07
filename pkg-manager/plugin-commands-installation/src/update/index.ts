@@ -274,6 +274,7 @@ async function update (
       ? createMatcher(dependencies)
       : undefined,
     updatePackageManifest: opts.save !== false,
+    resolutionMode: opts.save === false ? 'highest' : opts.resolutionMode,
   }, dependencies)
 }
 
