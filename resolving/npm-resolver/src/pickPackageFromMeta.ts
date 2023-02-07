@@ -123,11 +123,13 @@ function prioritizePreferredVersions (
 ): string[][] {
   const preferredVerSelsArr = Object.entries(preferredVerSels ?? {})
   const versionsPrioritizer = new PreferredVersionsPrioritizer()
-  for (const [preferredSelector, preferredSelectorType] of preferredVerSelsArr) {
+  for (let [preferredSelector, preferredSelectorType] of preferredVerSelsArr) {
+    const preferredSelType = typeof preferredSelectorType === 'string'
+      ? { selectorType: preferredSelectorType, weight: 1 } : preferredSelectorType
     if (preferredSelector === versionRange) continue
-    switch (preferredSelectorType) {
+    switch (preferredSelType.selectorType) {
     case 'tag': {
-      versionsPrioritizer.add(meta['dist-tags'][preferredSelector])
+      versionsPrioritizer.add(meta['dist-tags'][preferredSelector], preferredSelType.weight)
       break
     }
     case 'range': {
@@ -137,14 +139,14 @@ function prioritizePreferredVersions (
       const versions = Object.keys(meta.versions)
       for (const version of versions) {
         if (semver.satisfies(version, preferredSelector, true)) {
-          versionsPrioritizer.add(version)
+          versionsPrioritizer.add(version, preferredSelType.weight)
         }
       }
       break
     }
     case 'version': {
       if (meta.versions[preferredSelector]) {
-        versionsPrioritizer.add(preferredSelector)
+        versionsPrioritizer.add(preferredSelector, preferredSelType.weight)
       }
       break
     }
@@ -156,11 +158,11 @@ function prioritizePreferredVersions (
 class PreferredVersionsPrioritizer {
   private preferredVersions: Record<string, number> = {}
 
-  add (version: string) {
+  add (version: string, weight = 1) {
     if (!this.preferredVersions[version]) {
-      this.preferredVersions[version] = 1
+      this.preferredVersions[version] = weight
     } else {
-      this.preferredVersions[version]++
+      this.preferredVersions[version] += weight
     }
   }
 

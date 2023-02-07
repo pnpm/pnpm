@@ -53,7 +53,7 @@ export interface WorkspacePackages {
 }
 
 export interface VersionSelectors {
-  [selector: string]: 'version' | 'range' | 'tag'
+  [selector: string]: { weight: number, selectorType: 'version' | 'range' | 'tag' } | 'version' | 'range' | 'tag'
 }
 
 export interface PreferredVersions {

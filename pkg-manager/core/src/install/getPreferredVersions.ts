@@ -33,7 +33,7 @@ export function getPreferredVersionsFromLockfileAndManifests (
       const selector = getVersionSelectorType(spec)
       if (!selector) continue
       preferredVersions[name] = preferredVersions[name] ?? {}
-      preferredVersions[name][spec] = selector.type
+      preferredVersions[name][spec] = { weight: 1e6, selectorType: selector.type }
     }
   }
   if (!snapshots) return preferredVersions
@@ -46,7 +46,7 @@ function addPreferredVersionsFromLockfile (snapshots: PackageSnapshots, preferre
     const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
     if (!preferredVersions[name]) {
       preferredVersions[name] = { [version]: 'version' }
-    } else {
+    } else if (!preferredVersions[name][version]) {
       preferredVersions[name][version] = 'version'
     }
   }

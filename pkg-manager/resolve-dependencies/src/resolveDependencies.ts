@@ -405,7 +405,9 @@ async function resolveDependenciesOfImporters (
       if (!newPreferredVersions[resolvedPackage.name]) {
         newPreferredVersions[resolvedPackage.name] = {}
       }
-      newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
+      if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {
+        newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
+      }
     }
     const newParentPkgAliases = { ...importer.parentPkgAliases, ...currentParentPkgAliases }
     const postponedResolutionOpts = {
@@ -527,7 +529,9 @@ export async function resolveDependencies (
     if (!newPreferredVersions[resolvedPackage.name]) {
       newPreferredVersions[resolvedPackage.name] = {}
     }
-    newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
+    if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {
+      newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
+    }
   }
   const newParentPkgAliases = {
     ...options.parentPkgAliases,
