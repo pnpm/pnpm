@@ -19,6 +19,7 @@ import { logger } from '@pnpm/logger'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
   DirectoryResolution,
+  DIRECT_DEP_SELECTOR_WEIGHT,
   PreferredVersions,
   Resolution,
   WorkspacePackages,
@@ -405,7 +406,12 @@ async function resolveDependenciesOfImporters (
       if (!newPreferredVersions[resolvedPackage.name]) {
         newPreferredVersions[resolvedPackage.name] = {}
       }
-      newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
+      if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {
+        newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = {
+          selectorType: 'version',
+          weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        }
+      }
     }
     const newParentPkgAliases = { ...importer.parentPkgAliases, ...currentParentPkgAliases }
     const postponedResolutionOpts = {
@@ -527,7 +533,9 @@ export async function resolveDependencies (
     if (!newPreferredVersions[resolvedPackage.name]) {
       newPreferredVersions[resolvedPackage.name] = {}
     }
-    newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
+    if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {
+      newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
+    }
   }
   const newParentPkgAliases = {
     ...options.parentPkgAliases,

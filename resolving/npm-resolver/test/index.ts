@@ -607,6 +607,31 @@ test('prefer the version that is matched by more preferred selectors', async () 
   expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive/3.0.0')
 })
 
+test('prefer the version that has bigger weight in preferred selectors', async () => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const resolveFromNpm = createResolveFromNpm({
+    cacheDir: tempy.directory(),
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    pref: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': {
+        '^3.0.0': 'range',
+        '3.0.0': { selectorType: 'version', weight: 100 },
+        '3.1.0': 'version',
+      },
+    },
+    registry,
+  })
+
+  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive/3.0.0')
+})
+
 test('offline resolution fails when package meta not found in the store', async () => {
   const cacheDir = tempy.directory()
   const resolve = createResolveFromNpm({
