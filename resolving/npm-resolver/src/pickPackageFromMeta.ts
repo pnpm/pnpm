@@ -123,9 +123,10 @@ function prioritizePreferredVersions (
 ): string[][] {
   const preferredVerSelsArr = Object.entries(preferredVerSels ?? {})
   const versionsPrioritizer = new PreferredVersionsPrioritizer()
-  for (let [preferredSelector, preferredSelectorType] of preferredVerSelsArr) {
+  for (const [preferredSelector, preferredSelectorType] of preferredVerSelsArr) {
     const preferredSelType = typeof preferredSelectorType === 'string'
-      ? { selectorType: preferredSelectorType, weight: 1 } : preferredSelectorType
+      ? { selectorType: preferredSelectorType, weight: 1 }
+      : preferredSelectorType
     if (preferredSelector === versionRange) continue
     switch (preferredSelType.selectorType) {
     case 'tag': {
