@@ -124,13 +124,13 @@ function prioritizePreferredVersions (
   const preferredVerSelsArr = Object.entries(preferredVerSels ?? {})
   const versionsPrioritizer = new PreferredVersionsPrioritizer()
   for (const [preferredSelector, preferredSelectorType] of preferredVerSelsArr) {
-    const preferredSelType = typeof preferredSelectorType === 'string'
+    const { selectorType, weight } = typeof preferredSelectorType === 'string'
       ? { selectorType: preferredSelectorType, weight: 1 }
       : preferredSelectorType
     if (preferredSelector === versionRange) continue
-    switch (preferredSelType.selectorType) {
+    switch (selectorType) {
     case 'tag': {
-      versionsPrioritizer.add(meta['dist-tags'][preferredSelector], preferredSelType.weight)
+      versionsPrioritizer.add(meta['dist-tags'][preferredSelector], weight)
       break
     }
     case 'range': {
@@ -140,14 +140,14 @@ function prioritizePreferredVersions (
       const versions = Object.keys(meta.versions)
       for (const version of versions) {
         if (semver.satisfies(version, preferredSelector, true)) {
-          versionsPrioritizer.add(version, preferredSelType.weight)
+          versionsPrioritizer.add(version, weight)
         }
       }
       break
     }
     case 'version': {
       if (meta.versions[preferredSelector]) {
-        versionsPrioritizer.add(preferredSelector, preferredSelType.weight)
+        versionsPrioritizer.add(preferredSelector, weight)
       }
       break
     }
@@ -159,7 +159,7 @@ function prioritizePreferredVersions (
 class PreferredVersionsPrioritizer {
   private preferredVersions: Record<string, number> = {}
 
-  add (version: string, weight = 1) {
+  add (version: string, weight: number) {
     if (!this.preferredVersions[version]) {
       this.preferredVersions[version] = weight
     } else {
@@ -168,14 +168,14 @@ class PreferredVersionsPrioritizer {
   }
 
   versionsByPriority () {
-    const versionsByOccurrences = Object.entries(this.preferredVersions)
-      .reduce((acc, [version, occurrences]) => {
-        acc[occurrences] = acc[occurrences] ?? []
-        acc[occurrences].push(version)
+    const versionsByWeight = Object.entries(this.preferredVersions)
+      .reduce((acc, [version, weight]) => {
+        acc[weight] = acc[weight] ?? []
+        acc[weight].push(version)
         return acc
       }, {} as Record<number, string[]>)
-    return Object.keys(versionsByOccurrences)
+    return Object.keys(versionsByWeight)
       .sort((a, b) => parseInt(b, 10) - parseInt(a, 10))
-      .map((occurrences) => versionsByOccurrences[parseInt(occurrences, 10)])
+      .map((weigth) => versionsByWeight[parseInt(weigth, 10)])
   }
 }

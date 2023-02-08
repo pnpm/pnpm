@@ -1,6 +1,6 @@
 import { nameVerFromPkgSnapshot, PackageSnapshots } from '@pnpm/lockfile-utils'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import { PreferredVersions } from '@pnpm/resolver-base'
+import { DIRECT_DEP_SELECTOR_WEIGHT, PreferredVersions } from '@pnpm/resolver-base'
 import { DependencyManifest, ProjectManifest } from '@pnpm/types'
 import getVersionSelectorType from 'version-selector-type'
 
@@ -33,7 +33,10 @@ export function getPreferredVersionsFromLockfileAndManifests (
       const selector = getVersionSelectorType(spec)
       if (!selector) continue
       preferredVersions[name] = preferredVersions[name] ?? {}
-      preferredVersions[name][spec] = { weight: 1e6, selectorType: selector.type }
+      preferredVersions[name][spec] = {
+        selectorType: selector.type,
+        weight: DIRECT_DEP_SELECTOR_WEIGHT,
+      }
     }
   }
   if (!snapshots) return preferredVersions

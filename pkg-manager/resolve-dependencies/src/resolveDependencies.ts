@@ -19,6 +19,7 @@ import { logger } from '@pnpm/logger'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
   DirectoryResolution,
+  DIRECT_DEP_SELECTOR_WEIGHT,
   PreferredVersions,
   Resolution,
   WorkspacePackages,
@@ -407,8 +408,8 @@ async function resolveDependenciesOfImporters (
       }
       if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {
         newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = {
-          weight: 1e6,
           selectorType: 'version',
+          weight: DIRECT_DEP_SELECTOR_WEIGHT,
         }
       }
     }
