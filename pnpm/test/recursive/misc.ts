@@ -78,9 +78,9 @@ test('workspace .npmrc is always read', async () => {
   const storeDir = path.resolve('../store')
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
   await fs.writeFile('.npmrc', 'shamefully-flatten = true\nshared-workspace-lockfile=false', 'utf8')
-  await fs.writeFile('project-2/.npmrc', 'hoist=false', 'utf8')
+  await fs.writeFile('workspace/project-2/.npmrc', 'hoist=false', 'utf8')
 
-  process.chdir('project-1')
+  process.chdir('workspace/project-1')
   await execPnpm(['install', '--store-dir', storeDir, '--filter', '.'])
 
   expect(projects['project-1'].requireModule('is-positive')).toBeTruthy()
@@ -314,6 +314,7 @@ test('recursive command with filter from config', async () => {
     },
   ])
 
+  await fs.writeFile('package.json', '{}', 'utf8')
   await fs.writeFile('.npmrc', 'filter=project-1 project-2', 'utf8')
   await execPnpm(['recursive', 'install'])
 
@@ -457,6 +458,7 @@ test('set recursive-install to false in .npmrc would disable recursive install i
     },
   ])
 
+  process.chdir('workspace')
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
   await fs.writeFile('.npmrc', 'recursive-install = false', 'utf8')
 
@@ -493,6 +495,7 @@ test('set recursive-install to false would install as --filter {.}...', async ()
     },
   ])
 
+  process.chdir('workspace')
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
   await fs.writeFile('.npmrc', 'recursive-install = false', 'utf8')
 

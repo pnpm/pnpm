@@ -278,7 +278,7 @@ test('deep local', async () => {
       },
     },
   ])
-  process.chdir('../project-1')
+  process.chdir('project-1')
   await install(manifest1, await testDefaults())
 
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')

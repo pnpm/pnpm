@@ -952,8 +952,6 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
     },
   ])
 
-  process.chdir('..')
-
   await symlink('workspace-2/package-2', 'workspace-1/package-2')
 
   await writeYamlFile('workspace-1/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
@@ -1033,8 +1031,6 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
       },
     },
   ])
-
-  process.chdir('..')
 
   await writeYamlFile('monorepo/workspace/pnpm-workspace.yaml', { packages: ['../**', '!store/**'] })
 
@@ -1610,7 +1606,6 @@ test('legacy directory filtering', async () => {
     },
   ])
 
-  process.chdir('..')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await fs.writeFile('.npmrc', 'legacy-dir-filtering=true', 'utf8')
 
@@ -1638,7 +1633,6 @@ test('directory filtering', async () => {
     },
   ])
 
-  process.chdir('..')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   {
@@ -1685,7 +1679,6 @@ test('run --stream should prefix with dir name', async () => {
     },
   ])
 
-  process.chdir('..')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   const result = execPnpmSync([

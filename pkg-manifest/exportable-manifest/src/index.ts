@@ -64,7 +64,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
   }
 
   // Dependencies with bare "*", "^" and "~" versions
-  const versionAliasSpecParts = /^workspace:([^@]+@)?([\^~*])$/.exec(depSpec)
+  const versionAliasSpecParts = /^workspace:(.*?)@?([\^~*])$/.exec(depSpec)
   if (versionAliasSpecParts != null) {
     modulesDir = modulesDir ?? path.join(dir, 'node_modules')
     const { manifest } = await tryReadProjectManifest(path.join(modulesDir, depName))
