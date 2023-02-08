@@ -52,8 +52,19 @@ export interface WorkspacePackages {
   }
 }
 
+// This weight is set for selectors that are used on direct dependencies.
+// It is important to give a bigger weight to direct dependencies.
+export const DIRECT_DEP_SELECTOR_WEIGHT = 1000
+
+export type VersionSelectorType = 'version' | 'range' | 'tag'
+
 export interface VersionSelectors {
-  [selector: string]: 'version' | 'range' | 'tag'
+  [selector: string]: VersionSelectorWithWeight | VersionSelectorType
+}
+
+export interface VersionSelectorWithWeight {
+  selectorType: VersionSelectorType
+  weight: number
 }
 
 export interface PreferredVersions {
