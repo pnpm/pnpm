@@ -1,5 +1,13 @@
 # @pnpm/tarball-resolver
 
+## 7.0.4
+
+### Patch Changes
+
+- Updated dependencies [029143cff]
+- Updated dependencies [029143cff]
+  - @pnpm/resolver-base@9.2.0
+
 ## 7.0.3
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/package-requester
 
+## 20.1.6
+
+### Patch Changes
+
+- Updated dependencies [029143cff]
+- Updated dependencies [029143cff]
+  - @pnpm/resolver-base@9.2.0
+  - @pnpm/fetcher-base@13.1.6
+  - @pnpm/pick-fetcher@1.0.0
+  - @pnpm/store-controller-types@14.3.1
+  - @pnpm/cafs@6.0.1
+
 ## 20.1.5
 
 ### Patch Changes

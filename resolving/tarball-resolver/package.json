@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-resolver",
-  "version": "7.0.3",
+  "version": "7.0.4",
   "description": "Resolver for tarball dependencies",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

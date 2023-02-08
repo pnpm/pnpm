@@ -1,5 +1,15 @@
 # @pnpm/resolver-base
 
+## 9.2.0
+
+### Minor Changes
+
+- 029143cff: Version selectors may have weights optionally.
+
+### Patch Changes
+
+- 029143cff: When resolving dependencies, prefer versions that are already used in the root of the project. This is important to minimize the number of packages that will be nested during hoisting [#6054](https://github.com/pnpm/pnpm/pull/6054).
+
 ## 9.1.5
 
 ### Patch Changes

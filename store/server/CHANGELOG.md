@@ -1,5 +1,11 @@
 # @pnpm/server
 
+## 14.1.1
+
+### Patch Changes
+
+- @pnpm/store-controller-types@14.3.1
+
 ## 14.1.0
 
 ### Minor Changes

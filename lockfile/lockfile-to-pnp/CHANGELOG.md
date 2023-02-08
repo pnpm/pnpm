@@ -1,5 +1,11 @@
 # @pnpm/lockfile-to-pnp
 
+## 2.0.12
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@5.0.7
+
 ## 2.0.11
 
 ### Patch Changes

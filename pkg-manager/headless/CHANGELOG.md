@@ -1,5 +1,22 @@
 # @pnpm/headless
 
+## 19.4.12
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@5.0.7
+- @pnpm/package-requester@20.1.6
+- @pnpm/store-controller-types@14.3.1
+- @pnpm/symlink-dependency@6.0.3
+- @pnpm/lifecycle@14.1.6
+- @pnpm/filter-lockfile@7.0.10
+- @pnpm/lockfile-to-pnp@2.0.12
+- @pnpm/hoist@7.0.15
+- @pnpm/modules-cleaner@13.0.12
+- @pnpm/real-hoist@1.1.6
+- @pnpm/build-modules@10.1.6
+- @pnpm/link-bins@8.0.8
+
 ## 19.4.11
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 # pnpm
 
-## 7.27.0-0
+## 7.27.0
 
 ### Minor Changes
 
@@ -8,6 +8,10 @@
 - Support script selector with RegExp such as `pnpm run /build:.*/` and execute the matched scripts with the RegExp [#5871](https://github.com/pnpm/pnpm/pull/5871).
 
 ### Patch Changes
+
+- Fix version number replacing for namespaced workspace packages. `workspace:@foo/bar@*` should be replaced with `npm:@foo/bar@<version>` on publish [#6052](https://github.com/pnpm/pnpm/pull/6052).
+
+- When resolving dependencies, prefer versions that are already used in the root of the project. This is important to minimize the number of packages that will be nested during hoisting [#6054](https://github.com/pnpm/pnpm/pull/6054).
 
 - Deduplicate direct dependencies.
 

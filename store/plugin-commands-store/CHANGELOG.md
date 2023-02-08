@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-store
 
+## 6.0.33
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@5.0.7
+- @pnpm/store-controller-types@14.3.1
+- @pnpm/config@16.6.1
+- @pnpm/cafs@6.0.1
+- @pnpm/store-connection-manager@5.2.11
+- @pnpm/cli-utils@1.0.33
+
 ## 6.0.32
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/lifecycle
 
+## 14.1.6
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@5.1.5
+- @pnpm/store-controller-types@14.3.1
+
 ## 14.1.5
 
 ### Patch Changes

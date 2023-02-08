@@ -1,5 +1,28 @@
 # @pnpm/core
 
+## 7.8.1
+
+### Patch Changes
+
+- 029143cff: When resolving dependencies, prefer versions that are already used in the root of the project. This is important to minimize the number of packages that will be nested during hoisting [#6054](https://github.com/pnpm/pnpm/pull/6054).
+- Updated dependencies [029143cff]
+- Updated dependencies [029143cff]
+  - @pnpm/resolver-base@9.2.0
+  - @pnpm/resolve-dependencies@29.3.1
+  - @pnpm/lockfile-utils@5.0.7
+  - @pnpm/package-requester@20.1.6
+  - @pnpm/store-controller-types@14.3.1
+  - @pnpm/symlink-dependency@6.0.3
+  - @pnpm/crypto.base32-hash@1.0.1
+  - @pnpm/headless@19.4.12
+  - @pnpm/lifecycle@14.1.6
+  - @pnpm/filter-lockfile@7.0.10
+  - @pnpm/lockfile-to-pnp@2.0.12
+  - @pnpm/hoist@7.0.15
+  - @pnpm/modules-cleaner@13.0.12
+  - @pnpm/build-modules@10.1.6
+  - @pnpm/link-bins@8.0.8
+
 ## 7.8.0
 
 ### Minor Changes
