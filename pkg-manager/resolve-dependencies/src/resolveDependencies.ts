@@ -406,7 +406,10 @@ async function resolveDependenciesOfImporters (
         newPreferredVersions[resolvedPackage.name] = {}
       }
       if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {
-        newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
+        newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = {
+          weight: 1e6,
+          selectorType: 'version',
+        }
       }
     }
     const newParentPkgAliases = { ...importer.parentPkgAliases, ...currentParentPkgAliases }
