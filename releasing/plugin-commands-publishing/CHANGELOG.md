@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-publishing
 
+## 6.1.13
+
+### Patch Changes
+
+- Updated dependencies [029143cff]
+- Updated dependencies [b71c6ed74]
+- Updated dependencies [029143cff]
+  - @pnpm/resolver-base@9.2.0
+  - @pnpm/exportable-manifest@4.0.7
+  - @pnpm/client@9.1.3
+  - @pnpm/config@16.6.1
+  - @pnpm/lifecycle@14.1.6
+  - @pnpm/cli-utils@1.0.33
+
 ## 6.1.12
 
 ### Patch Changes

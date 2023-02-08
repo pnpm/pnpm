@@ -1,5 +1,12 @@
 # @pnpm/hoist
 
+## 7.0.15
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@5.0.7
+- @pnpm/link-bins@8.0.8
+
 ## 7.0.14
 
 ### Patch Changes

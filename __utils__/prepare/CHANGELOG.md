@@ -1,5 +1,12 @@
 # @pnpm/prepare
 
+## 0.0.63
+
+### Patch Changes
+
+- b71c6ed74: Fix version number replacing for namespaced workspace packages. `workspace:@foo/bar@*` should be replaced with `npm:@foo/bar@<version>` on publish [#6052](https://github.com/pnpm/pnpm/pull/6052).
+  - @pnpm/assert-project@2.3.20
+
 ## 0.0.62
 
 ### Patch Changes

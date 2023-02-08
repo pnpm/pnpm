@@ -1,5 +1,13 @@
 # @pnpm/mount-modules
 
+## 0.3.33
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@5.0.7
+- @pnpm/config@16.6.1
+- @pnpm/cafs@6.0.1
+
 ## 0.3.32
 
 ### Patch Changes

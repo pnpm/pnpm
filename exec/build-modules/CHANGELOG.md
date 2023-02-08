@@ -1,5 +1,14 @@
 # @pnpm/build-modules
 
+## 10.1.6
+
+### Patch Changes
+
+- @pnpm/store-controller-types@14.3.1
+- @pnpm/fs.hard-link-dir@1.0.3
+- @pnpm/lifecycle@14.1.6
+- @pnpm/link-bins@8.0.8
+
 ## 10.1.5
 
 ### Patch Changes

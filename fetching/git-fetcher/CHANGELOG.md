@@ -1,5 +1,12 @@
 # @pnpm/git-fetcher
 
+## 8.0.1
+
+### Patch Changes
+
+- @pnpm/fetcher-base@13.1.6
+- @pnpm/prepare-package@4.1.1
+
 ## 8.0.0
 
 ### Major Changes

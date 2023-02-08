@@ -1,5 +1,12 @@
 # @pnpm/test-fixtures
 
+## 0.0.32
+
+### Patch Changes
+
+- Updated dependencies [b71c6ed74]
+  - @pnpm/prepare@0.0.63
+
 ## 0.0.31
 
 ### Patch Changes

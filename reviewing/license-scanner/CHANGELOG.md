@@ -1,5 +1,13 @@
 # @pnpm/license-scanner
 
+## 1.0.14
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@5.1.5
+- @pnpm/lockfile-utils@5.0.7
+- @pnpm/cafs@6.0.1
+
 ## 1.0.13
 
 ### Patch Changes

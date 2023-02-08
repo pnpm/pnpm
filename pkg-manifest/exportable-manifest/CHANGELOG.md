@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 4.0.7
+
+### Patch Changes
+
+- b71c6ed74: Fix version number replacing for namespaced workspace packages. `workspace:@foo/bar@*` should be replaced with `npm:@foo/bar@<version>` on publish [#6052](https://github.com/pnpm/pnpm/pull/6052).
+
 ## 4.0.6
 
 ### Patch Changes
