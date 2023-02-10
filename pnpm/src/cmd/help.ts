@@ -143,6 +143,10 @@ function getHelpText () {
             name: 'store add',
           },
           {
+            description: 'Prints the path to the active store directory',
+            name: 'store path',
+          },
+          {
             description: 'Removes unreferenced (extraneous, orphan) packages from the store',
             name: 'store prune',
           },
