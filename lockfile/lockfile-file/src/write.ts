@@ -240,15 +240,6 @@ export async function writeLockfiles (
   const wantedLockfilePath = path.join(opts.wantedLockfileDir, wantedLockfileName)
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
-  // empty lockfile is not saved
-  if (isEmptyLockfile(opts.wantedLockfile)) {
-    await Promise.all([
-      rimraf(wantedLockfilePath),
-      rimraf(currentLockfilePath),
-    ])
-    return
-  }
-
   const forceSharedFormat = opts?.forceSharedFormat === true
   const isLockfileV6 = opts.wantedLockfile.lockfileVersion.toString().startsWith('6.')
   const wantedLockfileToStringify = (Boolean(opts.useInlineSpecifiersFormat) || isLockfileV6)
@@ -267,8 +258,12 @@ export async function writeLockfiles (
     await Promise.all([
       writeFileAtomic(wantedLockfilePath, yamlDoc),
       (async () => {
-        await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
-        await writeFileAtomic(currentLockfilePath, yamlDoc)
+        if (isEmptyLockfile(opts.wantedLockfile)) {
+          await rimraf(currentLockfilePath)
+        } else {
+          await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
+          await writeFileAtomic(currentLockfilePath, yamlDoc)
+        }
       })(),
     ])
     return
@@ -287,8 +282,12 @@ export async function writeLockfiles (
   await Promise.all([
     writeFileAtomic(wantedLockfilePath, yamlDoc),
     (async () => {
-      await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
-      await writeFileAtomic(currentLockfilePath, currentYamlDoc)
+      if (isEmptyLockfile(opts.wantedLockfile)) {
+        await rimraf(currentLockfilePath)
+      } else {
+        await fs.mkdir(path.dirname(currentLockfilePath), { recursive: true })
+        await writeFileAtomic(currentLockfilePath, currentYamlDoc)
+      }
     })(),
   ])
 }
