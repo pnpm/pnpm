@@ -286,7 +286,7 @@ export async function mutateModules (
       opts.useLockfileV6 = ctx.wantedLockfile.lockfileVersion.toString().startsWith('6.')
     }
     let needsFullResolution = !maybeOpts.ignorePackageManifest &&
-      lockfileIsUpToDate(ctx.wantedLockfile, {
+      lockfileIsNotUpToDate(ctx.wantedLockfile, {
         overrides: opts.overrides,
         neverBuiltDependencies: opts.neverBuiltDependencies,
         onlyBuiltDependencies: opts.onlyBuiltDependencies,
@@ -585,7 +585,7 @@ async function calcPatchHashes (patches: Record<string, string>, lockfileDir: st
   }, patches)
 }
 
-function lockfileIsUpToDate (
+function lockfileIsNotUpToDate (
   lockfile: Lockfile,
   {
     neverBuiltDependencies,
