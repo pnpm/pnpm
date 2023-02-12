@@ -64,6 +64,7 @@ export const types = Object.assign({
   'ignore-workspace': Boolean,
   'ignore-workspace-root-check': Boolean,
   'include-workspace-root': Boolean,
+  'inject-all-files': Boolean,
   'legacy-dir-filtering': Boolean,
   'link-workspace-packages': [Boolean, 'deep'],
   lockfile: Boolean,
@@ -203,6 +204,7 @@ export async function getConfig (
     hoist: true,
     'hoist-pattern': ['*'],
     'ignore-workspace-root-check': false,
+    'inject-all-files': false,
     'link-workspace-packages': true,
     'lockfile-include-tarball-url': false,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days

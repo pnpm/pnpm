@@ -254,6 +254,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'hooks'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
+| 'injectAllFiles'
 | 'linkWorkspacePackages'
 | 'rawLocalConfig'
 | 'lockfileDir'
