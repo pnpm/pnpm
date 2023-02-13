@@ -141,16 +141,16 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
   expect(Object.keys(lockfile.dependencies).length).toBe(1) // resolutions not duplicated
 })
 
-test('lockfile not created when no deps in package.json', async () => {
+test('a lockfile created even when there are no deps in package.json', async () => {
   const project = prepareEmpty()
 
   await install({}, await testDefaults())
 
-  expect(await project.readLockfile()).toBeFalsy()
+  expect(await project.readLockfile()).toBeTruthy()
   expect(await exists('node_modules')).toBeFalsy()
 })
 
-test('lockfile removed when no deps in package.json', async () => {
+test('current lockfile removed when no deps in package.json', async () => {
   const project = prepareEmpty()
 
   await writeYamlFile(WANTED_LOCKFILE, {
@@ -172,7 +172,8 @@ test('lockfile removed when no deps in package.json', async () => {
 
   await install({}, await testDefaults())
 
-  expect(await project.readLockfile()).toBeFalsy()
+  expect(await project.readLockfile()).toBeTruthy()
+  expect(await exists('node_modules')).toBeFalsy()
 })
 
 test('lockfile is fixed when it does not match package.json', async () => {

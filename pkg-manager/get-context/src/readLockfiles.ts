@@ -6,6 +6,7 @@ import {
 import {
   createLockfileObject,
   existsWantedLockfile,
+  isEmptyLockfile,
   Lockfile,
   readCurrentLockfile,
   readWantedLockfile,
@@ -126,7 +127,7 @@ export async function readLockfiles (
     currentLockfile,
     currentLockfileIsUpToDate: equals(currentLockfile, wantedLockfile),
     existsCurrentLockfile: files[1] != null,
-    existsWantedLockfile: files[0] != null,
+    existsWantedLockfile: files[0] != null && !isEmptyLockfile(wantedLockfile),
     wantedLockfile,
     lockfileHadConflicts,
   }
