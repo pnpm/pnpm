@@ -23,7 +23,6 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'fetchTimeout'
 | 'gitShallowHosts'
 | 'ignoreScripts'
-| 'injectAllFiles'
 | 'hooks'
 | 'httpProxy'
 | 'httpsProxy'
@@ -44,7 +43,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'verifyStoreIntegrity'
 > & {
   ignoreFile?: (filename: string) => boolean
-} & Partial<Pick<Config, 'userConfig'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
+} & Partial<Pick<Config, 'userConfig' | 'injectAllFiles'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
 
 export async function createNewStoreController (
   opts: CreateNewStoreControllerOptions

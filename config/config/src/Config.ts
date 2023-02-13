@@ -89,7 +89,7 @@ export interface Config {
   failedToLoadBuiltInConfig: boolean
   resolvePeersFromWorkspaceRoot?: boolean
   useLockfileV6?: boolean
-  injectAllFiles: boolean
+  injectAllFiles?: boolean
 
   // proxy
   httpProxy?: string

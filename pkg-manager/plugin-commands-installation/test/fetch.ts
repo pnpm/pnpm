@@ -19,6 +19,7 @@ const DEFAULT_OPTIONS = {
     devDependencies: true,
     optionalDependencies: true,
   },
+  injectAllFiles: false,
   lock: true,
   pnpmfile: '.pnpmfile.cjs',
   pnpmHomeDir: '',

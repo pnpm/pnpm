@@ -20,6 +20,7 @@ const DEFAULT_OPTIONS = {
     devDependencies: true,
     optionalDependencies: true,
   },
+  injectAllFiles: false,
   lock: true,
   linkWorkspacePackages: true,
   pnpmfile: '.pnpmfile.cjs',
