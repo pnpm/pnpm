@@ -126,7 +126,7 @@ export async function readLockfiles (
     currentLockfile,
     currentLockfileIsUpToDate: equals(currentLockfile, wantedLockfile),
     existsCurrentLockfile: files[1] != null,
-    existsWantedLockfile: files[0] != null,
+    existsWantedLockfile: files[0] != null && Object.keys((wantedLockfile as Lockfile)?.packages ?? {}).length > 0,
     wantedLockfile,
     lockfileHadConflicts,
   }

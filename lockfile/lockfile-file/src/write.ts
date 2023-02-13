@@ -53,6 +53,11 @@ export async function writeCurrentLockfile (
     forceSharedFormat?: boolean
   }
 ) {
+  // empty lockfile is not saved
+  if (isEmptyLockfile(currentLockfile)) {
+    await rimraf(path.join(virtualStoreDir, 'lock.yaml'))
+    return
+  }
   await fs.mkdir(virtualStoreDir, { recursive: true })
   return writeLockfile('lock.yaml', virtualStoreDir, currentLockfile, opts)
 }
@@ -69,11 +74,6 @@ async function writeLockfile (
   opts?: LockfileFormatOptions
 ) {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
-
-  // empty lockfile is not saved
-  if (isEmptyLockfile(wantedLockfile)) {
-    return rimraf(lockfilePath)
-  }
 
   const isLockfileV6 = wantedLockfile['lockfileVersion'].toString().startsWith('6.')
   const lockfileToStringify = (Boolean(opts?.useInlineSpecifiersFormat) || isLockfileV6)
