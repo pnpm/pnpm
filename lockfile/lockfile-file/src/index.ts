@@ -1,4 +1,5 @@
 export {
+  isEmptyLockfile,
   writeLockfiles,
   writeCurrentLockfile,
   writeWantedLockfile,

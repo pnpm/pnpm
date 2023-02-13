@@ -94,7 +94,7 @@ function yamlStringify (lockfile: Lockfile, opts: NormalizeLockfileOpts) {
   return yaml.dump(normalizedLockfile, LOCKFILE_YAML_FORMAT)
 }
 
-function isEmptyLockfile (lockfile: Lockfile) {
+export function isEmptyLockfile (lockfile: Lockfile) {
   return Object.values(lockfile.importers).every((importer) => isEmpty(importer.specifiers ?? {}) && isEmpty(importer.dependencies ?? {}))
 }
 
