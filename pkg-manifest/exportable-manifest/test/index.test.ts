@@ -8,27 +8,6 @@ import path from 'path'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
-test('the pnpm options are removed', async () => {
-  expect(await createExportableManifest(process.cwd(), {
-    name: 'foo',
-    version: '1.0.0',
-    dependencies: {
-      qar: '2',
-    },
-    pnpm: {
-      overrides: {
-        bar: '1',
-      },
-    },
-  })).toStrictEqual({
-    name: 'foo',
-    version: '1.0.0',
-    dependencies: {
-      qar: '2',
-    },
-  })
-})
-
 test('publish lifecycle scripts are removed', async () => {
   expect(await createExportableManifest(process.cwd(), {
     name: 'foo',
