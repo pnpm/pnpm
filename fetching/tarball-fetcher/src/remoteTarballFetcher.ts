@@ -27,7 +27,14 @@ export class TarballIntegrityError extends PnpmError {
   }) {
     super('TARBALL_INTEGRITY',
       `Got unexpected checksum for "${opts.url}". Wanted "${opts.expected}". Got "${opts.found}".`,
-      { attempts: opts.attempts }
+      {
+        attempts: opts.attempts,
+        hint: `This error may happen when a package is republished to the registry with the same version.
+In this case, the metadata in the local pnpm cache will contain the old integrity checksum.
+
+If you think that this is the case, then run "pnpm store prune" and rerun the command that failed.
+"pnpm store prune" will remove your local metadata cache.`,
+      }
     )
     this.found = opts.found
     this.expected = opts.expected
