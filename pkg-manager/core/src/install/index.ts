@@ -385,7 +385,11 @@ export async function mutateModules (
         } catch (error: any) { // eslint-disable-line
           if (
             frozenLockfile ||
-            error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' && !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
+            (
+              error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' &&
+              !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
+            ) ||
+            (!ctx.existsWantedLockfile && !ctx.existsCurrentLockfile)
           ) throw error
           if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
             needsFullResolution = true
@@ -1234,7 +1238,10 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
     return await _installInContext(projects, ctx, opts)
   } catch (error: any) { // eslint-disable-line
-    if (!BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) throw error
+    if (
+      !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code) ||
+      (!ctx.existsWantedLockfile && !ctx.existsCurrentLockfile)
+    ) throw error
     opts.needsFullResolution = true
     // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
     opts.update = true
