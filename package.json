@@ -125,7 +125,8 @@
       ]
     },
     "patchedDependencies": {
-      "pkg@5.7.0": "__patches__/pkg@5.7.0.patch"
+      "pkg@5.7.0": "__patches__/pkg@5.7.0.patch",
+      "patch-package@6.5.1": "__patches__/patch-package@6.5.1.patch"
     },
     "updateConfig": {
       "ignoreDependencies": [

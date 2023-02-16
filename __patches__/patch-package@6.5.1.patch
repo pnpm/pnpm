@@ -1,0 +1,86 @@
+diff --git a/dist/PackageDetails.js b/dist/PackageDetails.js
+index b0ce14091af48797e9b7cf2ba1d7e092e66a677a..7967a9b6b9b9860560f7fe788fbe3309ac5801f0 100644
+--- a/dist/PackageDetails.js
++++ b/dist/PackageDetails.js
+@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.getPatchDetailsFromCliString = exports.getPackageDetailsFromPatchFilename = void 0;
+ const path_1 = require("./path");
+ function parseNameAndVersion(s) {
+-    const parts = s.split("+");
++    const parts = s.split("@");
+     switch (parts.length) {
+         case 1: {
+             return { name: parts[0] };
+@@ -19,8 +19,9 @@ function parseNameAndVersion(s) {
+             return { name: `${nameOrScope}/${versionOrName}` };
+         }
+         case 3: {
+-            const [scope, name, version] = parts;
+-            return { name: `${scope}/${name}`, version };
++            const [, pnpmPatchedPackageName, version] = parts
++            const [scope, name] = pnpmPatchedPackageName.split('__')
++            return { name: `@${scope}/${name}`, version }
+         }
+     }
+     return null;
+diff --git a/dist/pnpm.d.ts b/dist/pnpm.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..fed13a2d44fdb4578ba494aa57cc4898b5a44090
+--- /dev/null
++++ b/dist/pnpm.d.ts
+@@ -0,0 +1,25 @@
++export interface PackageDetails {
++  humanReadablePathSpecifier: string
++  pathSpecifier: string
++  path: string
++  name: string
++  isNested: boolean
++  packageNames: string[]
++}
++
++export interface PatchedPackageDetails extends PackageDetails {
++  version: string
++  patchFilename: string
++  isDevOnly: boolean
++}
++
++declare module 'patch-package/pnpm' {
++  export function applyPatch({
++    patchFilePath: string,
++    reverse: boolean = false,
++    packageDetails: PackageDetails,
++    patchDir: string,
++  }): void
++
++  export function getPackageDetailsFromPatchFilename(patchFilename: string): PackageDetails
++}
+\ No newline at end of file
+diff --git a/dist/pnpm.js b/dist/pnpm.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..e3909e69529bf444dd36df9bb3b0ec2ab319e0b5
+--- /dev/null
++++ b/dist/pnpm.js
+@@ -0,0 +1,2 @@
++exports.applyPatch = require('./applyPatches.js').applyPatch
++exports.getPackageDetailsFromPatchFilename = require('./PackageDetails.js').getPackageDetailsFromPatchFilename
+\ No newline at end of file
+diff --git a/package.json b/package.json
+index 1add0049e2115036f60ca43beb5701967aa4aed6..d208605e3829602eb07a8a8876b2d7475eaec0cd 100644
+--- a/package.json
++++ b/package.json
+@@ -6,6 +6,15 @@
+   "repository": "github:ds300/patch-package",
+   "author": "David Sheldrick",
+   "license": "MIT",
++  "exports": {
++    ".": {
++      "default": "./dist/index.js"
++    },
++    "./pnpm": {
++      "default": "./dist/pnpm.js",
++      "types": "./dist/pnpm.d.ts"
++    }
++  },
+   "engines": {
+     "node": ">=10",
+     "npm": ">5"
