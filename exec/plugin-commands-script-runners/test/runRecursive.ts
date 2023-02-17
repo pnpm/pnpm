@@ -984,7 +984,7 @@ test('pnpm recursive run report summary', async () => {
       name: 'project-1',
       version: '1.0.0',
       scripts: {
-        build: 'sleep 1 && echo "project-1"',
+        build: 'node -e "setTimeout(() => console.log(\'project-1\'), 1000)"',
       },
     },
     {
@@ -998,7 +998,7 @@ test('pnpm recursive run report summary', async () => {
       name: 'project-3',
       version: '1.0.0',
       scripts: {
-        build: 'sleep 1 && echo "project-3"',
+        build: 'node -e "setTimeout(() => console.log(\'project-3\'), 1000)"',
       },
     },
     {
@@ -1041,7 +1041,7 @@ test('pnpm recursive run report summary with --bail', async () => {
       name: 'project-1',
       version: '1.0.0',
       scripts: {
-        build: 'sleep 1 && echo "project-1"',
+        build: 'node -e "setTimeout(() => console.log(\'project-1\'), 1000)"',
       },
     },
     {
@@ -1055,7 +1055,7 @@ test('pnpm recursive run report summary with --bail', async () => {
       name: 'project-3',
       version: '1.0.0',
       scripts: {
-        build: 'sleep 1 && echo "project-3"',
+        build: 'node -e "setTimeout(() => console.log(\'project-3\'), 1000)"',
       },
     },
     {
