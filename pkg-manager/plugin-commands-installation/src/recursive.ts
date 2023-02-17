@@ -402,7 +402,7 @@ export async function recursive (
 
   throwOnFail(result)
 
-  if (!Object.values(result).filter(({ status }) => status === 'passed' ).length && cmdFullName === 'update' && opts.depth === 0) {
+  if (!Object.values(result).filter(({ status }) => status === 'passed').length && cmdFullName === 'update' && opts.depth === 0) {
     throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
       'None of the specified packages were found in the dependencies of any of the projects.')
   }
