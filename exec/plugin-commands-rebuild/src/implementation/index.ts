@@ -227,6 +227,7 @@ const limitLinking = pLimit(16)
 async function _rebuild (
   ctx: {
     pkgsToRebuild: Set<string>
+    skipped: Set<string>
     virtualStoreDir: string
     rootModulesDir: string
     currentLockfile: Lockfile
@@ -272,7 +273,7 @@ async function _rebuild (
   const warn = (message: string) => {
     logger.info({ message, prefix: opts.dir })
   }
-  const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath)).map((depPath) =>
+  const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath) && !ctx.skipped.has(depPath)).map((depPath) =>
     async () => {
       const pkgSnapshot = pkgSnapshots[depPath]
       const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
