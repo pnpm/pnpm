@@ -696,3 +696,118 @@ test('pnpm exec in directory with path delimiter', async () => {
   }
   expect(error).toBeUndefined()
 })
+
+test('pnpm recursive exec report summary', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      scripts: {
+        build: 'sleep 1 && echo "project-1"',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      scripts: {
+        build: 'exit 1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      scripts: {
+        build: 'sleep 1 && echo "project-3"',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+      scripts: {
+        build: 'exit 1',
+      },
+    },
+  ])
+  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  let error
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      selectedProjectsGraph,
+      recursive: true,
+      reportSummary: true,
+      workspaceConcurrency: 3,
+    }, ['npm', 'run', 'build'])
+  } catch (err: any) { // eslint-disable-line
+    error = err
+  }
+  expect(error.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
+
+  const { default: summary } = (await import(path.resolve('pnpm-exec-summary.json')))
+  expect(summary[path.resolve('project-1')].status).toBe('passed')
+  expect(summary[path.resolve('project-1')].duration).not.toBeFalsy()
+  expect(summary[path.resolve('project-2')].status).toBe('failure')
+  expect(summary[path.resolve('project-2')].duration).not.toBeFalsy()
+  expect(summary[path.resolve('project-3')].status).toBe('passed')
+  expect(summary[path.resolve('project-3')].duration).not.toBeFalsy()
+  expect(summary[path.resolve('project-4')].status).toBe('failure')
+  expect(summary[path.resolve('project-4')].duration).not.toBeFalsy()
+})
+
+test('pnpm recursive exec report summary with --bail', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      scripts: {
+        build: 'sleep 1 && echo "project-1"',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      scripts: {
+        build: 'exit 1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      scripts: {
+        build: 'sleep 1 && echo "project-3"',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+      scripts: {
+        build: 'exit 1',
+      },
+    },
+  ])
+  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  let error
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      selectedProjectsGraph,
+      recursive: true,
+      reportSummary: true,
+      bail: true,
+      workspaceConcurrency: 3,
+    }, ['npm', 'run', 'build'])
+  } catch (err: any) { // eslint-disable-line
+    error = err
+  }
+  expect(error.code).toBe('ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL')
+
+  const { default: summary } = (await import(path.resolve('pnpm-exec-summary.json')))
+
+  expect(summary[path.resolve('project-1')].status).toBe('running')
+  expect(summary[path.resolve('project-2')].status).toBe('failure')
+  expect(summary[path.resolve('project-2')].duration).not.toBeFalsy()
+  expect(summary[path.resolve('project-3')].status).toBe('running')
+  expect(summary[path.resolve('project-4')].status).toBe('queued')
+})
