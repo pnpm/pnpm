@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 14.1.3
+
+### Patch Changes
+
+- 2241f77ad: Print a hint that suggests to run `pnpm store prune`, when a tarball integrity error happens.
+
 ## 14.1.2
 
 ### Patch Changes

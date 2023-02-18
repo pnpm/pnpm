@@ -1,5 +1,12 @@
 # @pnpm/fetch
 
+## 6.0.6
+
+### Patch Changes
+
+- 673e23060: Fail with a meaningful error message when cannot parse a proxy URL.
+- 9fa6c7404: The `strict-ssl`, `ca`, `key`, and `cert` settings should work with HTTPS proxy servers [#4689](https://github.com/pnpm/pnpm/issues/4689).
+
 ## 6.0.5
 
 ### Patch Changes

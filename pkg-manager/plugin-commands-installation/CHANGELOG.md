@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-installation
 
+## 11.4.6
+
+### Patch Changes
+
+- Updated dependencies [f17ca4218]
+  - @pnpm/core@7.8.2
+  - @pnpm/pnpmfile@4.0.32
+  - @pnpm/outdated@11.0.19
+  - @pnpm/package-store@15.1.7
+  - @pnpm/store-connection-manager@5.2.12
+  - @pnpm/config@16.6.2
+  - @pnpm/plugin-commands-rebuild@7.0.34
+  - @pnpm/cli-utils@1.0.34
+  - @pnpm/find-workspace-packages@5.0.34
+  - @pnpm/filter-workspace-packages@6.0.34
+
 ## 11.4.5
 
 ### Patch Changes

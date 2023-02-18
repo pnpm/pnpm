@@ -1,5 +1,13 @@
 # @pnpm/server
 
+## 14.1.2
+
+### Patch Changes
+
+- Updated dependencies [673e23060]
+- Updated dependencies [9fa6c7404]
+  - @pnpm/fetch@6.0.6
+
 ## 14.1.1
 
 ### Patch Changes
