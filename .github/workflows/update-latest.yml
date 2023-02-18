@@ -63,7 +63,9 @@ jobs:
         id: mastodon
         uses: cbrgm/mastodon-github-action@v1
         with:
-          message: pnpm@${{ github.event.inputs.version }} is out!
+          message: |
+            pnpm@${{ github.event.inputs.version }} is out!
+            https://github.com/pnpm/pnpm/releases/tag/v${{ github.event.inputs.version }}
           visibility: "public"
         env:
           MASTODON_URL: "https://fosstodon.org/"
