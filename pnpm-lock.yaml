@@ -2105,8 +2105,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       '@pnpm/network.agent':
-        specifier: 0.0.5
-        version: 0.0.5
+        specifier: 0.1.0
+        version: 0.1.0
       '@zkochan/retry':
         specifier: ^0.2.0
         version: 0.2.0
@@ -8020,11 +8020,11 @@ packages:
       write-yaml-file: 4.2.0
     dev: true
 
-  /@pnpm/network.agent@0.0.5:
-    resolution: {integrity: sha512-jnPnz8dIAOn+6pI2bjYv4P37Lfy4A30y3nzxxVe+EZIxovZmEvfrbSRDUktt2sHCvvz+qxHDPSfUvNYSokFjSw==}
+  /@pnpm/network.agent@0.1.0:
+    resolution: {integrity: sha512-RurhhwXMdrKnr4swyx0E6g3tfsfP27kB7czoGTmEvSCgmrrZ5pGToZ0MahiwGRkpSRoTlUmVE97nwqjxCOfboA==}
     engines: {node: '>=12.22.0'}
     dependencies:
-      '@pnpm/network.proxy-agent': 0.0.5
+      '@pnpm/network.proxy-agent': 0.1.0
       agentkeepalive: 4.2.1
       lru-cache: 7.10.1
     transitivePeerDependencies:
@@ -8037,8 +8037,8 @@ packages:
     dependencies:
       graceful-fs: 4.2.10
 
-  /@pnpm/network.proxy-agent@0.0.5:
-    resolution: {integrity: sha512-fZnv7C2W/zwZUxoSt3H3b7WhyY+SolYXay8i5ihB7RAH7SyOj256TqMt7NRYl1UrlVLT2eoDDokYX3iZgIvLCw==}
+  /@pnpm/network.proxy-agent@0.1.0:
+    resolution: {integrity: sha512-nl7xLKiYlkTEpaM0U4JaZ1ce6JSYIzuorH+JVn33jry/k3ombpK1xbOzFFwfFhWptXFN9IMcZACjQxmvBbElgg==}
     engines: {node: '>=12.22.0'}
     dependencies:
       '@pnpm/error': 4.0.1
@@ -17413,7 +17413,7 @@ time:
   /@pnpm/graph-sequencer@1.0.0: '2022-03-20T20:48:58.797Z'
   /@pnpm/logger@5.0.0: '2022-10-14T13:56:04.285Z'
   /@pnpm/meta-updater@0.2.2: '2022-11-18T12:00:42.706Z'
-  /@pnpm/network.agent@0.0.5: '2023-02-12T16:15:54.817Z'
+  /@pnpm/network.agent@0.1.0: '2023-02-18T01:03:06.709Z'
   /@pnpm/nopt@0.2.1: '2021-06-01T19:45:54.552Z'
   /@pnpm/npm-conf@2.0.4: '2022-11-11T20:26:48.028Z'
   /@pnpm/npm-lifecycle@2.0.0: '2022-11-30T19:58:42.868Z'
