@@ -13,6 +13,7 @@ const DEFAULT_OPTIONS = {
   bail: false,
   bin: 'node_modules/.bin',
   cliOptions: {},
+  deployAllFiles: false,
   extraEnv: {},
   include: {
     dependencies: true,

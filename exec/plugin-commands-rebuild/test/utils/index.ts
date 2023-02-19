@@ -11,6 +11,7 @@ export const DEFAULT_OPTS = {
   cacheDir: '../cache',
   cert: undefined,
   cliOptions: {},
+  deployAllFiles: false,
   fetchRetries: 2,
   fetchRetryFactor: 90,
   fetchRetryMaxtimeout: 90,

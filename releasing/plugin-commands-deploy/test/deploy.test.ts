@@ -24,6 +24,7 @@ test('deploy', async () => {
     {
       name: 'project-2',
       version: '2.0.0',
+      files: ['index.js'],
       dependencies: {
         'project-3': 'workspace:*',
         'is-odd': '1.0.0',
@@ -32,6 +33,7 @@ test('deploy', async () => {
     {
       name: 'project-3',
       version: '2.0.0',
+      files: ['index.js'],
       dependencies: {
         'project-3': 'workspace:*',
         'is-odd': '1.0.0',
@@ -39,8 +41,10 @@ test('deploy', async () => {
     },
   ])
 
-  fs.writeFileSync('project-1/test.js', '', 'utf8')
-  fs.writeFileSync('project-1/index.js', '', 'utf8')
+  ; ['project-1', 'project-2', 'project-3'].forEach(name => {
+    fs.writeFileSync(`${name}/test.js`, '', 'utf8')
+    fs.writeFileSync(`${name}/index.js`, '', 'utf8')
+  })
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project-1' }])
 
@@ -64,5 +68,9 @@ test('deploy', async () => {
   await project.hasNot('is-negative')
   expect(fs.existsSync('deploy/index.js')).toBeTruthy()
   expect(fs.existsSync('deploy/test.js')).toBeFalsy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-2/node_modules/project-2/index.js')).toBeTruthy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-2/node_modules/project-2/test.js')).toBeFalsy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-3/node_modules/project-3/index.js')).toBeTruthy()
+  expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-3/node_modules/project-3/test.js')).toBeFalsy()
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })

@@ -27,6 +27,7 @@ const DEFAULT_OPTIONS = {
   bin: 'node_modules/.bin',
   extraEnv: {},
   cliOptions: {},
+  deployAllFiles: false,
   include: {
     dependencies: true,
     devDependencies: true,

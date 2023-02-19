@@ -245,6 +245,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'bail'
 | 'bin'
 | 'cliOptions'
+| 'deployAllFiles'
 | 'depth'
 | 'dev'
 | 'engineStrict'
@@ -297,6 +298,7 @@ export type InstallCommandOptions = Pick<Config,
   dedupe?: boolean
   saveLockfile?: boolean
   workspace?: boolean
+  includeOnlyPackageFiles?: boolean
 } & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages'>>
 
 export async function handler (

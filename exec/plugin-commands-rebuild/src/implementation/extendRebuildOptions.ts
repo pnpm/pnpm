@@ -39,6 +39,7 @@ export interface StrictRebuildOptions {
   unsafePerm: boolean
   pending: boolean
   shamefullyHoist: boolean
+  deployAllFiles: boolean
 }
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &
