@@ -1,5 +1,15 @@
 # pnpm
 
+## 7.27.1
+
+### Patch Changes
+
+- Add `store path` description to the `pnpm` cli help.
+- Print a hint that suggests to run `pnpm store prune`, when a tarball integrity error happens.
+- Don't retry installation if the integrity checksum of a package failed and no lockfile was present.
+- Fail with a meaningful error message when cannot parse a proxy URL.
+- The `strict-ssl`, `ca`, `key`, and `cert` settings should work with HTTPS proxy servers [#4689](https://github.com/pnpm/pnpm/issues/4689).
+
 ## 7.27.0
 
 ### Minor Changes

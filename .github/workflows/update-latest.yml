@@ -32,7 +32,7 @@ jobs:
     environment: release
     needs: tag-in-registry
     steps:
-      - uses: vedantmgoyal2009/winget-releaser@v1
+      - uses: vedantmgoyal2009/winget-releaser@v2
         with:
           identifier: pnpm.pnpm
           version: ${{ github.event.inputs.version }}
@@ -53,3 +53,21 @@ jobs:
           subreddit: pnpm
           title: pnpm@${{ github.event.inputs.version }} is out!
           url: https://github.com/pnpm/pnpm/releases/tag/v${{ github.event.inputs.version }}
+
+  post-to-mastodon:
+    runs-on: ubuntu-latest
+    environment: release
+    needs: tag-in-registry
+    steps:
+      - name: Send toot to Mastodon
+        id: mastodon
+        uses: cbrgm/mastodon-github-action@v1
+        with:
+          message: |
+            pnpm@${{ github.event.inputs.version }} is out!
+            https://github.com/pnpm/pnpm/releases/tag/v${{ github.event.inputs.version }}
+          visibility: "public"
+        env:
+          MASTODON_URL: "https://fosstodon.org/"
+          MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }} # access token
+

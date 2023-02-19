@@ -286,7 +286,7 @@ export async function mutateModules (
       opts.useLockfileV6 = ctx.wantedLockfile.lockfileVersion.toString().startsWith('6.')
     }
     let needsFullResolution = !maybeOpts.ignorePackageManifest &&
-      lockfileIsUpToDate(ctx.wantedLockfile, {
+      lockfileIsNotUpToDate(ctx.wantedLockfile, {
         overrides: opts.overrides,
         neverBuiltDependencies: opts.neverBuiltDependencies,
         onlyBuiltDependencies: opts.onlyBuiltDependencies,
@@ -385,7 +385,11 @@ export async function mutateModules (
         } catch (error: any) { // eslint-disable-line
           if (
             frozenLockfile ||
-            error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' && !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
+            (
+              error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' &&
+              !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
+            ) ||
+            (!ctx.existsWantedLockfile && !ctx.existsCurrentLockfile)
           ) throw error
           if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
             needsFullResolution = true
@@ -585,7 +589,7 @@ async function calcPatchHashes (patches: Record<string, string>, lockfileDir: st
   }, patches)
 }
 
-function lockfileIsUpToDate (
+function lockfileIsNotUpToDate (
   lockfile: Lockfile,
   {
     neverBuiltDependencies,
@@ -1234,7 +1238,10 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
     return await _installInContext(projects, ctx, opts)
   } catch (error: any) { // eslint-disable-line
-    if (!BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) throw error
+    if (
+      !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code) ||
+      (!ctx.existsWantedLockfile && !ctx.existsCurrentLockfile)
+    ) throw error
     opts.needsFullResolution = true
     // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
     opts.update = true

@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 7.8.2
+
+### Patch Changes
+
+- f17ca4218: Don't retry installation if the integrity checksum of a package failed and no lockfile was present.
+  - @pnpm/headless@19.4.12
+  - @pnpm/package-requester@20.1.6
+
 ## 7.8.1
 
 ### Patch Changes

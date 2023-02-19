@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetch",
-  "version": "6.0.5",
+  "version": "6.0.6",
   "description": "node-fetch with retries",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/network.agent": "0.0.4",
+    "@pnpm/network.agent": "0.1.0",
     "@zkochan/retry": "^0.2.0",
     "node-fetch": "3.0.0-beta.9"
   },

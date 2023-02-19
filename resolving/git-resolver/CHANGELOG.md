@@ -1,5 +1,13 @@
 # @pnpm/git-resolver
 
+## 7.0.7
+
+### Patch Changes
+
+- Updated dependencies [673e23060]
+- Updated dependencies [9fa6c7404]
+  - @pnpm/fetch@6.0.6
+
 ## 7.0.6
 
 ### Patch Changes
