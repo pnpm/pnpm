@@ -18,9 +18,7 @@ export function pkgSnapshotToResolution (
     return pkgSnapshot.resolution as Resolution
   }
   const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-  const registry: string = (pkgSnapshot.resolution as TarballResolution).registry || // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
-    (name[0] === '@' && registries[name.split('/')[0]]) ||
-    registries.default
+  const registry: string = (name[0] === '@' && registries[name.split('/')[0]]) || registries.default
   let tarball!: string
   if (!(pkgSnapshot.resolution as TarballResolution).tarball) {
     tarball = getTarball(registry)
@@ -42,5 +40,4 @@ export function pkgSnapshotToResolution (
     }
     return getNpmTarballUrl(name, version, { registry })
   }
-  /* eslint-enable @typescript-eslint/dot-notation */
 }
