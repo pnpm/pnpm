@@ -28,7 +28,7 @@ import {
   Lockfile,
   readCurrentLockfile,
   readWantedLockfile,
-  writeCurrentLockfile,
+  writeLockfiles,
   PatchFile,
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
@@ -543,7 +543,14 @@ export async function headlessInstall (opts: HeadlessOptions) {
       storeDir: opts.storeDir,
       virtualStoreDir,
     })
-    await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
+    // We need to write the wanted lockfile as well.
+    // Even though it will only be changed if the workspace will have new projects with no dependencies.
+    await writeLockfiles({
+      wantedLockfileDir: opts.lockfileDir,
+      currentLockfileDir: virtualStoreDir,
+      wantedLockfile,
+      currentLockfile: filteredLockfile,
+    })
   }
 
   // waiting till package requests are finished
