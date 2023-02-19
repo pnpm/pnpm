@@ -1473,3 +1473,51 @@ test('update the lockfile when a new project is added to the workspace', async (
   const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
 })
+
+test('update the lockfile when a new project is added to the workspace and lockfile-only installation is used', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1' },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+  ]
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-1'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({ allProjects, lockfileOnly: true }))
+
+  importers.push({
+    mutation: 'install',
+    rootDir: path.resolve('project-2'),
+  })
+  allProjects.push({
+    buildIndex: 0,
+    manifest: {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+    rootDir: path.resolve('project-2'),
+  })
+  await mutateModules(importers, await testDefaults({ allProjects, lockfileOnly: true }))
+
+  const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
+  expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
+})

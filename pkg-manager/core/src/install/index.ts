@@ -335,6 +335,8 @@ export async function mutateModules (
         })
       }
       if (opts.lockfileOnly) {
+        // The lockfile will only be changed if the workspace will have new projects with no dependencies.
+        await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
         return projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir])
       }
       if (!ctx.existsWantedLockfile) {
