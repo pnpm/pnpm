@@ -188,7 +188,6 @@ function toLockfileDependency (
   if (!requiresBuildIsKnown && !pending) {
     (pkg.requiresBuild as SafePromiseDefer<boolean>).resolve(result.requiresBuild ?? false)
   }
-  /* eslint-enable @typescript-eslint/dot-notation */
   return result
 }
 
@@ -239,10 +238,8 @@ function toLockfileResolution (
   if (dp.isAbsolute(depPath) || resolution.type !== undefined || !resolution['integrity']) {
     return resolution as LockfileResolution
   }
-  const base = registry !== resolution['registry'] ? { registry: resolution['registry'] } : {}
   if (lockfileIncludeTarballUrl) {
     return {
-      ...base,
       integrity: resolution['integrity'],
       tarball: resolution['tarball'],
     }
@@ -254,16 +251,13 @@ function toLockfileResolution (
   const actualTarball = resolution['tarball'].replace('%2f', '/')
   if (removeProtocol(expectedTarball) !== removeProtocol(actualTarball)) {
     return {
-      ...base,
       integrity: resolution['integrity'],
       tarball: relativeTarball(resolution['tarball'], registry),
     }
   }
   return {
-    ...base,
     integrity: resolution['integrity'],
   }
-  /* eslint-enable @typescript-eslint/dot-notation */
 }
 
 function removeProtocol (url: string) {

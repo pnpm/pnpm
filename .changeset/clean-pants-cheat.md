@@ -1,6 +1,7 @@
 ---
 "@pnpm/lockfile-types": major
 "@pnpm/lockfile-utils": major
+"@pnpm/resolve-dependencies": major
 "pnpm": major
 ---
 
