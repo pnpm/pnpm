@@ -29,7 +29,6 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/hard-link-dir#readme",
-  "dependencies": {},
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/fs.hard-link-dir": "workspace:*",

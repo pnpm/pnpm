@@ -34,11 +34,11 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/list#readme",
   "dependencies": {
-    "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/npm-package-arg": "^1.0.0",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
+    "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
     "@pnpm/types": "workspace:*",
     "archy": "^1.0.0",
     "chalk": "^4.1.2",

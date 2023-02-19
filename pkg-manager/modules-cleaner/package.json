@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
     "@pnpm/filter-lockfile": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
@@ -37,7 +38,6 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
-    "@pnpm/dependency-path": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "devDependencies": {

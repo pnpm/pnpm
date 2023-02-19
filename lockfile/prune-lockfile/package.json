@@ -37,9 +37,9 @@
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/dependency-path": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "funding": "https://opencollective.com/pnpm",
