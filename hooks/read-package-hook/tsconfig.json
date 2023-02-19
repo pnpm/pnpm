@@ -16,6 +16,9 @@
       "path": "../../config/parse-overrides"
     },
     {
+      "path": "../../packages/error"
+    },
+    {
       "path": "../../packages/parse-wanted-dependency"
     },
     {

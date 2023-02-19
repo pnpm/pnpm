@@ -28,6 +28,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/hooks/read-package-hook#readme",
   "dependencies": {
+    "@pnpm/error": "workspace:*",
     "@pnpm/matcher": "workspace:*",
     "@pnpm/parse-overrides": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",

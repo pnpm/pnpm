@@ -1,16 +1,25 @@
 import path from 'path'
+import semver from 'semver'
 import partition from 'ramda/src/partition'
 import { Dependencies, PackageManifest, ReadPackageHook } from '@pnpm/types'
+import { PnpmError } from '@pnpm/error'
 import { parseOverrides } from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
-import semver from 'semver'
+import { isSubRange } from '.'
 
 export function createVersionsOverrider (
   overrides: Record<string, string>,
   rootDir: string
 ): ReadPackageHook {
+  let parsedOverrides: ReturnType<typeof parseOverrides>
+  try {
+    parsedOverrides = parseOverrides(overrides)
+  } catch (e) {
+    throw new PnpmError('INVALID_OVERRIDES_SELECTOR', `${(e as PnpmError).message} in pnpm.overrides`)
+  }
+
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
-    parseOverrides(overrides)
+    parsedOverrides
       .map((override) => {
         let linkTarget: string | undefined
         if (override.newPref.startsWith('link:')) {
@@ -85,12 +94,4 @@ function overrideDeps (versionOverrides: VersionOverride[], deps: Dependencies, 
     }
     deps[versionOverride.targetPkg.name] = versionOverride.newPref
   }
-}
-
-function isSubRange (superRange: string | undefined, subRange: string) {
-  return !superRange ||
-  subRange === superRange ||
-  semver.validRange(subRange) != null &&
-  semver.validRange(superRange) != null &&
-  semver.subset(subRange, superRange)
 }

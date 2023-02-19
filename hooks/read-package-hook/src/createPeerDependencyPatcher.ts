@@ -1,6 +1,10 @@
-import { PeerDependencyRules, ReadPackageHook } from '@pnpm/types'
-import { createMatcher } from '@pnpm/matcher'
+import semver from 'semver'
 import isEmpty from 'ramda/src/isEmpty'
+import { PeerDependencyRules, ReadPackageHook } from '@pnpm/types'
+import { PnpmError } from '@pnpm/error'
+import { parseOverrides } from '@pnpm/parse-overrides'
+import { createMatcher } from '@pnpm/matcher'
+import { isSubRange } from '.'
 
 export function createPeerDependencyPatcher (
   peerDependencyRules: PeerDependencyRules
@@ -9,6 +13,15 @@ export function createPeerDependencyPatcher (
   const ignoreMissingMatcher = createMatcher(ignoreMissingPatterns)
   const allowAnyPatterns = [...new Set(peerDependencyRules.allowAny ?? [])]
   const allowAnyMatcher = createMatcher(allowAnyPatterns)
+
+  let overrides: ReturnType<typeof parseOverrides>
+  try {
+    overrides = parseOverrides(peerDependencyRules.allowedVersions ?? {})
+  } catch (e) {
+    throw new PnpmError('INVALID_ALLOWED_VERSION_SELECTOR',
+      `${(e as PnpmError).message} in pnpm.peerDependencyRules.allowedVersions`)
+  }
+
   return ((pkg) => {
     if (isEmpty(pkg.peerDependencies)) return pkg
     for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
@@ -44,6 +57,18 @@ export function createPeerDependencyPatcher (
 
       pkg.peerDependencies![peerName] = currentVersions.join(' || ')
     }
+
+    const peerDepsOverrides = overrides.filter((override) => override.parentPkg && override.parentPkg.name === pkg.name)
+
+    peerDepsOverrides.forEach(override => {
+      const pkgVer = pkg.version ?? ''
+
+      if (!override.parentPkg!.pref ||
+        (isSubRange(override.parentPkg!.pref, pkgVer) || semver.satisfies(pkgVer, override.parentPkg!.pref))) {
+        pkg.peerDependencies![override.targetPkg.name] = override.newPref
+      }
+    })
+
     return pkg
   }) as ReadPackageHook
 }
