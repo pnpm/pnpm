@@ -60,8 +60,8 @@ export async function toJsonResult (
           alias: node.alias as string | undefined,
           from: node.name,
           version: node.version,
-
           resolved: node.resolved,
+          path: node.path,
         }
       if (Object.keys(subDependencies).length > 0) {
         dep.dependencies = subDependencies

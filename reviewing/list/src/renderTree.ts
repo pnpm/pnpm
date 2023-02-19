@@ -123,6 +123,10 @@ export async function toArchyTree (
         if (pkg.homepage) {
           labelLines.push(pkg.homepage)
         }
+        if (pkg.path) {
+          labelLines.push(pkg.path)
+        }
+
         return {
           label: labelLines.join('\n'),
           nodes,
