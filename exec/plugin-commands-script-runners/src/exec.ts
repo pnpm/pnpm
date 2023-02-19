@@ -102,10 +102,10 @@ export function getResumedPackageChunks ({
   return chunks.slice(chunkPosition)
 }
 
-export async function writeRecursiveSummary (opts: { dir: string, summary: RecursiveSummary, reportSummary?: boolean }) {
-  if (opts.reportSummary) {
-    await writeJsonFile(path.join(opts.dir, 'pnpm-exec-summary.json'), opts.summary)
-  }
+export async function writeRecursiveSummary (opts: { dir: string, summary: RecursiveSummary }) {
+  await writeJsonFile(path.join(opts.dir, 'pnpm-exec-summary.json'), {
+    executionStatus: opts.summary,
+  })
 }
 
 export function createEmptyRecursiveSummary (chunks: string[][]) {
@@ -230,10 +230,9 @@ export async function handler (
             err['code'] = 'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL'
           }
           err['prefix'] = prefix
-          await writeRecursiveSummary({
+          opts.reportSummary && await writeRecursiveSummary({
             dir: opts.lockfileDir ?? opts.dir,
             summary: result,
-            reportSummary: opts.reportSummary,
           })
           /* eslint-enable @typescript-eslint/dot-notation */
           throw err
@@ -242,10 +241,9 @@ export async function handler (
       )))
   }
 
-  await writeRecursiveSummary({
+  opts.reportSummary && await writeRecursiveSummary({
     dir: opts.lockfileDir ?? opts.dir,
     summary: result,
-    reportSummary: opts.reportSummary,
   })
   throwOnCommandFail('pnpm recursive exec', result)
   return { exitCode }

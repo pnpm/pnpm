@@ -144,10 +144,9 @@ export async function runRecursive (
 
           err['code'] = 'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL'
           err['prefix'] = prefix
-          await writeRecursiveSummary({
+          opts.reportSummary && await writeRecursiveSummary({
             dir: opts.workspaceDir ?? opts.dir,
             summary: result,
-            reportSummary: opts.reportSummary,
           })
           /* eslint-enable @typescript-eslint/dot-notation */
           throw err
@@ -167,10 +166,9 @@ export async function runRecursive (
       })
     }
   }
-  await writeRecursiveSummary({
+  opts.reportSummary && await writeRecursiveSummary({
     dir: opts.workspaceDir ?? opts.dir,
     summary: result,
-    reportSummary: opts.reportSummary,
   })
   throwOnCommandFail('pnpm recursive run', result)
 }

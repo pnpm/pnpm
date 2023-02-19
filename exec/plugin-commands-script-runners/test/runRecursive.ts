@@ -1024,15 +1024,15 @@ test('pnpm recursive run report summary', async () => {
   }
   expect(error.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
 
-  const { default: summary } = (await import(path.resolve('pnpm-exec-summary.json')))
-  expect(summary[path.resolve('project-1')].status).toBe('passed')
-  expect(summary[path.resolve('project-1')].duration).not.toBeFalsy()
-  expect(summary[path.resolve('project-2')].status).toBe('failure')
-  expect(summary[path.resolve('project-2')].duration).not.toBeFalsy()
-  expect(summary[path.resolve('project-3')].status).toBe('passed')
-  expect(summary[path.resolve('project-3')].duration).not.toBeFalsy()
-  expect(summary[path.resolve('project-4')].status).toBe('failure')
-  expect(summary[path.resolve('project-4')].duration).not.toBeFalsy()
+  const { default: { executionStatus } } = (await import(path.resolve('pnpm-exec-summary.json')))
+  expect(executionStatus[path.resolve('project-1')].status).toBe('passed')
+  expect(executionStatus[path.resolve('project-1')].duration).not.toBeFalsy()
+  expect(executionStatus[path.resolve('project-2')].status).toBe('failure')
+  expect(executionStatus[path.resolve('project-2')].duration).not.toBeFalsy()
+  expect(executionStatus[path.resolve('project-3')].status).toBe('passed')
+  expect(executionStatus[path.resolve('project-3')].duration).not.toBeFalsy()
+  expect(executionStatus[path.resolve('project-4')].status).toBe('failure')
+  expect(executionStatus[path.resolve('project-4')].duration).not.toBeFalsy()
 })
 
 test('pnpm recursive run report summary with --bail', async () => {
@@ -1083,11 +1083,11 @@ test('pnpm recursive run report summary with --bail', async () => {
   }
   expect(error.code).toBe('ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL')
 
-  const { default: summary } = (await import(path.resolve('pnpm-exec-summary.json')))
+  const { default: { executionStatus } } = (await import(path.resolve('pnpm-exec-summary.json')))
 
-  expect(summary[path.resolve('project-1')].status).toBe('running')
-  expect(summary[path.resolve('project-2')].status).toBe('failure')
-  expect(summary[path.resolve('project-2')].duration).not.toBeFalsy()
-  expect(summary[path.resolve('project-3')].status).toBe('running')
-  expect(summary[path.resolve('project-4')].status).toBe('queued')
+  expect(executionStatus[path.resolve('project-1')].status).toBe('running')
+  expect(executionStatus[path.resolve('project-2')].status).toBe('failure')
+  expect(executionStatus[path.resolve('project-2')].duration).not.toBeFalsy()
+  expect(executionStatus[path.resolve('project-3')].status).toBe('running')
+  expect(executionStatus[path.resolve('project-4')].status).toBe('queued')
 })

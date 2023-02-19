@@ -14,20 +14,20 @@ export type RecursiveSummary = Record<string, {
 } | ActionFailure>
 
 class RecursiveFailError extends PnpmError {
-  public readonly fails: ActionFailure[]
+  public readonly failures: ActionFailure[]
   public readonly passes: number
 
-  constructor (command: string, recursiveSummary: RecursiveSummary, fails: ActionFailure[]) {
-    super('RECURSIVE_FAIL', `"${command}" failed in ${fails.length} packages`)
+  constructor (command: string, recursiveSummary: RecursiveSummary, failures: ActionFailure[]) {
+    super('RECURSIVE_FAIL', `"${command}" failed in ${failures.length} packages`)
 
-    this.fails = fails
+    this.failures = failures
     this.passes = Object.values(recursiveSummary).filter(({ status }) => status === 'passed').length
   }
 }
 
 export function throwOnCommandFail (command: string, recursiveSummary: RecursiveSummary) {
-  const fails = Object.values(recursiveSummary).filter(({ status }) => status === 'failure') as ActionFailure[]
-  if (fails.length > 0) {
-    throw new RecursiveFailError(command, recursiveSummary, fails)
+  const failures = Object.values(recursiveSummary).filter(({ status }) => status === 'failure') as ActionFailure[]
+  if (failures.length > 0) {
+    throw new RecursiveFailError(command, recursiveSummary, failures)
   }
 }
