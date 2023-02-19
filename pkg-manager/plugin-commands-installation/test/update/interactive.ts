@@ -27,12 +27,12 @@ const DEFAULT_OPTIONS = {
   bin: 'node_modules/.bin',
   extraEnv: {},
   cliOptions: {},
+  deployAllFiles: false,
   include: {
     dependencies: true,
     devDependencies: true,
     optionalDependencies: true,
   },
-  injectAllFiles: false,
   lock: true,
   pnpmfile: '.pnpmfile.cjs',
   pnpmHomeDir: '',

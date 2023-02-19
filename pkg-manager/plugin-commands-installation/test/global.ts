@@ -18,12 +18,12 @@ const DEFAULT_OPTIONS = {
   cacheDir: path.join(tmp, 'cache'),
   extraEnv: {},
   cliOptions: {},
+  deployAllFiles: false,
   include: {
     dependencies: true,
     devDependencies: true,
     optionalDependencies: true,
   },
-  injectAllFiles: false,
   lock: true,
   pnpmfile: '.pnpmfile.cjs',
   rawConfig: { registry: REGISTRY_URL },

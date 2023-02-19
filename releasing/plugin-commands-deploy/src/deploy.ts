@@ -74,7 +74,7 @@ export async function handler (
   const deployDir = path.isAbsolute(deployDirParam) ? deployDirParam : path.join(opts.dir, deployDirParam)
   await rimraf(deployDir)
   await fs.promises.mkdir(deployDir, { recursive: true })
-  const includeOnlyPackageFiles = !opts.injectAllFiles
+  const includeOnlyPackageFiles = !opts.deployAllFiles
   await copyProject(deployedDir, deployDir, { includeOnlyPackageFiles })
   await install.handler({
     ...opts,

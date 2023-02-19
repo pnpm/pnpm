@@ -1,9 +1,10 @@
 ---
-"@pnpm/plugin-commands-installation": patch
-"@pnpm/plugin-commands-deploy": patch
-"@pnpm/store-connection-manager": patch
-"@pnpm/client": patch
-"pnpm": patch
+"@pnpm/plugin-commands-installation": major
+"@pnpm/plugin-commands-deploy": major
+"@pnpm/store-connection-manager": major
+"@pnpm/client": major
+"pnpm": major
 ---
 
-Respect package.json files setting when deploying with local dependencies [#5911](https://github.com/pnpm/pnpm/issues/5911).
+When there's a `files` field in the `package.json`, only deploy those files that are listed in it.
+Use the same logic also when injecting packages. This behavior can be changed by setting the `deploy-all-files` setting to `true` [#5911](https://github.com/pnpm/pnpm/issues/5911).
