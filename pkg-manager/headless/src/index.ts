@@ -28,6 +28,7 @@ import {
   Lockfile,
   readCurrentLockfile,
   readWantedLockfile,
+  writeLockfiles,
   writeCurrentLockfile,
   PatchFile,
 } from '@pnpm/lockfile-file'
@@ -152,6 +153,7 @@ export interface HeadlessOptions {
   enableModulesDir?: boolean
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
   useGitBranchLockfile?: boolean
+  useLockfile?: boolean
 }
 
 export async function headlessInstall (opts: HeadlessOptions) {
@@ -543,7 +545,18 @@ export async function headlessInstall (opts: HeadlessOptions) {
       storeDir: opts.storeDir,
       virtualStoreDir,
     })
-    await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
+    if (opts.useLockfile) {
+      // We need to write the wanted lockfile as well.
+      // Even though it will only be changed if the workspace will have new projects with no dependencies.
+      await writeLockfiles({
+        wantedLockfileDir: opts.lockfileDir,
+        currentLockfileDir: virtualStoreDir,
+        wantedLockfile,
+        currentLockfile: filteredLockfile,
+      })
+    } else {
+      await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
+    }
   }
 
   // waiting till package requests are finished
