@@ -36,7 +36,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/indexed-pkg-importer#readme",
   "keywords": [
-    "pnpm7",
+    "pnpm8",
     "store",
     "storage",
     "global store",

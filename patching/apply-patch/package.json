@@ -19,7 +19,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/patching/apply-patch",
   "keywords": [
-    "pnpm7",
+    "pnpm8",
     "pnpm",
     "patch"
   ],

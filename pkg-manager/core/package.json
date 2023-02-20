@@ -107,7 +107,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core#readme",
   "keywords": [
-    "pnpm7",
+    "pnpm8",
     "dependency manager",
     "install",
     "installer",

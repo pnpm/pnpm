@@ -36,7 +36,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "keywords": [
-    "pnpm7"
+    "pnpm8"
   ],
   "exports": {
     ".": "./lib/index.js"

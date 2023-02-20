@@ -12,7 +12,7 @@
     "@pnpm/logger": "^5.0.0"
   },
   "keywords": [
-    "pnpm7"
+    "pnpm8"
   ],
   "license": "MIT",
   "engines": {

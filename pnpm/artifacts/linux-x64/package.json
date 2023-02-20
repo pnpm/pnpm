@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/linux-x64",
-  "version": "7.28.0-0",
+  "version": "8.0.0-alpha.0",
   "license": "MIT",
   "publishConfig": {
     "bin": {
@@ -20,7 +20,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "keywords": [
-    "pnpm7"
+    "pnpm8"
   ],
   "devDependencies": {
     "@pnpm/linux-x64": "workspace:*"

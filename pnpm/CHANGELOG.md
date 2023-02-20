@@ -1,5 +1,21 @@
 # pnpm
 
+## 8.0.0-alpha.0
+
+### Major Changes
+
+- `auto-install-peers` is `true` by default.
+- The registry field is removed from the `resolution` object in `pnpm-lock.yaml`.
+- `save-workspace-protocol` is `rolling` by default.
+- When there's a `files` field in the `package.json`, only deploy those files that are listed in it.
+  Use the same logic also when injecting packages. This behavior can be changed by setting the `deploy-all-files` setting to `true` [#5911](https://github.com/pnpm/pnpm/issues/5911).
+- Use lockfile v6 by default.
+- `resolve-peers-from-workspace-root` is `true` by default.
+- `publishConfig.linkDirectory` is `true` by default.
+- `resolution-mode` is `lowest-direct` by default.
+- Direct dependencies are deduped. So if the same dependency is both in a project and in the workspace root, then it is only linked to the workspace root.
+- Create a lockfile even if the project has no dependencies at all.
+
 ## 7.28.0-0
 
 ### Minor Changes
