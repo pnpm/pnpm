@@ -1,6 +1,6 @@
 ---
-"@pnpm/list": patch
-"pnpm": patch
+"@pnpm/list": minor
+"pnpm": minor
 ---
 
-Show path info for pnpm why --json or --long [#6103](https://github.com/pnpm/pnpm/issues/6103)
+Show path info for `pnpm why --json` or `--long` [#6103](https://github.com/pnpm/pnpm/issues/6103).
