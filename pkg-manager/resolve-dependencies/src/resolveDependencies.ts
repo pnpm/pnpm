@@ -1377,7 +1377,10 @@ function getMissingPeers (pkg: PackageManifest) {
 function pkgIsLeaf (pkg: PackageManifest) {
   return isEmpty(pkg.dependencies ?? {}) &&
     isEmpty(pkg.optionalDependencies ?? {}) &&
-    isEmpty(pkg.peerDependencies ?? {})
+    isEmpty(pkg.peerDependencies ?? {}) &&
+    // Package manifests can declare peerDependenciesMeta without declaring
+    // peerDependencies. peerDependenciesMeta implies the later.
+    isEmpty(pkg.peerDependenciesMeta ?? {})
 }
 
 function getResolvedPackage (
