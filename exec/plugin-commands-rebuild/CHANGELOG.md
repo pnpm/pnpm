@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-rebuild
 
+## 7.1.0
+
+### Minor Changes
+
+- 0377d9367: Add --report-summary for pnpm exec and pnpm run [#6008](https://github.com/pnpm/pnpm/issues/6008)
+
+### Patch Changes
+
+- Updated dependencies [0377d9367]
+  - @pnpm/cli-utils@1.1.0
+  - @pnpm/find-workspace-packages@5.0.35
+  - @pnpm/config@16.6.3
+  - @pnpm/store-connection-manager@5.2.13
+
 ## 7.0.34
 
 ### Patch Changes

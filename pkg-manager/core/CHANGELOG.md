@@ -1,5 +1,16 @@
 # @pnpm/core
 
+## 7.8.3
+
+### Patch Changes
+
+- 972de58ab: Update the lockfile if a workspace has a new project with no dependencies.
+- Updated dependencies [972de58ab]
+- Updated dependencies [1b2e09ccf]
+- Updated dependencies [972de58ab]
+  - @pnpm/headless@19.5.0
+  - @pnpm/resolve-dependencies@29.3.2
+
 ## 7.8.2
 
 ### Patch Changes

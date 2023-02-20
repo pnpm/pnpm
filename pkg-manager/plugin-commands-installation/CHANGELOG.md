@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-installation
 
+## 11.5.0
+
+### Minor Changes
+
+- 0377d9367: Add --report-summary for pnpm exec and pnpm run [#6008](https://github.com/pnpm/pnpm/issues/6008)
+
+### Patch Changes
+
+- Updated dependencies [0377d9367]
+- Updated dependencies [972de58ab]
+  - @pnpm/plugin-commands-rebuild@7.1.0
+  - @pnpm/cli-utils@1.1.0
+  - @pnpm/core@7.8.3
+  - @pnpm/find-workspace-packages@5.0.35
+  - @pnpm/pnpmfile@4.0.33
+  - @pnpm/filter-workspace-packages@6.0.35
+  - @pnpm/config@16.6.3
+  - @pnpm/store-connection-manager@5.2.13
+
 ## 11.4.6
 
 ### Patch Changes

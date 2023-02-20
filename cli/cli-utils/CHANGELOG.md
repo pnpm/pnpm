@@ -1,5 +1,16 @@
 # @pnpm/cli-utils
 
+## 1.1.0
+
+### Minor Changes
+
+- 0377d9367: Add --report-summary for pnpm exec and pnpm run [#6008](https://github.com/pnpm/pnpm/issues/6008)
+
+### Patch Changes
+
+- @pnpm/config@16.6.3
+- @pnpm/default-reporter@11.0.35
+
 ## 1.0.34
 
 ### Patch Changes

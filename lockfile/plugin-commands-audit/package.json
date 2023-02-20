@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-audit",
-  "version": "7.2.7",
+  "version": "7.2.8",
   "description": "pnpm commands for dependencies audit",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
