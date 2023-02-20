@@ -1194,6 +1194,9 @@ importers:
       render-help:
         specifier: ^1.0.3
         version: 1.0.3
+      write-json-file:
+        specifier: ^4.3.0
+        version: 4.3.0
     devDependencies:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
@@ -7975,7 +7978,7 @@ packages:
       '@pnpm/find-workspace-dir': 5.0.1
       '@pnpm/find-workspace-packages': 5.0.33(@pnpm/logger@5.0.0)(@yarnpkg/core@4.0.0-rc.14)(typanion@3.12.1)
       '@pnpm/logger': 5.0.0
-      '@pnpm/types': 8.10.0
+      '@pnpm/types': 8.9.0
       '@yarnpkg/core': 4.0.0-rc.14(typanion@3.12.1)
       load-json-file: 7.0.1
       meow: 10.1.5
@@ -8524,7 +8527,6 @@ packages:
   /@pnpm/types@8.9.0:
     resolution: {integrity: sha512-3MYHYm8epnciApn6w5Fzx6sepawmsNU7l6lvIq+ER22/DPSrr83YMhU/EQWnf4lORn2YyiXFj0FJSyJzEtIGmw==}
     engines: {node: '>=14.6'}
-    dev: false
 
   /@pnpm/util.lex-comparator@1.0.0:
     resolution: {integrity: sha512-3aBQPHntVgk5AweBWZn+1I/fqZ9krK/w01197aYVkAJQGftb+BVWgEepxY5GChjSW12j52XX+CmfynYZ/p0DFQ==}
@@ -8657,7 +8659,7 @@ packages:
   /@types/byline@4.2.33:
     resolution: {integrity: sha512-LJYez7wrWcJQQDknqZtrZuExMGP0IXmPl1rOOGDqLbu+H7UNNRfKNuSxCBcQMLH1EfjeWidLedC/hCc5dDfBog==}
     dependencies:
-      '@types/node': 18.13.0
+      '@types/node': 14.18.36
     dev: true
 
   /@types/cacheable-request@6.0.3:
@@ -8665,7 +8667,7 @@ packages:
     dependencies:
       '@types/http-cache-semantics': 4.0.1
       '@types/keyv': 3.1.4
-      '@types/node': 18.13.0
+      '@types/node': 14.18.36
       '@types/responselike': 1.0.0
 
   /@types/concat-stream@2.0.0:
@@ -8693,7 +8695,7 @@ packages:
     resolution: {integrity: sha512-8bVUjXZvJacUFkJXHdyZ9iH1Eaj5V7I8c4NdH5sQJsdXkqT4CA5Dhb4yb4VE/3asyx4L9ayZr1NIhTsWHczmMw==}
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 18.13.0
+      '@types/node': 14.18.36
     dev: true
 
   /@types/graceful-fs@4.1.6:
@@ -8767,7 +8769,7 @@ packages:
   /@types/keyv@3.1.4:
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
     dependencies:
-      '@types/node': 18.13.0
+      '@types/node': 14.18.36
 
   /@types/lodash@4.14.181:
     resolution: {integrity: sha512-n3tyKthHJbkiWhDZs3DkhkCzt2MexYHXlX0td5iMplyfwketaOeKboEVBqzceH7juqvEg3q5oUoBFxSLu7zFag==}
@@ -8810,7 +8812,6 @@ packages:
 
   /@types/node@14.18.36:
     resolution: {integrity: sha512-FXKWbsJ6a1hIrRxv+FoukuHnGTgEzKYGi7kilfMae96AL9UNkPFNWJEEYWzdRI9ooIkbr4AKldyuSTLql06vLQ==}
-    dev: true
 
   /@types/node@18.13.0:
     resolution: {integrity: sha512-gC3TazRzGoOnoKAhUx+Q0t8S9Tzs74z7m0ipwGpSqQrleP14hKxP4/JUeEQcD3W1/aIpnWl8pHowI7WokuZpXg==}
@@ -8847,7 +8848,7 @@ packages:
   /@types/responselike@1.0.0:
     resolution: {integrity: sha512-85Y2BjiufFzaMIlvJDvTTB8Fxl2xfLo4HgmHzVBz08w4wDePCTjYw66PdrolO0kzli3yam/YCgRufyo1DdQVTA==}
     dependencies:
-      '@types/node': 18.13.0
+      '@types/node': 14.18.36
 
   /@types/retry@0.12.2:
     resolution: {integrity: sha512-XISRgDJ2Tc5q4TRqvgJtzsRkFYNJzZrhTdtMoGVBttwzzQJkPnS3WWTFc7kuDRoPtPakl+T+OfdEUjYJj7Jbow==}

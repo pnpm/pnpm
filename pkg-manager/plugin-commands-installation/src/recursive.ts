@@ -135,10 +135,7 @@ export async function recursive (
     forceShamefullyHoist: typeof opts.rawLocalConfig?.['shamefully-hoist'] !== 'undefined',
   }) as InstallOptions
 
-  const result = {
-    fails: [],
-    passes: 0,
-  } as RecursiveSummary
+  const result: RecursiveSummary = {}
 
   const memReadLocalConfig = mem(readLocalConfig)
 
@@ -297,7 +294,7 @@ export async function recursive (
         if (opts.ignoredPackages?.has(rootDir)) {
           return
         }
-
+        result[rootDir] = { status: 'running' }
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...params]
         if (updateMatch != null) {
@@ -369,16 +366,17 @@ export async function recursive (
         if (opts.save !== false) {
           await writeProjectManifest(newManifest)
         }
-        result.passes++
+        result[rootDir].status = 'passed'
       } catch (err: any) { // eslint-disable-line
         logger.info(err)
 
         if (!opts.bail) {
-          result.fails.push({
+          result[rootDir] = {
+            status: 'failure',
             error: err,
             message: err.message,
             prefix: rootDir,
-          })
+          }
           return
         }
 
@@ -404,7 +402,7 @@ export async function recursive (
 
   throwOnFail(result)
 
-  if (!result.passes && cmdFullName === 'update' && opts.depth === 0) {
+  if (!Object.values(result).filter(({ status }) => status === 'passed').length && cmdFullName === 'update' && opts.depth === 0) {
     throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
       'None of the specified packages were found in the dependencies of any of the projects.')
   }

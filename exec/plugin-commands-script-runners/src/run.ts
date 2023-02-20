@@ -49,6 +49,11 @@ export const SEQUENTIAL_OPTION_HELP = {
   name: '--sequential',
 }
 
+export const REPORT_SUMMARY_OPTION_HELP = {
+  description: 'Save the execution results of every package to "pnpm-exec-summary.json". Useful to inspect the execution time and status of each package.',
+  name: '--report-summary',
+}
+
 export const shorthands = {
   parallel: [
     '--workspace-concurrency=Infinity',
@@ -84,6 +89,7 @@ export function cliOptionsTypes () {
     recursive: Boolean,
     reverse: Boolean,
     'resume-from': String,
+    'report-summary': Boolean,
   }
 }
 
@@ -122,6 +128,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           RESUME_FROM_OPTION_HELP,
           ...UNIVERSAL_OPTIONS,
           SEQUENTIAL_OPTION_HELP,
+          REPORT_SUMMARY_OPTION_HELP,
         ],
       },
       FILTERING,
