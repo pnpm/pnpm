@@ -1194,6 +1194,9 @@ importers:
       render-help:
         specifier: ^1.0.3
         version: 1.0.3
+      write-json-file:
+        specifier: ^4.3.0
+        version: 4.3.0
     devDependencies:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*

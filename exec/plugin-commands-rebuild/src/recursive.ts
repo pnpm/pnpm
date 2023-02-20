@@ -70,10 +70,7 @@ export async function recursiveRebuild (
     workspacePackages,
   }) as RebuildOptions
 
-  const result = {
-    fails: [],
-    passes: 0,
-  } as RecursiveSummary
+  const result: RecursiveSummary = {}
 
   const memReadLocalConfig = mem(readLocalConfig)
 
@@ -120,6 +117,7 @@ export async function recursiveRebuild (
           if (opts.ignoredPackages?.has(rootDir)) {
             return
           }
+          result[rootDir] = { status: 'running' }
           const localConfig = await memReadLocalConfig(rootDir)
           await rebuild(
             [
@@ -140,16 +138,17 @@ export async function recursiveRebuild (
               },
             }
           )
-          result.passes++
+          result[rootDir].status = 'passed'
         } catch (err: any) { // eslint-disable-line
           logger.info(err)
 
           if (!opts.bail) {
-            result.fails.push({
+            result[rootDir] = {
+              status: 'failure',
               error: err,
               message: err.message,
               prefix: rootDir,
-            })
+            }
             return
           }
 

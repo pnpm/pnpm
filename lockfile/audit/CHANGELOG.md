@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 6.1.6
+
+### Patch Changes
+
+- Updated dependencies [b9ab2e0bf]
+  - @pnpm/list@8.2.0
+
 ## 6.1.5
 
 ### Patch Changes

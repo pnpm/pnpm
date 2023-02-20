@@ -10,7 +10,7 @@ interface PkgData {
   resolved?: string
 }
 
-export type PkgInfo = Omit<PkgData, 'name' | 'path'> & Pick<ProjectManifest, 'description' | 'license' | 'author' | 'homepage'> & {
+export type PkgInfo = Omit<PkgData, 'name'> & Pick<ProjectManifest, 'description' | 'license' | 'author' | 'homepage'> & {
   from: string
   repository?: string
 }
@@ -41,5 +41,6 @@ export async function getPkgInfo (pkg: PkgData): Promise<PkgInfo> {
     repository: (manifest.repository && (
       typeof manifest.repository === 'string' ? manifest.repository : manifest.repository.url
     )) ?? undefined,
+    path: pkg.path,
   }
 }

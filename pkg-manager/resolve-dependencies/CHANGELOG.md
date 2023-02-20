@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 29.3.2
+
+### Patch Changes
+
+- 1b2e09ccf: Fix a case of installs not being deterministic and causing lockfile changes between repeat installs. When a dependency only declares `peerDependenciesMeta` and not `peerDependencies`, `dependencies`, or `optionalDependencies`, the dependency's peers were not considered deterministically before.
+
 ## 29.3.1
 
 ### Patch Changes

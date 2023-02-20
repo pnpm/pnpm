@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-script-runners
 
+## 6.5.0
+
+### Minor Changes
+
+- 0377d9367: Add --report-summary for pnpm exec and pnpm run [#6008](https://github.com/pnpm/pnpm/issues/6008)
+
+### Patch Changes
+
+- Updated dependencies [0377d9367]
+  - @pnpm/plugin-commands-installation@11.5.0
+  - @pnpm/cli-utils@1.1.0
+  - @pnpm/config@16.6.3
+
 ## 6.4.2
 
 ### Patch Changes

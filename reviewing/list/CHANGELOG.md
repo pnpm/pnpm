@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 8.2.0
+
+### Minor Changes
+
+- b9ab2e0bf: Show path info for `pnpm why --json` or `--long` [#6103](https://github.com/pnpm/pnpm/issues/6103).
+
 ## 8.1.3
 
 ### Patch Changes

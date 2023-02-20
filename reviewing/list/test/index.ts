@@ -235,18 +235,21 @@ write-json-file ${VERSION_CLR('2.3.0')}
   Stringify and write JSON to a file atomically
   git+https://github.com/sindresorhus/write-json-file.git
   https://github.com/sindresorhus/write-json-file#readme
+  ${path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file')}
 
 ${DEV_DEPENDENCIES}
 ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
   Check if something is a positive number
   git+https://github.com/kevva/is-positive.git
   https://github.com/kevva/is-positive#readme
+  ${path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive')}
 
 ${OPTIONAL_DEPENDENCIES}
 ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}
   Check if something is a negative number
   git+https://github.com/kevva/is-negative.git
-  https://github.com/kevva/is-negative#readme`)
+  https://github.com/kevva/is-negative#readme
+  ${path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-negative')}`)
 })
 
 test('parseable list in workspace with private package', async () => {
@@ -295,6 +298,7 @@ test('JSON list in workspace with private package', async () => {
             from: 'is-positive',
             version: '1.0.0',
             resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+            path: path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'),
           },
         },
       },
@@ -308,6 +312,7 @@ test('JSON list in workspace with private package', async () => {
             from: 'is-positive',
             version: '1.0.0',
             resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+            path: path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'),
           },
         },
       },
@@ -340,6 +345,7 @@ test('JSON list with depth 1', async () => {
         version: '2.3.0',
 
         resolved: 'https://registry.npmjs.org/write-json-file/-/write-json-file-2.3.0.tgz',
+        path: path.join(fixture, 'node_modules/.pnpm/write-json-file@2.3.0/node_modules/write-json-file'),
 
         dependencies: {
           'detect-indent': {
@@ -347,36 +353,42 @@ test('JSON list with depth 1', async () => {
             version: '5.0.0',
 
             resolved: 'https://registry.npmjs.org/detect-indent/-/detect-indent-5.0.0.tgz',
+            path: path.join(fixture, 'node_modules/.pnpm/detect-indent@5.0.0/node_modules/detect-indent'),
           },
           'graceful-fs': {
             from: 'graceful-fs',
             version: '4.2.2',
 
             resolved: 'https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.2.2.tgz',
+            path: path.join(fixture, 'node_modules/.pnpm/graceful-fs@4.2.2/node_modules/graceful-fs'),
           },
           'make-dir': {
             from: 'make-dir',
             version: '1.3.0',
 
             resolved: 'https://registry.npmjs.org/make-dir/-/make-dir-1.3.0.tgz',
+            path: path.join(fixture, 'node_modules/.pnpm/make-dir@1.3.0/node_modules/make-dir'),
           },
           pify: {
             from: 'pify',
             version: '3.0.0',
 
             resolved: 'https://registry.npmjs.org/pify/-/pify-3.0.0.tgz',
+            path: path.join(fixture, 'node_modules/.pnpm/pify@3.0.0/node_modules/pify'),
           },
           'sort-keys': {
             from: 'sort-keys',
             version: '2.0.0',
 
             resolved: 'https://registry.npmjs.org/sort-keys/-/sort-keys-2.0.0.tgz',
+            path: path.join(fixture, 'node_modules/.pnpm/sort-keys@2.0.0/node_modules/sort-keys'),
           },
           'write-file-atomic': {
             from: 'write-file-atomic',
             version: '2.4.3',
 
             resolved: 'https://registry.npmjs.org/write-file-atomic/-/write-file-atomic-2.4.3.tgz',
+            path: path.join(fixture, 'node_modules/.pnpm/write-file-atomic@2.4.3/node_modules/write-file-atomic'),
           },
         },
       },
@@ -387,6 +399,7 @@ test('JSON list with depth 1', async () => {
         version: '3.1.0',
 
         resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
+        path: path.join(fixture, 'node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive'),
       },
     },
     optionalDependencies: {
@@ -395,6 +408,7 @@ test('JSON list with depth 1', async () => {
         version: '2.1.0',
 
         resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-2.1.0.tgz',
+        path: path.join(fixture, 'node_modules/.pnpm/is-negative@2.1.0/node_modules/is-negative'),
       },
     },
   }], null, 2))
@@ -415,6 +429,7 @@ test('JSON list with aliased dep', async () => {
             from: 'is-positive',
             version: '1.0.0',
             resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+            path: path.join(fixtureWithAliasedDep, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'),
           },
         },
       },
@@ -444,6 +459,7 @@ test('JSON list with aliased dep', async () => {
           },
           homepage: 'https://github.com/kevva/is-positive#readme',
           repository: 'git+https://github.com/kevva/is-positive.git',
+          path: path.join(fixtureWithAliasedDep, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'),
         },
       },
     }], null, 2)

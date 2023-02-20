@@ -1,5 +1,5 @@
 import path from 'path'
-import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
+import { throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import {
@@ -11,7 +11,7 @@ import { sortPackages } from '@pnpm/sort-packages'
 import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'
 import { existsInDir } from './existsInDir'
-import { getResumedPackageChunks } from './exec'
+import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec'
 import { runScript } from './run'
 import { tryBuildRegExpFromCommand } from './regexpCommand'
 import { PackageScripts } from '@pnpm/types'
@@ -25,11 +25,12 @@ export type RecursiveRunOpts = Pick<Config,
 | 'scriptShell'
 | 'shellEmulator'
 | 'stream'
-> & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>> &
+> & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir' | 'dir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
   resumeFrom?: string
+  reportSummary?: boolean
 }
 
 export async function runRecursive (
@@ -55,11 +56,6 @@ export async function runRecursive (
     })
   }
 
-  const result = {
-    fails: [],
-    passes: 0,
-  } as RecursiveSummary
-
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
   const stdio =
     !opts.stream &&
@@ -82,6 +78,8 @@ export async function runRecursive (
     }
   }
 
+  const result = createEmptyRecursiveSummary(packageChunks)
+
   for (const chunk of packageChunks) {
     const selectedScripts = chunk.map(prefix => {
       const pkg = opts.selectedProjectsGraph[prefix]
@@ -100,6 +98,8 @@ export async function runRecursive (
         ) {
           return
         }
+        result[prefix].status = 'running'
+        const startTime = process.hrtime()
         hasCommand++
         try {
           const lifecycleOpts: RunLifecycleHookOptions = {
@@ -125,21 +125,29 @@ export async function runRecursive (
 
           const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
           await _runScript(scriptName)
-          result.passes++
+          result[prefix].status = 'passed'
+          result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
           logger.info(err)
 
+          result[prefix] = {
+            status: 'failure',
+            duration: getExecutionDuration(startTime),
+            error: err,
+            message: err.message,
+            prefix,
+          }
+
           if (!opts.bail) {
-            result.fails.push({
-              error: err,
-              message: err.message,
-              prefix,
-            })
             return
           }
 
           err['code'] = 'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL'
           err['prefix'] = prefix
+          opts.reportSummary && await writeRecursiveSummary({
+            dir: opts.workspaceDir ?? opts.dir,
+            summary: result,
+          })
           /* eslint-enable @typescript-eslint/dot-notation */
           throw err
         }
@@ -158,7 +166,10 @@ export async function runRecursive (
       })
     }
   }
-
+  opts.reportSummary && await writeRecursiveSummary({
+    dir: opts.workspaceDir ?? opts.dir,
+    summary: result,
+  })
   throwOnCommandFail('pnpm recursive run', result)
 }
 

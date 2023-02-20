@@ -1,5 +1,15 @@
 # @pnpm/headless
 
+## 19.5.0
+
+### Minor Changes
+
+- 972de58ab: New option added: useLockfile.
+
+### Patch Changes
+
+- 972de58ab: Update the lockfile if a workspace has a new project with no dependencies.
+
 ## 19.4.12
 
 ### Patch Changes

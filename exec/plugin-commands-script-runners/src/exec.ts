@@ -1,3 +1,4 @@
+import path from 'path'
 import { docsUrl, RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config, types } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
@@ -13,10 +14,12 @@ import { existsInDir } from './existsInDir'
 import { makeEnv } from './makeEnv'
 import {
   PARALLEL_OPTION_HELP,
+  REPORT_SUMMARY_OPTION_HELP,
   RESUME_FROM_OPTION_HELP,
   shorthands as runShorthands,
 } from './run'
 import { PnpmError } from '@pnpm/error'
+import writeJsonFile from 'write-json-file'
 
 export const shorthands = {
   parallel: runShorthands.parallel,
@@ -36,6 +39,7 @@ export function rcOptionsTypes () {
     ], types),
     'shell-mode': Boolean,
     'resume-from': String,
+    'report-summary': Boolean,
   }
 }
 
@@ -69,6 +73,7 @@ The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
             shortAlias: '-c',
           },
           RESUME_FROM_OPTION_HELP,
+          REPORT_SUMMARY_OPTION_HELP,
         ],
       },
     ],
@@ -97,6 +102,24 @@ export function getResumedPackageChunks ({
   return chunks.slice(chunkPosition)
 }
 
+export async function writeRecursiveSummary (opts: { dir: string, summary: RecursiveSummary }) {
+  await writeJsonFile(path.join(opts.dir, 'pnpm-exec-summary.json'), {
+    executionStatus: opts.summary,
+  })
+}
+
+export function createEmptyRecursiveSummary (chunks: string[][]) {
+  return chunks.flat().reduce<RecursiveSummary>((acc, prefix) => {
+    acc[prefix] = { status: 'queued' }
+    return acc
+  }, {})
+}
+
+export function getExecutionDuration (start: [number, number]) {
+  const end = process.hrtime(start)
+  return (end[0] * 1e9 + end[1]) / 1e6
+}
+
 export async function handler (
   opts: Required<Pick<Config, 'selectedProjectsGraph'>> & {
     bail?: boolean
@@ -107,6 +130,7 @@ export async function handler (
     workspaceConcurrency?: number
     shellMode?: boolean
     resumeFrom?: string
+    reportSummary?: boolean
   } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
   params: string[]
 ) {
@@ -115,11 +139,6 @@ export async function handler (
     params.shift()
   }
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
-
-  const result = {
-    fails: [],
-    passes: 0,
-  } as RecursiveSummary
 
   let chunks!: string[][]
   if (opts.recursive) {
@@ -153,6 +172,7 @@ export async function handler (
     })
   }
 
+  const result = createEmptyRecursiveSummary(chunks)
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
@@ -160,6 +180,8 @@ export async function handler (
   for (const chunk of chunks) {
     await Promise.all(chunk.map(async (prefix: string) =>
       limitRun(async () => {
+        result[prefix].status = 'running'
+        const startTime = process.hrtime()
         try {
           const pnpPath = workspacePnpPath ?? await existsPnp(prefix)
           const extraEnv = {
@@ -183,7 +205,8 @@ export async function handler (
             stdio: 'inherit',
             shell: opts.shellMode ?? false,
           })
-          result.passes++
+          result[prefix].status = 'passed'
+          result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
           if (!opts.recursive && typeof err.exitCode === 'number') {
             exitCode = err.exitCode
@@ -191,12 +214,15 @@ export async function handler (
           }
           logger.info(err)
 
+          result[prefix] = {
+            status: 'failure',
+            duration: getExecutionDuration(startTime),
+            error: err,
+            message: err.message,
+            prefix,
+          }
+
           if (!opts.bail) {
-            result.fails.push({
-              error: err,
-              message: err.message,
-              prefix,
-            })
             return
           }
 
@@ -204,6 +230,10 @@ export async function handler (
             err['code'] = 'ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL'
           }
           err['prefix'] = prefix
+          opts.reportSummary && await writeRecursiveSummary({
+            dir: opts.lockfileDir ?? opts.dir,
+            summary: result,
+          })
           /* eslint-enable @typescript-eslint/dot-notation */
           throw err
         }
@@ -211,6 +241,10 @@ export async function handler (
       )))
   }
 
+  opts.reportSummary && await writeRecursiveSummary({
+    dir: opts.lockfileDir ?? opts.dir,
+    summary: result,
+  })
   throwOnCommandFail('pnpm recursive exec', result)
   return { exitCode }
 }
