@@ -5,6 +5,7 @@ import { types as allTypes } from '@pnpm/config'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import { readProjects } from '@pnpm/filter-workspace-packages'
 import pick from 'ramda/src/pick'
 import execa from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
@@ -54,7 +55,13 @@ export async function handler (opts: install.InstallCommandOptions, params: stri
   }
   manifest.pnpm.patchedDependencies![pkgNameAndVersion] = `patches/${patchFileName}.patch`
   await writeProjectManifest(manifest)
-  return install.handler(opts)
+  const { selectedProjectsGraph, allProjects, allProjectsGraph } = await readProjects(lockfileDir, [])
+  return install.handler({
+    ...opts,
+    selectedProjectsGraph,
+    allProjects,
+    allProjectsGraph,
+  })
 }
 
 async function diffFolders (folderA: string, folderB: string) {

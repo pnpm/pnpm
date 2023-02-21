@@ -40,6 +40,9 @@
       "path": "../../store/store-connection-manager"
     },
     {
+      "path": "../../workspace/filter-workspace-packages"
+    },
+    {
       "path": "../apply-patch"
     }
   ],
