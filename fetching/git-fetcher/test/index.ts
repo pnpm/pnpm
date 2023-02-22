@@ -58,7 +58,7 @@ test('fetch a package from Git that has a prepare script', async () => {
   const { filesIndex } = await fetch(
     createCafsStore(cafsDir),
     {
-      commit: 'b087f4862ee657f005bb33fb710894e67e5f05ab',
+      commit: 'd222f6bfbdea55c032fdb5f0538d52b2a484bbbf',
       repo: 'https://github.com/pnpm/test-git-fetch.git',
       type: 'git',
     },
