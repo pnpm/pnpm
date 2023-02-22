@@ -34,9 +34,11 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/patching/plugin-commands-patching#readme",
   "devDependencies": {
     "@pnpm/plugin-commands-patching": "workspace:*",
+    "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.4.0",
-    "@types/ramda": "0.28.20"
+    "@types/ramda": "0.28.20",
+    "write-yaml-file": "^4.2.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",

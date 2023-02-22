@@ -2519,6 +2519,9 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
     devDependencies:
+      '@pnpm/filter-workspace-packages':
+        specifier: workspace:*
+        version: link:../../workspace/filter-workspace-packages
       '@pnpm/plugin-commands-patching':
         specifier: workspace:*
         version: 'link:'
@@ -2531,6 +2534,9 @@ importers:
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
+      write-yaml-file:
+        specifier: ^4.2.0
+        version: 4.2.0
 
   pkg-manager/client:
     dependencies:

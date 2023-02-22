@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
-import { types as allTypes } from '@pnpm/config'
+import { Config, types as allTypes } from '@pnpm/config'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
@@ -29,7 +29,7 @@ export function help () {
   })
 }
 
-export async function handler (opts: install.InstallCommandOptions, params: string[]) {
+export async function handler (opts: install.InstallCommandOptions & Pick<Config, 'rootProjectManifest'>, params: string[]) {
   const userDir = params[0]
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
   const patchesDir = path.join(lockfileDir, 'patches')
@@ -41,19 +41,28 @@ export async function handler (opts: install.InstallCommandOptions, params: stri
   const patchContent = await diffFolders(srcDir, userDir)
   const patchFileName = pkgNameAndVersion.replace('/', '__')
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')
-  let { manifest, writeProjectManifest } = await tryReadProjectManifest(lockfileDir)
-  if (!manifest) {
-    manifest = {}
-  }
-  if (!manifest.pnpm) {
-    manifest.pnpm = {
+  const { writeProjectManifest, manifest } = await tryReadProjectManifest(lockfileDir)
+
+  const rootProjectManifest = opts.rootProjectManifest ?? manifest ?? {}
+
+  if (!rootProjectManifest.pnpm) {
+    rootProjectManifest.pnpm = {
       patchedDependencies: {},
     }
-  } else if (!manifest.pnpm.patchedDependencies) {
-    manifest.pnpm.patchedDependencies = {}
+  } else if (!rootProjectManifest.pnpm.patchedDependencies) {
+    rootProjectManifest.pnpm.patchedDependencies = {}
   }
-  manifest.pnpm.patchedDependencies![pkgNameAndVersion] = `patches/${patchFileName}.patch`
-  await writeProjectManifest(manifest)
+  rootProjectManifest.pnpm.patchedDependencies![pkgNameAndVersion] = `patches/${patchFileName}.patch`
+  await writeProjectManifest(rootProjectManifest)
+
+  if (opts?.selectedProjectsGraph?.[lockfileDir]) {
+    opts.selectedProjectsGraph[lockfileDir].package.manifest = rootProjectManifest
+  }
+
+  if (opts?.allProjectsGraph?.[lockfileDir].package.manifest) {
+    opts.allProjectsGraph[lockfileDir].package.manifest = rootProjectManifest
+  }
+
   return install.handler(opts)
 }
 
