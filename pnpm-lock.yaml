@@ -2479,9 +2479,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/filter-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/filter-workspace-packages
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -2522,6 +2519,9 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
     devDependencies:
+      '@pnpm/filter-workspace-packages':
+        specifier: workspace:*
+        version: link:../../workspace/filter-workspace-packages
       '@pnpm/plugin-commands-patching':
         specifier: workspace:*
         version: 'link:'

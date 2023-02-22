@@ -341,6 +341,9 @@ describe('patch and commit in workspaces', () => {
 
     await patchCommit.handler({
       ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
       dir: process.cwd(),
       cacheDir,
       storeDir,
