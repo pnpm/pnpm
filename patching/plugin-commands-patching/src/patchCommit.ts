@@ -63,9 +63,7 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
     opts.allProjectsGraph[lockfileDir].package.manifest = rootProjectManifest
   }
 
-  return install.handler({
-    ...opts,
-  })
+  return install.handler(opts)
 }
 
 async function diffFolders (folderA: string, folderB: string) {
