@@ -230,8 +230,12 @@ async function testParallelServerStart (
     }
     serverProcessList.push(item)
 
-    byline(item.childProcess.stderr as Readable).on('data', (line: Buffer) => console.log(`${item.childProcess.pid?.toString() ?? ''}: ${line.toString()}`))
-    byline(item.childProcess.stdout as Readable).on('data', (line: Buffer) => console.log(`${item.childProcess.pid?.toString() ?? ''}: ${line.toString()}`))
+    byline(item.childProcess.stderr as Readable).on('data', (line: Buffer) => {
+      console.log(`${item.childProcess.pid?.toString() ?? ''}: ${line.toString()}`)
+    })
+    byline(item.childProcess.stdout as Readable).on('data', (line: Buffer) => {
+      console.log(`${item.childProcess.pid?.toString() ?? ''}: ${line.toString()}`)
+    })
 
     item.childProcess.on('exit', async (code: number | null, signal: string | null) => {
       options.onProcessClosed(item.childProcess, item.attemptedToKill)

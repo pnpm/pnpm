@@ -12,7 +12,7 @@
     "node": ">=14.6"
   },
   "scripts": {
-    "lint": "eslint src/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix",
     "test": "pnpm run compile"

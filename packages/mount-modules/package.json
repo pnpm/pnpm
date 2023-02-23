@@ -14,7 +14,7 @@
     "bin"
   ],
   "scripts": {
-    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "pretest": "pnpm install --dir=test/__fixtures__/simple",
@@ -44,12 +44,12 @@
   "dependencies": {
     "@pnpm/cafs": "workspace:*",
     "@pnpm/config": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/logger": "^5.0.0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/dependency-path": "workspace:*",
     "hyperdrive-schemas": "^2.0.0",
     "load-json-file": "^6.2.0",
     "normalize-path": "^3.0.0"

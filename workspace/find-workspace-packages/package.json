@@ -12,7 +12,7 @@
     "node": ">=14.6"
   },
   "scripts": {
-    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
@@ -31,9 +31,9 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/constants": "workspace:*",
+    "@pnpm/fs.find-packages": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "1.0.0",
-    "@pnpm/fs.find-packages": "workspace:*",
     "read-yaml-file": "^2.1.0"
   },
   "funding": "https://opencollective.com/pnpm",

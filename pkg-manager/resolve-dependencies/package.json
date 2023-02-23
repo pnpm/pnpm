@@ -23,7 +23,7 @@
   "scripts": {
     "start": "tsc --watch",
     "test": "pnpm run compile && pnpm run _test",
-    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix",
     "_test": "jest"
@@ -31,6 +31,7 @@
   "dependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
@@ -44,7 +45,6 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
     "@yarnpkg/core": "4.0.0-rc.27",
-    "@pnpm/dependency-path": "workspace:*",
     "encode-registry": "^3.0.0",
     "filenamify": "^4.3.0",
     "get-npm-tarball-url": "^2.0.3",

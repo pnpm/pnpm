@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "test": "pnpm run compile && pnpm run _test",
-    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
     "registry-mock": "registry-mock",
     "test:jest": "jest",
@@ -38,6 +38,7 @@
   "dependencies": {
     "@pnpm/client": "workspace:*",
     "@pnpm/constants": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
@@ -47,7 +48,6 @@
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/dependency-path": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "semver": "^7.3.8"
   },

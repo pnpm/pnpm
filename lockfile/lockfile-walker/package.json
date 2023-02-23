@@ -12,7 +12,7 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint src/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\"",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
@@ -35,9 +35,9 @@
     "tempy": "^1.0.1"
   },
   "dependencies": {
+    "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/dependency-path": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "funding": "https://opencollective.com/pnpm",

@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
@@ -32,6 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/dependencies-hierarchy#readme",
   "dependencies": {
+    "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
@@ -39,16 +40,15 @@
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/dependency-path": "workspace:*",
     "normalize-path": "^3.0.0",
     "realpath-missing": "^1.1.0",
     "resolve-link-target": "^2.0.0"
   },
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
+    "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/normalize-path": "^3.0.0",
-    "@pnpm/reviewing.dependencies-hierarchy": "workspace:*"
+    "@types/normalize-path": "^3.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

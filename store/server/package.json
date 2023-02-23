@@ -12,7 +12,7 @@
     "node": ">=14.6"
   },
   "scripts": {
-    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest --detectOpenHandles",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",

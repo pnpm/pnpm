@@ -12,7 +12,7 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "_test": "jest",
@@ -40,11 +40,11 @@
     "rimraf": "^3.0.2"
   },
   "dependencies": {
+    "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@yarnpkg/pnp": "^2.3.2",
-    "@pnpm/dependency-path": "workspace:*",
     "normalize-path": "^3.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },

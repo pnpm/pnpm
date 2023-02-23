@@ -151,7 +151,7 @@
   "scripts": {
     "bundle": "cross-var esbuild lib/pnpm.js --bundle --platform=node --outfile=dist/pnpm.cjs --external:node-gyp --define:process.env.npm_package_name=\\\"$npm_package_name\\\" --define:process.env.npm_package_version=\\\"$npm_package_version\\\"",
     "start": "tsc --watch",
-    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "registry-mock": "registry-mock",
     "test:jest": "jest",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",

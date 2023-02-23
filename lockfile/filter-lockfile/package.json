@@ -12,7 +12,7 @@
     "!*.map"
   ],
   "scripts": {
-    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
@@ -43,13 +43,13 @@
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/lockfile-walker": "workspace:*",
     "@pnpm/package-is-installable": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/dependency-path": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "funding": "https://opencollective.com/pnpm",
