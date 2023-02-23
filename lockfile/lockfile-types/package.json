@@ -23,7 +23,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/lockfile/lockfile-types#readme",
   "scripts": {
-    "lint": "eslint src/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\"",
     "compile": "tsc --build && pnpm run lint --fix",
     "prepublishOnly": "pnpm run compile"
   },

@@ -24,7 +24,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/network/fetching-types#readme",
   "scripts": {
     "compile": "tsc --build && pnpm run lint --fix",
-    "lint": "eslint src/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\"",
     "prepublishOnly": "pnpm run compile",
     "test": "pnpm run compile"
   },
