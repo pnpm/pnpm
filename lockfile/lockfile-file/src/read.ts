@@ -85,24 +85,23 @@ async function _read (
       hadConflicts: false,
     }
   }
-  let lockfileFile: LockfileFile
+  let lockfile: Lockfile
   let hadConflicts!: boolean
   try {
-    lockfileFile = yaml.load(lockfileRawContent) as Lockfile
+    lockfile = revertFromInlineSpecifiersFormatIfNecessary(convertFromLockfileFileMutable(yaml.load(lockfileRawContent) as Lockfile))
     hadConflicts = false
   } catch (err: any) { // eslint-disable-line
     if (!opts.autofixMergeConflicts || !isDiff(lockfileRawContent)) {
       throw new PnpmError('BROKEN_LOCKFILE', `The lockfile at "${lockfilePath}" is broken: ${err.message as string}`)
     }
     hadConflicts = true
-    lockfileFile = autofixMergeConflicts(lockfileRawContent)
+    lockfile = convertFromLockfileFileMutable(autofixMergeConflicts(lockfileRawContent))
     logger.info({
       message: `Merge conflict detected in ${WANTED_LOCKFILE} and successfully merged`,
       prefix,
     })
   }
-  if (lockfileFile) {
-    const lockfile = revertFromInlineSpecifiersFormatIfNecessary(convertFromLockfileFileMutable(lockfileFile))
+  if (lockfile) {
     const lockfileSemver = comverToSemver((lockfile.lockfileVersion ?? 0).toString())
     /* eslint-enable @typescript-eslint/dot-notation */
     if (

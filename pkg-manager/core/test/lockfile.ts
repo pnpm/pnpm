@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, LOCKFILE_VERSION_V6, WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { Lockfile, TarballResolution } from '@pnpm/lockfile-file'
@@ -1215,6 +1215,44 @@ packages:
 
   const lockfile = await project.readLockfile()
   expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
+})
+
+test('a lockfile v6 with merge conflicts is autofixed', async () => {
+  const project = prepareEmpty()
+
+  await fs.writeFile(WANTED_LOCKFILE, `\
+lockfileVersion: '${LOCKFILE_VERSION_V6}'
+importers:
+  .:
+    dependencies:
+      '@pnpm.e2e/dep-of-pkg-with-1-dep':
+        specifier: '>100.0.0'
+<<<<<<< HEAD
+        version: 100.0.0
+=======
+        version: 100.1.0
+>>>>>>> next
+packages:
+<<<<<<< HEAD
+  /@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0:
+    dev: false
+    resolution:
+      integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')}
+=======
+  /@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0:
+    dev: false
+    resolution:
+      integrity: ${getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')}
+>>>>>>> next`, 'utf8')
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '>100.0.0',
+    },
+  }, await testDefaults())
+
+  const lockfile = await project.readLockfile()
+  expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']).toHaveProperty('version', '100.1.0')
 })
 
 test('a lockfile with duplicate keys is fixed', async () => {
