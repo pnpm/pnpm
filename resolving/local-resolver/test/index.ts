@@ -136,6 +136,14 @@ test('do not fail when resolving from not existing directory', async () => {
   })
 })
 
+test('fail when add local dependency from not existing directory', async () => {
+  const wantedDependency = { pref: '@a/@b/c', isNew: true }
+  const projectDir = __dirname
+  await expect(
+    resolveFromLocal(wantedDependency, { projectDir })
+  ).rejects.toThrow(`Could not install from "${path.join(projectDir, '@a/@b/c')}" as it does not exist.`)
+})
+
 test('throw error when the path: protocol is used', async () => {
   try {
     await resolveFromLocal({ pref: 'path:..' }, { projectDir: __dirname })

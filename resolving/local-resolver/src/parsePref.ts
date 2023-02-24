@@ -20,6 +20,7 @@ export interface LocalPackageSpec {
 export interface WantedLocalDependency {
   pref: string
   injected?: boolean
+  isNew?: boolean
 }
 
 export function parsePref (
