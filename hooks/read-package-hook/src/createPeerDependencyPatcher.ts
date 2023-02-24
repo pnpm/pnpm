@@ -21,26 +21,34 @@ export function createPeerDependencyPatcher (
     throw new PnpmError('INVALID_ALLOWED_VERSION_SELECTOR',
       `${(err as PnpmError).message} in pnpm.peerDependencyRules.allowedVersions`)
   }
-  const overridesByParentPkgName = overrides.reduce((acc, override) => {
-    if (!override.parentPkg) return acc
-    if (!acc[override.parentPkg.name]) {
-      acc[override.parentPkg.name] = []
+  const allowedVersionsMatchAll: Record<string, string[]> = {}
+  const overridesByParentPkgName: Record<string, Array<Required<Pick<VersionOverride, 'parentPkg' | 'targetPkg'>> & { ranges: string[] }>> = {}
+  for (const override of overrides) {
+    if (!override.parentPkg) {
+      allowedVersionsMatchAll[override.targetPkg.name] = parseVersions(override.newPref)
+      continue
     }
-    acc[override.parentPkg.name].push(override as Required<VersionOverride>)
-    return acc
-  }, {} as Record<string, Array<Required<VersionOverride>>>)
+    if (!overridesByParentPkgName[override.parentPkg.name]) {
+      overridesByParentPkgName[override.parentPkg.name] = []
+    }
+    overridesByParentPkgName[override.parentPkg.name].push({
+      parentPkg: override.parentPkg,
+      targetPkg: override.targetPkg,
+      ranges: parseVersions(override.newPref),
+    })
+  }
 
   return ((pkg) => {
     if (isEmpty(pkg.peerDependencies)) return pkg
-    let allowedVersionsRaw = peerDependencyRules.allowedVersions ?? {}
+    let allowedVersions = allowedVersionsMatchAll
     if (pkg.name && overridesByParentPkgName[pkg.name]) {
-      allowedVersionsRaw = { ...allowedVersionsRaw }
+      allowedVersions = { ...allowedVersions }
       const pkgVer = pkg.version ?? ''
       for (const override of overridesByParentPkgName[pkg.name]) {
         if (!pkg.peerDependencies![override.targetPkg.name]) continue
         if (!override.parentPkg.pref ||
           (isSubRange(override.parentPkg.pref, pkgVer) || semver.satisfies(pkgVer, override.parentPkg.pref))) {
-          allowedVersionsRaw[override.targetPkg.name] = override.newPref
+          allowedVersions[override.targetPkg.name] = override.ranges
         }
       }
     }
@@ -66,10 +74,9 @@ export function createPeerDependencyPatcher (
         pkg.peerDependencies![peerName] = '*'
         continue
       }
-      const allowedVersions = parseVersions(allowedVersionsRaw[peerName])
       const currentVersions = parseVersions(pkg.peerDependencies![peerName])
 
-      allowedVersions.forEach(allowedVersion => {
+      allowedVersions[peerName].forEach(allowedVersion => {
         if (!currentVersions.includes(allowedVersion)) {
           currentVersions.push(allowedVersion)
         }
@@ -77,11 +84,10 @@ export function createPeerDependencyPatcher (
 
       pkg.peerDependencies![peerName] = currentVersions.join(' || ')
     }
-
     return pkg
   }) as ReadPackageHook
 }
 
-function parseVersions (versions: string) {
+function parseVersions (versions: string): string[] {
   return versions.split('||').map(v => v.trim())
 }
