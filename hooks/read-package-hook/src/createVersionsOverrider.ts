@@ -5,7 +5,7 @@ import { Dependencies, PackageManifest, ReadPackageHook } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { parseOverrides } from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
-import { isSubRange } from '.'
+import { isSubRange } from './isSubRange'
 
 export function createVersionsOverrider (
   overrides: Record<string, string>,

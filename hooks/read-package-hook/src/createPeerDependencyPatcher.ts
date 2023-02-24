@@ -4,7 +4,7 @@ import { PeerDependencyRules, ReadPackageHook, PackageManifest, ProjectManifest 
 import { PnpmError } from '@pnpm/error'
 import { parseOverrides, VersionOverride } from '@pnpm/parse-overrides'
 import { createMatcher } from '@pnpm/matcher'
-import { isSubRange } from '.'
+import { isSubRange } from './isSubRange'
 
 export function createPeerDependencyPatcher (
   peerDependencyRules: PeerDependencyRules
@@ -14,14 +14,14 @@ export function createPeerDependencyPatcher (
   const allowAnyPatterns = [...new Set(peerDependencyRules.allowAny ?? [])]
   const allowAnyMatcher = createMatcher(allowAnyPatterns)
   const { allowedVersionsMatchAll, allowedVersionsByParentPkgName } = parseAllowedVersions(peerDependencyRules.allowedVersions ?? {})
-  const _allowedVersionsByParentPkg = allowedVersionsByParentPkg.bind(null, {
-    allowedVersionsMatchAll,
-    allowedVersionsByParentPkgName,
-  })
+  const _getAllowedVersionsByParentPkg = getAllowedVersionsByParentPkg.bind(null, allowedVersionsByParentPkgName)
 
   return ((pkg) => {
     if (isEmpty(pkg.peerDependencies)) return pkg
-    const allowedVersions = _allowedVersionsByParentPkg(pkg)
+    const allowedVersions = {
+      ...allowedVersionsMatchAll,
+      ..._getAllowedVersionsByParentPkg(pkg),
+    }
     for (const [peerName, peerVersion] of Object.entries(pkg.peerDependencies ?? {})) {
       if (
         ignoreMissingMatcher(peerName) &&
@@ -90,29 +90,21 @@ function parseAllowedVersions (allowedVersions: Record<string, string>) {
   }
 }
 
-function allowedVersionsByParentPkg (
-  {
-    allowedVersionsMatchAll,
-    allowedVersionsByParentPkgName,
-  }: {
-    allowedVersionsMatchAll: Record<string, string[]>
-    allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName
-  },
+function getAllowedVersionsByParentPkg (
+  allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName,
   pkg: PackageManifest | ProjectManifest
-) {
-  let allowedVersions = allowedVersionsMatchAll
-  if (pkg.name && allowedVersionsByParentPkgName[pkg.name]) {
-    allowedVersions = { ...allowedVersions }
-    const pkgVer = pkg.version ?? ''
-    for (const override of allowedVersionsByParentPkgName[pkg.name]) {
-      if (!pkg.peerDependencies![override.targetPkg.name]) continue
-      if (!override.parentPkg.pref ||
-        (isSubRange(override.parentPkg.pref, pkgVer) || semver.satisfies(pkgVer, override.parentPkg.pref))) {
-        allowedVersions[override.targetPkg.name] = override.ranges
+): Record<string, string[]> {
+  if (!pkg.name || !allowedVersionsByParentPkgName[pkg.name]) return {}
+
+  return allowedVersionsByParentPkgName[pkg.name]
+    .reduce((acc, { targetPkg, parentPkg, ranges }) => {
+      if (!pkg.peerDependencies![targetPkg.name]) return acc
+      if (!parentPkg.pref || pkg.version &&
+        (isSubRange(parentPkg.pref, pkg.version) || semver.satisfies(pkg.version, parentPkg.pref))) {
+        acc[targetPkg.name] = ranges
       }
-    }
-  }
-  return allowedVersions
+      return acc
+    }, {} as Record<string, string[]>)
 }
 
 function parseVersions (versions: string): string[] {
