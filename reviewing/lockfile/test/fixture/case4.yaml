@@ -1,0 +1,58 @@
+lockfileVersion: '6.0'
+
+importers:
+
+  .: {}
+
+  packages/a:
+    dependencies:
+      react:
+        specifier: 18.2.0
+        version: 18.2.0
+      ws-b:
+        specifier: workspace:*
+        version: link:../b
+    devDependencies:
+      ws-a:
+        specifier: workspace:*
+        version: 'link:'
+
+  packages/b:
+    dependencies:
+      react:
+        specifier: 18.1.0
+        version: 18.1.0
+      ws-a:
+        specifier: workspace:*
+        version: link:../a
+    devDependencies:
+      ws-b:
+        specifier: workspace:*
+        version: 'link:'
+
+packages:
+
+  /js-tokens@4.0.0:
+    resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
+    dev: false
+
+  /loose-envify@1.4.0:
+    resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
+    hasBin: true
+    dependencies:
+      js-tokens: 4.0.0
+    dev: false
+
+  /react@18.1.0:
+    resolution: {integrity: sha512-4oL8ivCz5ZEPyclFQXaNksK3adutVS8l2xzZU0cqEFrE9Sb7fC0EFK5uEk74wIreL1DERyjvsU915j1pcT2uEQ==}
+    engines: {node: '>=0.10.0'}
+    dependencies:
+      loose-envify: 1.4.0
+    dev: false
+
+  /react@18.2.0:
+    resolution: {integrity: sha512-/3IjMdb2L9QbBdWiW5e3P2/npwMBaU9mHCSCUzNln0ZCYbcfTsGbTJrU/kGemdH2IWmB2ioZ+zkxtmq6g09fGQ==}
+    engines: {node: '>=0.10.0'}
+    dependencies:
+      loose-envify: 1.4.0
+    dev: false
