@@ -11,13 +11,7 @@ export function createVersionsOverrider (
   overrides: Record<string, string>,
   rootDir: string
 ): ReadPackageHook {
-  let parsedOverrides: ReturnType<typeof parseOverrides>
-  try {
-    parsedOverrides = parseOverrides(overrides)
-  } catch (e) {
-    throw new PnpmError('INVALID_OVERRIDES_SELECTOR', `${(e as PnpmError).message} in pnpm.overrides`)
-  }
-
+  const parsedOverrides = tryParseOverrides(overrides)
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
     parsedOverrides
       .map((override) => {
@@ -46,6 +40,14 @@ export function createVersionsOverrider (
     overrideDepsOfPkg({ manifest, dir }, genericVersionOverrides)
     return manifest
   }) as ReadPackageHook
+}
+
+function tryParseOverrides (overrides: Record<string, string>) {
+  try {
+    return parseOverrides(overrides)
+  } catch (e) {
+    throw new PnpmError('INVALID_OVERRIDES_SELECTOR', `${(e as PnpmError).message} in pnpm.overrides`)
+  }
 }
 
 interface VersionOverride {

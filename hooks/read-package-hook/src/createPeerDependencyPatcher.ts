@@ -61,32 +61,36 @@ export function createPeerDependencyPatcher (
 type AllowedVersionsByParentPkgName = Record<string, Array<Required<Pick<VersionOverride, 'parentPkg' | 'targetPkg'>> & { ranges: string[] }>>
 
 function parseAllowedVersions (allowedVersions: Record<string, string>) {
-  let overrides: VersionOverride[]
-  try {
-    overrides = parseOverrides(allowedVersions ?? {})
-  } catch (err) {
-    throw new PnpmError('INVALID_ALLOWED_VERSION_SELECTOR',
-      `${(err as PnpmError).message} in pnpm.peerDependencyRules.allowedVersions`)
-  }
+  const overrides = tryParseAllowedVersions(allowedVersions)
   const allowedVersionsMatchAll: Record<string, string[]> = {}
   const allowedVersionsByParentPkgName: AllowedVersionsByParentPkgName = {}
-  for (const override of overrides) {
-    if (!override.parentPkg) {
-      allowedVersionsMatchAll[override.targetPkg.name] = parseVersions(override.newPref)
+  for (const { parentPkg, targetPkg, newPref } of overrides) {
+    const ranges = parseVersions(newPref)
+    if (!parentPkg) {
+      allowedVersionsMatchAll[targetPkg.name] = ranges
       continue
     }
-    if (!allowedVersionsByParentPkgName[override.parentPkg.name]) {
-      allowedVersionsByParentPkgName[override.parentPkg.name] = []
+    if (!allowedVersionsByParentPkgName[parentPkg.name]) {
+      allowedVersionsByParentPkgName[parentPkg.name] = []
     }
-    allowedVersionsByParentPkgName[override.parentPkg.name].push({
-      parentPkg: override.parentPkg,
-      targetPkg: override.targetPkg,
-      ranges: parseVersions(override.newPref),
+    allowedVersionsByParentPkgName[parentPkg.name].push({
+      parentPkg,
+      targetPkg,
+      ranges,
     })
   }
   return {
     allowedVersionsMatchAll,
     allowedVersionsByParentPkgName,
+  }
+}
+
+function tryParseAllowedVersions (allowedVersions: Record<string, string>): VersionOverride[] {
+  try {
+    return parseOverrides(allowedVersions ?? {})
+  } catch (err) {
+    throw new PnpmError('INVALID_ALLOWED_VERSION_SELECTOR',
+      `${(err as PnpmError).message} in pnpm.peerDependencyRules.allowedVersions`)
   }
 }
 
