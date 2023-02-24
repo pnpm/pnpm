@@ -131,7 +131,7 @@ test('createPeerDependencyPatcher() overrides peerDependencies when parent>child
     },
   }) as ProjectManifest
   expect(patchedPkg.peerDependencies).toStrictEqual({
-    bar: '1',
+    bar: '0 || 1',
   })
 
   patchedPkg = patcher({
@@ -142,7 +142,7 @@ test('createPeerDependencyPatcher() overrides peerDependencies when parent>child
     },
   }) as ProjectManifest
   expect(patchedPkg.peerDependencies).toStrictEqual({
-    bar: '2 || 3',
+    bar: '0 || 1 || 2 || 3',
   })
 
   patchedPkg = patcher({
@@ -153,7 +153,7 @@ test('createPeerDependencyPatcher() overrides peerDependencies when parent>child
     },
   }) as ProjectManifest
   expect(patchedPkg.peerDependencies).toStrictEqual({
-    bar: '1',
+    bar: '0 || 1',
   })
 
   patchedPkg = patcher({
@@ -164,7 +164,7 @@ test('createPeerDependencyPatcher() overrides peerDependencies when parent>child
     },
   }) as ProjectManifest
   expect(patchedPkg.peerDependencies).toStrictEqual({
-    bar: '4',
+    bar: '0 || 1 || 4',
   })
 })
 

@@ -3,7 +3,7 @@ import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 
 const DELIMITER_REGEX = /[^ |@]>/
 
-interface VersionOverride {
+export interface VersionOverride {
   parentPkg?: {
     name: string
     pref?: string
