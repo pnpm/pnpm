@@ -1,16 +1,20 @@
 # pnpm
 
-## 7.28.0-0
+## 7.28.0
 
 ### Minor Changes
 
 - Add `--report-summary` for `pnpm exec` and `pnpm run` [#6008](https://github.com/pnpm/pnpm/issues/6008).
 - Show path info for `pnpm why --json` or `--long` [#6103](https://github.com/pnpm/pnpm/issues/6103).
+- Extends the `pnpm.peerDependencyRules.allowedVersions` `package.json` option to support the `parent>child` selector syntax. This syntax allows for extending specific `peerDependencies` [#6108](https://github.com/pnpm/pnpm/pull/6108).
 
 ### Patch Changes
 
 - Update the lockfile if a workspace has a new project with no dependencies.
 - Fix a case of installs not being deterministic and causing lockfile changes between repeat installs. When a dependency only declares `peerDependenciesMeta` and not `peerDependencies`, `dependencies`, or `optionalDependencies`, the dependency's peers were not considered deterministically before.
+- `patch-commit` should auto apply patches in workspaces [#6048](https://github.com/pnpm/pnpm/issues/6048)
+- Automatically fix conflicts in v6 lockfile.
+- `pnpm config set` should write to the global config file by default [#5877](https://github.com/pnpm/pnpm/issues/5877).
 
 ## 7.27.1
 

@@ -1,5 +1,11 @@
 # @pnpm/audit
 
+## 6.1.7
+
+### Patch Changes
+
+- @pnpm/list@8.2.1
+
 ## 6.1.6
 
 ### Patch Changes

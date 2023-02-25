@@ -1,5 +1,18 @@
 # @pnpm/core
 
+## 7.8.4
+
+### Patch Changes
+
+- ed946c73e: Automatically fix conflicts in v6 lockfile.
+- Updated dependencies [f39d608ac]
+- Updated dependencies [ed946c73e]
+  - @pnpm/hooks.read-package-hook@2.1.0
+  - @pnpm/lockfile-file@7.0.5
+  - @pnpm/lockfile-to-pnp@2.0.13
+  - @pnpm/get-context@8.2.3
+  - @pnpm/headless@19.5.1
+
 ## 7.8.3
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-patching
 
+## 2.1.10
+
+### Patch Changes
+
+- 6f56cc16e: `patch-commit` should auto apply patches in workspaces [#6048](https://github.com/pnpm/pnpm/issues/6048)
+  - @pnpm/plugin-commands-installation@11.5.1
+  - @pnpm/config@16.6.4
+  - @pnpm/cli-utils@1.1.1
+  - @pnpm/store-connection-manager@5.2.14
+
 ## 2.1.9
 
 ### Patch Changes

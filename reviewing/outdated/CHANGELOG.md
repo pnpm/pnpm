@@ -1,5 +1,12 @@
 # @pnpm/outdated
 
+## 11.0.20
+
+### Patch Changes
+
+- Updated dependencies [ed946c73e]
+  - @pnpm/lockfile-file@7.0.5
+
 ## 11.0.19
 
 ### Patch Changes
