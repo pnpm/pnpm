@@ -53,6 +53,10 @@ export function help () {
             name: '--global',
             shortAlias: '-g',
           },
+          {
+            description: 'When set to "project", the .npmrc file at the nearest package.json will be used',
+            name: '--location <project|global>',
+          },
         ],
       },
     ],
@@ -74,6 +78,8 @@ export async function handler (opts: ConfigCommandOptions, params: string[]) {
   }
   if (opts.location) {
     opts.global = opts.location === 'global'
+  } else if (opts.cliOptions['global'] == null) {
+    opts.global = true
   }
   switch (params[0]) {
   case 'set': {

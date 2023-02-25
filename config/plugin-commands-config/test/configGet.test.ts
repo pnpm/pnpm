@@ -3,6 +3,7 @@ import { config } from '@pnpm/plugin-commands-config'
 test('config get', async () => {
   const configKey = await config.handler({
     dir: process.cwd(),
+    cliOptions: {},
     configDir: process.cwd(),
     global: true,
     rawConfig: {
