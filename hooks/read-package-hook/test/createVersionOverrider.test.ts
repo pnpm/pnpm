@@ -291,3 +291,9 @@ test('createVersionsOverrider() overrides dependencies with file specified with 
     },
   })
 })
+
+test('createVersionOverrider() throws error when supplied an invalid selector', () => {
+  expect(() => createVersionsOverrider({
+    'foo > bar': '2',
+  }, process.cwd())).toThrowError('Cannot parse the "foo > bar" selector in pnpm.overrides')
+})

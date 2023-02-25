@@ -48,5 +48,5 @@ test.each([
 })
 
 test('parseOverrides() throws an exception on invalid selector', () => {
-  expect(() => parseOverrides({ '%': '2' })).toThrow('Cannot parse the "%" selector in the overrides')
+  expect(() => parseOverrides({ '%': '2' })).toThrow('Cannot parse the "%" selector')
 })

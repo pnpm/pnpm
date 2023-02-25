@@ -1609,6 +1609,9 @@ importers:
 
   hooks/read-package-hook:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
