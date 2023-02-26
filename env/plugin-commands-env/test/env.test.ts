@@ -265,3 +265,17 @@ describe('env list', () => {
     expect(versions.every(version => semver.satisfies(version, '16'))).toBeTruthy()
   })
 })
+
+test('fail if there is no global bin directory', async () => {
+  tempDir()
+
+  await expect(
+    env.handler({
+      // @ts-expect-error
+      bin: undefined,
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, ['use', 'lts'])
+  ).rejects.toEqual(new PnpmError('CANNOT_MANAGE_NODE', 'Unable to manage Node.js because pnpm was not installed using the standalon installation script'))
+})
