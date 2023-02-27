@@ -9,7 +9,7 @@ interface ActionFailure {
 }
 
 export type RecursiveSummary = Record<string, {
-  status: 'passed' | 'queued' | 'running'
+  status: 'passed' | 'queued' | 'running' | 'skipped'
   duration?: number
 } | ActionFailure>
 
