@@ -515,6 +515,7 @@ function getExtraNodePaths (
     virtualStoreDir: string
   }
 ) {
+  console.log(extendNodePath, hoistPattern, nodeLinker, virtualStoreDir)
   if (extendNodePath && nodeLinker === 'isolated' && hoistPattern?.length) {
     return [path.join(virtualStoreDir, 'node_modules')]
   }
