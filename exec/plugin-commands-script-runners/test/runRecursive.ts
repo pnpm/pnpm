@@ -1008,6 +1008,10 @@ test('pnpm recursive run report summary', async () => {
         build: 'exit 1',
       },
     },
+    {
+      name: 'project-5',
+      version: '1.0.0',
+    },
   ])
   let error
   try {
@@ -1033,6 +1037,7 @@ test('pnpm recursive run report summary', async () => {
   expect(executionStatus[path.resolve('project-3')].duration).not.toBeFalsy()
   expect(executionStatus[path.resolve('project-4')].status).toBe('failure')
   expect(executionStatus[path.resolve('project-4')].duration).not.toBeFalsy()
+  expect(executionStatus[path.resolve('project-5')].status).toBe('skipped')
 })
 
 test('pnpm recursive run report summary with --bail', async () => {
@@ -1065,6 +1070,10 @@ test('pnpm recursive run report summary with --bail', async () => {
         build: 'exit 1',
       },
     },
+    {
+      name: 'project-5',
+      version: '1.0.0',
+    },
   ])
   let error
   try {
@@ -1090,4 +1099,5 @@ test('pnpm recursive run report summary with --bail', async () => {
   expect(executionStatus[path.resolve('project-2')].duration).not.toBeFalsy()
   expect(executionStatus[path.resolve('project-3')].status).toBe('running')
   expect(executionStatus[path.resolve('project-4')].status).toBe('queued')
+  expect(executionStatus[path.resolve('project-5')].status).toBe('skipped')
 })

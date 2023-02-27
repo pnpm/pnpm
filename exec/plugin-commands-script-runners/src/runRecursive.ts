@@ -84,7 +84,9 @@ export async function runRecursive (
     const selectedScripts = chunk.map(prefix => {
       const pkg = opts.selectedProjectsGraph[prefix]
       const specifiedScripts = getSpecifiedScripts(pkg.package.manifest.scripts ?? {}, scriptName)
-
+      if (!specifiedScripts.length) {
+        result[prefix].status = 'skipped'
+      }
       return specifiedScripts.map(script => ({ prefix, scriptName: script }))
     }).flat()
 
