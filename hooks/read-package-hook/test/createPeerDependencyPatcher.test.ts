@@ -168,6 +168,25 @@ test('createPeerDependencyPatcher() overrides peerDependencies when parent>child
   })
 })
 
+// corner case exists when a 'parent>child' allowedVersion selector is used without a 'child' selector
+test('createPeerDependencyPatcher() corner case correctly applies override', () => {
+  const patcher = createPeerDependencyPatcher({
+    allowedVersions: {
+      'foo>bar': '2',
+    },
+  })
+
+  const patchedPkg = patcher({
+    name: 'foo',
+    peerDependencies: {
+      bar: '0 || 1',
+    },
+  }) as ProjectManifest
+  expect(patchedPkg.peerDependencies).toStrictEqual({
+    bar: '0 || 1 || 2',
+  })
+})
+
 test('createPeerDependencyPathcer() throws expected error if parent>child selector cannot parse', () => {
   expect(() => createPeerDependencyPatcher({
     allowedVersions: {
