@@ -36,11 +36,10 @@ export function createPeerDependencyPatcher (
         pkg.peerDependencies![peerName] = '*'
         continue
       }
-      if (
-        !peerDependencyRules.allowedVersions?.[peerName] ||
-        peerVersion === '*'
-      ) continue
-      if (peerDependencyRules.allowedVersions[peerName] === '*') {
+      if (!allowedVersions?.[peerName] || peerVersion === '*') {
+        continue
+      }
+      if (allowedVersions?.[peerName].includes('*')) {
         pkg.peerDependencies![peerName] = '*'
         continue
       }
