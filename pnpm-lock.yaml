@@ -2401,8 +2401,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       '@pnpm/os.env.path-extender':
-        specifier: ^0.2.9
-        version: 0.2.9
+        specifier: ^0.2.10
+        version: 0.2.10
       render-help:
         specifier: ^1.0.3
         version: 1.0.3
@@ -8144,8 +8144,8 @@ packages:
       - domexception
     dev: true
 
-  /@pnpm/os.env.path-extender-posix@0.2.7:
-    resolution: {integrity: sha512-C6mMlHqvRzogLIQyvmsWl5QZFNEBNl2/ED5BisBSUQcUZyv/UVcJ0Soo/POv8Dc1D3zDeq+tsZ9esIhc983Umg==}
+  /@pnpm/os.env.path-extender-posix@0.2.8:
+    resolution: {integrity: sha512-otEKICb9/rHir3rf9MoUBfFkwNRzPwHCS5XdABPA1h9fhl6tGH1e5ZDJeTQ+ZEil5bZazQsn68/WRqI9okt4+A==}
     engines: {node: '>=12.22.0'}
     dependencies:
       '@pnpm/error': 4.0.1
@@ -8160,11 +8160,11 @@ packages:
       string.prototype.matchall: 4.0.7
     dev: false
 
-  /@pnpm/os.env.path-extender@0.2.9:
-    resolution: {integrity: sha512-25qVItKsOsxBh5UU+QqDaY7GGiqENoZYMitoYdQviVLH3OQU9iRzR/O0kuYBHg5Uv1DuEsTydxUaHwt4P4SahA==}
+  /@pnpm/os.env.path-extender@0.2.10:
+    resolution: {integrity: sha512-GDZtPLP+uxI/tx9hNW9JnWsXWa4KErf1UBVYqU5utYZQ4AigrSgLwGmMkrQCs8BbaP/0Jnwhjb4JfBwNxKGJ3w==}
     engines: {node: '>=12.22.0'}
     dependencies:
-      '@pnpm/os.env.path-extender-posix': 0.2.7
+      '@pnpm/os.env.path-extender-posix': 0.2.8
       '@pnpm/os.env.path-extender-windows': 0.2.4
     dev: false
 
@@ -17465,7 +17465,7 @@ time:
   /@pnpm/npm-conf@2.0.4: '2022-11-11T20:26:48.028Z'
   /@pnpm/npm-lifecycle@2.0.0: '2022-11-30T19:58:42.868Z'
   /@pnpm/npm-package-arg@1.0.0: '2022-06-28T12:48:31.287Z'
-  /@pnpm/os.env.path-extender@0.2.9: '2023-01-31T02:04:06.460Z'
+  /@pnpm/os.env.path-extender@0.2.10: '2023-02-28T01:46:02.862Z'
   /@pnpm/ramda@0.28.1: '2022-08-03T13:56:59.597Z'
   /@pnpm/registry-mock@3.4.0: '2023-02-08T00:47:00.662Z'
   /@pnpm/semver-diff@1.1.0: '2021-11-16T12:40:59.941Z'
