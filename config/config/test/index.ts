@@ -993,3 +993,35 @@ test('read PNPM_HOME defined in environment variables', async () => {
 
   process.env = oldEnv
 })
+
+test('respect prefer-versions-from', async () => {
+  {
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    expect(config.preferVersionsFrom).toBeUndefined()
+  }
+  {
+    prepareEmpty()
+
+    const npmrc = [
+      'prefer-versions-from=lockfile',
+    ].join('\n')
+
+    await fs.writeFile('.npmrc', npmrc, 'utf8')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.preferVersionsFrom).toEqual('lockfile')
+  }
+})

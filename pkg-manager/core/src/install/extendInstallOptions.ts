@@ -104,6 +104,7 @@ export interface StrictInstallOptions {
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allowNonAppliedPatches: boolean
   preferSymlinkedExecutables: boolean
+  preferVersionsFrom: 'lockfile' | 'lockfile-and-manifest'
   resolutionMode: 'highest' | 'time-based' | 'lowest-direct'
   resolvePeersFromWorkspaceRoot: boolean
 
@@ -210,6 +211,7 @@ const defaults = async (opts: InstallOptions) => {
     dedupeDirectDeps: false,
     resolvePeersFromWorkspaceRoot: false,
     extendNodePath: true,
+    preferVersionsFrom: 'lockfile-and-manifest',
   } as StrictInstallOptions
 }
 

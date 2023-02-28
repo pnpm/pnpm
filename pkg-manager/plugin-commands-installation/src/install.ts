@@ -284,6 +284,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'workspaceConcurrency'
 | 'workspaceDir'
 | 'extraEnv'
+| 'preferVersionsFrom'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]

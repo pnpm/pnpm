@@ -87,6 +87,7 @@ export const types = Object.assign({
   'prefer-offline': Boolean,
   'prefer-symlinked-executables': Boolean,
   'prefer-workspace-packages': Boolean,
+  'prefer-versions-from': ['lockfile', 'lockfile-and-manifest'],
   production: [null, true],
   'public-hoist-pattern': Array,
   'publish-branch': String,
@@ -207,6 +208,7 @@ export async function getConfig (
     'lockfile-include-tarball-url': false,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'node-linker': 'isolated',
+    'prefer-versions-from': 'lockfile-and-manifest',
     'package-lock': npmDefaults['package-lock'],
     pending: false,
     'prefer-workspace-packages': false,
@@ -273,6 +275,7 @@ export async function getConfig (
     ...npmConfig.list.slice(3, pnpmConfig.workspaceDir && pnpmConfig.workspaceDir !== cwd ? 5 : 4).reverse(),
     cliOptions,
   ] as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  pnpmConfig.preferVersionsFrom = pnpmConfig.rawLocalConfig['prefer-versions-from']
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
     ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`

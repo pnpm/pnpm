@@ -798,9 +798,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     stage: 'resolution_started',
   })
 
+  const getPreferredVersions = opts.preferVersionsFrom === 'lockfile'
+    ? getPreferredVersionsFromLockfileAndManifests.bind(null, ctx.wantedLockfile.packages, [])
+    : getPreferredVersionsFromLockfileAndManifests.bind(null, ctx.wantedLockfile.packages, Object.values(ctx.projects).map(({ manifest }) => manifest))
+
   const preferredVersions = opts.preferredVersions ?? (
     !opts.update
-      ? getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, Object.values(ctx.projects).map(({ manifest }) => manifest))
+      ? getPreferredVersions()
       : undefined
   )
   const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
