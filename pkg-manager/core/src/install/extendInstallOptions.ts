@@ -121,6 +121,7 @@ export interface StrictInstallOptions {
   allProjects: ProjectOptions[]
   resolveSymlinksInInjectedDirs: boolean
   dedupeDirectDeps: boolean
+  dedupePeerDependents: boolean
   useLockfileV6?: boolean
   extendNodePath: boolean
 }
@@ -208,6 +209,7 @@ const defaults = async (opts: InstallOptions) => {
     modulesCacheMaxAge: 7 * 24 * 60,
     resolveSymlinksInInjectedDirs: false,
     dedupeDirectDeps: false,
+    dedupePeerDependents: false,
     resolvePeersFromWorkspaceRoot: false,
     extendNodePath: true,
   } as StrictInstallOptions

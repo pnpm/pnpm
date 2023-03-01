@@ -807,7 +807,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     !opts.currentLockfileIsUpToDate ||
     opts.force ||
     opts.needsFullResolution ||
-    ctx.lockfileHadConflicts
+    ctx.lockfileHadConflicts ||
+    opts.dedupePeerDependents
 
   // Ignore some fields when fixing lockfile, so these fields can be regenerated
   // and make sure it's up to date
@@ -853,6 +854,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       autoInstallPeers: opts.autoInstallPeers,
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: (opts.update || (opts.updateMatching != null)) ? opts.depth : -1,
+      dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
       force: opts.force,

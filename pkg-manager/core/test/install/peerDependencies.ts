@@ -1225,3 +1225,102 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
   expect(lockfile.packages?.['/ajv-keywords/1.5.0_ajv@ajv'].dependencies?.['ajv']).toBe('link:ajv')
 })
+
+test('deduplicate packages that have optional and non-optional peers', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-b', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+  prepareEmpty()
+  await addDependenciesToPackage({},
+    ['@pnpm.e2e/abc-optional-peers', '@pnpm.e2e/abc-optional-peers-parent'],
+    await testDefaults({ autoInstallPeers: false, dedupePeerDependents: true })
+  )
+
+  const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
+  const depPaths = Object.keys(lockfile.packages ?? {})
+  expect(depPaths.length).toBe(5)
+  expect(depPaths).toContain(`/@pnpm.e2e/abc-optional-peers/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+})
+
+test('deduplicate packages that have peers', async () => {
+  await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-b', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+
+  prepareEmpty()
+  await addDependenciesToPackage({},
+    ['@pnpm.e2e/abc-grand-parent-with-c@1.0.0', '@pnpm.e2e/abc-parent-with-ab@1.0.0', '@pnpm.e2e/abc@1.0.0'],
+    await testDefaults({ autoInstallPeers: false, dedupePeerDependents: true })
+  )
+
+  const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
+  const depPaths = Object.keys(lockfile.packages ?? {})
+  expect(depPaths.length).toBe(8)
+  expect(depPaths).toContain(`/@pnpm.e2e/abc/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+  expect(depPaths).toContain(`/@pnpm.e2e/abc-parent-with-ab/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+})
+
+test('deduplicate packages that have peers, when adding new dependency in a workspace', async () => {
+  await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-b', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+
+  const manifest1 = {
+    name: 'project-1',
+
+    dependencies: {
+      '@pnpm.e2e/abc-grand-parent-with-c': '1.0.0',
+    },
+  }
+  const manifest2 = {
+    name: 'project-2',
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: manifest1,
+    },
+    {
+      location: 'project-2',
+      package: manifest2,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: manifest1,
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: manifest2,
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({ allProjects, autoInstallPeers: false, dedupePeerDependents: true }))
+  importers[1] = {
+    dependencySelectors: ['@pnpm.e2e/abc@1.0.0'],
+    mutation: 'installSome',
+    rootDir: path.resolve('project-2'),
+  }
+  await mutateModules(importers, await testDefaults({ allProjects, autoInstallPeers: false, dedupePeerDependents: true }))
+
+  const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
+  const depPaths = Object.keys(lockfile.packages ?? {})
+  expect(depPaths.length).toBe(8)
+  expect(depPaths).toContain(`/@pnpm.e2e/abc/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+  expect(depPaths).toContain(`/@pnpm.e2e/abc-parent-with-ab/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+})
