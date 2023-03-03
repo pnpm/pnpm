@@ -1,5 +1,11 @@
 # @pnpm/hooks.read-package-hook
 
+## 2.1.1
+
+### Patch Changes
+
+- d583fbb2a: Fixed issue where allowedVersions wouldn't apply correctly if only parent>child selectors were used
+
 ## 2.1.0
 
 ### Minor Changes

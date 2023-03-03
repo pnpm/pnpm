@@ -1,5 +1,14 @@
 # @pnpm/cli-utils
 
+## 1.1.2
+
+### Patch Changes
+
+- 7d64d757b: Add `skipped` status in exec report summary when script is missing [#6139](https://github.com/pnpm/pnpm/pull/6139).
+- Updated dependencies [5c31fa8be]
+  - @pnpm/config@16.7.0
+  - @pnpm/default-reporter@11.0.37
+
 ## 1.1.1
 
 ### Patch Changes
