@@ -156,6 +156,7 @@ export interface Config {
   gitShallowHosts?: string[]
   legacyDirFiltering?: boolean
   onlyBuiltDependencies?: string[]
+  dedupePeerDependents?: boolean
 
   registries: Registries
   ignoreWorkspaceRootCheck: boolean

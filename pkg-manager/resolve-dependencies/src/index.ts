@@ -89,6 +89,7 @@ export async function resolveDependencies (
   importers: ImporterToResolve[],
   opts: ResolveDependenciesOptions & {
     defaultUpdateDepth: number
+    dedupePeerDependents?: boolean
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
@@ -209,6 +210,7 @@ export async function resolveDependencies (
     peerDependencyIssuesByProjects,
   } = resolvePeers({
     dependenciesTree,
+    dedupePeerDependents: opts.dedupePeerDependents,
     lockfileDir: opts.lockfileDir,
     projects: projectsToLink,
     virtualStoreDir: opts.virtualStoreDir,
