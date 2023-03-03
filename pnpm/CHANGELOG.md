@@ -1,10 +1,10 @@
 # pnpm
 
-## 7.29.0-0
+## 7.29.0-1
 
 ### Minor Changes
 
-- 5c31fa8be: A new setting is now supported: `dedupe-peer-dependents`.
+- A new setting is now supported: `dedupe-peer-dependents`.
 
   When this setting is set to `true`, packages with peer dependencies will be deduplicated after peers resolution.
 
@@ -41,7 +41,7 @@
 
 ### Patch Changes
 
-- d80661d42: The configuration added by `pnpm setup` should check if the pnpm home directory is already in the PATH before adding to the PATH.
+- The configuration added by `pnpm setup` should check if the pnpm home directory is already in the PATH before adding to the PATH.
 
   Before this change, this code was added to the shell:
 
@@ -60,8 +60,8 @@
   esac
   ```
 
-- 7d64d757b: Add `skipped` status in exec report summary when script is missing [#6139](https://github.com/pnpm/pnpm/pull/6139).
-- e570adc10: `pnpm env -g` should fail with a meaningful error message if pnpm cannot find the pnpm home directory, which is the directory into which Node.js is installed.
+- Add `skipped` status in exec report summary when script is missing [#6139](https://github.com/pnpm/pnpm/pull/6139).
+- `pnpm env -g` should fail with a meaningful error message if pnpm cannot find the pnpm home directory, which is the directory into which Node.js is installed.
 
 ## 7.28.0
 
