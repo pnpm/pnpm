@@ -47,6 +47,7 @@ jobs:
         pnpm compile
         node pnpm/dist/pnpm.cjs config set store-dir=~/store
         node pnpm/dist/pnpm.cjs config get store-dir
+        pnpm install
     - name: Audit
       run: pnpm audit
     # - name: Cache TypeScript and Jest
