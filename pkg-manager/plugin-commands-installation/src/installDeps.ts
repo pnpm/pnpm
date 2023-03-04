@@ -18,6 +18,7 @@ import {
 } from '@pnpm/core'
 import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
+import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import isSubdir from 'is-subdir'
 import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { getPinnedVersion } from './getPinnedVersion'
@@ -148,7 +149,9 @@ when running add/update with the --workspace option')
 
       let allProjectsGraph!: ProjectsGraph
       if (opts.dedupePeerDependents) {
-        allProjectsGraph = opts.allProjectsGraph!
+        allProjectsGraph = opts.allProjectsGraph ?? createPkgGraph(allProjects, {
+          linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
+        }).graph
       } else {
         allProjectsGraph = selectedProjectsGraph
         if (!allProjectsGraph[opts.workspaceDir]) {
