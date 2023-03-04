@@ -15,24 +15,22 @@ test('deduplicate packages that have peers, when adding new dependency in a work
   await addDistTag({ package: '@pnpm.e2e/peer-b', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
 
-  const manifest1 = {
-    name: 'project-1',
-
-    dependencies: {
-      '@pnpm.e2e/abc-grand-parent-with-c': '1.0.0',
-    },
-  }
-  const manifest2 = {
-    name: 'project-2',
-  }
   preparePackages([
     {
       location: 'project-1',
-      package: manifest1,
+      package: {
+        name: 'project-1',
+
+        dependencies: {
+          '@pnpm.e2e/abc-grand-parent-with-c': '1.0.0',
+        },
+      },
     },
     {
       location: 'project-2',
-      package: manifest2,
+      package: {
+        name: 'project-2',
+      },
     },
   ])
 

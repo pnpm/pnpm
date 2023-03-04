@@ -246,31 +246,22 @@ export async function recursive (
       }
     }))
     if (!opts.selectedProjectsGraph[opts.workspaceDir] && manifestsByPath[opts.workspaceDir] != null) {
-      const localConfig = await memReadLocalConfig(opts.workspaceDir)
-      const modulesDir = localConfig.modulesDir ?? opts.modulesDir
-      const { manifest, writeProjectManifest } = manifestsByPath[opts.workspaceDir]
+      const { writeProjectManifest } = manifestsByPath[opts.workspaceDir]
       writeProjectManifests.push(writeProjectManifest)
       mutatedImporters.push({
-        buildIndex: 0,
-        manifest,
-        modulesDir,
         mutation: 'install',
         rootDir: opts.workspaceDir,
-      } as MutatedProject)
+      })
     }
     if (opts.dedupePeerDependents) {
-      for (const dir of Object.keys(opts.allProjectsGraph)) {
-        if (opts.selectedProjectsGraph[dir]) continue
-        const localConfig = await memReadLocalConfig(dir)
-        const modulesDir = localConfig.modulesDir ?? opts.modulesDir
-        const { manifest, writeProjectManifest } = manifestsByPath[dir]
+      for (const rootDir of Object.keys(opts.allProjectsGraph)) {
+        if (opts.selectedProjectsGraph[rootDir]) continue
+        const { writeProjectManifest } = manifestsByPath[rootDir]
         writeProjectManifests.push(writeProjectManifest)
         mutatedImporters.push({
-          manifest,
-          modulesDir,
           mutation: 'install',
-          rootDir: dir,
-        } as MutatedProject)
+          rootDir,
+        })
       }
     }
     if ((mutatedImporters.length === 0) && cmdFullName === 'update' && opts.depth === 0) {
