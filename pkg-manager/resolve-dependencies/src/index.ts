@@ -81,6 +81,8 @@ export type ImporterToResolve = Importer<{
   binsDir: string
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
+  update?: boolean
+  updateMatching?: (pkgName: string) => boolean
   updatePackageManifest: boolean
   targetDependenciesField?: DependenciesField
 }
@@ -100,7 +102,6 @@ export async function resolveDependencies (
     defaultUpdateDepth: opts.defaultUpdateDepth,
     lockfileOnly: opts.dryRun,
     preferredVersions: opts.preferredVersions,
-    updateAll: Boolean(opts.updateMatching),
     virtualStoreDir: opts.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
   })

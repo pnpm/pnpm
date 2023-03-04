@@ -159,7 +159,6 @@ export interface ResolutionContext {
   registries: Registries
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   virtualStoreDir: string
-  updateMatching?: (pkgName: string) => boolean
   useLockfileV6?: boolean
   workspacePackages?: WorkspacePackages
   missingPeersOfChildrenByPkgId: Record<string, { parentImporterId: string, missingPeersOfChildren: MissingPeersOfChildren }>
@@ -252,6 +251,7 @@ interface ResolvedDependenciesOptions {
   publishedBy?: Date
   pickLowestVersion?: boolean
   resolvedDependencies?: ResolvedDependencies
+  updateMatching?: (pkgName: string) => boolean
   updateDepth: number
   prefix: string
 }
@@ -647,8 +647,8 @@ async function resolveDependenciesOfDependency (
   const update = ((extendedWantedDep.infoFromLockfile?.dependencyLockfile) == null) ||
   (
     updateShouldContinue && (
-      (ctx.updateMatching == null) ||
-      ctx.updateMatching(extendedWantedDep.infoFromLockfile.name!)
+      (options.updateMatching == null) ||
+      options.updateMatching(extendedWantedDep.infoFromLockfile.name!)
     )
   ) || Boolean(
     (ctx.workspacePackages != null) &&
