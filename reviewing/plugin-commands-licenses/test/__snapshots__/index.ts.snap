@@ -1,5 +1,16 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`pnpm licenses should work with file protocol dependency: show-packages 1`] = `
+"┌─────────────────────────────────┬─────────┐
+│ Package                         │ License │
+├─────────────────────────────────┼─────────┤
+│ is-positive                     │ MIT     │
+├─────────────────────────────────┼─────────┤
+│ pnpm-with-file-protocol-sub-dep │ Unknown │
+└─────────────────────────────────┴─────────┘
+"
+`;
+
 exports[`pnpm licenses: output as json: found-license-types 1`] = `
 [
   "MIT",

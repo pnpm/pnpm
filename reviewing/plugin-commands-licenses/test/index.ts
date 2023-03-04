@@ -162,3 +162,27 @@ test('pnpm licenses: should correctly read LICENSE file with executable file mod
   expect(exitCode).toBe(0)
   expect(stripAnsi(output)).toMatchSnapshot('show-packages-details')
 })
+
+test('pnpm licenses should work with file protocol dependency', async () => {
+  const workspaceDir = path.resolve('./test/fixtures/with-file-protocol')
+
+  const tmp = tempy.directory()
+  const storeDir = path.join(tmp, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+  })
+
+  const { output, exitCode } = await licenses.handler({
+    ...LICENSES_OPTIONS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    storeDir: path.resolve(storeDir, 'v3'),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toMatchSnapshot('show-packages')
+})

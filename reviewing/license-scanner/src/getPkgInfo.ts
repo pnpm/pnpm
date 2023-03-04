@@ -174,6 +174,20 @@ export async function readPackageIndexFile (
     files: Record<string, string>
   }
   > {
+  // If the package resolution is of type directory we need to do things
+  // differently and generate our own package index file
+  const isLocalPkg = packageResolution.type === 'directory'
+  if (isLocalPkg) {
+    const localInfo = await fetchFromDir(
+      path.join(opts.lockfileDir, (packageResolution as DirectoryResolution).directory),
+      {}
+    )
+    return {
+      local: true,
+      files: localInfo.filesIndex,
+    }
+  }
+
   const isPackageWithIntegrity = 'integrity' in packageResolution
 
   let pkgIndexFilePath
@@ -201,35 +215,21 @@ export async function readPackageIndexFile (
     )
   }
 
-  // If the package resolution is of type directory we need to do things
-  // differently and generate our own package index file
-  const isLocalPkg = packageResolution.type === 'directory'
-  if (isLocalPkg) {
-    const localInfo = await fetchFromDir(
-      path.join(opts.lockfileDir, (packageResolution as DirectoryResolution).directory),
-      {}
-    )
+  try {
+    const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
     return {
-      local: true,
-      files: localInfo.filesIndex,
+      local: false,
+      files,
     }
-  } else {
-    try {
-      const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
-      return {
-        local: false,
-        files,
-      }
-    } catch (err: any) {  // eslint-disable-line
-      if (err.code === 'ENOENT') {
-        throw new PnpmError(
-          'MISSING_PACKAGE_INDEX_FILE',
-          `Failed to find package index file for ${depPath}, please consider running 'pnpm install'`
-        )
-      }
+  } catch (err: any) {  // eslint-disable-line
+    if (err.code === 'ENOENT') {
+      throw new PnpmError(
+        'MISSING_PACKAGE_INDEX_FILE',
+        `Failed to find package index file for ${depPath}, please consider running 'pnpm install'`
+      )
+    }
 
-      throw err
-    }
+    throw err
   }
 }
 
