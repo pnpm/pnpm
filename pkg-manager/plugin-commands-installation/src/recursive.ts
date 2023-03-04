@@ -43,6 +43,7 @@ import { PreferredVersions } from '@pnpm/resolver-base'
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
+| 'dedupePeerDependents'
 | 'depth'
 | 'globalPnpmfile'
 | 'hoistPattern'
@@ -256,6 +257,21 @@ export async function recursive (
         mutation: 'install',
         rootDir: opts.workspaceDir,
       } as MutatedProject)
+    }
+    if (opts.dedupePeerDependents) {
+      for (const dir of Object.keys(opts.allProjectsGraph)) {
+        if (opts.selectedProjectsGraph[dir]) continue
+        const localConfig = await memReadLocalConfig(dir)
+        const modulesDir = localConfig.modulesDir ?? opts.modulesDir
+        const { manifest, writeProjectManifest } = manifestsByPath[dir]
+        writeProjectManifests.push(writeProjectManifest)
+        mutatedImporters.push({
+          manifest,
+          modulesDir,
+          mutation: 'install',
+          rootDir: dir,
+        } as MutatedProject)
+      }
     }
     if ((mutatedImporters.length === 0) && cmdFullName === 'update' && opts.depth === 0) {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
