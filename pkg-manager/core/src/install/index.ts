@@ -89,29 +89,43 @@ const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
 
 const DEV_PREINSTALL = 'pnpm:devPreinstall'
 
-export type DependenciesMutation = (
-  {
-    mutation: 'install'
-    pruneDirectDependencies?: boolean
-  } | {
-    allowNew?: boolean
-    dependencySelectors: string[]
-    mutation: 'installSome'
-    peer?: boolean
-    pruneDirectDependencies?: boolean
-    pinnedVersion?: PinnedVersion
-    targetDependenciesField?: DependenciesField
-  } | {
-    mutation: 'uninstallSome'
-    dependencyNames: string[]
-    targetDependenciesField?: DependenciesField
-  } | {
-    mutation: 'unlink'
-  } | {
-    mutation: 'unlinkSome'
-    dependencyNames: string[]
-  }
-)
+interface InstallMutationOptions {
+  update?: boolean
+  updateMatching?: (pkgName: string) => boolean
+  updatePackageManifest?: boolean
+}
+
+export interface InstallDepsMutation extends InstallMutationOptions {
+  mutation: 'install'
+  pruneDirectDependencies?: boolean
+}
+
+export interface InstallSomeDepsMutation extends InstallMutationOptions {
+  allowNew?: boolean
+  dependencySelectors: string[]
+  mutation: 'installSome'
+  peer?: boolean
+  pruneDirectDependencies?: boolean
+  pinnedVersion?: PinnedVersion
+  targetDependenciesField?: DependenciesField
+}
+
+export interface UninstallSomeDepsMutation {
+  mutation: 'uninstallSome'
+  dependencyNames: string[]
+  targetDependenciesField?: DependenciesField
+}
+
+export interface UnlinkDepsMutation {
+  mutation: 'unlink'
+}
+
+export interface UnlinkSomeDepsMutation {
+  mutation: 'unlinkSome'
+  dependencyNames: string[]
+}
+
+export type DependenciesMutation = InstallDepsMutation | InstallSomeDepsMutation | UninstallSomeDepsMutation | UnlinkDepsMutation | UnlinkSomeDepsMutation
 
 export async function install (
   manifest: ProjectManifest,
@@ -195,7 +209,7 @@ export async function mutateModules (
     throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
   }
 
-  const installsOnly = projects.every((project) => project.mutation === 'install')
+  const installsOnly = projects.every((project) => project.mutation === 'install' && !project.update && !project.updateMatching)
   if (!installsOnly) opts.strictPeerDependencies = false
   // @ts-expect-error
   opts['forceNewModules'] = installsOnly
@@ -306,7 +320,6 @@ export async function mutateModules (
       opts.frozenLockfileIfExists && ctx.existsWantedLockfile
     if (
       !ctx.lockfileHadConflicts &&
-      !opts.update &&
       !opts.fixLockfile &&
       !opts.dedupe &&
       installsOnly &&
@@ -396,7 +409,9 @@ export async function mutateModules (
           if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
             needsFullResolution = true
             // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
-            opts.update = true
+            for (const project of projects) {
+              (project as InstallMutationOptions).update = true
+            }
           }
           // A broken lockfile may be caused by a badly resolved Git conflict
           logger.warn({
@@ -432,14 +447,14 @@ export async function mutateModules (
       case 'install': {
         await installCase({
           ...projectOpts,
-          updatePackageManifest: opts.updatePackageManifest ?? opts.update,
+          updatePackageManifest: (projectOpts as InstallDepsMutation).updatePackageManifest ?? (projectOpts as InstallDepsMutation).update,
         })
         break
       }
       case 'installSome': {
         await installSome({
           ...projectOpts,
-          updatePackageManifest: opts.updatePackageManifest !== false,
+          updatePackageManifest: (projectOpts as InstallSomeDepsMutation).updatePackageManifest !== false,
         })
         break
       }
@@ -510,7 +525,7 @@ export async function mutateModules (
       const wantedDependencies = getWantedDependencies(project.manifest, {
         autoInstallPeers: opts.autoInstallPeers,
         includeDirect: opts.includeDirect,
-        updateWorkspaceDependencies: opts.update,
+        updateWorkspaceDependencies: project.update,
         nodeExecPath: opts.nodeExecPath,
       })
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true, preserveNonSemverVersionSpec: true }))
@@ -549,7 +564,7 @@ export async function mutateModules (
         devDependencies,
         optional: project.targetDependenciesField === 'optionalDependencies',
         optionalDependencies,
-        updateWorkspaceDependencies: opts.update,
+        updateWorkspaceDependencies: project.update,
         preferredSpecs,
         overrides: opts.overrides,
       })
@@ -798,8 +813,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     stage: 'resolution_started',
   })
 
+  const update = projects.some((project) => (project as InstallMutationOptions).update)
   const preferredVersions = opts.preferredVersions ?? (
-    !opts.update
+    !update
       ? getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, Object.values(ctx.projects).map(({ manifest }) => manifest))
       : undefined
   )
@@ -853,7 +869,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       allowNonAppliedPatches: opts.allowNonAppliedPatches,
       autoInstallPeers: opts.autoInstallPeers,
       currentLockfile: ctx.currentLockfile,
-      defaultUpdateDepth: (opts.update || (opts.updateMatching != null)) ? opts.depth : -1,
+      defaultUpdateDepth: -1, // (opts.update || (opts.updateMatching != null)) ? opts.depth : -1,
       dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
@@ -875,7 +891,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
       tag: opts.tag,
-      updateMatching: opts.updateMatching,
+      updateMatching: () => false, // opts.updateMatching,
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages,
@@ -1248,7 +1264,9 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     ) throw error
     opts.needsFullResolution = true
     // Ideally, we would not update but currently there is no other way to redownload the integrity of the package
-    opts.update = true
+    for (const project of projects) {
+      (project as InstallMutationOptions).update = true
+    }
     logger.warn({
       error,
       message: error.message,

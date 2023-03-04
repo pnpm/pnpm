@@ -54,9 +54,6 @@ export interface StrictInstallOptions {
   reporter: ReporterFunction
   force: boolean
   forcePublicHoistPattern: boolean
-  update: boolean
-  updateMatching?: (pkgName: string) => boolean
-  updatePackageManifest?: boolean
   depth: number
   lockfileDir: string
   modulesDir: string
@@ -196,7 +193,6 @@ const defaults = async (opts: InstallOptions) => {
       process.platform === 'cygwin' ||
       !process.setgid ||
       process.getuid() !== 0,
-    update: false,
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,
