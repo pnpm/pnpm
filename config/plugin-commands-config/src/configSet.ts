@@ -5,6 +5,7 @@ import { ConfigCommandOptions } from './ConfigCommandOptions'
 
 export async function configSet (opts: ConfigCommandOptions, key: string, value: string | null) {
   const configPath = opts.global ? path.join(opts.configDir, 'rc') : path.join(opts.dir, '.npmrc')
+  console.log(configPath)
   const settings = await safeReadIniFile(configPath)
   if (value == null) {
     if (settings[key] == null) return

@@ -42,7 +42,11 @@ jobs:
     - name: Install npm@7
       run: npm add --global npm@7
     - name: pnpm install
-      run: pnpm install
+      run: |
+        pnpm install
+        pnpm compile
+        node pnpm/dist/pnpm.cjs config set store-dir=~/store
+        node pnpm/dist/pnpm.cjs config get store-dir
     - name: Audit
       run: pnpm audit
     # - name: Cache TypeScript and Jest
