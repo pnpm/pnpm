@@ -460,7 +460,8 @@ test('set recursive-install to false in .npmrc would disable recursive install i
 
   process.chdir('workspace')
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', 'recursive-install = false', 'utf8')
+  await fs.writeFile('.npmrc', `recursive-install = false
+dedupe-peer-dependents = false`, 'utf8')
 
   process.chdir('project-1')
   await execPnpm(['install'])
