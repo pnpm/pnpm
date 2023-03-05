@@ -48,7 +48,7 @@ auto-install-peers=false`, 'utf8')
   expect(depPaths).toContain(`/@pnpm.e2e/abc-parent-with-ab/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
 })
 
-test.only('partial update in a workspace should work with dedupe-peer-dependents is true', async () => {
+test('partial update in a workspace should work with dedupe-peer-dependents is true', async () => {
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/abc', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
