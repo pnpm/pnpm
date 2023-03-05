@@ -132,6 +132,8 @@ export async function install (
   opts: Omit<InstallOptions, 'allProjects'> & {
     preferredVersions?: PreferredVersions
     pruneDirectDependencies?: boolean
+    update?: boolean
+    updateMatching?: (pkgName: string) => boolean
   }
 ) {
   const rootDir = opts.dir ?? process.cwd()
@@ -141,6 +143,8 @@ export async function install (
         mutation: 'install',
         pruneDirectDependencies: opts.pruneDirectDependencies,
         rootDir,
+        update: opts.update,
+        updateMatching: opts.updateMatching,
       },
     ],
     {
@@ -699,6 +703,7 @@ export async function addDependenciesToPackage (
     peer?: boolean
     pinnedVersion?: 'major' | 'minor' | 'patch'
     targetDependenciesField?: DependenciesField
+    update?: boolean
   }
 ) {
   const rootDir = opts.dir ?? process.cwd()
@@ -712,6 +717,7 @@ export async function addDependenciesToPackage (
         pinnedVersion: opts.pinnedVersion,
         rootDir,
         targetDependenciesField: opts.targetDependenciesField,
+        update: opts.update,
       },
     ],
     {

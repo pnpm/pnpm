@@ -1,6 +1,6 @@
 import * as path from 'path'
 import { promises as fs } from 'fs'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { prepareEmpty, prepare, preparePackages } from '@pnpm/prepare'
 import { PnpmError } from '@pnpm/error'
 import {
   PackageManifestLog,
@@ -716,6 +716,7 @@ test('lockfile locks npm dependencies', async () => {
   const reporter = sinon.spy()
 
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ save: true, reporter }))
 
@@ -815,7 +816,7 @@ test('should throw error when trying to install a package without name', async (
 
 // Covers https://github.com/pnpm/pnpm/issues/1193
 test('rewrites node_modules created by npm', async () => {
-  const project = prepareEmpty()
+  const project = prepare()
 
   await execa('npm', ['install', 'rimraf@2.5.1', '@types/node', '--save'])
 
@@ -1004,6 +1005,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
 
 test('subdep symlinks are updated if the lockfile has new subdep versions specified', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   await mutateModulesInSingleProject({

@@ -488,7 +488,8 @@ test('the list of transitive peer dependencies is kept up to date', async () => 
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, await testDefaults({ update: true, depth: Infinity }))
+    update: true,
+  }, await testDefaults({ depth: Infinity }))
 
   expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+abc-grand-parent@1.0.0/node_modules/@pnpm.e2e/abc-grand-parent'))).toBeTruthy()
 

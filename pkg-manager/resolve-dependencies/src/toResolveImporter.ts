@@ -28,7 +28,7 @@ export async function toResolveImporter (
     virtualStoreDir: opts.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
   })
-  const defaultUpdateDepth = (project.update || (project.updateMatching != null)) ? opts.defaultUpdateDepth : -1
+  const defaultUpdateDepth = (project.update === true || (project.updateMatching != null)) ? opts.defaultUpdateDepth : -1
   const existingDeps = nonLinkedDependencies
     .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
   let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>

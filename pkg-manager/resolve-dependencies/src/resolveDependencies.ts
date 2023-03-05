@@ -672,6 +672,7 @@ async function resolveDependenciesOfDependency (
     publishedBy: options.publishedBy,
     update,
     updateDepth,
+    updateMatching: options.updateMatching,
   }
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
@@ -706,6 +707,7 @@ async function resolveDependenciesOfDependency (
     parentDepth: options.currentDepth,
     updateDepth,
     prefix: options.prefix,
+    updateMatching: options.updateMatching,
   })
   return {
     resolveDependencyResult,
@@ -751,6 +753,7 @@ async function resolveChildren (
     dependencyLockfile,
     parentDepth,
     updateDepth,
+    updateMatching,
     prefix,
   }: {
     parentPkg: PkgAddress
@@ -758,6 +761,7 @@ async function resolveChildren (
     parentDepth: number
     updateDepth: number
     prefix: string
+    updateMatching?: (name: string) => boolean
   },
   {
     parentPkgAliases,
@@ -802,6 +806,7 @@ async function resolveChildren (
       publishedBy,
       resolvedDependencies,
       updateDepth,
+      updateMatching,
     }
   )
   ctx.childrenByParentDepPath[parentPkg.depPath] = pkgAddresses.map((child) => ({
@@ -1001,6 +1006,7 @@ interface ResolveDependencyOptions {
   pickLowestVersion?: boolean
   update: boolean
   updateDepth: number
+  updateMatching?: (depName: string) => boolean
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null
