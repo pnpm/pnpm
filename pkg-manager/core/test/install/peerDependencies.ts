@@ -1296,7 +1296,7 @@ test('deduplicate packages that have optional and non-optional peers', async () 
   const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
   const depPaths = Object.keys(lockfile.packages ?? {})
   expect(depPaths.length).toBe(5)
-  expect(depPaths).toContain(`/@pnpm.e2e/abc-optional-peers/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+  expect(depPaths).toContain(`/@pnpm.e2e/abc-optional-peers@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
 })
 
 test('deduplicate packages that have peers', async () => {
@@ -1314,8 +1314,8 @@ test('deduplicate packages that have peers', async () => {
   const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
   const depPaths = Object.keys(lockfile.packages ?? {})
   expect(depPaths.length).toBe(8)
-  expect(depPaths).toContain(`/@pnpm.e2e/abc/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
-  expect(depPaths).toContain(`/@pnpm.e2e/abc-parent-with-ab/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+  expect(depPaths).toContain(`/@pnpm.e2e/abc@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+  expect(depPaths).toContain(`/@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
 })
 
 test('deduplicate packages that have peers, when adding new dependency in a workspace', async () => {
@@ -1378,6 +1378,6 @@ test('deduplicate packages that have peers, when adding new dependency in a work
   const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
   const depPaths = Object.keys(lockfile.packages ?? {})
   expect(depPaths.length).toBe(8)
-  expect(depPaths).toContain(`/@pnpm.e2e/abc/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
-  expect(depPaths).toContain(`/@pnpm.e2e/abc-parent-with-ab/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+  expect(depPaths).toContain(`/@pnpm.e2e/abc@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
+  expect(depPaths).toContain(`/@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
 })
