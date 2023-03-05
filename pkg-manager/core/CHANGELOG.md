@@ -1,5 +1,16 @@
 # @pnpm/core
 
+## 8.0.0
+
+### Major Changes
+
+- 670bea844: The update options are passed on per project basis. So the `update` and `updateMatching` options are options of importers/projects.
+
+### Patch Changes
+
+- Updated dependencies [670bea844]
+  - @pnpm/resolve-dependencies@30.0.0
+
 ## 7.9.0
 
 ### Minor Changes

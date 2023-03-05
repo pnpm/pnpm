@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 16.7.1
+
+### Patch Changes
+
+- @pnpm/pnpmfile@4.0.36
+
 ## 16.7.0
 
 ### Minor Changes

@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-deploy
 
+## 2.0.38
+
+### Patch Changes
+
+- Updated dependencies [690bead26]
+  - @pnpm/plugin-commands-installation@11.5.3
+  - @pnpm/cli-utils@1.1.3
+
 ## 2.0.37
 
 ### Patch Changes

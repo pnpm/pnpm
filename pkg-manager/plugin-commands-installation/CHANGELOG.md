@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-installation
 
+## 11.5.3
+
+### Patch Changes
+
+- 690bead26: `dedupe-peer-dependents` should work when running an install command on a subset of workspace projects [#6171](https://github.com/pnpm/pnpm/issues/6171).
+- Updated dependencies [670bea844]
+  - @pnpm/core@8.0.0
+  - @pnpm/pnpmfile@4.0.36
+  - @pnpm/config@16.7.1
+  - @pnpm/cli-utils@1.1.3
+  - @pnpm/plugin-commands-rebuild@7.1.3
+  - @pnpm/store-connection-manager@5.2.16
+  - @pnpm/find-workspace-packages@5.0.38
+  - @pnpm/filter-workspace-packages@6.0.38
+
 ## 11.5.2
 
 ### Patch Changes

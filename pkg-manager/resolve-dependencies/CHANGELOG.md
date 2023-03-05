@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 30.0.0
+
+### Major Changes
+
+- 670bea844: The update options are passed on per project basis. So the `update` and `updateMatching` options are options of importers/projects.
+
 ## 29.4.0
 
 ### Minor Changes
