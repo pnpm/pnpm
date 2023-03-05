@@ -927,10 +927,12 @@ test('update workspace range', async () => {
       dependencySelectors: ['dep1', 'dep2', 'dep3', 'dep4', 'dep5', 'dep6'],
       mutation: 'installSome',
       rootDir: path.resolve('project-1'),
+      update: true,
     },
     {
       mutation: 'install',
       rootDir: path.resolve('project-2'),
+      update: true,
     },
   ], await testDefaults({
     allProjects: [
@@ -972,7 +974,6 @@ test('update workspace range', async () => {
         rootDir: path.resolve('project-2'),
       },
     ],
-    update: true,
     workspacePackages: {
       dep1: {
         '2.0.0': {
@@ -1071,10 +1072,12 @@ test('update workspace range when save-workspace-protocol is "rolling"', async (
       dependencySelectors: ['dep1', 'dep2', 'dep3', 'dep4', 'dep5', 'dep6'],
       mutation: 'installSome',
       rootDir: path.resolve('project-1'),
+      update: true,
     },
     {
       mutation: 'install',
       rootDir: path.resolve('project-2'),
+      update: true,
     },
   ], await testDefaults({
     allProjects: [
@@ -1113,7 +1116,6 @@ test('update workspace range when save-workspace-protocol is "rolling"', async (
       },
     ],
     saveWorkspaceProtocol: 'rolling',
-    update: true,
     workspacePackages: {
       dep1: {
         '2.0.0': {

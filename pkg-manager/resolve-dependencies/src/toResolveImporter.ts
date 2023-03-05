@@ -15,7 +15,6 @@ export async function toResolveImporter (
     defaultUpdateDepth: number
     lockfileOnly: boolean
     preferredVersions?: PreferredVersions
-    updateAll: boolean
     virtualStoreDir: string
     workspacePackages: WorkspacePackages
   },
@@ -29,6 +28,7 @@ export async function toResolveImporter (
     virtualStoreDir: opts.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
   })
+  const defaultUpdateDepth = (project.update === true || (project.updateMatching != null)) ? opts.defaultUpdateDepth : -1
   const existingDeps = nonLinkedDependencies
     .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
   let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
@@ -39,22 +39,22 @@ export async function toResolveImporter (
     ]
       .map((dep) => ({
         ...dep,
-        updateDepth: opts.defaultUpdateDepth,
+        updateDepth: defaultUpdateDepth,
       }))
   } else {
     // Direct local tarballs are always checked,
     // so their update depth should be at least 0
     const updateLocalTarballs = (dep: WantedDependency) => ({
       ...dep,
-      updateDepth: opts.updateAll
-        ? opts.defaultUpdateDepth
+      updateDepth: project.updateMatching != null
+        ? defaultUpdateDepth
         : (prefIsLocalTarball(dep.pref) ? 0 : -1),
     })
     wantedDependencies = [
       ...project.wantedDependencies.map(
-        opts.defaultUpdateDepth < 0
+        defaultUpdateDepth < 0
           ? updateLocalTarballs
-          : (dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
+          : (dep) => ({ ...dep, updateDepth: defaultUpdateDepth })),
       ...existingDeps.map(updateLocalTarballs),
     ]
   }

@@ -28,6 +28,7 @@ import {
   MutatedProject,
   mutateModules,
   ProjectOptions,
+  UpdateMatchingFunction,
   WorkspacePackages,
 } from '@pnpm/core'
 import isSubdir from 'is-subdir'
@@ -79,6 +80,8 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   forcePublicHoistPattern?: boolean
   ignoredPackages?: Set<string>
   update?: boolean
+  updatePackageManifest?: boolean
+  updateMatching?: UpdateMatchingFunction
   useBetaCli?: boolean
   allProjectsGraph: ProjectsGraph
   selectedProjectsGraph: ProjectsGraph
@@ -234,6 +237,9 @@ export async function recursive (
           }),
           rootDir,
           targetDependenciesField,
+          update: opts.update,
+          updateMatching: opts.updateMatching,
+          updatePackageManifest: opts.updatePackageManifest,
         } as MutatedProject)
         return
       case 'install':
@@ -242,6 +248,9 @@ export async function recursive (
           mutation,
           pruneDirectDependencies: opts.pruneDirectDependencies,
           rootDir,
+          update: opts.update,
+          updateMatching: opts.updateMatching,
+          updatePackageManifest: opts.updatePackageManifest,
         } as MutatedProject)
       }
     }))

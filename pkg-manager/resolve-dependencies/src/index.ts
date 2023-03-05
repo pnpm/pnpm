@@ -26,7 +26,7 @@ import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
 import { getWantedDependencies, WantedDependency } from './getWantedDependencies'
 import { depPathToRef } from './depPathToRef'
-import { createNodeIdForLinkedLocalPkg } from './resolveDependencies'
+import { createNodeIdForLinkedLocalPkg, UpdateMatchingFunction } from './resolveDependencies'
 import {
   Importer,
   LinkedDependency,
@@ -53,6 +53,7 @@ export {
   LinkedDependency,
   ResolvedPackage,
   PinnedVersion,
+  UpdateMatchingFunction,
   WantedDependency,
 }
 
@@ -81,6 +82,8 @@ export type ImporterToResolve = Importer<{
   binsDir: string
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
+  update?: boolean
+  updateMatching?: UpdateMatchingFunction
   updatePackageManifest: boolean
   targetDependenciesField?: DependenciesField
 }
@@ -100,7 +103,6 @@ export async function resolveDependencies (
     defaultUpdateDepth: opts.defaultUpdateDepth,
     lockfileOnly: opts.dryRun,
     preferredVersions: opts.preferredVersions,
-    updateAll: Boolean(opts.updateMatching),
     virtualStoreDir: opts.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
   })

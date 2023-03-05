@@ -159,7 +159,6 @@ export interface ResolutionContext {
   registries: Registries
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   virtualStoreDir: string
-  updateMatching?: (pkgName: string) => boolean
   useLockfileV6?: boolean
   workspacePackages?: WorkspacePackages
   missingPeersOfChildrenByPkgId: Record<string, { parentImporterId: string, missingPeersOfChildren: MissingPeersOfChildren }>
@@ -240,6 +239,8 @@ type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath' | 'rootDi
 
 export type ParentPkgAliases = Record<string, PkgAddress | true>
 
+export type UpdateMatchingFunction = (pkgName: string) => boolean
+
 interface ResolvedDependenciesOptions {
   currentDepth: number
   parentPkg: ParentPkg
@@ -252,6 +253,7 @@ interface ResolvedDependenciesOptions {
   publishedBy?: Date
   pickLowestVersion?: boolean
   resolvedDependencies?: ResolvedDependencies
+  updateMatching?: UpdateMatchingFunction
   updateDepth: number
   prefix: string
 }
@@ -647,8 +649,8 @@ async function resolveDependenciesOfDependency (
   const update = ((extendedWantedDep.infoFromLockfile?.dependencyLockfile) == null) ||
   (
     updateShouldContinue && (
-      (ctx.updateMatching == null) ||
-      ctx.updateMatching(extendedWantedDep.infoFromLockfile.name!)
+      (options.updateMatching == null) ||
+      options.updateMatching(extendedWantedDep.infoFromLockfile.name!)
     )
   ) || Boolean(
     (ctx.workspacePackages != null) &&
@@ -672,6 +674,7 @@ async function resolveDependenciesOfDependency (
     publishedBy: options.publishedBy,
     update,
     updateDepth,
+    updateMatching: options.updateMatching,
   }
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
@@ -706,6 +709,7 @@ async function resolveDependenciesOfDependency (
     parentDepth: options.currentDepth,
     updateDepth,
     prefix: options.prefix,
+    updateMatching: options.updateMatching,
   })
   return {
     resolveDependencyResult,
@@ -751,6 +755,7 @@ async function resolveChildren (
     dependencyLockfile,
     parentDepth,
     updateDepth,
+    updateMatching,
     prefix,
   }: {
     parentPkg: PkgAddress
@@ -758,6 +763,7 @@ async function resolveChildren (
     parentDepth: number
     updateDepth: number
     prefix: string
+    updateMatching?: UpdateMatchingFunction
   },
   {
     parentPkgAliases,
@@ -802,6 +808,7 @@ async function resolveChildren (
       publishedBy,
       resolvedDependencies,
       updateDepth,
+      updateMatching,
     }
   )
   ctx.childrenByParentDepPath[parentPkg.depPath] = pkgAddresses.map((child) => ({
@@ -1001,6 +1008,7 @@ interface ResolveDependencyOptions {
   pickLowestVersion?: boolean
   update: boolean
   updateDepth: number
+  updateMatching?: UpdateMatchingFunction
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null

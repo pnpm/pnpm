@@ -184,6 +184,7 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
 })
 
 test('save to package.json with save prefix ~', async () => {
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   prepareEmpty()
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ pinnedVersion: 'minor' }))
 
@@ -211,10 +212,9 @@ test('an update bumps the versions in the manifest', async () => {
     },
     mutation: 'install',
     rootDir: process.cwd(),
-  },
-  await testDefaults({
     update: true,
-  }))
+  },
+  await testDefaults())
 
   expect(manifest).toStrictEqual({
     dependencies: {

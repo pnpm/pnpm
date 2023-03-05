@@ -52,6 +52,7 @@ export interface Importer<T> {
 
 export interface ImporterToResolveGeneric<T> extends Importer<T> {
   updatePackageManifest: boolean
+  updateMatching?: (pkgName: string) => boolean
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
   wantedDependencies: Array<T & WantedDependency & { updateDepth: number }>
@@ -79,7 +80,6 @@ export interface ResolveDependenciesOptions {
   preferWorkspacePackages?: boolean
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   resolvePeersFromWorkspaceRoot?: boolean
-  updateMatching?: (pkgName: string) => boolean
   linkWorkspacePackagesDepth?: number
   lockfileDir: string
   storeController: StoreController
@@ -122,7 +122,6 @@ export async function resolveDependencyTree<T> (
     resolutionMode: opts.resolutionMode,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
-    updateMatching: opts.updateMatching,
     virtualStoreDir: opts.virtualStoreDir,
     wantedLockfile: opts.wantedLockfile,
     appliedPatches: new Set<string>(),
@@ -154,6 +153,7 @@ export async function resolveDependencyTree<T> (
         ...projectSnapshot.optionalDependencies,
       },
       updateDepth: -1,
+      updateMatching: importer.updateMatching,
       prefix: importer.rootDir,
     }
     return {
