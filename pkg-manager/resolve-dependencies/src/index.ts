@@ -120,7 +120,7 @@ export async function resolveDependencies (
   // We only check whether patches were applied in cases when the whole lockfile was reanalyzed.
   if (
     opts.patchedDependencies &&
-    (opts.forceFullResolution || !opts.wantedLockfile.packages?.length) &&
+    (opts.forceFullResolution || !Object.keys(opts.wantedLockfile.packages ?? {})?.length) &&
     Object.keys(opts.wantedLockfile.importers).length === importers.length
   ) {
     verifyPatches({
