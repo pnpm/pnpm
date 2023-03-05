@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 7.0.5
+
+### Patch Changes
+
+- ed946c73e: Automatically fix conflicts in v6 lockfile.
+
 ## 7.0.4
 
 ### Patch Changes

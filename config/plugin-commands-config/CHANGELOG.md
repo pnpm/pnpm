@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-config
 
+## 1.0.20
+
+### Patch Changes
+
+- @pnpm/config@16.7.1
+- @pnpm/cli-utils@1.1.3
+
+## 1.0.19
+
+### Patch Changes
+
+- Updated dependencies [7d64d757b]
+- Updated dependencies [5c31fa8be]
+  - @pnpm/cli-utils@1.1.2
+  - @pnpm/config@16.7.0
+
+## 1.0.18
+
+### Patch Changes
+
+- a3e0223ce: `pnpm config set` should write to the global config file by default [#5877](https://github.com/pnpm/pnpm/issues/5877).
+  - @pnpm/config@16.6.4
+  - @pnpm/cli-utils@1.1.1
+
 ## 1.0.17
 
 ### Patch Changes

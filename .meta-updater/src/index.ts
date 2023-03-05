@@ -85,7 +85,9 @@ async function updateTSConfig (
   for (const [depName, spec] of Object.entries(deps)) {
     if (!spec.startsWith('link:') || spec.length === 5) continue
     const relativePath = spec.slice(5)
-    if (!await exists(path.join(dir, relativePath, 'tsconfig.json'))) continue
+    const linkedPkgDir = path.join(dir, relativePath)
+    if (!await exists(path.join(linkedPkgDir, 'tsconfig.json'))) continue
+    if (!isSubdir(context.workspaceDir, linkedPkgDir)) continue
     if (
       depName === '@pnpm/package-store' && (
         manifest.name === '@pnpm/git-fetcher' ||

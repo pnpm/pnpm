@@ -9,7 +9,7 @@ import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/find-workspace-packages'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { IncludedDependencies, Project } from '@pnpm/types'
+import { IncludedDependencies, Project, ProjectsGraph } from '@pnpm/types'
 import {
   install,
   mutateModulesInSingleProject,
@@ -18,6 +18,7 @@ import {
 } from '@pnpm/core'
 import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
+import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import isSubdir from 'is-subdir'
 import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { getPinnedVersion } from './getPinnedVersion'
@@ -39,6 +40,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'bail'
 | 'bin'
 | 'cliOptions'
+| 'dedupePeerDependents'
 | 'depth'
 | 'dev'
 | 'engineStrict'
@@ -146,11 +148,18 @@ when running add/update with the --workspace option')
         })
       }
 
-      let allProjectsGraph = selectedProjectsGraph
-      if (!allProjectsGraph[opts.workspaceDir]) {
-        allProjectsGraph = {
-          ...allProjectsGraph,
-          ...selectProjectByDir(allProjects, opts.workspaceDir),
+      let allProjectsGraph!: ProjectsGraph
+      if (opts.dedupePeerDependents) {
+        allProjectsGraph = opts.allProjectsGraph ?? createPkgGraph(allProjects, {
+          linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
+        }).graph
+      } else {
+        allProjectsGraph = selectedProjectsGraph
+        if (!allProjectsGraph[opts.workspaceDir]) {
+          allProjectsGraph = {
+            ...allProjectsGraph,
+            ...selectProjectByDir(allProjects, opts.workspaceDir),
+          }
         }
       }
       await recursive(allProjects,

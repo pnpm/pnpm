@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config",
-  "version": "16.6.3",
+  "version": "16.7.1",
   "description": "Gets configuration options for pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -60,7 +60,7 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.0",
     "@types/ramda": "0.28.20",
-    "@types/which": "^2.0.1",
+    "@types/which": "^2.0.2",
     "symlink-dir": "^5.1.1"
   },
   "funding": "https://opencollective.com/pnpm",

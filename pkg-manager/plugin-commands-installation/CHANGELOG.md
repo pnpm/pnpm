@@ -1,5 +1,50 @@
 # @pnpm/plugin-commands-installation
 
+## 11.5.3
+
+### Patch Changes
+
+- 690bead26: `dedupe-peer-dependents` should work when running an install command on a subset of workspace projects [#6171](https://github.com/pnpm/pnpm/issues/6171).
+- Updated dependencies [670bea844]
+  - @pnpm/core@8.0.0
+  - @pnpm/pnpmfile@4.0.36
+  - @pnpm/config@16.7.1
+  - @pnpm/cli-utils@1.1.3
+  - @pnpm/plugin-commands-rebuild@7.1.3
+  - @pnpm/store-connection-manager@5.2.16
+  - @pnpm/find-workspace-packages@5.0.38
+  - @pnpm/filter-workspace-packages@6.0.38
+
+## 11.5.2
+
+### Patch Changes
+
+- Updated dependencies [7d64d757b]
+- Updated dependencies [5c31fa8be]
+  - @pnpm/cli-utils@1.1.2
+  - @pnpm/core@7.9.0
+  - @pnpm/config@16.7.0
+  - @pnpm/plugin-commands-rebuild@7.1.2
+  - @pnpm/find-workspace-packages@5.0.37
+  - @pnpm/pnpmfile@4.0.35
+  - @pnpm/store-connection-manager@5.2.15
+  - @pnpm/filter-workspace-packages@6.0.37
+
+## 11.5.1
+
+### Patch Changes
+
+- Updated dependencies [ed946c73e]
+  - @pnpm/core@7.8.4
+  - @pnpm/outdated@11.0.20
+  - @pnpm/pnpmfile@4.0.34
+  - @pnpm/plugin-commands-rebuild@7.1.1
+  - @pnpm/config@16.6.4
+  - @pnpm/cli-utils@1.1.1
+  - @pnpm/store-connection-manager@5.2.14
+  - @pnpm/find-workspace-packages@5.0.36
+  - @pnpm/filter-workspace-packages@6.0.36
+
 ## 11.5.0
 
 ### Minor Changes

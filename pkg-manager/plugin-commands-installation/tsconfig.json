@@ -85,6 +85,9 @@
       "path": "../../workspace/find-workspace-packages"
     },
     {
+      "path": "../../workspace/pkgs-graph"
+    },
+    {
       "path": "../../workspace/sort-packages"
     },
     {

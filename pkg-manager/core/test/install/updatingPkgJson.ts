@@ -212,10 +212,9 @@ test('an update bumps the versions in the manifest', async () => {
     },
     mutation: 'install',
     rootDir: process.cwd(),
-  },
-  await testDefaults({
     update: true,
-  }))
+  },
+  await testDefaults())
 
   expect(manifest).toStrictEqual({
     dependencies: {

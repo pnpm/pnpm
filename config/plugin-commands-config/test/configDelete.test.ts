@@ -13,6 +13,7 @@ cache-dir=~/cache`)
 
   await config.handler({
     dir: process.cwd(),
+    cliOptions: {},
     configDir,
     global: true,
     rawConfig: {},

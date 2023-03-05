@@ -54,9 +54,6 @@ export interface StrictInstallOptions {
   reporter: ReporterFunction
   force: boolean
   forcePublicHoistPattern: boolean
-  update: boolean
-  updateMatching?: (pkgName: string) => boolean
-  updatePackageManifest?: boolean
   depth: number
   lockfileDir: string
   modulesDir: string
@@ -121,6 +118,7 @@ export interface StrictInstallOptions {
   allProjects: ProjectOptions[]
   resolveSymlinksInInjectedDirs: boolean
   dedupeDirectDeps: boolean
+  dedupePeerDependents: boolean
   useLockfileV6?: boolean
   extendNodePath: boolean
 }
@@ -195,7 +193,6 @@ const defaults = async (opts: InstallOptions) => {
       process.platform === 'cygwin' ||
       !process.setgid ||
       process.getuid() !== 0,
-    update: false,
     useLockfile: true,
     useLockfileV6: true,
     saveLockfile: true,
@@ -209,6 +206,7 @@ const defaults = async (opts: InstallOptions) => {
     modulesCacheMaxAge: 7 * 24 * 60,
     resolveSymlinksInInjectedDirs: false,
     dedupeDirectDeps: true,
+    dedupePeerDependents: false,
     resolvePeersFromWorkspaceRoot: true,
     extendNodePath: true,
   } as StrictInstallOptions

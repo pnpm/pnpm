@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "6.0.35",
+  "version": "6.0.38",
   "description": "Commands for controlling the store",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -37,7 +37,7 @@
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/plugin-commands-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.4.0",
+    "@pnpm/registry-mock": "3.5.0",
     "@types/archy": "0.0.32",
     "@types/ramda": "0.28.20",
     "@types/ssri": "^7.1.1",

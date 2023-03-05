@@ -1,5 +1,35 @@
 # @pnpm/plugin-commands-rebuild
 
+## 7.1.3
+
+### Patch Changes
+
+- @pnpm/config@16.7.1
+- @pnpm/cli-utils@1.1.3
+- @pnpm/store-connection-manager@5.2.16
+- @pnpm/find-workspace-packages@5.0.38
+
+## 7.1.2
+
+### Patch Changes
+
+- Updated dependencies [7d64d757b]
+- Updated dependencies [5c31fa8be]
+  - @pnpm/cli-utils@1.1.2
+  - @pnpm/config@16.7.0
+  - @pnpm/find-workspace-packages@5.0.37
+  - @pnpm/store-connection-manager@5.2.15
+
+## 7.1.1
+
+### Patch Changes
+
+- @pnpm/get-context@8.2.3
+- @pnpm/config@16.6.4
+- @pnpm/cli-utils@1.1.1
+- @pnpm/store-connection-manager@5.2.14
+- @pnpm/find-workspace-packages@5.0.36
+
 ## 7.1.0
 
 ### Minor Changes

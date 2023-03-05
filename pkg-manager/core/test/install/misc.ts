@@ -717,6 +717,7 @@ test('lockfile locks npm dependencies', async () => {
 
   await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], await testDefaults({ save: true, reporter }))
 
@@ -1005,6 +1006,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
 
 test('subdep symlinks are updated if the lockfile has new subdep versions specified', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
   await mutateModulesInSingleProject({

@@ -86,7 +86,7 @@ export function createNpmResolver (
     cacheKey: (...args) => JSON.stringify(args),
     maxAge: 1000 * 20, // 20 seconds
   })
-  const metaCache = new LRU({
+  const metaCache = new LRU<string, PackageMeta>({
     max: 10000,
     ttl: 120 * 1000, // 2 minutes
   })

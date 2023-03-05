@@ -32,6 +32,7 @@ export interface GenericDependenciesGraphNode {
   installable: boolean
   isBuilt?: boolean
   isPure: boolean
+  resolvedPeerNames: string[]
 }
 
 export type PartialResolvedPackage = Pick<ResolvedPackage,
@@ -63,6 +64,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     lockfileDir: string
     resolvePeersFromWorkspaceRoot?: boolean
     useLockfileV6?: boolean
+    dedupePeerDependents?: boolean
   }
 ): {
     dependenciesGraph: GenericDependenciesGraph<T>
@@ -71,6 +73,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   } {
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId: Record<string, string> = {}
+  const depPathsByPkgId: Record<string, string[]> = {}
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
@@ -87,6 +90,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
       depGraph,
       lockfileDir: opts.lockfileDir,
       pathsByNodeId,
+      depPathsByPkgId,
       peersCache: new Map(),
       peerDependencyIssues,
       purePkgs: new Set(),
@@ -110,11 +114,65 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   for (const { directNodeIdsByAlias, id } of opts.projects) {
     dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId[nodeId], directNodeIdsByAlias)
   }
+  if (opts.dedupePeerDependents) {
+    const depPathsMap = deduplicateDepPaths(depPathsByPkgId, depGraph)
+    Object.values(depGraph).forEach((node) => {
+      node.children = mapValues((childDepPath) => depPathsMap[childDepPath] ?? childDepPath, node.children)
+    })
+    for (const { id } of opts.projects) {
+      dependenciesByProjectId[id] = mapValues((depPath) => depPathsMap[depPath] ?? depPath, dependenciesByProjectId[id])
+    }
+  }
   return {
     dependenciesGraph: depGraph,
     dependenciesByProjectId,
     peerDependencyIssuesByProjects,
   }
+}
+
+function nodeDepsCount (node: GenericDependenciesGraphNode) {
+  return Object.keys(node.children).length + node.resolvedPeerNames.length
+}
+
+function deduplicateDepPaths<T extends PartialResolvedPackage> (
+  depPathsByPkgId: Record<string, string[]>,
+  depGraph: GenericDependenciesGraph<T>
+) {
+  const depPathsMap: Record<string, string> = {}
+  for (let depPaths of Object.values(depPathsByPkgId)) {
+    if (depPaths.length === 1) continue
+    depPaths = depPaths.sort((depPath1, depPath2) => nodeDepsCount(depGraph[depPath1]) - nodeDepsCount(depGraph[depPath2]))
+    let currentDepPaths = depPaths
+    while (currentDepPaths.length) {
+      const depPath1 = currentDepPaths.pop()!
+      const nextDepPaths = []
+      while (currentDepPaths.length) {
+        const depPath2 = currentDepPaths.pop()!
+        if (isCompatibleAndHasMoreDeps(depGraph, depPath1, depPath2)) {
+          depPathsMap[depPath2] = depPath1
+        } else {
+          nextDepPaths.push(depPath2)
+        }
+      }
+      nextDepPaths.push(...currentDepPaths)
+      currentDepPaths = nextDepPaths
+    }
+  }
+  return depPathsMap
+}
+
+function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraph<T>,
+  depPath1: string,
+  depPath2: string
+) {
+  const node1 = depGraph[depPath1]
+  const node2 = depGraph[depPath2]
+  const node1DepPaths = Object.keys(node1.children)
+  const node2DepPaths = Object.keys(node2.children)
+  return nodeDepsCount(node1) > nodeDepsCount(node2) &&
+    node2DepPaths.every((depPath) => node1DepPaths.includes(depPath)) &&
+    node2.resolvedPeerNames.every((depPath) => node1.resolvedPeerNames.includes(depPath))
 }
 
 function getRootPkgsByName<T extends PartialResolvedPackage> (dependenciesTree: DependenciesTree<T>, projects: ProjectToResolve[]) {
@@ -165,12 +223,16 @@ interface PeersResolution {
   resolvedPeers: Record<string, string>
 }
 
+interface ResolvePeersContext {
+  pathsByNodeId: { [nodeId: string]: string }
+  depPathsByPkgId?: Record<string, string[]>
+}
+
 function resolvePeersOfNode<T extends PartialResolvedPackage> (
   nodeId: string,
   parentParentPkgs: ParentRefs,
-  ctx: {
+  ctx: ResolvePeersContext & {
     dependenciesTree: DependenciesTree<T>
-    pathsByNodeId: { [nodeId: string]: string }
     depGraph: GenericDependenciesGraph<T>
     virtualStoreDir: string
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
@@ -294,6 +356,14 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 
   ctx.pathsByNodeId[nodeId] = depPath
+  if (ctx.depPathsByPkgId != null) {
+    if (!ctx.depPathsByPkgId[resolvedPackage.depPath]) {
+      ctx.depPathsByPkgId[resolvedPackage.depPath] = []
+    }
+    if (!ctx.depPathsByPkgId[resolvedPackage.depPath].includes(depPath)) {
+      ctx.depPathsByPkgId[resolvedPackage.depPath].push(depPath)
+    }
+  }
   const peerDependencies = { ...resolvedPackage.peerDependencies }
   if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
     const dir = path.join(modules, resolvedPackage.name)
@@ -325,6 +395,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       modules,
       peerDependencies,
       transitivePeerDependencies,
+      resolvedPeerNames: Object.keys(allResolvedPeers),
     }
   }
   return { resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers }
@@ -365,8 +436,7 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     [alias: string]: string
   },
   parentPkgs: ParentRefs,
-  ctx: {
-    pathsByNodeId: { [nodeId: string]: string }
+  ctx: ResolvePeersContext & {
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     virtualStoreDir: string

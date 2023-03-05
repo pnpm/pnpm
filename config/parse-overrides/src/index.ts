@@ -3,7 +3,7 @@ import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 
 const DELIMITER_REGEX = /[^ |@]>/
 
-interface VersionOverride {
+export interface VersionOverride {
   parentPkg?: {
     name: string
     pref?: string
@@ -41,7 +41,7 @@ export function parseOverrides (
 function parsePkgSelector (selector: string) {
   const wantedDep = parseWantedDependency(selector)
   if (!wantedDep.alias) {
-    throw new PnpmError('INVALID_OVERRIDE_SELECTOR', `Cannot parse the "${selector}" selector in the overrides`)
+    throw new PnpmError('INVALID_SELECTOR', `Cannot parse the "${selector}" selector`)
   }
   return {
     name: wantedDep.alias,

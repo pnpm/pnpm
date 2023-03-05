@@ -1,5 +1,34 @@
 # @pnpm/plugin-commands-licenses
 
+## 1.0.29
+
+### Patch Changes
+
+- 019e4f2de: Should not throw an error when local dependency use file protocol [#6115](https://github.com/pnpm/pnpm/issues/6115).
+- Updated dependencies [019e4f2de]
+  - @pnpm/license-scanner@1.0.16
+  - @pnpm/config@16.7.1
+  - @pnpm/cli-utils@1.1.3
+
+## 1.0.28
+
+### Patch Changes
+
+- Updated dependencies [7d64d757b]
+- Updated dependencies [5c31fa8be]
+  - @pnpm/cli-utils@1.1.2
+  - @pnpm/config@16.7.0
+
+## 1.0.27
+
+### Patch Changes
+
+- Updated dependencies [ed946c73e]
+  - @pnpm/lockfile-file@7.0.5
+  - @pnpm/license-scanner@1.0.15
+  - @pnpm/config@16.6.4
+  - @pnpm/cli-utils@1.1.1
+
 ## 1.0.26
 
 ### Patch Changes

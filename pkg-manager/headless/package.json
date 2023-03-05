@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "19.5.0",
+  "version": "19.5.1",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -22,7 +22,7 @@
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",
-    "@pnpm/registry-mock": "3.4.0",
+    "@pnpm/registry-mock": "3.5.0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.13",

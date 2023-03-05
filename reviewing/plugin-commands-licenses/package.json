@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-licenses",
-  "version": "1.0.26",
+  "version": "1.0.29",
   "description": "The licenses command of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -38,7 +38,7 @@
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/plugin-commands-licenses": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
-    "@pnpm/registry-mock": "3.4.0",
+    "@pnpm/registry-mock": "3.5.0",
     "@types/ramda": "0.28.20",
     "@types/wrap-ansi": "^8.0.1",
     "@types/zkochan__table": "npm:@types/table@6.0.0",

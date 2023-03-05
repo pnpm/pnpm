@@ -16,17 +16,105 @@
 - Direct dependencies are deduped. So if the same dependency is both in a project and in the workspace root, then it is only linked to the workspace root.
 - Create a lockfile even if the project has no dependencies at all.
 
-## 7.28.0-0
+## 7.29.0-2
+
+### Minor Changes
+
+- A new setting is now supported: `dedupe-peer-dependents`.
+
+  When this setting is set to `true`, packages with peer dependencies will be deduplicated after peers resolution.
+
+  For instance, let's say we have a workspace with two projects and both of them have `webpack` in their dependencies. `webpack` has `esbuild` in its optional peer dependencies, and one of the projects has `esbuild` in its dependencies. In this case, pnpm will link two instances of `webpack` to the `node_modules/.pnpm` directory: one with `esbuild` and another one without it:
+
+  ```
+  node_modules
+    .pnpm
+      webpack@1.0.0_esbuild@1.0.0
+      webpack@1.0.0
+  project1
+    node_modules
+      webpack -> ../../node_modules/.pnpm/webpack@1.0.0/node_modules/webpack
+  project2
+    node_modules
+      webpack -> ../../node_modules/.pnpm/webpack@1.0.0_esbuild@1.0.0/node_modules/webpack
+      esbuild
+  ```
+
+  This makes sense because `webpack` is used in two projects, and one of the projects doesn't have `esbuild`, so the two projects cannot share the same instance of `webpack`. However, this is not what most developers expect, especially since in a hoisted `node_modules`, there would only be one instance of `webpack`. Therefore, you may now use the `dedupe-peer-dependents` setting to deduplicate `webpack` when it has no conflicting peer dependencies (explanation at the end). In this case, if we set `dedupe-peer-dependents` to `true`, both projects will use the same `webpack` instance, which is the one that has `esbuild` resolved:
+
+  ```
+  node_modules
+    .pnpm
+      webpack@1.0.0_esbuild@1.0.0
+  project1
+    node_modules
+      webpack -> ../../node_modules/.pnpm/webpack@1.0.0_esbuild@1.0.0/node_modules/webpack
+  project2
+    node_modules
+      webpack -> ../../node_modules/.pnpm/webpack@1.0.0_esbuild@1.0.0/node_modules/webpack
+      esbuild
+  ```
+
+  **What are conflicting peer dependencies?** By conflicting peer dependencies we mean a scenario like the following one:
+
+  ```
+  node_modules
+    .pnpm
+      webpack@1.0.0_react@16.0.0_esbuild@1.0.0
+      webpack@1.0.0_react@17.0.0
+  project1
+    node_modules
+      webpack -> ../../node_modules/.pnpm/webpack@1.0.0/node_modules/webpack
+      react (v17)
+  project2
+    node_modules
+      webpack -> ../../node_modules/.pnpm/webpack@1.0.0_esbuild@1.0.0/node_modules/webpack
+      esbuild
+      react (v16)
+  ```
+
+  In this case, we cannot dedupe `webpack` as `webpack` has `react` in its peer dependencies and `react` is resolved from two different versions in the context of the two projects.
+
+### Patch Changes
+
+- The configuration added by `pnpm setup` should check if the pnpm home directory is already in the PATH before adding to the PATH.
+
+  Before this change, this code was added to the shell:
+
+  ```sh
+  export PNPM_HOME="$HOME/Library/pnpm"
+  export PATH="$PNPM_HOME:$PATH"
+  ```
+
+  Now this will be added:
+
+  ```sh
+  export PNPM_HOME="$HOME/Library/pnpm"
+  case ":$PATH:" in
+    *":$PNPM_HOME:"*) ;;
+    *) export PATH="$PNPM_HOME:$PATH" ;;
+  esac
+  ```
+
+- Add `skipped` status in exec report summary when script is missing [#6139](https://github.com/pnpm/pnpm/pull/6139).
+- `pnpm env -g` should fail with a meaningful error message if pnpm cannot find the pnpm home directory, which is the directory into which Node.js is installed.
+- Should not throw an error when local dependency use file protocol [#6115](https://github.com/pnpm/pnpm/issues/6115).
+
+## 7.28.0
 
 ### Minor Changes
 
 - Add `--report-summary` for `pnpm exec` and `pnpm run` [#6008](https://github.com/pnpm/pnpm/issues/6008).
 - Show path info for `pnpm why --json` or `--long` [#6103](https://github.com/pnpm/pnpm/issues/6103).
+- Extends the `pnpm.peerDependencyRules.allowedVersions` `package.json` option to support the `parent>child` selector syntax. This syntax allows for extending specific `peerDependencies` [#6108](https://github.com/pnpm/pnpm/pull/6108).
 
 ### Patch Changes
 
 - Update the lockfile if a workspace has a new project with no dependencies.
 - Fix a case of installs not being deterministic and causing lockfile changes between repeat installs. When a dependency only declares `peerDependenciesMeta` and not `peerDependencies`, `dependencies`, or `optionalDependencies`, the dependency's peers were not considered deterministically before.
+- `patch-commit` should auto apply patches in workspaces [#6048](https://github.com/pnpm/pnpm/issues/6048)
+- Automatically fix conflicts in v6 lockfile.
+- `pnpm config set` should write to the global config file by default [#5877](https://github.com/pnpm/pnpm/issues/5877).
 
 ## 7.27.1
 

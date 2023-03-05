@@ -12,6 +12,7 @@ test('config set using the global option', async () => {
 
   await config.handler({
     dir: process.cwd(),
+    cliOptions: {},
     configDir,
     global: true,
     rawConfig: {},
@@ -31,6 +32,7 @@ test('config set using the location=global option', async () => {
 
   await config.handler({
     dir: process.cwd(),
+    cliOptions: {},
     configDir,
     location: 'global',
     rawConfig: {},
@@ -50,6 +52,7 @@ test('config set using the location=project option', async () => {
 
   await config.handler({
     dir: process.cwd(),
+    cliOptions: {},
     configDir,
     location: 'project',
     rawConfig: {},
@@ -68,8 +71,10 @@ test('config set in project .npmrc file', async () => {
 
   await config.handler({
     dir: process.cwd(),
+    cliOptions: {},
     configDir,
     global: false,
+    location: 'project',
     rawConfig: {},
   }, ['set', 'fetch-retries', '1'])
 
@@ -87,6 +92,7 @@ test('config set key=value', async () => {
 
   await config.handler({
     dir: process.cwd(),
+    cliOptions: {},
     configDir,
     location: 'project',
     rawConfig: {},
@@ -106,6 +112,7 @@ test('config set key=value, when value contains a "="', async () => {
 
   await config.handler({
     dir: process.cwd(),
+    cliOptions: {},
     configDir,
     location: 'project',
     rawConfig: {},

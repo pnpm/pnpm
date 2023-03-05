@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-env
 
+## 3.1.32
+
+### Patch Changes
+
+- @pnpm/config@16.7.1
+- @pnpm/cli-utils@1.1.3
+
+## 3.1.31
+
+### Patch Changes
+
+- e570adc10: `pnpm env -g` should fail with a meaningful error message if pnpm cannot find the pnpm home directory, which is the directory into which Node.js is installed.
+- Updated dependencies [7d64d757b]
+- Updated dependencies [5c31fa8be]
+  - @pnpm/cli-utils@1.1.2
+  - @pnpm/config@16.7.0
+
+## 3.1.30
+
+### Patch Changes
+
+- @pnpm/config@16.6.4
+- @pnpm/cli-utils@1.1.1
+
 ## 3.1.29
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/license-scanner
 
+## 1.0.16
+
+### Patch Changes
+
+- 019e4f2de: Should not throw an error when local dependency use file protocol [#6115](https://github.com/pnpm/pnpm/issues/6115).
+
+## 1.0.15
+
+### Patch Changes
+
+- Updated dependencies [ed946c73e]
+  - @pnpm/lockfile-file@7.0.5
+
 ## 1.0.14
 
 ### Patch Changes

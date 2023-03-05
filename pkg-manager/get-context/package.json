@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/get-context",
-  "version": "8.2.2",
+  "version": "8.2.3",
   "description": "Gets context information about a project",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -45,7 +45,7 @@
     "@pnpm/read-projects-context": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
-    "ci-info": "^3.7.1",
+    "ci-info": "^3.8.0",
     "path-absolute": "^1.0.1",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },

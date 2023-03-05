@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "7.8.3",
+  "version": "8.0.0",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -78,7 +78,7 @@
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.4.0",
+    "@pnpm/registry-mock": "3.5.0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.13",
@@ -88,7 +88,7 @@
     "@types/semver": "7.3.13",
     "@types/sinon": "^10.0.13",
     "@yarnpkg/core": "4.0.0-rc.27",
-    "ci-info": "^3.7.1",
+    "ci-info": "^3.8.0",
     "deep-require-cwd": "1.0.0",
     "execa": "npm:safe-execa@0.1.2",
     "exists-link": "2.0.0",

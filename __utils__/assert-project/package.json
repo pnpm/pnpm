@@ -19,7 +19,7 @@
     "@pnpm/assert-project": "workspace:*",
     "@types/is-windows": "^1.0.0",
     "@types/isexe": "2.0.1",
-    "@types/node": "^14.18.36"
+    "@types/node": "^14.18.37"
   },
   "directories": {
     "test": "test"
@@ -44,7 +44,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
-    "@pnpm/registry-mock": "3.4.0",
+    "@pnpm/registry-mock": "3.5.0",
     "@pnpm/types": "workspace:*",
     "is-windows": "^1.0.2",
     "isexe": "2.0.0",

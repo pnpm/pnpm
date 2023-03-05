@@ -28,6 +28,7 @@ import {
   MutatedProject,
   mutateModules,
   ProjectOptions,
+  UpdateMatchingFunction,
   WorkspacePackages,
 } from '@pnpm/core'
 import isSubdir from 'is-subdir'
@@ -43,6 +44,7 @@ import { PreferredVersions } from '@pnpm/resolver-base'
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
+| 'dedupePeerDependents'
 | 'depth'
 | 'globalPnpmfile'
 | 'hoistPattern'
@@ -78,6 +80,8 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   forcePublicHoistPattern?: boolean
   ignoredPackages?: Set<string>
   update?: boolean
+  updatePackageManifest?: boolean
+  updateMatching?: UpdateMatchingFunction
   useBetaCli?: boolean
   allProjectsGraph: ProjectsGraph
   selectedProjectsGraph: ProjectsGraph
@@ -233,6 +237,9 @@ export async function recursive (
           }),
           rootDir,
           targetDependenciesField,
+          update: opts.update,
+          updateMatching: opts.updateMatching,
+          updatePackageManifest: opts.updatePackageManifest,
         } as MutatedProject)
         return
       case 'install':
@@ -241,21 +248,30 @@ export async function recursive (
           mutation,
           pruneDirectDependencies: opts.pruneDirectDependencies,
           rootDir,
+          update: opts.update,
+          updateMatching: opts.updateMatching,
+          updatePackageManifest: opts.updatePackageManifest,
         } as MutatedProject)
       }
     }))
     if (!opts.selectedProjectsGraph[opts.workspaceDir] && manifestsByPath[opts.workspaceDir] != null) {
-      const localConfig = await memReadLocalConfig(opts.workspaceDir)
-      const modulesDir = localConfig.modulesDir ?? opts.modulesDir
-      const { manifest, writeProjectManifest } = manifestsByPath[opts.workspaceDir]
+      const { writeProjectManifest } = manifestsByPath[opts.workspaceDir]
       writeProjectManifests.push(writeProjectManifest)
       mutatedImporters.push({
-        buildIndex: 0,
-        manifest,
-        modulesDir,
         mutation: 'install',
         rootDir: opts.workspaceDir,
-      } as MutatedProject)
+      })
+    }
+    if (opts.dedupePeerDependents) {
+      for (const rootDir of Object.keys(opts.allProjectsGraph)) {
+        if (opts.selectedProjectsGraph[rootDir]) continue
+        const { writeProjectManifest } = manifestsByPath[rootDir]
+        writeProjectManifests.push(writeProjectManifest)
+        mutatedImporters.push({
+          mutation: 'install',
+          rootDir,
+        })
+      }
     }
     if ((mutatedImporters.length === 0) && cmdFullName === 'update' && opts.depth === 0) {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',

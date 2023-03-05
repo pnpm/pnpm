@@ -9,6 +9,7 @@ function normalizeNewlines (str: string) {
 test('config list', async () => {
   const output = await config.handler({
     dir: process.cwd(),
+    cliOptions: {},
     configDir: process.cwd(),
     rawConfig: {
       'store-dir': '~/store',
@@ -24,6 +25,7 @@ store-dir=~/store
 test('config list --json', async () => {
   const output = await config.handler({
     dir: process.cwd(),
+    cliOptions: {},
     configDir: process.cwd(),
     json: true,
     rawConfig: {
