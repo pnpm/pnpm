@@ -59,6 +59,7 @@ test('nothing is needlessly removed from node_modules', async () => {
   prepareEmpty()
   const opts = await testDefaults({
     autoInstallPeers: false,
+    dedupePeerDependents: false,
     modulesCacheMaxAge: 0,
     strictPeerDependencies: false,
   })
@@ -151,7 +152,13 @@ test('the right peer dependency is used in every workspace package', async () =>
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects, autoInstallPeers: false, lockfileOnly: true, strictPeerDependencies: false }))
+  await mutateModules(importers, await testDefaults({
+    allProjects,
+    autoInstallPeers: false,
+    dedupePeerDependents: false,
+    lockfileOnly: true,
+    strictPeerDependencies: false,
+  }))
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
 
