@@ -133,9 +133,7 @@ export async function install (
   opts: Omit<InstallOptions, 'allProjects'> & {
     preferredVersions?: PreferredVersions
     pruneDirectDependencies?: boolean
-    update?: boolean
-    updateMatching?: (pkgName: string) => boolean
-  }
+  } & InstallMutationOptions
 ) {
   const rootDir = opts.dir ?? process.cwd()
   const projects = await mutateModules(
@@ -146,6 +144,7 @@ export async function install (
         rootDir,
         update: opts.update,
         updateMatching: opts.updateMatching,
+        updatePackageManifest: opts.updatePackageManifest,
       },
     ],
     {
@@ -184,10 +183,17 @@ export async function mutateModulesInSingleProject (
     rootDir: string
     modulesDir?: string
   },
-  maybeOpts: Omit<MutateModulesOptions, 'allProjects'>
+  maybeOpts: Omit<MutateModulesOptions, 'allProjects'> & InstallMutationOptions
 ): Promise<UpdatedProject> {
   const [updatedProject] = await mutateModules(
-    [project],
+    [
+      {
+        ...project,
+        update: maybeOpts.update,
+        updateMatching: maybeOpts.updateMatching,
+        updatePackageManifest: maybeOpts.updatePackageManifest,
+      } as MutatedProject,
+    ],
     {
       ...maybeOpts,
       allProjects: [{
@@ -704,8 +710,7 @@ export async function addDependenciesToPackage (
     peer?: boolean
     pinnedVersion?: 'major' | 'minor' | 'patch'
     targetDependenciesField?: DependenciesField
-    update?: boolean
-  }
+  } & InstallMutationOptions
 ) {
   const rootDir = opts.dir ?? process.cwd()
   const projects = await mutateModules(
@@ -719,6 +724,8 @@ export async function addDependenciesToPackage (
         rootDir,
         targetDependenciesField: opts.targetDependenciesField,
         update: opts.update,
+        updateMatching: opts.updateMatching,
+        updatePackageManifest: opts.updatePackageManifest,
       },
     ],
     {
