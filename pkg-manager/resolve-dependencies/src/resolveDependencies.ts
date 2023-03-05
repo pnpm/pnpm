@@ -239,6 +239,8 @@ type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath' | 'rootDi
 
 export type ParentPkgAliases = Record<string, PkgAddress | true>
 
+export type UpdateMatchingFunction = (pkgName: string) => boolean
+
 interface ResolvedDependenciesOptions {
   currentDepth: number
   parentPkg: ParentPkg
@@ -251,7 +253,7 @@ interface ResolvedDependenciesOptions {
   publishedBy?: Date
   pickLowestVersion?: boolean
   resolvedDependencies?: ResolvedDependencies
-  updateMatching?: (pkgName: string) => boolean
+  updateMatching?: UpdateMatchingFunction
   updateDepth: number
   prefix: string
 }
@@ -761,7 +763,7 @@ async function resolveChildren (
     parentDepth: number
     updateDepth: number
     prefix: string
-    updateMatching?: (name: string) => boolean
+    updateMatching?: UpdateMatchingFunction
   },
   {
     parentPkgAliases,
@@ -1006,7 +1008,7 @@ interface ResolveDependencyOptions {
   pickLowestVersion?: boolean
   update: boolean
   updateDepth: number
-  updateMatching?: (depName: string) => boolean
+  updateMatching?: UpdateMatchingFunction
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null

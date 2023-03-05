@@ -45,6 +45,7 @@ import {
   DependenciesGraphNode,
   PinnedVersion,
   resolveDependencies,
+  UpdateMatchingFunction,
   WantedDependency,
 } from '@pnpm/resolve-dependencies'
 import {
@@ -91,7 +92,7 @@ const DEV_PREINSTALL = 'pnpm:devPreinstall'
 
 interface InstallMutationOptions {
   update?: boolean
-  updateMatching?: (pkgName: string) => boolean
+  updateMatching?: UpdateMatchingFunction
   updatePackageManifest?: boolean
 }
 

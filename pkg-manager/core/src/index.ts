@@ -14,3 +14,4 @@ export { ProjectOptions, UnexpectedStoreError, UnexpectedVirtualStoreDirError } 
 export { InstallOptions } from './install/extendInstallOptions'
 
 export { WorkspacePackages } from '@pnpm/resolver-base'
+export { UpdateMatchingFunction } from '@pnpm/resolve-dependencies'

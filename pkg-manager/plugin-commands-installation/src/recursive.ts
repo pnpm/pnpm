@@ -28,6 +28,7 @@ import {
   MutatedProject,
   mutateModules,
   ProjectOptions,
+  UpdateMatchingFunction,
   WorkspacePackages,
 } from '@pnpm/core'
 import isSubdir from 'is-subdir'
@@ -80,7 +81,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   ignoredPackages?: Set<string>
   update?: boolean
   updatePackageManifest?: boolean
-  updateMatching?: (pkgName: string) => boolean
+  updateMatching?: UpdateMatchingFunction
   useBetaCli?: boolean
   allProjectsGraph: ProjectsGraph
   selectedProjectsGraph: ProjectsGraph
