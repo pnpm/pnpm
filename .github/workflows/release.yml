@@ -28,16 +28,16 @@ jobs:
           gcc -I. -c -o lookup2.o lookup2.c
           g++ -std=c++11 -o ldid lookup2.o ldid.cpp -I. -lcrypto -lplist -lxml2
           sudo mv ldid /usr/local/bin
-      - name: install pnpm and npm
+      - name: install pnpm
         run: |
-          curl -L https://get.pnpm.io/v6.16.js | node - add --global pnpm@next-7 npm@7
+          corepack enable
+          corepack prepare pnpm@next-7 --activate
       - name: pnpm install
         run: pnpm install
       - name: Publish Packages
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          "npm_config_//registry.npmjs.org/:_authToken": ${{ secrets.NPM_TOKEN }}
         run: |
-          npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}" # pnpm config set is broken
           pnpm release
       - name: Copy Artifacts
         run: pnpm run copy-artifacts
