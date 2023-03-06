@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 30.0.1
+
+### Patch Changes
+
+- 9d906fc94: Fix the incorrect error block when subproject has been patched [#6183](https://github.com/pnpm/pnpm/issues/6183)
+
 ## 30.0.0
 
 ### Major Changes

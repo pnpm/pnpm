@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [9d906fc94]
+  - @pnpm/resolve-dependencies@30.0.1
+
 ## 8.0.0
 
 ### Major Changes

@@ -16,7 +16,7 @@
 - Direct dependencies are deduped. So if the same dependency is both in a project and in the workspace root, then it is only linked to the workspace root.
 - Create a lockfile even if the project has no dependencies at all.
 
-## 7.29.0-2
+## 7.29.0
 
 ### Minor Changes
 
@@ -99,6 +99,7 @@
 - Add `skipped` status in exec report summary when script is missing [#6139](https://github.com/pnpm/pnpm/pull/6139).
 - `pnpm env -g` should fail with a meaningful error message if pnpm cannot find the pnpm home directory, which is the directory into which Node.js is installed.
 - Should not throw an error when local dependency use file protocol [#6115](https://github.com/pnpm/pnpm/issues/6115).
+- Fix the incorrect error block when subproject has been patched [#6183](https://github.com/pnpm/pnpm/issues/6183)
 
 ## 7.28.0
 
