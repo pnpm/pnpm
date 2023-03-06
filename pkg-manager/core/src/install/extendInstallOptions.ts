@@ -206,7 +206,7 @@ const defaults = async (opts: InstallOptions) => {
     modulesCacheMaxAge: 7 * 24 * 60,
     resolveSymlinksInInjectedDirs: false,
     dedupeDirectDeps: true,
-    dedupePeerDependents: false,
+    dedupePeerDependents: true,
     resolvePeersFromWorkspaceRoot: true,
     extendNodePath: true,
   } as StrictInstallOptions

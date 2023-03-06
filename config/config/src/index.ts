@@ -186,7 +186,7 @@ export async function getConfig (
     bail: true,
     color: 'auto',
     'deploy-all-files': false,
-    'dedupe-peer-dependents': false,
+    'dedupe-peer-dependents': true,
     'enable-modules-dir': true,
     'extend-node-path': true,
     'fetch-retries': 2,

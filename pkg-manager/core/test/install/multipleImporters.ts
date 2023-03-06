@@ -1465,6 +1465,7 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
   await mutateModules(importers, await testDefaults({
     allProjects,
     autoInstallPeers: false,
+    dedupePeerDependents: false,
     linkWorkspacePackagesDepth: Infinity,
     strictPeerDependencies: false,
     workspacePackages,
