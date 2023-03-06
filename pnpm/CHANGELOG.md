@@ -1,10 +1,11 @@
 # pnpm
 
-## 8.0.0-alpha.0
+## 8.0.0-beta.0
 
 ### Major Changes
 
 - `auto-install-peers` is `true` by default.
+- `dedupe-peer-dependents` is `true` by default.
 - The registry field is removed from the `resolution` object in `pnpm-lock.yaml`.
 - `save-workspace-protocol` is `rolling` by default.
 - When there's a `files` field in the `package.json`, only deploy those files that are listed in it.
