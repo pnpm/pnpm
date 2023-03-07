@@ -1,5 +1,6 @@
 import { logger } from '@pnpm/logger'
 import { REPORTER_INITIALIZED } from './main'
+import kill from 'tree-kill'
 
 export function errorHandler (error: Error & { code?: string }) {
   if (error.name != null && error.name !== 'pnpm' && !error.name.startsWith('pnpm:')) {
@@ -32,5 +33,7 @@ export function errorHandler (error: Error & { code?: string }) {
   logger.error(error, error)
 
   // Deferring exit. Otherwise, the reporter wouldn't show the error
-  setTimeout(() => process.exit(1), 0)
+  setTimeout(() => {
+    kill(process.pid)
+  }, 0)
 }

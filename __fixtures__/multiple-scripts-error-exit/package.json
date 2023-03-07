@@ -1,0 +1,10 @@
+{
+  "name": "multiple-scripts-error-exit",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev:foo": "node ./dev-foo.js",
+    "dev:bar": "node ./dev-bar.js"
+  }
+}
