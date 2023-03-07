@@ -1,8 +1,30 @@
+import { promisify } from 'util'
 import { logger } from '@pnpm/logger'
+import pidTree from 'pidtree'
 import { REPORTER_INITIALIZED } from './main'
-import kill from 'tree-kill'
 
-export function errorHandler (error: Error & { code?: string }) {
+const getDescendentProcesses = promisify((pid: number, callback: (error: Error | undefined, result: number[]) => void) => {
+  pidTree(pid, { root: false }, callback)
+})
+
+const killProcesses = async () => {
+  try {
+    const descendentProcesses = await getDescendentProcesses(process.pid)
+    for (const pid of descendentProcesses) {
+      try {
+        process.kill(pid)
+      } catch (_err) {
+        // ignore error here
+      }
+    }
+  } catch (_err) {
+    // ignore error here
+  }
+
+  process.exit(1)
+}
+
+export async function errorHandler (error: Error & { code?: string }) {
   if (error.name != null && error.name !== 'pnpm' && !error.name.startsWith('pnpm:')) {
     try {
       error.name = 'pnpm'
@@ -33,7 +55,7 @@ export function errorHandler (error: Error & { code?: string }) {
   logger.error(error, error)
 
   // Deferring exit. Otherwise, the reporter wouldn't show the error
-  setTimeout(() => {
-    kill(process.pid)
+  setTimeout(async () => {
+    await killProcesses()
   }, 0)
 }
