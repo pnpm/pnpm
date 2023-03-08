@@ -16,24 +16,18 @@ describe.each(
     '//registry.npmjs.org/:_authToken',
   ]
 )('settings related to auth are handled by npm CLI', (key) => {
+  const configOpts = {
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: __dirname, // this doesn't matter, it won't be used
+    rawConfig: {},
+  }
   it(`should set ${key}`, async () => {
-    await config.handler({
-      dir: process.cwd(),
-      cliOptions: {},
-      configDir: __dirname, // this doesn't matter, it won't be used
-      rawConfig: {},
-    }, ['set', `${key}=123`])
-
+    await config.handler(configOpts, ['set', `${key}=123`])
     expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'set', `${key}=123`])
   })
   it(`should delete ${key}`, async () => {
-    await config.handler({
-      dir: process.cwd(),
-      cliOptions: {},
-      configDir: __dirname, // this doesn't matter, it won't be used
-      rawConfig: {},
-    }, ['delete', key])
-
+    await config.handler(configOpts, ['delete', key])
     expect(runNpm).toHaveBeenCalledWith(undefined, ['config', 'delete', key])
   })
 })
