@@ -36,8 +36,11 @@ jobs:
         run: pnpm install
       - name: Publish Packages
         env:
-          "npm_config_//registry.npmjs.org/:_authToken": ${{ secrets.NPM_TOKEN }}
+          # setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly doesn't work.
+          # probably "pnpm release" doesn't pass auth tokens to child processes
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}" # pnpm config set is broken
           pnpm release
       - name: Copy Artifacts
         run: pnpm run copy-artifacts
