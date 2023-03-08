@@ -1,5 +1,11 @@
 # pnpm
 
+## 7.29.1
+
+### Patch Changes
+
+- Settings related to authorization should be set/deleted by npm CLI [#6181](https://github.com/pnpm/pnpm/issues/6181).
+
 ## 7.29.0
 
 ### Minor Changes
