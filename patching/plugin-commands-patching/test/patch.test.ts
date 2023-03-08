@@ -10,9 +10,20 @@ import { patch, patchCommit } from '@pnpm/plugin-commands-patching'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS } from './utils/index'
+import { logger } from '@pnpm/logger'
+
+jest.mock('enquirer', () => ({ prompt: jest.fn() }))
+
+// eslint-disable-next-line
+import * as enquirer from 'enquirer'
+
+// eslint-disable-next-line
+const prompt = enquirer.prompt as any
 
 describe('patch and commit', () => {
   let defaultPatchOption: patch.PatchCommandOptions
+  let cacheDir: string
+  let storeDir: string
 
   beforeEach(() => {
     prepare({
@@ -20,10 +31,8 @@ describe('patch and commit', () => {
         'is-positive': '1.0.0',
       },
     })
-
-    const cacheDir = path.resolve('cache')
-    const storeDir = path.resolve('store')
-
+    cacheDir = path.resolve('cache')
+    storeDir = path.resolve('store')
     defaultPatchOption = {
       cacheDir,
       dir: process.cwd(),
@@ -35,6 +44,14 @@ describe('patch and commit', () => {
       storeDir,
       userConfig: {},
     }
+  })
+
+  beforeEach(() => {
+    jest.spyOn(logger, 'warn')
+  })
+
+  afterEach(() => {
+    (logger.warn as jest.Mock).mockRestore()
   })
 
   test('patch and commit', async () => {
@@ -186,6 +203,105 @@ describe('patch and commit', () => {
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(fs.existsSync(path.join(patchDir, 'license'))).toBe(true)
     expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).not.toContain('// test patching')
+  })
+
+  test('patch throw an error if no package specified', async () => {
+    await expect(() => patch.handler({ ...defaultPatchOption }, []))
+      .rejects.toThrow('`pnpm patch` requires the package name')
+  })
+
+  test('should print warning if no installed version found for patched package', async () => {
+    await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+
+    expect(logger.warn).toHaveBeenCalledTimes(1)
+    expect(logger.warn).toHaveBeenCalledWith({
+      message: `Can not find is-positive@1.0.0 in project ${process.cwd()}`,
+      prefix: process.cwd(),
+    })
+  })
+
+  test('patch package with installed version', async () => {
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      saveLockfile: true,
+    })
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1'])
+    expect(logger.warn).not.toHaveBeenCalled()
+    const patchDir = getPatchDirFromPatchOutput(output)
+    const tempDir = os.tmpdir()
+    expect(patchDir).toContain(tempDir)
+    expect(fs.existsSync(patchDir)).toBe(true)
+    expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('1.0.0')
+  })
+})
+
+describe('prompt to choose version', () => {
+  let defaultPatchOption: patch.PatchCommandOptions
+  let cacheDir: string
+  let storeDir: string
+  beforeEach(() => {
+    prepare({
+      dependencies: {
+        ava: '5.2.0',
+        chalk: '4.1.2',
+      },
+    })
+    cacheDir = path.resolve('cache')
+    storeDir = path.resolve('store')
+    defaultPatchOption = {
+      cacheDir,
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      rawConfig: {
+        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+      },
+      registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
+      storeDir,
+      userConfig: {},
+    }
+  })
+
+  test('prompt to choose version if multiple version founded for patched package', async () => {
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      dir: process.cwd(),
+      saveLockfile: true,
+    })
+    prompt.mockResolvedValue({
+      version: '5.2.0',
+    })
+
+    const output = await patch.handler(defaultPatchOption, ['chalk'])
+
+    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining(['5.2.0', '4.1.2']))
+    prompt.mockClear()
+
+    const patchDir = getPatchDirFromPatchOutput(output)
+    const tempDir = os.tmpdir()
+
+    expect(patchDir).toContain(tempDir)
+    expect(fs.existsSync(patchDir)).toBe(true)
+    expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('5.2.0')
+    expect(fs.existsSync(path.join(patchDir, 'source/index.js'))).toBe(true)
+
+    fs.appendFileSync(path.join(patchDir, 'source/index.js'), '// test patching', 'utf8')
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      'chalk@5.2.0': 'patches/chalk@5.2.0.patch',
+    })
+    const patchContent = fs.readFileSync('patches/chalk@5.2.0.patch', 'utf8')
+    expect(patchContent).toContain('diff --git')
+    expect(patchContent).toContain('// test patching')
+    expect(fs.readFileSync('node_modules/.pnpm/ava@5.2.0/node_modules/chalk/source/index.js', 'utf8')).toContain('// test patching')
   })
 })
 

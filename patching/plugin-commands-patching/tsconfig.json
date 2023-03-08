@@ -37,6 +37,9 @@
       "path": "../../pkg-manifest/read-project-manifest"
     },
     {
+      "path": "../../reviewing/list"
+    },
+    {
       "path": "../../store/store-connection-manager"
     },
     {

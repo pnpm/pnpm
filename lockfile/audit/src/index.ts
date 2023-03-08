@@ -6,7 +6,7 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
 import { lockfileToAuditTree } from './lockfileToAuditTree'
 import { AuditReport } from './types'
-import { searchForPackages, PackageNode } from '@pnpm/list'
+import { searchForPackages, flattenSearchedPackages } from '@pnpm/list'
 
 export * from './types'
 
@@ -95,28 +95,7 @@ async function searchPackagePaths (
   pkg: string
 ) {
   const pkgs = await searchForPackages([pkg], projectDirs, searchOpts)
-  const paths: string[] = []
-
-  for (const pkg of pkgs) {
-    _walker([
-      ...(pkg.optionalDependencies ?? []),
-      ...(pkg.dependencies ?? []),
-      ...(pkg.devDependencies ?? []),
-      ...(pkg.unsavedDependencies ?? []),
-    ], path.relative(searchOpts.lockfileDir, pkg.path) || '.')
-  }
-  return paths
-
-  function _walker (packages: PackageNode[], depPath: string) {
-    for (const pkg of packages) {
-      const nextDepPath = `${depPath} > ${pkg.name}@${pkg.version}`
-      if (pkg.dependencies?.length) {
-        _walker(pkg.dependencies, nextDepPath)
-      } else {
-        paths.push(nextDepPath)
-      }
-    }
-  }
+  return flattenSearchedPackages(pkgs, { lockfileDir: searchOpts.lockfileDir }).map(({ depPath }) => depPath)
 }
 
 export class AuditEndpointNotExistsError extends PnpmError {

@@ -1,6 +1,7 @@
+import path from 'path'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependenciesField, Registries } from '@pnpm/types'
-import { buildDependenciesHierarchy } from '@pnpm/reviewing.dependencies-hierarchy'
+import { DependenciesHierarchy, PackageNode, buildDependenciesHierarchy } from '@pnpm/reviewing.dependencies-hierarchy'
 import { createPackagesSearcher } from './createPackagesSearcher'
 import { renderJson } from './renderJson'
 import { renderParseable } from './renderParseable'
@@ -16,6 +17,45 @@ const DEFAULTS = {
   registries: undefined,
   reportAs: 'tree' as const,
   showExtraneous: true,
+}
+
+export function flattenSearchedPackages (pkgs: Array<DependenciesHierarchy & {
+  name?: string
+  version?: string
+  path: string
+  private?: boolean
+}>, opts: {
+  lockfileDir: string
+}) {
+  const flattedPkgs: Array<{
+    name?: string
+    version?: string
+    path: string
+    depPath: string
+  }> = []
+  for (const pkg of pkgs) {
+    _walker([
+      ...(pkg.optionalDependencies ?? []),
+      ...(pkg.dependencies ?? []),
+      ...(pkg.devDependencies ?? []),
+      ...(pkg.unsavedDependencies ?? []),
+    ], path.relative(opts.lockfileDir, pkg.path) || '.')
+  }
+
+  function _walker (packages: PackageNode[], depPath: string) {
+    for (const pkg of packages) {
+      const nextDepPath = `${depPath} > ${pkg.name}@${pkg.version}`
+      if (pkg.dependencies?.length) {
+        _walker(pkg.dependencies, nextDepPath)
+      } else {
+        flattedPkgs.push({
+          depPath: nextDepPath,
+          ...pkg,
+        })
+      }
+    }
+  }
+  return flattedPkgs
 }
 
 export async function searchForPackages (
