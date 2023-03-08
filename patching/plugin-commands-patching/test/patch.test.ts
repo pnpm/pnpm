@@ -292,6 +292,8 @@ describe('prompt to choose version', () => {
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
