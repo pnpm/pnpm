@@ -15,7 +15,7 @@ export async function getPatchedDependency ({
   const dep = parseWantedDependency(pkg)
   let prefixes = [lockfileDir]
   if (selectedProjectsGraph) {
-    prefixes = Object.values(selectedProjectsGraph).map(wsPkg => wsPkg.package.dir)
+    prefixes = Object.values(selectedProjectsGraph).map(project => project.package.dir)
   }
   const pkgs = await searchForPackages([pkg], prefixes, {
     depth: Infinity,

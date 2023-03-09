@@ -1,7 +1,7 @@
 import path from 'path'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependenciesField, Registries } from '@pnpm/types'
-import { DependenciesHierarchy, PackageNode, buildDependenciesHierarchy } from '@pnpm/reviewing.dependencies-hierarchy'
+import { PackageNode, buildDependenciesHierarchy } from '@pnpm/reviewing.dependencies-hierarchy'
 import { createPackagesSearcher } from './createPackagesSearcher'
 import { renderJson } from './renderJson'
 import { renderParseable } from './renderParseable'
@@ -19,20 +19,10 @@ const DEFAULTS = {
   showExtraneous: true,
 }
 
-export function flattenSearchedPackages (pkgs: Array<DependenciesHierarchy & {
-  name?: string
-  version?: string
-  path: string
-  private?: boolean
-}>, opts: {
+export function flattenSearchedPackages (pkgs: PackageDependencyHierarchy[], opts: {
   lockfileDir: string
 }) {
-  const flattedPkgs: Array<{
-    name?: string
-    version?: string
-    path: string
-    depPath: string
-  }> = []
+  const flattedPkgs: Array<PackageDependencyHierarchy & { depPath: string }> = []
   for (const pkg of pkgs) {
     _walker([
       ...(pkg.optionalDependencies ?? []),
@@ -41,6 +31,8 @@ export function flattenSearchedPackages (pkgs: Array<DependenciesHierarchy & {
       ...(pkg.unsavedDependencies ?? []),
     ], path.relative(opts.lockfileDir, pkg.path) || '.')
   }
+
+  return flattedPkgs
 
   function _walker (packages: PackageNode[], depPath: string) {
     for (const pkg of packages) {
@@ -55,7 +47,6 @@ export function flattenSearchedPackages (pkgs: Array<DependenciesHierarchy & {
       }
     }
   }
-  return flattedPkgs
 }
 
 export async function searchForPackages (
