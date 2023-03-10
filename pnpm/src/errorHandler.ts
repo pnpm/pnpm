@@ -7,23 +7,6 @@ const getDescendentProcesses = promisify((pid: number, callback: (error: Error |
   pidTree(pid, { root: false }, callback)
 })
 
-const killProcesses = async () => {
-  try {
-    const descendentProcesses = await getDescendentProcesses(process.pid)
-    for (const pid of descendentProcesses) {
-      try {
-        process.kill(pid)
-      } catch (_err) {
-        // ignore error here
-      }
-    }
-  } catch (_err) {
-    // ignore error here
-  }
-
-  process.exit(1)
-}
-
 export async function errorHandler (error: Error & { code?: string }) {
   if (error.name != null && error.name !== 'pnpm' && !error.name.startsWith('pnpm:')) {
     try {
@@ -58,4 +41,20 @@ export async function errorHandler (error: Error & { code?: string }) {
   setTimeout(async () => {
     await killProcesses()
   }, 0)
+}
+
+async function killProcesses () {
+  try {
+    const descendentProcesses = await getDescendentProcesses(process.pid)
+    for (const pid of descendentProcesses) {
+      try {
+        process.kill(pid)
+      } catch (err) {
+        // ignore error here
+      }
+    }
+  } catch (err) {
+    // ignore error here
+  }
+  process.exit(1)
 }
