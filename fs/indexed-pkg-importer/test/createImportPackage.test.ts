@@ -5,9 +5,8 @@ import gfs from '@pnpm/graceful-fs'
 import { globalInfo } from '@pnpm/logger'
 
 jest.mock('@pnpm/graceful-fs', () => {
-  const { access, constants, promises } = jest.requireActual('fs')
+  const { access, promises } = jest.requireActual('fs')
   const fsMock = {
-    constants,
     mkdir: promises.mkdir,
     readdir: promises.readdir,
     access,
@@ -39,7 +38,6 @@ beforeEach(() => {
 
 test('packageImportMethod=auto: clone files by default', async () => {
   const importPackage = createIndexedPkgImporter('auto')
-  gfs.copyFile = jest.fn()
   expect(await importPackage('project/package', {
     filesMap: {
       'index.js': 'hash2',
@@ -62,10 +60,9 @@ test('packageImportMethod=auto: clone files by default', async () => {
 
 test('packageImportMethod=auto: link files if cloning fails', async () => {
   const importPackage = createIndexedPkgImporter('auto')
-  gfs.copyFile = jest.fn(() => {
+  ;(gfs.copyFile as jest.Mock).mockImplementation(async () => {
     throw new Error('This file system does not support cloning')
   })
-  gfs.link = jest.fn()
   expect(await importPackage('project/package', {
     filesMap: {
       'index.js': 'hash2',
@@ -95,7 +92,7 @@ test('packageImportMethod=auto: link files if cloning fails', async () => {
 
 test('packageImportMethod=auto: link files if cloning fails and even hard linking fails but not with EXDEV error', async () => {
   const importPackage = createIndexedPkgImporter('auto')
-  gfs.copyFile = jest.fn(() => {
+  ;(gfs.copyFile as jest.Mock).mockImplementation(async () => {
     throw new Error('This file system does not support cloning')
   })
   let linkFirstCall = true
@@ -124,7 +121,7 @@ test('packageImportMethod=auto: chooses copying if cloning and hard linking is n
       throw new Error('This file system does not support cloning')
     }
   })
-  gfs.link = jest.fn(() => {
+  ;(gfs.link as jest.Mock).mockImplementation(() => {
     throw new Error('EXDEV: cross-device link not permitted')
   })
   expect(await importPackage('project/package', {
@@ -163,7 +160,6 @@ test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', 
 
 test('packageImportMethod=hardlink does not relink package from store if package.json is linked from the store', async () => {
   const importPackage = createIndexedPkgImporter('hardlink')
-  gfs.copyFile = jest.fn()
   ;(gfs.stat as jest.Mock).mockReturnValue(Promise.resolve({ ino: 1 }))
   expect(await importPackage('project/package', {
     filesMap: {
