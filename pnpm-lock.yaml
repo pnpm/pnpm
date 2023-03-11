@@ -1498,6 +1498,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/graceful-fs':
+        specifier: workspace:*
+        version: link:../graceful-fs
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0

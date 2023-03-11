@@ -1,4 +1,5 @@
-import { constants, promises as fs, Stats } from 'fs'
+import { constants, Stats } from 'fs'
+import fs from '@pnpm/graceful-fs'
 import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'

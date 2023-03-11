@@ -17,6 +17,9 @@
     },
     {
       "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../graceful-fs"
     }
   ],
   "composite": true
