@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "fs-extra": "^11.1.0",
