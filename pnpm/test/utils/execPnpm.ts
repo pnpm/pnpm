@@ -1,4 +1,4 @@
-import { ChildProcess as NodeChildProcess } from 'child_process'
+import { ChildProcess as NodeChildProcess, StdioOptions } from 'child_process'
 import path from 'path'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import isWindows from 'is-windows'
@@ -74,12 +74,13 @@ export interface ChildProcess {
   stderr: Object
 }
 
-export function execPnpmSync (args: string[], opts?: { env: Object }): ChildProcess {
+export function execPnpmSync (args: string[], opts?: { env: Object, stdio?: StdioOptions }): ChildProcess {
   return crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
     env: {
       ...createEnv(),
       ...opts?.env,
     } as NodeJS.ProcessEnv,
+    stdio: opts?.stdio,
   }) as ChildProcess
 }
 

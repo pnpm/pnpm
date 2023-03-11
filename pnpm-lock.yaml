@@ -4228,6 +4228,9 @@ importers:
       path-name:
         specifier: ^1.0.0
         version: 1.0.0
+      pidtree:
+        specifier: ^0.6.0
+        version: 0.6.0
       ps-list:
         specifier: ^7.2.0
         version: 7.2.0
@@ -14847,6 +14850,12 @@ packages:
     hasBin: true
     dev: true
 
+  /pidtree@0.6.0:
+    resolution: {integrity: sha512-eG2dWTVw5bzqGRztnHExczNxt5VGsE6OwTeCG3fdUf9KBsZzO3R5OIIIzWR+iZA0NtZ+RDVdaoE2dK1cn6jH4g==}
+    engines: {node: '>=0.10'}
+    hasBin: true
+    dev: true
+
   /pify@3.0.0:
     resolution: {integrity: sha512-C3FsVNH1udSEX48gGX1xfvwTWfsYWj5U+8/uK15BGzIGrKoUpghX8hWZwa/OFnakBiiVNmBvemTJR5mcy7iPcg==}
     engines: {node: '>=4'}
@@ -17652,6 +17661,7 @@ time:
   /path-exists@4.0.0: '2019-04-04T03:29:16.887Z'
   /path-name@1.0.0: '2016-10-20T18:43:50.780Z'
   /path-temp@2.0.0: '2019-05-04T14:35:52.401Z'
+  /pidtree@0.6.0: '2022-06-05T18:35:44.206Z'
   /pkg-deb@1.1.2: '2020-10-26T14:13:54.373Z'
   /pkg-rpm@1.0.3: '2021-01-12T09:42:07.762Z'
   /preferred-pm@3.0.3: '2021-02-09T01:16:52.150Z'

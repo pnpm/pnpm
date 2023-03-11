@@ -71,7 +71,7 @@ async function runPnpm () {
     const { main } = await import('./main')
     await main(argv)
   } catch (err: any) { // eslint-disable-line
-    errorHandler(err)
+    await errorHandler(err)
   }
 }
 
