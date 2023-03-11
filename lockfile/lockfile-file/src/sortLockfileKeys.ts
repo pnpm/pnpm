@@ -77,6 +77,9 @@ export function sortLockfileKeys (lockfile: LockfileFile) {
       })
     }
   }
+  if (lockfile.patchedDependencies) {
+    lockfile.patchedDependencies = sortKeys(lockfile.patchedDependencies)
+  }
   for (const key of ['specifiers', 'dependencies', 'devDependencies', 'optionalDependencies', 'time'] as const) {
     if (!lockfile[key]) continue
     lockfile[key] = sortKeys(lockfile[key]!)
