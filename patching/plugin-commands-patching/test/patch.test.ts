@@ -69,6 +69,8 @@ describe('patch and commit', () => {
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
@@ -98,6 +100,8 @@ describe('patch and commit', () => {
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
     }, [patchDir])
 
     expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
@@ -125,6 +129,8 @@ describe('patch and commit', () => {
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
     }, [patchDir])
 
     expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
@@ -140,6 +146,8 @@ describe('patch and commit', () => {
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
@@ -185,6 +193,8 @@ describe('patch and commit', () => {
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
@@ -344,6 +354,8 @@ describe('patching should work when there is a no EOL in the patched file', () =
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
     }, [userPatchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
@@ -370,6 +382,8 @@ describe('patching should work when there is a no EOL in the patched file', () =
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
     }, [userPatchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
@@ -466,6 +480,8 @@ describe('patch and commit in workspaces', () => {
       lockfileDir: process.cwd(),
       workspaceDir: process.cwd(),
       saveLockfile: true,
+      frozenLockfile: false,
+      fixLockfile: true,
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
