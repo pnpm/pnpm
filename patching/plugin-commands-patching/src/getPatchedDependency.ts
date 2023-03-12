@@ -1,56 +1,63 @@
-import { searchForPackages, flattenSearchedPackages } from '@pnpm/list'
+import path from 'path'
 import { parseWantedDependency, ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { prompt } from 'enquirer'
-import { logger } from '@pnpm/logger'
-import type { Config } from '@pnpm/config'
+import { readCurrentLockfile } from '@pnpm/lockfile-file'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { PnpmError } from '@pnpm/error'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import semver from 'semver'
 
-export async function getPatchedDependency ({
-  pkg,
-  selectedProjectsGraph,
-  lockfileDir,
-}: {
-  pkg: string
-  lockfileDir: string
-} & Pick<Config, 'selectedProjectsGraph'>): Promise<ParseWantedDependencyResult> {
-  const dep = parseWantedDependency(pkg)
-  let prefixes = [lockfileDir]
-  if (selectedProjectsGraph) {
-    prefixes = Object.values(selectedProjectsGraph).map(project => project.package.dir)
-  }
-  const pkgs = await searchForPackages([pkg], prefixes, {
-    depth: Infinity,
-    lockfileDir,
-  })
+export async function getPatchedDependency (rawDependency: string, lockfileDir: string): Promise<ParseWantedDependencyResult> {
+  const dep = parseWantedDependency(rawDependency)
 
-  const versions = Array.from(new Set(flattenSearchedPackages(pkgs, { lockfileDir })
-    .map(({ version }) => version)))
-    .filter(Boolean) as string[]
+  const { versions, preferredVersions } = await getVersionsFromLockfile(dep, lockfileDir)
 
-  if (dep.alias && dep.pref) {
-    if (!versions.length) {
-      logger.warn({
-        message: `Can not find ${dep.alias}@${dep.pref} in project ${lockfileDir}${versions.length ? `, you can specify currently installed version: ${versions.join(', ')} ` : ''}`,
-        prefix: lockfileDir,
-      })
-    }
+  if (!preferredVersions.length) {
+    throw new PnpmError(
+      'PATCH_VERSION_NOT_FOUND',
+      `Can not find ${rawDependency} in project ${lockfileDir}, ${versions.length ? `you can specify currently installed version: ${versions.join(', ')}.` : `did you forget to install ${rawDependency}?`}`
+    )
   }
 
-  if (versions.length) {
-    dep.alias = dep.alias ?? pkg
-    if (versions.length > 1) {
-      const { version } = await prompt<{
-        version: string
-      }>({
-        type: 'select',
-        name: 'version',
-        message: 'Choose which version to patch',
-        choices: versions,
-      })
-      dep.pref = version
-    } else {
-      dep.pref = versions[0]
-    }
+  dep.alias = dep.alias ?? rawDependency
+  if (preferredVersions.length > 1) {
+    const { version } = await prompt<{
+      version: string
+    }>({
+      type: 'select',
+      name: 'version',
+      message: 'Choose which version to patch',
+      choices: versions,
+    })
+    dep.pref = version
+  } else {
+    dep.pref = preferredVersions[0]
   }
 
   return dep
+}
+
+async function getVersionsFromLockfile (dep: ParseWantedDependencyResult, lockfileDir: string) {
+  const lockfile = (await readCurrentLockfile(path.join(lockfileDir, 'node_modules/.pnpm'), {
+    ignoreIncompatible: true,
+  }))
+
+  if (!lockfile) {
+    throw new PnpmError(
+      'PATCH_NO_LOCKFILE',
+      `No ${WANTED_LOCKFILE} found: Cannot patch without a lockfile`
+    )
+  }
+
+  const pkgName = dep.alias && dep.pref ? dep.alias : (dep.pref ?? dep.alias)
+
+  const versions = Object.entries(lockfile.packages ?? {})
+    .map(([depPath, pkgSnapshot]) => nameVerFromPkgSnapshot(depPath, pkgSnapshot))
+    .filter(({ name }) => name === pkgName)
+    .map(({ version }) => version)
+
+  return {
+    versions,
+    preferredVersions: versions.filter(version => dep.alias && dep.pref ? semver.satisfies(version, dep.pref) : true),
+  }
 }

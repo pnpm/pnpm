@@ -65,11 +65,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
   }
   const editDir = opts.editDir ?? tempy.directory()
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
-  const patchedDep = await getPatchedDependency({
-    pkg: params[0],
-    lockfileDir,
-    selectedProjectsGraph: opts.selectedProjectsGraph,
-  })
+  const patchedDep = await getPatchedDependency(params[0], lockfileDir)
 
   await writePackage(patchedDep, editDir, opts)
   if (!opts.ignoreExisting && opts.rootProjectManifest?.pnpm?.patchedDependencies) {

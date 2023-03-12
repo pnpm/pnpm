@@ -22,6 +22,15 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
+      "path": "../../lockfile/lockfile-utils"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/error"
     },
     {
@@ -35,9 +44,6 @@
     },
     {
       "path": "../../pkg-manifest/read-project-manifest"
-    },
-    {
-      "path": "../../reviewing/list"
     },
     {
       "path": "../../store/store-connection-manager"

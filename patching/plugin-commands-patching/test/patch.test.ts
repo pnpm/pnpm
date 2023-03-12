@@ -10,7 +10,6 @@ import { patch, patchCommit } from '@pnpm/plugin-commands-patching'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS } from './utils/index'
-import { logger } from '@pnpm/logger'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
@@ -22,17 +21,15 @@ const prompt = enquirer.prompt as any
 
 describe('patch and commit', () => {
   let defaultPatchOption: patch.PatchCommandOptions
-  let cacheDir: string
-  let storeDir: string
 
-  beforeEach(() => {
+  beforeEach(async () => {
     prepare({
       dependencies: {
         'is-positive': '1.0.0',
       },
     })
-    cacheDir = path.resolve('cache')
-    storeDir = path.resolve('store')
+    const cacheDir = path.resolve('cache')
+    const storeDir = path.resolve('store')
     defaultPatchOption = {
       cacheDir,
       dir: process.cwd(),
@@ -44,14 +41,14 @@ describe('patch and commit', () => {
       storeDir,
       userConfig: {},
     }
-  })
 
-  beforeEach(() => {
-    jest.spyOn(logger, 'warn')
-  })
-
-  afterEach(() => {
-    (logger.warn as jest.Mock).mockRestore()
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      dir: process.cwd(),
+      saveLockfile: true,
+    })
   })
 
   test('patch and commit', async () => {
@@ -210,25 +207,18 @@ describe('patch and commit', () => {
       .rejects.toThrow('`pnpm patch` requires the package name')
   })
 
-  test('should print warning if no installed version found for patched package', async () => {
-    await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+  test('should throw an error if no installed versions found for patched package', async () => {
+    await expect(() => patch.handler(defaultPatchOption, ['chalk']))
+      .rejects.toThrow(`Can not find chalk in project ${process.cwd()}, did you forget to install chalk?`)
+  })
 
-    expect(logger.warn).toHaveBeenCalledTimes(1)
-    expect(logger.warn).toHaveBeenCalledWith({
-      message: `Can not find is-positive@1.0.0 in project ${process.cwd()}`,
-      prefix: process.cwd(),
-    })
+  test('should throw an error if no preferred versions found for patched package', async () => {
+    await expect(() => patch.handler(defaultPatchOption, ['is-positive@2.0.0']))
+      .rejects.toThrow(`Can not find is-positive@2.0.0 in project ${process.cwd()}, you can specify currently installed version: 1.0.0.`)
   })
 
   test('patch package with installed version', async () => {
-    await install.handler({
-      ...DEFAULT_OPTS,
-      cacheDir,
-      dir: process.cwd(),
-      saveLockfile: true,
-    })
     const output = await patch.handler(defaultPatchOption, ['is-positive@1'])
-    expect(logger.warn).not.toHaveBeenCalled()
     const patchDir = getPatchDirFromPatchOutput(output)
     const tempDir = os.tmpdir()
     expect(patchDir).toContain(tempDir)
@@ -310,7 +300,7 @@ describe('prompt to choose version', () => {
 describe('patching should work when there is a no EOL in the patched file', () => {
   let defaultPatchOption: patch.PatchCommandOptions
 
-  beforeEach(() => {
+  beforeEach(async () => {
     prepare({
       dependencies: {
         'safe-execa': '0.1.2',
@@ -331,6 +321,14 @@ describe('patching should work when there is a no EOL in the patched file', () =
       storeDir,
       userConfig: {},
     }
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      dir: process.cwd(),
+      saveLockfile: true,
+    })
   })
   it('should work when adding content on a newline', async () => {
     const output = await patch.handler(defaultPatchOption, ['safe-execa@0.1.2'])
@@ -440,11 +438,11 @@ describe('patch and commit in workspaces', () => {
       allProjects,
       allProjectsGraph,
       dir: process.cwd(),
+      lockfileDir: process.cwd(),
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
       saveLockfile: true,
     })
-
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
     const tempDir = os.tmpdir()

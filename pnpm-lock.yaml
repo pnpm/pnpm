@@ -2483,12 +2483,18 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/list':
+      '@pnpm/lockfile-file':
         specifier: workspace:*
-        version: link:../../reviewing/list
+        version: link:../../lockfile/lockfile-file
+      '@pnpm/lockfile-utils':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-utils
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -2528,6 +2534,9 @@ importers:
       safe-execa:
         specifier: ^0.1.3
         version: 0.1.3
+      semver:
+        specifier: ^7.3.8
+        version: 7.3.8
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -2547,6 +2556,9 @@ importers:
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
+      '@types/semver':
+        specifier: 7.3.13
+        version: 7.3.13
       write-yaml-file:
         specifier: ^4.2.0
         version: 4.2.0
