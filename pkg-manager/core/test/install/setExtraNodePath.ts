@@ -7,7 +7,7 @@ import {
 import { sync as loadJsonFile } from 'load-json-file'
 import { testDefaults } from '../utils'
 
-test('jest CLI should print the write version when multiple instances of jest are used in a workspace', async () => {
+test('jest CLI should print the right version when multiple instances of jest are used in a workspace', async () => {
   preparePackages([
     {
       location: 'project-1',
@@ -18,7 +18,6 @@ test('jest CLI should print the write version when multiple instances of jest ar
       package: { name: 'project-2' },
     },
   ])
-
   const importers: MutatedProject[] = [
     {
       mutation: 'install',
@@ -67,7 +66,7 @@ test('jest CLI should print the write version when multiple instances of jest ar
     allProjects,
     extendNodePath: true,
     fastUnpack: false,
-    hoistPattern: '@babel/*',
+    hoistPattern: '*',
   }))
 
   {
