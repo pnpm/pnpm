@@ -10,14 +10,25 @@ import { patch, patchCommit } from '@pnpm/plugin-commands-patching'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS } from './utils/index'
+import { fixtures } from '@pnpm/test-fixtures'
+import * as enquirer from 'enquirer'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
 // eslint-disable-next-line
-import * as enquirer from 'enquirer'
-
-// eslint-disable-next-line
 const prompt = enquirer.prompt as any
+const f = fixtures(__dirname)
+const customModulesDirFixture = f.find('custom-modules-dir')
+
+const basePatchOption = {
+  pnpmHomeDir: '',
+  rawConfig: {
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+  },
+  registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
+  userConfig: {},
+  virtualStoreDir: 'node_modules/.pnpm',
+}
 
 describe('patch and commit', () => {
   let defaultPatchOption: patch.PatchCommandOptions
@@ -31,15 +42,10 @@ describe('patch and commit', () => {
     const cacheDir = path.resolve('cache')
     const storeDir = path.resolve('store')
     defaultPatchOption = {
+      ...basePatchOption,
       cacheDir,
       dir: process.cwd(),
-      pnpmHomeDir: '',
-      rawConfig: {
-        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-      },
-      registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
       storeDir,
-      userConfig: {},
     }
 
     await install.handler({
@@ -251,15 +257,10 @@ describe('prompt to choose version', () => {
     cacheDir = path.resolve('cache')
     storeDir = path.resolve('store')
     defaultPatchOption = {
+      ...basePatchOption,
       cacheDir,
       dir: process.cwd(),
-      pnpmHomeDir: '',
-      rawConfig: {
-        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-      },
-      registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
       storeDir,
-      userConfig: {},
     }
   })
 
@@ -321,15 +322,10 @@ describe('patching should work when there is a no EOL in the patched file', () =
     const storeDir = path.resolve('store')
 
     defaultPatchOption = {
+      ...basePatchOption,
       cacheDir,
       dir: process.cwd(),
-      pnpmHomeDir: '',
-      rawConfig: {
-        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-      },
-      registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
       storeDir,
-      userConfig: {},
     }
 
     await install.handler({
@@ -430,15 +426,10 @@ describe('patch and commit in workspaces', () => {
     storeDir = path.resolve('store')
 
     defaultPatchOption = {
+      ...basePatchOption,
       cacheDir,
       dir: process.cwd(),
-      pnpmHomeDir: '',
-      rawConfig: {
-        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-      },
-      registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
       storeDir,
-      userConfig: {},
     }
   })
 
@@ -495,6 +486,66 @@ describe('patch and commit in workspaces', () => {
     expect(fs.existsSync('project-1/node_modules/is-positive/license')).toBe(false)
     expect(fs.readFileSync('project-2/node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
     expect(fs.existsSync('project-2/node_modules/is-positive/license')).toBe(false)
+  })
+})
+
+describe('patch with custom modules-dir and virtual-store-dir', () => {
+  const cacheDir = path.resolve(customModulesDirFixture, 'cache')
+  const storeDir = path.resolve(customModulesDirFixture, 'store')
+  const defaultPatchOption = {
+    ...basePatchOption,
+    cacheDir,
+    dir: customModulesDirFixture,
+    storeDir,
+    modulesDir: 'fake_modules',
+    virtualStoreDir: 'fake_modules/.fake_store',
+  }
+
+  test('should work with custom modules-dir and virtual-store-dir', async () => {
+    const manifest = fs.readFileSync(path.join(customModulesDirFixture, 'package.json'), 'utf8')
+    const lockfileYaml = fs.readFileSync(path.join(customModulesDirFixture, 'pnpm-lock.yaml'), 'utf8')
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(customModulesDirFixture, [])
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      dir: customModulesDirFixture,
+      lockfileDir: customModulesDirFixture,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      workspaceDir: customModulesDirFixture,
+      saveLockfile: true,
+      modulesDir: 'fake_modules',
+      virtualStoreDir: 'fake_modules/.fake_store',
+    })
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+    const tempDir = os.tmpdir()
+    expect(patchDir).toContain(tempDir)
+    expect(fs.existsSync(patchDir)).toBe(true)
+    expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('1.0.0')
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      dir: customModulesDirFixture,
+      saveLockfile: true,
+      frozenLockfile: false,
+      fixLockfile: true,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      modulesDir: 'fake_modules',
+      virtualStoreDir: 'fake_modules/.fake_store',
+      lockfileDir: customModulesDirFixture,
+      workspaceDir: customModulesDirFixture,
+    }, [patchDir])
+    expect(fs.readFileSync(path.join(customModulesDirFixture, 'packages/bar/fake_modules/is-positive/index.js'), 'utf8')).toContain('// test patching')
+    // restore package.json and package-lock.yaml
+    fs.writeFileSync(path.join(customModulesDirFixture, 'package.json'), manifest, 'utf8')
+    fs.writeFileSync(path.join(customModulesDirFixture, 'pnpm-lock.yaml'), lockfileYaml, 'utf8')
   })
 })
 

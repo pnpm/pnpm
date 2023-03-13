@@ -50,7 +50,16 @@ export function help () {
   })
 }
 
-export type PatchCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir' | 'rootProjectManifest' | 'lockfileDir' | 'selectedProjectsGraph' | 'allProjectsGraph'> & CreateStoreControllerOptions & {
+export type PatchCommandOptions = Pick<Config,
+| 'dir'
+| 'registries'
+| 'tag'
+| 'storeDir'
+| 'rootProjectManifest'
+| 'lockfileDir'
+| 'modulesDir'
+| 'virtualStoreDir'
+> & CreateStoreControllerOptions & {
   editDir?: string
   reporter?: (logObj: LogBase) => void
   ignoreExisting?: boolean
@@ -65,7 +74,11 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
   }
   const editDir = opts.editDir ?? tempy.directory()
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
-  const patchedDep = await getPatchedDependency(params[0], lockfileDir)
+  const patchedDep = await getPatchedDependency(params[0], {
+    lockfileDir,
+    modulesDir: opts.modulesDir,
+    virtualStoreDir: opts.virtualStoreDir,
+  })
 
   await writePackage(patchedDep, editDir, opts)
   if (!opts.ignoreExisting && opts.rootProjectManifest?.pnpm?.patchedDependencies) {

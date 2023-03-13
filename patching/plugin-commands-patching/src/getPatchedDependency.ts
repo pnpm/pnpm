@@ -5,17 +5,24 @@ import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { PnpmError } from '@pnpm/error'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { readModulesManifest } from '@pnpm/modules-yaml'
+import realpathMissing from 'realpath-missing'
 import semver from 'semver'
+import { Config } from '@pnpm/config'
 
-export async function getPatchedDependency (rawDependency: string, lockfileDir: string): Promise<ParseWantedDependencyResult> {
+type GetPatchedDependencyOptions = {
+  lockfileDir: string
+} & Pick<Config, 'virtualStoreDir' | 'modulesDir'>
+
+export async function getPatchedDependency (rawDependency: string, opts: GetPatchedDependencyOptions): Promise<ParseWantedDependencyResult> {
   const dep = parseWantedDependency(rawDependency)
 
-  const { versions, preferredVersions } = await getVersionsFromLockfile(dep, lockfileDir)
+  const { versions, preferredVersions } = await getVersionsFromLockfile(dep, opts)
 
   if (!preferredVersions.length) {
     throw new PnpmError(
       'PATCH_VERSION_NOT_FOUND',
-      `Can not find ${rawDependency} in project ${lockfileDir}, ${versions.length ? `you can specify currently installed version: ${versions.join(', ')}.` : `did you forget to install ${rawDependency}?`}`
+      `Can not find ${rawDependency} in project ${opts.lockfileDir}, ${versions.length ? `you can specify currently installed version: ${versions.join(', ')}.` : `did you forget to install ${rawDependency}?`}`
     )
   }
 
@@ -37,10 +44,12 @@ export async function getPatchedDependency (rawDependency: string, lockfileDir: 
   return dep
 }
 
-async function getVersionsFromLockfile (dep: ParseWantedDependencyResult, lockfileDir: string) {
-  const lockfile = (await readCurrentLockfile(path.join(lockfileDir, 'node_modules/.pnpm'), {
+async function getVersionsFromLockfile (dep: ParseWantedDependencyResult, opts: GetPatchedDependencyOptions) {
+  const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
+  const modules = await readModulesManifest(modulesDir)
+  const lockfile = (modules?.virtualStoreDir && await readCurrentLockfile(modules.virtualStoreDir, {
     ignoreIncompatible: true,
-  }))
+  })) ?? null
 
   if (!lockfile) {
     throw new PnpmError(
