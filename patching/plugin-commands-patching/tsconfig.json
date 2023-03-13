@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -35,6 +38,9 @@
     },
     {
       "path": "../../packages/parse-wanted-dependency"
+    },
+    {
+      "path": "../../pkg-manager/modules-yaml"
     },
     {
       "path": "../../pkg-manager/plugin-commands-installation"
