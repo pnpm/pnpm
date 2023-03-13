@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../__utils__/test-fixtures"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {
@@ -22,10 +25,22 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
+      "path": "../../lockfile/lockfile-file"
+    },
+    {
+      "path": "../../lockfile/lockfile-utils"
+    },
+    {
+      "path": "../../packages/constants"
+    },
+    {
       "path": "../../packages/error"
     },
     {
       "path": "../../packages/parse-wanted-dependency"
+    },
+    {
+      "path": "../../pkg-manager/modules-yaml"
     },
     {
       "path": "../../pkg-manager/plugin-commands-installation"

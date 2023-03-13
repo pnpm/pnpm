@@ -2486,12 +2486,24 @@ importers:
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/lockfile-file':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-file
+      '@pnpm/lockfile-utils':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-utils
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
+      '@pnpm/modules-yaml':
+        specifier: workspace:*
+        version: link:../../pkg-manager/modules-yaml
       '@pnpm/parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../packages/parse-wanted-dependency
@@ -2513,18 +2525,27 @@ importers:
       '@pnpm/store-connection-manager':
         specifier: workspace:*
         version: link:../../store/store-connection-manager
+      enquirer:
+        specifier: ^2.3.6
+        version: 2.3.6
       escape-string-regexp:
         specifier: ^4.0.0
         version: 4.0.0
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
+      realpath-missing:
+        specifier: ^1.1.0
+        version: 1.1.0
       render-help:
         specifier: ^1.0.3
         version: 1.0.3
       safe-execa:
         specifier: ^0.1.3
         version: 0.1.3
+      semver:
+        specifier: ^7.3.8
+        version: 7.3.8
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -2541,9 +2562,15 @@ importers:
       '@pnpm/registry-mock':
         specifier: 3.5.0
         version: 3.5.0(typanion@3.12.1)
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
+      '@types/semver':
+        specifier: 7.3.13
+        version: 7.3.13
       write-yaml-file:
         specifier: ^4.2.0
         version: 4.2.0
@@ -8006,7 +8033,7 @@ packages:
       '@pnpm/find-workspace-dir': 5.0.1
       '@pnpm/find-workspace-packages': 5.0.36(@pnpm/logger@5.0.0)(@yarnpkg/core@4.0.0-rc.14)(typanion@3.12.1)
       '@pnpm/logger': 5.0.0
-      '@pnpm/types': 8.10.0
+      '@pnpm/types': 8.9.0
       '@yarnpkg/core': 4.0.0-rc.14(typanion@3.12.1)
       load-json-file: 7.0.1
       meow: 10.1.5
@@ -8555,7 +8582,6 @@ packages:
   /@pnpm/types@8.9.0:
     resolution: {integrity: sha512-3MYHYm8epnciApn6w5Fzx6sepawmsNU7l6lvIq+ER22/DPSrr83YMhU/EQWnf4lORn2YyiXFj0FJSyJzEtIGmw==}
     engines: {node: '>=14.6'}
-    dev: false
 
   /@pnpm/util.lex-comparator@1.0.0:
     resolution: {integrity: sha512-3aBQPHntVgk5AweBWZn+1I/fqZ9krK/w01197aYVkAJQGftb+BVWgEepxY5GChjSW12j52XX+CmfynYZ/p0DFQ==}

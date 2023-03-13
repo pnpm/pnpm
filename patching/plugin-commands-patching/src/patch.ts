@@ -11,7 +11,9 @@ import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
 import { PnpmError } from '@pnpm/error'
-import { writePackage, ParseWantedDependencyResult } from './writePackage'
+import { ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
+import { writePackage } from './writePackage'
+import { getPatchedDependency } from './getPatchedDependency'
 
 export function rcOptionsTypes () {
   return pick([], allTypes)
@@ -48,7 +50,16 @@ export function help () {
   })
 }
 
-export type PatchCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir' | 'rootProjectManifest' | 'lockfileDir'> & CreateStoreControllerOptions & {
+export type PatchCommandOptions = Pick<Config,
+| 'dir'
+| 'registries'
+| 'tag'
+| 'storeDir'
+| 'rootProjectManifest'
+| 'lockfileDir'
+| 'modulesDir'
+| 'virtualStoreDir'
+> & CreateStoreControllerOptions & {
   editDir?: string
   reporter?: (logObj: LogBase) => void
   ignoreExisting?: boolean
@@ -58,14 +69,24 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
   if (opts.editDir && fs.existsSync(opts.editDir) && fs.readdirSync(opts.editDir).length > 0) {
     throw new PnpmError('PATCH_EDIT_DIR_EXISTS', `The target directory already exists: '${opts.editDir}'`)
   }
+  if (!params[0]) {
+    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm patch` requires the package name')
+  }
   const editDir = opts.editDir ?? tempy.directory()
-  const patchedDep = await writePackage(params[0], editDir, opts)
+  const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
+  const patchedDep = await getPatchedDependency(params[0], {
+    lockfileDir,
+    modulesDir: opts.modulesDir,
+    virtualStoreDir: opts.virtualStoreDir,
+  })
+
+  await writePackage(patchedDep, editDir, opts)
   if (!opts.ignoreExisting && opts.rootProjectManifest?.pnpm?.patchedDependencies) {
     tryPatchWithExistingPatchFile({
       patchedDep,
       patchedDir: editDir,
       patchedDependencies: opts.rootProjectManifest.pnpm.patchedDependencies,
-      lockfileDir: opts.lockfileDir ?? opts.dir ?? process.cwd(),
+      lockfileDir,
     })
   }
   return `You can now edit the following folder: ${editDir}
