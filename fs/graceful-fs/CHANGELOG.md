@@ -1,5 +1,11 @@
 # @pnpm/graceful-fs
 
+## 2.1.0
+
+### Minor Changes
+
+- 955874422: Add copyFile, link, stat.
+
 ## 2.0.0
 
 ### Major Changes

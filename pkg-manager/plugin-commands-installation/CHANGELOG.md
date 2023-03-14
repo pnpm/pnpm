@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-installation
 
+## 11.5.5
+
+### Patch Changes
+
+- Updated dependencies [955874422]
+- Updated dependencies [e505b58e3]
+  - @pnpm/graceful-fs@2.1.0
+  - @pnpm/config@17.0.0
+  - @pnpm/read-project-manifest@4.1.4
+  - @pnpm/core@8.0.2
+  - @pnpm/outdated@11.0.21
+  - @pnpm/cli-utils@1.1.5
+  - @pnpm/plugin-commands-rebuild@7.1.5
+  - @pnpm/store-connection-manager@5.2.18
+  - @pnpm/package-store@15.1.8
+  - @pnpm/pnpmfile@4.0.38
+  - @pnpm/find-workspace-packages@5.0.40
+  - @pnpm/filter-workspace-packages@6.0.40
+
 ## 11.5.4
 
 ### Patch Changes

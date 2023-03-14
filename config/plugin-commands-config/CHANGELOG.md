@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-config
 
+## 1.0.23
+
+### Patch Changes
+
+- Updated dependencies [e505b58e3]
+  - @pnpm/config@17.0.0
+  - @pnpm/cli-utils@1.1.5
+
+## 1.0.22
+
+### Patch Changes
+
+- 6314a47b8: Settings related to authorization should be set/deleted by npm CLI [#6181](https://github.com/pnpm/pnpm/issues/6181).
+
 ## 1.0.21
 
 ### Patch Changes

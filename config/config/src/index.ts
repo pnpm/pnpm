@@ -188,7 +188,7 @@ export async function getConfig (
     'deploy-all-files': false,
     'dedupe-peer-dependents': true,
     'enable-modules-dir': true,
-    'extend-node-path': true,
+    'extend-node-path': false,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,

@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 8.2.2
+
+### Patch Changes
+
+- 185ab01ad: When patch package does not specify a version, use locally installed version by default [#6192](https://github.com/pnpm/pnpm/issues/6192).
+  - @pnpm/read-project-manifest@4.1.4
+  - @pnpm/reviewing.dependencies-hierarchy@1.2.5
+
 ## 8.2.1
 
 ### Patch Changes

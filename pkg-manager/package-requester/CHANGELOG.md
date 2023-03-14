@@ -1,5 +1,13 @@
 # @pnpm/package-requester
 
+## 20.1.7
+
+### Patch Changes
+
+- Updated dependencies [955874422]
+  - @pnpm/graceful-fs@2.1.0
+  - @pnpm/cafs@6.0.2
+
 ## 20.1.6
 
 ### Patch Changes

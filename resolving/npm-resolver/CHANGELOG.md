@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 15.0.9
+
+### Patch Changes
+
+- Updated dependencies [955874422]
+  - @pnpm/graceful-fs@2.1.0
+
 ## 15.0.8
 
 ### Patch Changes

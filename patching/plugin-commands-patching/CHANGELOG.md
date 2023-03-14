@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-patching
 
+## 2.1.14
+
+### Patch Changes
+
+- 185ab01ad: When patch package does not specify a version, use locally installed version by default [#6192](https://github.com/pnpm/pnpm/issues/6192).
+- Updated dependencies [787c43dcc]
+- Updated dependencies [e505b58e3]
+  - @pnpm/lockfile-file@7.0.6
+  - @pnpm/config@17.0.0
+  - @pnpm/plugin-commands-installation@11.5.5
+  - @pnpm/read-project-manifest@4.1.4
+  - @pnpm/cli-utils@1.1.5
+  - @pnpm/store-connection-manager@5.2.18
+
 ## 2.1.13
 
 ### Patch Changes

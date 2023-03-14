@@ -1,5 +1,12 @@
 # @pnpm/cafs
 
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [955874422]
+  - @pnpm/graceful-fs@2.1.0
+
 ## 6.0.1
 
 ### Patch Changes

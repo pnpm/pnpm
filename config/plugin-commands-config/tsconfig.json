@@ -16,6 +16,9 @@
       "path": "../../cli/cli-utils"
     },
     {
+      "path": "../../exec/run-npm"
+    },
+    {
       "path": "../../packages/error"
     },
     {

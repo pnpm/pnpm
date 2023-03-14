@@ -1,5 +1,13 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 2.1.4
+
+### Patch Changes
+
+- 955874422: Retry copying file on EBUSY error [#6201](https://github.com/pnpm/pnpm/issues/6201).
+- Updated dependencies [955874422]
+  - @pnpm/graceful-fs@2.1.0
+
 ## 2.1.3
 
 ### Patch Changes

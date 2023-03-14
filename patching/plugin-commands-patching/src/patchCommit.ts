@@ -11,6 +11,7 @@ import escapeStringRegexp from 'escape-string-regexp'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
 import { writePackage } from './writePackage'
+import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -37,7 +38,7 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
   const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
   const srcDir = tempy.directory()
-  await writePackage(pkgNameAndVersion, srcDir, opts)
+  await writePackage(parseWantedDependency(pkgNameAndVersion), srcDir, opts)
   const patchContent = await diffFolders(srcDir, userDir)
   const patchFileName = pkgNameAndVersion.replace('/', '__')
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')

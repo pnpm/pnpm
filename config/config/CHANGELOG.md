@@ -1,5 +1,16 @@
 # @pnpm/config
 
+## 17.0.0
+
+### Major Changes
+
+- e505b58e3: Don't extend NODE_PATH in command shims [#5176](https://github.com/pnpm/pnpm/issues/5176).
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@4.1.4
+- @pnpm/pnpmfile@4.0.38
+
 ## 16.7.2
 
 ### Patch Changes
