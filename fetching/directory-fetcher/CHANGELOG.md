@@ -1,5 +1,11 @@
 # @pnpm/directory-fetcher
 
+## 5.1.6
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@4.1.4
+
 ## 5.1.5
 
 ### Patch Changes

@@ -1,5 +1,24 @@
 # @pnpm/core
 
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [787c43dcc]
+  - @pnpm/lockfile-file@7.0.6
+  - @pnpm/package-requester@20.1.7
+  - @pnpm/read-project-manifest@4.1.4
+  - @pnpm/lockfile-to-pnp@2.0.14
+  - @pnpm/get-context@8.2.4
+  - @pnpm/headless@19.5.2
+  - @pnpm/link-bins@8.0.9
+  - @pnpm/resolve-dependencies@30.0.2
+  - @pnpm/lifecycle@14.1.7
+  - @pnpm/build-modules@10.1.7
+  - @pnpm/hoist@7.0.16
+  - @pnpm/symlink-dependency@6.0.3
+  - @pnpm/crypto.base32-hash@1.0.1
+
 ## 8.0.1
 
 ### Patch Changes

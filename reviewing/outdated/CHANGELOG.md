@@ -1,5 +1,14 @@
 # @pnpm/outdated
 
+## 11.0.21
+
+### Patch Changes
+
+- Updated dependencies [787c43dcc]
+  - @pnpm/lockfile-file@7.0.6
+  - @pnpm/npm-resolver@15.0.9
+  - @pnpm/client@9.1.5
+
 ## 11.0.20
 
 ### Patch Changes

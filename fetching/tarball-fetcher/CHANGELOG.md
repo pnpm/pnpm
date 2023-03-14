@@ -1,5 +1,13 @@
 # @pnpm/tarball-fetcher
 
+## 14.1.4
+
+### Patch Changes
+
+- Updated dependencies [955874422]
+  - @pnpm/graceful-fs@2.1.0
+  - @pnpm/prepare-package@4.1.2
+
 ## 14.1.3
 
 ### Patch Changes

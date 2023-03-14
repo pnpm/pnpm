@@ -1,5 +1,11 @@
 # @pnpm/lockfile-file
 
+## 7.0.6
+
+### Patch Changes
+
+- 787c43dcc: `patchedDependencies` are now sorted consistently in the lockfile [#6208](https://github.com/pnpm/pnpm/pull/6208).
+
 ## 7.0.5
 
 ### Patch Changes

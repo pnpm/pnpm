@@ -1,5 +1,14 @@
 # @pnpm/audit
 
+## 6.1.8
+
+### Patch Changes
+
+- 185ab01ad: When patch package does not specify a version, use locally installed version by default [#6192](https://github.com/pnpm/pnpm/issues/6192).
+- Updated dependencies [185ab01ad]
+  - @pnpm/list@8.2.2
+  - @pnpm/read-project-manifest@4.1.4
+
 ## 6.1.7
 
 ### Patch Changes

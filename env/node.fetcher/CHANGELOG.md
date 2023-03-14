@@ -1,5 +1,12 @@
 # @pnpm/node.fetcher
 
+## 2.0.14
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@14.1.4
+- @pnpm/create-cafs-store@3.1.6
+
 ## 2.0.13
 
 ### Patch Changes

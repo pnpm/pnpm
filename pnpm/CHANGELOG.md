@@ -1,5 +1,15 @@
 # pnpm
 
+## 7.29.2
+
+### Patch Changes
+
+- Clean up child processes when process exited [#6162](https://github.com/pnpm/pnpm/issues/6162).
+- When patch package does not specify a version, use locally installed version by default [#6192](https://github.com/pnpm/pnpm/issues/6192).
+- `patchedDependencies` are now sorted consistently in the lockfile [#6208](https://github.com/pnpm/pnpm/pull/6208).
+- Don't extend `NODE_PATH` in command shims [#5176](https://github.com/pnpm/pnpm/issues/5176).
+- Retry copying file on EBUSY error [#6201](https://github.com/pnpm/pnpm/issues/6201).
+
 ## 7.29.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/prepare-package
 
+## 4.1.2
+
+### Patch Changes
+
+- @pnpm/lifecycle@14.1.7
+
 ## 4.1.1
 
 ### Patch Changes

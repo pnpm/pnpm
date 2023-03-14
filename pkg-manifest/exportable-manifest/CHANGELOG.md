@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 4.0.8
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@4.1.4
+
 ## 4.0.7
 
 ### Patch Changes

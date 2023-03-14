@@ -1,5 +1,13 @@
 # @pnpm/build-modules
 
+## 10.1.7
+
+### Patch Changes
+
+- @pnpm/link-bins@8.0.9
+- @pnpm/lifecycle@14.1.7
+- @pnpm/fs.hard-link-dir@1.0.3
+
 ## 10.1.6
 
 ### Patch Changes
