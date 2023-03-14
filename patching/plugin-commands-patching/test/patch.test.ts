@@ -1,7 +1,7 @@
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { prepare, preparePackages } from '@pnpm/prepare'
+import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import writeYamlFile from 'write-yaml-file'
@@ -18,7 +18,6 @@ jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 // eslint-disable-next-line
 const prompt = enquirer.prompt as any
 const f = fixtures(__dirname)
-const customModulesDirFixture = f.find('custom-modules-dir')
 
 const basePatchOption = {
   pnpmHomeDir: '',
@@ -490,6 +489,8 @@ describe('patch and commit in workspaces', () => {
 })
 
 describe('patch with custom modules-dir and virtual-store-dir', () => {
+  const customModulesDirFixture = tempDir()
+  f.copy('custom-modules-dir', customModulesDirFixture)
   const cacheDir = path.resolve(customModulesDirFixture, 'cache')
   const storeDir = path.resolve(customModulesDirFixture, 'store')
   const defaultPatchOption = {
