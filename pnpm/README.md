@@ -119,27 +119,7 @@ why it works fine with the Node.js ecosystem, read this small article: [Flat nod
 
 ## Installation
 
-On macOS, Linux, or Windows Subsystem for Linux:
-
-```
-curl -f https://get.pnpm.io/v6.16.js | node - add --global pnpm
-```
-
-On Windows (using PowerShell):
-
-```
-(Invoke-WebRequest 'https://get.pnpm.io/v6.16.js' -UseBasicParsing).Content | node - add --global pnpm
-```
-
-Using npm:
-
-```
-npx pnpm add -g pnpm
-```
-
-For other installation options [visit our website](https://pnpm.io/installation).
-
-We also ship a version of pnpm that may be used even with no Node.js installed on the system, see [@pnpm/exe](https://www.npmjs.com/package/@pnpm/exe).
+For installation options [visit our website](https://pnpm.io/installation).
 
 ## Usage
 
@@ -147,12 +127,6 @@ Just use pnpm in place of npm/Yarn. E.g., install dependencies via:
 
 ```
 pnpm install
-```
-
-Also, `pnpm dlx` instead of npx:
-
-```
-pnpm dlx create-react-app my-cool-new-app
 ```
 
 For more advanced usage, read [pnpm CLI](https://pnpm.io/pnpm-cli) on our website, or run `pnpm help`.
