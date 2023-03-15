@@ -224,7 +224,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
 
   try {
     let nodePath: string[] | undefined
-    if (opts?.extraNodePaths) {
+    if (opts?.extraNodePaths?.length) {
       nodePath = []
       for (const modulesPath of await getBinNodePaths(cmd.path)) {
         if (opts.extraNodePaths.includes(modulesPath)) break
