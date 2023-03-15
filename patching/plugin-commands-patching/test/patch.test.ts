@@ -130,6 +130,10 @@ describe('patch and commit', () => {
       patchesDir,
     }, [patchDir])
 
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      'is-positive@1.0.0': 'ts/custom-patches/is-positive@1.0.0.patch',
+    })
     expect(fs.existsSync(path.normalize(patchesDir))).toBe(true)
     expect(fs.readFileSync(path.join(patchesDir, 'is-positive@1.0.0.patch'), 'utf8')).toContain('// test patching')
     expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')

@@ -5,6 +5,7 @@ import { Config, types as allTypes } from '@pnpm/config'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
 import execa from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
@@ -43,7 +44,7 @@ export function help () {
 export async function handler (opts: install.InstallCommandOptions & Pick<Config, 'rootProjectManifest'> & { patchesDir?: string }, params: string[]) {
   const userDir = params[0]
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
-  const patchesDirName = path.normalize(opts.patchesDir ?? 'patches')
+  const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
   const patchesDir = path.join(lockfileDir, patchesDirName)
   await fs.promises.mkdir(patchesDir, { recursive: true })
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
