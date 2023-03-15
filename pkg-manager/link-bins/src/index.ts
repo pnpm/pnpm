@@ -1,4 +1,5 @@
 import { promises as fs, existsSync } from 'fs'
+import Module from 'module'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { logger, globalWarn } from '@pnpm/logger'
@@ -222,9 +223,18 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
   }
 
   try {
+    let nodePath: string[] | undefined
+    if (opts?.extraNodePaths?.length) {
+      nodePath = []
+      for (const modulesPath of await getBinNodePaths(cmd.path)) {
+        if (opts.extraNodePaths.includes(modulesPath)) break
+        nodePath.push(modulesPath)
+      }
+      nodePath.push(...opts.extraNodePaths)
+    }
     await cmdShim(cmd.path, externalBinPath, {
       createPwshFile: cmd.makePowerShellShim,
-      nodePath: opts?.extraNodePaths,
+      nodePath,
       nodeExecPath: cmd.nodeExecPath,
     })
   } catch (err: any) { // eslint-disable-line
@@ -251,6 +261,21 @@ function getExeExtension (): string {
   }
 
   return cmdExtension ?? '.exe'
+}
+
+async function getBinNodePaths (target: string): Promise<string[]> {
+  const targetDir = path.dirname(target)
+  try {
+    const targetRealPath = await fs.realpath(targetDir)
+    // @ts-expect-error
+    return Module['_nodeModulePaths'](targetRealPath)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code !== 'ENOENT') {
+      throw err
+    }
+    // @ts-expect-error
+    return Module['_nodeModulePaths'](targetDir)
+  }
 }
 
 async function safeReadPkgJson (pkgDir: string): Promise<DependencyManifest | null> {
