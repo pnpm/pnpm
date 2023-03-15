@@ -1,10 +1,12 @@
 import filenamify from 'filenamify'
 import path from 'path'
 import { semverUtils } from '@yarnpkg/core'
-import {
-  type Dependencies,
-  type PeerDependencyIssues,
-  type PeerDependencyIssuesByProjects,
+import type {
+  BadPeerDependencyIssue,
+  Dependencies,
+  PeerDependencyIssues,
+  PeerDependencyIssuesByProjects,
+  ProjectManifest,
 } from '@pnpm/types'
 import { depPathToFilename, createPeersFolderSuffix, createPeersFolderSuffixNewFormat } from '@pnpm/dependency-path'
 import { type KeyValuePair } from 'ramda'
@@ -48,6 +50,7 @@ export interface GenericDependenciesGraph<T extends PartialResolvedPackage> {
 }
 
 export interface ProjectToResolve {
+  manifest: ProjectManifest
   directNodeIdsByAlias: { [alias: string]: string }
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
@@ -78,16 +81,30 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
 
-  for (const { directNodeIdsByAlias, topParents, rootDir, id } of opts.projects) {
+  for (const { directNodeIdsByAlias, manifest, topParents, rootDir, id } of opts.projects) {
     const peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'> = { bad: {}, missing: {} }
     const pkgsByName = {
       ...rootPkgsByName,
       ..._createPkgsByName({ directNodeIdsByAlias, topParents }),
     }
 
+    const aliases: Record<string, string[]> = {}
+    const allDependencies = {
+      ...manifest.dependencies,
+      ...manifest.devDependencies,
+    }
+    for (const [pkgName, version] of Object.entries(allDependencies)) {
+      if (version.startsWith('npm:')) {
+        const aliasedPkgName = version.substring(4).split('@')[0]
+        aliases[aliasedPkgName] = aliases[aliasedPkgName] ?? []
+        aliases[aliasedPkgName].push(pkgName)
+      }
+    }
+
     resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
       dependenciesTree: opts.dependenciesTree,
       depGraph,
+      aliases,
       lockfileDir: opts.lockfileDir,
       pathsByNodeId,
       depPathsByPkgId,
@@ -234,6 +251,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   ctx: ResolvePeersContext & {
     dependenciesTree: DependenciesTree<T>
     depGraph: GenericDependenciesGraph<T>
+    aliases: Record<string, string[]>
     virtualStoreDir: string
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
@@ -306,6 +324,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       currentDepth: node.depth,
       dependenciesTree: ctx.dependenciesTree,
       lockfileDir: ctx.lockfileDir,
+      aliases: ctx.aliases,
       nodeId,
       parentPkgs,
       peerDependencyIssues: ctx.peerDependencyIssues,
@@ -437,6 +456,7 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   },
   parentPkgs: ParentRefs,
   ctx: ResolvePeersContext & {
+    aliases: Record<string, string[]>
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     virtualStoreDir: string
@@ -466,6 +486,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
   ctx: {
     currentDepth: number
     lockfileDir: string
+    aliases: Record<string, string[]>
     nodeId: string
     parentPkgs: ParentRefs
     resolvedPackage: T
@@ -479,52 +500,66 @@ function _resolvePeers<T extends PartialResolvedPackage> (
   for (const peerName in ctx.resolvedPackage.peerDependencies) { // eslint-disable-line:forin
     const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName].replace(/^workspace:/, '')
 
-    const resolved = ctx.parentPkgs[peerName]
+    const pkgsToCheck = [
+      ctx.parentPkgs[peerName],
+      ...(ctx.aliases[peerName] || []).map((alias) => ctx.parentPkgs[alias]),
+    ].filter(Boolean)
+
     const optionalPeer = ctx.resolvedPackage.peerDependenciesMeta?.[peerName]?.optional === true
+    const badPeerIssues: BadPeerDependencyIssue[] = []
+    let foundPeer = false
 
-    if (!resolved) {
-      missingPeers.push(peerName)
-      const location = getLocationFromNodeIdAndPkg({
-        dependenciesTree: ctx.dependenciesTree,
-        nodeId: ctx.nodeId,
-        pkg: ctx.resolvedPackage,
-      })
-      if (!ctx.peerDependencyIssues.missing[peerName]) {
-        ctx.peerDependencyIssues.missing[peerName] = []
-      }
-      ctx.peerDependencyIssues.missing[peerName].push({
-        parents: location.parents,
-        optional: optionalPeer,
-        wantedRange: peerVersionRange,
-      })
-      continue
-    }
-
-    if (!semverUtils.satisfiesWithPrereleases(resolved.version, peerVersionRange, true)) {
-      const location = getLocationFromNodeIdAndPkg({
-        dependenciesTree: ctx.dependenciesTree,
-        nodeId: ctx.nodeId,
-        pkg: ctx.resolvedPackage,
-      })
-      if (!ctx.peerDependencyIssues.bad[peerName]) {
-        ctx.peerDependencyIssues.bad[peerName] = []
-      }
-      const peerLocation = resolved.nodeId == null
-        ? []
-        : getLocationFromNodeId({
+    for (const resolved of pkgsToCheck) {
+      if (!semverUtils.satisfiesWithPrereleases(resolved.version, peerVersionRange, true)) {
+        const location = getLocationFromNodeIdAndPkg({
           dependenciesTree: ctx.dependenciesTree,
-          nodeId: resolved.nodeId,
-        }).parents
-      ctx.peerDependencyIssues.bad[peerName].push({
-        foundVersion: resolved.version,
-        resolvedFrom: peerLocation,
-        parents: location.parents,
-        optional: optionalPeer,
-        wantedRange: peerVersionRange,
-      })
+          nodeId: ctx.nodeId,
+          pkg: ctx.resolvedPackage,
+        })
+        const peerLocation = resolved.nodeId == null
+          ? []
+          : getLocationFromNodeId({
+            dependenciesTree: ctx.dependenciesTree,
+            nodeId: resolved.nodeId,
+          }).parents
+        badPeerIssues.push({
+          foundVersion: resolved.version,
+          resolvedFrom: peerLocation,
+          parents: location.parents,
+          optional: optionalPeer,
+          wantedRange: peerVersionRange,
+        })
+      } else {
+        if (resolved?.nodeId) resolvedPeers[peerName] = resolved.nodeId
+        foundPeer = true
+        break
+      }
     }
 
-    if (resolved?.nodeId) resolvedPeers[peerName] = resolved.nodeId
+    if (!foundPeer) {
+      if (badPeerIssues.length) {
+        if (!ctx.peerDependencyIssues.bad[peerName]) {
+          ctx.peerDependencyIssues.bad[peerName] = []
+        }
+        ctx.peerDependencyIssues.bad[peerName].push(...badPeerIssues)
+        if (pkgsToCheck[0]?.nodeId) resolvedPeers[peerName] = pkgsToCheck[0].nodeId
+      } else {
+        missingPeers.push(peerName)
+        const location = getLocationFromNodeIdAndPkg({
+          dependenciesTree: ctx.dependenciesTree,
+          nodeId: ctx.nodeId,
+          pkg: ctx.resolvedPackage,
+        })
+        if (!ctx.peerDependencyIssues.missing[peerName]) {
+          ctx.peerDependencyIssues.missing[peerName] = []
+        }
+        ctx.peerDependencyIssues.missing[peerName].push({
+          parents: location.parents,
+          optional: optionalPeer,
+          wantedRange: peerVersionRange,
+        })
+      }
+    }
   }
   return { resolvedPeers, missingPeers }
 }
