@@ -113,12 +113,12 @@ describe('patch and commit', () => {
   })
 
   test('patch and commit with custom patches dir', async () => {
-    const patchesDir = 'custom-patches'
+    const patchesDir = 'ts/src/../custom-patches'
 
     const output = await patch.handler({ ...defaultPatchOption }, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
 
-    expect(fs.existsSync(patchesDir)).toBe(false)
+    expect(fs.existsSync(path.normalize(patchesDir))).toBe(false)
 
     fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
 
@@ -130,7 +130,7 @@ describe('patch and commit', () => {
       patchesDir,
     }, [patchDir])
 
-    expect(fs.existsSync(patchesDir)).toBe(true)
+    expect(fs.existsSync(path.normalize(patchesDir))).toBe(true)
     expect(fs.readFileSync(path.join(patchesDir, 'is-positive@1.0.0.patch'), 'utf8')).toContain('// test patching')
     expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
   })
