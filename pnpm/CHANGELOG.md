@@ -1,5 +1,12 @@
 # pnpm
 
+## 7.29.3
+
+### Patch Changes
+
+- Command shim should not set higher priority to the `node_modules/.pnpm/node_modules` directory through the `NODE_PATH` env variable, then the command's own `node_modules` directory [#5176](https://github.com/pnpm/pnpm/issues/5176).
+- `extend-node-path` is set back to `true` by default. It was set to `false` in v7.29.2 in order to fix issues with multiple versions of Jest in one workspace. It has caused other issues, so now we keep extending `NODE_PATH`. We have fixed the Jest issue with a different solution [#6213](https://github.com/pnpm/pnpm/issues/6213).
+
 ## 7.29.2
 
 ### Patch Changes
@@ -8,7 +15,6 @@
 - When patch package does not specify a version, use locally installed version by default [#6192](https://github.com/pnpm/pnpm/issues/6192).
 - `patchedDependencies` are now sorted consistently in the lockfile [#6208](https://github.com/pnpm/pnpm/pull/6208).
 - Don't extend `NODE_PATH` in command shims [#5176](https://github.com/pnpm/pnpm/issues/5176).
-- Retry copying file on EBUSY error [#6201](https://github.com/pnpm/pnpm/issues/6201).
 
 ## 7.29.1
 

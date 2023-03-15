@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 8.0.10
+
+### Patch Changes
+
+- f9c30c6d7: Command shim should not set higher priority to the `node_modules/.pnpm/node_modules` directory through the `NODE_PATH` env variable, then the command's own `node_modules` directory [#5176](https://github.com/pnpm/pnpm/issues/5176).
+
 ## 8.0.9
 
 ### Patch Changes
