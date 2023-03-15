@@ -186,7 +186,7 @@ export async function getConfig (
     color: 'auto',
     'dedupe-peer-dependents': false,
     'enable-modules-dir': true,
-    'extend-node-path': false,
+    'extend-node-path': true,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,
