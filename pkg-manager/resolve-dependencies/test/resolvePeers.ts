@@ -23,6 +23,7 @@ test('resolve peer dependencies of cyclic dependencies', () => {
   const { dependenciesGraph } = resolvePeers({
     projects: [
       {
+        manifest: {},
         directNodeIdsByAlias: {
           foo: '>foo/1.0.0>',
         },
@@ -130,6 +131,7 @@ test('when a package is referenced twice in the dependencies graph and one of th
   const { dependenciesGraph } = resolvePeers({
     projects: [
       {
+        manifest: {},
         directNodeIdsByAlias: {
           zoo: '>zoo/1.0.0>',
           bar: '>bar/1.0.0>',
@@ -256,6 +258,7 @@ describe('peer dependency issues', () => {
   const { peerDependencyIssuesByProjects } = resolvePeers({
     projects: [
       {
+        manifest: {},
         directNodeIdsByAlias: {
           foo: '>project1>foo/1.0.0>',
         },
@@ -264,6 +267,7 @@ describe('peer dependency issues', () => {
         id: 'project1',
       },
       {
+        manifest: {},
         directNodeIdsByAlias: {
           bar: '>project2>bar/1.0.0>',
         },
@@ -272,6 +276,7 @@ describe('peer dependency issues', () => {
         id: 'project2',
       },
       {
+        manifest: {},
         directNodeIdsByAlias: {
           foo: '>project3>foo/1.0.0>',
           bar: '>project3>bar/1.0.0>',
@@ -281,6 +286,7 @@ describe('peer dependency issues', () => {
         id: 'project3',
       },
       {
+        manifest: {},
         directNodeIdsByAlias: {
           bar: '>project4>bar/1.0.0>',
           qar: '>project4>qar/1.0.0>',
@@ -290,6 +296,7 @@ describe('peer dependency issues', () => {
         id: 'project4',
       },
       {
+        manifest: {},
         directNodeIdsByAlias: {
           foo: '>project5>foo/1.0.0>',
           bar: '>project5>bar/2.0.0>',
@@ -299,6 +306,7 @@ describe('peer dependency issues', () => {
         id: 'project5',
       },
       {
+        manifest: {},
         directNodeIdsByAlias: {
           foo: '>project6>foo/2.0.0>',
           bar: '>project6>bar/2.0.0>',
@@ -398,6 +406,7 @@ describe('unmet peer dependency issues', () => {
   const { peerDependencyIssuesByProjects } = resolvePeers({
     projects: [
       {
+        manifest: {},
         directNodeIdsByAlias: {
           foo: '>project1>foo/1.0.0>',
           peer1: '>project1>peer1/1.0.0-rc.0>',
@@ -461,6 +470,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
   const { peerDependencyIssuesByProjects } = resolvePeers({
     projects: [
       {
+        manifest: {},
         directNodeIdsByAlias: {
           foo: '>project>foo/1.0.0>',
         },
@@ -515,4 +525,108 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
   it('should return from where the bad peer dependency is resolved', () => {
     expect(peerDependencyIssuesByProjects.project.bad.dep[0].resolvedFrom).toStrictEqual([{ name: 'foo', version: '1.0.0' }])
   })
+})
+
+test('resolve peer dependencies with npm aliases', () => {
+  const fooPkg = {
+    name: 'foo',
+    depPath: 'foo/1.0.0',
+    version: '1.0.0',
+    peerDependencies: {
+      bar: '1.0.0',
+    },
+  }
+  const fooAliasPkg = {
+    name: 'foo',
+    depPath: 'foo/2.0.0',
+    version: '2.0.0',
+    peerDependencies: {
+      bar: '2.0.0',
+    },
+  }
+  const barPkg = {
+    name: 'bar',
+    depPath: 'bar/1.0.0',
+    version: '1.0.0',
+    peerDependencies: {},
+  }
+  const barAliasPkg = {
+    name: 'bar',
+    depPath: 'bar/2.0.0',
+    version: '2.0.0',
+    peerDependencies: {},
+  }
+  const { dependenciesGraph } = resolvePeers({
+    projects: [
+      {
+        manifest: {
+          dependencies: {
+            foo: '^1.0.0',
+            bar: '^1.0.0',
+            'foo-next': 'npm:foo@^2.0.0',
+            'bar-next': 'npm:bar@^2.0.0',
+          },
+        },
+        directNodeIdsByAlias: {
+          foo: '>foo/1.0.0>',
+          bar: '>bar/1.0.0>',
+          'foo-next': '>foo/2.0.0>',
+          'bar-next': '>bar/2.0.0>',
+        },
+        topParents: [],
+        rootDir: '',
+        id: '',
+      },
+    ],
+    dependenciesTree: {
+      '>foo/1.0.0>': {
+        children: {
+          bar: '>foo/1.0.0>bar/1.0.0>',
+        },
+        installable: true,
+        resolvedPackage: fooPkg,
+        depth: 0,
+      },
+      '>foo/1.0.0>bar/1.0.0>': {
+        children: {},
+        installable: true,
+        resolvedPackage: barPkg,
+        depth: 1,
+      },
+      '>foo/2.0.0>': {
+        children: {
+          bar: '>foo/2.0.0>bar/2.0.0>',
+        },
+        installable: true,
+        resolvedPackage: fooAliasPkg,
+        depth: 0,
+      },
+      '>foo/2.0.0>bar/2.0.0>': {
+        children: {},
+        installable: true,
+        resolvedPackage: barAliasPkg,
+        depth: 1,
+      },
+      '>bar/1.0.0>': {
+        children: {},
+        installable: true,
+        resolvedPackage: barPkg,
+        depth: 0,
+      },
+      '>bar/2.0.0>': {
+        children: {},
+        installable: true,
+        resolvedPackage: barAliasPkg,
+        depth: 0,
+      },
+    },
+    virtualStoreDir: '',
+    lockfileDir: '',
+  })
+  expect(Object.keys(dependenciesGraph)).toStrictEqual([
+    'bar/1.0.0',
+    'foo/1.0.0_bar@1.0.0',
+    'bar/2.0.0',
+    'foo/2.0.0_bar@2.0.0',
+  ])
 })
