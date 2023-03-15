@@ -18,7 +18,6 @@ import pSettle from 'p-settle'
 import { KeyValuePair } from 'ramda'
 import isEmpty from 'ramda/src/isEmpty'
 import unnest from 'ramda/src/unnest'
-import union from 'ramda/src/union'
 import partition from 'ramda/src/partition'
 import symlinkDir from 'symlink-dir'
 import fixBin from 'bin-links/lib/fix-bin'
@@ -268,12 +267,8 @@ async function getBinNodePaths (target: string): Promise<string[]> {
   const targetDir = path.dirname(target)
   try {
     const targetRealPath = await fs.realpath(targetDir)
-    return union(
-      // @ts-expect-error
-      Module['_nodeModulePaths'](targetRealPath),
-      // @ts-expect-error
-      Module['_nodeModulePaths'](targetDir)
-    )
+    // @ts-expect-error
+    return Module['_nodeModulePaths'](targetRealPath)
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') {
       throw err
