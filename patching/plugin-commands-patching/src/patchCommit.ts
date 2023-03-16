@@ -14,12 +14,10 @@ import tempy from 'tempy'
 import { writePackage } from './writePackage'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 
-export function rcOptionsTypes () {
-  return pick([], allTypes)
-}
+export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {
-  return { ...rcOptionsTypes(), 'patches-dir': String }
+  return pick(['patches-dir'], allTypes)
 }
 
 export const commandNames = ['patch-commit']
@@ -41,7 +39,7 @@ export function help () {
   })
 }
 
-export async function handler (opts: install.InstallCommandOptions & Pick<Config, 'rootProjectManifest'> & { patchesDir?: string }, params: string[]) {
+export async function handler (opts: install.InstallCommandOptions & Pick<Config, 'patchesDir' | 'rootProjectManifest'>, params: string[]) {
   const userDir = params[0]
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
   const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
