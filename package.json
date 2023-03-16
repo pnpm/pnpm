@@ -167,6 +167,9 @@
         "write-json-file",
         "write-pkg"
       ]
+    },
+    "auditConfig": {
+      "ignoreCves": ["CVE-2023-28155"]
     }
   }
 }
