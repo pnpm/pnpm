@@ -38,7 +38,7 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@zkochan/cmd-shim": "^5.4.1",
+    "@zkochan/cmd-shim": "^6.0.0",
     "@zkochan/rimraf": "^2.1.2",
     "bin-links": "^4.0.1",
     "is-subdir": "^1.2.0",

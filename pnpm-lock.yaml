@@ -847,8 +847,8 @@ importers:
         specifier: workspace:*
         version: link:../../store/store-path
       '@zkochan/cmd-shim':
-        specifier: ^5.4.1
-        version: 5.4.1
+        specifier: ^6.0.0
+        version: 6.0.0
       '@zkochan/rimraf':
         specifier: ^2.1.2
         version: 2.1.2
@@ -3193,8 +3193,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/cmd-shim':
-        specifier: ^5.4.1
-        version: 5.4.1
+        specifier: ^6.0.0
+        version: 6.0.0
       '@zkochan/rimraf':
         specifier: ^2.1.2
         version: 2.1.2
@@ -9464,6 +9464,16 @@ packages:
       cmd-extension: 1.0.2
       graceful-fs: 4.2.10
       is-windows: 1.0.2
+    dev: true
+
+  /@zkochan/cmd-shim@6.0.0:
+    resolution: {integrity: sha512-kLBj0hJjqIw/KkIs8tvFaG1AY/yX2iUJqj47Jgoo5WoeQJd552ijJsj4GAOQnmyfoFLLEKZ+aSYfCpMjyg2hJw==}
+    engines: {node: '>=14.6'}
+    dependencies:
+      cmd-extension: 1.0.2
+      graceful-fs: 4.2.10
+      is-windows: 1.0.2
+    dev: false
 
   /@zkochan/diable@1.0.2:
     resolution: {integrity: sha512-LvXkwkWyrsRulnXVfp0BfuEQqV6I2j0l3kQwvBHKFMI6Sg5j2GrUCLsEKqYB3jlxM+0ofScvlE4vB6knevdBmg==}
@@ -17592,7 +17602,7 @@ time:
   /@yarnpkg/nm@4.0.0-rc.27: '2022-10-28T20:14:26.306Z'
   /@yarnpkg/parsers@3.0.0-rc.27: '2022-10-28T20:12:42.896Z'
   /@yarnpkg/pnp@2.3.2: '2020-11-30T14:45:51.504Z'
-  /@zkochan/cmd-shim@5.4.1: '2023-01-26T01:54:06.870Z'
+  /@zkochan/cmd-shim@6.0.0: '2023-03-16T02:26:12.592Z'
   /@zkochan/diable@1.0.2: '2020-07-07T02:01:35.635Z'
   /@zkochan/hosted-git-info@4.0.2: '2021-09-05T21:33:51.709Z'
   /@zkochan/js-yaml@0.0.6: '2022-05-10T14:42:39.813Z'
