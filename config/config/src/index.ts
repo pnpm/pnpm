@@ -312,7 +312,7 @@ export async function getConfig (
     }
     return undefined
   })()
-  pnpmConfig.pnpmHomeDir = process.env.PNPM_HOME ?? getDataDir(process)
+  pnpmConfig.pnpmHomeDir = getDataDir(process)
 
   if (cliOptions['global']) {
     let globalDirRoot
