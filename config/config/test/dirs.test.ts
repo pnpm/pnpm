@@ -59,6 +59,12 @@ test('getStateDir()', () => {
 test('getDataDir()', () => {
   expect(getDataDir({
     env: {
+      PNPM_HOME: '/home/foo/data',
+    },
+    platform: 'linux',
+  })).toBe('/home/foo/data')
+  expect(getDataDir({
+    env: {
       XDG_DATA_HOME: '/home/foo/data',
     },
     platform: 'linux',
