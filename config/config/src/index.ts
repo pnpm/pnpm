@@ -83,6 +83,7 @@ export const types = Object.assign({
   offline: Boolean,
   'only-built-dependencies': [String],
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
+  'patches-dir': String,
   pnpmfile: String,
   'prefer-frozen-lockfile': Boolean,
   'prefer-offline': Boolean,

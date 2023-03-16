@@ -5,6 +5,7 @@ import { Config, types as allTypes } from '@pnpm/config'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
 import execa from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
@@ -16,7 +17,7 @@ import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {
-  return pick([], allTypes)
+  return pick(['patches-dir'], allTypes)
 }
 
 export const commandNames = ['patch-commit']
@@ -24,16 +25,25 @@ export const commandNames = ['patch-commit']
 export function help () {
   return renderHelp({
     description: 'Generate a patch out of a directory',
-    descriptionLists: [],
+    descriptionLists: [{
+      title: 'Options',
+      list: [
+        {
+          description: 'The generated patch file will be saved to this directory',
+          name: '--patches-dir',
+        },
+      ],
+    }],
     url: docsUrl('patch-commit'),
     usages: ['pnpm patch-commit <patchDir>'],
   })
 }
 
-export async function handler (opts: install.InstallCommandOptions & Pick<Config, 'rootProjectManifest'>, params: string[]) {
+export async function handler (opts: install.InstallCommandOptions & Pick<Config, 'patchesDir' | 'rootProjectManifest'>, params: string[]) {
   const userDir = params[0]
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
-  const patchesDir = path.join(lockfileDir, 'patches')
+  const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
+  const patchesDir = path.join(lockfileDir, patchesDirName)
   await fs.promises.mkdir(patchesDir, { recursive: true })
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
   const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
@@ -53,7 +63,7 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
   } else if (!rootProjectManifest.pnpm.patchedDependencies) {
     rootProjectManifest.pnpm.patchedDependencies = {}
   }
-  rootProjectManifest.pnpm.patchedDependencies![pkgNameAndVersion] = `patches/${patchFileName}.patch`
+  rootProjectManifest.pnpm.patchedDependencies![pkgNameAndVersion] = `${patchesDirName}/${patchFileName}.patch`
   await writeProjectManifest(rootProjectManifest)
 
   if (opts?.selectedProjectsGraph?.[lockfileDir]) {

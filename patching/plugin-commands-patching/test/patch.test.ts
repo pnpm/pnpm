@@ -112,6 +112,33 @@ describe('patch and commit', () => {
     expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
   })
 
+  test('patch and commit with custom patches dir', async () => {
+    const patchesDir = 'ts/src/../custom-patches'
+
+    const output = await patch.handler({ ...defaultPatchOption }, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+
+    expect(fs.existsSync(path.normalize(patchesDir))).toBe(false)
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      patchesDir,
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      'is-positive@1.0.0': 'ts/custom-patches/is-positive@1.0.0.patch',
+    })
+    expect(fs.existsSync(path.normalize(patchesDir))).toBe(true)
+    expect(fs.readFileSync(path.join(patchesDir, 'is-positive@1.0.0.patch'), 'utf8')).toContain('// test patching')
+    expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
+  })
+
   test('patch throws an error if the edit-dir already exists and is not empty', async () => {
     const editDir = tempy.directory()
     fs.writeFileSync(path.join(editDir, 'test.txt'), '', 'utf8')
