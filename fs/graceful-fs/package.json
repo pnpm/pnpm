@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/graceful-fs#readme",
   "dependencies": {
-    "graceful-fs": "^4.2.10"
+    "graceful-fs": "^4.2.11"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
