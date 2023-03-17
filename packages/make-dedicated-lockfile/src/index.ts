@@ -59,6 +59,7 @@ export async function makeDedicatedLockfile (lockfileDir: string, projectDir: st
       '--fix-lockfile',
       '--filter=.',
       '--no-link-workspace-packages',
+      '--config.dedupe-peer-dependents=false', // TODO: remove this. It should work without it
     ], {
       cwd: projectDir,
     })
