@@ -134,8 +134,8 @@ test('installing with package manifest ignored', async () => {
 
   const project = assertProject(prefix)
   const currentLockfile = await project.readCurrentLockfile()
-  expect(currentLockfile.packages).toHaveProperty(['/is-positive/1.0.0'])
-  expect(currentLockfile.packages).toHaveProperty(['/is-negative/2.1.0'])
+  expect(currentLockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
+  expect(currentLockfile.packages).toHaveProperty(['/is-negative@2.1.0'])
   await project.storeHas('is-negative')
   await project.storeHas('is-positive')
   await project.hasNot('is-negative')
@@ -158,8 +158,8 @@ test('installing only prod package with package manifest ignored', async () => {
 
   const project = assertProject(prefix)
   const currentLockfile = await project.readCurrentLockfile()
-  expect(currentLockfile.packages).not.toHaveProperty(['/is-negative/2.1.0'])
-  expect(currentLockfile.packages).toHaveProperty(['/is-positive/1.0.0'])
+  expect(currentLockfile.packages).not.toHaveProperty(['/is-negative@2.1.0'])
+  expect(currentLockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
   await project.storeHasNot('is-negative')
   await project.storeHas('is-positive')
   await project.hasNot('is-negative')
@@ -182,8 +182,8 @@ test('installing only dev package with package manifest ignored', async () => {
 
   const project = assertProject(prefix)
   const currentLockfile = await project.readCurrentLockfile()
-  expect(currentLockfile.packages).toHaveProperty(['/is-negative/2.1.0'])
-  expect(currentLockfile.packages).not.toHaveProperty(['/is-positive/1.0.0'])
+  expect(currentLockfile.packages).toHaveProperty(['/is-negative@2.1.0'])
+  expect(currentLockfile.packages).not.toHaveProperty(['/is-positive@1.0.0'])
   await project.storeHasNot('is-negative')
   await project.storeHas('is-positive')
   await project.hasNot('is-negative')
@@ -210,12 +210,12 @@ test('installing non-prod deps then all deps', async () => {
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/is-positive/1.0.0'].dev === false).toBeTruthy()
+    expect(lockfile.packages['/is-positive@1.0.0'].dev === false).toBeTruthy()
   }
 
   {
     const currentLockfile = await project.readCurrentLockfile()
-    expect(currentLockfile.packages).not.toHaveProperty(['/is-positive/1.0.0'])
+    expect(currentLockfile.packages).not.toHaveProperty(['/is-positive@1.0.0'])
   }
 
   const reporter = sinon.spy()
@@ -254,7 +254,7 @@ test('installing non-prod deps then all deps', async () => {
 
   {
     const currentLockfile = await project.readCurrentLockfile()
-    expect(currentLockfile.packages).toHaveProperty(['/is-positive/1.0.0'])
+    expect(currentLockfile.packages).toHaveProperty(['/is-positive@1.0.0'])
   }
 })
 
@@ -760,8 +760,8 @@ test('installing in a workspace', async () => {
   const rootModules = assertProject(workspaceFixture)
   const lockfile = await rootModules.readCurrentLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
-    '/is-negative/1.0.0',
-    '/is-positive/1.0.0',
+    '/is-negative@1.0.0',
+    '/is-positive@1.0.0',
   ])
 })
 

@@ -245,6 +245,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'bail'
 | 'bin'
 | 'cliOptions'
+| 'deployAllFiles'
 | 'depth'
 | 'dev'
 | 'engineStrict'
@@ -284,6 +285,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'workspaceConcurrency'
 | 'workspaceDir'
 | 'extraEnv'
+| 'resolutionMode'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -296,6 +298,7 @@ export type InstallCommandOptions = Pick<Config,
   dedupe?: boolean
   saveLockfile?: boolean
   workspace?: boolean
+  includeOnlyPackageFiles?: boolean
 } & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages'>>
 
 export async function handler (

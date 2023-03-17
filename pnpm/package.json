@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "7.30.0",
+  "version": "8.0.0-beta.0",
   "bin": {
     "pnpm": "bin/pnpm.cjs",
     "pnpx": "bin/pnpx.cjs"
@@ -115,7 +115,7 @@
   },
   "homepage": "https://pnpm.io",
   "keywords": [
-    "pnpm7",
+    "pnpm8",
     "dependency manager",
     "install",
     "installer",
@@ -165,7 +165,7 @@
     "compile": "tsc --build && pnpm run lint --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc"
   },
   "publishConfig": {
-    "tag": "next-7",
+    "tag": "next-8",
     "executableFiles": [
       "./dist/node-gyp-bin/node-gyp",
       "./dist/node-gyp-bin/node-gyp.cmd",

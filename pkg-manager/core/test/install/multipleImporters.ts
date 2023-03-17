@@ -1,6 +1,6 @@
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
-import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -12,7 +12,7 @@ import {
   mutateModulesInSingleProject,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
-import { createPeersFolderSuffix } from '@pnpm/dependency-path'
+import { createPeersFolderSuffixNewFormat as createPeersFolderSuffix } from '@pnpm/dependency-path'
 import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
 import pick from 'ramda/src/pick'
@@ -162,7 +162,7 @@ test('install only the dependencies of the specified importer. The current lockf
   const rootModules = assertProject(process.cwd())
   const currentLockfile = await rootModules.readCurrentLockfile()
   expect(currentLockfile.importers).toHaveProperty(['project-3'])
-  expect(currentLockfile.packages).toHaveProperty(['/@pnpm.e2e/foobar/100.0.0'])
+  expect(currentLockfile.packages).toHaveProperty(['/@pnpm.e2e/foobar@100.0.0'])
 })
 
 test('some projects were removed from the workspace and the ones that are left depend on them', async () => {
@@ -304,8 +304,8 @@ test('dependencies of other importers are not pruned when installing for a subse
   const lockfile = await rootModules.readCurrentLockfile()
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
   expect(Object.keys(lockfile.packages)).toStrictEqual([
-    '/is-negative/1.0.0',
-    '/is-positive/2.0.0',
+    '/is-negative@1.0.0',
+    '/is-positive@2.0.0',
   ])
 })
 
@@ -701,30 +701,30 @@ test('partial installation in a monorepo does not remove dependencies of other w
     importers: {
       'project-1': {
         dependencies: {
-          'is-positive': '1.0.0',
-        },
-        specifiers: {
-          'is-positive': '1.0.0',
+          'is-positive': {
+            specifier: '1.0.0',
+            vesrion: '1.0.0',
+          },
         },
       },
       'project-2': {
         dependencies: {
-          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
-        },
-        specifiers: {
-          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+          '@pnpm.e2e/pkg-with-1-ep': {
+            specifier: '100.0.0',
+            version: '100.0.0',
+          },
         },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0': {
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
         dev: false,
         resolution: {
           integrity: 'sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw==',
         },
       },
-      '/is-positive/1.0.0': {
+      '/is-positive@1.0.0': {
         dev: false,
         engines: {
           node: '>=0.10.0',
@@ -733,7 +733,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
       },
-      '/@pnpm.e2e/pkg-with-1-dep/100.0.0': {
+      '/@pnpm.e2e/pkg-with-1-dep@100.0.0': {
         dependencies: {
           '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         },
@@ -800,30 +800,30 @@ test('partial installation in a monorepo does not remove dependencies of other w
     importers: {
       'project-1': {
         dependencies: {
-          'is-positive': '1.0.0',
-        },
-        specifiers: {
-          'is-positive': '1.0.0',
+          'is-positive': {
+            specifier: '1.0.0',
+            version: '1.0.0',
+          },
         },
       },
       'project-2': {
         dependencies: {
-          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
-        },
-        specifiers: {
-          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+          '@pnpm.e2e/pkg-with-1-dep': {
+            specifier: '100.0.0',
+            version: '100.0.0',
+          },
         },
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0': {
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': {
         dev: false,
         resolution: {
           integrity: 'sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw==',
         },
       },
-      '/is-positive/1.0.0': {
+      '/is-positive@1.0.0': {
         dev: false,
         engines: {
           node: '>=0.10.0',
@@ -832,7 +832,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         },
       },
-      '/@pnpm.e2e/pkg-with-1-dep/100.0.0': {
+      '/@pnpm.e2e/pkg-with-1-dep@100.0.0': {
         dependencies: {
           '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         },
@@ -1048,6 +1048,7 @@ test('update workspace range', async () => {
         },
       },
     },
+    saveWorkspaceProtocol: true,
   }))
 
   const expected = {
@@ -1243,11 +1244,11 @@ test('remove dependencies of a project that was removed from the workspace (duri
   {
     const wantedLockfile = await project.readLockfile()
     expect(Object.keys(wantedLockfile.importers)).toStrictEqual(['project-1'])
-    expect(Object.keys(wantedLockfile.packages)).toStrictEqual(['/is-positive/1.0.0'])
+    expect(Object.keys(wantedLockfile.packages)).toStrictEqual(['/is-positive@1.0.0'])
 
     const currentLockfile = await project.readCurrentLockfile()
     expect(Object.keys(currentLockfile.importers)).toStrictEqual(['project-1', 'project-2'])
-    expect(Object.keys(currentLockfile.packages)).toStrictEqual(['/is-negative/1.0.0', '/is-positive/1.0.0'])
+    expect(Object.keys(currentLockfile.packages)).toStrictEqual(['/is-negative@1.0.0', '/is-positive@1.0.0'])
 
     await project.has('.pnpm/is-positive@1.0.0')
     await project.has('.pnpm/is-negative@1.0.0')
@@ -1261,7 +1262,7 @@ test('remove dependencies of a project that was removed from the workspace (duri
   {
     const currentLockfile = await project.readCurrentLockfile()
     expect(Object.keys(currentLockfile.importers)).toStrictEqual(['project-1'])
-    expect(Object.keys(currentLockfile.packages)).toStrictEqual(['/is-positive/1.0.0'])
+    expect(Object.keys(currentLockfile.packages)).toStrictEqual(['/is-positive@1.0.0'])
 
     await project.has('.pnpm/is-positive@1.0.0')
     await project.hasNot('.pnpm/is-negative@1.0.0')
@@ -1329,7 +1330,7 @@ test('do not resolve a subdependency from the workspace by default', async () =>
   const project = assertProject(process.cwd())
 
   const wantedLockfile = await project.readLockfile()
-  expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
+  expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.1.0')
 })
 
 test('resolve a subdependency from the workspace', async () => {
@@ -1392,7 +1393,7 @@ test('resolve a subdependency from the workspace', async () => {
   const project = assertProject(process.cwd())
 
   const wantedLockfile = await project.readLockfile()
-  expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
+  expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   await rimraf('node_modules')
 
@@ -1463,6 +1464,8 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
   }
   await mutateModules(importers, await testDefaults({
     allProjects,
+    autoInstallPeers: false,
+    dedupePeerDependents: false,
     linkWorkspacePackagesDepth: Infinity,
     strictPeerDependencies: false,
     workspacePackages,
@@ -1475,19 +1478,19 @@ test('resolve a subdependency from the workspace and use it as a peer', async ()
   const suffix2 = createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '@pnpm.e2e+peer-a' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.1' }])
   expect(Object.keys(wantedLockfile.packages).sort()).toStrictEqual(
     [
-      '/@pnpm.e2e/abc-grand-parent-with-c/1.0.0',
-      '/@pnpm.e2e/abc-parent-with-ab/1.0.0',
-      '/@pnpm.e2e/abc-parent-with-ab/1.0.0_@pnpm.e2e+peer-c@1.0.1',
-      `/@pnpm.e2e/abc/1.0.0${suffix1}`,
-      `/@pnpm.e2e/abc/1.0.0${suffix2}`,
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0',
-      '/is-positive/1.0.0',
-      '/@pnpm.e2e/peer-b/1.0.0',
-      '/@pnpm.e2e/peer-c/1.0.1',
+      '/@pnpm.e2e/abc-grand-parent-with-c@1.0.0',
+      '/@pnpm.e2e/abc-parent-with-ab@1.0.0',
+      '/@pnpm.e2e/abc-parent-with-ab@1.0.0(@pnpm.e2e/peer-c@1.0.1)',
+      `/@pnpm.e2e/abc@1.0.0${suffix1}`,
+      `/@pnpm.e2e/abc@1.0.0${suffix2}`,
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+      '/is-positive@1.0.0',
+      '/@pnpm.e2e/peer-b@1.0.0',
+      '/@pnpm.e2e/peer-c@1.0.1',
     ].sort()
   )
-  expect(wantedLockfile.packages['/@pnpm.e2e/abc-parent-with-ab/1.0.0'].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:@pnpm.e2e/peer-a')
-  expect(wantedLockfile.packages[`/@pnpm.e2e/abc/1.0.0${suffix1}`].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:@pnpm.e2e/peer-a')
+  expect(wantedLockfile.packages['/@pnpm.e2e/abc-parent-with-ab@1.0.0'].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:@pnpm.e2e/peer-a')
+  expect(wantedLockfile.packages[`/@pnpm.e2e/abc@1.0.0${suffix1}`].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:@pnpm.e2e/peer-a')
 })
 
 test('resolve a subdependency from the workspace, when it uses the workspace protocol', async () => {
@@ -1558,7 +1561,7 @@ test('resolve a subdependency from the workspace, when it uses the workspace pro
   const project = assertProject(process.cwd())
 
   const wantedLockfile = await project.readLockfile()
-  expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
+  expect(wantedLockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('link:@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   await rimraf('node_modules')
 
@@ -1643,11 +1646,14 @@ test('install the dependency that is already present in the workspace when addin
   const rootModules = assertProject(process.cwd())
   const currentLockfile = await rootModules.readCurrentLockfile()
 
-  expect(currentLockfile.importers['project-1'].specifiers?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^100.0.0')
-  expect(currentLockfile.importers['project-2'].specifiers?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^100.0.0')
-
-  expect(currentLockfile.importers['project-1'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
-  expect(currentLockfile.importers['project-2'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('100.0.0')
+  expect(currentLockfile.importers['project-1'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.0.0',
+  })
+  expect(currentLockfile.importers['project-2'].dependencies?.['@pnpm.e2e/dep-of-pkg-with-1-dep']).toStrictEqual({
+    specifier: '^100.0.0',
+    version: '100.0.0',
+  })
 })
 
 test('do not update dependency that has the same name as a dependency in the workspace', async () => {
@@ -1722,8 +1728,8 @@ test('do not update dependency that has the same name as a dependency in the wor
   const rootModules = assertProject(process.cwd())
   const currentLockfile = await rootModules.readCurrentLockfile()
   expect(Object.keys(currentLockfile.packages)).toStrictEqual([
-    '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0',
-    '/is-negative/2.1.0',
+    '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+    '/is-negative@2.1.0',
   ])
 })
 
@@ -1836,6 +1842,7 @@ test('do not symlink local package from the location described in its publishCon
     version: '1.0.0',
     publishConfig: {
       directory: 'dist',
+      linkDirectory: false,
     },
   }
   const project2Manifest = {

@@ -74,7 +74,8 @@ export async function handler (
   const deployDir = path.isAbsolute(deployDirParam) ? deployDirParam : path.join(opts.dir, deployDirParam)
   await rimraf(deployDir)
   await fs.promises.mkdir(deployDir, { recursive: true })
-  await copyProject(deployedDir, deployDir)
+  const includeOnlyPackageFiles = !opts.deployAllFiles
+  await copyProject(deployedDir, deployDir, { includeOnlyPackageFiles })
   await install.handler({
     ...opts,
     depth: Infinity,
@@ -95,11 +96,12 @@ export async function handler (
       // This is a workaround to prevent frozen install in CI envs.
       'frozen-lockfile': false,
     },
+    includeOnlyPackageFiles,
   })
 }
 
-async function copyProject (src: string, dest: string) {
-  const { filesIndex } = await fetchFromDir(src, { includeOnlyPackageFiles: true })
+async function copyProject (src: string, dest: string, opts: { includeOnlyPackageFiles: boolean }) {
+  const { filesIndex } = await fetchFromDir(src, opts)
   const importPkg = createIndexedPkgImporter('clone-or-copy')
   await importPkg(dest, { filesMap: filesIndex, force: true, fromStore: true })
 }

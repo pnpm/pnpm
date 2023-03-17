@@ -2801,6 +2801,9 @@ importers:
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-types
       '@pnpm/package-store':
         specifier: workspace:*
         version: link:../../store/package-store
@@ -8049,7 +8052,7 @@ packages:
       '@pnpm/find-workspace-dir': 5.0.1
       '@pnpm/find-workspace-packages': 5.0.41(@pnpm/logger@5.0.0)(@yarnpkg/core@4.0.0-rc.14)(typanion@3.12.1)
       '@pnpm/logger': 5.0.0
-      '@pnpm/types': 8.10.0
+      '@pnpm/types': 8.9.0
       '@yarnpkg/core': 4.0.0-rc.14(typanion@3.12.1)
       load-json-file: 7.0.1
       meow: 10.1.5
@@ -8598,7 +8601,6 @@ packages:
   /@pnpm/types@8.9.0:
     resolution: {integrity: sha512-3MYHYm8epnciApn6w5Fzx6sepawmsNU7l6lvIq+ER22/DPSrr83YMhU/EQWnf4lORn2YyiXFj0FJSyJzEtIGmw==}
     engines: {node: '>=14.6'}
-    dev: false
 
   /@pnpm/util.lex-comparator@1.0.0:
     resolution: {integrity: sha512-3aBQPHntVgk5AweBWZn+1I/fqZ9krK/w01197aYVkAJQGftb+BVWgEepxY5GChjSW12j52XX+CmfynYZ/p0DFQ==}
@@ -8731,7 +8733,7 @@ packages:
   /@types/byline@4.2.33:
     resolution: {integrity: sha512-LJYez7wrWcJQQDknqZtrZuExMGP0IXmPl1rOOGDqLbu+H7UNNRfKNuSxCBcQMLH1EfjeWidLedC/hCc5dDfBog==}
     dependencies:
-      '@types/node': 18.15.3
+      '@types/node': 14.18.37
     dev: true
 
   /@types/cacheable-request@6.0.3:
@@ -8846,9 +8848,6 @@ packages:
   /@types/lodash@4.14.181:
     resolution: {integrity: sha512-n3tyKthHJbkiWhDZs3DkhkCzt2MexYHXlX0td5iMplyfwketaOeKboEVBqzceH7juqvEg3q5oUoBFxSLu7zFag==}
 
-  /@types/lodash@4.14.191:
-    resolution: {integrity: sha512-BdZ5BCCvho3EIXw6wUCXHe7rS53AIDPLE+JzwgT+OsJk53oBfbSmZZ7CX4VaRoN78N+TJpFi9QPlfIVNmJYWxQ==}
-
   /@types/mdast@3.0.10:
     resolution: {integrity: sha512-W864tg/Osz1+9f4lrGTZpCSO5/z4608eUp19tbozkq2HJK6i3z1kT0H9tlADXuYIb1YYOBByU4Jsqkk75q48qA==}
     dependencies:
@@ -8888,9 +8887,8 @@ packages:
   /@types/node@18.14.3:
     resolution: {integrity: sha512-1y36CC5iL5CMyKALzwX9cwwxcWIxvIBe3gzs4GrXWXEQ8klQnCZ2U/WDGiNrXHmQcUhnaun17XG9TEIDlGj2RA==}
 
-  /@types/node@18.15.3:
-    resolution: {integrity: sha512-p6ua9zBxz5otCmbpb5D3U4B5Nanw6Pk3PPyX05xnxbB/fRv71N7CPmORg7uAD5P70T0xmx1pzAx/FUfa5X+3cw==}
-    dev: true
+  /@types/node@18.14.4:
+    resolution: {integrity: sha512-VhCw7I7qO2X49+jaKcAUwi3rR+hbxT5VcYF493+Z5kMLI0DL568b7JI4IDJaxWFH0D/xwmGJNoXisyX+w7GH/g==}
 
   /@types/normalize-package-data@2.4.1:
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
@@ -9435,7 +9433,7 @@ packages:
     resolution: {integrity: sha512-NpXoa9pJZ6IM67X0xe0iHL9hlP5B0A5ltesbH5PDl/wZCYJ/QUt+aFOVLTR+SAUHEPvRh4HqWtXo7Z8zYupGGQ==}
     engines: {node: '>=14.15.0'}
     dependencies:
-      '@types/node': 18.14.3
+      '@types/node': 18.14.4
       '@yarnpkg/fslib': 3.0.0-rc.25
 
   /@yarnpkg/shell@3.2.0-rc.8(typanion@3.12.1):
@@ -17511,7 +17509,7 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       '@babel/runtime': 7.21.0
-      '@types/lodash': 4.14.191
+      '@types/lodash': 4.14.181
       lodash: 4.17.21
       lodash-es: 4.17.21
       nanoclone: 0.2.1

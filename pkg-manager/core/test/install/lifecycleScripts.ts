@@ -54,7 +54,7 @@ test('run pre/postinstall scripts', async () => {
   }
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild)
+  expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild)
 })
 
 test('run pre/postinstall scripts, when PnP is used and no symlinks', async () => {
@@ -270,7 +270,7 @@ test('run lifecycle scripts of dependent packages after running scripts of their
 test('run prepare script for git-hosted dependencies', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['pnpm/test-git-fetch#299c6d89507571462b992b92407a8a07663e32ee'], await testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['pnpm/test-git-fetch#d222f6bfbdea55c032fdb5f0538d52b2a484bbbf'], await testDefaults({ fastUnpack: false }))
 
   const scripts = project.requireModule('test-git-fetch/output.json')
   expect(scripts).toStrictEqual([
@@ -285,7 +285,7 @@ test('run prepare script for git-hosted dependencies', async () => {
   ])
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['github.com/pnpm/test-git-fetch/299c6d89507571462b992b92407a8a07663e32ee'].prepare === true).toBeTruthy()
+  expect(lockfile.packages['github.com/pnpm/test-git-fetch/d222f6bfbdea55c032fdb5f0538d52b2a484bbbf'].prepare === true).toBeTruthy()
 })
 
 test('lifecycle scripts run before linking bins', async () => {
@@ -416,8 +416,8 @@ test('selectively ignore scripts in some dependencies by neverBuiltDependencies'
 
   const lockfile = await project.readLockfile()
   expect(lockfile.neverBuiltDependencies).toStrictEqual(neverBuiltDependencies)
-  expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
-  expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBe(undefined)
+  expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBeTruthy()
 
   await rimraf('node_modules')
 
@@ -454,8 +454,8 @@ test('selectively allow scripts in some dependencies by onlyBuiltDependencies', 
 
   const lockfile = await project.readLockfile()
   expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
-  expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
-  expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBe(true)
+  expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBe(undefined)
+  expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBe(true)
 
   await rimraf('node_modules')
 
@@ -476,8 +476,8 @@ test('lockfile is updated if neverBuiltDependencies is changed', async () => {
   {
     const lockfile = await project.readLockfile()
     expect(lockfile.neverBuiltDependencies).toBeFalsy()
-    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBeTruthy()
-    expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBeTruthy()
   }
 
   const neverBuiltDependencies = ['@pnpm.e2e/pre-and-postinstall-scripts-example']
@@ -490,8 +490,8 @@ test('lockfile is updated if neverBuiltDependencies is changed', async () => {
   {
     const lockfile = await project.readLockfile()
     expect(lockfile.neverBuiltDependencies).toStrictEqual(neverBuiltDependencies)
-    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
-    expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBe(undefined)
+    expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBeTruthy()
   }
 })
 
@@ -505,8 +505,8 @@ test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
   {
     const lockfile = await project.readLockfile()
     expect(lockfile.onlyBuiltDependencies).toBeFalsy()
-    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBeTruthy()
-    expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBeTruthy()
   }
 
   const onlyBuiltDependencies: string[] = []
@@ -519,8 +519,8 @@ test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
   {
     const lockfile = await project.readLockfile()
     expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
-    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(undefined)
-    expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBe(undefined)
+    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBe(undefined)
+    expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBe(undefined)
   }
 
   onlyBuiltDependencies.push('@pnpm.e2e/pre-and-postinstall-scripts-example')
@@ -533,8 +533,8 @@ test('lockfile is updated if onlyBuiltDependencies is changed', async () => {
   {
     const lockfile = await project.readLockfile()
     expect(lockfile.onlyBuiltDependencies).toStrictEqual(onlyBuiltDependencies)
-    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild).toBe(true)
-    expect(lockfile.packages['/@pnpm.e2e/install-script-example/1.0.0'].requiresBuild).toBe(undefined)
+    expect(lockfile.packages['/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0'].requiresBuild).toBe(true)
+    expect(lockfile.packages['/@pnpm.e2e/install-script-example@1.0.0'].requiresBuild).toBe(undefined)
   }
 })
 

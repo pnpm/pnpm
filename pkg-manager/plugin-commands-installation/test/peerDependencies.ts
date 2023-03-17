@@ -16,6 +16,7 @@ const DEFAULT_OPTIONS = {
   cacheDir: path.join(TMP, 'cache'),
   extraEnv: {},
   cliOptions: {},
+  deployAllFiles: false,
   include: {
     dependencies: true,
     devDependencies: true,
@@ -46,7 +47,7 @@ test('root dependency that has a peer is correctly updated after its version cha
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.dependencies['ajv-keywords']).toBe('1.5.0_ajv@4.10.4')
+    expect(lockfile.dependencies['ajv-keywords'].version).toBe('1.5.0(ajv@4.10.4)')
   }
 
   await project.writePackageJson({
@@ -67,6 +68,6 @@ test('root dependency that has a peer is correctly updated after its version cha
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.dependencies['ajv-keywords']).toBe('1.5.1_ajv@4.10.4')
+    expect(lockfile.dependencies['ajv-keywords'].version).toBe('1.5.1(ajv@4.10.4)')
   }
 })

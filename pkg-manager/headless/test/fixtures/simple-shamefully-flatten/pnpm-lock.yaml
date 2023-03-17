@@ -1,31 +1,34 @@
-lockfileVersion: 5.4
-
-specifiers:
-  '@pnpm.e2e/pkg-with-peer-having-bin': 1.0.0
-  colors: 1.2.0
-  is-negative: ^2.1.0
-  is-positive: ^1.0.0
-  rimraf: ^2.6.2
+lockfileVersion: '6.0'
 
 dependencies:
-  '@pnpm.e2e/pkg-with-peer-having-bin': 1.0.0
-  is-positive: 1.0.0
-  rimraf: 2.7.1
+  '@pnpm.e2e/pkg-with-peer-having-bin':
+    specifier: 1.0.0
+    version: 1.0.0
+  is-positive:
+    specifier: ^1.0.0
+    version: 1.0.0
+  rimraf:
+    specifier: ^2.6.2
+    version: 2.7.1
 
 optionalDependencies:
-  colors: 1.2.0
+  colors:
+    specifier: 1.2.0
+    version: 1.2.0
 
 devDependencies:
-  is-negative: 2.1.0
+  is-negative:
+    specifier: ^2.1.0
+    version: 2.1.0
 
 packages:
 
-  /@pnpm.e2e/hello-world-js-bin/1.0.0:
+  /@pnpm.e2e/hello-world-js-bin@1.0.0:
     resolution: {integrity: sha512-3f6ugQfqFW9GR36OSeTfsSNlup7hIslT23haX3dvT/e5GyU3iInat3+0GI+MqvRcwcNzsBrTJq7yDWp3wk7O/Q==}
     hasBin: true
     dev: false
 
-  /@pnpm.e2e/pkg-with-peer-having-bin/1.0.0:
+  /@pnpm.e2e/pkg-with-peer-having-bin@1.0.0:
     resolution: {integrity: sha512-bbL3oe5SBIz54k276vb4pR5T0ZrKZ2p2+OObfMMtkG43nCfwRBca3+WAqKjs9pIu2c4vUFhnU4rcqdbeuJkIbg==}
     peerDependencies:
       '@pnpm.e2e/peer-with-bin': ^1.0.0
@@ -33,33 +36,33 @@ packages:
       '@pnpm.e2e/hello-world-js-bin': 1.0.0
     dev: false
 
-  /balanced-match/1.0.2:
+  /balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
     dev: false
 
-  /brace-expansion/1.1.11:
+  /brace-expansion@1.1.11:
     resolution: {integrity: sha512-iCuPHDFgrHX7H2vEI/5xpz07zSHB00TpugqhmYtVmMO6518mCuRMoOYFldEBl0g187ufozdaHgWKcYFb61qGiA==}
     dependencies:
       balanced-match: 1.0.2
       concat-map: 0.0.1
     dev: false
 
-  /colors/1.2.0:
+  /colors@1.2.0:
     resolution: {integrity: sha512-lweugcX5nailCqZBttArTojZZpHGWhmFJX78KJHlxwhM8tLAy5QCgRgRxrubrksdvA+2Y3inWG5TToyyjL82BQ==}
     engines: {node: '>=0.1.90'}
     requiresBuild: true
     dev: false
     optional: true
 
-  /concat-map/0.0.1:
+  /concat-map@0.0.1:
     resolution: {integrity: sha1-2Klr13/Wjfd5OnMDajug1UBdR3s=}
     dev: false
 
-  /fs.realpath/1.0.0:
+  /fs.realpath@1.0.0:
     resolution: {integrity: sha1-FQStJSMVjKpA20onh8sBQRmU6k8=}
     dev: false
 
-  /glob/7.2.0:
+  /glob@7.2.0:
     resolution: {integrity: sha512-lmLf6gtyrPq8tTjSmrO94wBeQbFR3HbLHbuyD69wuyQkImp2hWqMGB47OX65FBkPffO641IP9jWa1z4ivqG26Q==}
     dependencies:
       fs.realpath: 1.0.0
@@ -70,51 +73,51 @@ packages:
       path-is-absolute: 1.0.1
     dev: false
 
-  /inflight/1.0.6:
+  /inflight@1.0.6:
     resolution: {integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=}
     dependencies:
       once: 1.4.0
       wrappy: 1.0.2
     dev: false
 
-  /inherits/2.0.4:
+  /inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
     dev: false
 
-  /is-negative/2.1.0:
+  /is-negative@2.1.0:
     resolution: {integrity: sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=}
     engines: {node: '>=0.10.0'}
     dev: true
 
-  /is-positive/1.0.0:
+  /is-positive@1.0.0:
     resolution: {integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=}
     engines: {node: '>=0.10.0'}
     dev: false
 
-  /minimatch/3.1.2:
+  /minimatch@3.1.2:
     resolution: {integrity: sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==}
     dependencies:
       brace-expansion: 1.1.11
     dev: false
 
-  /once/1.4.0:
+  /once@1.4.0:
     resolution: {integrity: sha1-WDsap3WWHUsROsF9nFC6753Xa9E=}
     dependencies:
       wrappy: 1.0.2
     dev: false
 
-  /path-is-absolute/1.0.1:
+  /path-is-absolute@1.0.1:
     resolution: {integrity: sha1-F0uSaHNVNP+8es5r9TpanhtcX18=}
     engines: {node: '>=0.10.0'}
     dev: false
 
-  /rimraf/2.7.1:
+  /rimraf@2.7.1:
     resolution: {integrity: sha512-uWjbaKIK3T1OSVptzX7Nl6PvQ3qAGtKEtVRjRuazjfL3Bx5eI409VZSqgND+4UNnmzLVdPj9FqFJNPqBZFve4w==}
     hasBin: true
     dependencies:
       glob: 7.2.0
     dev: false
 
-  /wrappy/1.0.2:
+  /wrappy@1.0.2:
     resolution: {integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=}
     dev: false

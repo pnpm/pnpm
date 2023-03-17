@@ -1,7 +1,6 @@
-lockfileVersion: 5.3
-
-specifiers:
-  general: 0.0.0
+lockfileVersion: '6.0'
 
 dependencies:
-  general: link:../general
+  general:
+    specifier: 0.0.0
+    version: link:../general

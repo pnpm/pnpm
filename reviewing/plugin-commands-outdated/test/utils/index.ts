@@ -13,6 +13,7 @@ export const DEFAULT_OPTS = {
   cert: undefined,
   extraEnv: {},
   cliOptions: {},
+  deployAllFiles: false,
   fetchRetries: 2,
   fetchRetryFactor: 90,
   fetchRetryMaxtimeout: 90,

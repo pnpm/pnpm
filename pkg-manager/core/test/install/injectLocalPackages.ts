@@ -119,6 +119,7 @@ test('inject local packages', async () => {
     },
   }
   await mutateModules(importers, await testDefaults({
+    autoInstallPeers: false,
     allProjects,
     workspacePackages,
   }))
@@ -143,7 +144,7 @@ test('inject local packages', async () => {
         injected: true,
       },
     })
-    expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
+    expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
@@ -160,7 +161,7 @@ test('inject local packages', async () => {
       },
       dev: false,
     })
-    expect(lockfile.packages['file:project-2_is-positive@2.0.0']).toEqual({
+    expect(lockfile.packages['file:project-2(is-positive@2.0.0)']).toEqual({
       resolution: {
         directory: 'project-2',
         type: 'directory',
@@ -169,7 +170,7 @@ test('inject local packages', async () => {
       name: 'project-2',
       version: '1.0.0',
       dependencies: {
-        'project-1': 'file:project-1_is-positive@2.0.0',
+        'project-1': 'file:project-1(is-positive@2.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
       dev: false,
@@ -187,6 +188,7 @@ test('inject local packages', async () => {
   await rimraf('project-3/node_modules')
 
   await mutateModules(importers, await testDefaults({
+    autoInstallPeers: false,
     allProjects,
     frozenLockfile: true,
     workspacePackages,
@@ -206,7 +208,7 @@ test('inject local packages', async () => {
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  await mutateModules(importers, await testDefaults({ allProjects, workspacePackages }))
+  await mutateModules(importers, await testDefaults({ autoInstallPeers: false, allProjects, workspacePackages }))
   {
     const lockfile = await rootModules.readLockfile()
     expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
@@ -214,7 +216,7 @@ test('inject local packages', async () => {
         injected: true,
       },
     })
-    expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
+    expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
@@ -349,6 +351,7 @@ test('inject local packages declared via file protocol', async () => {
     },
   }
   await mutateModules(importers, await testDefaults({
+    autoInstallPeers: false,
     allProjects,
     workspacePackages,
   }))
@@ -373,7 +376,7 @@ test('inject local packages declared via file protocol', async () => {
         injected: true,
       },
     })
-    expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
+    expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
@@ -390,7 +393,7 @@ test('inject local packages declared via file protocol', async () => {
       },
       dev: false,
     })
-    expect(lockfile.packages['file:project-2_is-positive@2.0.0']).toEqual({
+    expect(lockfile.packages['file:project-2(is-positive@2.0.0)']).toEqual({
       resolution: {
         directory: 'project-2',
         type: 'directory',
@@ -399,7 +402,7 @@ test('inject local packages declared via file protocol', async () => {
       name: 'project-2',
       version: '1.0.0',
       dependencies: {
-        'project-1': 'file:project-1_is-positive@2.0.0',
+        'project-1': 'file:project-1(is-positive@2.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
       dev: false,
@@ -417,6 +420,7 @@ test('inject local packages declared via file protocol', async () => {
   await rimraf('project-3/node_modules')
 
   await mutateModules(importers, await testDefaults({
+    autoInstallPeers: false,
     allProjects,
     frozenLockfile: true,
     workspacePackages,
@@ -437,7 +441,7 @@ test('inject local packages declared via file protocol', async () => {
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
   writeJsonFile('project-1/package.json', allProjects[0].manifest)
-  await mutateModules(importers, await testDefaults({ allProjects, workspacePackages }))
+  await mutateModules(importers, await testDefaults({ autoInstallPeers: false, allProjects, workspacePackages }))
   {
     const lockfile = await rootModules.readLockfile()
     expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({
@@ -445,7 +449,7 @@ test('inject local packages declared via file protocol', async () => {
         injected: true,
       },
     })
-    expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
+    expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
@@ -570,6 +574,7 @@ test('inject local packages when the file protocol is used', async () => {
     },
   }
   await mutateModules(importers, await testDefaults({
+    autoInstallPeers: false,
     allProjects,
     workspacePackages,
   }))
@@ -589,7 +594,7 @@ test('inject local packages when the file protocol is used', async () => {
   const rootModules = assertProject(process.cwd())
   {
     const lockfile = await rootModules.readLockfile()
-    expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
+    expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
@@ -606,7 +611,7 @@ test('inject local packages when the file protocol is used', async () => {
       },
       dev: false,
     })
-    expect(lockfile.packages['file:project-2_is-positive@2.0.0']).toEqual({
+    expect(lockfile.packages['file:project-2(is-positive@2.0.0)']).toEqual({
       resolution: {
         directory: 'project-2',
         type: 'directory',
@@ -615,7 +620,7 @@ test('inject local packages when the file protocol is used', async () => {
       name: 'project-2',
       version: '1.0.0',
       dependencies: {
-        'project-1': 'file:project-1_is-positive@2.0.0',
+        'project-1': 'file:project-1(is-positive@2.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
       dev: false,
@@ -633,6 +638,7 @@ test('inject local packages when the file protocol is used', async () => {
   await rimraf('project-3/node_modules')
 
   await mutateModules(importers, await testDefaults({
+    autoInstallPeers: false,
     allProjects,
     frozenLockfile: true,
     workspacePackages,
@@ -654,12 +660,13 @@ test('inject local packages when the file protocol is used', async () => {
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
   writeJsonFile('project-1/package.json', allProjects[0].manifest)
   await mutateModules(importers, await testDefaults({
+    autoInstallPeers: false,
     allProjects,
     workspacePackages,
   }))
   {
     const lockfile = await rootModules.readLockfile()
-    expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
+    expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
@@ -761,6 +768,7 @@ test('inject local packages and relink them after build', async () => {
     },
   }
   await mutateModules(importers, await testDefaults({
+    autoInstallPeers: false,
     allProjects,
     workspacePackages,
   }))
@@ -781,7 +789,7 @@ test('inject local packages and relink them after build', async () => {
       injected: true,
     },
   })
-  expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
+  expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toEqual({
     resolution: {
       directory: 'project-1',
       type: 'directory',
@@ -805,6 +813,7 @@ test('inject local packages and relink them after build', async () => {
   await rimraf('project-2/node_modules')
 
   await mutateModules(importers, await testDefaults({
+    autoInstallPeers: false,
     allProjects,
     frozenLockfile: true,
     workspacePackages,
@@ -878,7 +887,7 @@ test('inject local packages and relink them after build (file protocol is used)'
       rootDir: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ allProjects }))
+  await mutateModules(importers, await testDefaults({ autoInstallPeers: false, allProjects }))
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
@@ -891,7 +900,7 @@ test('inject local packages and relink them after build (file protocol is used)'
 
   const rootModules = assertProject(process.cwd())
   const lockfile = await rootModules.readLockfile()
-  expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
+  expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toEqual({
     resolution: {
       directory: 'project-1',
       type: 'directory',
@@ -915,6 +924,7 @@ test('inject local packages and relink them after build (file protocol is used)'
   await rimraf('project-2/node_modules')
 
   await mutateModules(importers, await testDefaults({
+    autoInstallPeers: false,
     allProjects,
     frozenLockfile: true,
   }))
@@ -1039,6 +1049,7 @@ test('inject local packages when node-linker is hoisted', async () => {
     },
   }
   await mutateModules(importers, await testDefaults({
+    autoInstallPeers: false,
     allProjects,
     nodeLinker: 'hoisted',
     workspacePackages,
@@ -1063,7 +1074,7 @@ test('inject local packages when node-linker is hoisted', async () => {
         injected: true,
       },
     })
-    expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
+    expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
@@ -1081,7 +1092,7 @@ test('inject local packages when node-linker is hoisted', async () => {
       },
       dev: false,
     })
-    expect(lockfile.packages['file:project-2_is-positive@2.0.0']).toEqual({
+    expect(lockfile.packages['file:project-2(is-positive@2.0.0)']).toEqual({
       resolution: {
         directory: 'project-2',
         type: 'directory',
@@ -1091,7 +1102,7 @@ test('inject local packages when node-linker is hoisted', async () => {
       version: '1.0.0',
       dependencies: {
         '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
-        'project-1': 'file:project-1_is-positive@2.0.0',
+        'project-1': 'file:project-1(is-positive@2.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
       dev: false,
@@ -1204,6 +1215,7 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
     },
   }
   await mutateModules(importers, await testDefaults({
+    autoInstallPeers: false,
     allProjects,
     nodeLinker: 'hoisted',
     workspacePackages,
@@ -1247,7 +1259,7 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
         injected: true,
       },
     })
-    expect(lockfile.packages['file:project-1_is-positive@1.0.0']).toEqual({
+    expect(lockfile.packages['file:project-1(is-positive@1.0.0)']).toEqual({
       resolution: {
         directory: 'project-1',
         type: 'directory',
@@ -1265,7 +1277,7 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
       },
       dev: false,
     })
-    expect(lockfile.packages['file:project-2_is-positive@2.0.0']).toEqual({
+    expect(lockfile.packages['file:project-2(is-positive@2.0.0)']).toEqual({
       resolution: {
         directory: 'project-2',
         type: 'directory',
@@ -1275,7 +1287,7 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
       version: '1.0.0',
       dependencies: {
         '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
-        'project-1': 'file:project-1_is-positive@2.0.0',
+        'project-1': 'file:project-1(is-positive@2.0.0)',
       },
       transitivePeerDependencies: ['is-positive'],
       dev: false,
@@ -1384,6 +1396,7 @@ test('peer dependency of injected project should be resolved correctly', async (
     },
   }
   await mutateModules(importers, await testDefaults({
+    autoInstallPeers: false,
     allProjects,
     nodeLinker: 'hoisted',
     workspacePackages,
@@ -1391,7 +1404,7 @@ test('peer dependency of injected project should be resolved correctly', async (
 
   const rootModules = assertProject(process.cwd())
   const lockfile = await rootModules.readLockfile()
-  expect(lockfile.packages?.['file:project-2_project-1@project-1'].dependencies?.['project-1']).toEqual('link:project-1')
+  expect(lockfile.packages?.['file:project-2(project-1@project-1)'].dependencies?.['project-1']).toEqual('link:project-1')
 })
 
 // There was a bug related to this. The manifests in the workspacePackages object were modified
@@ -1469,6 +1482,7 @@ test('do not modify the manifest of the injected workpspace project', async () =
     },
   }
   const [project1] = await mutateModules(importers, await testDefaults({
+    autoInstallPeers: false,
     allProjects,
     workspacePackages,
   }))

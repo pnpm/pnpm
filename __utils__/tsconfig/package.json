@@ -18,7 +18,7 @@
     "@pnpm/tsconfig": "workspace:*"
   },
   "keywords": [
-    "pnpm7"
+    "pnpm8"
   ],
   "engines": {
     "node": ">=14.6"

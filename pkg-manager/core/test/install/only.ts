@@ -92,12 +92,12 @@ test('install dev dependencies only', async () => {
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/is-positive/1.0.0'].dev === false).toBeTruthy()
+    expect(lockfile.packages['/is-positive@1.0.0'].dev === false).toBeTruthy()
   }
 
   {
     const currentLockfile = await project.readCurrentLockfile()
-    expect(currentLockfile.packages['/is-positive/1.0.0']).toBeFalsy()
+    expect(currentLockfile.packages['/is-positive@1.0.0']).toBeFalsy()
   }
 
   // Repeat normal installation adds missing deps to node_modules
@@ -107,7 +107,7 @@ test('install dev dependencies only', async () => {
 
   {
     const currentLockfile = await project.readCurrentLockfile()
-    expect(currentLockfile.packages['/is-positive/1.0.0']).toBeTruthy()
+    expect(currentLockfile.packages['/is-positive@1.0.0']).toBeTruthy()
   }
 })
 

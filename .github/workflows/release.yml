@@ -31,7 +31,7 @@ jobs:
       - name: install pnpm
         run: |
           corepack enable
-          corepack prepare pnpm@next-7 --activate
+          corepack prepare pnpm@next-8 --activate
       - name: pnpm install
         run: pnpm install
       - name: Publish Packages

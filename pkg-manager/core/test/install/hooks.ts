@@ -1,4 +1,4 @@
-import { LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'

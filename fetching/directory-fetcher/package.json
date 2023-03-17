@@ -21,7 +21,7 @@
     "node": ">=14.6"
   },
   "keywords": [
-    "pnpm7",
+    "pnpm8",
     "pnpm",
     "fetcher"
   ],

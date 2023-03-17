@@ -1,7 +1,7 @@
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
+import { LockfileV6 as Lockfile, ProjectSnapshotV6 as ProjectSnapshot } from '@pnpm/lockfile-types'
 import { Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'

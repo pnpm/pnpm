@@ -1036,6 +1036,10 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │                     │ requestretry@1.13.0 > request@2.88.0 >                 │
 │                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
 │                     │ json-schema@0.2.3                                      │
+│                     │                                                        │
+│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
+│                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
+│                     │ json-schema@0.2.3                                      │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-896r-f27r-55mw      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -1117,6 +1121,9 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │                     │                                                        │
 │                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
 │                     │ requestretry@1.13.0 > request@2.88.0 >                 │
+│                     │ har-validator@5.1.3 > ajv@6.10.2                       │
+│                     │                                                        │
+│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
 │                     │ har-validator@5.1.3 > ajv@6.10.2                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-v88g-cgmw-v5xw      │
@@ -2265,6 +2272,10 @@ exports[`plugin-commands-audit audit 1`] = `
 │                     │ requestretry@1.13.0 > request@2.88.0 >                 │
 │                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
 │                     │ json-schema@0.2.3                                      │
+│                     │                                                        │
+│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
+│                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
+│                     │ json-schema@0.2.3                                      │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-896r-f27r-55mw      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -2346,6 +2357,9 @@ exports[`plugin-commands-audit audit 1`] = `
 │                     │                                                        │
 │                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
 │                     │ requestretry@1.13.0 > request@2.88.0 >                 │
+│                     │ har-validator@5.1.3 > ajv@6.10.2                       │
+│                     │                                                        │
+│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
 │                     │ har-validator@5.1.3 > ajv@6.10.2                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-v88g-cgmw-v5xw      │
@@ -3395,6 +3409,10 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │                     │ requestretry@1.13.0 > request@2.88.0 >                 │
 │                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
 │                     │ json-schema@0.2.3                                      │
+│                     │                                                        │
+│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
+│                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
+│                     │ json-schema@0.2.3                                      │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-896r-f27r-55mw      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -3476,6 +3494,9 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │                     │                                                        │
 │                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
 │                     │ requestretry@1.13.0 > request@2.88.0 >                 │
+│                     │ har-validator@5.1.3 > ajv@6.10.2                       │
+│                     │                                                        │
+│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
 │                     │ har-validator@5.1.3 > ajv@6.10.2                       │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-v88g-cgmw-v5xw      │
@@ -4922,7 +4943,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up when JSO
           "paths": [
             ". > karma@2.0.5 > log4js@2.11.0 > hipchat-notifier@1.1.0 > request@2.88.0 > http-signature@1.2.0 > jsprim@1.4.1 > json-schema@0.2.3",
             ". > karma@2.0.5 > log4js@2.11.0 > loggly@1.1.1 > request@2.75.0 > http-signature@1.1.1 > jsprim@1.4.1 > json-schema@0.2.3",
-            ". > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 > requestretry@1.13.0 > request@2.88.0 > http-signature@1.2.0 > jsprim@1.4.1 > json-schema@0.2.3"
+            ". > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 > requestretry@1.13.0 > request@2.88.0 > http-signature@1.2.0 > jsprim@1.4.1 > json-schema@0.2.3",
+            ". > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 > http-signature@1.2.0 > jsprim@1.4.1 > json-schema@0.2.3"
           ]
         }
       ],
@@ -5338,7 +5360,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up when JSO
           "version": "6.10.2",
           "paths": [
             ". > karma@2.0.5 > log4js@2.11.0 > hipchat-notifier@1.1.0 > request@2.88.0 > har-validator@5.1.3 > ajv@6.10.2",
-            ". > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 > requestretry@1.13.0 > request@2.88.0 > har-validator@5.1.3 > ajv@6.10.2"
+            ". > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 > requestretry@1.13.0 > request@2.88.0 > har-validator@5.1.3 > ajv@6.10.2",
+            ". > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 > har-validator@5.1.3 > ajv@6.10.2"
           ]
         }
       ],

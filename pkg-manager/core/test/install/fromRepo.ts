@@ -63,7 +63,10 @@ test('from a github repo with different name via named installation', async () =
 
   const lockfile = await project.readLockfile()
   expect(lockfile.dependencies).toStrictEqual({
-    'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+    'say-hi': {
+      specifier: 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+      version: 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+    },
   })
 
   await project.isExecutable('.bin/hi')
@@ -103,7 +106,10 @@ test('from a github repo with different name', async () => {
 
   const lockfile = await project.readLockfile()
   expect(lockfile.dependencies).toStrictEqual({
-    'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+    'say-hi': {
+      specifier: 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+      version: 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+    },
   })
 
   await project.isExecutable('.bin/hi')
@@ -120,8 +126,8 @@ test('a subdependency is from a github repo with different name', async () => {
   expect(m).toEqual('Hi')
 
   const lockfile = await project.readLockfile()
-  expect(lockfile.packages['/@pnpm.e2e/has-aliased-git-dependency/1.0.0'].dependencies).toStrictEqual({
-    '@pnpm.e2e/has-say-hi-peer': '1.0.0_hi@1.0.0',
+  expect(lockfile.packages['/@pnpm.e2e/has-aliased-git-dependency@1.0.0'].dependencies).toStrictEqual({
+    '@pnpm.e2e/has-say-hi-peer': '1.0.0(hi@1.0.0)',
     'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
   })
 

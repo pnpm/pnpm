@@ -75,6 +75,7 @@
     "@pnpm/client": "workspace:*",
     "@pnpm/core": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.5.0",
@@ -106,7 +107,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core#readme",
   "keywords": [
-    "pnpm7",
+    "pnpm8",
     "dependency manager",
     "install",
     "installer",

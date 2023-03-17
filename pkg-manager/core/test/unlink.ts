@@ -33,7 +33,8 @@ test('unlink 1 package that exists in package.json', async () => {
     }),
   ])
 
-  const opts = await testDefaults({ fastUnpack: false, store: path.resolve('.store') })
+  // TODO: unset useLockfileV6
+  const opts = await testDefaults({ fastUnpack: false, store: path.resolve('.store'), useLockfileV6: false })
 
   let manifest = await link(
     ['is-subdir', 'is-positive'],
@@ -96,7 +97,7 @@ test("don't update package when unlinking", async () => {
 test(`don't update package when unlinking. Initial link is done on a package w/o ${WANTED_LOCKFILE}`, async () => {
   const project = prepareEmpty()
 
-  const opts = await testDefaults({ dir: process.cwd() })
+  const opts = await testDefaults({ dir: process.cwd(), resolutionMode: 'lowest-direct' })
   process.chdir('..')
 
   await writeJsonFile('foo/package.json', {
@@ -122,7 +123,7 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
     rootDir: process.cwd(),
   }, opts)
 
-  expect(project.requireModule('@pnpm.e2e/foo/package.json').version).toBe('100.1.0')
+  expect(project.requireModule('@pnpm.e2e/foo/package.json').version).toBe('100.0.0')
   expect(unlinkResult.manifest.dependencies).toStrictEqual({ '@pnpm.e2e/foo': '^100.0.0' })
 })
 

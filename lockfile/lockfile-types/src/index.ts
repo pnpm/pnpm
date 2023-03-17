@@ -23,6 +23,29 @@ export interface ProjectSnapshot {
   publishDirectory?: string
 }
 
+export interface LockfileV6 {
+  importers: Record<string, ProjectSnapshotV6>
+  lockfileVersion: number | string
+  time?: Record<string, string>
+  packages?: PackageSnapshots
+  neverBuiltDependencies?: string[]
+  onlyBuiltDependencies?: string[]
+  overrides?: Record<string, string>
+  packageExtensionsChecksum?: string
+  patchedDependencies?: Record<string, PatchFile>
+}
+
+export interface ProjectSnapshotV6 {
+  specifiers: ResolvedDependenciesOfImporters
+  dependencies?: ResolvedDependenciesOfImporters
+  optionalDependencies?: ResolvedDependenciesOfImporters
+  devDependencies?: ResolvedDependenciesOfImporters
+  dependenciesMeta?: DependenciesMeta
+  publishDirectory?: string
+}
+
+export type ResolvedDependenciesOfImporters = Record<string, { version: string, specifier: string }>
+
 export interface PackageSnapshots {
   [packagePath: string]: PackageSnapshot
 }
@@ -34,10 +57,6 @@ export interface TarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
-  // needed in some cases to get the auth token
-  // sometimes the tarball URL is under a different path
-  // and the auth token is specified for the registry only
-  registry?: string
 }
 
 /**

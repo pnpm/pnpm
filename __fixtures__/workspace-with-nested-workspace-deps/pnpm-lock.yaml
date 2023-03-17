@@ -1,33 +1,33 @@
-lockfileVersion: 5.4
+lockfileVersion: '6.0'
 
 importers:
 
   .:
-    specifiers:
-      '@scope/a': workspace:*
     dependencies:
-      '@scope/a': link:packages/a
+      '@scope/a':
+        specifier: workspace:*
+        version: link:packages/a
 
   packages/a:
-    specifiers:
-      '@scope/b': workspace:*
     dependencies:
-      '@scope/b': link:../b
+      '@scope/b':
+        specifier: workspace:*
+        version: link:../b
 
   packages/b:
-    specifiers:
-      '@scope/c': workspace:*
-      is-positive: 1.0.0
     dependencies:
-      '@scope/c': link:../c
-      is-positive: 1.0.0
+      '@scope/c':
+        specifier: workspace:*
+        version: link:../c
+      is-positive:
+        specifier: 1.0.0
+        version: 1.0.0
 
-  packages/c:
-    specifiers: {}
+  packages/c: {}
 
 packages:
 
-  /is-positive/1.0.0:
+  /is-positive@1.0.0:
     resolution: {integrity: sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==}
     engines: {node: '>=0.10.0'}
     dev: false

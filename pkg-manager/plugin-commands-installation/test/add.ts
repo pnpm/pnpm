@@ -18,6 +18,7 @@ const DEFAULT_OPTIONS = {
   cacheDir: path.join(tmp, 'cache'),
   extraEnv: {},
   cliOptions: {},
+  deployAllFiles: false,
   include: {
     dependencies: true,
     devDependencies: true,

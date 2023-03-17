@@ -10,10 +10,10 @@ test('time-based resolution mode', async () => {
 
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
-    '/@pnpm.e2e/bravo-dep/1.0.1',
-    '/@pnpm.e2e/bravo/1.0.0',
-    '/@pnpm.e2e/romeo-dep/1.0.0',
-    '/@pnpm.e2e/romeo/1.0.0',
+    '/@pnpm.e2e/bravo-dep@1.0.1',
+    '/@pnpm.e2e/bravo@1.0.0',
+    '/@pnpm.e2e/romeo-dep@1.0.0',
+    '/@pnpm.e2e/romeo@1.0.0',
   ])
 })
 
@@ -27,10 +27,10 @@ test('time-based resolution mode with a registry that supports the time field in
 
   const lockfile = await project.readLockfile()
   expect(Object.keys(lockfile.packages)).toStrictEqual([
-    '/@pnpm.e2e/bravo-dep/1.0.1',
-    '/@pnpm.e2e/bravo/1.0.0',
-    '/@pnpm.e2e/romeo-dep/1.0.0',
-    '/@pnpm.e2e/romeo/1.0.0',
+    '/@pnpm.e2e/bravo-dep@1.0.1',
+    '/@pnpm.e2e/bravo@1.0.0',
+    '/@pnpm.e2e/romeo-dep@1.0.0',
+    '/@pnpm.e2e/romeo@1.0.0',
   ])
 })
 
@@ -46,14 +46,14 @@ test('the lowest version of a direct dependency is installed when resolution mod
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/@pnpm.e2e/foo/100.0.0']).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/foo@100.0.0']).toBeTruthy()
   }
 
   manifest = await install(manifest, await testDefaults({ resolutionMode: 'time-based', update: true }))
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/@pnpm.e2e/foo/100.1.0']).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/foo@100.1.0']).toBeTruthy()
   }
   expect(manifest.dependencies).toStrictEqual({
     '@pnpm.e2e/foo': '^100.1.0',
@@ -78,15 +78,15 @@ test('the lowest version of a direct dependency is installed when resolution mod
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.0.0']).toBeTruthy()
-    expect(lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0']).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.0.0']).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
   }
 
   manifest = await install(manifest, await testDefaults({ resolutionMode: 'lowest-direct', update: true }))
 
   {
     const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep/100.1.0']).toBeTruthy()
+    expect(lockfile.packages['/@pnpm.e2e/pkg-with-1-dep@100.1.0']).toBeTruthy()
   }
   expect(manifest.dependencies).toStrictEqual({
     '@pnpm.e2e/pkg-with-1-dep': '^100.1.0',

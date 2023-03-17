@@ -1,39 +1,41 @@
-lockfileVersion: 5.4
-
-specifiers:
-  is-negative: 1.0.0
-  is-positive: 1.0.0
-  minimatch: ^3.0.4
-  rimraf: 2.5.1
+lockfileVersion: '6.0'
 
 dependencies:
-  minimatch: 3.0.4
-  rimraf: 2.5.1
+  minimatch:
+    specifier: ^3.0.4
+    version: 3.0.4
+  rimraf:
+    specifier: 2.5.1
+    version: 2.5.1
 
 optionalDependencies:
-  is-negative: 1.0.0
+  is-negative:
+    specifier: 1.0.0
+    version: 1.0.0
 
 devDependencies:
-  is-positive: 1.0.0
+  is-positive:
+    specifier: 1.0.0
+    version: 1.0.0
 
 packages:
 
-  /balanced-match/1.0.0:
+  /balanced-match@1.0.0:
     resolution: {integrity: sha1-ibTRmasr7kneFk6gK4nORi1xt2c=}
     dev: false
 
-  /brace-expansion/1.1.8:
+  /brace-expansion@1.1.8:
     resolution: {integrity: sha1-wHshHHyVLsH479Uad+8NHTmQopI=}
     dependencies:
       balanced-match: 1.0.0
       concat-map: 0.0.1
     dev: false
 
-  /concat-map/0.0.1:
+  /concat-map@0.0.1:
     resolution: {integrity: sha1-2Klr13/Wjfd5OnMDajug1UBdR3s=}
     dev: false
 
-  /glob/6.0.4:
+  /glob@6.0.4:
     resolution: {integrity: sha1-DwiGD2oVUSey+t1PnOJLGqtuTSI=}
     dependencies:
       inflight: 1.0.6
@@ -43,53 +45,53 @@ packages:
       path-is-absolute: 1.0.1
     dev: false
 
-  /inflight/1.0.6:
+  /inflight@1.0.6:
     resolution: {integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=}
     dependencies:
       once: 1.4.0
       wrappy: 1.0.2
     dev: false
 
-  /inherits/2.0.3:
+  /inherits@2.0.3:
     resolution: {integrity: sha1-Yzwsg+PaQqUC9SRmAiSA9CCCYd4=}
     dev: false
 
-  /is-negative/1.0.0:
+  /is-negative@1.0.0:
     resolution: {integrity: sha512-1aKMsFUc7vYQGzt//8zhkjRWPoYkajY/I5MJEvrc0pDoHXrW7n5ri8DYxhy3rR+Dk0QFl7GjHHsZU1sppQrWtw==}
     engines: {node: '>=0.10.0'}
     requiresBuild: true
     dev: false
     optional: true
 
-  /is-positive/1.0.0:
+  /is-positive@1.0.0:
     resolution: {integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=}
     engines: {node: '>=0.10.0'}
     dev: true
 
-  /minimatch/3.0.4:
+  /minimatch@3.0.4:
     resolution: {integrity: sha512-yJHVQEhyqPLUTgt9B83PXu6W3rx4MvvHvSUvToogpwoGDOUQ+yDrR0HRot+yOCdCO7u4hX3pWft6kWBBcqh0UA==}
     dependencies:
       brace-expansion: 1.1.8
     dev: false
 
-  /once/1.4.0:
+  /once@1.4.0:
     resolution: {integrity: sha1-WDsap3WWHUsROsF9nFC6753Xa9E=}
     dependencies:
       wrappy: 1.0.2
     dev: false
 
-  /path-is-absolute/1.0.1:
+  /path-is-absolute@1.0.1:
     resolution: {integrity: sha1-F0uSaHNVNP+8es5r9TpanhtcX18=}
     engines: {node: '>=0.10.0'}
     dev: false
 
-  /rimraf/2.5.1:
+  /rimraf@2.5.1:
     resolution: {integrity: sha1-UuHpRvP5ubDV2JiLoxkaryotvUM=}
     hasBin: true
     dependencies:
       glob: 6.0.4
     dev: false
 
-  /wrappy/1.0.2:
+  /wrappy@1.0.2:
     resolution: {integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=}
     dev: false

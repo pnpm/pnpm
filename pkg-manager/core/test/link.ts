@@ -62,7 +62,10 @@ test('relative link is linked by the name of the alias', async () => {
 
   const wantedLockfile = await project.readLockfile()
   expect(wantedLockfile.dependencies).toStrictEqual({
-    hello: 'link:../hello-world-js-bin',
+    hello: {
+      specifier: 'link:../hello-world-js-bin',
+      version: 'link:../hello-world-js-bin',
+    },
   })
 })
 
@@ -146,10 +149,10 @@ test('relative link is rewritten by named installation to regular dependency', a
   expect(project.requireModule('@pnpm.e2e/hello-world-js-bin/package.json').isLocal).toBeFalsy()
 
   const wantedLockfile = await project.readLockfile()
-  expect(wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toBe('1.0.0')
+  expect(wantedLockfile.dependencies['@pnpm.e2e/hello-world-js-bin'].version).toBe('1.0.0')
 
   const currentLockfile = await project.readCurrentLockfile()
-  expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin']).toBe('1.0.0')
+  expect(currentLockfile.dependencies['@pnpm.e2e/hello-world-js-bin'].version).toBe('1.0.0')
 })
 
 test('relative link uses realpath when contained in a symlinked dir', async () => {
