@@ -93,11 +93,11 @@
     "execa": "npm:safe-execa@0.1.2",
     "exists-link": "2.0.0",
     "is-windows": "^1.0.2",
-    "nock": "13.2.9",
+    "nock": "13.3.0",
     "path-name": "^1.0.0",
     "read-yaml-file": "^2.1.0",
     "resolve-link-target": "^2.0.0",
-    "sinon": "^15.0.1",
+    "sinon": "^15.0.2",
     "symlink-dir": "^5.1.1",
     "write-json-file": "^4.3.0",
     "write-yaml-file": "^4.2.0"
