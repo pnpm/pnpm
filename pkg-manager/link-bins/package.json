@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "8.0.9",
+  "version": "8.0.10",
   "description": "Link bins to node_modules/.bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -38,7 +38,7 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@zkochan/cmd-shim": "^5.4.1",
+    "@zkochan/cmd-shim": "^6.0.0",
     "@zkochan/rimraf": "^2.1.2",
     "bin-links": "^4.0.1",
     "is-subdir": "^1.2.0",

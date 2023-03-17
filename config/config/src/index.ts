@@ -84,6 +84,7 @@ export const types = Object.assign({
   offline: Boolean,
   'only-built-dependencies': [String],
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
+  'patches-dir': String,
   pnpmfile: String,
   'prefer-frozen-lockfile': Boolean,
   'prefer-offline': Boolean,
@@ -188,7 +189,7 @@ export async function getConfig (
     'deploy-all-files': false,
     'dedupe-peer-dependents': true,
     'enable-modules-dir': true,
-    'extend-node-path': false,
+    'extend-node-path': true,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,
@@ -315,7 +316,7 @@ export async function getConfig (
     }
     return undefined
   })()
-  pnpmConfig.pnpmHomeDir = process.env.PNPM_HOME ?? getDataDir(process)
+  pnpmConfig.pnpmHomeDir = getDataDir(process)
 
   if (cliOptions['global']) {
     let globalDirRoot

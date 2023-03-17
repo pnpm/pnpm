@@ -46,6 +46,9 @@ export function getDataDir (
     platform: string
   }
 ) {
+  if (opts.env.PNPM_HOME) {
+    return opts.env.PNPM_HOME
+  }
   if (opts.env.XDG_DATA_HOME) {
     return path.join(opts.env.XDG_DATA_HOME, 'pnpm')
   }

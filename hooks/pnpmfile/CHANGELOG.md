@@ -1,5 +1,11 @@
 # @pnpm/pnpmfile
 
+## 4.0.39
+
+### Patch Changes
+
+- @pnpm/core@8.0.3
+
 ## 4.0.38
 
 ### Patch Changes

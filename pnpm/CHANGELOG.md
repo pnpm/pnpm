@@ -17,6 +17,23 @@
 - Direct dependencies are deduped. So if the same dependency is both in a project and in the workspace root, then it is only linked to the workspace root.
 - Create a lockfile even if the project has no dependencies at all.
 
+## 7.30.0-0
+
+### Minor Changes
+
+- Allow to set a custom directory for storing patch files via the `patches-dir` setting [#6215](https://github.com/pnpm/pnpm/pull/6215)
+
+### Patch Changes
+
+- New directories should be prepended to NODE_PATH in command shims, not appended.
+
+## 7.29.3
+
+### Patch Changes
+
+- Command shim should not set higher priority to the `node_modules/.pnpm/node_modules` directory through the `NODE_PATH` env variable, then the command's own `node_modules` directory [#5176](https://github.com/pnpm/pnpm/issues/5176).
+- `extend-node-path` is set back to `true` by default. It was set to `false` in v7.29.2 in order to fix issues with multiple versions of Jest in one workspace. It has caused other issues, so now we keep extending `NODE_PATH`. We have fixed the Jest issue with a different solution [#6213](https://github.com/pnpm/pnpm/issues/6213).
+
 ## 7.29.2
 
 ### Patch Changes
@@ -25,7 +42,6 @@
 - When patch package does not specify a version, use locally installed version by default [#6192](https://github.com/pnpm/pnpm/issues/6192).
 - `patchedDependencies` are now sorted consistently in the lockfile [#6208](https://github.com/pnpm/pnpm/pull/6208).
 - Don't extend `NODE_PATH` in command shims [#5176](https://github.com/pnpm/pnpm/issues/5176).
-- Retry copying file on EBUSY error [#6201](https://github.com/pnpm/pnpm/issues/6201).
 
 ## 7.29.1
 

@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 17.0.1
+
+### Patch Changes
+
+- b38d711f3: `extend-node-path` is `true` by default. It was set to `false` in v7.29.2 but it appears that it was a breaking change [#6213](https://github.com/pnpm/pnpm/issues/6213).
+  - @pnpm/pnpmfile@4.0.39
+
 ## 17.0.0
 
 ### Major Changes
