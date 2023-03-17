@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-publishing
 
+## 6.1.22
+
+### Patch Changes
+
+- @pnpm/config@17.0.2
+- @pnpm/cli-utils@1.1.7
+
 ## 6.1.21
 
 ### Patch Changes

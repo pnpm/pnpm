@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-env
 
+## 3.1.36
+
+### Patch Changes
+
+- 685b3a7ea: New directories should be prepended to NODE_PATH in command shims, not appended.
+  - @pnpm/config@17.0.2
+  - @pnpm/cli-utils@1.1.7
+
 ## 3.1.35
 
 ### Patch Changes

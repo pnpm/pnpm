@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-patching
 
+## 2.2.0
+
+### Minor Changes
+
+- 40845b9ad: Allow to set a custom directory for storing patch files via the `patches-dir` setting [#6215](https://github.com/pnpm/pnpm/pull/6215)
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@11.5.7
+- @pnpm/config@17.0.2
+- @pnpm/cli-utils@1.1.7
+- @pnpm/store-connection-manager@5.2.20
+
 ## 2.1.15
 
 ### Patch Changes

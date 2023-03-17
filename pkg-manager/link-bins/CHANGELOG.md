@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 8.0.11
+
+### Patch Changes
+
+- 685b3a7ea: New directories should be prepended to NODE_PATH in command shims, not appended.
+
 ## 8.0.10
 
 ### Patch Changes

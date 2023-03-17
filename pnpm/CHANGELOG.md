@@ -1,5 +1,16 @@
 # pnpm
 
+## 7.30.0
+
+### Minor Changes
+
+- Allow to set a custom directory for storing patch files via the `patches-dir` setting [#6215](https://github.com/pnpm/pnpm/pull/6215)
+
+### Patch Changes
+
+- New directories should be prepended to NODE_PATH in command shims, not appended.
+- Retry copying file on EBUSY error [#6201](https://github.com/pnpm/pnpm/issues/6201).
+
 ## 7.30.0-0
 
 ### Minor Changes
