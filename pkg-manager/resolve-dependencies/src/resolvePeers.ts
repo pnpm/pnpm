@@ -87,23 +87,9 @@ export function resolvePeers<T extends PartialResolvedPackage> (
       ..._createPkgsByName({ directNodeIdsByAlias, topParents }),
     }
 
-    const aliases: Record<string, string[]> = {}
-    const allDependencies = {
-      ...manifest.dependencies,
-      ...manifest.devDependencies,
-    }
-    for (const [pkgName, version] of Object.entries(allDependencies)) {
-      if (version.startsWith('npm:')) {
-        const aliasedPkgName = version.substring(4).split('@')[0]
-        aliases[aliasedPkgName] = aliases[aliasedPkgName] ?? []
-        aliases[aliasedPkgName].push(pkgName)
-      }
-    }
-
     resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
       dependenciesTree: opts.dependenciesTree,
       depGraph,
-      aliases,
       lockfileDir: opts.lockfileDir,
       pathsByNodeId,
       depPathsByPkgId,
@@ -202,27 +188,35 @@ function createPkgsByName<T extends PartialResolvedPackage> (
     topParents: Array<{ name: string, version: string, linkedDir?: string }>
   }
 ) {
-  return Object.assign(
-    Object.fromEntries(
-      topParents.map(({ name, version, linkedDir }): KeyValuePair<string, ParentRef> => [
-        name,
-        {
-          depth: 0,
-          version,
-          nodeId: linkedDir,
-        },
-      ])
-    ),
-    toPkgByName(
-      Object
-        .keys(directNodeIdsByAlias)
-        .map((alias) => ({
-          alias,
-          node: dependenciesTree[directNodeIdsByAlias[alias]],
-          nodeId: directNodeIdsByAlias[alias],
-        }))
-    )
+  const parentRefs = toPkgByName(
+    Object
+      .keys(directNodeIdsByAlias)
+      .map((alias) => ({
+        alias,
+        node: dependenciesTree[directNodeIdsByAlias[alias]],
+        nodeId: directNodeIdsByAlias[alias],
+      }))
   )
+  for (const { name, version, linkedDir } of topParents) {
+    if (!parentRefs[name]) {
+      parentRefs[name] = []
+    }
+    parentRefs[name].push({
+      depth: 0,
+      version,
+      nodeId: linkedDir,
+    })
+    if (version.startsWith('npm:')) {
+      const aliasedPkgName = version.substring(4).split('@')[0]
+      parentRefs[aliasedPkgName] = parentRefs[aliasedPkgName] ?? []
+      parentRefs[aliasedPkgName].push({
+        depth: 0,
+        version,
+        nodeId: linkedDir,
+      })
+    }
+  }
+  return parentRefs
 }
 
 interface PeersCacheItem {
@@ -249,7 +243,6 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   ctx: ResolvePeersContext & {
     dependenciesTree: DependenciesTree<T>
     depGraph: GenericDependenciesGraph<T>
-    aliases: Record<string, string[]>
     virtualStoreDir: string
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
@@ -288,12 +281,12 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   const hit = ctx.peersCache.get(resolvedPackage.depPath)?.find((cache) =>
     cache.resolvedPeers
       .every(([name, cachedNodeId]) => {
-        const parentPkgNodeId = parentPkgs[name]?.nodeId
+        const parentPkgNodeId = parentPkgs[name]?.[0].nodeId
         if (!parentPkgNodeId || !cachedNodeId) return false
-        if (parentPkgs[name].nodeId === cachedNodeId) return true
+        if (parentPkgNodeId === cachedNodeId) return true
         if (
           ctx.pathsByNodeId[cachedNodeId] &&
-          ctx.pathsByNodeId[cachedNodeId] === ctx.pathsByNodeId[parentPkgs[name].nodeId!]
+          ctx.pathsByNodeId[cachedNodeId] === ctx.pathsByNodeId[parentPkgNodeId]
         ) return true
         const parentDepPath = (ctx.dependenciesTree[parentPkgNodeId].resolvedPackage as T).depPath
         if (!ctx.purePkgs.has(parentDepPath)) return false
@@ -321,7 +314,6 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       currentDepth: node.depth,
       dependenciesTree: ctx.dependenciesTree,
       lockfileDir: ctx.lockfileDir,
-      aliases: ctx.aliases,
       nodeId,
       parentPkgs,
       peerDependencyIssues: ctx.peerDependencyIssues,
@@ -453,7 +445,6 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   },
   parentPkgs: ParentRefs,
   ctx: ResolvePeersContext & {
-    aliases: Record<string, string[]>
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
     peersCache: PeersCache
     virtualStoreDir: string
@@ -482,7 +473,6 @@ function _resolvePeers<T extends PartialResolvedPackage> (
   ctx: {
     currentDepth: number
     lockfileDir: string
-    aliases: Record<string, string[]>
     nodeId: string
     parentPkgs: ParentRefs
     resolvedPackage: T
@@ -496,10 +486,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
   for (const peerName in ctx.resolvedPackage.peerDependencies) { // eslint-disable-line:forin
     const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName].replace(/^workspace:/, '')
 
-    const pkgsToCheck = [
-      ctx.parentPkgs[peerName],
-      ...(ctx.aliases[peerName] || []).map((alias) => ctx.parentPkgs[alias]),
-    ].filter(Boolean)
+    const pkgsToCheck = ctx.parentPkgs[peerName]
 
     const optionalPeer = ctx.resolvedPackage.peerDependenciesMeta?.[peerName]?.optional === true
     const badPeerIssues: BadPeerDependencyIssue[] = []
@@ -599,7 +586,7 @@ function getLocationFromNodeId<T> (
 }
 
 interface ParentRefs {
-  [name: string]: ParentRef
+  [name: string]: ParentRef[]
 }
 
 interface ParentRef {
@@ -612,10 +599,23 @@ interface ParentRef {
 function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{ alias: string, nodeId: string, node: DependenciesTreeNode<T> }>): ParentRefs {
   const pkgsByName: ParentRefs = {}
   for (const { alias, node, nodeId } of nodes) {
-    pkgsByName[alias] = {
+    if (!pkgsByName[alias]) {
+      pkgsByName[alias] = []
+    }
+    pkgsByName[alias].push({
       depth: node.depth,
       nodeId,
       version: node.resolvedPackage.version,
+    })
+    if (alias !== node.resolvedPackage.name) {
+      if (!pkgsByName[node.resolvedPackage.name]) {
+        pkgsByName[node.resolvedPackage.name] = []
+      }
+      pkgsByName[node.resolvedPackage.name].push({
+        depth: node.depth,
+        nodeId,
+        version: node.resolvedPackage.version,
+      })
     }
   }
   return pkgsByName
