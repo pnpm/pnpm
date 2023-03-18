@@ -1451,3 +1451,18 @@ test('if multiple packages satisfy peer dependencies semver, prefer the one that
     },
   })
 })
+
+test('resolve peer dependencies from aliased subdependencies if they are dependencies of a parent package', async () => {
+  prepareEmpty()
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+
+  await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/abc-parent-with-aliases'],
+    await testDefaults({ autoInstallPeers: false, strictPeerDependencies: false })
+  )
+
+  const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
+  expect(lockfile.packages).toHaveProperty('/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)')
+})
