@@ -4700,8 +4700,8 @@ importers:
         specifier: ^6.2.0
         version: 6.2.0
       lru-cache:
-        specifier: ^7.18.1
-        version: 7.18.1
+        specifier: ^8.0.4
+        version: 8.0.4
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
@@ -5195,8 +5195,8 @@ importers:
         specifier: ^4.1.2
         version: 4.1.2
       lru-cache:
-        specifier: ^7.18.1
-        version: 7.18.1
+        specifier: ^8.0.4
+        version: 8.0.4
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
@@ -13826,14 +13826,14 @@ packages:
     resolution: {integrity: sha512-ysxwsnTKdAx96aTRdhDOCQfDgbHnt8SK0KY8SEjO0wHinhWOFTESbjVCMPbU1uGXg/ch4lifqx0wfjOawU2+WA==}
     engines: {node: '>=12'}
 
-  /lru-cache@7.18.1:
-    resolution: {integrity: sha512-8/HcIENyQnfUTCDizRu9rrDyG6XG/21M4X7/YEGZeD76ZJilFPAUVb/2zysFf7VVO1LEjCDFyHp8pMMvozIrvg==}
-    engines: {node: '>=12'}
-    dev: false
-
   /lru-cache@7.18.3:
     resolution: {integrity: sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==}
     engines: {node: '>=12'}
+
+  /lru-cache@8.0.4:
+    resolution: {integrity: sha512-E9FF6+Oc/uFLqZCuZwRKUzgFt5Raih6LfxknOSAVTjNkrCZkBf7DQCwJxZQgd9l4eHjIJDGR+E+1QKD1RhThPw==}
+    engines: {node: '>=16.14'}
+    dev: false
 
   /lunr-mutable-indexes@2.3.2:
     resolution: {integrity: sha512-Han6cdWAPPFM7C2AigS2Ofl3XjAT0yVMrUixodJEpyg71zCtZ2yzXc3s+suc/OaNt4ca6WJBEzVnEIjxCTwFMw==}
@@ -17829,7 +17829,7 @@ time:
   /lcov-result-merger@3.3.0: '2022-06-21T06:32:52.863Z'
   /load-json-file@6.2.0: '2019-07-11T08:30:09.981Z'
   /loud-rejection@2.2.0: '2019-09-28T16:02:58.271Z'
-  /lru-cache@7.18.1: '2023-03-01T09:26:57.672Z'
+  /lru-cache@8.0.4: '2023-03-17T23:05:36.272Z'
   /make-empty-dir@2.0.0: '2021-04-11T12:30:52.269Z'
   /mdast-util-to-string@2.0.0: '2020-11-11T09:15:26.835Z'
   /mem@8.1.1: '2021-04-20T15:49:07.407Z'
