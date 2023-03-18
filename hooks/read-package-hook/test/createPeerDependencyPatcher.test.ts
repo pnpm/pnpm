@@ -1,4 +1,4 @@
-import { ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest } from '@pnpm/types'
 import { createPeerDependencyPatcher } from '../lib/createPeerDependencyPatcher'
 
 test('createPeerDependencyPatcher() ignores missing', () => {

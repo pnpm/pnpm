@@ -1,6 +1,6 @@
 import { streamParser } from '@pnpm/logger'
-import { StoreController } from '@pnpm/store-controller-types'
-import { ReporterFunction } from './types'
+import { type StoreController } from '@pnpm/store-controller-types'
+import { type ReporterFunction } from './types'
 
 export async function storePrune (
   opts: {

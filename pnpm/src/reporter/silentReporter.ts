@@ -1,4 +1,4 @@
-import { LogBase } from '@pnpm/logger'
+import { type LogBase } from '@pnpm/logger'
 
 export function silentReporter (
   streamParser: {

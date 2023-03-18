@@ -1,5 +1,5 @@
 import path from 'path'
-import { ContextLog, PackageImportMethodLog } from '@pnpm/core-loggers'
+import { type ContextLog, type PackageImportMethodLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import normalize from 'normalize-path'

@@ -5,7 +5,7 @@ import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
 import type { Log } from '@pnpm/core-loggers'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
-import { ImportIndexedPackage } from '@pnpm/store-controller-types'
+import { type ImportIndexedPackage } from '@pnpm/store-controller-types'
 import { requirePnpmfile } from './requirePnpmfile'
 
 interface HookContext {

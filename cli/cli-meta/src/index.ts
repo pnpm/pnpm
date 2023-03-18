@@ -1,5 +1,5 @@
 import path from 'path'
-import { DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 
 const defaultManifest = {

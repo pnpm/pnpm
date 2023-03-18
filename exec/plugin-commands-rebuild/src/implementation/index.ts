@@ -5,23 +5,23 @@ import {
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
-import { getContext, PnpmContext } from '@pnpm/get-context'
+import { getContext, type PnpmContext } from '@pnpm/get-context'
 import {
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
 } from '@pnpm/lifecycle'
 import { linkBins } from '@pnpm/link-bins'
 import {
-  Lockfile,
+  type Lockfile,
   nameVerFromPkgSnapshot,
   packageIsIndependent,
-  PackageSnapshots,
+  type PackageSnapshots,
 } from '@pnpm/lockfile-utils'
-import { lockfileWalker, LockfileWalkerStep } from '@pnpm/lockfile-walker'
+import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
-import { ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import runGroups from 'run-groups'
@@ -31,11 +31,11 @@ import pLimit from 'p-limit'
 import semver from 'semver'
 import {
   extendRebuildOptions,
-  RebuildOptions,
-  StrictRebuildOptions,
+  type RebuildOptions,
+  type StrictRebuildOptions,
 } from './extendRebuildOptions'
 
-export { RebuildOptions }
+export type { RebuildOptions }
 
 function findPackages (
   packages: PackageSnapshots,

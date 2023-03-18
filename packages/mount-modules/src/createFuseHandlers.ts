@@ -1,6 +1,6 @@
 import fs from 'fs'
-import { getFilePathInCafs, getFilePathByModeInCafs, PackageFilesIndex } from '@pnpm/cafs'
-import { Lockfile, readWantedLockfile, PackageSnapshot, TarballResolution } from '@pnpm/lockfile-file'
+import { getFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/cafs'
+import { type Lockfile, readWantedLockfile, type PackageSnapshot, type TarballResolution } from '@pnpm/lockfile-file'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'

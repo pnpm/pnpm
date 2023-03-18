@@ -1,20 +1,20 @@
 import path from 'path'
-import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
+import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import { readPackageJsonFromDir, safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { StoreController } from '@pnpm/store-controller-types'
+import { type StoreController } from '@pnpm/store-controller-types'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
-import { DependencyManifest } from '@pnpm/types'
-import pDefer, { DeferredPromise } from 'p-defer'
+import { type DependencyManifest } from '@pnpm/types'
+import pDefer, { type DeferredPromise } from 'p-defer'
 import pickBy from 'ramda/src/pickBy'
 import runGroups from 'run-groups'
-import { buildSequence, DependenciesGraph, DependenciesGraphNode } from './buildSequence'
+import { buildSequence, type DependenciesGraph, type DependenciesGraphNode } from './buildSequence'
 
-export { DepsStateCache }
+export type { DepsStateCache }
 
 export async function buildModules (
   depGraph: DependenciesGraph,

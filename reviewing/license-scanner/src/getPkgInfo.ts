@@ -4,17 +4,17 @@ import { readFile } from 'fs/promises'
 import { readPackageJson } from '@pnpm/read-package-json'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import pLimit from 'p-limit'
-import { PackageManifest, Registries } from '@pnpm/types'
+import { type PackageManifest, type Registries } from '@pnpm/types'
 import {
   getFilePathByModeInCafs,
   getFilePathInCafs,
-  PackageFileInfo,
-  PackageFilesIndex,
+  type PackageFileInfo,
+  type PackageFilesIndex,
 } from '@pnpm/cafs'
 import loadJsonFile from 'load-json-file'
 import { PnpmError } from '@pnpm/error'
-import { LicensePackage } from './licenses'
-import { DirectoryResolution, PackageSnapshot, pkgSnapshotToResolution, Resolution } from '@pnpm/lockfile-utils'
+import { type LicensePackage } from './licenses'
+import { type DirectoryResolution, type PackageSnapshot, pkgSnapshotToResolution, type Resolution } from '@pnpm/lockfile-utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 
 const limitPkgReads = pLimit(4)

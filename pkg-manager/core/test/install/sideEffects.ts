@@ -1,7 +1,7 @@
 import { promises as fs, existsSync, readFileSync } from 'fs'
 import path from 'path'
 import { addDependenciesToPackage, install } from '@pnpm/core'
-import { getFilePathInCafs, getFilePathByModeInCafs, PackageFilesIndex } from '@pnpm/cafs'
+import { getFilePathInCafs, getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/cafs'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { prepareEmpty } from '@pnpm/prepare'
 import { ENGINE_NAME } from '@pnpm/constants'

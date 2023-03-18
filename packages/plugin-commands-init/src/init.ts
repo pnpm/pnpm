@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
-import { UniversalOptions } from '@pnpm/config'
+import { type UniversalOptions } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
 import renderHelp from 'render-help'

@@ -1,17 +1,17 @@
 import { PnpmError } from '@pnpm/error'
 import {
-  FetchFunction,
-  FetchOptions,
+  type FetchFunction,
+  type FetchOptions,
 } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import {
-  FetchFromRegistry,
-  GetAuthHeader,
-  RetryTimeoutOptions,
+  type FetchFromRegistry,
+  type GetAuthHeader,
+  type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import {
   createDownloader,
-  DownloadFunction,
+  type DownloadFunction,
   TarballIntegrityError,
 } from './remoteTarballFetcher'
 import { createLocalTarballFetcher } from './localTarballFetcher'

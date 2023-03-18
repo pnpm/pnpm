@@ -3,7 +3,7 @@ import pnpmExec from '@pnpm/exec'
 import { createExportableManifest } from '@pnpm/exportable-manifest'
 import {
   getLockfileImporterId,
-  ProjectSnapshot,
+  type ProjectSnapshot,
   readWantedLockfile,
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'

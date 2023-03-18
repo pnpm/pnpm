@@ -1,5 +1,5 @@
-import { OutdatedPackage } from '@pnpm/outdated'
-import { SEMVER_CHANGE } from '@pnpm/semver-diff'
+import { type OutdatedPackage } from '@pnpm/outdated'
+import { type SEMVER_CHANGE } from '@pnpm/semver-diff'
 
 export type OutdatedWithVersionDiff = OutdatedPackage & { change: SEMVER_CHANGE | null, diff?: [string[], string[]] }
 

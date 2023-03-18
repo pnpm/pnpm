@@ -1,4 +1,4 @@
-import { PackageManifest, PublishConfig } from '@pnpm/types'
+import { type PackageManifest, type PublishConfig } from '@pnpm/types'
 import { overridePublishConfig } from '../lib/overridePublishConfig'
 
 test('publish config to be overridden', async () => {

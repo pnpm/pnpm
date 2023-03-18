@@ -1,7 +1,7 @@
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
 import lifecycle from '@pnpm/npm-lifecycle'
-import { DependencyManifest, ProjectManifest } from '@pnpm/types'
+import { type DependencyManifest, type ProjectManifest } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
 import { existsSync } from 'fs'
 

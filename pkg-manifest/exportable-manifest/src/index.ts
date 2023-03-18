@@ -1,7 +1,7 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
-import { Dependencies, ProjectManifest } from '@pnpm/types'
+import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import omit from 'ramda/src/omit'
 import pMapValues from 'p-map-values'
 import { overridePublishConfig } from './overridePublishConfig'

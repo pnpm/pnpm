@@ -1,5 +1,5 @@
 import path from 'path'
-import { DependenciesField, HoistedDependencies, Registries } from '@pnpm/types'
+import { type DependenciesField, type HoistedDependencies, type Registries } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
 import mapValues from 'ramda/src/map'
 import isWindows from 'is-windows'

@@ -1,7 +1,7 @@
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import {
   createOrConnectStoreController,
-  CreateStoreControllerOptions,
+  type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import type { ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'

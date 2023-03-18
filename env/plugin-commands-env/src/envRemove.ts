@@ -9,7 +9,7 @@ import rimraf from '@zkochan/rimraf'
 import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
 import { getNodeExecPathAndTargetDir } from './utils'
 import { getNodeMirror } from './getNodeMirror'
-import { getNodeVersionsBaseDir, NvmNodeCommandOptions } from './node'
+import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
 
 export async function envRemove (opts: NvmNodeCommandOptions, params: string[]) {
   if (!opts.global) {

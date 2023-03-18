@@ -1,7 +1,7 @@
 import { writeFileSync } from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { Lockfile } from '@pnpm/lockfile-types'
+import { type Lockfile } from '@pnpm/lockfile-types'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'

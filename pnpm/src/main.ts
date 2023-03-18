@@ -6,19 +6,19 @@ import loudRejection from 'loud-rejection'
 import { packageManager } from '@pnpm/cli-meta'
 import { getConfig } from '@pnpm/cli-utils'
 import {
-  Config,
+  type Config,
 } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { logger } from '@pnpm/logger'
-import { ParsedCliArgs } from '@pnpm/parse-cli-args'
+import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { node } from '@pnpm/plugin-commands-env'
 import chalk from 'chalk'
 import { checkForUpdates } from './checkForUpdates'
 import { pnpmCmds, rcOptionsTypes } from './cmd'
 import { formatUnknownOptionsError } from './formatError'
 import { parseCliArgs } from './parseCliArgs'
-import { initReporter, ReporterType } from './reporter'
+import { initReporter, type ReporterType } from './reporter'
 import { isCI } from 'ci-info'
 import path from 'path'
 import isEmpty from 'ramda/src/isEmpty'
@@ -230,7 +230,7 @@ export async function main (inputArgv: string[]) {
     config.workspaceDir = wsDir
   }
 
-  let { output, exitCode }: { output: string | null, exitCode: number } = await (async () => {
+  let { output, exitCode }: { output?: string | null, exitCode: number } = await (async () => {
     // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
     await new Promise<void>((resolve) => setTimeout(() => {
       resolve()

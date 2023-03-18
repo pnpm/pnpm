@@ -1,6 +1,6 @@
-import { PnpmError } from '@pnpm/error'
+import { type PnpmError } from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
-import { Lockfile } from '@pnpm/lockfile-types'
+import { type Lockfile } from '@pnpm/lockfile-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { install, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'

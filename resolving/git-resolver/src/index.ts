@@ -1,12 +1,12 @@
-import { ResolveResult } from '@pnpm/resolver-base'
+import { type ResolveResult } from '@pnpm/resolver-base'
 import git from 'graceful-git'
 import semver from 'semver'
-import { parsePref, HostedPackageSpec } from './parsePref'
+import { parsePref, type HostedPackageSpec } from './parsePref'
 
-export { HostedPackageSpec }
+export type { HostedPackageSpec }
 
 export function createGitResolver (
-  opts: {}
+  opts: unknown
 ) {
   return async function resolveGit (
     wantedDependency: { pref: string }

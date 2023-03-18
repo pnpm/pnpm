@@ -1,5 +1,5 @@
 import graphSequencer from '@pnpm/graph-sequencer'
-import { PackageManifest, PatchFile } from '@pnpm/types'
+import { type PackageManifest, type PatchFile } from '@pnpm/types'
 import filter from 'ramda/src/filter'
 
 export interface DependenciesGraphNode {

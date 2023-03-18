@@ -1,4 +1,4 @@
-import { InstallCheckLog } from '@pnpm/core-loggers'
+import { type InstallCheckLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
 import { formatWarn } from './utils/formatWarn'

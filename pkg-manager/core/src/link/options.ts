@@ -1,12 +1,12 @@
 import path from 'path'
 import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
-import { StoreController } from '@pnpm/store-controller-types'
+import { type StoreController } from '@pnpm/store-controller-types'
 import {
-  DependenciesField,
-  ProjectManifest,
-  Registries,
+  type DependenciesField,
+  type ProjectManifest,
+  type Registries,
 } from '@pnpm/types'
-import { ReporterFunction } from '../types'
+import { type ReporterFunction } from '../types'
 
 interface StrictLinkOptions {
   binsDir: string

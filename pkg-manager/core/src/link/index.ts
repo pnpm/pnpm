@@ -7,7 +7,7 @@ import { getContextForSingleImporter } from '@pnpm/get-context'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
-  ProjectSnapshot,
+  type ProjectSnapshot,
   writeCurrentLockfile,
   writeLockfiles,
 } from '@pnpm/lockfile-file'
@@ -17,22 +17,22 @@ import {
   getSpecFromPackageManifest,
   getDependencyTypeFromManifest,
   guessDependencyType,
-  PackageSpecObject,
+  type PackageSpecObject,
   updateProjectManifestObject,
 } from '@pnpm/manifest-utils'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
-  DependenciesField,
+  type DependenciesField,
   DEPENDENCIES_FIELDS,
-  DependencyManifest,
-  ProjectManifest,
+  type DependencyManifest,
+  type ProjectManifest,
 } from '@pnpm/types'
 import normalize from 'normalize-path'
 import {
   extendOptions,
-  LinkOptions,
+  type LinkOptions,
 } from './options'
 
 type LinkFunctionOptions = LinkOptions & {
@@ -40,7 +40,7 @@ type LinkFunctionOptions = LinkOptions & {
   dir: string
 }
 
-export { LinkFunctionOptions }
+export type { LinkFunctionOptions }
 
 export async function link (
   linkFromPkgs: Array<{ alias: string, path: string } | string>,

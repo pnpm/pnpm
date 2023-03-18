@@ -1,5 +1,5 @@
 import path from 'path'
-import { Log } from '@pnpm/core-loggers'
+import { type Log } from '@pnpm/core-loggers'
 import { requireHooks, requirePnpmfile, BadReadPackageHookError } from '@pnpm/pnpmfile'
 
 test('ignoring a pnpmfile that exports undefined', () => {

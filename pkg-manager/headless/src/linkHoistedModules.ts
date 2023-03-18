@@ -1,5 +1,5 @@
 import path from 'path'
-import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
+import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   progressLogger,
   removalLogger,
@@ -8,16 +8,16 @@ import {
 import { linkBins } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
 import {
-  PackageFilesResponse,
-  StoreController,
+  type PackageFilesResponse,
+  type StoreController,
 } from '@pnpm/store-controller-types'
 import pLimit from 'p-limit'
 import difference from 'ramda/src/difference'
 import isEmpty from 'ramda/src/isEmpty'
 import rimraf from '@zkochan/rimraf'
 import {
-  DepHierarchy,
-  DependenciesGraph,
+  type DepHierarchy,
+  type DependenciesGraph,
 } from './lockfileToDepGraph'
 
 const limitLinking = pLimit(16)

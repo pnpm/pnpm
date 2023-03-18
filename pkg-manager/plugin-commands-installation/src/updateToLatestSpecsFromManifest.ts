@@ -1,5 +1,5 @@
 import { filterDependenciesByType, getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import { IncludedDependencies, ProjectManifest } from '@pnpm/types'
+import { type IncludedDependencies, type ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
 
 export function updateToLatestSpecsFromManifest (manifest: ProjectManifest, include: IncludedDependencies) {

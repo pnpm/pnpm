@@ -1,6 +1,6 @@
 import path from 'path'
 import { readProjects } from '@pnpm/filter-workspace-packages'
-import { Lockfile } from '@pnpm/lockfile-types'
+import { type Lockfile } from '@pnpm/lockfile-types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'

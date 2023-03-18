@@ -1,11 +1,11 @@
-import http, { IncomingMessage, Server, ServerResponse } from 'http'
+import http, { type IncomingMessage, type Server, type ServerResponse } from 'http'
 import { globalInfo } from '@pnpm/logger'
 import {
-  BundledManifestFunction,
-  PackageFilesResponse,
-  RequestPackageOptions,
-  StoreController,
-  WantedDependency,
+  type BundledManifestFunction,
+  type PackageFilesResponse,
+  type RequestPackageOptions,
+  type StoreController,
+  type WantedDependency,
 } from '@pnpm/store-controller-types'
 import { locking } from './lock'
 

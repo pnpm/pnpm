@@ -1,5 +1,5 @@
 import { packageManager } from '@pnpm/cli-meta'
-import { getConfig as _getConfig, CliOptions } from '@pnpm/config'
+import { getConfig as _getConfig, type CliOptions } from '@pnpm/config'
 import { formatWarn } from '@pnpm/default-reporter'
 
 export async function getConfig (

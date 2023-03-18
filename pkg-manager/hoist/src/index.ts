@@ -2,15 +2,15 @@ import fs from 'fs'
 import path from 'path'
 import { linkLogger } from '@pnpm/core-loggers'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { linkBins, WarnFunction } from '@pnpm/link-bins'
+import { linkBins, type WarnFunction } from '@pnpm/link-bins'
 import {
-  Lockfile,
+  type Lockfile,
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
-import { lockfileWalker, LockfileWalkerStep } from '@pnpm/lockfile-walker'
+import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
-import { HoistedDependencies } from '@pnpm/types'
+import { type HoistedDependencies } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import * as dp from '@pnpm/dependency-path'
 import isSubdir from 'is-subdir'

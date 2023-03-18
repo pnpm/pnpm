@@ -18,15 +18,15 @@ import { checkGlobalBinDir } from './checkGlobalBinDir'
 import { getScopeRegistries } from './getScopeRegistries'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
 import {
-  Config,
-  ConfigWithDeprecatedSettings,
-  UniversalOptions,
+  type Config,
+  type ConfigWithDeprecatedSettings,
+  type UniversalOptions,
 } from './Config'
 import { getWorkspaceConcurrency } from './concurrency'
 
 export * from './readLocalConfig'
 
-export { Config, UniversalOptions }
+export type { Config, UniversalOptions }
 
 const npmDefaults = loadNpmConf.defaults
 

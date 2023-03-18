@@ -1,34 +1,34 @@
-import { Lockfile, PatchFile } from '@pnpm/lockfile-types'
-import { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolver-base'
-import { StoreController } from '@pnpm/store-controller-types'
+import { type Lockfile, type PatchFile } from '@pnpm/lockfile-types'
+import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
+import { type StoreController } from '@pnpm/store-controller-types'
 import {
-  AllowedDeprecatedVersions,
-  ProjectManifest,
-  ReadPackageHook,
-  Registries,
+  type AllowedDeprecatedVersions,
+  type ProjectManifest,
+  type ReadPackageHook,
+  type Registries,
 } from '@pnpm/types'
 import partition from 'ramda/src/partition'
 import zipObj from 'ramda/src/zipObj'
-import { WantedDependency } from './getNonDevWantedDependencies'
+import { type WantedDependency } from './getNonDevWantedDependencies'
 import {
   createNodeId,
   nodeIdContainsSequence,
 } from './nodeIdUtils'
 import {
-  ChildrenByParentDepPath,
-  DependenciesTree,
-  LinkedDependency,
-  ImporterToResolve,
-  ParentPkgAliases,
-  PendingNode,
-  PkgAddress,
+  type ChildrenByParentDepPath,
+  type DependenciesTree,
+  type LinkedDependency,
+  type ImporterToResolve,
+  type ParentPkgAliases,
+  type PendingNode,
+  type PkgAddress,
   resolveRootDependencies,
-  ResolvedPackage,
-  ResolvedPackagesByDepPath,
+  type ResolvedPackage,
+  type ResolvedPackagesByDepPath,
 } from './resolveDependencies'
 
 export * from './nodeIdUtils'
-export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
+export type { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 
 export interface ResolvedDirectDependency {
   alias: string

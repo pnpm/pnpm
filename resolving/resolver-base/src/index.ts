@@ -1,4 +1,4 @@
-import { DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest } from '@pnpm/types'
 
 /**
  * tarball hosted remotely

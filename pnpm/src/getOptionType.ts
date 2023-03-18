@@ -12,7 +12,7 @@ export interface CompletionCtx {
 }
 
 export function getOptionCompletions (
-  optionTypes: Record<string, Object>,
+  optionTypes: Record<string, unknown>,
   shorthands: Record<string, string | string[]>,
   option: string
 ) {
@@ -20,7 +20,7 @@ export function getOptionCompletions (
   return optionTypeToCompletion(optionType)
 }
 
-function optionTypeToCompletion (optionType: Object): undefined | string[] {
+function optionTypeToCompletion (optionType: unknown): undefined | string[] {
   switch (optionType) {
   // In this case the option is complete
   case undefined:
@@ -37,7 +37,7 @@ function optionTypeToCompletion (optionType: Object): undefined | string[] {
 }
 
 function getOptionType (
-  optionTypes: Record<string, Object>,
+  optionTypes: Record<string, unknown>,
   shorthands: Record<string, string | string[]>,
   option: string
 ) {

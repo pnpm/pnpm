@@ -1,7 +1,7 @@
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { Config } from '@pnpm/config'
-import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { type Config } from '@pnpm/config'
+import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { mutateModulesInSingleProject } from '@pnpm/core'
 import renderHelp from 'render-help'
 import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
@@ -79,14 +79,15 @@ export async function handler (
   })
 
   if (!params || (params.length === 0)) {
-    return mutateModulesInSingleProject({
+    await mutateModulesInSingleProject({
       dependencyNames: params,
       manifest: await readProjectManifestOnly(opts.dir, opts),
       mutation: 'unlinkSome',
       rootDir: opts.dir,
     }, unlinkOpts)
+    return
   }
-  return mutateModulesInSingleProject({
+  await mutateModulesInSingleProject({
     manifest: await readProjectManifestOnly(opts.dir, opts),
     mutation: 'unlink',
     rootDir: opts.dir,

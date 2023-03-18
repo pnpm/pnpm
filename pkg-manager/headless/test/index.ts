@@ -5,10 +5,10 @@ import { assertProject } from '@pnpm/assert-project'
 import { getFilePathInCafs } from '@pnpm/cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
-  PackageManifestLog,
-  RootLog,
-  StageLog,
-  StatsLog,
+  type PackageManifestLog,
+  type RootLog,
+  type StageLog,
+  type StatsLog,
 } from '@pnpm/core-loggers'
 import { headlessInstall } from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile-file'

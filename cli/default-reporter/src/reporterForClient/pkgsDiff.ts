@@ -1,5 +1,5 @@
-import * as logs from '@pnpm/core-loggers'
-import { PackageManifest } from '@pnpm/types'
+import type * as logs from '@pnpm/core-loggers'
+import { type PackageManifest } from '@pnpm/types'
 import * as Rx from 'rxjs'
 import { filter, map, mapTo, reduce, scan, startWith, take } from 'rxjs/operators'
 import mergeRight from 'ramda/src/mergeRight'

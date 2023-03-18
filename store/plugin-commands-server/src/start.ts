@@ -14,7 +14,7 @@ import { logger } from '@pnpm/logger'
 import { createServer } from '@pnpm/server'
 import {
   createNewStoreController,
-  CreateStoreControllerOptions,
+  type CreateStoreControllerOptions,
   serverConnectionInfoDir,
 } from '@pnpm/store-connection-manager'
 import { getStorePath } from '@pnpm/store-path'

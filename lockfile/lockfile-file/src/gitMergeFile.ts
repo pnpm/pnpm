@@ -1,4 +1,4 @@
-import { Lockfile } from '@pnpm/lockfile-types'
+import { type Lockfile } from '@pnpm/lockfile-types'
 import { mergeLockfileChanges } from '@pnpm/merge-lockfile-changes'
 import yaml from 'js-yaml'
 import { revertFromInlineSpecifiersFormatIfNecessary } from './experiments/inlineSpecifiersLockfileConverters'

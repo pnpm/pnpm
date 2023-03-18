@@ -1,23 +1,23 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
-import { ProjectOptions } from '@pnpm/get-context'
-import { HoistingLimits } from '@pnpm/headless'
+import { type ProjectOptions } from '@pnpm/get-context'
+import { type HoistingLimits } from '@pnpm/headless'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
-import { Lockfile } from '@pnpm/lockfile-file'
-import { IncludedDependencies } from '@pnpm/modules-yaml'
+import { type Lockfile } from '@pnpm/lockfile-file'
+import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
-import { WorkspacePackages } from '@pnpm/resolver-base'
-import { StoreController } from '@pnpm/store-controller-types'
+import { type WorkspacePackages } from '@pnpm/resolver-base'
+import { type StoreController } from '@pnpm/store-controller-types'
 import {
-  AllowedDeprecatedVersions,
-  PackageExtension,
-  PeerDependencyRules,
-  ReadPackageHook,
-  Registries,
+  type AllowedDeprecatedVersions,
+  type PackageExtension,
+  type PeerDependencyRules,
+  type ReadPackageHook,
+  type Registries,
 } from '@pnpm/types'
 import { pnpmPkgJson } from '../pnpmPkgJson'
-import { ReporterFunction } from '../types'
-import { PreResolutionHookContext } from './hooks'
+import { type ReporterFunction } from '../types'
+import { type PreResolutionHookContext } from './hooks'
 
 export interface StrictInstallOptions {
   autoInstallPeers: boolean

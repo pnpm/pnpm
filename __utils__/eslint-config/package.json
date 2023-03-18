@@ -25,8 +25,8 @@
   "dependencies": {
     "@typescript-eslint/eslint-plugin": "^5.54.0",
     "@typescript-eslint/parser": "^5.54.0",
-    "eslint": "^8.35.0",
-    "eslint-config-standard-with-typescript": "^26.0.0",
+    "eslint": "^8.36.0",
+    "eslint-config-standard-with-typescript": "^34.0.1",
     "eslint-plugin-import": "^2.27.5",
     "eslint-plugin-n": "^15.6.1",
     "eslint-plugin-node": "^11.1.0",

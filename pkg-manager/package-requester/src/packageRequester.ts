@@ -3,20 +3,20 @@ import path from 'path'
 import {
   checkPkgFilesIntegrity as _checkFilesIntegrity,
   readManifestFromStore as _readManifestFromStore,
-  FileType,
+  type FileType,
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
   getFilePathInCafs as _getFilePathInCafs,
-  PackageFileInfo,
-  PackageFilesIndex,
+  type PackageFileInfo,
+  type PackageFilesIndex,
 } from '@pnpm/cafs'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { PnpmError } from '@pnpm/error'
 import {
-  DirectoryFetcherResult,
-  Fetchers,
-  FetchOptions,
-  FetchResult,
+  type DirectoryFetcherResult,
+  type Fetchers,
+  type FetchOptions,
+  type FetchResult,
 } from '@pnpm/fetcher-base'
 import type { Cafs, DeferredManifestPromise, PackageFilesResponse } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
@@ -24,25 +24,25 @@ import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { readPackageJson } from '@pnpm/read-package-json'
 import {
-  DirectoryResolution,
-  Resolution,
-  ResolveFunction,
-  ResolveResult,
-  TarballResolution,
+  type DirectoryResolution,
+  type Resolution,
+  type ResolveFunction,
+  type ResolveResult,
+  type TarballResolution,
 } from '@pnpm/resolver-base'
 import {
-  BundledManifest,
-  BundledManifestFunction,
-  FetchPackageToStoreFunction,
-  FetchPackageToStoreOptions,
-  GetFilesIndexFilePath,
-  PackageResponse,
-  PkgNameVersion,
-  RequestPackageFunction,
-  RequestPackageOptions,
-  WantedDependency,
+  type BundledManifest,
+  type BundledManifestFunction,
+  type FetchPackageToStoreFunction,
+  type FetchPackageToStoreOptions,
+  type GetFilesIndexFilePath,
+  type PackageResponse,
+  type PkgNameVersion,
+  type RequestPackageFunction,
+  type RequestPackageOptions,
+  type WantedDependency,
 } from '@pnpm/store-controller-types'
-import { DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import pMapValues from 'p-map-values'
 import PQueue from 'p-queue'
@@ -645,7 +645,7 @@ async function writeFilesIndexFile (
   })
 }
 
-async function writeJsonFile (filePath: string, data: Object) {
+async function writeJsonFile (filePath: string, data: unknown) {
   const targetDir = path.dirname(filePath)
   // TODO: use the API of @pnpm/cafs to write this file
   // There is actually no need to create the directory in 99% of cases.

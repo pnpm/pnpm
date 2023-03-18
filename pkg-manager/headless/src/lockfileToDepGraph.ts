@@ -4,8 +4,8 @@ import {
   progressLogger,
 } from '@pnpm/core-loggers'
 import {
-  Lockfile,
-  PackageSnapshot,
+  type Lockfile,
+  type PackageSnapshot,
 } from '@pnpm/lockfile-file'
 import {
   nameVerFromPkgSnapshot,
@@ -13,13 +13,13 @@ import {
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
-import { IncludedDependencies } from '@pnpm/modules-yaml'
+import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { PatchFile, Registries } from '@pnpm/types'
+import { type PatchFile, type Registries } from '@pnpm/types'
 import {
-  FetchPackageToStoreFunction,
-  PackageFilesResponse,
-  StoreController,
+  type FetchPackageToStoreFunction,
+  type PackageFilesResponse,
+  type StoreController,
 } from '@pnpm/store-controller-types'
 import * as dp from '@pnpm/dependency-path'
 import pathExists from 'path-exists'

@@ -1,4 +1,4 @@
-import { SkippedOptionalDependencyLog } from '@pnpm/core-loggers'
+import { type SkippedOptionalDependencyLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { filter, map } from 'rxjs/operators'
 

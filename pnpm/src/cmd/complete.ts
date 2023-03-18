@@ -1,4 +1,4 @@
-import { Completion, CompletionFunc } from '@pnpm/command'
+import { type Completion, type CompletionFunc } from '@pnpm/command'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import { findWorkspacePackages } from '@pnpm/find-workspace-packages'
 import { getOptionCompletions } from '../getOptionType'
@@ -7,11 +7,11 @@ import { shorthands as universalShorthands } from '../shorthands'
 
 export async function complete (
   ctx: {
-    cliOptionsTypesByCommandName: Record<string, () => Object>
+    cliOptionsTypesByCommandName: Record<string, () => Record<string, unknown>>
     completionByCommandName: Record<string, CompletionFunc>
     initialCompletion: () => Completion[]
     shorthandsByCommandName: Record<string, Record<string, string | string[]>>
-    universalOptionsTypes: Record<string, Object>
+    universalOptionsTypes: Record<string, unknown>
   },
   input: {
     params: string[]

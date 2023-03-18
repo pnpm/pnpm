@@ -2,7 +2,7 @@
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
-import { buildDependenciesHierarchy, PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { buildDependenciesHierarchy, type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 
 const f = fixtures(__dirname)
 const generalFixture = f.find('general')

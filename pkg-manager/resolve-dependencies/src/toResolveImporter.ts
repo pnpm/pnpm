@@ -1,13 +1,13 @@
 import { logger } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import {
-  PreferredVersions,
-  WorkspacePackages,
+  type PreferredVersions,
+  type WorkspacePackages,
 } from '@pnpm/resolver-base'
-import { Dependencies, ProjectManifest } from '@pnpm/types'
+import { type Dependencies, type ProjectManifest } from '@pnpm/types'
 import getVerSelType from 'version-selector-type'
-import { ImporterToResolve } from '.'
-import { getWantedDependencies, WantedDependency } from './getWantedDependencies'
+import { type ImporterToResolve } from '.'
+import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
 import { safeIsInnerLink } from './safeIsInnerLink'
 
 export async function toResolveImporter (

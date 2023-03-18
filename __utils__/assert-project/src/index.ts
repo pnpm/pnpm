@@ -1,15 +1,15 @@
 import path from 'path'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
-import { Modules, readModulesManifest } from '@pnpm/modules-yaml'
+import { type Lockfile, type ProjectSnapshot } from '@pnpm/lockfile-types'
+import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'
 import exists from 'path-exists'
 import writePkg from 'write-pkg'
 import isExecutable from './isExecutable'
 
-export { isExecutable, Modules }
+export { isExecutable, type Modules }
 
 export type RawLockfile = Lockfile & Partial<ProjectSnapshot>
 

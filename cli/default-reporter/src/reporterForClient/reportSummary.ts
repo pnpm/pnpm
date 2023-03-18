@@ -1,11 +1,11 @@
 import path from 'path'
 import {
-  DeprecationLog,
-  PackageManifestLog,
-  RootLog,
-  SummaryLog,
+  type DeprecationLog,
+  type PackageManifestLog,
+  type RootLog,
+  type SummaryLog,
 } from '@pnpm/core-loggers'
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
 import chalk from 'chalk'
@@ -13,7 +13,7 @@ import semver from 'semver'
 import { EOL } from '../constants'
 import {
   getPkgsDiff,
-  PackageDiff,
+  type PackageDiff,
   propertyByDependencyType,
 } from './pkgsDiff'
 import {

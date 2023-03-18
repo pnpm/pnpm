@@ -1,18 +1,18 @@
 import {
   createResolver as _createResolver,
-  ResolveFunction,
-  ResolverFactoryOptions,
+  type ResolveFunction,
+  type ResolverFactoryOptions,
 } from '@pnpm/default-resolver'
-import { AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
-import { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching-types'
+import { type AgentOptions, createFetchFromRegistry } from '@pnpm/fetch'
+import { type FetchFromRegistry, type GetAuthHeader, type RetryTimeoutOptions } from '@pnpm/fetching-types'
 import type { CustomFetchers, GitFetcher, DirectoryFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import { createGitFetcher } from '@pnpm/git-fetcher'
-import { createTarballFetcher, TarballFetchers } from '@pnpm/tarball-fetcher'
+import { createTarballFetcher, type TarballFetchers } from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import mapValues from 'ramda/src/map'
 
-export { ResolveFunction }
+export type { ResolveFunction }
 
 export type ClientOptions = {
   authConfig: Record<string, string>

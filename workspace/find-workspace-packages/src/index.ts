@@ -1,12 +1,12 @@
 import path from 'path'
 import { packageIsInstallable } from '@pnpm/cli-utils'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
-import { Project } from '@pnpm/types'
+import { type Project } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { findPackages } from '@pnpm/fs.find-packages'
 import readYamlFile from 'read-yaml-file'
 
-export { Project }
+export type { Project }
 
 export async function findWorkspacePackages (
   workspaceRoot: string,

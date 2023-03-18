@@ -1,5 +1,5 @@
-import { Resolution } from '@pnpm/resolver-base'
-import { Registries } from '@pnpm/types'
+import { type Resolution } from '@pnpm/resolver-base'
+import { type Registries } from '@pnpm/types'
 import { getRegistryByPackageName } from '@pnpm/dependency-path'
 import encodeRegistry from 'encode-registry'
 

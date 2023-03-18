@@ -1,23 +1,23 @@
 import { logger } from '@pnpm/logger'
 import {
-  Lockfile,
-  LockfileResolution,
-  PackageSnapshot,
+  type Lockfile,
+  type LockfileResolution,
+  type PackageSnapshot,
   pruneSharedLockfile,
-  ResolvedDependencies,
+  type ResolvedDependencies,
 } from '@pnpm/prune-lockfile'
-import { Resolution } from '@pnpm/resolver-base'
-import { Registries } from '@pnpm/types'
+import { type Resolution } from '@pnpm/resolver-base'
+import { type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
-import { KeyValuePair } from 'ramda'
+import { type KeyValuePair } from 'ramda'
 import isEmpty from 'ramda/src/isEmpty'
 import mergeRight from 'ramda/src/mergeRight'
 import partition from 'ramda/src/partition'
-import { SafePromiseDefer } from 'safe-promise-defer'
+import { type SafePromiseDefer } from 'safe-promise-defer'
 import { depPathToRef } from './depPathToRef'
-import { ResolvedPackage } from './resolveDependencies'
-import { DependenciesGraph } from '.'
+import { type ResolvedPackage } from './resolveDependencies'
+import { type DependenciesGraph } from '.'
 
 export function updateLockfile (
   { dependenciesGraph, lockfile, prefix, registries, lockfileIncludeTarballUrl }: {

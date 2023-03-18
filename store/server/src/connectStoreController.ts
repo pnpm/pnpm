@@ -1,13 +1,13 @@
 import { fetch } from '@pnpm/fetch'
 import {
-  FetchPackageToStoreOptions,
-  PackageFilesResponse,
-  PackageResponse,
-  RequestPackageOptions,
-  StoreController,
-  WantedDependency,
+  type FetchPackageToStoreOptions,
+  type PackageFilesResponse,
+  type PackageResponse,
+  type RequestPackageOptions,
+  type StoreController,
+  type WantedDependency,
 } from '@pnpm/store-controller-types'
-import { DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest } from '@pnpm/types'
 
 import pLimit from 'p-limit'
 import pShare from 'promise-share'

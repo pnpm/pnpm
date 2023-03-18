@@ -6,7 +6,7 @@ import {
 import {
   createLockfileObject,
   existsWantedLockfile,
-  Lockfile,
+  type Lockfile,
   readCurrentLockfile,
   readWantedLockfile,
   readWantedLockfileAndAutofixConflicts,

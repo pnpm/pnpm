@@ -1,7 +1,7 @@
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
-import { mutateModules, MutatedProject } from '@pnpm/core'
+import { mutateModules, type MutatedProject } from '@pnpm/core'
 import { addDistTag } from '@pnpm/registry-mock'
 import { testDefaults } from '../utils'
 

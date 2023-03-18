@@ -5,7 +5,7 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   install,
-  MutatedProject,
+  type MutatedProject,
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'

@@ -1,12 +1,12 @@
 import path from 'path'
-import { PackageSnapshots, ProjectSnapshot } from '@pnpm/lockfile-file'
-import { Registries } from '@pnpm/types'
-import { SearchFunction } from './types'
-import { PackageNode } from './PackageNode'
+import { type PackageSnapshots, type ProjectSnapshot } from '@pnpm/lockfile-file'
+import { type Registries } from '@pnpm/types'
+import { type SearchFunction } from './types'
+import { type PackageNode } from './PackageNode'
 import { getPkgInfo } from './getPkgInfo'
 import { getTreeNodeChildId } from './getTreeNodeChildId'
 import { DependenciesCache } from './DependenciesCache'
-import { serializeTreeNodeId, TreeNodeId } from './TreeNodeId'
+import { serializeTreeNodeId, type TreeNodeId } from './TreeNodeId'
 
 interface GetTreeOpts {
   maxDepth: number

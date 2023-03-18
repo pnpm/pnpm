@@ -1,4 +1,4 @@
-import { ResolveFunction } from '@pnpm/client'
+import { type ResolveFunction } from '@pnpm/client'
 import { getManifest } from '../lib/createManifestGetter'
 
 test('getManifest()', async () => {

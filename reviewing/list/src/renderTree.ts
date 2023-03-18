@@ -1,14 +1,14 @@
 import path from 'path'
-import { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
-import { DEPENDENCIES_FIELDS, DependenciesField } from '@pnpm/types'
+import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { DEPENDENCIES_FIELDS, type DependenciesField } from '@pnpm/types'
 import archy from 'archy'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
 import sortBy from 'ramda/src/sortBy'
 import rpath from 'ramda/src/path'
-import { Ord } from 'ramda'
+import { type Ord } from 'ramda'
 import { getPkgInfo } from './getPkgInfo'
-import { PackageDependencyHierarchy } from './types'
+import { type PackageDependencyHierarchy } from './types'
 
 const sortPackages = sortBy(rpath(['name']) as (pkg: PackageNode) => Ord)
 

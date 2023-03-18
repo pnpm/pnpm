@@ -1,14 +1,14 @@
 import path from 'path'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
-import { DependenciesField, Registries } from '@pnpm/types'
-import { PackageNode, buildDependenciesHierarchy } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type DependenciesField, type Registries } from '@pnpm/types'
+import { type PackageNode, buildDependenciesHierarchy, type DependenciesHierarchy } from '@pnpm/reviewing.dependencies-hierarchy'
 import { createPackagesSearcher } from './createPackagesSearcher'
 import { renderJson } from './renderJson'
 import { renderParseable } from './renderParseable'
 import { renderTree } from './renderTree'
-import { PackageDependencyHierarchy } from './types'
+import { type PackageDependencyHierarchy } from './types'
 
-export { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+export type { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 
 const DEFAULTS = {
   alwaysPrintRootPackage: true,
@@ -138,7 +138,7 @@ export async function list (
         ? projectPaths.reduce((acc, projectPath) => {
           acc[projectPath] = {}
           return acc
-        }, {} as Record<string, {}>)
+        }, {} as Record<string, DependenciesHierarchy>)
         : await buildDependenciesHierarchy(projectPaths, {
           depth: opts.depth,
           include: maybeOpts?.include,

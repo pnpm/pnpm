@@ -1,4 +1,4 @@
-import { Registries } from '@pnpm/types'
+import { type Registries } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import mapValues from 'ramda/src/map'
 
