@@ -70,8 +70,8 @@ export function spawnPnpx (args: string[], opts?: { storeDir?: string }): NodeCh
 
 export interface ChildProcess {
   status: number
-  stdout: unknown
-  stderr: unknown
+  stdout: { toString: () => string }
+  stderr: { toString: () => string }
 }
 
 export function execPnpmSync (args: string[], opts?: { env: Record<string, string>, stdio?: StdioOptions }): ChildProcess {
