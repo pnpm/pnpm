@@ -18,7 +18,7 @@
   "repository": "https://github.com/pnpm/pnpm/blob/main/fetching/pick-fetcher",
   "license": "MIT",
   "engines": {
-    "node": ">=14.6"
+    "node": ">=16.14"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
