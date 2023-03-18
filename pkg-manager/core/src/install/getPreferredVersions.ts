@@ -1,7 +1,7 @@
-import { nameVerFromPkgSnapshot, PackageSnapshots } from '@pnpm/lockfile-utils'
+import { nameVerFromPkgSnapshot, type PackageSnapshots } from '@pnpm/lockfile-utils'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
-import { DIRECT_DEP_SELECTOR_WEIGHT, PreferredVersions } from '@pnpm/resolver-base'
-import { DependencyManifest, ProjectManifest } from '@pnpm/types'
+import { DIRECT_DEP_SELECTOR_WEIGHT, type PreferredVersions } from '@pnpm/resolver-base'
+import { type DependencyManifest, type ProjectManifest } from '@pnpm/types'
 import getVersionSelectorType from 'version-selector-type'
 
 export function getAllUniqueSpecs (manifests: DependencyManifest[]) {

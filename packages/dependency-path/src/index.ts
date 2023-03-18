@@ -1,5 +1,5 @@
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
-import { Registries } from '@pnpm/types'
+import { type Registries } from '@pnpm/types'
 import encodeRegistry from 'encode-registry'
 import semver from 'semver'
 

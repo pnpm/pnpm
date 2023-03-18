@@ -1,4 +1,4 @@
-import { Resolution, GitResolution, DirectoryResolution } from '@pnpm/resolver-base'
+import { type Resolution, type GitResolution, type DirectoryResolution } from '@pnpm/resolver-base'
 import type { DeferredManifestPromise, Cafs, FilesIndex } from '@pnpm/cafs-types'
 
 export interface FetchOptions {

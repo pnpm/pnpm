@@ -1,4 +1,4 @@
-import { PassThrough } from 'stream'
+import { type PassThrough } from 'stream'
 import type { DeferredManifestPromise } from '@pnpm/cafs-types'
 import concatStream from 'concat-stream'
 import stripBom from 'strip-bom'

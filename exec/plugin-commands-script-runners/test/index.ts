@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import { promises as fs } from 'fs'
 import path from 'path'
-import { PnpmError } from '@pnpm/error'
+import { type PnpmError } from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import {
   restart,
@@ -31,7 +31,7 @@ test('pnpm run: returns correct exit code', async () => {
     rawConfig: {},
   }, ['exit0'])
 
-  let err!: Error & { errno: Number }
+  let err!: Error & { errno: number }
   try {
     await run.handler({
       dir: process.cwd(),

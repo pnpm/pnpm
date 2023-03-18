@@ -1,5 +1,5 @@
 import gfs from '@pnpm/graceful-fs'
-import { ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest } from '@pnpm/types'
 import JSON5 from 'json5'
 import parseJson from 'parse-json'
 import stripBom from 'strip-bom'

@@ -1,15 +1,15 @@
 import path from 'path'
 import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
-  PackageManifestLog,
-  RootLog,
-  StatsLog,
+  type PackageManifestLog,
+  type RootLog,
+  type StatsLog,
 } from '@pnpm/core-loggers'
-import { Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { PackageManifest } from '@pnpm/types'
+import { type PackageManifest } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
 import {
   addDependenciesToPackage,

@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import { setup } from '@pnpm/plugin-commands-setup'
-import { addDirToEnvPath, PathExtenderReport } from '@pnpm/os.env.path-extender'
+import { addDirToEnvPath, type PathExtenderReport } from '@pnpm/os.env.path-extender'
 
 jest.mock('@pnpm/os.env.path-extender', () => ({
   addDirToEnvPath: jest.fn(),

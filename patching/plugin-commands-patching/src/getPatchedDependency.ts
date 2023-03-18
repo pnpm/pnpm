@@ -1,5 +1,5 @@
 import path from 'path'
-import { parseWantedDependency, ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
+import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { prompt } from 'enquirer'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
@@ -8,7 +8,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import realpathMissing from 'realpath-missing'
 import semver from 'semver'
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 
 type GetPatchedDependencyOptions = {
   lockfileDir: string

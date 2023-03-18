@@ -1,13 +1,13 @@
 import * as path from 'path'
 import { promises as fs } from 'fs'
 import { assertProject } from '@pnpm/assert-project'
-import { LifecycleLog } from '@pnpm/core-loggers'
+import { type LifecycleLog } from '@pnpm/core-loggers'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   install,
   mutateModulesInSingleProject,
-  MutatedProject,
+  type MutatedProject,
   mutateModules,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'

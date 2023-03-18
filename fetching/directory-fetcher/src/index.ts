@@ -1,4 +1,4 @@
-import { promises as fs, Stats } from 'fs'
+import { promises as fs, type Stats } from 'fs'
 import path from 'path'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
 import { logger } from '@pnpm/logger'

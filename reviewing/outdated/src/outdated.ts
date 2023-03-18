@@ -2,20 +2,20 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
   getLockfileImporterId,
-  Lockfile,
-  ProjectSnapshot,
+  type Lockfile,
+  type ProjectSnapshot,
 } from '@pnpm/lockfile-file'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { parsePref } from '@pnpm/npm-resolver'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
-  DependenciesField,
+  type DependenciesField,
   DEPENDENCIES_FIELDS,
-  IncludedDependencies,
-  PackageManifest,
-  ProjectManifest,
-  Registries,
+  type IncludedDependencies,
+  type PackageManifest,
+  type ProjectManifest,
+  type Registries,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import semver from 'semver'

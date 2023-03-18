@@ -1,19 +1,19 @@
 import {
-  RecursiveSummary,
+  type RecursiveSummary,
   throwOnCommandFail,
 } from '@pnpm/cli-utils'
 import {
-  Config,
+  type Config,
   readLocalConfig,
 } from '@pnpm/config'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { logger } from '@pnpm/logger'
 import { sortPackages } from '@pnpm/sort-packages'
-import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { Project, ProjectManifest } from '@pnpm/types'
+import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { type Project, type ProjectManifest } from '@pnpm/types'
 import mem from 'mem'
 import pLimit from 'p-limit'
-import { rebuildProjects as rebuildAll, RebuildOptions, rebuildSelectedPkgs } from './implementation'
+import { rebuildProjects as rebuildAll, type RebuildOptions, rebuildSelectedPkgs } from './implementation'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'hoistPattern'

@@ -1,8 +1,8 @@
 import { packageManifestLogger } from '@pnpm/core-loggers'
 import {
-  DependenciesField,
+  type DependenciesField,
   DEPENDENCIES_FIELDS,
-  ProjectManifest,
+  type ProjectManifest,
 } from '@pnpm/types'
 
 export async function removeDeps (

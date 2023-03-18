@@ -1,6 +1,6 @@
 import { promisify } from 'util'
-import { PnpmError } from '@pnpm/error'
-import { filterWorkspacePackages, PackageGraph } from '@pnpm/filter-workspace-packages'
+import { type PnpmError } from '@pnpm/error'
+import { filterWorkspacePackages, type PackageGraph } from '@pnpm/filter-workspace-packages'
 import './parsePackageSelector'
 import fs from 'fs'
 import execa from 'execa'
@@ -14,7 +14,7 @@ import touchCB from 'touch'
 const touch = promisify(touchCB)
 const mkdir = promisify(fs.mkdir)
 
-const PKGS_GRAPH: PackageGraph<{}> = {
+const PKGS_GRAPH: PackageGraph<unknown> = {
   '/packages/project-0': {
     dependencies: ['/packages/project-1', '/project-5'],
     package: {
@@ -208,7 +208,7 @@ test('select just a package by name', async () => {
 })
 
 test('select package without specifying its scope', async () => {
-  const PKGS_GRAPH: PackageGraph<{}> = {
+  const PKGS_GRAPH: PackageGraph<unknown> = {
     '/packages/bar': {
       dependencies: [],
       package: {
@@ -231,7 +231,7 @@ test('select package without specifying its scope', async () => {
 })
 
 test('when a scoped package with the same name exists, only pick the exact match', async () => {
-  const PKGS_GRAPH: PackageGraph<{}> = {
+  const PKGS_GRAPH: PackageGraph<unknown> = {
     '/packages/@foo/bar': {
       dependencies: [],
       package: {
@@ -264,7 +264,7 @@ test('when a scoped package with the same name exists, only pick the exact match
 })
 
 test('when two scoped packages match the searched name, don\'t select any', async () => {
-  const PKGS_GRAPH: PackageGraph<{}> = {
+  const PKGS_GRAPH: PackageGraph<unknown> = {
     '/packages/@foo/bar': {
       dependencies: [],
       package: {

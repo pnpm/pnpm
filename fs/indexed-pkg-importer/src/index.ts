@@ -1,12 +1,12 @@
-import { constants, Stats } from 'fs'
+import { constants, type Stats } from 'fs'
 import fs from '@pnpm/graceful-fs'
 import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
-import { FilesMap, ImportOptions, ImportIndexedPackage } from '@pnpm/store-controller-types'
+import { type FilesMap, type ImportOptions, type ImportIndexedPackage } from '@pnpm/store-controller-types'
 import pLimit from 'p-limit'
 import exists from 'path-exists'
-import { importIndexedDir, ImportFile } from './importIndexedDir'
+import { importIndexedDir, type ImportFile } from './importIndexedDir'
 
 const limitLinking = pLimit(16)
 

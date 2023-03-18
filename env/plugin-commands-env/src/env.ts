@@ -3,7 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import renderHelp from 'render-help'
 import { envRemove } from './envRemove'
 import { envUse } from './envUse'
-import { NvmNodeCommandOptions } from './node'
+import { type NvmNodeCommandOptions } from './node'
 import { envList } from './envList'
 
 export function rcOptionsTypes () {

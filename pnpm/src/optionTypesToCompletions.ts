@@ -1,6 +1,6 @@
-import { Completion } from '@pnpm/command'
+import { type Completion } from '@pnpm/command'
 
-export function optionTypesToCompletions (optionTypes: Record<string, Object>) {
+export function optionTypesToCompletions (optionTypes: Record<string, unknown>) {
   const completions: Completion[] = []
   for (const [name, typeObj] of Object.entries(optionTypes)) {
     if (typeObj === Boolean) {

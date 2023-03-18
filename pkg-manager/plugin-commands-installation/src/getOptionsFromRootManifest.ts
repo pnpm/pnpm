@@ -1,9 +1,9 @@
 import { PnpmError } from '@pnpm/error'
 import {
-  AllowedDeprecatedVersions,
-  PackageExtension,
-  PeerDependencyRules,
-  ProjectManifest,
+  type AllowedDeprecatedVersions,
+  type PackageExtension,
+  type PeerDependencyRules,
+  type ProjectManifest,
 } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
 

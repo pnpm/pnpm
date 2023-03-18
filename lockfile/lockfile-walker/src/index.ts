@@ -1,5 +1,5 @@
-import { Lockfile, PackageSnapshot } from '@pnpm/lockfile-types'
-import { DependenciesField } from '@pnpm/types'
+import { type Lockfile, type PackageSnapshot } from '@pnpm/lockfile-types'
+import { type DependenciesField } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 
 export interface LockedDependency {

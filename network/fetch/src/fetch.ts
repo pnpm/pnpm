@@ -1,10 +1,10 @@
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { operation, RetryTimeoutOptions } from '@zkochan/retry'
-import nodeFetch, { Request, RequestInit as NodeRequestInit, Response } from 'node-fetch'
+import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
+import nodeFetch, { type Request, type RequestInit as NodeRequestInit, Response } from 'node-fetch'
 
 export { isRedirect } from 'node-fetch'
 
-export { Response, RetryTimeoutOptions }
+export { Response, type RetryTimeoutOptions }
 
 interface URLLike {
   href: string

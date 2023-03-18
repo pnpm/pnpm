@@ -60,6 +60,7 @@
     "@typescript-eslint/dot-notation": "off",
     "@typescript-eslint/no-unnecessary-type-assertion": "off",
     "@typescript-eslint/type-annotation-spacing": "error",
+    "@typescript-eslint/ban-ts-comment": "off",
     "brace-style": [
         "error",
         "1tbs"

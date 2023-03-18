@@ -1,15 +1,15 @@
-import { findWorkspacePackages, Project } from '@pnpm/find-workspace-packages'
+import { findWorkspacePackages, type Project } from '@pnpm/find-workspace-packages'
 import { createMatcher } from '@pnpm/matcher'
-import { createPkgGraph, Package, PackageNode } from '@pnpm/workspace.pkgs-graph'
+import { createPkgGraph, type Package, type PackageNode } from '@pnpm/workspace.pkgs-graph'
 import isSubdir from 'is-subdir'
 import difference from 'ramda/src/difference'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
 import * as micromatch from 'micromatch'
 import { getChangedPackages } from './getChangedPackages'
-import { parsePackageSelector, PackageSelector } from './parsePackageSelector'
+import { parsePackageSelector, type PackageSelector } from './parsePackageSelector'
 
-export { parsePackageSelector, PackageSelector }
+export { parsePackageSelector, type PackageSelector }
 
 export interface WorkspaceFilter {
   filter: string

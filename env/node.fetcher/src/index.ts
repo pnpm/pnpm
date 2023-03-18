@@ -2,8 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import {
-  FetchFromRegistry,
-  RetryTimeoutOptions,
+  type FetchFromRegistry,
+  type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import type { FilesIndex } from '@pnpm/cafs-types'
 import { pickFetcher } from '@pnpm/pick-fetcher'

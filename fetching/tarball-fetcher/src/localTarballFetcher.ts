@@ -1,5 +1,5 @@
 import path from 'path'
-import { FetchFunction, FetchOptions, FetchResult } from '@pnpm/fetcher-base'
+import { type FetchFunction, type FetchOptions, type FetchResult } from '@pnpm/fetcher-base'
 import type { Cafs, DeferredManifestPromise } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import ssri from 'ssri'

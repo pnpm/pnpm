@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import path from 'path'
-import { buildModules, DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
+import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
@@ -13,23 +13,23 @@ import {
 } from '@pnpm/core-loggers'
 import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import { PnpmError } from '@pnpm/error'
-import { getContext, PnpmContext } from '@pnpm/get-context'
+import { getContext, type PnpmContext } from '@pnpm/get-context'
 import { headlessInstall } from '@pnpm/headless'
 import {
   makeNodeRequireOption,
   runLifecycleHook,
   runLifecycleHooksConcurrently,
-  RunLifecycleHooksConcurrentlyOptions,
+  type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/lifecycle'
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
-  ProjectSnapshot,
-  Lockfile,
+  type ProjectSnapshot,
+  type Lockfile,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
   cleanGitBranchLockfiles,
-  PatchFile,
+  type PatchFile,
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
@@ -41,22 +41,22 @@ import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { removeBin } from '@pnpm/remove-bins'
 import {
   getWantedDependencies,
-  DependenciesGraph,
-  DependenciesGraphNode,
-  PinnedVersion,
+  type DependenciesGraph,
+  type DependenciesGraphNode,
+  type PinnedVersion,
   resolveDependencies,
-  UpdateMatchingFunction,
-  WantedDependency,
+  type UpdateMatchingFunction,
+  type WantedDependency,
 } from '@pnpm/resolve-dependencies'
 import {
-  PreferredVersions,
+  type PreferredVersions,
 } from '@pnpm/resolver-base'
 import {
-  DependenciesField,
-  DependencyManifest,
-  PeerDependencyIssues,
-  ProjectManifest,
-  ReadPackageHook,
+  type DependenciesField,
+  type DependencyManifest,
+  type PeerDependencyIssues,
+  type ProjectManifest,
+  type ReadPackageHook,
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import isInnerLink from 'is-inner-link'
@@ -76,8 +76,8 @@ import { removeDeps } from '../uninstall/removeDeps'
 import { allProjectsAreUpToDate } from './allProjectsAreUpToDate'
 import {
   extendOptions,
-  InstallOptions,
-  ProcessedInstallOptions as StrictInstallOptions,
+  type InstallOptions,
+  type ProcessedInstallOptions as StrictInstallOptions,
 } from './extendInstallOptions'
 import { getAllUniqueSpecs, getPreferredVersionsFromLockfileAndManifests } from './getPreferredVersions'
 import { linkPackages } from './link'
@@ -639,7 +639,7 @@ function lockfileIsNotUpToDate (
     !equals(lockfile.patchedDependencies ?? {}, patchedDependencies ?? {})
 }
 
-export function createObjectChecksum (obj: Object) {
+export function createObjectChecksum (obj: unknown) {
   const s = JSON.stringify(obj)
   return crypto.createHash('md5').update(s).digest('hex')
 }

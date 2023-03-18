@@ -4,8 +4,8 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { logger } from '@pnpm/logger'
 import {
   addDirToEnvPath,
-  ConfigReport,
-  PathExtenderReport,
+  type ConfigReport,
+  type PathExtenderReport,
 } from '@pnpm/os.env.path-extender'
 import renderHelp from 'render-help'
 

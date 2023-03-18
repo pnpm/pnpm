@@ -3,7 +3,7 @@ import path from 'path'
 import { preparePackages, tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import {
-  MutatedProject,
+  type MutatedProject,
   mutateModules,
   install,
 } from '@pnpm/core'

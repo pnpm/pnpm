@@ -72,7 +72,7 @@ export interface AuditMetadata {
 export interface AuditReport {
   actions: AuditAction[]
   advisories: { [id: string]: AuditAdvisory }
-  muted: Object[]
+  muted: unknown[]
   metadata: AuditMetadata
 }
 

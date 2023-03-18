@@ -1,12 +1,12 @@
 import path from 'path'
-import { Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'
 import {
   addDependenciesToPackage,
   install,
-  MutatedProject,
+  type MutatedProject,
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'

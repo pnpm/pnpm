@@ -5,7 +5,7 @@ import { resolveNodeVersions } from '@pnpm/node.resolver'
 import { PnpmError } from '@pnpm/error'
 import semver from 'semver'
 import { getNodeMirror } from './getNodeMirror'
-import { getNodeVersionsBaseDir, NvmNodeCommandOptions } from './node'
+import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
 import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
 import { getNodeExecPathAndTargetDir, getNodeExecPathInNodeDir } from './utils'
 

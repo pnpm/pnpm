@@ -1,8 +1,8 @@
 import semver from 'semver'
 import isEmpty from 'ramda/src/isEmpty'
-import { PeerDependencyRules, ReadPackageHook, PackageManifest, ProjectManifest } from '@pnpm/types'
+import { type PeerDependencyRules, type ReadPackageHook, type PackageManifest, type ProjectManifest } from '@pnpm/types'
 import { PnpmError } from '@pnpm/error'
-import { parseOverrides, VersionOverride } from '@pnpm/parse-overrides'
+import { parseOverrides, type VersionOverride } from '@pnpm/parse-overrides'
 import { createMatcher } from '@pnpm/matcher'
 import { isSubRange } from './isSubRange'
 

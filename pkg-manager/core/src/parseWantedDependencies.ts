@@ -1,7 +1,7 @@
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import { Dependencies } from '@pnpm/types'
+import { type Dependencies } from '@pnpm/types'
 import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
-import { PinnedVersion, WantedDependency } from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
+import { type PinnedVersion, type WantedDependency } from '@pnpm/resolve-dependencies/lib/getWantedDependencies'
 
 export function parseWantedDependencies (
   rawWantedDependencies: string[],

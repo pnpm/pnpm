@@ -1,6 +1,6 @@
 import path from 'path'
 import { createClient } from '@pnpm/client'
-import { HeadlessOptions } from '@pnpm/headless'
+import { type HeadlessOptions } from '@pnpm/headless'
 import { createPackageStore } from '@pnpm/package-store'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectsContext } from '@pnpm/read-projects-context'

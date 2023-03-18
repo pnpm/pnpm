@@ -1,4 +1,4 @@
-import { ProjectsGraph } from '@pnpm/types'
+import type { ProjectsGraph } from '@pnpm/types'
 import graphSequencer from '@pnpm/graph-sequencer'
 import type { Result as GraphSequencerResult } from '@pnpm/graph-sequencer'
 

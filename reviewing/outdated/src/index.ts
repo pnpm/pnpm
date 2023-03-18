@@ -1,2 +1,2 @@
 export { outdatedDepsOfProjects } from './outdatedDepsOfProjects'
-export { OutdatedPackage } from './outdated'
+export type { OutdatedPackage } from './outdated'

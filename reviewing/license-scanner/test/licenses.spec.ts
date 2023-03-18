@@ -1,9 +1,9 @@
 import { findDependencyLicenses } from '@pnpm/license-scanner'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
-import { ProjectManifest, Registries } from '@pnpm/types'
-import { Lockfile } from '@pnpm/lockfile-file'
-import { LicensePackage } from '../lib/licenses'
-import { GetPackageInfoOptions, PackageInfo } from '../lib/getPkgInfo'
+import { type ProjectManifest, type Registries } from '@pnpm/types'
+import { type Lockfile } from '@pnpm/lockfile-file'
+import { type LicensePackage } from '../lib/licenses'
+import { type GetPackageInfoOptions, type PackageInfo } from '../lib/getPkgInfo'
 
 jest.mock('../lib/getPkgInfo', () => {
   const actualModule = jest.requireActual('../lib/getPkgInfo')

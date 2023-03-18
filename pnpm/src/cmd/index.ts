@@ -1,4 +1,4 @@
-import { CompletionFunc } from '@pnpm/command'
+import { type CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
@@ -25,7 +25,7 @@ import { setup } from '@pnpm/plugin-commands-setup'
 import { store } from '@pnpm/plugin-commands-store'
 import { init } from '@pnpm/plugin-commands-init'
 import pick from 'ramda/src/pick'
-import { PnpmOptions } from '../types'
+import { type PnpmOptions } from '../types'
 import * as bin from './bin'
 import { createCompletion } from './completion'
 import { createHelp } from './help'
@@ -54,16 +54,19 @@ export const GLOBAL_OPTIONS = pick([
   'include-workspace-root',
 ], allTypes)
 
-export type CommandResponse = string | { output: string, exitCode: number } | undefined
+export type CommandResponse = string | { output?: string, exitCode: number }
 
 export type Command = (
-  opts: PnpmOptions,
-  params: string[]
-) => CommandResponse | Promise<CommandResponse>
+  (opts: PnpmOptions | any, params: string[]) => CommandResponse | Promise<CommandResponse> // eslint-disable-line @typescript-eslint/no-explicit-any
+) | (
+  (opts: PnpmOptions | any, params: string[]) => void // eslint-disable-line @typescript-eslint/no-explicit-any
+) | (
+  (opts: PnpmOptions | any, params: string[]) => Promise<void> // eslint-disable-line @typescript-eslint/no-explicit-any
+)
 
 export interface CommandDefinition {
   /** The main logic of the command. */
-  handler: Function
+  handler: Command
   /** The help text for the command that describes its usage and options. */
   help: () => string
   /** The names that will trigger this command handler. */
@@ -73,7 +76,7 @@ export interface CommandDefinition {
    * for this command and whose values are the types of values
    * for these options for validation.
    */
-  cliOptionsTypes: () => Object
+  cliOptionsTypes: () => Record<string, unknown>
   /**
    * A function that returns an object whose keys are acceptable options
    * in the .npmrc file for this command and whose values are the types of values
@@ -142,8 +145,8 @@ const commands: CommandDefinition[] = [
 
 const handlerByCommandName: Record<string, Command> = {}
 const helpByCommandName: Record<string, () => string> = {}
-const cliOptionsTypesByCommandName: Record<string, () => Object> = {}
-const aliasToFullName: Map<string, string> = new Map()
+const cliOptionsTypesByCommandName: Record<string, () => Record<string, unknown>> = {}
+const aliasToFullName = new Map<string, string>()
 const completionByCommandName: Record<string, CompletionFunc> = {}
 const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
 const rcOptionsTypes: Record<string, unknown> = {}

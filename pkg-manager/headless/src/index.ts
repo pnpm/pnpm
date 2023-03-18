@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { buildModules } from '@pnpm/build-modules'
-import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
+import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -25,12 +25,12 @@ import {
 import { linkBins, linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
-  Lockfile,
+  type Lockfile,
   readCurrentLockfile,
   readWantedLockfile,
   writeLockfiles,
   writeCurrentLockfile,
-  PatchFile,
+  type PatchFile,
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
@@ -39,24 +39,24 @@ import {
   satisfiesPackageManifest,
 } from '@pnpm/lockfile-utils'
 import {
-  LogBase,
+  type LogBase,
   logger,
   streamParser,
 } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import {
-  IncludedDependencies,
+  type IncludedDependencies,
   writeModulesManifest,
 } from '@pnpm/modules-yaml'
-import { HoistingLimits } from '@pnpm/real-hoist'
+import { type HoistingLimits } from '@pnpm/real-hoist'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
-  PackageFilesResponse,
-  StoreController,
+  type PackageFilesResponse,
+  type StoreController,
 } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
-import { DependencyManifest, HoistedDependencies, ProjectManifest, Registries } from '@pnpm/types'
+import { type DependencyManifest, type HoistedDependencies, type ProjectManifest, type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
@@ -70,16 +70,16 @@ import union from 'ramda/src/union'
 import realpathMissing from 'realpath-missing'
 import { linkHoistedModules } from './linkHoistedModules'
 import {
-  DirectDependenciesByImporterId,
-  DependenciesGraph,
-  DependenciesGraphNode,
-  LockfileToDepGraphOptions,
+  type DirectDependenciesByImporterId,
+  type DependenciesGraph,
+  type DependenciesGraphNode,
+  type LockfileToDepGraphOptions,
   lockfileToDepGraph,
 } from './lockfileToDepGraph'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph'
-import { linkDirectDeps, LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
+import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
 
-export { HoistingLimits }
+export type { HoistingLimits }
 
 export type ReporterFunction = (logObj: LogBase) => void
 

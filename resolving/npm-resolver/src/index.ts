@@ -1,18 +1,18 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import {
-  FetchFromRegistry,
-  GetAuthHeader,
-  RetryTimeoutOptions,
+  type FetchFromRegistry,
+  type GetAuthHeader,
+  type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
 import {
-  PreferredVersions,
-  ResolveResult,
-  WantedDependency,
-  WorkspacePackages,
+  type PreferredVersions,
+  type ResolveResult,
+  type WantedDependency,
+  type WorkspacePackages,
 } from '@pnpm/resolver-base'
-import { DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest } from '@pnpm/types'
 import LRU from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
@@ -20,15 +20,15 @@ import clone from 'ramda/src/clone'
 import semver from 'semver'
 import ssri from 'ssri'
 import {
-  PackageInRegistry,
-  PackageMeta,
-  PackageMetaCache,
-  PickPackageOptions,
+  type PackageInRegistry,
+  type PackageMeta,
+  type PackageMetaCache,
+  type PickPackageOptions,
   pickPackage,
 } from './pickPackage'
 import {
   parsePref,
-  RegistryPackageSpec,
+  type RegistryPackageSpec,
 } from './parsePref'
 import { fromRegistry, RegistryResponseError } from './fetch'
 import { createPkgId } from './createNpmPkgId'
@@ -47,9 +47,9 @@ export class NoMatchingVersionError extends PnpmError {
 
 export {
   parsePref,
-  PackageMeta,
-  PackageMetaCache,
-  RegistryPackageSpec,
+  type PackageMeta,
+  type PackageMetaCache,
+  type RegistryPackageSpec,
   RegistryResponseError,
 }
 

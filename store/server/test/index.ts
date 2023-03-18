@@ -85,7 +85,7 @@ test('fetchPackage', async () => {
   })
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
-  const response = await storeCtrl.fetchPackage({
+  const response = storeCtrl.fetchPackage({
     fetchRawManifest: true,
     force: false,
     lockfileDir: process.cwd(),

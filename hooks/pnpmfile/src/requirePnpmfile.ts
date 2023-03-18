@@ -1,7 +1,7 @@
 import fs from 'fs'
 import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
-import { PackageManifest } from '@pnpm/types'
+import { type PackageManifest } from '@pnpm/types'
 import chalk from 'chalk'
 
 export class BadReadPackageHookError extends PnpmError {

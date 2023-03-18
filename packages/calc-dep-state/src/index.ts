@@ -15,7 +15,7 @@ export interface DepsStateCache {
 }
 
 export interface DepStateObj {
-  [depPath: string]: DepStateObj | {}
+  [depPath: string]: DepStateObj
 }
 
 export function calcDepState (

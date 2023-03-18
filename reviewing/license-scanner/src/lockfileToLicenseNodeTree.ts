@@ -1,11 +1,11 @@
-import { Lockfile, TarballResolution } from '@pnpm/lockfile-types'
+import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import {
   lockfileWalkerGroupImporterSteps,
-  LockfileWalkerStep,
+  type LockfileWalkerStep,
 } from '@pnpm/lockfile-walker'
-import { DependenciesField, Registries } from '@pnpm/types'
+import { type DependenciesField, type Registries } from '@pnpm/types'
 import { getPkgInfo } from './getPkgInfo'
 import mapValues from 'ramda/src/map'
 

@@ -2,7 +2,7 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { findWorkspacePackages } from '@pnpm/find-workspace-packages'
-import { LockfileV6 as Lockfile } from '@pnpm/lockfile-types'
+import { type LockfileV6 as Lockfile } from '@pnpm/lockfile-types'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
   prepare,
@@ -474,7 +474,7 @@ test('changed-files-ignore-pattern is respected', async () => {
   const getChangedProjects = async (opts?: {
     overrideChangedFilesIgnorePatternWithNoPattern: boolean
   }) => {
-    const result = await execPnpmSync(
+    const result = execPnpmSync(
       [
         '--filter',
         '[origin/main]',

@@ -1,9 +1,9 @@
 import {
-  DirectoryResolution,
-  PreferredVersions,
-  Resolution,
-  WantedDependency,
-  WorkspacePackages,
+  type DirectoryResolution,
+  type PreferredVersions,
+  type Resolution,
+  type WantedDependency,
+  type WorkspacePackages,
 } from '@pnpm/resolver-base'
 import type {
   ImportPackageFunction,
@@ -11,11 +11,11 @@ import type {
   PackageFilesResponse,
 } from '@pnpm/cafs-types'
 import {
-  DependencyManifest,
-  PackageManifest,
+  type DependencyManifest,
+  type PackageManifest,
 } from '@pnpm/types'
 
-export { PackageFileInfo, PackageFilesResponse, ImportPackageFunction }
+export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction }
 
 export * from '@pnpm/resolver-base'
 export type BundledManifest = Pick<

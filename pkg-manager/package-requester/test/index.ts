@@ -1,15 +1,15 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import { promises as fs, statSync } from 'fs'
 import path from 'path'
-import { getFilePathInCafs, PackageFilesIndex, PackageFileInfo } from '@pnpm/cafs'
+import { getFilePathInCafs, type PackageFilesIndex, type PackageFileInfo } from '@pnpm/cafs'
 import { createClient } from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
-import { createPackageRequester, PackageResponse } from '@pnpm/package-requester'
+import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
 import type { PackageFilesResponse } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest } from '@pnpm/types'
 import delay from 'delay'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import loadJsonFile from 'load-json-file'
@@ -482,8 +482,8 @@ test('fetchPackageToStore() concurrency check', async () => {
     }),
   ])
 
-  let ino1!: Number
-  let ino2!: Number
+  let ino1!: number
+  let ino2!: number
 
   {
     const fetchResult = fetchResults[0]

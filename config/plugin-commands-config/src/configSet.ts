@@ -2,7 +2,7 @@ import path from 'path'
 import { runNpm } from '@pnpm/run-npm'
 import { readIniFile } from 'read-ini-file'
 import { writeIniFile } from 'write-ini-file'
-import { ConfigCommandOptions } from './ConfigCommandOptions'
+import { type ConfigCommandOptions } from './ConfigCommandOptions'
 
 export async function configSet (opts: ConfigCommandOptions, key: string, value: string | null) {
   const configPath = opts.global ? path.join(opts.configDir, 'rc') : path.join(opts.dir, '.npmrc')

@@ -1,8 +1,8 @@
 import path from 'path'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
-import { Modules, readModulesManifest } from '@pnpm/modules-yaml'
+import { type Modules, readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
-import { DependenciesField, HoistedDependencies, Registries } from '@pnpm/types'
+import { type DependenciesField, type HoistedDependencies, type Registries } from '@pnpm/types'
 import realpathMissing from 'realpath-missing'
 
 export interface ProjectOptions {

@@ -1,4 +1,4 @@
-import { DependenciesHierarchy } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type DependenciesHierarchy } from '@pnpm/reviewing.dependencies-hierarchy'
 
 export type PackageDependencyHierarchy = DependenciesHierarchy & {
   name?: string

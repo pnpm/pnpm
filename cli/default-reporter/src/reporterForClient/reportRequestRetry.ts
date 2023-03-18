@@ -1,4 +1,4 @@
-import { RequestRetryLog } from '@pnpm/core-loggers'
+import { type RequestRetryLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map } from 'rxjs/operators'
 import prettyMilliseconds from 'pretty-ms'

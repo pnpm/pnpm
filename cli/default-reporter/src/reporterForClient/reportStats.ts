@@ -1,4 +1,4 @@
-import { StatsLog } from '@pnpm/core-loggers'
+import { type StatsLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { filter, take, reduce, map } from 'rxjs/operators'
 import chalk from 'chalk'

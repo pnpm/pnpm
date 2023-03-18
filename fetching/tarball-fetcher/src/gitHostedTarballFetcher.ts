@@ -1,4 +1,4 @@
-import { FetchFunction, FetchOptions } from '@pnpm/fetcher-base'
+import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs, FilesIndex, PackageFileInfo } from '@pnpm/cafs-types'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'

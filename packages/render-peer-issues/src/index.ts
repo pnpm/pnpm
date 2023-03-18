@@ -1,4 +1,4 @@
-import { BadPeerDependencyIssue, PeerDependencyIssuesByProjects } from '@pnpm/types'
+import { type BadPeerDependencyIssue, type PeerDependencyIssuesByProjects } from '@pnpm/types'
 import archy from 'archy'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'

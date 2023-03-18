@@ -1,7 +1,7 @@
-import { RetryTimeoutOptions } from '@zkochan/retry'
-import { Response } from 'node-fetch'
+import { type RetryTimeoutOptions } from '@zkochan/retry'
+import { type Response } from 'node-fetch'
 
-export { RetryTimeoutOptions }
+export type { RetryTimeoutOptions }
 
 export type FetchFromRegistry = (
   url: string,

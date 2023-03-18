@@ -2,12 +2,12 @@ import {
   docsUrl,
   readDepNameCompletions,
 } from '@pnpm/cli-utils'
-import { CompletionFunc } from '@pnpm/command'
+import { type CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { licensesList, LicensesCommandOptions } from './licensesList'
+import { licensesList, type LicensesCommandOptions } from './licensesList'
 
 export function rcOptionsTypes () {
   return {

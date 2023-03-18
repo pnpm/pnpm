@@ -1,5 +1,5 @@
 import path from 'path'
-import { RootLog } from '@pnpm/core-loggers'
+import { type RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import {

@@ -1,4 +1,4 @@
-import { ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest } from '@pnpm/types'
 import isEmpty from 'ramda/src/isEmpty'
 
 // property keys that are copied from publishConfig into the manifest

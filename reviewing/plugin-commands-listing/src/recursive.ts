@@ -1,6 +1,6 @@
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import { logger } from '@pnpm/logger'
-import { IncludedDependencies, Project } from '@pnpm/types'
+import { type IncludedDependencies, type Project } from '@pnpm/types'
 import { render } from './list'
 
 export async function listRecursive (
