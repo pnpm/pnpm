@@ -1,11 +1,11 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import {
-  Lockfile,
-  PackageSnapshots,
-  ProjectSnapshot,
-  ResolvedDependencies,
+  type Lockfile,
+  type PackageSnapshots,
+  type ProjectSnapshot,
+  type ResolvedDependencies,
 } from '@pnpm/lockfile-types'
-import { PackageManifest } from '@pnpm/types'
+import { type PackageManifest } from '@pnpm/types'
 import { refToRelative } from '@pnpm/dependency-path'
 import difference from 'ramda/src/difference'
 import isEmpty from 'ramda/src/isEmpty'

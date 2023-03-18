@@ -4,10 +4,10 @@ import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest } from '@pnpm/types'
 import {
   addDependenciesToPackage,
-  MutatedProject,
+  type MutatedProject,
   mutateModules,
   mutateModulesInSingleProject,
 } from '@pnpm/core'

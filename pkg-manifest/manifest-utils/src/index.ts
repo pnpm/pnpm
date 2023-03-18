@@ -1,7 +1,7 @@
 import {
-  Dependencies,
-  IncludedDependencies,
-  ProjectManifest,
+  type Dependencies,
+  type IncludedDependencies,
+  type ProjectManifest,
 } from '@pnpm/types'
 import { getSpecFromPackageManifest } from './getSpecFromPackageManifest'
 

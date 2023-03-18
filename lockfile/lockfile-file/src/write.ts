@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
+import { type Lockfile, type ProjectSnapshot } from '@pnpm/lockfile-types'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
 import * as dp from '@pnpm/dependency-path'

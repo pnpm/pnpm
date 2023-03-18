@@ -1,4 +1,4 @@
-import { Registries } from '@pnpm/types'
+import { type Registries } from '@pnpm/types'
 
 export function pickRegistryForPackage (registries: Registries, packageName: string, pref?: string) {
   const scope = getScope(packageName, pref)

@@ -1,4 +1,4 @@
-import { Log } from '@pnpm/core-loggers'
+import { type Log } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { logger, createStreamParser } from '@pnpm/logger'
 

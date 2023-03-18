@@ -5,13 +5,13 @@ import { PnpmError } from '@pnpm/error'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   createOrConnectStoreController,
-  CreateStoreControllerOptions,
+  type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import gfs from '@pnpm/graceful-fs'
-import { install, InstallOptions } from '@pnpm/core'
-import { Config } from '@pnpm/config'
+import { install, type InstallOptions } from '@pnpm/core'
+import { type Config } from '@pnpm/config'
 import { findWorkspacePackages } from '@pnpm/find-workspace-packages'
-import { Project } from '@pnpm/types'
+import { type Project } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import rimraf from '@zkochan/rimraf'

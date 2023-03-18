@@ -1,6 +1,6 @@
 import path from 'path'
 import { readExactProjectManifest } from '@pnpm/read-project-manifest'
-import { ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import fastGlob from 'fast-glob'
 import pFilter from 'p-filter'

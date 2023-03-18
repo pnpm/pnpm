@@ -1,4 +1,4 @@
-import { promises as fs, Stats } from 'fs'
+import { promises as fs, type Stats } from 'fs'
 import path from 'path'
 import type { FileWriteResult, PackageFileInfo } from '@pnpm/cafs-types'
 import getStream from 'get-stream'
@@ -9,32 +9,32 @@ import { addFilesFromDir } from './addFilesFromDir'
 import { addFilesFromTarball } from './addFilesFromTarball'
 import {
   checkPkgFilesIntegrity,
-  PackageFilesIndex,
+  type PackageFilesIndex,
   verifyFileIntegrity,
 } from './checkPkgFilesIntegrity'
 import { readManifestFromStore } from './readManifestFromStore'
 import {
   getFilePathInCafs,
   contentPathFromHex,
-  FileType,
+  type FileType,
   getFilePathByModeInCafs,
   modeIsExecutable,
 } from './getFilePathInCafs'
 import { writeFile } from './writeFile'
 
-export { IntegrityLike } from 'ssri'
+export type { IntegrityLike } from 'ssri'
 
 export {
   checkPkgFilesIntegrity,
   readManifestFromStore,
-  FileType,
+  type FileType,
   getFilePathByModeInCafs,
   getFilePathInCafs,
-  PackageFileInfo,
-  PackageFilesIndex,
+  type PackageFileInfo,
+  type PackageFilesIndex,
 }
 
-export function createCafs (cafsDir: string, ignore?: ((filename: string) => Boolean)) {
+export function createCafs (cafsDir: string, ignore?: ((filename: string) => boolean)) {
   const locker = new Map()
   const _writeBufferToCafs = writeBufferToCafs.bind(null, locker, cafsDir)
   const addStream = addStreamToCafs.bind(null, _writeBufferToCafs)

@@ -1,5 +1,5 @@
 import { createReadStream, promises as fs } from 'fs'
-import { DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest } from '@pnpm/types'
 import pDefer from 'p-defer'
 import path from 'path'
 import tempy from 'tempy'

@@ -1,16 +1,16 @@
 import path from 'path'
-import { ProjectOptions } from '@pnpm/get-context'
+import { type ProjectOptions } from '@pnpm/get-context'
 import {
-  Lockfile,
-  ProjectSnapshot,
+  type Lockfile,
+  type ProjectSnapshot,
 } from '@pnpm/lockfile-file'
 import { satisfiesPackageManifest } from '@pnpm/lockfile-utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { WorkspacePackages } from '@pnpm/resolver-base'
+import { type WorkspacePackages } from '@pnpm/resolver-base'
 import {
   DEPENDENCIES_FIELDS,
-  DependencyManifest,
-  ProjectManifest,
+  type DependencyManifest,
+  type ProjectManifest,
 } from '@pnpm/types'
 import pEvery from 'p-every'
 import any from 'ramda/src/any'

@@ -2,7 +2,7 @@ import AdmZip from 'adm-zip'
 import { Response } from 'node-fetch'
 import path from 'path'
 import { Readable } from 'stream'
-import { fetchNode, FetchNodeOptions } from '@pnpm/node.fetcher'
+import { fetchNode, type FetchNodeOptions } from '@pnpm/node.fetcher'
 import { tempDir } from '@pnpm/prepare'
 import { isNonGlibcLinux } from 'detect-libc'
 

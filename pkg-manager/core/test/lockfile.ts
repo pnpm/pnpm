@@ -1,22 +1,22 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
-import { RootLog } from '@pnpm/core-loggers'
-import { PnpmError } from '@pnpm/error'
-import { Lockfile, TarballResolution } from '@pnpm/lockfile-file'
-import { LockfileV6 } from '@pnpm/lockfile-types'
+import { type RootLog } from '@pnpm/core-loggers'
+import { type PnpmError } from '@pnpm/error'
+import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-file'
+import { type LockfileV6 } from '@pnpm/lockfile-types'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest } from '@pnpm/types'
 import readYamlFile from 'read-yaml-file'
 import {
   addDependenciesToPackage,
   install,
   mutateModules,
   mutateModulesInSingleProject,
-  MutatedProject,
-  ProjectOptions,
+  type MutatedProject,
+  type ProjectOptions,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'

@@ -1,10 +1,10 @@
 import path from 'path'
 import { throwOnCommandFail } from '@pnpm/cli-utils'
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import {
   makeNodeRequireOption,
-  RunLifecycleHookOptions,
+  type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
 import { sortPackages } from '@pnpm/sort-packages'
@@ -14,7 +14,7 @@ import { existsInDir } from './existsInDir'
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec'
 import { runScript } from './run'
 import { tryBuildRegExpFromCommand } from './regexpCommand'
-import { PackageScripts } from '@pnpm/types'
+import { type PackageScripts } from '@pnpm/types'
 
 export type RecursiveRunOpts = Pick<Config,
 | 'enablePrePostScripts'

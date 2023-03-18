@@ -1,5 +1,5 @@
 import * as utils from '@pnpm/read-project-manifest'
-import { ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest } from '@pnpm/types'
 import { packageIsInstallable } from './packageIsInstallable'
 
 export async function readProjectManifest (

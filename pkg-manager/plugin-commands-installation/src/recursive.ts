@@ -1,10 +1,10 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import {
-  RecursiveSummary,
+  type RecursiveSummary,
   throwOnCommandFail,
 } from '@pnpm/cli-utils'
-import { Config, readLocalConfig } from '@pnpm/config'
+import { type Config, readLocalConfig } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { logger } from '@pnpm/logger'
@@ -13,23 +13,23 @@ import { createMatcherWithIndex } from '@pnpm/matcher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { sortPackages } from '@pnpm/sort-packages'
-import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import {
-  IncludedDependencies,
-  PackageManifest,
-  Project,
-  ProjectManifest,
-  ProjectsGraph,
+  type IncludedDependencies,
+  type PackageManifest,
+  type Project,
+  type ProjectManifest,
+  type ProjectsGraph,
 } from '@pnpm/types'
 import {
   addDependenciesToPackage,
   install,
-  InstallOptions,
-  MutatedProject,
+  type InstallOptions,
+  type MutatedProject,
   mutateModules,
-  ProjectOptions,
-  UpdateMatchingFunction,
-  WorkspacePackages,
+  type ProjectOptions,
+  type UpdateMatchingFunction,
+  type WorkspacePackages,
 } from '@pnpm/core'
 import isSubdir from 'is-subdir'
 import mem from 'mem'
@@ -40,7 +40,7 @@ import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './u
 import { updateToLatestSpecsFromManifest, createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { getSaveType } from './getSaveType'
 import { getPinnedVersion } from './getPinnedVersion'
-import { PreferredVersions } from '@pnpm/resolver-base'
+import { type PreferredVersions } from '@pnpm/resolver-base'
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'

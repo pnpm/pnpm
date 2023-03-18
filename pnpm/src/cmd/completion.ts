@@ -1,4 +1,4 @@
-import { Completion, CompletionFunc } from '@pnpm/command'
+import { type Completion, type CompletionFunc } from '@pnpm/command'
 import { split as splitCmd } from 'split-cmd'
 import tabtab from '@pnpm/tabtab'
 import {
@@ -10,11 +10,11 @@ import { complete } from './complete'
 
 export function createCompletion (
   opts: {
-    cliOptionsTypesByCommandName: Record<string, () => Object>
+    cliOptionsTypesByCommandName: Record<string, () => Record<string, unknown>>
     completionByCommandName: Record<string, CompletionFunc>
     initialCompletion: () => Completion[]
     shorthandsByCommandName: Record<string, Record<string, string | string[]>>
-    universalOptionsTypes: Record<string, Object>
+    universalOptionsTypes: Record<string, unknown>
   }
 ) {
   return async () => {

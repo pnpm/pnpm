@@ -1,5 +1,5 @@
 import path from 'path'
-import { getFilePathInCafs, PackageFilesIndex } from '@pnpm/cafs'
+import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import {
   nameVerFromPkgSnapshot,
@@ -12,9 +12,9 @@ import loadJsonFile from 'load-json-file'
 import pFilter from 'p-filter'
 import {
   extendStoreStatusOptions,
-  StoreStatusOptions,
+  type StoreStatusOptions,
 } from './extendStoreStatusOptions'
-import { TarballResolution } from '@pnpm/store-controller-types'
+import { type TarballResolution } from '@pnpm/store-controller-types'
 
 export async function storeStatus (maybeOpts: StoreStatusOptions) {
   const reporter = maybeOpts?.reporter

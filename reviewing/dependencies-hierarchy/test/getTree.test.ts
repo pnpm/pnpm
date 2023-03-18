@@ -1,8 +1,8 @@
 import { refToRelative } from '@pnpm/dependency-path'
-import { PackageSnapshots } from '@pnpm/lockfile-file'
-import { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type PackageSnapshots } from '@pnpm/lockfile-file'
+import { type PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 import { getTree } from '../lib/getTree'
-import { TreeNodeId } from '../lib/TreeNodeId'
+import { type TreeNodeId } from '../lib/TreeNodeId'
 
 /**
  * Maps an npm package name to its dependencies.

@@ -1,4 +1,4 @@
-import { ScopeLog } from '@pnpm/core-loggers'
+import { type ScopeLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map, take } from 'rxjs/operators'
 

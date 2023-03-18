@@ -2,16 +2,16 @@ import fs from 'fs'
 import path from 'path'
 import { applyPatchToDir } from '@pnpm/patching.apply-patch'
 import { docsUrl } from '@pnpm/cli-utils'
-import { Config, types as allTypes } from '@pnpm/config'
-import { LogBase } from '@pnpm/logger'
+import { type Config, types as allTypes } from '@pnpm/config'
+import { type LogBase } from '@pnpm/logger'
 import {
-  CreateStoreControllerOptions,
+  type CreateStoreControllerOptions,
 } from '@pnpm/store-connection-manager'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
 import { PnpmError } from '@pnpm/error'
-import { ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
+import { type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { writePackage } from './writePackage'
 import { getPatchedDependency } from './getPatchedDependency'
 

@@ -1,4 +1,4 @@
-import { FetchFromRegistry } from '@pnpm/fetching-types'
+import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import semver from 'semver'
 import versionSelectorType from 'version-selector-type'
 

@@ -1,13 +1,13 @@
 import { PnpmError } from '@pnpm/error'
-import { Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile-file'
 import {
-  DependenciesField,
-  IncludedDependencies,
-  ProjectManifest,
-  Registries,
+  type DependenciesField,
+  type IncludedDependencies,
+  type ProjectManifest,
+  type Registries,
 } from '@pnpm/types'
 import {
-  LicenseNode,
+  type LicenseNode,
   lockfileToLicenseNodeTree,
 } from './lockfileToLicenseNodeTree'
 

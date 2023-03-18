@@ -1,4 +1,4 @@
-import childProcess from 'child_process'
+import type childProcess from 'child_process'
 import path from 'path'
 import spawn from 'cross-spawn'
 import PATH from 'path-name'

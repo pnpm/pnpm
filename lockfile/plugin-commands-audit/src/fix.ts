@@ -1,4 +1,4 @@
-import { AuditReport, AuditAdvisory } from '@pnpm/audit'
+import { type AuditReport, type AuditAdvisory } from '@pnpm/audit'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import difference from 'ramda/src/difference'
 

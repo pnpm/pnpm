@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
-import { MutatedProject, mutateModules, ProjectOptions } from '@pnpm/core'
+import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/core'
 import { preparePackages } from '@pnpm/prepare'
 import rimraf from '@zkochan/rimraf'
 import pathExists from 'path-exists'

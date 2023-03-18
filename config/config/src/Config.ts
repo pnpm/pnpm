@@ -1,8 +1,8 @@
 import {
-  Project,
-  ProjectManifest,
-  ProjectsGraph,
-  Registries,
+  type Project,
+  type ProjectManifest,
+  type ProjectsGraph,
+  type Registries,
 } from '@pnpm/types'
 import type { Hooks } from '@pnpm/pnpmfile'
 

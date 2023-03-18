@@ -1,3 +1,3 @@
-import { LogBase } from '@pnpm/logger'
+import { type LogBase } from '@pnpm/logger'
 
 export type ReporterFunction = (logObj: LogBase) => void

@@ -5,20 +5,20 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
-import { CompletionFunc } from '@pnpm/command'
+import { type CompletionFunc } from '@pnpm/command'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { Config, types as allTypes } from '@pnpm/config'
+import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import {
   runLifecycleHook,
   makeNodeRequireOption,
-  RunLifecycleHookOptions,
+  type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
-import { PackageScripts, ProjectManifest } from '@pnpm/types'
+import { type PackageScripts, type ProjectManifest } from '@pnpm/types'
 import pick from 'ramda/src/pick'
 import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
-import { runRecursive, RecursiveRunOpts, getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand } from './runRecursive'
+import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand } from './runRecursive'
 import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
 

@@ -1,6 +1,6 @@
-import { Config } from '@pnpm/config'
-import { Log } from '@pnpm/core-loggers'
-import * as Rx from 'rxjs'
+import { type Config } from '@pnpm/config'
+import { type Log } from '@pnpm/core-loggers'
+import type * as Rx from 'rxjs'
 import chalk from 'chalk'
 import { reportError } from './reportError'
 

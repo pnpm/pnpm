@@ -1,4 +1,4 @@
-import { PnpmError } from '@pnpm/error'
+import { type PnpmError } from '@pnpm/error'
 import {
   createWorkspaceSpecs,
   updateToWorkspacePackagesFromManifest,

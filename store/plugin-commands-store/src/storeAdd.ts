@@ -2,9 +2,9 @@ import { PnpmError } from '@pnpm/error'
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
-import { StoreController } from '@pnpm/store-controller-types'
-import { Registries } from '@pnpm/types'
-import { ReporterFunction } from './types'
+import { type StoreController } from '@pnpm/store-controller-types'
+import { type Registries } from '@pnpm/types'
+import { type ReporterFunction } from './types'
 
 export async function storeAdd (
   fuzzyDeps: string[],

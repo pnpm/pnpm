@@ -1,8 +1,8 @@
 import path from 'path'
-import { Lockfile, TarballResolution } from '@pnpm/lockfile-types'
+import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
-import { lockfileWalkerGroupImporterSteps, LockfileWalkerStep } from '@pnpm/lockfile-walker'
-import { DependenciesField } from '@pnpm/types'
+import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
+import { type DependenciesField } from '@pnpm/types'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import mapValues from 'ramda/src/map'
 
@@ -18,7 +18,7 @@ export type AuditTree = AuditNode & {
   name?: string
   install: string[]
   remove: string[]
-  metadata: Object
+  metadata: unknown
 }
 
 export async function lockfileToAuditTree (

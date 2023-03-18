@@ -1,14 +1,14 @@
 import { LockfileMissingDependencyError } from '@pnpm/error'
 import {
-  Lockfile,
+  type Lockfile,
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
 import * as dp from '@pnpm/dependency-path'
-import { hoist as _hoist, HoisterDependencyKind, HoisterTree, HoisterResult } from '@yarnpkg/nm'
+import { hoist as _hoist, HoisterDependencyKind, type HoisterTree, type HoisterResult } from '@yarnpkg/nm'
 
 export type HoistingLimits = Map<string, Set<string>>
 
-export { HoisterResult }
+export type { HoisterResult }
 
 export function hoist (
   lockfile: Lockfile,

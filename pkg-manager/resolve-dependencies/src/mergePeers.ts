@@ -1,4 +1,4 @@
-import { MissingPeerIssuesByPeerName } from '@pnpm/types'
+import { type MissingPeerIssuesByPeerName } from '@pnpm/types'
 import { intersect } from 'semver-range-intersect'
 
 export function mergePeers (missingPeers: MissingPeerIssuesByPeerName) {

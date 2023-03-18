@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
-import { mutateModules, MutatedProject } from '@pnpm/core'
+import { mutateModules, type MutatedProject } from '@pnpm/core'
 import { testDefaults } from '../utils'
 
 test('dedupe direct dependencies', async () => {

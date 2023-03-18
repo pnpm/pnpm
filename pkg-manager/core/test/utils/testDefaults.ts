@@ -2,10 +2,10 @@ import * as path from 'path'
 import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { StoreController } from '@pnpm/store-controller-types'
+import { type StoreController } from '@pnpm/store-controller-types'
 import { getStorePath } from '@pnpm/store-path'
-import { Registries } from '@pnpm/types'
-import { InstallOptions } from '@pnpm/core'
+import { type Registries } from '@pnpm/types'
+import { type InstallOptions } from '@pnpm/core'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 

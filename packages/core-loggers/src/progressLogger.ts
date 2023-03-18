@@ -1,6 +1,6 @@
 import {
-  LogBase,
-  Logger,
+  type LogBase,
+  type Logger,
   logger,
 } from '@pnpm/logger'
 

@@ -1,4 +1,4 @@
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import { updateCheckLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'

@@ -1,8 +1,8 @@
 import path from 'path'
 import {
   getLockfileImporterId,
-  Lockfile,
-  ProjectSnapshot,
+  type Lockfile,
+  type ProjectSnapshot,
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile-file'
@@ -10,16 +10,16 @@ import { readModulesManifest } from '@pnpm/modules-yaml'
 import { normalizeRegistries } from '@pnpm/normalize-registries'
 import { readModulesDir } from '@pnpm/read-modules-dir'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { DependenciesField, DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
+import { type DependenciesField, DEPENDENCIES_FIELDS, type Registries } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
-import { PackageNode } from './PackageNode'
-import { SearchFunction } from './types'
+import { type PackageNode } from './PackageNode'
+import { type SearchFunction } from './types'
 import { getTree } from './getTree'
 import { getTreeNodeChildId } from './getTreeNodeChildId'
 import { getPkgInfo } from './getPkgInfo'
-import { TreeNodeId } from './TreeNodeId'
+import { type TreeNodeId } from './TreeNodeId'
 
 export interface DependenciesHierarchy {
   dependencies?: PackageNode[]

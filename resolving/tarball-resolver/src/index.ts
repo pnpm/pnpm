@@ -1,4 +1,4 @@
-import { ResolveResult } from '@pnpm/resolver-base'
+import { type ResolveResult } from '@pnpm/resolver-base'
 
 export async function resolveFromTarball (
   wantedDependency: { pref: string }

@@ -6,19 +6,19 @@ import {
 } from '@pnpm/core-loggers'
 import { filterLockfile, filterLockfileByImporters } from '@pnpm/filter-lockfile'
 import {
-  Lockfile,
-  PackageSnapshots,
-  ProjectSnapshot,
+  type Lockfile,
+  type PackageSnapshots,
+  type ProjectSnapshot,
 } from '@pnpm/lockfile-types'
 import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
 import { readModulesDir } from '@pnpm/read-modules-dir'
-import { StoreController } from '@pnpm/store-controller-types'
+import { type StoreController } from '@pnpm/store-controller-types'
 import {
-  DependenciesField,
+  type DependenciesField,
   DEPENDENCIES_FIELDS,
-  HoistedDependencies,
-  Registries,
+  type HoistedDependencies,
+  type Registries,
 } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import rimraf from '@zkochan/rimraf'
@@ -156,7 +156,7 @@ export async function prune (
           .map((orphanDepPath) => depPathToFilename(orphanDepPath))
           .map(async (orphanDepPath) => _tryRemovePkg(orphanDepPath))
       )
-      const neededPkgs: Set<string> = new Set(['node_modules'])
+      const neededPkgs = new Set<string>(['node_modules'])
       for (const depPath of Object.keys(opts.wantedLockfile.packages ?? {})) {
         if (opts.skipped.has(depPath)) continue
         neededPkgs.add(depPathToFilename(depPath))

@@ -2,21 +2,21 @@ import filenamify from 'filenamify'
 import path from 'path'
 import { semverUtils } from '@yarnpkg/core'
 import {
-  Dependencies,
-  PeerDependencyIssues,
-  PeerDependencyIssuesByProjects,
+  type Dependencies,
+  type PeerDependencyIssues,
+  type PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
 import { depPathToFilename, createPeersFolderSuffix, createPeersFolderSuffixNewFormat } from '@pnpm/dependency-path'
-import { KeyValuePair } from 'ramda'
+import { type KeyValuePair } from 'ramda'
 import isEmpty from 'ramda/src/isEmpty'
 import mapValues from 'ramda/src/map'
 import pick from 'ramda/src/pick'
 import pickBy from 'ramda/src/pickBy'
 import scan from 'ramda/src/scan'
 import {
-  DependenciesTree,
-  DependenciesTreeNode,
-  ResolvedPackage,
+  type DependenciesTree,
+  type DependenciesTreeNode,
+  type ResolvedPackage,
 } from './resolveDependencies'
 import { mergePeers } from './mergePeers'
 import { createNodeId, splitNodeId } from './nodeIdUtils'

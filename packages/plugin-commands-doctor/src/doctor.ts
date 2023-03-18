@@ -1,7 +1,7 @@
 import renderHelp from 'render-help'
 import { docsUrl } from '@pnpm/cli-utils'
 import { logger } from '@pnpm/logger'
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 
 export const rcOptionsTypes = cliOptionsTypes
 

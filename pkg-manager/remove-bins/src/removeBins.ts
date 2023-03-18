@@ -4,7 +4,7 @@ import {
 } from '@pnpm/core-loggers'
 import { getBinsFromPackageManifest } from '@pnpm/package-bins'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import CMD_EXTENSION from 'cmd-extension'
 import isWindows from 'is-windows'

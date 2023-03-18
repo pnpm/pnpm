@@ -1,6 +1,6 @@
-import { DependenciesMeta, PatchFile } from '@pnpm/types'
+import { type DependenciesMeta, type PatchFile } from '@pnpm/types'
 
-export { PatchFile }
+export type { PatchFile }
 
 export interface Lockfile {
   importers: Record<string, ProjectSnapshot>

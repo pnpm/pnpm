@@ -2,7 +2,7 @@ import { packageManager } from '@pnpm/cli-meta'
 import renderHelp from 'render-help'
 
 export function createHelp (helpByCommandName: Record<string, () => string>) {
-  return function (opts: {}, params: string[]) {
+  return function (opts: unknown, params: string[]) {
     let helpText!: string
     if (params.length === 0) {
       helpText = getHelpText()

@@ -2,17 +2,17 @@ import {
   installCheckLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
-import { checkEngine, UnsupportedEngineError, WantedEngine } from './checkEngine'
+import { checkEngine, UnsupportedEngineError, type WantedEngine } from './checkEngine'
 import { checkPlatform, UnsupportedPlatformError } from './checkPlatform'
 import { getSystemNodeVersion } from './getSystemNodeVersion'
 
-export { Engine } from './checkEngine'
-export { Platform, WantedPlatform } from './checkPlatform'
+export type { Engine } from './checkEngine'
+export type { Platform, WantedPlatform } from './checkPlatform'
 
 export {
   UnsupportedEngineError,
   UnsupportedPlatformError,
-  WantedEngine,
+  type WantedEngine,
 }
 
 export function packageIsInstallable (

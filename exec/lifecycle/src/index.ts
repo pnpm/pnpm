@@ -1,9 +1,9 @@
 import path from 'path'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import exists from 'path-exists'
-import { runLifecycleHook, RunLifecycleHookOptions } from './runLifecycleHook'
-import { runLifecycleHooksConcurrently, RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently'
-import { PackageScripts } from '@pnpm/types'
+import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook'
+import { runLifecycleHooksConcurrently, type RunLifecycleHooksConcurrentlyOptions } from './runLifecycleHooksConcurrently'
+import { type PackageScripts } from '@pnpm/types'
 
 export function makeNodeRequireOption (modulePath: string) {
   let { NODE_OPTIONS } = process.env
@@ -14,8 +14,8 @@ export function makeNodeRequireOption (modulePath: string) {
 export {
   runLifecycleHook,
   runLifecycleHooksConcurrently,
-  RunLifecycleHookOptions,
-  RunLifecycleHooksConcurrentlyOptions,
+  type RunLifecycleHookOptions,
+  type RunLifecycleHooksConcurrentlyOptions,
 }
 
 export async function runPostinstallHooks (

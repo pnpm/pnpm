@@ -1,8 +1,8 @@
-import { parsePref, RegistryPackageSpec } from '@pnpm/npm-resolver'
-import { WorkspacePackages } from '@pnpm/resolver-base'
-import { PackageManifest } from '@pnpm/types'
+import { parsePref, type RegistryPackageSpec } from '@pnpm/npm-resolver'
+import { type WorkspacePackages } from '@pnpm/resolver-base'
+import { type PackageManifest } from '@pnpm/types'
 import semver from 'semver'
-import { WantedDependency } from './getNonDevWantedDependencies'
+import { type WantedDependency } from './getNonDevWantedDependencies'
 
 export function wantedDepIsLocallyAvailable (
   workspacePackages: WorkspacePackages,
