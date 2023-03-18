@@ -2,12 +2,12 @@ import { TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { PnpmError } from '@pnpm/error'
 import {
   outdatedDepsOfProjects,
-  OutdatedPackage,
+  type OutdatedPackage,
 } from '@pnpm/outdated'
 import {
-  DependenciesField,
-  IncludedDependencies,
-  ProjectManifest,
+  type DependenciesField,
+  type IncludedDependencies,
+  type ProjectManifest,
 } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
@@ -15,8 +15,8 @@ import isEmpty from 'ramda/src/isEmpty'
 import sortWith from 'ramda/src/sortWith'
 import {
   getCellWidth,
-  OutdatedCommandOptions,
-  OutdatedPackageJSONOutput,
+  type OutdatedCommandOptions,
+  type OutdatedPackageJSONOutput,
   renderCurrent,
   renderDetails,
   renderLatest,

@@ -1,5 +1,5 @@
 import path from 'path'
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { serverConnectionInfoDir, tryLoadServerJson } from '@pnpm/store-connection-manager'
 import { getStorePath } from '@pnpm/store-path'

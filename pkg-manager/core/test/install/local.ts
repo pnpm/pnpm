@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
-import { Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -9,7 +9,7 @@ import {
   addDependenciesToPackage,
   install,
   mutateModules,
-  MutatedProject,
+  type MutatedProject,
   mutateModulesInSingleProject,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'

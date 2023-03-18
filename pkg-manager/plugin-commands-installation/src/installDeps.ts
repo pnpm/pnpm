@@ -3,18 +3,18 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/find-workspace-packages'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
-import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { IncludedDependencies, Project, ProjectsGraph } from '@pnpm/types'
+import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { type IncludedDependencies, type Project, type ProjectsGraph } from '@pnpm/types'
 import {
   install,
   mutateModulesInSingleProject,
-  MutateModulesOptions,
-  WorkspacePackages,
+  type MutateModulesOptions,
+  type WorkspacePackages,
 } from '@pnpm/core'
 import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
@@ -24,7 +24,7 @@ import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { getPinnedVersion } from './getPinnedVersion'
 import { getSaveType } from './getSaveType'
 import { getNodeExecPath } from './nodeExecPath'
-import { recursive, createMatcher, matchDependencies, makeIgnorePatterns, UpdateDepsMatcher } from './recursive'
+import { recursive, createMatcher, matchDependencies, makeIgnorePatterns, type UpdateDepsMatcher } from './recursive'
 import { updateToLatestSpecsFromManifest, createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 

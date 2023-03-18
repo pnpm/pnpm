@@ -7,9 +7,9 @@ import {
 import type { Cafs, PackageFilesResponse } from '@pnpm/cafs-types'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {
-  ImportIndexedPackage,
-  ImportPackageFunction,
-  PackageFileInfo,
+  type ImportIndexedPackage,
+  type ImportPackageFunction,
+  type PackageFileInfo,
 } from '@pnpm/store-controller-types'
 import memoize from 'mem'
 import pathTemp from 'path-temp'

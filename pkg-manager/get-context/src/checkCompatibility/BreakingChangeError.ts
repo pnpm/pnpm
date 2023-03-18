@@ -1,5 +1,5 @@
 import { PnpmError } from '@pnpm/error'
-import { ErrorRelatedSources } from './ErrorRelatedSources'
+import { type ErrorRelatedSources } from './ErrorRelatedSources'
 
 export type BreakingChangeErrorOptions = ErrorRelatedSources & {
   code: string

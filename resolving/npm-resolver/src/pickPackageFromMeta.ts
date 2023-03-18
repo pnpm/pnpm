@@ -1,8 +1,8 @@
 import { PnpmError } from '@pnpm/error'
-import { VersionSelectors } from '@pnpm/resolver-base'
+import { type VersionSelectors } from '@pnpm/resolver-base'
 import semver from 'semver'
-import { RegistryPackageSpec } from './parsePref'
-import { PackageInRegistry, PackageMeta } from './pickPackage'
+import { type RegistryPackageSpec } from './parsePref'
+import { type PackageInRegistry, type PackageMeta } from './pickPackage'
 
 export type PickVersionByVersionRange = (
   meta: PackageMeta,

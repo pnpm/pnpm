@@ -5,7 +5,7 @@ import {
   handler as run,
   IF_PRESENT_OPTION,
   IF_PRESENT_OPTION_HELP,
-  RunOpts,
+  type RunOpts,
 } from './run'
 
 export function rcOptionsTypes () {

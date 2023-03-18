@@ -2,19 +2,19 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { contextLogger, packageManifestLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
-import { Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile-file'
 import { logger } from '@pnpm/logger'
 import {
-  IncludedDependencies,
-  Modules,
+  type IncludedDependencies,
+  type Modules,
 } from '@pnpm/modules-yaml'
 import { readProjectsContext } from '@pnpm/read-projects-context'
 import {
   DEPENDENCIES_FIELDS,
-  HoistedDependencies,
-  ProjectManifest,
-  ReadPackageHook,
-  Registries,
+  type HoistedDependencies,
+  type ProjectManifest,
+  type ReadPackageHook,
+  type Registries,
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import pathAbsolute from 'path-absolute'

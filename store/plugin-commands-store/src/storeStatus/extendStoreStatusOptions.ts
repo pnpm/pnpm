@@ -1,7 +1,7 @@
 import path from 'path'
 import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
-import { Registries } from '@pnpm/types'
-import { ReporterFunction } from '../types'
+import { type Registries } from '@pnpm/types'
+import { type ReporterFunction } from '../types'
 
 export interface StrictStoreStatusOptions {
   lockfileDir: string

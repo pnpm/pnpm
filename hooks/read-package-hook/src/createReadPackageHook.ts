@@ -1,10 +1,10 @@
 import { packageExtensions as compatPackageExtensions } from '@yarnpkg/extensions'
 import {
-  PackageExtension,
-  PackageManifest,
-  PeerDependencyRules,
-  ProjectManifest,
-  ReadPackageHook,
+  type PackageExtension,
+  type PackageManifest,
+  type PeerDependencyRules,
+  type ProjectManifest,
+  type ReadPackageHook,
 } from '@pnpm/types'
 import isEmpty from 'ramda/src/isEmpty'
 import pipeWith from 'ramda/src/pipeWith'

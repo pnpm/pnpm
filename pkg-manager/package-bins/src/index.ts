@@ -1,5 +1,5 @@
 import path from 'path'
-import { DependencyManifest, PackageBin } from '@pnpm/types'
+import { type DependencyManifest, type PackageBin } from '@pnpm/types'
 import fastGlob from 'fast-glob'
 import isSubdir from 'is-subdir'
 

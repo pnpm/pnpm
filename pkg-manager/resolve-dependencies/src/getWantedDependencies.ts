@@ -1,9 +1,9 @@
 import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import {
-  Dependencies,
-  DependenciesMeta,
-  IncludedDependencies,
-  ProjectManifest,
+  type Dependencies,
+  type DependenciesMeta,
+  type IncludedDependencies,
+  type ProjectManifest,
 } from '@pnpm/types'
 import { whichVersionIsPinned } from '@pnpm/which-version-is-pinned'
 

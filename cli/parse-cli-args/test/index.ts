@@ -1,5 +1,5 @@
 import os from 'os'
-import { PnpmError } from '@pnpm/error'
+import { type PnpmError } from '@pnpm/error'
 import { parseCliArgs } from '@pnpm/parse-cli-args'
 import tempy from 'tempy'
 

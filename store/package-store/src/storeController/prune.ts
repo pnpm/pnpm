@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { PackageFilesIndex } from '@pnpm/cafs'
+import { type PackageFilesIndex } from '@pnpm/cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'

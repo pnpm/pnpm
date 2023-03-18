@@ -1,14 +1,14 @@
 import {
   createVersionSpec,
   getPrefix,
-  PackageSpecObject,
-  PinnedVersion,
+  type PackageSpecObject,
+  type PinnedVersion,
   updateProjectManifestObject,
 } from '@pnpm/manifest-utils'
 import versionSelectorType from 'version-selector-type'
 import semver from 'semver'
-import { ResolvedDirectDependency } from './resolveDependencyTree'
-import { ImporterToResolve } from '.'
+import { type ResolvedDirectDependency } from './resolveDependencyTree'
+import { type ImporterToResolve } from '.'
 
 export async function updateProjectManifest (
   importer: ImporterToResolve,
@@ -67,7 +67,7 @@ function resolvedDirectDepToSpecObject (
     specRaw,
     version,
     preserveNonSemverVersionSpec,
-  }: ResolvedDirectDependency & { isNew?: Boolean, specRaw: string, preserveNonSemverVersionSpec?: boolean },
+  }: ResolvedDirectDependency & { isNew?: boolean, specRaw: string, preserveNonSemverVersionSpec?: boolean },
   importer: ImporterToResolve,
   opts: {
     nodeExecPath?: string

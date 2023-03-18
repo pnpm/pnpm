@@ -1,14 +1,14 @@
 import path from 'path'
 import {
-  PackageSnapshot,
-  PackageSnapshots,
-  TarballResolution,
+  type PackageSnapshot,
+  type PackageSnapshots,
+  type TarballResolution,
 } from '@pnpm/lockfile-file'
 import {
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/lockfile-utils'
-import { Registries } from '@pnpm/types'
+import { type Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
 import normalizePath from 'normalize-path'
 

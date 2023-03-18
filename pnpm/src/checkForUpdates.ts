@@ -1,6 +1,6 @@
 import path from 'path'
 import { packageManager } from '@pnpm/cli-meta'
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import { createResolver } from '@pnpm/client'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { updateCheckLogger } from '@pnpm/core-loggers'

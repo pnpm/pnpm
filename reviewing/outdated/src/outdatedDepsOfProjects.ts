@@ -6,12 +6,12 @@ import {
 import { createMatcher } from '@pnpm/matcher'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import {
-  IncludedDependencies,
-  ProjectManifest,
+  type IncludedDependencies,
+  type ProjectManifest,
 } from '@pnpm/types'
 import unnest from 'ramda/src/unnest'
-import { createManifestGetter, ManifestGetterOptions } from './createManifestGetter'
-import { outdated, OutdatedPackage } from './outdated'
+import { createManifestGetter, type ManifestGetterOptions } from './createManifestGetter'
+import { outdated, type OutdatedPackage } from './outdated'
 
 export async function outdatedDepsOfProjects (
   pkgs: Array<{ dir: string, manifest: ProjectManifest }>,

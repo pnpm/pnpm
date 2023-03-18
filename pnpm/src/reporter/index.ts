@@ -1,6 +1,6 @@
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import { initDefaultReporter } from '@pnpm/default-reporter'
-import { LogLevel, streamParser, writeToConsole } from '@pnpm/logger'
+import { type LogLevel, streamParser, writeToConsole } from '@pnpm/logger'
 import { silentReporter } from './silentReporter'
 
 export type ReporterType = 'default' | 'ndjson' | 'silent' | 'append-only'

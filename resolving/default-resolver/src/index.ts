@@ -1,18 +1,18 @@
 import { PnpmError } from '@pnpm/error'
-import { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching-types'
+import { type FetchFromRegistry, type GetAuthHeader } from '@pnpm/fetching-types'
 import { createGitResolver } from '@pnpm/git-resolver'
 import { resolveFromLocal } from '@pnpm/local-resolver'
 import {
   createNpmResolver,
-  PackageMeta,
-  PackageMetaCache,
-  ResolveFromNpmOptions,
-  ResolverFactoryOptions,
+  type PackageMeta,
+  type PackageMetaCache,
+  type ResolveFromNpmOptions,
+  type ResolverFactoryOptions,
 } from '@pnpm/npm-resolver'
-import { ResolveFunction } from '@pnpm/resolver-base'
+import { type ResolveFunction } from '@pnpm/resolver-base'
 import { resolveFromTarball } from '@pnpm/tarball-resolver'
 
-export {
+export type {
   PackageMeta,
   PackageMetaCache,
   ResolveFunction,

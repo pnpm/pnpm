@@ -1,5 +1,5 @@
 import { readProjectManifestOnly } from '@pnpm/cli-utils'
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { getStorePath } from '@pnpm/store-path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'

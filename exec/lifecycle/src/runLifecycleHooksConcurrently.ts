@@ -1,10 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
-import { StoreController } from '@pnpm/store-controller-types'
-import { ProjectManifest } from '@pnpm/types'
+import { type StoreController } from '@pnpm/store-controller-types'
+import { type ProjectManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
-import { runLifecycleHook, RunLifecycleHookOptions } from './runLifecycleHook'
+import { runLifecycleHook, type RunLifecycleHookOptions } from './runLifecycleHook'
 
 export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
 | 'depPath'

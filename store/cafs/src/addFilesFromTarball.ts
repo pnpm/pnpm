@@ -1,4 +1,4 @@
-import { Duplex, PassThrough } from 'stream'
+import { type Duplex, type PassThrough } from 'stream'
 import type { DeferredManifestPromise, FilesIndex, FileWriteResult } from '@pnpm/cafs-types'
 import decompress from 'decompress-maybe'
 import tar from 'tar-stream'
@@ -6,7 +6,7 @@ import { parseJsonStream } from './parseJson'
 
 export async function addFilesFromTarball (
   addStreamToCafs: (fileStream: PassThrough, mode: number) => Promise<FileWriteResult>,
-  _ignore: null | ((filename: string) => Boolean),
+  _ignore: null | ((filename: string) => boolean),
   stream: NodeJS.ReadableStream,
   manifest?: DeferredManifestPromise
 ): Promise<FilesIndex> {

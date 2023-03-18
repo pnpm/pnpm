@@ -2,9 +2,9 @@ import * as dp from '@pnpm/dependency-path'
 import type { Lockfile, ProjectSnapshot, ResolvedDependencies } from '@pnpm/lockfile-types'
 import {
   INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX,
-  InlineSpecifiersLockfile,
-  InlineSpecifiersProjectSnapshot,
-  InlineSpecifiersResolvedDependencies,
+  type InlineSpecifiersLockfile,
+  type InlineSpecifiersProjectSnapshot,
+  type InlineSpecifiersResolvedDependencies,
 } from './InlineSpecifiersLockfile'
 
 export function isExperimentalInlineSpecifiersFormat (

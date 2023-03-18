@@ -3,7 +3,7 @@ import {
   readDepNameCompletions,
   readProjectManifestOnly,
 } from '@pnpm/cli-utils'
-import { CompletionFunc } from '@pnpm/command'
+import { type CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
@@ -14,7 +14,7 @@ import chalk from 'chalk'
 import pick from 'ramda/src/pick'
 import unnest from 'ramda/src/unnest'
 import renderHelp from 'render-help'
-import { InstallCommandOptions } from '../install'
+import { type InstallCommandOptions } from '../install'
 import { installDeps } from '../installDeps'
 import { getUpdateChoices } from './getUpdateChoices'
 

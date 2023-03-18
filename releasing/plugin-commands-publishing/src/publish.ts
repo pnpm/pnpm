@@ -2,11 +2,11 @@ import { promises as fs, existsSync } from 'fs'
 import path from 'path'
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
-import { Config, types as allTypes } from '@pnpm/config'
+import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { runLifecycleHook, RunLifecycleHookOptions } from '@pnpm/lifecycle'
+import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { runNpm } from '@pnpm/run-npm'
-import { ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
 import { prompt } from 'enquirer'
 import rimraf from '@zkochan/rimraf'
@@ -15,7 +15,7 @@ import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
 import * as pack from './pack'
-import { recursivePublish, PublishRecursiveOpts } from './recursivePublish'
+import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish'
 
 export function rcOptionsTypes () {
   return pick([
@@ -110,6 +110,22 @@ export function help () {
 const GIT_CHECKS_HINT = 'If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks".'
 
 export async function handler (
+  opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
+    argv: {
+      original: string[]
+    }
+    engineStrict?: boolean
+    recursive?: boolean
+    workspaceDir?: string
+  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'embedReadme'>,
+  params: string[]
+) {
+  const result = await publish(opts, params)
+  if (result?.manifest) return
+  return result
+}
+
+export async function publish (
   opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
     argv: {
       original: string[]

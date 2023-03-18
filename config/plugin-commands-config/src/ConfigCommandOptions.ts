@@ -1,4 +1,4 @@
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 
 export type ConfigCommandOptions = Pick<Config,
 | 'configDir'

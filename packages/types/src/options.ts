@@ -1,5 +1,5 @@
-import { DependenciesField } from './misc'
-import { PackageManifest, ProjectManifest } from './package'
+import { type DependenciesField } from './misc'
+import { type PackageManifest, type ProjectManifest } from './package'
 
 export type LogBase = {
   level: 'debug' | 'error'

@@ -1,4 +1,4 @@
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 
 export function getNodeMirror (rawConfig: Config['rawConfig'], releaseChannel: string): string {
   // This is a dynamic lookup since the 'use-node-version' option is allowed to be '<releaseChannel>/<version>'

@@ -5,16 +5,16 @@ import {
   TABLE_OPTIONS,
 } from '@pnpm/cli-utils'
 import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
-import { CompletionFunc } from '@pnpm/command'
+import { type CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { Config, types as allTypes } from '@pnpm/config'
+import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import {
   outdatedDepsOfProjects,
-  OutdatedPackage,
+  type OutdatedPackage,
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import { DependenciesField, PackageManifest } from '@pnpm/types'
+import { type DependenciesField, type PackageManifest } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
@@ -24,7 +24,7 @@ import stripAnsi from 'strip-ansi'
 import wrapAnsi from 'wrap-ansi'
 import {
   DEFAULT_COMPARATORS,
-  OutdatedWithVersionDiff,
+  type OutdatedWithVersionDiff,
 } from './utils'
 import { outdatedRecursive } from './recursive'
 

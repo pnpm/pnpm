@@ -2,7 +2,7 @@ import path from 'path'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
   install,
-  MutatedProject,
+  type MutatedProject,
   mutateModules,
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'

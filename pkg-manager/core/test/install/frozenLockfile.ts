@@ -3,7 +3,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import {
   install,
-  MutatedProject,
+  type MutatedProject,
   mutateModules,
 } from '@pnpm/core'
 import sinon from 'sinon'

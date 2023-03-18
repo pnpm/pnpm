@@ -1,4 +1,4 @@
-import { ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest } from '@pnpm/types'
 import path from 'path'
 import { readPkg } from './readPkg'
 

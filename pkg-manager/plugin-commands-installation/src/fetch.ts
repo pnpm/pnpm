@@ -1,8 +1,8 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { Config } from '@pnpm/config'
-import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { InstallOptions, mutateModulesInSingleProject } from '@pnpm/core'
+import { type Config } from '@pnpm/config'
+import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { type InstallOptions, mutateModulesInSingleProject } from '@pnpm/core'
 import renderHelp from 'render-help'
 import { cliOptionsTypes } from './install'
 
@@ -47,7 +47,7 @@ export async function handler (
     // when including optional deps, production is also required when perform headless install
     optionalDependencies: opts.production !== false,
   }
-  return mutateModulesInSingleProject({
+  await mutateModulesInSingleProject({
     manifest: {},
     mutation: 'install',
     pruneDirectDependencies: true,

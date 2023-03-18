@@ -1,17 +1,17 @@
 import * as path from 'path'
 import { promises as fs } from 'fs'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { PnpmError } from '@pnpm/error'
+import { type PnpmError } from '@pnpm/error'
 import {
-  PackageManifestLog,
-  ProgressLog,
-  RootLog,
-  StageLog,
-  StatsLog,
+  type PackageManifestLog,
+  type ProgressLog,
+  type RootLog,
+  type StageLog,
+  type StatsLog,
 } from '@pnpm/core-loggers'
 import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
-import { ProjectManifest } from '@pnpm/types'
+import { type ProjectManifest } from '@pnpm/types'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,

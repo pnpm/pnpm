@@ -1,5 +1,5 @@
-import { Config } from '@pnpm/config'
-import { DependenciesField } from '@pnpm/types'
+import { type Config } from '@pnpm/config'
+import { type DependenciesField } from '@pnpm/types'
 
 export function getSaveType (
   opts: Pick<Config, 'saveDev' | 'saveOptional' | 'saveProd' | 'savePeer'>

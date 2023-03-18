@@ -1,14 +1,14 @@
 import {
-  PackageFilesIndex,
+  type PackageFilesIndex,
 } from '@pnpm/cafs'
 import { createCafsStore } from '@pnpm/create-cafs-store'
-import { Fetchers } from '@pnpm/fetcher-base'
+import { type Fetchers } from '@pnpm/fetcher-base'
 import { createPackageRequester } from '@pnpm/package-requester'
-import { ResolveFunction } from '@pnpm/resolver-base'
+import { type ResolveFunction } from '@pnpm/resolver-base'
 import {
-  ImportIndexedPackage,
-  PackageFileInfo,
-  StoreController,
+  type ImportIndexedPackage,
+  type PackageFileInfo,
+  type StoreController,
 } from '@pnpm/store-controller-types'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'

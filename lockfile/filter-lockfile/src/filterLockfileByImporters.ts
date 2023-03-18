@@ -1,12 +1,12 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { LockfileMissingDependencyError } from '@pnpm/error'
 import {
-  Lockfile,
-  PackageSnapshots,
+  type Lockfile,
+  type PackageSnapshots,
 } from '@pnpm/lockfile-types'
-import { lockfileWalker, LockfileWalkerStep } from '@pnpm/lockfile-walker'
+import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger } from '@pnpm/logger'
-import { DependenciesField } from '@pnpm/types'
+import { type DependenciesField } from '@pnpm/types'
 import { filterImporter } from './filterImporter'
 
 const lockfileLogger = logger('lockfile')

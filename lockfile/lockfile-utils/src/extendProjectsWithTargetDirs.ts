@@ -1,5 +1,5 @@
 import path from 'path'
-import { Lockfile, TarballResolution } from '@pnpm/lockfile-types'
+import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 
 type GetLocalLocations = (depPath: string, pkgName: string) => string[]

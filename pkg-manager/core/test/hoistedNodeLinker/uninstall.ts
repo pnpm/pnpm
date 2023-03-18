@@ -1,6 +1,6 @@
 import {
-  PackageManifestLog,
-  StatsLog,
+  type PackageManifestLog,
+  type StatsLog,
 } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import {

@@ -4,7 +4,7 @@ import { types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { handler as list, ListCommandOptions } from './list'
+import { handler as list, type ListCommandOptions } from './list'
 
 export function rcOptionsTypes () {
   return pick([

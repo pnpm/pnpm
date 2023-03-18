@@ -1,5 +1,5 @@
 import { parseString, stripComments } from 'strip-comments-strings'
-import { CommentSpecifier } from './CommentSpecifier'
+import { type CommentSpecifier } from './CommentSpecifier'
 
 export function extractComments (text: string) {
   const hasFinalNewline = text.endsWith('\n')

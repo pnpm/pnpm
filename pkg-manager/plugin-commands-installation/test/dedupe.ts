@@ -1,6 +1,6 @@
 import path from 'path'
 import { readProjects } from '@pnpm/filter-workspace-packages'
-import { Lockfile } from '@pnpm/lockfile-types'
+import { type Lockfile } from '@pnpm/lockfile-types'
 import { dedupe, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'

@@ -8,7 +8,7 @@ import {
 import { fixtures } from '@pnpm/test-fixtures'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import { RootLog } from '@pnpm/core-loggers'
+import { type RootLog } from '@pnpm/core-loggers'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
 import symlink from 'symlink-dir'

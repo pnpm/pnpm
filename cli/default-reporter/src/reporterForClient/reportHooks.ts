@@ -1,4 +1,4 @@
-import { HookLog } from '@pnpm/core-loggers'
+import { type HookLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { map } from 'rxjs/operators'
 import chalk from 'chalk'

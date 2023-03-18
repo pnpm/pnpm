@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
-import { Config } from '@pnpm/config'
+import { type Config } from '@pnpm/config'
 import {
   deprecationLogger,
   hookLogger,

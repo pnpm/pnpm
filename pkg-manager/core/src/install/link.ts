@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { calcDepState, DepsStateCache } from '@pnpm/calc-dep-state'
+import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   progressLogger,
   stageLogger,
@@ -11,20 +11,20 @@ import {
 } from '@pnpm/filter-lockfile'
 import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
 import { hoist } from '@pnpm/hoist'
-import { Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile-file'
 import { logger } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
-import { IncludedDependencies } from '@pnpm/modules-yaml'
+import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import {
-  DependenciesGraph,
-  DependenciesGraphNode,
-  LinkedDependency,
+  type DependenciesGraph,
+  type DependenciesGraphNode,
+  type LinkedDependency,
 } from '@pnpm/resolve-dependencies'
-import { StoreController, TarballResolution } from '@pnpm/store-controller-types'
+import { type StoreController, type TarballResolution } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import {
-  HoistedDependencies,
-  Registries,
+  type HoistedDependencies,
+  type Registries,
 } from '@pnpm/types'
 import pLimit from 'p-limit'
 import pathExists from 'path-exists'
@@ -35,7 +35,7 @@ import omit from 'ramda/src/omit'
 import pick from 'ramda/src/pick'
 import pickBy from 'ramda/src/pickBy'
 import props from 'ramda/src/props'
-import { ImporterToUpdate } from './index'
+import { type ImporterToUpdate } from './index'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 

@@ -4,15 +4,15 @@ import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/graceful-fs'
 import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
-  DirectoryResolution,
-  ResolveResult,
-  TarballResolution,
+  type DirectoryResolution,
+  type ResolveResult,
+  type TarballResolution,
 } from '@pnpm/resolver-base'
-import { DependencyManifest } from '@pnpm/types'
+import { type DependencyManifest } from '@pnpm/types'
 import ssri from 'ssri'
-import { parsePref, WantedLocalDependency } from './parsePref'
+import { parsePref, type WantedLocalDependency } from './parsePref'
 
-export { WantedLocalDependency }
+export type { WantedLocalDependency }
 
 /**
  * Resolves a package hosted on the local filesystem

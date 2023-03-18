@@ -6,38 +6,38 @@ import {
 } from '@pnpm/core-loggers'
 import { globalWarn } from '@pnpm/logger'
 import {
-  Lockfile,
-  ProjectSnapshot,
+  type Lockfile,
+  type ProjectSnapshot,
 } from '@pnpm/lockfile-types'
 import {
   getAllDependenciesFromManifest,
   getSpecFromPackageManifest,
-  PinnedVersion,
+  type PinnedVersion,
 } from '@pnpm/manifest-utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
-  DependenciesField,
+  type DependenciesField,
   DEPENDENCIES_FIELDS,
-  DependencyManifest,
-  ProjectManifest,
-  Registries,
+  type DependencyManifest,
+  type ProjectManifest,
+  type Registries,
 } from '@pnpm/types'
 import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
-import { getWantedDependencies, WantedDependency } from './getWantedDependencies'
+import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
 import { depPathToRef } from './depPathToRef'
-import { createNodeIdForLinkedLocalPkg, UpdateMatchingFunction } from './resolveDependencies'
+import { createNodeIdForLinkedLocalPkg, type UpdateMatchingFunction } from './resolveDependencies'
 import {
-  Importer,
-  LinkedDependency,
-  ResolveDependenciesOptions,
-  ResolvedDirectDependency,
-  ResolvedPackage,
+  type Importer,
+  type LinkedDependency,
+  type ResolveDependenciesOptions,
+  type ResolvedDirectDependency,
+  type ResolvedPackage,
   resolveDependencyTree,
 } from './resolveDependencyTree'
 import {
-  GenericDependenciesGraph,
-  GenericDependenciesGraphNode,
+  type GenericDependenciesGraph,
+  type GenericDependenciesGraphNode,
   resolvePeers,
 } from './resolvePeers'
 import { toResolveImporter } from './toResolveImporter'
@@ -50,11 +50,11 @@ export type DependenciesGraphNode = GenericDependenciesGraphNode & ResolvedPacka
 
 export {
   getWantedDependencies,
-  LinkedDependency,
-  ResolvedPackage,
-  PinnedVersion,
-  UpdateMatchingFunction,
-  WantedDependency,
+  type LinkedDependency,
+  type ResolvedPackage,
+  type PinnedVersion,
+  type UpdateMatchingFunction,
+  type WantedDependency,
 }
 
 interface ProjectToLink {

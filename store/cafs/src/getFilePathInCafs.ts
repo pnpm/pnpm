@@ -1,5 +1,5 @@
 import path from 'path'
-import ssri, { IntegrityLike } from 'ssri'
+import ssri, { type IntegrityLike } from 'ssri'
 
 export const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
 

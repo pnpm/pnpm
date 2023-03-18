@@ -6,9 +6,9 @@ import {
 } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import {
-  Lockfile,
-  PackageSnapshot,
-  ResolvedDependencies,
+  type Lockfile,
+  type PackageSnapshot,
+  type ResolvedDependencies,
 } from '@pnpm/lockfile-types'
 import {
   nameVerFromPkgSnapshot,
@@ -18,26 +18,26 @@ import {
 import { logger } from '@pnpm/logger'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import {
-  DirectoryResolution,
+  type DirectoryResolution,
   DIRECT_DEP_SELECTOR_WEIGHT,
-  PreferredVersions,
-  Resolution,
-  WorkspacePackages,
+  type PreferredVersions,
+  type Resolution,
+  type WorkspacePackages,
 } from '@pnpm/resolver-base'
 import {
-  PackageFilesResponse,
-  PackageResponse,
-  StoreController,
+  type PackageFilesResponse,
+  type PackageResponse,
+  type StoreController,
 } from '@pnpm/store-controller-types'
 import {
-  AllowedDeprecatedVersions,
-  Dependencies,
-  DependencyManifest,
-  PackageManifest,
-  PatchFile,
-  PeerDependenciesMeta,
-  ReadPackageHook,
-  Registries,
+  type AllowedDeprecatedVersions,
+  type Dependencies,
+  type DependencyManifest,
+  type PackageManifest,
+  type PatchFile,
+  type PeerDependenciesMeta,
+  type ReadPackageHook,
+  type Registries,
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import normalizePath from 'normalize-path'
@@ -50,7 +50,7 @@ import omit from 'ramda/src/omit'
 import zipWith from 'ramda/src/zipWith'
 import semver from 'semver'
 import { encodePkgId } from './encodePkgId'
-import { getNonDevWantedDependencies, WantedDependency } from './getNonDevWantedDependencies'
+import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies'
 import { safeIntersect } from './mergePeers'
 import {
   createNodeId,
@@ -59,7 +59,7 @@ import {
   splitNodeId,
 } from './nodeIdUtils'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
-import safePromiseDefer, { SafePromiseDefer } from 'safe-promise-defer'
+import safePromiseDefer, { type SafePromiseDefer } from 'safe-promise-defer'
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
@@ -936,7 +936,7 @@ type InfoFromLockfile = {
   name: string
   version: string
   resolution: Resolution
-} | {})
+} | unknown)
 
 function getInfoFromLockfile (
   lockfile: Lockfile,

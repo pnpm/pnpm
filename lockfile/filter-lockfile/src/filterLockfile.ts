@@ -1,5 +1,5 @@
-import { Lockfile } from '@pnpm/lockfile-types'
-import { DependenciesField } from '@pnpm/types'
+import { type Lockfile } from '@pnpm/lockfile-types'
+import { type DependenciesField } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
 import { filterImporter } from './filterImporter'
 

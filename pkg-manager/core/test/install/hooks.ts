@@ -1,10 +1,10 @@
 import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
-import { Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,
-  PackageManifest,
+  type PackageManifest,
 } from '@pnpm/core'
 import { testDefaults } from '../utils'
 

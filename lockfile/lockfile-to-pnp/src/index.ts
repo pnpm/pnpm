@@ -1,12 +1,12 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { Lockfile } from '@pnpm/lockfile-file'
+import { type Lockfile } from '@pnpm/lockfile-file'
 import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
-import { Registries } from '@pnpm/types'
+import { type Registries } from '@pnpm/types'
 import { depPathToFilename, refToRelative } from '@pnpm/dependency-path'
-import { generateInlinedScript, PackageRegistry } from '@yarnpkg/pnp'
+import { generateInlinedScript, type PackageRegistry } from '@yarnpkg/pnp'
 import normalizePath from 'normalize-path'
 
 export async function writePnpFile (
