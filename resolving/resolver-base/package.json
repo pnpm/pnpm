@@ -22,7 +22,7 @@
     "resolver"
   ],
   "engines": {
-    "node": ">=14.6"
+    "node": ">=16.14"
   },
   "license": "MIT",
   "homepage": "https://github.com/pnpm/pnpm/blob/main/resolving/resolver-base#readme",

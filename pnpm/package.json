@@ -143,7 +143,7 @@
   "license": "MIT",
   "preferGlobal": true,
   "engines": {
-    "node": ">=14.6"
+    "node": ">=16.14"
   },
   "repository": {
     "type": "git",
