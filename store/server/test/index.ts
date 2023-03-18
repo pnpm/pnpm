@@ -85,7 +85,9 @@ test('fetchPackage', async () => {
   })
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
-  const response = storeCtrl.fetchPackage({
+  // This should be fixed
+  // eslint-disable-next-line
+  const response = await storeCtrl.fetchPackage({
     fetchRawManifest: true,
     force: false,
     lockfileDir: process.cwd(),
