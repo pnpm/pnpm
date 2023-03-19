@@ -97,11 +97,11 @@ test('resolve peer dependencies of cyclic dependencies', () => {
     lockfileDir: '',
   })
   expect(Object.keys(dependenciesGraph)).toStrictEqual([
-    'foo/1.0.0_qar@1.0.0+zoo@1.0.0',
-    'bar/1.0.0_foo@1.0.0+zoo@1.0.0',
-    'zoo/1.0.0_qar@1.0.0',
-    'qar/1.0.0_bar@1.0.0+foo@1.0.0',
-    'bar/1.0.0_foo@1.0.0',
+    'foo/1.0.0(qar@1.0.0)(zoo@1.0.0)',
+    'bar/1.0.0(foo@1.0.0)(zoo@1.0.0)',
+    'zoo/1.0.0(qar@1.0.0)',
+    'qar/1.0.0(bar@1.0.0)(foo@1.0.0)',
+    'bar/1.0.0(foo@1.0.0)',
     'foo/1.0.0',
   ])
 })
@@ -195,8 +195,8 @@ test('when a package is referenced twice in the dependencies graph and one of th
   expect(Object.keys(dependenciesGraph)).toStrictEqual([
     'foo/1.0.0',
     'zoo/1.0.0',
-    'foo/1.0.0_qar@1.0.0',
-    'zoo/1.0.0_qar@1.0.0',
+    'foo/1.0.0(qar@1.0.0)',
+    'zoo/1.0.0(qar@1.0.0)',
     'qar/1.0.0',
     'bar/1.0.0',
   ])

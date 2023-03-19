@@ -1,0 +1,19 @@
+lockfileVersion: 5.4
+
+specifiers:
+  '@pnpm.e2e/pkg-with-1-dep': 100.0.0
+
+dependencies:
+  '@pnpm.e2e/pkg-with-1-dep': 100.0.0
+
+packages:
+
+  /@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0:
+    resolution: {integrity: sha512-CAF68U5SjOQOT2dubJxAxauvQwm0G2IWS+Si7xP6Za79ZAt2VmCG5LMoSfv7GkbKk0RvSm/EMpT4BQVGy1yCpg==}
+    dev: false
+
+  /@pnpm.e2e/pkg-with-1-dep/100.0.0:
+    resolution: {integrity: sha512-IGrkh3wu1jOzTFzi/S+XOkuhEwhV03qRaH7tcwPoPJ+AQo2cAuhgOBwczq2y8DPfob+BlzSmZXjEvEqoXKio7A==}
+    dependencies:
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': 100.1.0
+    dev: false

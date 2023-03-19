@@ -159,7 +159,6 @@ export interface ResolutionContext {
   registries: Registries
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   virtualStoreDir: string
-  useLockfileV6?: boolean
   workspacePackages?: WorkspacePackages
   missingPeersOfChildrenByPkgId: Record<string, { parentImporterId: string, missingPeersOfChildren: MissingPeersOfChildren }>
 }
@@ -1175,7 +1174,7 @@ async function resolveDependency (
   const patchFile = ctx.patchedDependencies?.[nameAndVersion]
   if (patchFile) {
     ctx.appliedPatches.add(nameAndVersion)
-    depPath += ctx.useLockfileV6 ? `(patch_hash=${patchFile.hash})` : `_${patchFile.hash}`
+    depPath += `(patch_hash=${patchFile.hash})`
   }
 
   // We are building the dependency tree only until there are new packages
