@@ -37,7 +37,6 @@ export async function writeWantedLockfile (
   wantedLockfile: Lockfile,
   opts?: {
     forceSharedFormat?: boolean
-    useInlineSpecifiersFormat?: boolean
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
   }
@@ -64,7 +63,6 @@ export async function writeCurrentLockfile (
 
 interface LockfileFormatOptions {
   forceSharedFormat?: boolean
-  useInlineSpecifiersFormat?: boolean
 }
 
 async function writeLockfile (
@@ -76,13 +74,13 @@ async function writeLockfile (
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
   const isLockfileV6 = wantedLockfile['lockfileVersion'].toString().startsWith('6.')
-  const lockfileToStringify = (Boolean(opts?.useInlineSpecifiersFormat) || isLockfileV6)
+  const lockfileToStringify = isLockfileV6
     ? convertToInlineSpecifiersFormat(wantedLockfile) as unknown as Lockfile
     : wantedLockfile
 
   const yamlDoc = yamlStringify(lockfileToStringify, {
     forceSharedFormat: opts?.forceSharedFormat === true,
-    includeEmptySpecifiersField: !opts?.useInlineSpecifiersFormat && !isLockfileV6,
+    includeEmptySpecifiersField: !isLockfileV6,
   })
 
   return writeFileAtomic(lockfilePath, yamlDoc)
@@ -227,7 +225,6 @@ function pruneTime (time: Record<string, string>, importers: Record<string, Proj
 export async function writeLockfiles (
   opts: {
     forceSharedFormat?: boolean
-    useInlineSpecifiersFormat?: boolean
     wantedLockfile: Lockfile
     wantedLockfileDir: string
     currentLockfile: Lockfile
@@ -242,12 +239,12 @@ export async function writeLockfiles (
 
   const forceSharedFormat = opts?.forceSharedFormat === true
   const isLockfileV6 = opts.wantedLockfile.lockfileVersion.toString().startsWith('6.')
-  const wantedLockfileToStringify = (Boolean(opts.useInlineSpecifiersFormat) || isLockfileV6)
+  const wantedLockfileToStringify = isLockfileV6
     ? convertToInlineSpecifiersFormat(opts.wantedLockfile) as unknown as Lockfile
     : opts.wantedLockfile
   const normalizeOpts = {
     forceSharedFormat,
-    includeEmptySpecifiersField: !opts.useInlineSpecifiersFormat && !isLockfileV6,
+    includeEmptySpecifiersField: !isLockfileV6,
   }
   const yamlDoc = yamlStringify(wantedLockfileToStringify, normalizeOpts)
 
@@ -274,7 +271,7 @@ export async function writeLockfiles (
     prefix: opts.wantedLockfileDir,
   })
 
-  const currentLockfileToStringify = (Boolean(opts.useInlineSpecifiersFormat) || opts.wantedLockfile.lockfileVersion.toString().startsWith('6.'))
+  const currentLockfileToStringify = opts.wantedLockfile.lockfileVersion.toString().startsWith('6.')
     ? convertToInlineSpecifiersFormat(opts.currentLockfile) as unknown as Lockfile
     : opts.currentLockfile
   const currentYamlDoc = yamlStringify(currentLockfileToStringify, normalizeOpts)

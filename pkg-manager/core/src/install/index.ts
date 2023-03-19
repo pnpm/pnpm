@@ -307,9 +307,6 @@ export async function mutateModules (
         path: path.join(opts.lockfileDir, patchFile.path),
       }), patchedDependencies)
       : undefined
-    if (opts.useLockfileV6 == null) {
-      opts.useLockfileV6 = ctx.wantedLockfile.lockfileVersion.toString().startsWith('6.')
-    }
     let needsFullResolution = !maybeOpts.ignorePackageManifest &&
       lockfileIsNotUpToDate(ctx.wantedLockfile, {
         overrides: opts.overrides,
@@ -319,7 +316,7 @@ export async function mutateModules (
         patchedDependencies,
       }) ||
       opts.fixLockfile ||
-      opts.useLockfileV6 && !ctx.wantedLockfile.lockfileVersion.toString().startsWith('6.')
+      !ctx.wantedLockfile.lockfileVersion.toString().startsWith('6.')
     if (needsFullResolution) {
       ctx.wantedLockfile.overrides = opts.overrides
       ctx.wantedLockfile.neverBuiltDependencies = opts.neverBuiltDependencies
@@ -396,7 +393,6 @@ export async function mutateModules (
               wantedLockfile: ctx.wantedLockfile,
               wantedLockfileDir: ctx.lockfileDir,
               forceSharedFormat: opts.forceSharedLockfile,
-              useInlineSpecifiersFormat: opts.useInlineSpecifiersLockfileFormat || opts.useLockfileV6,
               useGitBranchLockfile: opts.useGitBranchLockfile,
               mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
             })
@@ -911,7 +907,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       patchedDependencies: opts.patchedDependencies,
       lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
       resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
-      useLockfileV6: opts.useLockfileV6,
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {
@@ -949,17 +944,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     : newLockfile
 
   if (opts.updateLockfileMinorVersion) {
-    if (opts.useLockfileV6) {
-      newLockfile.lockfileVersion = LOCKFILE_VERSION_V6
-    } else {
-      newLockfile.lockfileVersion = LOCKFILE_VERSION
-    }
+    newLockfile.lockfileVersion = LOCKFILE_VERSION_V6
   }
 
   const depsStateCache: DepsStateCache = {}
   const lockfileOpts = {
     forceSharedFormat: opts.forceSharedLockfile,
-    useInlineSpecifiersFormat: opts.useInlineSpecifiersLockfileFormat || opts.useLockfileV6,
+    useInlineSpecifiersFormat: true,
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }

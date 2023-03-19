@@ -88,7 +88,6 @@ export interface Config {
   registrySupportsTimeField?: boolean
   failedToLoadBuiltInConfig: boolean
   resolvePeersFromWorkspaceRoot?: boolean
-  useLockfileV6?: boolean
   deployAllFiles?: boolean
 
   // proxy
@@ -168,9 +167,6 @@ export interface Config {
   changedFilesIgnorePattern?: string[]
   rootProjectManifest?: ProjectManifest
   userConfig: Record<string, string>
-
-  // feature flags for experimental testing
-  useInlineSpecifiersLockfileFormat?: boolean // For https://github.com/pnpm/pnpm/issues/4725
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

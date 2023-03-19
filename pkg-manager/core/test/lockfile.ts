@@ -3,9 +3,10 @@ import path from 'path'
 import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { type RootLog } from '@pnpm/core-loggers'
 import { type PnpmError } from '@pnpm/error'
+import { fixtures } from '@pnpm/test-fixtures'
 import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-file'
 import { type LockfileV6 } from '@pnpm/lockfile-types'
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { tempDir, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
@@ -25,6 +26,8 @@ import exists from 'path-exists'
 import sinon from 'sinon'
 import writeYamlFile from 'write-yaml-file'
 import { testDefaults } from './utils'
+
+const f = fixtures(__dirname)
 
 const LOCKFILE_WARN_LOG = {
   level: 'warn',
@@ -1471,23 +1474,15 @@ test('lockfile v6', async () => {
 })
 
 test('lockfile v5 is converted to lockfile v6', async () => {
+  const tmp = tempDir()
+  f.copy('lockfile-v5', tmp)
   prepareEmpty()
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], await testDefaults({ useLockfileV6: false }))
+  await install({ dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } }, await testDefaults())
 
-  {
-    const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
-    expect(lockfile.lockfileVersion).toBe(5.4)
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep/100.0.0'])
-  }
-
-  await install(manifest, await testDefaults({ useLockfileV6: true }))
-
-  {
-    const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
-    expect(lockfile.lockfileVersion).toBe('6.0')
-    expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep@100.0.0'])
-  }
+  const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(lockfile.lockfileVersion).toBe('6.0')
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep@100.0.0'])
 })
 
 test('update the lockfile when a new project is added to the workspace', async () => {

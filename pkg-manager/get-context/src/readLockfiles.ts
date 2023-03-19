@@ -39,7 +39,6 @@ export async function readLockfiles (
     useGitBranchLockfile?: boolean
     mergeGitBranchLockfiles?: boolean
     virtualStoreDir: string
-    useLockfileV6?: boolean
   }
 ): Promise<{
     currentLockfile: Lockfile
@@ -49,7 +48,7 @@ export async function readLockfiles (
     wantedLockfile: Lockfile
     lockfileHadConflicts: boolean
   }> {
-  const wantedLockfileVersion = opts.useLockfileV6 ? LOCKFILE_VERSION_V6 : LOCKFILE_VERSION
+  const wantedLockfileVersion = LOCKFILE_VERSION_V6
   // ignore `pnpm-lock.yaml` on CI servers
   // a latest pnpm should not break all the builds
   const lockfileOpts = {
