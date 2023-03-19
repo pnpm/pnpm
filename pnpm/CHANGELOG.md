@@ -1,9 +1,10 @@
 # pnpm
 
-## 8.0.0-beta.0
+## 8.0.0-beta.1
 
 ### Major Changes
 
+- Node.js 14 support dropped.
 - `auto-install-peers` is `true` by default.
 - `dedupe-peer-dependents` is `true` by default.
 - The registry field is removed from the `resolution` object in `pnpm-lock.yaml`.
