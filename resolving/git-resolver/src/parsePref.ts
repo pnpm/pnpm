@@ -38,15 +38,9 @@ export async function parsePref (pref: string): Promise<HostedPackageSpec | null
   if (colonsPos === -1) return null
   const protocol = pref.slice(0, colonsPos)
   if (protocol && gitProtocols.has(protocol.toLocaleLowerCase())) {
-    const urlparse = new URL(escapeColon(pref))
+    const correctPref = correctUrl(pref)
+    const urlparse = new URL(correctPref)
     if (!urlparse?.protocol) return null
-    const match = urlparse.protocol === 'git+ssh:' && matchGitScp(pref)
-    if (match) {
-      return {
-        ...match,
-        normalizedPref: pref,
-      }
-    }
 
     const committish = (urlparse.hash?.length > 1) ? decodeURIComponent(urlparse.hash.slice(1)) : null
     return {
@@ -56,13 +50,6 @@ export async function parsePref (pref: string): Promise<HostedPackageSpec | null
     }
   }
   return null
-}
-
-function escapeColon (url: string) {
-  if (!url.includes('@')) return url
-  const [front, ...backs] = url.split('@')
-  const escapedBacks = backs.map(e => e.replace(/:([^/\d]|\d+[^:/\d])/, ':/$1'))
-  return [front, ...escapedBacks].join('@')
 }
 
 function urlToFetchSpec (urlparse: URL) {
@@ -151,18 +138,19 @@ function setGitCommittish (committish: string | null) {
   return { gitCommittish: committish }
 }
 
-function matchGitScp (spec: string) {
-  // git ssh specifiers are overloaded to also use scp-style git
-  // specifiers, so we have to parse those out and treat them special.
-  // They are NOT true URIs, so we can't hand them to `url.parse`.
-  //
-  // This regex looks for things that look like:
-  // git+ssh://git@my.custom.git.com:username/project.git#deadbeef
-  //
-  // ...and various combinations. The username in the beginning is *required*.
-  const matched = spec.match(/^git\+ssh:\/\/([^:]+:[^#]+(?:\.git)?)(?:#(.*))$/i)
-  return (matched != null) && (matched[1].match(/:[0-9]+\/?.*$/i) == null) && {
-    fetchSpec: matched[1],
-    gitCommittish: matched[2],
+// handle SCP-like URLs
+// see https://github.com/yarnpkg/yarn/blob/5682d55/src/util/git.js#L103
+function correctUrl (giturl: string) {
+  const parsed = url.parse(giturl.replace(/^git\+/, '')) // eslint-disable-line n/no-deprecated-api
+
+  if (parsed.protocol === 'ssh:' &&
+    parsed.hostname &&
+    parsed.pathname &&
+    parsed.pathname.startsWith('/:') &&
+    parsed.port === null) {
+    parsed.pathname = parsed.pathname.replace(/^\/:/, '')
+    return url.format(parsed)
   }
+
+  return giturl
 }
