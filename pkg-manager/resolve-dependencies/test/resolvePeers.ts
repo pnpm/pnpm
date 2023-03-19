@@ -23,7 +23,6 @@ test('resolve peer dependencies of cyclic dependencies', () => {
   const { dependenciesGraph } = resolvePeers({
     projects: [
       {
-        manifest: {},
         directNodeIdsByAlias: {
           foo: '>foo/1.0.0>',
         },
@@ -131,7 +130,6 @@ test('when a package is referenced twice in the dependencies graph and one of th
   const { dependenciesGraph } = resolvePeers({
     projects: [
       {
-        manifest: {},
         directNodeIdsByAlias: {
           zoo: '>zoo/1.0.0>',
           bar: '>bar/1.0.0>',
@@ -258,7 +256,6 @@ describe('peer dependency issues', () => {
   const { peerDependencyIssuesByProjects } = resolvePeers({
     projects: [
       {
-        manifest: {},
         directNodeIdsByAlias: {
           foo: '>project1>foo/1.0.0>',
         },
@@ -267,7 +264,6 @@ describe('peer dependency issues', () => {
         id: 'project1',
       },
       {
-        manifest: {},
         directNodeIdsByAlias: {
           bar: '>project2>bar/1.0.0>',
         },
@@ -276,7 +272,6 @@ describe('peer dependency issues', () => {
         id: 'project2',
       },
       {
-        manifest: {},
         directNodeIdsByAlias: {
           foo: '>project3>foo/1.0.0>',
           bar: '>project3>bar/1.0.0>',
@@ -286,7 +281,6 @@ describe('peer dependency issues', () => {
         id: 'project3',
       },
       {
-        manifest: {},
         directNodeIdsByAlias: {
           bar: '>project4>bar/1.0.0>',
           qar: '>project4>qar/1.0.0>',
@@ -296,7 +290,6 @@ describe('peer dependency issues', () => {
         id: 'project4',
       },
       {
-        manifest: {},
         directNodeIdsByAlias: {
           foo: '>project5>foo/1.0.0>',
           bar: '>project5>bar/2.0.0>',
@@ -306,7 +299,6 @@ describe('peer dependency issues', () => {
         id: 'project5',
       },
       {
-        manifest: {},
         directNodeIdsByAlias: {
           foo: '>project6>foo/2.0.0>',
           bar: '>project6>bar/2.0.0>',
@@ -406,7 +398,6 @@ describe('unmet peer dependency issues', () => {
   const { peerDependencyIssuesByProjects } = resolvePeers({
     projects: [
       {
-        manifest: {},
         directNodeIdsByAlias: {
           foo: '>project1>foo/1.0.0>',
           peer1: '>project1>peer1/1.0.0-rc.0>',
@@ -470,7 +461,6 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
   const { peerDependencyIssuesByProjects } = resolvePeers({
     projects: [
       {
-        manifest: {},
         directNodeIdsByAlias: {
           foo: '>project>foo/1.0.0>',
         },
@@ -559,14 +549,6 @@ test('resolve peer dependencies with npm aliases', () => {
   const { dependenciesGraph } = resolvePeers({
     projects: [
       {
-        manifest: {
-          dependencies: {
-            foo: '^1.0.0',
-            bar: '^1.0.0',
-            'foo-next': 'npm:foo@^2.0.0',
-            'bar-next': 'npm:bar@^2.0.0',
-          },
-        },
         directNodeIdsByAlias: {
           foo: '>foo/1.0.0>',
           bar: '>bar/1.0.0>',

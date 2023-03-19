@@ -6,10 +6,8 @@ import type {
   Dependencies,
   PeerDependencyIssues,
   PeerDependencyIssuesByProjects,
-  ProjectManifest,
 } from '@pnpm/types'
 import { depPathToFilename, createPeersFolderSuffixNewFormat } from '@pnpm/dependency-path'
-import { type KeyValuePair } from 'ramda'
 import isEmpty from 'ramda/src/isEmpty'
 import mapValues from 'ramda/src/map'
 import pick from 'ramda/src/pick'
@@ -50,7 +48,6 @@ export interface GenericDependenciesGraph<T extends PartialResolvedPackage> {
 }
 
 export interface ProjectToResolve {
-  manifest: ProjectManifest
   directNodeIdsByAlias: { [alias: string]: string }
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
@@ -80,7 +77,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
 
-  for (const { directNodeIdsByAlias, manifest, topParents, rootDir, id } of opts.projects) {
+  for (const { directNodeIdsByAlias, topParents, rootDir, id } of opts.projects) {
     const peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'> = { bad: {}, missing: {} }
     const pkgsByName = {
       ...rootPkgsByName,
@@ -486,7 +483,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
   for (const peerName in ctx.resolvedPackage.peerDependencies) { // eslint-disable-line:forin
     const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName].replace(/^workspace:/, '')
 
-    const pkgsToCheck = ctx.parentPkgs[peerName]
+    const pkgsToCheck = ctx.parentPkgs[peerName] || []
 
     const optionalPeer = ctx.resolvedPackage.peerDependenciesMeta?.[peerName]?.optional === true
     const badPeerIssues: BadPeerDependencyIssue[] = []
