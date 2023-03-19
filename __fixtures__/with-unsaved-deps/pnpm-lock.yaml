@@ -199,7 +199,7 @@ packages:
     engines: {node: '>=0.10.0'}
     dev: false
 
-  /rename-overwrite/1.0.3:
+  /rename-overwrite@1.0.3:
     resolution: {integrity: sha512-hehcDzwprE09J1NkKbL8IEqKDB1g8yF0xKZcBN7uzGQKYfiHgY7pmQ66H7BzDeMcvfHDixPxDr4cDIAnVWYIeA==}
     engines: {node: '>=4'}
     dependencies:
