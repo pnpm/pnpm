@@ -6,7 +6,7 @@ import {
   type PeerDependencyIssues,
   type PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
-import { depPathToFilename, createPeersFolderSuffix, createPeersFolderSuffixNewFormat } from '@pnpm/dependency-path'
+import { depPathToFilename, createPeersFolderSuffixNewFormat } from '@pnpm/dependency-path'
 import { type KeyValuePair } from 'ramda'
 import isEmpty from 'ramda/src/isEmpty'
 import mapValues from 'ramda/src/map'
@@ -63,7 +63,6 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     virtualStoreDir: string
     lockfileDir: string
     resolvePeersFromWorkspaceRoot?: boolean
-    useLockfileV6?: boolean
     dedupePeerDependents?: boolean
   }
 ): {
@@ -96,7 +95,6 @@ export function resolvePeers<T extends PartialResolvedPackage> (
       purePkgs: new Set(),
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
-      useLockfileV6: opts.useLockfileV6,
     })
     if (!isEmpty(peerDependencyIssues.bad) || !isEmpty(peerDependencyIssues.missing)) {
       peerDependencyIssuesByProjects[id] = {
@@ -240,7 +238,6 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     purePkgs: Set<string> // pure packages are those that don't rely on externally resolved peers
     rootDir: string
     lockfileDir: string
-    useLockfileV6?: boolean
   }
 ): PeersResolution {
   const node = ctx.dependenciesTree[nodeId]
@@ -321,7 +318,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   if (isEmpty(allResolvedPeers)) {
     depPath = resolvedPackage.depPath
   } else {
-    const peersFolderSuffix = (ctx.useLockfileV6 ? createPeersFolderSuffixNewFormat : createPeersFolderSuffix)(
+    const peersFolderSuffix = createPeersFolderSuffixNewFormat(
       Object.entries(allResolvedPeers)
         .map(([alias, nodeId]) => {
           if (nodeId.startsWith('link:')) {
@@ -445,7 +442,6 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     dependenciesTree: DependenciesTree<T>
     rootDir: string
     lockfileDir: string
-    useLockfileV6?: boolean
   }
 ): PeersResolution {
   const allResolvedPeers: Record<string, string> = {}

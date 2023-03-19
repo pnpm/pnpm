@@ -33,7 +33,6 @@ export interface StrictInstallOptions {
   saveLockfile: boolean
   useGitBranchLockfile: boolean
   mergeGitBranchLockfiles: boolean
-  useInlineSpecifiersLockfileFormat: boolean
   linkWorkspacePackagesDepth: number
   lockfileOnly: boolean
   fixLockfile: boolean
@@ -119,7 +118,6 @@ export interface StrictInstallOptions {
   resolveSymlinksInInjectedDirs: boolean
   dedupeDirectDeps: boolean
   dedupePeerDependents: boolean
-  useLockfileV6?: boolean
   extendNodePath: boolean
 }
 
@@ -194,10 +192,8 @@ const defaults = async (opts: InstallOptions) => {
       !process.setgid ||
       process.getuid() !== 0,
     useLockfile: true,
-    useLockfileV6: true,
     saveLockfile: true,
     useGitBranchLockfile: false,
-    useInlineSpecifiersLockfileFormat: false,
     mergeGitBranchLockfiles: false,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     verifyStoreIntegrity: true,

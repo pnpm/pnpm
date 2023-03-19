@@ -87,7 +87,6 @@ export interface ResolveDependenciesOptions {
   virtualStoreDir: string
   wantedLockfile: Lockfile
   workspacePackages: WorkspacePackages
-  useLockfileV6?: boolean
 }
 
 export async function resolveDependencyTree<T> (
@@ -128,7 +127,6 @@ export async function resolveDependencyTree<T> (
     updatedSet: new Set<string>(),
     workspacePackages: opts.workspacePackages,
     missingPeersOfChildrenByPkgId: {},
-    useLockfileV6: opts.useLockfileV6,
   }
 
   const resolveArgs: ImporterToResolve[] = importers.map((importer) => {
