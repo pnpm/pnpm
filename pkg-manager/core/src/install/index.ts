@@ -393,7 +393,6 @@ export async function mutateModules (
               wantedLockfile: ctx.wantedLockfile,
               wantedLockfileDir: ctx.lockfileDir,
               forceSharedFormat: opts.forceSharedLockfile,
-              useInlineSpecifiersFormat: true,
               useGitBranchLockfile: opts.useGitBranchLockfile,
               mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
             })
