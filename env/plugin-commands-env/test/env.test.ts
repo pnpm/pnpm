@@ -277,5 +277,5 @@ test('fail if there is no global bin directory', async () => {
       pnpmHomeDir: process.cwd(),
       rawConfig: {},
     }, ['use', 'lts'])
-  ).rejects.toEqual(new PnpmError('CANNOT_MANAGE_NODE', 'Unable to manage Node.js because pnpm was not installed using the standalon installation script'))
+  ).rejects.toEqual(new PnpmError('CANNOT_MANAGE_NODE', 'Unable to manage Node.js because pnpm was not installed using the standalone installation script'))
 })
