@@ -2,7 +2,6 @@ import filenamify from 'filenamify'
 import path from 'path'
 import { semverUtils } from '@yarnpkg/core'
 import type {
-  BadPeerDependencyIssue,
   Dependencies,
   PeerDependencyIssues,
   PeerDependencyIssuesByProjects,
@@ -195,22 +194,16 @@ function createPkgsByName<T extends PartialResolvedPackage> (
       }))
   )
   for (const { name, version, linkedDir } of topParents) {
-    if (!parentRefs[name]) {
-      parentRefs[name] = []
-    }
-    parentRefs[name].push({
+    const pkg = {
       depth: 0,
       version,
       nodeId: linkedDir,
-    })
+    }
+    parentRefs[name] = pkg
     if (version.startsWith('npm:')) {
       const aliasedPkgName = version.substring(4).split('@')[0]
-      parentRefs[aliasedPkgName] = parentRefs[aliasedPkgName] ?? []
-      parentRefs[aliasedPkgName].push({
-        depth: 0,
-        version,
-        nodeId: linkedDir,
-      })
+      if (parentRefs[aliasedPkgName]) continue
+      parentRefs[aliasedPkgName] = pkg
     }
   }
   return parentRefs
@@ -278,7 +271,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   const hit = ctx.peersCache.get(resolvedPackage.depPath)?.find((cache) =>
     cache.resolvedPeers
       .every(([name, cachedNodeId]) => {
-        const parentPkgNodeId = parentPkgs[name]?.[0].nodeId
+        const parentPkgNodeId = parentPkgs[name]?.nodeId
         if (!parentPkgNodeId || !cachedNodeId) return false
         if (parentPkgNodeId === cachedNodeId) return true
         if (
@@ -483,63 +476,52 @@ function _resolvePeers<T extends PartialResolvedPackage> (
   for (const peerName in ctx.resolvedPackage.peerDependencies) { // eslint-disable-line:forin
     const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName].replace(/^workspace:/, '')
 
-    const pkgsToCheck = ctx.parentPkgs[peerName] || []
-
+    const resolved = ctx.parentPkgs[peerName]
     const optionalPeer = ctx.resolvedPackage.peerDependenciesMeta?.[peerName]?.optional === true
-    const badPeerIssues: BadPeerDependencyIssue[] = []
-    let foundPeer = false
 
-    for (const resolved of pkgsToCheck) {
-      if (!semverUtils.satisfiesWithPrereleases(resolved.version, peerVersionRange, true)) {
-        const location = getLocationFromNodeIdAndPkg({
-          dependenciesTree: ctx.dependenciesTree,
-          nodeId: ctx.nodeId,
-          pkg: ctx.resolvedPackage,
-        })
-        const peerLocation = resolved.nodeId == null
-          ? []
-          : getLocationFromNodeId({
-            dependenciesTree: ctx.dependenciesTree,
-            nodeId: resolved.nodeId,
-          }).parents
-        badPeerIssues.push({
-          foundVersion: resolved.version,
-          resolvedFrom: peerLocation,
-          parents: location.parents,
-          optional: optionalPeer,
-          wantedRange: peerVersionRange,
-        })
-      } else {
-        if (resolved?.nodeId) resolvedPeers[peerName] = resolved.nodeId
-        foundPeer = true
-        break
+    if (!resolved) {
+      missingPeers.push(peerName)
+      const location = getLocationFromNodeIdAndPkg({
+        dependenciesTree: ctx.dependenciesTree,
+        nodeId: ctx.nodeId,
+        pkg: ctx.resolvedPackage,
+      })
+      if (!ctx.peerDependencyIssues.missing[peerName]) {
+        ctx.peerDependencyIssues.missing[peerName] = []
       }
+      ctx.peerDependencyIssues.missing[peerName].push({
+        parents: location.parents,
+        optional: optionalPeer,
+        wantedRange: peerVersionRange,
+      })
+      continue
     }
 
-    if (!foundPeer) {
-      if (badPeerIssues.length) {
-        if (!ctx.peerDependencyIssues.bad[peerName]) {
-          ctx.peerDependencyIssues.bad[peerName] = []
-        }
-        ctx.peerDependencyIssues.bad[peerName].push(...badPeerIssues)
-        if (pkgsToCheck[0]?.nodeId) resolvedPeers[peerName] = pkgsToCheck[0].nodeId
-      } else {
-        missingPeers.push(peerName)
-        const location = getLocationFromNodeIdAndPkg({
-          dependenciesTree: ctx.dependenciesTree,
-          nodeId: ctx.nodeId,
-          pkg: ctx.resolvedPackage,
-        })
-        if (!ctx.peerDependencyIssues.missing[peerName]) {
-          ctx.peerDependencyIssues.missing[peerName] = []
-        }
-        ctx.peerDependencyIssues.missing[peerName].push({
-          parents: location.parents,
-          optional: optionalPeer,
-          wantedRange: peerVersionRange,
-        })
+    if (!semverUtils.satisfiesWithPrereleases(resolved.version, peerVersionRange, true)) {
+      const location = getLocationFromNodeIdAndPkg({
+        dependenciesTree: ctx.dependenciesTree,
+        nodeId: ctx.nodeId,
+        pkg: ctx.resolvedPackage,
+      })
+      if (!ctx.peerDependencyIssues.bad[peerName]) {
+        ctx.peerDependencyIssues.bad[peerName] = []
       }
+      const peerLocation = resolved.nodeId == null
+        ? []
+        : getLocationFromNodeId({
+          dependenciesTree: ctx.dependenciesTree,
+          nodeId: resolved.nodeId,
+        }).parents
+      ctx.peerDependencyIssues.bad[peerName].push({
+        foundVersion: resolved.version,
+        resolvedFrom: peerLocation,
+        parents: location.parents,
+        optional: optionalPeer,
+        wantedRange: peerVersionRange,
+      })
     }
+
+    if (resolved?.nodeId) resolvedPeers[peerName] = resolved.nodeId
   }
   return { resolvedPeers, missingPeers }
 }
@@ -583,7 +565,7 @@ function getLocationFromNodeId<T> (
 }
 
 interface ParentRefs {
-  [name: string]: ParentRef[]
+  [name: string]: ParentRef
 }
 
 interface ParentRef {
@@ -596,23 +578,14 @@ interface ParentRef {
 function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{ alias: string, nodeId: string, node: DependenciesTreeNode<T> }>): ParentRefs {
   const pkgsByName: ParentRefs = {}
   for (const { alias, node, nodeId } of nodes) {
-    if (!pkgsByName[alias]) {
-      pkgsByName[alias] = []
-    }
-    pkgsByName[alias].push({
+    const pkg = {
       depth: node.depth,
       nodeId,
       version: node.resolvedPackage.version,
-    })
-    if (alias !== node.resolvedPackage.name) {
-      if (!pkgsByName[node.resolvedPackage.name]) {
-        pkgsByName[node.resolvedPackage.name] = []
-      }
-      pkgsByName[node.resolvedPackage.name].push({
-        depth: node.depth,
-        nodeId,
-        version: node.resolvedPackage.version,
-      })
+    }
+    pkgsByName[alias] = pkg
+    if (alias !== node.resolvedPackage.name && !pkgsByName[node.resolvedPackage.name]) {
+      pkgsByName[node.resolvedPackage.name] = pkg
     }
   }
   return pkgsByName
