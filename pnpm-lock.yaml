@@ -1632,8 +1632,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@yarnpkg/extensions':
-        specifier: 2.0.0-rc.9
-        version: 2.0.0-rc.9(@yarnpkg/core@4.0.0-rc.27)
+        specifier: 2.0.0-rc.22
+        version: 2.0.0-rc.22(@yarnpkg/core@4.0.0-rc.27)
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
@@ -9456,6 +9456,15 @@ packages:
     transitivePeerDependencies:
       - typanion
 
+  /@yarnpkg/extensions@2.0.0-rc.22(@yarnpkg/core@4.0.0-rc.27):
+    resolution: {integrity: sha512-8Xh1hdaRtZq68kbUIlvq7jWgG/ofe0skwbC0d6l+ymRFxinv517DirRK430Vhg1HvM6eCO91PEYD7Cl0HwZ2OQ==}
+    engines: {node: '>=14.15.0'}
+    peerDependencies:
+      '@yarnpkg/core': '*'
+    dependencies:
+      '@yarnpkg/core': 4.0.0-rc.27(typanion@3.12.1)
+    dev: false
+
   /@yarnpkg/extensions@2.0.0-rc.9(@yarnpkg/core@4.0.0-rc.14):
     resolution: {integrity: sha512-WWXBCKyIhG4pkpS42erPUkxgPXt3NEjGb3ha+HlEKgSVdJThNFE9CmwSyDdfdiV3QhCDkZR2R0jQVmbrCrigRw==}
     engines: {node: '>=14.15.0'}
@@ -9464,15 +9473,6 @@ packages:
     dependencies:
       '@yarnpkg/core': 4.0.0-rc.14(typanion@3.12.1)
     dev: true
-
-  /@yarnpkg/extensions@2.0.0-rc.9(@yarnpkg/core@4.0.0-rc.27):
-    resolution: {integrity: sha512-WWXBCKyIhG4pkpS42erPUkxgPXt3NEjGb3ha+HlEKgSVdJThNFE9CmwSyDdfdiV3QhCDkZR2R0jQVmbrCrigRw==}
-    engines: {node: '>=14.15.0'}
-    peerDependencies:
-      '@yarnpkg/core': '*'
-    dependencies:
-      '@yarnpkg/core': 4.0.0-rc.27(typanion@3.12.1)
-    dev: false
 
   /@yarnpkg/fslib@3.0.0-rc.25:
     resolution: {integrity: sha512-3/sEMUETbKzmIkP8e9khIdJ7CPecdL2UKLQC946Jpmu6PP8kTNCwcAk5bSIkBZVEHJMPEaZ3TlMAhedpAWF7wg==}
@@ -17808,7 +17808,7 @@ time:
   /@typescript-eslint/eslint-plugin@5.54.0: '2023-02-27T17:18:03.867Z'
   /@typescript-eslint/parser@5.54.0: '2023-02-27T17:17:32.820Z'
   /@yarnpkg/core@4.0.0-rc.27: '2022-10-28T20:14:12.960Z'
-  /@yarnpkg/extensions@2.0.0-rc.9: '2022-10-28T20:09:02.171Z'
+  /@yarnpkg/extensions@2.0.0-rc.22: '2023-03-05T16:44:33.099Z'
   /@yarnpkg/lockfile@1.1.0: '2018-09-10T13:37:58.652Z'
   /@yarnpkg/nm@4.0.0-rc.27: '2022-10-28T20:14:26.306Z'
   /@yarnpkg/parsers@3.0.0-rc.27: '2022-10-28T20:12:42.896Z'
