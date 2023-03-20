@@ -238,7 +238,7 @@ ${JSON.stringify(newOverrides, null, 2)}`,
         'Paths',
         (paths.length > MAX_PATHS_COUNT
           ? paths
-            .slice(0, 3)
+            .slice(0, MAX_PATHS_COUNT)
             .concat([
               `... Found ${paths.length} paths, run \`pnpm why ${advisory.module_name}\` for more information`,
             ])
