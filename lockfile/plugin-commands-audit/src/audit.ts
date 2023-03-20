@@ -40,6 +40,8 @@ const AUDIT_TABLE_OPTIONS = {
 }
 // eslint-enable
 
+const MAX_PATHS_COUNT = 3
+
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {
@@ -226,12 +228,23 @@ ${JSON.stringify(newOverrides, null, 2)}`,
     .filter(({ severity }) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
     .sort((a1, a2) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])
   for (const advisory of advisories) {
+    const paths = advisory.findings.map(({ paths }) => paths).flat()
     output += table([
       [AUDIT_COLOR[advisory.severity](advisory.severity), chalk.bold(advisory.title)],
       ['Package', advisory.module_name],
       ['Vulnerable versions', advisory.vulnerable_versions],
       ['Patched versions', advisory.patched_versions],
-      ['Paths', advisory.findings.map(({ paths }) => paths).flat().join('\n\n')],
+      [
+        'Paths',
+        (paths.length > MAX_PATHS_COUNT
+          ? paths
+            .slice(0, MAX_PATHS_COUNT)
+            .concat([
+              `... Found ${paths.length} paths, run \`pnpm why ${advisory.module_name}\` for more information`,
+            ])
+          : paths
+        ).join('\n\n'),
+      ],
       ['More info', advisory.url],
     ], AUDIT_TABLE_OPTIONS)
   }
