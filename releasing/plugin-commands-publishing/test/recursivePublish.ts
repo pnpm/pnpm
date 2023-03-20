@@ -284,3 +284,29 @@ test('recursive publish writes publish summary', async () => {
     })
   }
 })
+
+test('when publish some package throws an error, exit code should be non-zero', async () => {
+  preparePackages([
+    {
+      name: '@pnpmtest/test-recursive-publish-project-5',
+      version: '1.0.0',
+    },
+    {
+      name: '@pnpmtest/test-recursive-publish-project-6',
+      version: '1.0.0',
+    },
+  ])
+
+  // Throw ENEEDAUTH error when publish.
+  await fs.writeFile('.npmrc', 'registry=https://__fake_npm_registry__.com', 'utf8')
+
+  const result = await publish.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), []),
+    dir: process.cwd(),
+    recursive: true,
+    force: true,
+  }, [])
+
+  expect(result?.exitCode).toBe(1)
+})

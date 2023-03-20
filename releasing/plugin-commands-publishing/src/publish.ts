@@ -174,12 +174,12 @@ Do you want to continue?`,
     }
   }
   if (opts.recursive && (opts.selectedProjectsGraph != null)) {
-    await recursivePublish({
+    const { exitCode } = await recursivePublish({
       ...opts,
       selectedProjectsGraph: opts.selectedProjectsGraph,
       workspaceDir: opts.workspaceDir ?? process.cwd(),
     })
-    return
+    return { exitCode }
   }
   if ((params.length > 0) && params[0].endsWith('.tgz')) {
     const { status } = runNpm(opts.npmPath, ['publish', ...params])

@@ -56,7 +56,7 @@ Partial<Pick<Config,
 
 export async function recursivePublish (
   opts: PublishRecursiveOpts & Required<Pick<Config, 'selectedProjectsGraph'>>
-) {
+): Promise<{ exitCode: number }> {
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
   const resolve = createResolver({
     ...opts,
@@ -122,6 +122,8 @@ export async function recursivePublish (
         }, [pkg.dir])
         if (publishResult?.manifest != null) {
           publishedPackages.push(pick(['name', 'version'], publishResult.manifest))
+        } else if (publishResult?.exitCode) {
+          return { exitCode: publishResult.exitCode }
         }
       }
     }
@@ -129,6 +131,7 @@ export async function recursivePublish (
   if (opts.reportSummary) {
     await writeJsonFile(path.join(opts.lockfileDir ?? opts.dir, 'pnpm-publish-summary.json'), { publishedPackages })
   }
+  return { exitCode: 0 }
 }
 
 async function isAlreadyPublished (
