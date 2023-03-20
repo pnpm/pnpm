@@ -274,488 +274,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │                     │ base@0.11.2 > define-property@1.0.0 >                  │
 │                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > kind-of@6.0.2                      │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > kind-of@6.0.2   │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 > │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >     │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > kind-of@6.0.2                  │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 > │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >     │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > kind-of@6.0.2                  │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ to-regex@3.0.2 > define-property@2.0.2 >               │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ to-regex@3.0.2 > define-property@2.0.2 >               │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ to-regex@3.0.2 > define-property@2.0.2 >               │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > snapdragon@0.8.2 >  │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > snapdragon@0.8.2 >  │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > snapdragon@0.8.2 >  │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > kind-of@6.0.2                      │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > kind-of@6.0.2   │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 > │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >     │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > kind-of@6.0.2                  │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
+│                     │ ... Found 97 paths, run \`pnpm why kind-of\` for more    │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-6c8f-qphg-qjgp      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -822,11 +342,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 >                      │
 │                     │ hipchat-notifier@1.1.0 > lodash@4.17.15                │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > mailgun-js@0.18.1 >  │
-│                     │ async@2.6.3 > lodash@4.17.15                           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
-│                     │ requestretry@1.13.0 > lodash@4.17.15                   │
+│                     │ ... Found 5 paths, run \`pnpm why lodash\` for more      │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-35jh-r3h4-6jhm      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -846,11 +363,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 >                      │
 │                     │ hipchat-notifier@1.1.0 > lodash@4.17.15                │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > mailgun-js@0.18.1 >  │
-│                     │ async@2.6.3 > lodash@4.17.15                           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
-│                     │ requestretry@1.13.0 > lodash@4.17.15                   │
+│                     │ ... Found 5 paths, run \`pnpm why lodash\` for more      │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-p6mc-m468-83gw      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -971,7 +485,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 > streamroller@0.7.0 > │
 │                     │ mkdirp@0.5.1 > minimist@0.0.8                          │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > optimist@0.6.1 > minimist@0.0.10     │
+│                     │ ... Found 4 paths, run \`pnpm why minimist\` for more    │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-vh95-rmgr-6w4m      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -1009,8 +524,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 > loggly@1.1.1 >       │
 │                     │ request@2.75.0 > hawk@3.1.3 > hoek@2.16.3              │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > loggly@1.1.1 >       │
-│                     │ request@2.75.0 > hawk@3.1.3 > sntp@1.0.9 > hoek@2.16.3 │
+│                     │ ... Found 4 paths, run \`pnpm why hoek\` for more        │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-jp4x-w63m-7wgm      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -1037,9 +552,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
 │                     │ json-schema@0.2.3                                      │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
-│                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
-│                     │ json-schema@0.2.3                                      │
+│                     │ ... Found 4 paths, run \`pnpm why json-schema\` for more │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-896r-f27r-55mw      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -1085,11 +599,8 @@ exports[`plugin-commands-audit audit --audit-level 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 >                      │
 │                     │ hipchat-notifier@1.1.0 > lodash@4.17.15                │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > mailgun-js@0.18.1 >  │
-│                     │ async@2.6.3 > lodash@4.17.15                           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
-│                     │ requestretry@1.13.0 > lodash@4.17.15                   │
+│                     │ ... Found 5 paths, run \`pnpm why lodash\` for more      │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-29mw-wpgm-hmr9      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -1510,488 +1021,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │                     │ base@0.11.2 > define-property@1.0.0 >                  │
 │                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > kind-of@6.0.2                      │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > kind-of@6.0.2   │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 > │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >     │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > kind-of@6.0.2                  │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 > │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >     │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > kind-of@6.0.2                  │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ to-regex@3.0.2 > define-property@2.0.2 >               │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ to-regex@3.0.2 > define-property@2.0.2 >               │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ to-regex@3.0.2 > define-property@2.0.2 >               │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > snapdragon@0.8.2 >  │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > snapdragon@0.8.2 >  │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > snapdragon@0.8.2 >  │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > kind-of@6.0.2                      │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > kind-of@6.0.2   │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 > │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >     │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > kind-of@6.0.2                  │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
+│                     │ ... Found 97 paths, run \`pnpm why kind-of\` for more    │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-6c8f-qphg-qjgp      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -2058,11 +1089,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 >                      │
 │                     │ hipchat-notifier@1.1.0 > lodash@4.17.15                │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > mailgun-js@0.18.1 >  │
-│                     │ async@2.6.3 > lodash@4.17.15                           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
-│                     │ requestretry@1.13.0 > lodash@4.17.15                   │
+│                     │ ... Found 5 paths, run \`pnpm why lodash\` for more      │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-35jh-r3h4-6jhm      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -2082,11 +1110,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 >                      │
 │                     │ hipchat-notifier@1.1.0 > lodash@4.17.15                │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > mailgun-js@0.18.1 >  │
-│                     │ async@2.6.3 > lodash@4.17.15                           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
-│                     │ requestretry@1.13.0 > lodash@4.17.15                   │
+│                     │ ... Found 5 paths, run \`pnpm why lodash\` for more      │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-p6mc-m468-83gw      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -2207,7 +1232,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 > streamroller@0.7.0 > │
 │                     │ mkdirp@0.5.1 > minimist@0.0.8                          │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > optimist@0.6.1 > minimist@0.0.10     │
+│                     │ ... Found 4 paths, run \`pnpm why minimist\` for more    │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-vh95-rmgr-6w4m      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -2245,8 +1271,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 > loggly@1.1.1 >       │
 │                     │ request@2.75.0 > hawk@3.1.3 > hoek@2.16.3              │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > loggly@1.1.1 >       │
-│                     │ request@2.75.0 > hawk@3.1.3 > sntp@1.0.9 > hoek@2.16.3 │
+│                     │ ... Found 4 paths, run \`pnpm why hoek\` for more        │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-jp4x-w63m-7wgm      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -2273,9 +1299,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
 │                     │ json-schema@0.2.3                                      │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
-│                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
-│                     │ json-schema@0.2.3                                      │
+│                     │ ... Found 4 paths, run \`pnpm why json-schema\` for more │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-896r-f27r-55mw      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -2321,11 +1346,8 @@ exports[`plugin-commands-audit audit 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 >                      │
 │                     │ hipchat-notifier@1.1.0 > lodash@4.17.15                │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > mailgun-js@0.18.1 >  │
-│                     │ async@2.6.3 > lodash@4.17.15                           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
-│                     │ requestretry@1.13.0 > lodash@4.17.15                   │
+│                     │ ... Found 5 paths, run \`pnpm why lodash\` for more      │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-29mw-wpgm-hmr9      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -2685,488 +1707,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │                     │ base@0.11.2 > define-property@1.0.0 >                  │
 │                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > kind-of@6.0.2                      │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > kind-of@6.0.2   │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 > │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >     │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > kind-of@6.0.2                  │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > anymatch@2.0.0 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 > │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >     │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > kind-of@6.0.2                  │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ to-regex@3.0.2 > define-property@2.0.2 >               │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ to-regex@3.0.2 > define-property@2.0.2 >               │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > braces@2.3.2 >      │
-│                     │ to-regex@3.0.2 > define-property@2.0.2 >               │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > snapdragon@0.8.2 >  │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > snapdragon@0.8.2 >  │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > snapdragon@0.8.2 >  │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 >                     │
-│                     │ snapdragon-node@2.1.1 > define-property@1.0.0 >        │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > braces@2.3.2 > to-regex@3.0.2 >    │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > define-property@2.0.2 >            │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > snapdragon@0.8.2 > base@0.11.2 │
-│                     │ > define-property@1.0.0 > is-descriptor@1.0.2 >        │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 >                    │
-│                     │ expand-brackets@2.1.4 > to-regex@3.0.2 >               │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 >   │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >       │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > snapdragon@0.8.2 > │
-│                     │ base@0.11.2 > define-property@1.0.0 >                  │
-│                     │ is-descriptor@1.0.2 > kind-of@6.0.2                    │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > extglob@2.0.4 > to-regex@3.0.2 >   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > kind-of@6.0.2                      │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > kind-of@6.0.2   │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-accessor-descriptor@1.0.0 > │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > is-data-descriptor@1.0.0 >     │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 >                 │
-│                     │ snapdragon@0.8.2 > base@0.11.2 > define-property@1.0.0 │
-│                     │ > is-descriptor@1.0.2 > kind-of@6.0.2                  │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > nanomatch@1.2.13 > to-regex@3.0.2  │
-│                     │ > define-property@2.0.2 > is-descriptor@1.0.2 >        │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > snapdragon@0.8.2 > base@0.11.2 >   │
-│                     │ define-property@1.0.0 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-accessor-descriptor@1.0.0 > kind-of@6.0.2           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ is-data-descriptor@1.0.0 > kind-of@6.0.2               │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > chokidar@2.1.8 > readdirp@2.2.1 >    │
-│                     │ micromatch@3.1.10 > to-regex@3.0.2 >                   │
-│                     │ define-property@2.0.2 > is-descriptor@1.0.2 >          │
-│                     │ kind-of@6.0.2                                          │
+│                     │ ... Found 97 paths, run \`pnpm why kind-of\` for more    │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-6c8f-qphg-qjgp      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -3218,11 +1760,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 >                      │
 │                     │ hipchat-notifier@1.1.0 > lodash@4.17.15                │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > mailgun-js@0.18.1 >  │
-│                     │ async@2.6.3 > lodash@4.17.15                           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
-│                     │ requestretry@1.13.0 > lodash@4.17.15                   │
+│                     │ ... Found 5 paths, run \`pnpm why lodash\` for more      │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-35jh-r3h4-6jhm      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -3242,11 +1781,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 >                      │
 │                     │ hipchat-notifier@1.1.0 > lodash@4.17.15                │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > mailgun-js@0.18.1 >  │
-│                     │ async@2.6.3 > lodash@4.17.15                           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
-│                     │ requestretry@1.13.0 > lodash@4.17.15                   │
+│                     │ ... Found 5 paths, run \`pnpm why lodash\` for more      │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-p6mc-m468-83gw      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -3382,8 +1918,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 > loggly@1.1.1 >       │
 │                     │ request@2.75.0 > hawk@3.1.3 > hoek@2.16.3              │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > loggly@1.1.1 >       │
-│                     │ request@2.75.0 > hawk@3.1.3 > sntp@1.0.9 > hoek@2.16.3 │
+│                     │ ... Found 4 paths, run \`pnpm why hoek\` for more        │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-jp4x-w63m-7wgm      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -3410,9 +1946,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
 │                     │ json-schema@0.2.3                                      │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > useragent@2.2.1 > request@2.88.0 >   │
-│                     │ http-signature@1.2.0 > jsprim@1.4.1 >                  │
-│                     │ json-schema@0.2.3                                      │
+│                     │ ... Found 4 paths, run \`pnpm why json-schema\` for more │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-896r-f27r-55mw      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
@@ -3458,11 +1993,8 @@ exports[`plugin-commands-audit audit: CVEs in ignoreCves do not show up 1`] = `
 │                     │ . > karma@2.0.5 > log4js@2.11.0 >                      │
 │                     │ hipchat-notifier@1.1.0 > lodash@4.17.15                │
 │                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > mailgun-js@0.18.1 >  │
-│                     │ async@2.6.3 > lodash@4.17.15                           │
-│                     │                                                        │
-│                     │ . > karma@2.0.5 > log4js@2.11.0 > slack-node@0.2.0 >   │
-│                     │ requestretry@1.13.0 > lodash@4.17.15                   │
+│                     │ ... Found 5 paths, run \`pnpm why lodash\` for more      │
+│                     │ information                                            │
 ├─────────────────────┼────────────────────────────────────────────────────────┤
 │ More info           │ https://github.com/advisories/GHSA-29mw-wpgm-hmr9      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
