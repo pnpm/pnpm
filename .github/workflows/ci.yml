@@ -58,8 +58,8 @@ jobs:
         # key: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-${{ github.run_id }}
         # restore-keys: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-
     - name: run tests (main)
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/v7'
       run: pnpm run test-main
     - name: run tests (branch)
-      if: github.ref != 'refs/heads/main'
+      if: github.ref != 'refs/heads/v7'
       run: pnpm run test-branch
