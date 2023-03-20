@@ -55,7 +55,7 @@
     "@pnpm/license-scanner": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/store-path": "workspace:*",
-    "@zkochan/table": "^1.0.0",
+    "@zkochan/table": "^2.0.1",
     "chalk": "^4.1.2",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "render-help": "^1.0.3"

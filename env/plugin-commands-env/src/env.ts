@@ -88,7 +88,7 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     })
   }
   if (opts.global && !opts.bin) {
-    throw new PnpmError('CANNOT_MANAGE_NODE', 'Unable to manage Node.js because pnpm was not installed using the standalon installation script', {
+    throw new PnpmError('CANNOT_MANAGE_NODE', 'Unable to manage Node.js because pnpm was not installed using the standalone installation script', {
       hint: 'If you want to manage Node.js with pnpm, you need to remove any Node.js that was installed by other tools, then install pnpm using one of the standalone scripts that are provided on the installation page: https://pnpm.io/installation',
     })
   }

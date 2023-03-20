@@ -2019,8 +2019,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/table':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^2.0.1
+        version: 2.0.1
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
@@ -3564,8 +3564,8 @@ importers:
         specifier: ^2.1.2
         version: 2.1.2
       '@zkochan/table':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^2.0.1
+        version: 2.0.1
       '@zkochan/which':
         specifier: ^2.0.3
         version: 2.0.3
@@ -5040,8 +5040,8 @@ importers:
         specifier: workspace:*
         version: link:../../store/store-path
       '@zkochan/table':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^2.0.1
+        version: 2.0.1
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
@@ -5189,8 +5189,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@zkochan/table':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^2.0.1
+        version: 2.0.1
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
@@ -8644,6 +8644,12 @@ packages:
     engines: {node: '>=8.15'}
     dev: false
 
+  /@pnpm/slice-ansi@1.1.1:
+    resolution: {integrity: sha512-+ZkQSYiWqmFptO24w1BfYAi9Q2amgQi/dU6Dcz/9Q5/V2KghHAHi0ZYFZaop+Yk12J0ozsPYtBEEYMreTOg4Wg==}
+    dependencies:
+      grapheme-splitter: 1.0.4
+    dev: false
+
   /@pnpm/store-controller-types@14.3.1:
     resolution: {integrity: sha512-EhuD+GJS46ygm2cZxsf12Ljb55p360EKH7ESsphDVq/EEECTnj4jcxck+K8BUmYTIVtj7lO2k35XNz1r9D98yQ==}
     engines: {node: '>=14.6'}
@@ -9578,14 +9584,15 @@ packages:
     dependencies:
       rimraf: 3.0.2
 
-  /@zkochan/table@1.0.0:
-    resolution: {integrity: sha512-xLQlpiyapKO00VN3X0FmIzDN5CNCLCaSSnEldb9wAhKrFzQmmfu+FDlMvU0lA0wVDC8pawS8HFYYuGoZR6GdOw==}
-    engines: {node: '>=10.0.0'}
+  /@zkochan/table@2.0.1:
+    resolution: {integrity: sha512-o+nA2fbYPcngLhCTuBQYkdt0Ef6lb8ppaGpXtz/9qsm1F9g5e9UQe8LGkT6NnkcGtwU/hlMvckuGafRGHP3NxQ==}
+    engines: {node: '>=16.14'}
     dependencies:
-      '@arcanis/slice-ansi': 1.1.1
-      ajv: 6.12.6
-      lodash: 4.17.21
+      ajv: 8.12.0
+      lodash.truncate: 4.4.2
+      slice-ansi: /@pnpm/slice-ansi@1.1.1
       string-width: 4.2.3
+      strip-ansi: 6.0.1
     dev: false
 
   /@zkochan/which@2.0.3:
@@ -17763,6 +17770,7 @@ time:
   /@types/table@6.0.0: '2020-09-17T17:56:44.787Z'
   /@zkochan/hosted-git-info@4.0.2: '2021-09-05T21:33:51.709Z'
   /@zkochan/js-yaml@0.0.6: '2022-05-10T14:42:39.813Z'
+  /@zkochan/table@2.0.1: '2023-03-20T00:49:51.928Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@9.3.1: '2022-12-19T22:43:10.187Z'
   /safe-execa@0.1.2: '2022-07-18T01:09:17.517Z'
