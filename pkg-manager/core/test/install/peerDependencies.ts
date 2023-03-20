@@ -1389,69 +1389,6 @@ test('deduplicate packages that have peers, when adding new dependency in a work
   expect(depPaths).toContain(`/@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
 })
 
-test('find correct peer dependency with aliases', async () => {
-  const opts = await testDefaults({ strictPeerDependencies: false })
-
-  prepareEmpty()
-  await addDependenciesToPackage({}, [
-    'ajv@6.0.0',
-    'ajv-next@npm:ajv@7.0.0',
-    'ajv-keywords@3.0.0', // with peer ajv@^6
-    'ajv-keywords-next@npm:ajv-keywords@4.0.0', // with peer ajv@^7
-  ], opts)
-
-  const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
-
-  expect(lockfile.dependencies).toStrictEqual({
-    ajv: {
-      specifier: '6.0.0',
-      version: '6.0.0',
-    },
-    'ajv-next': {
-      specifier: 'npm:ajv@7.0.0',
-      version: '/ajv@7.0.0',
-    },
-    'ajv-keywords': {
-      specifier: '3.0.0',
-      version: '3.0.0(ajv@6.0.0)',
-    },
-    'ajv-keywords-next': {
-      specifier: 'npm:ajv-keywords@4.0.0',
-      version: '/ajv-keywords@4.0.0(ajv@7.0.0)',
-    },
-  })
-  expect(lockfile.packages['/ajv-keywords@3.0.0(ajv@6.0.0)'].dependencies['ajv']).toEqual('6.0.0')
-  expect(lockfile.packages['/ajv-keywords@4.0.0(ajv@7.0.0)'].dependencies['ajv']).toEqual('7.0.0')
-})
-
-test('if multiple packages satisfy peer dependencies semver, prefer the one that is not aliased', async () => {
-  const opts = await testDefaults({ strictPeerDependencies: false })
-
-  prepareEmpty()
-  await addDependenciesToPackage({}, [
-    'ajv@6.0.0',
-    'ajv-next@npm:ajv@6.1.0',
-    'ajv-keywords@3.0.0', // with peer ajv@^6
-  ], opts)
-
-  const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
-
-  expect(lockfile.dependencies).toStrictEqual({
-    ajv: {
-      specifier: '6.0.0',
-      version: '6.0.0',
-    },
-    'ajv-next': {
-      specifier: 'npm:ajv@6.1.0',
-      version: '/ajv@6.1.0',
-    },
-    'ajv-keywords': {
-      specifier: '3.0.0',
-      version: '3.0.0(ajv@6.0.0)',
-    },
-  })
-})
-
 test('resolve peer dependencies from aliased subdependencies if they are dependencies of a parent package', async () => {
   prepareEmpty()
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })

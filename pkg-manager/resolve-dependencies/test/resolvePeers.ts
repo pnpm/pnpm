@@ -607,8 +607,8 @@ test('resolve peer dependencies with npm aliases', () => {
   })
   expect(Object.keys(dependenciesGraph)).toStrictEqual([
     'bar/1.0.0',
-    'foo/1.0.0_bar@1.0.0',
+    'foo/1.0.0(bar@1.0.0)',
     'bar/2.0.0',
-    'foo/2.0.0_bar@2.0.0',
+    'foo/2.0.0(bar@2.0.0)',
   ])
 })

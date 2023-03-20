@@ -184,15 +184,7 @@ function createPkgsByName<T extends PartialResolvedPackage> (
     topParents: Array<{ name: string, version: string, linkedDir?: string }>
   }
 ) {
-  const parentRefs = toPkgByName(
-    Object
-      .keys(directNodeIdsByAlias)
-      .map((alias) => ({
-        alias,
-        node: dependenciesTree[directNodeIdsByAlias[alias]],
-        nodeId: directNodeIdsByAlias[alias],
-      }))
-  )
+  const parentRefs: ParentRefs = {}
   for (const { name, version, linkedDir } of topParents) {
     const pkg = {
       depth: 0,
@@ -201,11 +193,21 @@ function createPkgsByName<T extends PartialResolvedPackage> (
     }
     parentRefs[name] = pkg
     if (version.startsWith('npm:')) {
-      const aliasedPkgName = version.substring(4).split('@')[0]
+      const index = version.lastIndexOf('@')
+      const aliasedPkgName = version.slice(4, index)
       if (parentRefs[aliasedPkgName]) continue
       parentRefs[aliasedPkgName] = pkg
     }
   }
+  Object.assign(parentRefs, toPkgByName(
+    Object
+      .keys(directNodeIdsByAlias)
+      .map((alias) => ({
+        alias,
+        node: dependenciesTree[directNodeIdsByAlias[alias]],
+        nodeId: directNodeIdsByAlias[alias],
+      }))
+  ))
   return parentRefs
 }
 
