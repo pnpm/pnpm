@@ -82,6 +82,7 @@ export async function recursivePublish (
   })
   const publishedPkgDirs = new Set(pkgsToPublish.map(({ dir }) => dir))
   const publishedPackages = []
+  let exitCode = 0
   if (publishedPkgDirs.size === 0) {
     logger.info({
       message: 'There are no new packages that should be published',
@@ -122,6 +123,8 @@ export async function recursivePublish (
         }, [pkg.dir])
         if (publishResult?.manifest != null) {
           publishedPackages.push(pick(['name', 'version'], publishResult.manifest))
+        } else if (exitCode === 0 && publishResult?.exitCode) {
+          exitCode = publishResult.exitCode
         }
       }
     }
@@ -129,6 +132,7 @@ export async function recursivePublish (
   if (opts.reportSummary) {
     await writeJsonFile(path.join(opts.lockfileDir ?? opts.dir, 'pnpm-publish-summary.json'), { publishedPackages })
   }
+  return { exitCode }
 }
 
 async function isAlreadyPublished (
