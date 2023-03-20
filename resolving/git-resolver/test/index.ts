@@ -423,3 +423,63 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/master\
     resolvedVia: 'git-repository',
   })
 })
+
+test('resolve an internal repository using SSH protocol with range semver', async () => {
+  git.mockImplementation(async (args: string[]) => {
+    if (!args.includes('ssh://git@example.com/org/repo.git')) throw new Error('')
+    if (args.includes('--refs')) {
+      return {
+        stdout: '\
+ed3de20970d980cf21a07fd8b8732c70d5182303\trefs/tags/v0.0.38\n\
+cba04669e621b85fbdb33371604de1a2898e68e9\trefs/tags/v0.0.39\
+',
+      }
+    }
+    return {
+      stdout: '0000000000000000000000000000000000000000\tHEAD\n\
+ed3de20970d980cf21a07fd8b8732c70d5182303\trefs/tags/v0.0.38\n\
+cba04669e621b85fbdb33371604de1a2898e68e9\trefs/tags/v0.0.39',
+    }
+  })
+  const resolveResult = await resolveFromGit({ pref: 'git+ssh://git@example.com/org/repo.git#semver:~0.0.38' })
+  expect(resolveResult).toStrictEqual({
+    id: 'example.com/org/repo/cba04669e621b85fbdb33371604de1a2898e68e9',
+    normalizedPref: 'git+ssh://git@example.com/org/repo.git#semver:~0.0.38',
+    resolution: {
+      commit: 'cba04669e621b85fbdb33371604de1a2898e68e9',
+      repo: 'ssh://git@example.com/org/repo.git',
+      type: 'git',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
+test('resolve an internal repository using SSH protocol with range semver and SCP-like URL', async () => {
+  git.mockImplementation(async (args: string[]) => {
+    if (!args.includes('ssh://git@example.com/org/repo.git')) throw new Error('')
+    if (args.includes('--refs')) {
+      return {
+        stdout: '\
+ed3de20970d980cf21a07fd8b8732c70d5182303\trefs/tags/v0.0.38\n\
+cba04669e621b85fbdb33371604de1a2898e68e9\trefs/tags/v0.0.39\
+',
+      }
+    }
+    return {
+      stdout: '0000000000000000000000000000000000000000\tHEAD\n\
+ed3de20970d980cf21a07fd8b8732c70d5182303\trefs/tags/v0.0.38\n\
+cba04669e621b85fbdb33371604de1a2898e68e9\trefs/tags/v0.0.39',
+    }
+  })
+  const resolveResult = await resolveFromGit({ pref: 'git+ssh://git@example.com:org/repo.git#semver:~0.0.38' })
+  expect(resolveResult).toStrictEqual({
+    id: 'example.com/org/repo/cba04669e621b85fbdb33371604de1a2898e68e9',
+    normalizedPref: 'git+ssh://git@example.com:org/repo.git#semver:~0.0.38',
+    resolution: {
+      commit: 'cba04669e621b85fbdb33371604de1a2898e68e9',
+      repo: 'ssh://git@example.com/org/repo.git',
+      type: 'git',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
