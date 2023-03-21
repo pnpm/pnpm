@@ -173,7 +173,7 @@ export async function resolveDependencies (
       )
     }
 
-    const topParents: Array<{ name: string, version: string, linkedDir?: string }> = project.manifest
+    const topParents: Array<{ name: string, version: string, alias?: string, linkedDir?: string }> = project.manifest
       ? await getTopParents(
         difference(
           Object.keys(getAllDependenciesFromManifest(project.manifest)),
@@ -448,5 +448,5 @@ async function getTopParents (pkgNames: string[], modules: string) {
     pkgs
       .filter(Boolean) as DependencyManifest[]
   )
-    .map(({ name, version }: DependencyManifest) => ({ name, version }))
+    .map(({ name, version }: DependencyManifest, index) => ({ name, version, alias: pkgNames[index] }))
 }

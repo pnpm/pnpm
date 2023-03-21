@@ -1,5 +1,6 @@
 import filenamify from 'filenamify'
 import path from 'path'
+import semver from 'semver'
 import { semverUtils } from '@yarnpkg/core'
 import type {
   Dependencies,
@@ -50,7 +51,7 @@ export interface ProjectToResolve {
   directNodeIdsByAlias: { [alias: string]: string }
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
-  topParents: Array<{ name: string, version: string }>
+  topParents: Array<{ name: string, version: string, alias?: string }>
   rootDir: string // is only needed for logging
   id: string
 }
@@ -181,22 +182,27 @@ function createPkgsByName<T extends PartialResolvedPackage> (
   dependenciesTree: DependenciesTree<T>,
   { directNodeIdsByAlias, topParents }: {
     directNodeIdsByAlias: { [alias: string]: string }
-    topParents: Array<{ name: string, version: string, linkedDir?: string }>
+    topParents: Array<{ name: string, version: string, alias?: string, linkedDir?: string }>
   }
 ) {
   const parentRefs: ParentRefs = {}
-  for (const { name, version, linkedDir } of topParents) {
+  for (const { name, version, alias, linkedDir } of topParents) {
     const pkg = {
+      alias,
       depth: 0,
       version,
       nodeId: linkedDir,
     }
-    parentRefs[name] = pkg
     if (version.startsWith('npm:')) {
       const index = version.lastIndexOf('@')
       const aliasedPkgName = version.slice(4, index)
-      if (parentRefs[aliasedPkgName]) continue
-      parentRefs[aliasedPkgName] = pkg
+      const aliasedPkgVersion = version.slice(index + 1)
+      pkg.alias = aliasedPkgName
+      updateParentRefs(parentRefs, aliasedPkgName, aliasedPkgVersion, pkg)
+    } else if (alias) {
+      updateParentRefs(parentRefs, alias, version, pkg)
+    } else {
+      updateParentRefs(parentRefs, name, version, pkg)
     }
   }
   Object.assign(parentRefs, toPkgByName(
@@ -575,20 +581,35 @@ interface ParentRef {
   depth: number
   // this is null only for already installed top dependencies
   nodeId?: string
+  alias?: string
 }
 
 function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{ alias: string, nodeId: string, node: DependenciesTreeNode<T> }>): ParentRefs {
   const pkgsByName: ParentRefs = {}
   for (const { alias, node, nodeId } of nodes) {
     const pkg = {
+      alias,
       depth: node.depth,
       nodeId,
       version: node.resolvedPackage.version,
     }
-    pkgsByName[alias] = pkg
-    if (alias !== node.resolvedPackage.name && !pkgsByName[node.resolvedPackage.name]) {
-      pkgsByName[node.resolvedPackage.name] = pkg
+    updateParentRefs(pkgsByName, alias, pkg.version, pkg)
+    if (alias !== node.resolvedPackage.name) {
+      updateParentRefs(pkgsByName, node.resolvedPackage.name, pkg.version, pkg)
     }
   }
   return pkgsByName
+}
+
+function updateParentRefs (parentRefs: ParentRefs, pkgName: string, pkgVersion: string, pkg: ParentRef) {
+  const existed = parentRefs[pkgName]
+  if (existed) {
+    if (
+      !existed.alias && !!pkg.alias || // prefer non-alias package
+      semver.gte(existed.version, pkgVersion) // prefer package with higher version
+    ) {
+      return
+    }
+  }
+  parentRefs[pkgName] = pkg
 }
