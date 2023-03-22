@@ -1388,3 +1388,66 @@ test('deduplicate packages that have peers, when adding new dependency in a work
   expect(depPaths).toContain(`/@pnpm.e2e/abc@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
   expect(depPaths).toContain(`/@pnpm.e2e/abc-parent-with-ab@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`)
 })
+
+test('resolve peer dependencies from aliased subdependencies if they are dependencies of a parent package', async () => {
+  prepareEmpty()
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+
+  await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/abc-parent-with-aliases'],
+    await testDefaults({ autoInstallPeers: false, strictPeerDependencies: false })
+  )
+
+  const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
+  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)']).toBeTruthy()
+})
+
+test('resolve peer dependency from aliased direct dependency', async () => {
+  prepareEmpty()
+
+  const opts = await testDefaults({ autoInstallPeers: false, strictPeerDependencies: false })
+  const manifest = await addDependenciesToPackage({}, ['peer-a@npm:@pnpm.e2e/peer-a@1.0.0'], opts)
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/abc@1.0.0'], opts)
+
+  const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
+  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)']).toBeTruthy()
+})
+
+test('resolve peer dependency using the alias that differs from the real name of the direct dependency', async () => {
+  prepareEmpty()
+
+  const opts = await testDefaults({ autoInstallPeers: false, strictPeerDependencies: false })
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/peer-b@npm:@pnpm.e2e/peer-a@1.0.0'], opts)
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/abc@1.0.0'], opts)
+
+  const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
+  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-a@1.0.0)']).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-a@1.0.0)']?.dependencies['@pnpm.e2e/peer-a']).toBe('1.0.0')
+  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-a@1.0.0)']?.dependencies['@pnpm.e2e/peer-b']).toBe('/@pnpm.e2e/peer-a@1.0.0')
+})
+
+test('when there are several aliased dependencies of the same package, pick the one with the highest version to resolve peers', async () => {
+  prepareEmpty()
+
+  const opts = await testDefaults({ autoInstallPeers: false, strictPeerDependencies: false })
+  const manifest = await addDependenciesToPackage({}, [
+    'peer-c3@npm:@pnpm.e2e/peer-c@1.0.0',
+    'peer-c2@npm:@pnpm.e2e/peer-c@1.0.1',
+    'peer-c1@npm:@pnpm.e2e/peer-c@2.0.0',
+  ], opts)
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/abc@1.0.0'], opts)
+
+  const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
+  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)']).toBeTruthy()
+})
+
+test('in a subdependency, when there are several aliased dependencies of the same package, pick the one with the highest version to resolve peers', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/abc-parent-with-aliases-of-same-pkg@1.0.0'], await testDefaults({ autoInstallPeers: false, strictPeerDependencies: false }))
+
+  const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
+  expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)']).toBeTruthy()
+})

@@ -1,13 +1,13 @@
 import filenamify from 'filenamify'
 import path from 'path'
+import semver from 'semver'
 import { semverUtils } from '@yarnpkg/core'
-import {
-  type Dependencies,
-  type PeerDependencyIssues,
-  type PeerDependencyIssuesByProjects,
+import type {
+  Dependencies,
+  PeerDependencyIssues,
+  PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
 import { depPathToFilename, createPeersFolderSuffixNewFormat } from '@pnpm/dependency-path'
-import { type KeyValuePair } from 'ramda'
 import isEmpty from 'ramda/src/isEmpty'
 import mapValues from 'ramda/src/map'
 import pick from 'ramda/src/pick'
@@ -51,7 +51,7 @@ export interface ProjectToResolve {
   directNodeIdsByAlias: { [alias: string]: string }
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
-  topParents: Array<{ name: string, version: string }>
+  topParents: Array<{ name: string, version: string, alias?: string }>
   rootDir: string // is only needed for logging
   id: string
 }
@@ -182,30 +182,32 @@ function createPkgsByName<T extends PartialResolvedPackage> (
   dependenciesTree: DependenciesTree<T>,
   { directNodeIdsByAlias, topParents }: {
     directNodeIdsByAlias: { [alias: string]: string }
-    topParents: Array<{ name: string, version: string, linkedDir?: string }>
+    topParents: Array<{ name: string, version: string, alias?: string, linkedDir?: string }>
   }
 ) {
-  return Object.assign(
-    Object.fromEntries(
-      topParents.map(({ name, version, linkedDir }): KeyValuePair<string, ParentRef> => [
-        name,
-        {
-          depth: 0,
-          version,
-          nodeId: linkedDir,
-        },
-      ])
-    ),
-    toPkgByName(
-      Object
-        .keys(directNodeIdsByAlias)
-        .map((alias) => ({
-          alias,
-          node: dependenciesTree[directNodeIdsByAlias[alias]],
-          nodeId: directNodeIdsByAlias[alias],
-        }))
-    )
+  const parentRefs = toPkgByName(
+    Object
+      .keys(directNodeIdsByAlias)
+      .map((alias) => ({
+        alias,
+        node: dependenciesTree[directNodeIdsByAlias[alias]],
+        nodeId: directNodeIdsByAlias[alias],
+      }))
   )
+  const _updateParentRefs = updateParentRefs.bind(null, parentRefs)
+  for (const { name, version, alias, linkedDir } of topParents) {
+    const pkg = {
+      alias,
+      depth: 0,
+      version,
+      nodeId: linkedDir,
+    }
+    _updateParentRefs(name, pkg)
+    if (alias && alias !== name) {
+      _updateParentRefs(alias, pkg)
+    }
+  }
+  return parentRefs
 }
 
 interface PeersCacheItem {
@@ -272,10 +274,10 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       .every(([name, cachedNodeId]) => {
         const parentPkgNodeId = parentPkgs[name]?.nodeId
         if (!parentPkgNodeId || !cachedNodeId) return false
-        if (parentPkgs[name].nodeId === cachedNodeId) return true
+        if (parentPkgNodeId === cachedNodeId) return true
         if (
           ctx.pathsByNodeId[cachedNodeId] &&
-          ctx.pathsByNodeId[cachedNodeId] === ctx.pathsByNodeId[parentPkgs[name].nodeId!]
+          ctx.pathsByNodeId[cachedNodeId] === ctx.pathsByNodeId[parentPkgNodeId]
         ) return true
         const parentDepPath = (ctx.dependenciesTree[parentPkgNodeId].resolvedPackage as T).depPath
         if (!ctx.purePkgs.has(parentDepPath)) return false
@@ -572,16 +574,34 @@ interface ParentRef {
   depth: number
   // this is null only for already installed top dependencies
   nodeId?: string
+  alias?: string
 }
 
 function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{ alias: string, nodeId: string, node: DependenciesTreeNode<T> }>): ParentRefs {
   const pkgsByName: ParentRefs = {}
+  const _updateParentRefs = updateParentRefs.bind(null, pkgsByName)
   for (const { alias, node, nodeId } of nodes) {
-    pkgsByName[alias] = {
+    const pkg = {
+      alias,
       depth: node.depth,
       nodeId,
       version: node.resolvedPackage.version,
     }
+    _updateParentRefs(alias, pkg)
+    if (alias !== node.resolvedPackage.name) {
+      _updateParentRefs(node.resolvedPackage.name, pkg)
+    }
   }
   return pkgsByName
+}
+
+function updateParentRefs (parentRefs: ParentRefs, newAlias: string, pkg: ParentRef) {
+  const existing = parentRefs[newAlias]
+  if (existing) {
+    const existingHasAlias = existing.alias != null || existing.alias !== newAlias
+    if (!existingHasAlias) return
+    const newHasAlias = pkg.alias != null || pkg.alias !== newAlias
+    if (newHasAlias && semver.gte(existing.version, pkg.version)) return
+  }
+  parentRefs[newAlias] = pkg
 }

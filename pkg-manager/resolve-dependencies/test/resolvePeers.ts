@@ -516,3 +516,99 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
     expect(peerDependencyIssuesByProjects.project.bad.dep[0].resolvedFrom).toStrictEqual([{ name: 'foo', version: '1.0.0' }])
   })
 })
+
+test('resolve peer dependencies with npm aliases', () => {
+  const fooPkg = {
+    name: 'foo',
+    depPath: 'foo/1.0.0',
+    version: '1.0.0',
+    peerDependencies: {
+      bar: '1.0.0',
+    },
+  }
+  const fooAliasPkg = {
+    name: 'foo',
+    depPath: 'foo/2.0.0',
+    version: '2.0.0',
+    peerDependencies: {
+      bar: '2.0.0',
+    },
+  }
+  const barPkg = {
+    name: 'bar',
+    depPath: 'bar/1.0.0',
+    version: '1.0.0',
+    peerDependencies: {},
+  }
+  const barAliasPkg = {
+    name: 'bar',
+    depPath: 'bar/2.0.0',
+    version: '2.0.0',
+    peerDependencies: {},
+  }
+  const { dependenciesGraph } = resolvePeers({
+    projects: [
+      {
+        directNodeIdsByAlias: {
+          foo: '>foo/1.0.0>',
+          bar: '>bar/1.0.0>',
+          'foo-next': '>foo/2.0.0>',
+          'bar-next': '>bar/2.0.0>',
+        },
+        topParents: [],
+        rootDir: '',
+        id: '',
+      },
+    ],
+    dependenciesTree: {
+      '>foo/1.0.0>': {
+        children: {
+          bar: '>foo/1.0.0>bar/1.0.0>',
+        },
+        installable: true,
+        resolvedPackage: fooPkg,
+        depth: 0,
+      },
+      '>foo/1.0.0>bar/1.0.0>': {
+        children: {},
+        installable: true,
+        resolvedPackage: barPkg,
+        depth: 1,
+      },
+      '>foo/2.0.0>': {
+        children: {
+          bar: '>foo/2.0.0>bar/2.0.0>',
+        },
+        installable: true,
+        resolvedPackage: fooAliasPkg,
+        depth: 0,
+      },
+      '>foo/2.0.0>bar/2.0.0>': {
+        children: {},
+        installable: true,
+        resolvedPackage: barAliasPkg,
+        depth: 1,
+      },
+      '>bar/1.0.0>': {
+        children: {},
+        installable: true,
+        resolvedPackage: barPkg,
+        depth: 0,
+      },
+      '>bar/2.0.0>': {
+        children: {},
+        installable: true,
+        resolvedPackage: barAliasPkg,
+        depth: 0,
+      },
+    },
+    virtualStoreDir: '',
+    lockfileDir: '',
+  })
+  expect(Object.keys(dependenciesGraph)).toStrictEqual([
+    'bar/1.0.0',
+    'foo/1.0.0(bar@1.0.0)',
+    'bar/2.0.0',
+    'foo/2.0.0(bar@2.0.0)',
+  ])
+})

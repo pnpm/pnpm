@@ -24,6 +24,7 @@ import {
 } from '@pnpm/types'
 import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
+import zipWith from 'ramda/src/zipWith'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
 import { depPathToRef } from './depPathToRef'
 import { createNodeIdForLinkedLocalPkg, type UpdateMatchingFunction } from './resolveDependencies'
@@ -173,7 +174,7 @@ export async function resolveDependencies (
       )
     }
 
-    const topParents: Array<{ name: string, version: string, linkedDir?: string }> = project.manifest
+    const topParents: Array<{ name: string, version: string, alias?: string, linkedDir?: string }> = project.manifest
       ? await getTopParents(
         difference(
           Object.keys(getAllDependenciesFromManifest(project.manifest)),
@@ -440,13 +441,17 @@ function getAliasToDependencyTypeMap (manifest: ProjectManifest): Record<string,
   return depTypesOfAliases
 }
 
-async function getTopParents (pkgNames: string[], modules: string) {
+async function getTopParents (pkgAliases: string[], modulesDir: string) {
   const pkgs = await Promise.all(
-    pkgNames.map((pkgName) => path.join(modules, pkgName)).map(safeReadPackageJsonFromDir)
+    pkgAliases.map((alias) => path.join(modulesDir, alias)).map(safeReadPackageJsonFromDir)
   )
-  return (
-    pkgs
-      .filter(Boolean) as DependencyManifest[]
-  )
-    .map(({ name, version }: DependencyManifest) => ({ name, version }))
+  return zipWith((manifest, alias) => {
+    if (!manifest) return null
+    return {
+      alias,
+      name: manifest.name,
+      version: manifest.version,
+    }
+  }, pkgs, pkgAliases)
+    .filter(Boolean) as DependencyManifest[]
 }
