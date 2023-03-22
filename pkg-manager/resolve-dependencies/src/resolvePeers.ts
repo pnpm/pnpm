@@ -186,6 +186,7 @@ function createPkgsByName<T extends PartialResolvedPackage> (
   }
 ) {
   const parentRefs: ParentRefs = {}
+  const _updateParentRefs = updateParentRefs.bind(null, parentRefs)
   for (const { name, version, alias, linkedDir } of topParents) {
     const pkg = {
       alias,
@@ -193,14 +194,9 @@ function createPkgsByName<T extends PartialResolvedPackage> (
       version,
       nodeId: linkedDir,
     }
-    if (version.startsWith('npm:')) {
-      const index = version.lastIndexOf('@')
-      const aliasedPkgName = version.slice(4, index)
-      const aliasedPkgVersion = version.slice(index + 1)
-      pkg.alias = aliasedPkgName
-      updateParentRefs(parentRefs, aliasedPkgName, aliasedPkgVersion, pkg)
-    } else {
-      updateParentRefs(parentRefs, alias ?? name, version, pkg)
+    _updateParentRefs(name, version, pkg)
+    if (alias && alias !== name) {
+      _updateParentRefs(alias, version, pkg)
     }
   }
   Object.assign(parentRefs, toPkgByName(
@@ -584,6 +580,7 @@ interface ParentRef {
 
 function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{ alias: string, nodeId: string, node: DependenciesTreeNode<T> }>): ParentRefs {
   const pkgsByName: ParentRefs = {}
+  const _updateParentRefs = updateParentRefs.bind(null, pkgsByName)
   for (const { alias, node, nodeId } of nodes) {
     const pkg = {
       alias,
@@ -591,23 +588,21 @@ function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{ alias: st
       nodeId,
       version: node.resolvedPackage.version,
     }
-    updateParentRefs(pkgsByName, alias, pkg.version, pkg)
+    _updateParentRefs(alias, pkg.version, pkg)
     if (alias !== node.resolvedPackage.name) {
-      updateParentRefs(pkgsByName, node.resolvedPackage.name, pkg.version, pkg)
+      _updateParentRefs(node.resolvedPackage.name, pkg.version, pkg)
     }
   }
   return pkgsByName
 }
 
 function updateParentRefs (parentRefs: ParentRefs, pkgName: string, pkgVersion: string, pkg: ParentRef) {
-  const existed = parentRefs[pkgName]
-  if (existed) {
-    if (
-      !existed.alias && !!pkg.alias || // prefer non-alias package
-      semver.gte(existed.version, pkgVersion) // prefer package with higher version
-    ) {
-      return
-    }
+  const existing = parentRefs[pkgName]
+  if (existing) {
+    const existingHasAlias = existing.alias != null || existing.alias !== pkgName
+    if (!existingHasAlias) return
+    const newHasAlias = pkg.alias != null || pkg.alias !== pkgName
+    if (newHasAlias && semver.gte(existing.version, pkgVersion)) return
   }
   parentRefs[pkgName] = pkg
 }
