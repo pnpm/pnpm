@@ -1432,6 +1432,5 @@ test('in a subdependency, when there are several aliased dependencies of the sam
   await addDependenciesToPackage({}, ['@pnpm.e2e/abc-parent-with-aliases-of-same-pkg@1.0.0'], await testDefaults({ autoInstallPeers: false, strictPeerDependencies: false }))
 
   const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
-  console.log(lockfile)
   expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)']).toBeTruthy()
 })
