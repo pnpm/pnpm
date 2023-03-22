@@ -185,7 +185,15 @@ function createPkgsByName<T extends PartialResolvedPackage> (
     topParents: Array<{ name: string, version: string, alias?: string, linkedDir?: string }>
   }
 ) {
-  const parentRefs: ParentRefs = {}
+  const parentRefs = toPkgByName(
+    Object
+      .keys(directNodeIdsByAlias)
+      .map((alias) => ({
+        alias,
+        node: dependenciesTree[directNodeIdsByAlias[alias]],
+        nodeId: directNodeIdsByAlias[alias],
+      }))
+  )
   const _updateParentRefs = updateParentRefs.bind(null, parentRefs)
   for (const { name, version, alias, linkedDir } of topParents) {
     const pkg = {
@@ -194,20 +202,11 @@ function createPkgsByName<T extends PartialResolvedPackage> (
       version,
       nodeId: linkedDir,
     }
-    _updateParentRefs(name, version, pkg)
+    _updateParentRefs(name, pkg)
     if (alias && alias !== name) {
-      _updateParentRefs(alias, version, pkg)
+      _updateParentRefs(alias, pkg)
     }
   }
-  Object.assign(parentRefs, toPkgByName(
-    Object
-      .keys(directNodeIdsByAlias)
-      .map((alias) => ({
-        alias,
-        node: dependenciesTree[directNodeIdsByAlias[alias]],
-        nodeId: directNodeIdsByAlias[alias],
-      }))
-  ))
   return parentRefs
 }
 
@@ -588,21 +587,21 @@ function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{ alias: st
       nodeId,
       version: node.resolvedPackage.version,
     }
-    _updateParentRefs(alias, pkg.version, pkg)
+    _updateParentRefs(alias, pkg)
     if (alias !== node.resolvedPackage.name) {
-      _updateParentRefs(node.resolvedPackage.name, pkg.version, pkg)
+      _updateParentRefs(node.resolvedPackage.name, pkg)
     }
   }
   return pkgsByName
 }
 
-function updateParentRefs (parentRefs: ParentRefs, pkgName: string, pkgVersion: string, pkg: ParentRef) {
-  const existing = parentRefs[pkgName]
+function updateParentRefs (parentRefs: ParentRefs, newAlias: string, pkg: ParentRef) {
+  const existing = parentRefs[newAlias]
   if (existing) {
-    const existingHasAlias = existing.alias != null || existing.alias !== pkgName
+    const existingHasAlias = existing.alias != null || existing.alias !== newAlias
     if (!existingHasAlias) return
-    const newHasAlias = pkg.alias != null || pkg.alias !== pkgName
-    if (newHasAlias && semver.gte(existing.version, pkgVersion)) return
+    const newHasAlias = pkg.alias != null || pkg.alias !== newAlias
+    if (newHasAlias && semver.gte(existing.version, pkg.version)) return
   }
-  parentRefs[pkgName] = pkg
+  parentRefs[newAlias] = pkg
 }
