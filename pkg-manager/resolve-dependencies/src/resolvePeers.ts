@@ -199,10 +199,8 @@ function createPkgsByName<T extends PartialResolvedPackage> (
       const aliasedPkgVersion = version.slice(index + 1)
       pkg.alias = aliasedPkgName
       updateParentRefs(parentRefs, aliasedPkgName, aliasedPkgVersion, pkg)
-    } else if (alias) {
-      updateParentRefs(parentRefs, alias, version, pkg)
     } else {
-      updateParentRefs(parentRefs, name, version, pkg)
+      updateParentRefs(parentRefs, alias ?? name, version, pkg)
     }
   }
   Object.assign(parentRefs, toPkgByName(
