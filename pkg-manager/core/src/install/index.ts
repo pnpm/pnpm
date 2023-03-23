@@ -385,7 +385,7 @@ export async function mutateModules (
             prunedAt: ctx.modulesFile?.prunedAt,
             pruneVirtualStore,
             wantedLockfile: maybeOpts.ignorePackageManifest ? undefined : ctx.wantedLockfile,
-            wantedLockfileUnmodified: ctx.wantedLockfileUnmodified,
+            useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
           })
           if (opts.useLockfile && opts.saveLockfile && opts.mergeGitBranchLockfiles) {
             await writeLockfiles({
@@ -1258,7 +1258,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         allProjects: ctx.projects,
         prunedAt: ctx.modulesFile?.prunedAt,
         wantedLockfile: result.newLockfile,
-        wantedLockfileUnmodified: ctx.wantedLockfileUnmodified,
+        useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
       })
       return result
     }
