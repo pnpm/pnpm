@@ -5,7 +5,7 @@ import { mutateModules, type MutatedProject } from '@pnpm/core'
 import { addDistTag } from '@pnpm/registry-mock'
 import { testDefaults } from '../utils'
 
-test('pick common range for a dependency used in two workspace projects whe resolution mode is highest', async () => {
+test('pick common range for a dependency used in two workspace projects when resolution mode is highest', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   preparePackages([
     {
@@ -62,7 +62,7 @@ test('pick common range for a dependency used in two workspace projects whe reso
   expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
 })
 
-test('pick common range for a dependency used in two workspace projects whe resolution mode is lowest', async () => {
+test('pick common range for a dependency used in two workspace projects when resolution mode is lowest-direct', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   preparePackages([
     {
