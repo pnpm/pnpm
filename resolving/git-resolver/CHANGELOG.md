@@ -1,5 +1,11 @@
 # @pnpm/git-resolver
 
+## 7.0.8
+
+### Patch Changes
+
+- b05d9df3f: Fix git-hosted dependencies referenced via `git+ssh` that use semver selectors [#6239](https://github.com/pnpm/pnpm/pull/6239).
+
 ## 7.0.7
 
 ### Patch Changes

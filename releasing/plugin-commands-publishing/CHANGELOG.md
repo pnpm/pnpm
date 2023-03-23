@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-publishing
 
+## 6.1.23
+
+### Patch Changes
+
+- cfc8f52e7: When publish some package throws an error, the exit code should be non-zero [#5528](https://github.com/pnpm/pnpm/issues/5528).
+  - @pnpm/config@17.0.3
+  - @pnpm/client@9.1.6
+  - @pnpm/cli-utils@1.1.8
+
 ## 6.1.22
 
 ### Patch Changes

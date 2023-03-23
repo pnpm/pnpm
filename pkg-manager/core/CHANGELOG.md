@@ -1,5 +1,17 @@
 # @pnpm/core
 
+## 8.0.5
+
+### Patch Changes
+
+- e6fb46ed0: Don't write the `pnpm-lock.yaml` file if it has no changes and `pnpm install --frozen-lockfile` was executed [#6158](https://github.com/pnpm/pnpm/issues/6158).
+- Updated dependencies [e6fb46ed0]
+- Updated dependencies [b8bafe801]
+  - @pnpm/get-context@8.3.0
+  - @pnpm/resolve-dependencies@30.0.3
+  - @pnpm/headless@19.5.4
+  - @pnpm/package-requester@20.1.7
+
 ## 8.0.4
 
 ### Patch Changes

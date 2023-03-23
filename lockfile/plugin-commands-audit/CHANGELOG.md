@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-audit
 
+## 7.2.16
+
+### Patch Changes
+
+- 6dab633bd: Only three paths are displayed in `pnpm audit` output [#6203](https://github.com/pnpm/pnpm/issues/6203)
+  - @pnpm/config@17.0.3
+  - @pnpm/cli-utils@1.1.8
+
 ## 7.2.15
 
 ### Patch Changes

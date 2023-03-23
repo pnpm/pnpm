@@ -1,5 +1,15 @@
 # pnpm
 
+## 7.30.1
+
+### Patch Changes
+
+- Don't write the `pnpm-lock.yaml` file if it has no changes and `pnpm install --frozen-lockfile` was executed [#6158](https://github.com/pnpm/pnpm/issues/6158).
+- Fix git-hosted dependencies referenced via `git+ssh` that use semver selectors [#6239](https://github.com/pnpm/pnpm/pull/6239).
+- When publish some package throws an error, the exit code should be non-zero [#5528](https://github.com/pnpm/pnpm/issues/5528).
+- Only three paths are displayed in `pnpm audit` output [#6203](https://github.com/pnpm/pnpm/issues/6203)
+- Aliased packages should be used to resolve peer dependencies too [#4301](https://github.com/pnpm/pnpm/issues/4301).
+
 ## 7.30.0
 
 ### Minor Changes

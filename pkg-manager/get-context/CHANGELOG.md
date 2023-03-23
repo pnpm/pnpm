@@ -1,5 +1,11 @@
 # @pnpm/get-context
 
+## 8.3.0
+
+### Minor Changes
+
+- e6fb46ed0: Return `wantedLockfileIsModified`.
+
 ## 8.2.4
 
 ### Patch Changes

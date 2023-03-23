@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 30.0.3
+
+### Patch Changes
+
+- b8bafe801: Aliased packages should be used to resolve peer dependencies too [#4301](https://github.com/pnpm/pnpm/issues/4301).
+
 ## 30.0.2
 
 ### Patch Changes
