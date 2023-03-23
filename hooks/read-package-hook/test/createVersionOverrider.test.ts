@@ -294,7 +294,7 @@ test('createVersionsOverrider() overrides dependencies with file specified with 
 
 test('createVersionOverride() should use the one with parent syntax when both override rules match the same target', () => {
   const overrider = createVersionsOverrider({
-    'foo@2': '2.12.0',
+    foo: '2.12.0',
     'bar>foo@2': 'github:org/foo',
   }, process.cwd())
   expect(
@@ -305,7 +305,7 @@ test('createVersionOverride() should use the one with parent syntax when both ov
     })
   ).toStrictEqual({
     dependencies: {
-      foo: '^1.0.0',
+      foo: '2.12.0',
     },
   })
   expect(
