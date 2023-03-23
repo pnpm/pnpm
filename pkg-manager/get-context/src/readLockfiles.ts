@@ -46,6 +46,7 @@ export async function readLockfiles (
     existsCurrentLockfile: boolean
     existsWantedLockfile: boolean
     wantedLockfile: Lockfile
+    wantedLockfileIsModified: boolean
     lockfileHadConflicts: boolean
   }> {
   const wantedLockfileVersion = LOCKFILE_VERSION_V6
@@ -115,8 +116,10 @@ export async function readLockfiles (
   const wantedLockfile = files[0] ??
     (currentLockfile && clone(currentLockfile)) ??
     createLockfileObject(importerIds, sopts)
+  let wantedLockfileIsModified = false
   for (const importerId of importerIds) {
     if (!wantedLockfile.importers[importerId]) {
+      wantedLockfileIsModified = true
       wantedLockfile.importers[importerId] = {
         specifiers: {},
       }
@@ -128,6 +131,7 @@ export async function readLockfiles (
     existsCurrentLockfile: files[1] != null,
     existsWantedLockfile: files[0] != null && !isEmptyLockfile(wantedLockfile),
     wantedLockfile,
+    wantedLockfileIsModified,
     lockfileHadConflicts,
   }
 }
