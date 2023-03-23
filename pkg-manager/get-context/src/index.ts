@@ -52,6 +52,7 @@ export interface PnpmContext {
   skipped: Set<string>
   storeDir: string
   wantedLockfile: Lockfile
+  wantedLockfileUnmodified: Lockfile
   registries: Registries
 }
 
@@ -360,6 +361,7 @@ export interface PnpmSingleContext {
   skipped: Set<string>
   storeDir: string
   wantedLockfile: Lockfile
+  wantedLockfileUnmodified: Lockfile
 }
 
 export async function getContextForSingleImporter (

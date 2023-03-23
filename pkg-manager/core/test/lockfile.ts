@@ -1580,3 +1580,19 @@ test('update the lockfile when a new project is added to the workspace and lockf
   const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
 })
+
+test('lockfile is not written when it has no changes', async () => {
+  prepareEmpty()
+
+  const manifest = await install({
+    dependencies: {
+      '@types/semver': '^5.3.31',
+    },
+  }, await testDefaults())
+
+  const stat = await fs.stat(WANTED_LOCKFILE)
+  const initialMtime = stat.mtimeMs
+
+  await install(manifest, await testDefaults())
+  expect(await fs.stat(WANTED_LOCKFILE)).toHaveProperty('mtimeMs', initialMtime)
+})

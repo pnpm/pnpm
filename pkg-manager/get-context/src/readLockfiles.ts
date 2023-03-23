@@ -46,6 +46,7 @@ export async function readLockfiles (
     existsCurrentLockfile: boolean
     existsWantedLockfile: boolean
     wantedLockfile: Lockfile
+    wantedLockfileUnmodified: Lockfile
     lockfileHadConflicts: boolean
   }> {
   const wantedLockfileVersion = LOCKFILE_VERSION_V6
@@ -128,6 +129,7 @@ export async function readLockfiles (
     existsCurrentLockfile: files[1] != null,
     existsWantedLockfile: files[0] != null && !isEmptyLockfile(wantedLockfile),
     wantedLockfile,
+    wantedLockfileUnmodified: JSON.parse(JSON.stringify(wantedLockfile)),
     lockfileHadConflicts,
   }
 }

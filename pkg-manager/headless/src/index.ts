@@ -146,6 +146,7 @@ export interface HeadlessOptions {
   pruneStore: boolean
   pruneVirtualStore?: boolean
   wantedLockfile?: Lockfile
+  wantedLockfileUnmodified?: Lockfile
   ownLifecycleHooksStdio?: 'inherit' | 'pipe'
   pendingBuilds: string[]
   resolveSymlinksInInjectedDirs?: boolean
@@ -545,7 +546,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
       storeDir: opts.storeDir,
       virtualStoreDir,
     })
-    if (opts.useLockfile) {
+    if (opts.useLockfile && JSON.stringify(wantedLockfile) !== JSON.stringify(opts.wantedLockfileUnmodified)) {
       // We need to write the wanted lockfile as well.
       // Even though it will only be changed if the workspace will have new projects with no dependencies.
       await writeLockfiles({
