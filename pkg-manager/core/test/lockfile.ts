@@ -768,7 +768,7 @@ test('save tarball URL when it is non-standard', async () => {
 
   const lockfile = await project.readLockfile()
 
-  expect((lockfile.packages['/esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball).toBe('esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz')
+  expect((lockfile.packages['/esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz`)
 })
 
 test('packages installed via tarball URL from the default registry are normalized', async () => {
