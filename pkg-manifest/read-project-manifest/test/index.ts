@@ -101,6 +101,26 @@ test('preserve comments in json5 file', async () => {
   const resultingManifest = await fs.readFile('package.json5', 'utf8')
   expect(resultingManifest).toBe(modifiedManifest)
 })
+/* FIXME
+test('preserve comments in YAML file', async () => {
+  const originalManifest = await fs.readFile(
+    path.join(fixtures, 'commented-package-yaml/package.yaml'), 'utf8')
+  const modifiedManifest = await fs.readFile(
+    path.join(fixtures, 'commented-package-yaml/modified.yaml'), 'utf8')
+
+  process.chdir(tempy.directory())
+  await fs.writeFile('package.yaml', originalManifest, 'utf8')
+
+  const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+
+  // Have to make a change to get it to write anything:
+  const newManifest = Object.assign({}, manifest, { type: 'commonjs' })
+
+  await writeProjectManifest(newManifest)
+
+  const resultingManifest = await fs.readFile('package.yaml', 'utf8')
+  expect(resultingManifest).toBe(modifiedManifest)
+})*/
 
 test('do not save manifest if it had no changes', async () => {
   process.chdir(tempy.directory())

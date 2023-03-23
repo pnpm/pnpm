@@ -4,12 +4,12 @@ import { PnpmError } from '@pnpm/error'
 import { type ProjectManifest } from '@pnpm/types'
 import { extractComments, type CommentSpecifier } from '@pnpm/text.comments-parser'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
-import readYamlFile from 'read-yaml-file'
 import detectIndent from '@gwhitney/detect-indent'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
 import sortKeys from 'sort-keys'
 import {
+  readYamlFile,
   readJson5File,
   readJsonFile,
 } from './readFile'
@@ -86,11 +86,15 @@ export async function tryReadProjectManifest (projectDir: string): Promise<{
   }
   try {
     const manifestPath = path.join(projectDir, 'package.yaml')
-    const manifest = await readPackageYaml(manifestPath)
+    const { data, text } = await readPackageYaml(manifestPath)
     return {
       fileName: 'package.yaml',
-      manifest,
-      writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
+      manifest: data,
+      writeProjectManifest: createManifestWriter({ //initialManifest: data, manifestPath }),
+        ...detectFileFormatting(text), //AndComments(text),
+        initialManifest: data,
+        manifestPath,
+      })
     }
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'ENOENT') throw err
@@ -160,10 +164,14 @@ export async function readExactProjectManifest (manifestPath: string) {
     }
   }
   case 'package.yaml': {
-    const manifest = await readPackageYaml(manifestPath)
+    const { data, text } = await readPackageYaml(manifestPath)
     return {
-      manifest,
-      writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
+      manifest: data,
+      writeProjectManifest: createManifestWriter({ //initialManifest: manifest, manifestPath }),
+        ...detectFileFormatting(text), //AndComments(text),
+        initialManifest: data,
+        manifestPath,
+      }),
     }
   }
   }

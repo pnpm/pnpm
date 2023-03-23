@@ -1,8 +1,23 @@
 import gfs from '@pnpm/graceful-fs'
 import { type ProjectManifest } from '@pnpm/types'
+import YAML from 'yaml'
 import JSON5 from 'json5'
 import parseJson from 'parse-json'
 import stripBom from 'strip-bom'
+
+export async function readYamlFile (filePath: string) {
+  const text = await readFileWithoutBom(filePath)
+  try {
+    return {
+      data: YAML.parseDocument(text),
+      text,
+    }
+  } catch (err: any) { // eslint-disable-line
+    err.message = `${err.message as string} in ${filePath}`
+    err['code'] = 'ERR_PNPM_YAML_PARSE'
+    throw err
+  }
+}
 
 export async function readJson5File (filePath: string) {
   const text = await readFileWithoutBom(filePath)
