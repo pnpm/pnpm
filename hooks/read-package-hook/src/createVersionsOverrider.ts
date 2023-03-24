@@ -91,15 +91,18 @@ function overrideDeps (
 ) {
   for (const [name, pref] of Object.entries(deps)) {
     const versionOverride =
-      versionOverrides.find(
-        ({ targetPkg }) =>
-          targetPkg.name === name && isSubRange(targetPkg.pref, pref)
-      ) ??
-      genericVersionOverrides.find(
+    pickMostSpecificVersionOverride(
+      versionOverrides.filter(
         ({ targetPkg }) =>
           targetPkg.name === name && isSubRange(targetPkg.pref, pref)
       )
-
+    ) ??
+    pickMostSpecificVersionOverride(
+      genericVersionOverrides.filter(
+        ({ targetPkg }) =>
+          targetPkg.name === name && isSubRange(targetPkg.pref, pref)
+      )
+    )
     if (!versionOverride) continue
 
     if (versionOverride.linkTarget && dir) {
@@ -116,4 +119,8 @@ function overrideDeps (
     }
     deps[versionOverride.targetPkg.name] = versionOverride.newPref
   }
+}
+
+function pickMostSpecificVersionOverride (versionOverrides: VersionOverride[]): VersionOverride | undefined {
+  return versionOverrides.sort((a, b) => isSubRange(b.targetPkg.pref ?? '', a.targetPkg.pref ?? '') ? -1 : 1)[0]
 }
