@@ -20,7 +20,7 @@
   "devDependencies": {
     "@pnpm/exe": "workspace:*",
     "@zkochan/pkg": "0.0.0-2",
-    "execa": "npm:safe-execa@^0.1.1"
+    "execa": "npm:safe-execa@^0.1.3"
   },
   "funding": "https://opencollective.com/pnpm",
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/exe#readme",

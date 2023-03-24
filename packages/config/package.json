@@ -54,8 +54,8 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "0.27.39",
-    "@types/which": "^2.0.1",
-    "symlink-dir": "^5.0.1"
+    "@types/which": "^2.0.2",
+    "symlink-dir": "^5.1.1"
   },
   "funding": "https://opencollective.com/pnpm"
 }

@@ -45,14 +45,14 @@
     "dependencies-hierarchy": "workspace:*",
     "p-limit": "^3.1.0",
     "ramda": "^0.27.2",
-    "semver": "^7.3.7"
+    "semver": "^7.3.8"
   },
   "devDependencies": {
     "@pnpm/list": "workspace:*",
     "@pnpm/logger": "^4.0.0",
     "@types/archy": "0.0.31",
     "@types/ramda": "0.27.39",
-    "@types/semver": "^7.3.9"
+    "@types/semver": "^7.3.13"
   },
   "funding": "https://opencollective.com/pnpm"
 }
