@@ -1,5 +1,11 @@
 # @pnpm/hooks.read-package-hook
 
+## 2.1.2
+
+### Patch Changes
+
+- d0b88b79e: Should use most specific override rule when multiple rules match the same target [#6210](https://github.com/pnpm/pnpm/issues/6210).
+
 ## 2.1.1
 
 ### Patch Changes

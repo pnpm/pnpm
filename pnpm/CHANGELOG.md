@@ -1,5 +1,12 @@
 # pnpm
 
+## 7.30.3
+
+### Patch Changes
+
+- Should use most specific override rule when multiple rules match the same target [#6210](https://github.com/pnpm/pnpm/issues/6210).
+- Fix regression introduced in v7.30.1 [#6271](https://github.com/pnpm/pnpm/issues/6271).
+
 ## 7.30.2
 
 ### Patch Changes

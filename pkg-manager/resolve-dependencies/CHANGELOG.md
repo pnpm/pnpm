@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 30.0.5
+
+### Patch Changes
+
+- 730dfafe8: Fix regression introduced in v7.30.1 [#6271](https://github.com/pnpm/pnpm/issues/6271).
+
 ## 30.0.4
 
 ### Patch Changes
