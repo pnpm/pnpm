@@ -292,6 +292,79 @@ test('createVersionsOverrider() overrides dependencies with file specified with 
   })
 })
 
+test('createVersionOverride() should use the most specific rule when both override rules match the same target', () => {
+  const overrider = createVersionsOverrider({
+    foo: '3.0.0',
+    'foo@3': '4.0.0',
+    'foo@2': '2.12.0',
+    'bar>foo@2': 'github:org/foo',
+    'bar>foo@3': '5.0.0',
+  }, process.cwd())
+  expect(
+    overrider({
+      dependencies: {
+        foo: '^3.0.0',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      foo: '4.0.0',
+    },
+  })
+  expect(
+    overrider({
+      dependencies: {
+        foo: '^4.0.0',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      foo: '3.0.0',
+    },
+  })
+  expect(
+    overrider({
+      dependencies: {
+        foo: '^2.0.0',
+      },
+    })
+  ).toStrictEqual({
+    dependencies: {
+      foo: '2.12.0',
+    },
+  })
+  expect(
+    overrider({
+      name: 'bar',
+      version: '1.0.0',
+      dependencies: {
+        foo: '^2.0.0',
+      },
+    })
+  ).toStrictEqual({
+    name: 'bar',
+    version: '1.0.0',
+    dependencies: {
+      foo: 'github:org/foo',
+    },
+  })
+  expect(
+    overrider({
+      name: 'bar',
+      version: '1.0.0',
+      dependencies: {
+        foo: '^3.0.0',
+      },
+    })
+  ).toStrictEqual({
+    name: 'bar',
+    version: '1.0.0',
+    dependencies: {
+      foo: '5.0.0',
+    },
+  })
+})
+
 test('createVersionOverrider() throws error when supplied an invalid selector', () => {
   expect(() => createVersionsOverrider({
     'foo > bar': '2',

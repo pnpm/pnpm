@@ -32,12 +32,14 @@ export function createVersionsOverrider (
       })
   ) as [VersionOverrideWithParent[], VersionOverride[]]
   return ((manifest: PackageManifest, dir?: string) => {
-    overrideDepsOfPkg({ manifest, dir }, versionOverrides.filter(({ parentPkg }) => {
-      return parentPkg.name === manifest.name && (
-        !parentPkg.pref || semver.satisfies(manifest.version, parentPkg.pref)
+    const versionOverridesWithParent = versionOverrides.filter(({ parentPkg }) => {
+      return (
+        parentPkg.name === manifest.name &&
+        (!parentPkg.pref || semver.satisfies(manifest.version, parentPkg.pref))
       )
-    }))
-    overrideDepsOfPkg({ manifest, dir }, genericVersionOverrides)
+    })
+    overrideDepsOfPkg({ manifest, dir }, versionOverridesWithParent, genericVersionOverrides)
+
     return manifest
   }) as ReadPackageHook
 }
@@ -73,27 +75,52 @@ interface VersionOverrideWithParent extends VersionOverride {
 
 function overrideDepsOfPkg (
   { manifest, dir }: { manifest: PackageManifest, dir: string | undefined },
-  versionOverrides: VersionOverride[]
+  versionOverrides: VersionOverrideWithParent[],
+  genericVersionOverrides: VersionOverride[]
 ) {
-  if (manifest.dependencies != null) overrideDeps(versionOverrides, manifest.dependencies, dir)
-  if (manifest.optionalDependencies != null) overrideDeps(versionOverrides, manifest.optionalDependencies, dir)
-  if (manifest.devDependencies != null) overrideDeps(versionOverrides, manifest.devDependencies, dir)
-  return manifest
+  if (manifest.dependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.dependencies, dir)
+  if (manifest.optionalDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.optionalDependencies, dir)
+  if (manifest.devDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.devDependencies, dir)
 }
 
-function overrideDeps (versionOverrides: VersionOverride[], deps: Dependencies, dir: string | undefined) {
-  for (const versionOverride of versionOverrides) {
-    const actual = deps[versionOverride.targetPkg.name]
-    if (actual == null) continue
-    if (!isSubRange(versionOverride.targetPkg.pref, actual)) continue
+function overrideDeps (
+  versionOverrides: VersionOverrideWithParent[],
+  genericVersionOverrides: VersionOverride[],
+  deps: Dependencies,
+  dir: string | undefined
+) {
+  for (const [name, pref] of Object.entries(deps)) {
+    const versionOverride =
+    pickMostSpecificVersionOverride(
+      versionOverrides.filter(
+        ({ targetPkg }) =>
+          targetPkg.name === name && isSubRange(targetPkg.pref, pref)
+      )
+    ) ??
+    pickMostSpecificVersionOverride(
+      genericVersionOverrides.filter(
+        ({ targetPkg }) =>
+          targetPkg.name === name && isSubRange(targetPkg.pref, pref)
+      )
+    )
+    if (!versionOverride) continue
+
     if (versionOverride.linkTarget && dir) {
-      deps[versionOverride.targetPkg.name] = `link:${normalizePath(path.relative(dir, versionOverride.linkTarget))}`
+      deps[versionOverride.targetPkg.name] = `link:${normalizePath(
+        path.relative(dir, versionOverride.linkTarget)
+      )}`
       continue
     }
     if (versionOverride.linkFileTarget) {
-      deps[versionOverride.targetPkg.name] = `file:${versionOverride.linkFileTarget}`
+      deps[
+        versionOverride.targetPkg.name
+      ] = `file:${versionOverride.linkFileTarget}`
       continue
     }
     deps[versionOverride.targetPkg.name] = versionOverride.newPref
   }
+}
+
+function pickMostSpecificVersionOverride (versionOverrides: VersionOverride[]): VersionOverride | undefined {
+  return versionOverrides.sort((a, b) => isSubRange(b.targetPkg.pref ?? '', a.targetPkg.pref ?? '') ? -1 : 1)[0]
 }
