@@ -126,6 +126,11 @@
       "ignoreMissing": [
         "@yarnpkg/plugin-patch"
       ]
+    },
+    "auditConfig": {
+      "ignoreCves": [
+        "CVE-2023-28155"
+      ]
     }
   }
 }
