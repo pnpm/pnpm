@@ -178,7 +178,7 @@ export async function resolveDependencies (
       ? await getTopParents(
         difference(
           Object.keys(getAllDependenciesFromManifest(project.manifest)),
-          resolvedImporter.directDependencies.map(({ alias }) => alias) || [],
+          resolvedImporter.directDependencies.map(({ alias }) => alias) || []
         ),
         project.modulesDir
       )
