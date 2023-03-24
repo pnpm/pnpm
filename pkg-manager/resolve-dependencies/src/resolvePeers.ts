@@ -602,10 +602,6 @@ function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{ alias: st
 function updateParentRefs (parentRefs: ParentRefs, newAlias: string, pkg: ParentRef) {
   const existing = parentRefs[newAlias]
   if (existing) {
-    if (!existing.nodeId && pkg.nodeId && existing.version === pkg.version) {
-      parentRefs[newAlias] = pkg
-      return
-    }
     const existingHasAlias = existing.alias != null || existing.alias !== newAlias
     if (!existingHasAlias) return
     const newHasAlias = pkg.alias != null || pkg.alias !== newAlias
