@@ -60,8 +60,18 @@ export function pickPackageFromMeta (
 
 export function pickLowestVersionByVersionRange (
   meta: PackageMeta,
-  versionRange: string
+  versionRange: string,
+  preferredVerSels?: VersionSelectors
 ) {
+  if (preferredVerSels != null && Object.keys(preferredVerSels).length > 0) {
+    const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVerSels)
+    for (const preferredVersions of prioritizedPreferredVersions) {
+      const preferredVersion = semver.minSatisfying(preferredVersions, versionRange, true)
+      if (preferredVersion) {
+        return preferredVersion
+      }
+    }
+  }
   if (versionRange === '*') {
     return Object.keys(meta.versions).sort(semver.compare)[0]
   }
