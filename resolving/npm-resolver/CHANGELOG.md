@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 15.0.10
+
+### Patch Changes
+
+- a9f12f8e6: Deduplicate direct dependencies, when `resolution-mode` is set to `lowest-direct` [#6042](https://github.com/pnpm/pnpm/issues/6042).
+
 ## 15.0.9
 
 ### Patch Changes

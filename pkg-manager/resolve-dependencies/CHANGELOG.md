@@ -1,5 +1,13 @@
 # @pnpm/resolve-dependencies
 
+## 30.0.4
+
+### Patch Changes
+
+- 01921319f: Peer dependency is not unlinked when adding a new dependency [#6272](https://github.com/pnpm/pnpm/issues/6272).
+- Updated dependencies [a9f12f8e6]
+  - @pnpm/npm-resolver@15.0.10
+
 ## 30.0.3
 
 ### Patch Changes

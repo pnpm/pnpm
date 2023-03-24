@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 8.0.6
+
+### Patch Changes
+
+- Updated dependencies [01921319f]
+  - @pnpm/resolve-dependencies@30.0.4
+  - @pnpm/headless@19.5.4
+  - @pnpm/package-requester@20.1.7
+
 ## 8.0.5
 
 ### Patch Changes

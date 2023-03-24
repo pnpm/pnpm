@@ -1,5 +1,12 @@
 # pnpm
 
+## 7.30.2
+
+### Patch Changes
+
+- Deduplicate direct dependencies, when `resolution-mode` is set to `lowest-direct` [#6042](https://github.com/pnpm/pnpm/issues/6042).
+- Peer dependency is not unlinked when adding a new dependency [#6272](https://github.com/pnpm/pnpm/issues/6272).
+
 ## 7.30.1
 
 ### Patch Changes
