@@ -1,5 +1,17 @@
 # @pnpm/lockfile-types
 
+## 5.0.0
+
+### Major Changes
+
+- c92936158: The registry field is removed from the `resolution` object in `pnpm-lock.yaml`.
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/types@9.0.0
+
 ## 4.3.6
 
 ### Patch Changes

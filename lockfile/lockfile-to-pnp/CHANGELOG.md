@@ -1,5 +1,24 @@
 # @pnpm/lockfile-to-pnp
 
+## 3.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [c92936158]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [ca8f51e60]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [0e26acb0f]
+- Updated dependencies [417c8ac59]
+  - @pnpm/lockfile-utils@6.0.0
+  - @pnpm/lockfile-file@8.0.0
+  - @pnpm/dependency-path@2.0.0
+  - @pnpm/types@9.0.0
+
 ## 2.0.14
 
 ### Patch Changes

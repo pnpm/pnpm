@@ -1,5 +1,41 @@
 # @pnpm/plugin-commands-store
 
+## 7.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [47e45d717]
+- Updated dependencies [c92936158]
+- Updated dependencies [47e45d717]
+- Updated dependencies [2a2032810]
+- Updated dependencies [7a0ce1df0]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [ca8f51e60]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [8e35c21d1]
+- Updated dependencies [0e26acb0f]
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [113f0ae26]
+  - @pnpm/config@18.0.0
+  - @pnpm/lockfile-utils@6.0.0
+  - @pnpm/get-context@9.0.0
+  - @pnpm/store-connection-manager@6.0.0
+  - @pnpm/dependency-path@2.0.0
+  - @pnpm/pick-registry-for-package@5.0.0
+  - @pnpm/parse-wanted-dependency@5.0.0
+  - @pnpm/store-controller-types@15.0.0
+  - @pnpm/normalize-registries@5.0.0
+  - @pnpm/store-path@8.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+  - @pnpm/cli-utils@2.0.0
+  - @pnpm/cafs@7.0.0
+
 ## 6.0.42
 
 ### Patch Changes

@@ -1,5 +1,25 @@
 # @pnpm/client
 
+## 10.0.0
+
+### Major Changes
+
+- 7a0ce1df0: When there's a `files` field in the `package.json`, only deploy those files that are listed in it.
+  Use the same logic also when injecting packages. This behavior can be changed by setting the `deploy-all-files` setting to `true` [#5911](https://github.com/pnpm/pnpm/issues/5911).
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/directory-fetcher@6.0.0
+  - @pnpm/default-resolver@18.0.0
+  - @pnpm/tarball-fetcher@15.0.0
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/fetching-types@5.0.0
+  - @pnpm/git-fetcher@9.0.0
+  - @pnpm/network.auth-header@2.0.0
+  - @pnpm/fetch@7.0.0
+
 ## 9.1.5
 
 ### Patch Changes

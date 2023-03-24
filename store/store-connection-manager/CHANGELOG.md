@@ -1,5 +1,32 @@
 # @pnpm/store-connection-manager
 
+## 6.0.0
+
+### Major Changes
+
+- 7a0ce1df0: When there's a `files` field in the `package.json`, only deploy those files that are listed in it.
+  Use the same logic also when injecting packages. This behavior can be changed by setting the `deploy-all-files` setting to `true` [#5911](https://github.com/pnpm/pnpm/issues/5911).
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [7a0ce1df0]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [8e35c21d1]
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [113f0ae26]
+  - @pnpm/config@18.0.0
+  - @pnpm/client@10.0.0
+  - @pnpm/package-store@16.0.0
+  - @pnpm/store-path@8.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/cli-meta@5.0.0
+  - @pnpm/server@15.0.0
+
 ## 5.2.20
 
 ### Patch Changes

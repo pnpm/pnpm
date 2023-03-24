@@ -1,5 +1,24 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.5.0
+
+### Minor Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [158d8cf22]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [417c8ac59]
+  - @pnpm/lockfile-file@8.0.0
+  - @pnpm/read-project-manifest@5.0.0
+  - @pnpm/exportable-manifest@5.0.0
+  - @pnpm/find-workspace-dir@6.0.0
+  - @pnpm/prune-lockfile@5.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 0.4.14
 
 ### Patch Changes

@@ -1,5 +1,30 @@
 # @pnpm/cli-utils
 
+## 2.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [8e35c21d1]
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [113f0ae26]
+  - @pnpm/config@18.0.0
+  - @pnpm/read-project-manifest@5.0.0
+  - @pnpm/package-is-installable@8.0.0
+  - @pnpm/manifest-utils@5.0.0
+  - @pnpm/default-reporter@12.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+  - @pnpm/cli-meta@5.0.0
+
 ## 1.1.7
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/parse-overrides
 
+## 4.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/parse-wanted-dependency@5.0.0
+  - @pnpm/error@5.0.0
+
 ## 3.0.3
 
 ### Patch Changes

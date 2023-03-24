@@ -1,5 +1,18 @@
 # @pnpm/pkg-manager.direct-dep-linker
 
+## 2.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/symlink-dependency@7.0.0
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/read-modules-dir@6.0.0
+
 ## 1.0.2
 
 ### Patch Changes

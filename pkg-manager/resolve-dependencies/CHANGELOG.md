@@ -1,5 +1,41 @@
 # @pnpm/resolve-dependencies
 
+## 31.0.0
+
+### Major Changes
+
+- 1d105e7fc: Save the whole tarball URL in the lockfile, if it doesn't use the standard format [#6265](https://github.com/pnpm/pnpm/pull/6265).
+- c92936158: The registry field is removed from the `resolution` object in `pnpm-lock.yaml`.
+- 158d8cf22: `useLockfileV6` field is deleted. Lockfile v5 cannot be written anymore, only transformed to the new format.
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- 634d6874b: Peer dependency is not unlinked when adding a new dependency [#6272](https://github.com/pnpm/pnpm/issues/6272).
+- b4f26e41a: Fix regression introduced in v7.30.1 [#6271](https://github.com/pnpm/pnpm/issues/6271).
+- cfb6bb3bf: Aliased packages should be used to resolve peer dependencies too [#4301](https://github.com/pnpm/pnpm/issues/4301).
+- Updated dependencies [c92936158]
+- Updated dependencies [ca8f51e60]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [f835994ea]
+- Updated dependencies [0e26acb0f]
+- Updated dependencies [9d026b7cb]
+  - @pnpm/lockfile-types@5.0.0
+  - @pnpm/lockfile-utils@6.0.0
+  - @pnpm/dependency-path@2.0.0
+  - @pnpm/pick-registry-for-package@5.0.0
+  - @pnpm/which-version-is-pinned@5.0.0
+  - @pnpm/read-package-json@8.0.0
+  - @pnpm/store-controller-types@15.0.0
+  - @pnpm/manifest-utils@5.0.0
+  - @pnpm/prune-lockfile@5.0.0
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/npm-resolver@16.0.0
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/constants@7.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 30.0.2
 
 ### Patch Changes

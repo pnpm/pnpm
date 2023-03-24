@@ -1,5 +1,17 @@
 # @pnpm/fs.find-packages
 
+## 2.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/read-project-manifest@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 1.0.3
 
 ### Patch Changes

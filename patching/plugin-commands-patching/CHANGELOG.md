@@ -1,5 +1,41 @@
 # @pnpm/plugin-commands-patching
 
+## 3.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [47e45d717]
+- Updated dependencies [cae85dbb1]
+- Updated dependencies [c92936158]
+- Updated dependencies [47e45d717]
+- Updated dependencies [22ccf155e]
+- Updated dependencies [7a0ce1df0]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [8e35c21d1]
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [113f0ae26]
+- Updated dependencies [417c8ac59]
+  - @pnpm/config@18.0.0
+  - @pnpm/plugin-commands-installation@12.0.0
+  - @pnpm/lockfile-utils@6.0.0
+  - @pnpm/store-connection-manager@6.0.0
+  - @pnpm/lockfile-file@8.0.0
+  - @pnpm/read-project-manifest@5.0.0
+  - @pnpm/pick-registry-for-package@5.0.0
+  - @pnpm/parse-wanted-dependency@5.0.0
+  - @pnpm/read-package-json@8.0.0
+  - @pnpm/modules-yaml@12.0.0
+  - @pnpm/patching.apply-patch@2.0.0
+  - @pnpm/constants@7.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/cli-utils@2.0.0
+
 ## 2.2.0
 
 ### Minor Changes

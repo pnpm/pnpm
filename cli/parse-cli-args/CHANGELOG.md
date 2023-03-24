@@ -1,5 +1,17 @@
 # @pnpm/parse-cli-args
 
+## 7.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/find-workspace-dir@6.0.0
+  - @pnpm/error@5.0.0
+
 ## 6.0.1
 
 ### Patch Changes

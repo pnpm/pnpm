@@ -1,5 +1,18 @@
 # @pnpm/git-resolver
 
+## 8.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- 28796377c: Fix git-hosted dependencies referenced via `git+ssh` that use semver selectors [#6239](https://github.com/pnpm/pnpm/pull/6239).
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/fetch@7.0.0
+
 ## 7.0.7
 
 ### Patch Changes

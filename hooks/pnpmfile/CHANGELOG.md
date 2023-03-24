@@ -1,5 +1,32 @@
 # @pnpm/pnpmfile
 
+## 5.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [47e45d717]
+- Updated dependencies [c92936158]
+- Updated dependencies [47e45d717]
+- Updated dependencies [54591c686]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [2a2032810]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [8e35c21d1]
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [113f0ae26]
+- Updated dependencies [47e45d717]
+  - @pnpm/core@9.0.0
+  - @pnpm/lockfile-types@5.0.0
+  - @pnpm/store-controller-types@15.0.0
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 4.0.40
 
 ### Patch Changes

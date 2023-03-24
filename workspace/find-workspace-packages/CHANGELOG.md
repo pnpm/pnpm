@@ -1,5 +1,19 @@
 # @pnpm/find-workspace-packages
 
+## 6.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/constants@7.0.0
+  - @pnpm/fs.find-packages@2.0.0
+  - @pnpm/types@9.0.0
+  - @pnpm/cli-utils@2.0.0
+
 ## 5.0.42
 
 ### Patch Changes

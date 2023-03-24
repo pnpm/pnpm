@@ -1,5 +1,27 @@
 # @pnpm/lockfile-file
 
+## 8.0.0
+
+### Major Changes
+
+- 158d8cf22: `useLockfileV6` field is deleted. Lockfile v5 cannot be written anymore, only transformed to the new format.
+- eceaa8b8b: Node.js 14 support dropped.
+- 417c8ac59: Create a lockfile even if the project has no dependencies at all.
+
+### Patch Changes
+
+- Updated dependencies [c92936158]
+- Updated dependencies [ca8f51e60]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [0e26acb0f]
+  - @pnpm/lockfile-types@5.0.0
+  - @pnpm/dependency-path@2.0.0
+  - @pnpm/merge-lockfile-changes@5.0.0
+  - @pnpm/constants@7.0.0
+  - @pnpm/git-utils@1.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 7.0.6
 
 ### Patch Changes

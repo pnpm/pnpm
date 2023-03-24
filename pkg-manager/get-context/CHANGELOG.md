@@ -1,5 +1,29 @@
 # @pnpm/get-context
 
+## 9.0.0
+
+### Major Changes
+
+- 158d8cf22: `useLockfileV6` field is deleted. Lockfile v5 cannot be written anymore, only transformed to the new format.
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Minor Changes
+
+- 2a2032810: Return `wantedLockfileIsModified`.
+
+### Patch Changes
+
+- Updated dependencies [158d8cf22]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [417c8ac59]
+  - @pnpm/lockfile-file@8.0.0
+  - @pnpm/read-projects-context@8.0.0
+  - @pnpm/modules-yaml@12.0.0
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/constants@7.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 8.2.4
 
 ### Patch Changes

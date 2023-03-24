@@ -1,5 +1,38 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- 059d3ac39: When publish some package throws an error, the exit code should be non-zero [#5528](https://github.com/pnpm/pnpm/issues/5528).
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [7a0ce1df0]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [8e35c21d1]
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [113f0ae26]
+  - @pnpm/config@18.0.0
+  - @pnpm/client@10.0.0
+  - @pnpm/pick-registry-for-package@5.0.0
+  - @pnpm/exportable-manifest@5.0.0
+  - @pnpm/common-cli-options-help@1.0.0
+  - @pnpm/package-bins@8.0.0
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/sort-packages@5.0.0
+  - @pnpm/git-utils@1.0.0
+  - @pnpm/lifecycle@15.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+  - @pnpm/cli-utils@2.0.0
+  - @pnpm/run-npm@6.0.0
+
 ## 6.1.22
 
 ### Patch Changes

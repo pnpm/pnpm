@@ -1,5 +1,18 @@
 # @pnpm/directory-fetcher
 
+## 6.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/read-project-manifest@5.0.0
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/fetcher-base@14.0.0
+
 ## 5.1.6
 
 ### Patch Changes

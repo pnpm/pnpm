@@ -1,5 +1,24 @@
 # @pnpm/build-modules
 
+## 11.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/read-package-json@8.0.0
+  - @pnpm/store-controller-types@15.0.0
+  - @pnpm/calc-dep-state@4.0.0
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/link-bins@9.0.0
+  - @pnpm/patching.apply-patch@2.0.0
+  - @pnpm/fs.hard-link-dir@2.0.0
+  - @pnpm/lifecycle@15.0.0
+  - @pnpm/types@9.0.0
+
 ## 10.1.9
 
 ### Patch Changes

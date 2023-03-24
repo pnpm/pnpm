@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-deploy
 
+## 3.0.0
+
+### Major Changes
+
+- 7a0ce1df0: When there's a `files` field in the `package.json`, only deploy those files that are listed in it.
+  Use the same logic also when injecting packages. This behavior can be changed by setting the `deploy-all-files` setting to `true` [#5911](https://github.com/pnpm/pnpm/issues/5911).
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [cae85dbb1]
+- Updated dependencies [22ccf155e]
+- Updated dependencies [7a0ce1df0]
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/plugin-commands-installation@12.0.0
+  - @pnpm/common-cli-options-help@1.0.0
+  - @pnpm/directory-fetcher@6.0.0
+  - @pnpm/fs.indexed-pkg-importer@3.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+  - @pnpm/cli-utils@2.0.0
+
 ## 2.0.42
 
 ### Patch Changes

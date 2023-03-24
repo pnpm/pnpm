@@ -1,5 +1,17 @@
 # @pnpm/merge-lockfile-changes
 
+## 5.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [c92936158]
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/lockfile-types@5.0.0
+
 ## 4.0.3
 
 ### Patch Changes

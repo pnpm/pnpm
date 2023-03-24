@@ -1,5 +1,24 @@
 # @pnpm/npm-resolver
 
+## 16.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+- 9d026b7cb: Drop node.js 14 support. Update lru-cache.
+
+### Patch Changes
+
+- f835994ea: Deduplicate direct dependencies, when `resolution-mode` is set to `lowest-direct` [#6042](https://github.com/pnpm/pnpm/issues/6042).
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/resolve-workspace-range@5.0.0
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/fetching-types@5.0.0
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/graceful-fs@3.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 15.0.9
 
 ### Patch Changes

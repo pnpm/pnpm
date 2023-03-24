@@ -1,5 +1,26 @@
 # @pnpm/filter-lockfile
 
+## 8.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [c92936158]
+- Updated dependencies [ca8f51e60]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [0e26acb0f]
+  - @pnpm/lockfile-types@5.0.0
+  - @pnpm/lockfile-utils@6.0.0
+  - @pnpm/dependency-path@2.0.0
+  - @pnpm/package-is-installable@8.0.0
+  - @pnpm/lockfile-walker@7.0.0
+  - @pnpm/constants@7.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 7.0.10
 
 ### Patch Changes

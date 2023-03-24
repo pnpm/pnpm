@@ -1,5 +1,44 @@
 # @pnpm/headless
 
+## 20.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [c92936158]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [ca8f51e60]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [0e26acb0f]
+- Updated dependencies [417c8ac59]
+  - @pnpm/lockfile-utils@6.0.0
+  - @pnpm/lockfile-file@8.0.0
+  - @pnpm/dependency-path@2.0.0
+  - @pnpm/read-project-manifest@5.0.0
+  - @pnpm/read-package-json@8.0.0
+  - @pnpm/package-is-installable@8.0.0
+  - @pnpm/pkg-manager.direct-dep-linker@2.0.0
+  - @pnpm/package-requester@21.0.0
+  - @pnpm/store-controller-types@15.0.0
+  - @pnpm/modules-cleaner@14.0.0
+  - @pnpm/filter-lockfile@8.0.0
+  - @pnpm/lockfile-to-pnp@3.0.0
+  - @pnpm/modules-yaml@12.0.0
+  - @pnpm/calc-dep-state@4.0.0
+  - @pnpm/real-hoist@2.0.0
+  - @pnpm/symlink-dependency@7.0.0
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/link-bins@9.0.0
+  - @pnpm/build-modules@11.0.0
+  - @pnpm/constants@7.0.0
+  - @pnpm/hoist@8.0.0
+  - @pnpm/lifecycle@15.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 19.5.4
 
 ### Patch Changes

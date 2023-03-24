@@ -1,5 +1,22 @@
 # @pnpm/hooks.read-package-hook
 
+## 3.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- df107f2ef: Should use most specific override rule when multiple rules match the same target [#6210](https://github.com/pnpm/pnpm/issues/6210).
+- 0a8b48f04: Update the compatibility DB.
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/parse-wanted-dependency@5.0.0
+  - @pnpm/parse-overrides@4.0.0
+  - @pnpm/matcher@5.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 2.1.1
 
 ### Patch Changes

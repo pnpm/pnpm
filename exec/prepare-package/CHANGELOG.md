@@ -1,5 +1,17 @@
 # @pnpm/prepare-package
 
+## 5.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/read-package-json@8.0.0
+  - @pnpm/lifecycle@15.0.0
+
 ## 4.1.2
 
 ### Patch Changes

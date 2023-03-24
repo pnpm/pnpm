@@ -1,5 +1,17 @@
 # @pnpm/fetcher-base
 
+## 14.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/types@9.0.0
+
 ## 13.1.6
 
 ### Patch Changes

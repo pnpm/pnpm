@@ -1,5 +1,18 @@
 # @pnpm/package-is-installable
 
+## 8.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 7.0.4
 
 ### Patch Changes

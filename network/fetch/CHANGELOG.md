@@ -1,5 +1,17 @@
 # @pnpm/fetch
 
+## 7.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/fetching-types@5.0.0
+  - @pnpm/core-loggers@9.0.0
+
 ## 6.0.6
 
 ### Patch Changes

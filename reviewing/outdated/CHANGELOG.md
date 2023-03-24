@@ -1,5 +1,35 @@
 # @pnpm/outdated
 
+## 12.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [c92936158]
+- Updated dependencies [7a0ce1df0]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [ca8f51e60]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [f835994ea]
+- Updated dependencies [0e26acb0f]
+- Updated dependencies [9d026b7cb]
+- Updated dependencies [417c8ac59]
+  - @pnpm/lockfile-utils@6.0.0
+  - @pnpm/client@10.0.0
+  - @pnpm/lockfile-file@8.0.0
+  - @pnpm/dependency-path@2.0.0
+  - @pnpm/pick-registry-for-package@5.0.0
+  - @pnpm/manifest-utils@5.0.0
+  - @pnpm/modules-yaml@12.0.0
+  - @pnpm/npm-resolver@16.0.0
+  - @pnpm/constants@7.0.0
+  - @pnpm/matcher@5.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 11.0.21
 
 ### Patch Changes

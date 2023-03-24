@@ -1,5 +1,21 @@
 # @pnpm/node.fetcher
 
+## 3.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/tarball-fetcher@15.0.0
+  - @pnpm/create-cafs-store@4.0.0
+  - @pnpm/fetching-types@5.0.0
+  - @pnpm/fetcher-base@14.0.0
+  - @pnpm/pick-fetcher@2.0.0
+  - @pnpm/error@5.0.0
+
 ## 2.0.14
 
 ### Patch Changes

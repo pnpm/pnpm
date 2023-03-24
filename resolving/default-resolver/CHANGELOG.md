@@ -1,5 +1,25 @@
 # @pnpm/default-resolver
 
+## 18.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [28796377c]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [f835994ea]
+- Updated dependencies [9d026b7cb]
+  - @pnpm/git-resolver@8.0.0
+  - @pnpm/tarball-resolver@8.0.0
+  - @pnpm/local-resolver@10.0.0
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/fetching-types@5.0.0
+  - @pnpm/npm-resolver@16.0.0
+  - @pnpm/error@5.0.0
+
 ## 17.0.11
 
 ### Patch Changes

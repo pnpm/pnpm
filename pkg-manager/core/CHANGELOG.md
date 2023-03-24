@@ -1,5 +1,74 @@
 # @pnpm/core
 
+## 9.0.0
+
+### Major Changes
+
+- 47e45d717: `auto-install-peers` is `true` by default.
+- 47e45d717: `save-workspace-protocol` is `rolling` by default.
+- 54591c686: `dedupe-peer-dependents` is `true` by default.
+- 158d8cf22: `useLockfileV6` field is deleted. Lockfile v5 cannot be written anymore, only transformed to the new format.
+- eceaa8b8b: Node.js 14 support dropped.
+- 8e35c21d1: Use lockfile v6 by default.
+- 47e45d717: `resolve-peers-from-workspace-root` is `true` by default.
+- 47e45d717: `publishConfig.linkDirectory` is `true` by default.
+- 113f0ae26: `resolution-mode` is `lowest-direct` by default.
+- 47e45d717: Direct dependencies are deduped. So if the same dependency is both in a project and in the workspace root, then it is only linked to the workspace root.
+
+### Patch Changes
+
+- 2a2032810: Don't write the `pnpm-lock.yaml` file if it has no changes and `pnpm install --frozen-lockfile` was executed [#6158](https://github.com/pnpm/pnpm/issues/6158).
+- Updated dependencies [1d105e7fc]
+- Updated dependencies [c92936158]
+- Updated dependencies [2a2032810]
+- Updated dependencies [df107f2ef]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [0a8b48f04]
+- Updated dependencies [ca8f51e60]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [0e26acb0f]
+- Updated dependencies [634d6874b]
+- Updated dependencies [b4f26e41a]
+- Updated dependencies [cfb6bb3bf]
+- Updated dependencies [417c8ac59]
+  - @pnpm/resolve-dependencies@31.0.0
+  - @pnpm/lockfile-utils@6.0.0
+  - @pnpm/get-context@9.0.0
+  - @pnpm/hooks.read-package-hook@3.0.0
+  - @pnpm/lockfile-file@8.0.0
+  - @pnpm/dependency-path@2.0.0
+  - @pnpm/read-project-manifest@5.0.0
+  - @pnpm/parse-wanted-dependency@5.0.0
+  - @pnpm/which-version-is-pinned@5.0.0
+  - @pnpm/read-package-json@8.0.0
+  - @pnpm/pkg-manager.direct-dep-linker@2.0.0
+  - @pnpm/package-requester@21.0.0
+  - @pnpm/store-controller-types@15.0.0
+  - @pnpm/normalize-registries@5.0.0
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/modules-cleaner@14.0.0
+  - @pnpm/manifest-utils@5.0.0
+  - @pnpm/filter-lockfile@8.0.0
+  - @pnpm/lockfile-to-pnp@3.0.0
+  - @pnpm/lockfile-walker@7.0.0
+  - @pnpm/modules-yaml@12.0.0
+  - @pnpm/prune-lockfile@5.0.0
+  - @pnpm/calc-dep-state@4.0.0
+  - @pnpm/remove-bins@5.0.0
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/symlink-dependency@7.0.0
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/link-bins@9.0.0
+  - @pnpm/headless@20.0.0
+  - @pnpm/read-modules-dir@6.0.0
+  - @pnpm/build-modules@11.0.0
+  - @pnpm/constants@7.0.0
+  - @pnpm/hoist@8.0.0
+  - @pnpm/matcher@5.0.0
+  - @pnpm/lifecycle@15.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 8.0.4
 
 ### Patch Changes

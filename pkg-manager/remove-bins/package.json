@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/remove-bins",
-  "version": "4.0.5",
+  "version": "5.0.0",
   "description": "Remove bins from .bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

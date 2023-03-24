@@ -1,5 +1,19 @@
 # @pnpm/remove-bins
 
+## 5.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/read-package-json@8.0.0
+  - @pnpm/package-bins@8.0.0
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/types@9.0.0
+
 ## 4.0.5
 
 ### Patch Changes

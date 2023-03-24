@@ -1,5 +1,11 @@
 # @pnpm/command
 
+## 4.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
 ## 3.0.0
 
 ### Major Changes

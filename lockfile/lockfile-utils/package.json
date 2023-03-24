@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-utils",
-  "version": "5.0.7",
+  "version": "6.0.0",
   "description": "Utils for dealing with pnpm-lock.yaml",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

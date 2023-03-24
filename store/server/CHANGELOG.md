@@ -1,5 +1,18 @@
 # @pnpm/server
 
+## 15.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/store-controller-types@15.0.0
+  - @pnpm/types@9.0.0
+  - @pnpm/fetch@7.0.0
+
 ## 14.1.2
 
 ### Patch Changes

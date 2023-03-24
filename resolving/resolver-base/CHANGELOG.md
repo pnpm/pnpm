@@ -1,5 +1,16 @@
 # @pnpm/resolver-base
 
+## 10.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/types@9.0.0
+
 ## 9.2.0
 
 ### Minor Changes

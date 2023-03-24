@@ -1,5 +1,21 @@
 # @pnpm/lifecycle
 
+## 15.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/read-package-json@8.0.0
+  - @pnpm/store-controller-types@15.0.0
+  - @pnpm/directory-fetcher@6.0.0
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 14.1.7
 
 ### Patch Changes

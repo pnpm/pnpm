@@ -1,5 +1,11 @@
 # @pnpm/constants
 
+## 7.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
 ## 6.2.0
 
 ### Minor Changes

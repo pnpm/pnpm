@@ -1,5 +1,21 @@
 # @pnpm/lockfile-walker
 
+## 7.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [c92936158]
+- Updated dependencies [ca8f51e60]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [0e26acb0f]
+  - @pnpm/lockfile-types@5.0.0
+  - @pnpm/dependency-path@2.0.0
+  - @pnpm/types@9.0.0
+
 ## 6.0.8
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @pnpm/local-resolver
 
+## 10.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/read-project-manifest@5.0.0
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/graceful-fs@3.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 9.0.9
 
 ### Patch Changes

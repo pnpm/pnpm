@@ -1,5 +1,22 @@
 # @pnpm/package-store
 
+## 16.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/package-requester@21.0.0
+  - @pnpm/store-controller-types@15.0.0
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/create-cafs-store@4.0.0
+  - @pnpm/fetcher-base@14.0.0
+  - @pnpm/types@9.0.0
+  - @pnpm/cafs@7.0.0
+
 ## 15.1.8
 
 ### Patch Changes

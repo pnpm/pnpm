@@ -1,5 +1,29 @@
 # @pnpm/config
 
+## 18.0.0
+
+### Major Changes
+
+- 47e45d717: `auto-install-peers` is `true` by default.
+- 47e45d717: `save-workspace-protocol` is `rolling` by default.
+- 158d8cf22: `useLockfileV6` field is deleted. Lockfile v5 cannot be written anymore, only transformed to the new format.
+- eceaa8b8b: Node.js 14 support dropped.
+- 8e35c21d1: Use lockfile v6 by default.
+- 47e45d717: `resolve-peers-from-workspace-root` is `true` by default.
+- 47e45d717: `publishConfig.linkDirectory` is `true` by default.
+- 113f0ae26: `resolution-mode` is `lowest-direct` by default.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/read-project-manifest@5.0.0
+  - @pnpm/constants@7.0.0
+  - @pnpm/git-utils@1.0.0
+  - @pnpm/matcher@5.0.0
+  - @pnpm/pnpmfile@5.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 17.0.2
 
 ### Patch Changes

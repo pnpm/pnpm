@@ -1,5 +1,54 @@
 # @pnpm/plugin-commands-installation
 
+## 12.0.0
+
+### Major Changes
+
+- cae85dbb1: Throw a "not implemented" error on the "pnpm ci" command.
+- 7a0ce1df0: When there's a `files` field in the `package.json`, only deploy those files that are listed in it.
+  Use the same logic also when injecting packages. This behavior can be changed by setting the `deploy-all-files` setting to `true` [#5911](https://github.com/pnpm/pnpm/issues/5911).
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- 22ccf155e: Fix `Segmentation fault` error in the bundled version of pnpm [#6241](https://github.com/pnpm/pnpm/issues/6241).
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [54591c686]
+- Updated dependencies [7a0ce1df0]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [2a2032810]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [8e35c21d1]
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [113f0ae26]
+- Updated dependencies [47e45d717]
+  - @pnpm/core@9.0.0
+  - @pnpm/config@18.0.0
+  - @pnpm/store-connection-manager@6.0.0
+  - @pnpm/filter-workspace-packages@7.0.0
+  - @pnpm/read-project-manifest@5.0.0
+  - @pnpm/find-workspace-packages@6.0.0
+  - @pnpm/parse-wanted-dependency@5.0.0
+  - @pnpm/plugin-commands-rebuild@8.0.0
+  - @pnpm/find-workspace-dir@6.0.0
+  - @pnpm/common-cli-options-help@1.0.0
+  - @pnpm/manifest-utils@5.0.0
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/sort-packages@5.0.0
+  - @pnpm/workspace.pkgs-graph@2.0.0
+  - @pnpm/package-store@16.0.0
+  - @pnpm/constants@7.0.0
+  - @pnpm/outdated@12.0.0
+  - @pnpm/matcher@5.0.0
+  - @pnpm/graceful-fs@3.0.0
+  - @pnpm/pnpmfile@5.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+  - @pnpm/cli-utils@2.0.0
+  - @pnpm/command@4.0.0
+
 ## 11.5.7
 
 ### Patch Changes

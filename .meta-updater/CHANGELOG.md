@@ -1,5 +1,19 @@
 # @pnpm-private/updater
 
+## 1.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [158d8cf22]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [417c8ac59]
+  - @pnpm/lockfile-file@8.0.0
+  - @pnpm/types@9.0.0
+
 ## 0.4.10
 
 ### Patch Changes

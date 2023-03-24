@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 9.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
 ## 8.10.0
 
 ### Minor Changes

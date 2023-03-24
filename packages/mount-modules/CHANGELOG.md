@@ -1,5 +1,33 @@
 # @pnpm/mount-modules
 
+## 0.4.0
+
+### Minor Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [47e45d717]
+- Updated dependencies [c92936158]
+- Updated dependencies [47e45d717]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [ca8f51e60]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [8e35c21d1]
+- Updated dependencies [0e26acb0f]
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [113f0ae26]
+- Updated dependencies [417c8ac59]
+  - @pnpm/config@18.0.0
+  - @pnpm/lockfile-utils@6.0.0
+  - @pnpm/lockfile-file@8.0.0
+  - @pnpm/dependency-path@2.0.0
+  - @pnpm/store-path@8.0.0
+  - @pnpm/types@9.0.0
+  - @pnpm/cafs@7.0.0
+
 ## 0.3.42
 
 ### Patch Changes

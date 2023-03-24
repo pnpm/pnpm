@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-doctor
 
+## 2.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [8e35c21d1]
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [113f0ae26]
+  - @pnpm/config@18.0.0
+  - @pnpm/cli-utils@2.0.0
+
 ## 1.0.40
 
 ### Patch Changes

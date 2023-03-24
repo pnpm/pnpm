@@ -1,5 +1,20 @@
 # @pnpm/list
 
+## 9.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/read-project-manifest@5.0.0
+  - @pnpm/reviewing.dependencies-hierarchy@2.0.0
+  - @pnpm/read-package-json@8.0.0
+  - @pnpm/matcher@5.0.0
+  - @pnpm/types@9.0.0
+
 ## 8.2.2
 
 ### Patch Changes

@@ -1,5 +1,29 @@
 # @pnpm/package-requester
 
+## 21.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [ca8f51e60]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [0e26acb0f]
+  - @pnpm/dependency-path@2.0.0
+  - @pnpm/read-package-json@8.0.0
+  - @pnpm/package-is-installable@8.0.0
+  - @pnpm/store-controller-types@15.0.0
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/fetcher-base@14.0.0
+  - @pnpm/pick-fetcher@2.0.0
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/graceful-fs@3.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+  - @pnpm/cafs@7.0.0
+
 ## 20.1.7
 
 ### Patch Changes

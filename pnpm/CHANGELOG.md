@@ -1,6 +1,6 @@
 # pnpm
 
-## 8.0.0-beta.1
+## 8.0.0-rc.0
 
 ### Major Changes
 

@@ -1,5 +1,16 @@
 # @pnpm/calc-dep-state
 
+## 4.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/constants@7.0.0
+
 ## 3.0.2
 
 ### Patch Changes

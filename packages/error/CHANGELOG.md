@@ -1,5 +1,16 @@
 # @pnpm/error
 
+## 5.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/constants@7.0.0
+
 ## 4.0.1
 
 ### Patch Changes

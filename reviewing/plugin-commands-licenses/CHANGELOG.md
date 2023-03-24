@@ -1,5 +1,33 @@
 # @pnpm/plugin-commands-licenses
 
+## 2.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- 22ccf155e: Fix `Segmentation fault` error in the bundled version of pnpm [#6241](https://github.com/pnpm/pnpm/issues/6241).
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [8e35c21d1]
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [113f0ae26]
+- Updated dependencies [417c8ac59]
+  - @pnpm/config@18.0.0
+  - @pnpm/lockfile-file@8.0.0
+  - @pnpm/common-cli-options-help@1.0.0
+  - @pnpm/license-scanner@2.0.0
+  - @pnpm/constants@7.0.0
+  - @pnpm/store-path@8.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/cli-utils@2.0.0
+  - @pnpm/command@4.0.0
+
 ## 1.0.33
 
 ### Patch Changes

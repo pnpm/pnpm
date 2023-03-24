@@ -1,5 +1,19 @@
 # @pnpm/dependency-path
 
+## 2.0.0
+
+### Major Changes
+
+- ca8f51e60: Change the way depPathToFilename is making paths shorter.
+- eceaa8b8b: Node.js 14 support dropped.
+- 0e26acb0f: Rename createPeersFolderSuffixNewFormat to createPeersFolderSuffix.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/types@9.0.0
+
 ## 1.1.3
 
 ### Patch Changes

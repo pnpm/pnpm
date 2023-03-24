@@ -1,5 +1,30 @@
 # @pnpm/plugin-commands-env
 
+## 4.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [158d8cf22]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [8e35c21d1]
+- Updated dependencies [47e45d717]
+- Updated dependencies [47e45d717]
+- Updated dependencies [113f0ae26]
+  - @pnpm/config@18.0.0
+  - @pnpm/remove-bins@5.0.0
+  - @pnpm/node.resolver@2.0.0
+  - @pnpm/node.fetcher@3.0.0
+  - @pnpm/store-path@8.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/cli-utils@2.0.0
+  - @pnpm/fetch@7.0.0
+
 ## 3.1.36
 
 ### Patch Changes

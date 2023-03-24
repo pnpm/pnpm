@@ -1,5 +1,16 @@
 # @pnpm/pick-registry-for-package
 
+## 5.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/types@9.0.0
+
 ## 4.0.3
 
 ### Patch Changes
