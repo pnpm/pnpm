@@ -3,7 +3,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { addDependenciesToPackage } from '@pnpm/core'
 import deepRequireCwd from 'deep-require-cwd'
-import { createPeersFolderSuffixNewFormat as createPeersFolderSuffix } from '@pnpm/dependency-path'
+import { createPeersFolderSuffix } from '@pnpm/dependency-path'
 import exists from 'path-exists'
 import { testDefaults } from '../utils'
 

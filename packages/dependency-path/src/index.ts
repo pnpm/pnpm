@@ -172,22 +172,7 @@ function depPathToFilenameUnescaped (depPath: string) {
   return depPath.replace(':', '+')
 }
 
-export function createPeersFolderSuffixNewFormat (peers: Array<{ name: string, version: string }>): string {
+export function createPeersFolderSuffix (peers: Array<{ name: string, version: string }>): string {
   const folderName = peers.map(({ name, version }) => `${name}@${version}`).sort().join(')(')
   return `(${folderName})`
-}
-
-export function createPeersFolderSuffix (peers: Array<{ name: string, version: string }>): string {
-  const folderName = peers.map(({ name, version }) => `${name.replace('/', '+')}@${version}`).sort().join('+')
-
-  // We don't want the folder name to get too long.
-  // Otherwise, an ENAMETOOLONG error might happen.
-  // see: https://github.com/pnpm/pnpm/issues/977
-  //
-  // A bigger limit might be fine but the base32 encoded md5 hash will be 26 symbols,
-  // so for consistency's sake, we go with 26.
-  if (folderName.length > 26) {
-    return `_${createBase32Hash(folderName)}`
-  }
-  return `_${folderName}`
 }
