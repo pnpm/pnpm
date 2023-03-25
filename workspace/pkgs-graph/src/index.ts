@@ -35,6 +35,7 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
     unmatched: Array<{ pkgName: string, range: string }>
   } {
   const pkgMap = createPkgMap(pkgs)
+  const pkgMapValues = Object.values(pkgMap)
   const unmatched: Array<{ pkgName: string, range: string }> = []
   const graph = mapValues((pkg) => ({
     dependencies: createNode(pkg),
@@ -66,7 +67,7 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
         }
 
         if (spec.type === 'directory') {
-          const matchedPkg = Object.values(pkgMap).find(pkg => path.relative(pkg.dir, spec.fetchSpec) === '')
+          const matchedPkg = pkgMapValues.find(pkg => path.relative(pkg.dir, spec.fetchSpec) === '')
           if (matchedPkg == null) {
             return ''
           }
@@ -75,7 +76,7 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
 
         if (spec.type !== 'version' && spec.type !== 'range') return ''
 
-        const pkgs = Object.values(pkgMap).filter(pkg => pkg.manifest.name === depName)
+        const pkgs = pkgMapValues.filter(pkg => pkg.manifest.name === depName)
         if (pkgs.length === 0) return ''
         const versions = pkgs.filter(({ manifest }) => manifest.version)
           .map(pkg => pkg.manifest.version) as string[]
