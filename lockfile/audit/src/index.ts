@@ -3,6 +3,7 @@ import { PnpmError } from '@pnpm/error'
 import { type AgentOptions, fetchWithAgent, type RetryTimeoutOptions } from '@pnpm/fetch'
 import { type GetAuthHeader } from '@pnpm/fetching-types'
 import { type Lockfile } from '@pnpm/lockfile-types'
+import { globalWarn } from '@pnpm/logger'
 import { type DependenciesField } from '@pnpm/types'
 import { lockfileToAuditTree } from './lockfileToAuditTree'
 import { type AuditReport } from './types'
@@ -47,11 +48,16 @@ export async function audit (
     throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
   }
   const auditReport = await (res.json() as Promise<AuditReport>)
-  return extendWithDependencyPaths(auditReport, {
-    lockfile,
-    lockfileDir: opts.lockfileDir,
-    include: opts.include,
-  })
+  try {
+    return await extendWithDependencyPaths(auditReport, {
+      lockfile,
+      lockfileDir: opts.lockfileDir,
+      include: opts.include,
+    })
+  } catch (err: any) { // eslint-disable-line
+    globalWarn(`Failed to extend audit report with dependency paths: ${err.message as string}`)
+    return auditReport
+  }
 }
 
 function getAuthHeaders (authHeaderValue: string | undefined) {
