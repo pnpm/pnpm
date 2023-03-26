@@ -26,7 +26,7 @@ export async function safeIsInnerLink (
 
     if (opts.hideAlienModules) {
       logger.warn({
-        message: `Moving ${depName} that was installed by a different package manager to "node_modules/.ignored`,
+        message: `Moving ${depName} that was installed by a different package manager to "node_modules/.ignored"`,
         prefix: opts.projectDir,
       })
       const ignoredDir = path.join(projectModulesDir, '.ignored', depName)
