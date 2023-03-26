@@ -3,7 +3,7 @@ import { type Lockfile, type TarballResolution } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { lockfileWalkerGroupImporterSteps, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { type DependenciesField } from '@pnpm/types'
-import { readProjectManifest } from '@pnpm/read-project-manifest'
+import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import mapValues from 'ramda/src/map'
 
 export interface AuditNode {
@@ -36,12 +36,12 @@ export async function lockfileToAuditTree (
       // For some reason the registry responds with 500 if the keys in dependencies have slashes
       // see issue: https://github.com/pnpm/pnpm/issues/2848
       const depName = importerWalker.importerId.replace(/\//g, '__')
-      const { manifest } = await readProjectManifest(path.join(opts.lockfileDir, importerWalker.importerId))
+      const manifest = await safeReadProjectManifestOnly(path.join(opts.lockfileDir, importerWalker.importerId))
       dependencies[depName] = {
         dependencies: importerDeps,
         dev: false,
         requires: toRequires(importerDeps),
-        version: manifest.version ?? '0.0.0',
+        version: manifest?.version ?? '0.0.0',
       }
     })
   )
