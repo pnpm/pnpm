@@ -264,7 +264,7 @@ export async function recursive (
     }
     if (opts.dedupePeerDependents) {
       for (const rootDir of Object.keys(opts.allProjectsGraph)) {
-        if (opts.selectedProjectsGraph[rootDir]) continue
+        if (opts.selectedProjectsGraph[rootDir] || rootDir === opts.workspaceDir) continue
         const { writeProjectManifest } = manifestsByPath[rootDir]
         writeProjectManifests.push(writeProjectManifest)
         mutatedImporters.push({

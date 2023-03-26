@@ -93,6 +93,9 @@ auto-install-peers=false`, 'utf8')
 
 // Covers https://github.com/pnpm/pnpm/issues/6154
 test('peer dependents deduplication should not remove peer dependencies', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-b', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
   preparePackages([
     {
       location: '',
