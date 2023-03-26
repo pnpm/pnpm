@@ -607,6 +607,10 @@ async function symlinkDirectDependencies (
     })
   })
   if (symlink !== false) {
+    const importerManifestsByImporterId = {} as { [id: string]: ProjectManifest }
+    for (const { id, manifest } of projects) {
+      importerManifestsByImporterId[id] = manifest
+    }
     const projectsToLink = Object.fromEntries(await Promise.all(
       projects.map(async ({ rootDir, id, modulesDir }) => ([id, {
         dir: rootDir,
@@ -616,7 +620,7 @@ async function symlinkDirectDependencies (
           importerModulesDir: modulesDir,
           lockfileDir,
           projectDir: rootDir,
-          projects,
+          importerManifestsByImporterId,
           registries,
           rootDependencies: directDependenciesByImporterId[id],
         }),
@@ -654,15 +658,11 @@ async function getRootPackagesToLink (
     projectDir: string
     importerId: string
     importerModulesDir: string
-    projects: Array<{ id: string, manifest: ProjectManifest }>
+    importerManifestsByImporterId: { [id: string]: ProjectManifest }
     lockfileDir: string
     rootDependencies: { [alias: string]: string }
   }
 ): Promise<LinkedDirectDep[]> {
-  const importerManifestsByImporterId = {} as { [id: string]: ProjectManifest }
-  for (const { id, manifest } of opts.projects) {
-    importerManifestsByImporterId[id] = manifest
-  }
   const projectSnapshot = lockfile.importers[opts.importerId]
   const allDeps = {
     ...projectSnapshot.devDependencies,
@@ -678,8 +678,8 @@ async function getRootPackagesToLink (
           const packageDir = path.join(opts.projectDir, ref.slice(5))
           const linkedPackage = await (async () => {
             const importerId = getLockfileImporterId(opts.lockfileDir, packageDir)
-            if (importerManifestsByImporterId[importerId]) {
-              return importerManifestsByImporterId[importerId]
+            if (opts.importerManifestsByImporterId[importerId]) {
+              return opts.importerManifestsByImporterId[importerId]
             }
             try {
               // TODO: cover this case with a test
