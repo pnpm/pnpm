@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-installation
 
+## 12.0.1
+
+### Patch Changes
+
+- 51445f955: Don't remove automatically installed peer dependencies from the root workspace project, when `dedupe-peer-dependents` is `true` [#6154](https://github.com/pnpm/pnpm/issues/6154).
+- Updated dependencies [572068180]
+  - @pnpm/workspace.pkgs-graph@2.0.1
+  - @pnpm/core@9.0.1
+  - @pnpm/filter-workspace-packages@7.0.1
+  - @pnpm/pnpmfile@5.0.1
+  - @pnpm/plugin-commands-rebuild@8.0.1
+  - @pnpm/config@18.0.1
+  - @pnpm/cli-utils@2.0.1
+  - @pnpm/store-connection-manager@6.0.1
+  - @pnpm/find-workspace-packages@6.0.1
+
 ## 12.0.0
 
 ### Major Changes

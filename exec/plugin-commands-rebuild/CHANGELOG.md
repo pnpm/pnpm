@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-rebuild
 
+## 8.0.1
+
+### Patch Changes
+
+- @pnpm/config@18.0.1
+- @pnpm/cli-utils@2.0.1
+- @pnpm/store-connection-manager@6.0.1
+- @pnpm/find-workspace-packages@6.0.1
+
 ## 8.0.0
 
 ### Major Changes

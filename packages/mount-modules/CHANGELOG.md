@@ -1,5 +1,11 @@
 # @pnpm/mount-modules
 
+## 0.4.1
+
+### Patch Changes
+
+- @pnpm/config@18.0.1
+
 ## 0.4.0
 
 ### Minor Changes

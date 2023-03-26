@@ -1,5 +1,11 @@
 # @pnpm/workspace.pkgs-graph
 
+## 2.0.1
+
+### Patch Changes
+
+- 572068180: Optimize createPkgGraph by calling Object.values only once
+
 ## 2.0.0
 
 ### Major Changes

@@ -1,5 +1,11 @@
 # @pnpm/headless
 
+## 20.0.1
+
+### Patch Changes
+
+- e10d046a4: Hoist importerManifestsByImporterId calculation
+
 ## 20.0.0
 
 ### Major Changes

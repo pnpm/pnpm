@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [e10d046a4]
+  - @pnpm/headless@20.0.1
+
 ## 9.0.0
 
 ### Major Changes

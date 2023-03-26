@@ -1,22 +1,32 @@
 # pnpm
 
-## 8.0.0-rc.0
+## 8.0.0-rc.1
 
 ### Major Changes
 
-- Node.js 14 support dropped.
-- `auto-install-peers` is `true` by default.
-- `dedupe-peer-dependents` is `true` by default.
-- The registry field is removed from the `resolution` object in `pnpm-lock.yaml`.
-- `save-workspace-protocol` is `rolling` by default.
-- When there's a `files` field in the `package.json`, only deploy those files that are listed in it.
-  Use the same logic also when injecting packages. This behavior can be changed by setting the `deploy-all-files` setting to `true` [#5911](https://github.com/pnpm/pnpm/issues/5911).
-- Use lockfile v6 by default.
-- `resolve-peers-from-workspace-root` is `true` by default.
-- `publishConfig.linkDirectory` is `true` by default.
-- `resolution-mode` is `lowest-direct` by default.
-- Direct dependencies are deduped. So if the same dependency is both in a project and in the workspace root, then it is only linked to the workspace root.
-- Create a lockfile even if the project has no dependencies at all.
+- Node.js 14 support discontinued
+
+  If you still require Node.js 14, don't worry. We ship pnpm bundled with Node.js. This means that regardless of which Node.js version you've installed, pnpm will operate using the necessary Node.js runtime. For this to work you need to install pnpm either using the [standalone script](https://pnpm.io/installation#using-a-standalone-script) or install the `@pnpm/exe` package.
+
+- Configuration updates:
+  - [`auto-install-peers`](https://pnpm.io/npmrc#auto-install-peers): enabled by default.
+  - [`dedupe-peer-dependents`](https://pnpm.io/npmrc#dedupe-peer-dependents): enabled by default.
+  - [`save-workspace-protocol`](https://pnpm.io/npmrc#save-workspace-protocol): set to `rolling` by default.
+  - [`resolve-peers-from-workspace-root`](https://pnpm.io/npmrc#resolve-peers-from-workspace-root): enabled by default.
+  - [`resolution-mode`](https://pnpm.io/npmrc#resolution-mode): set to `lowest-direct` by default.
+  - [`publishConfig.linkDirectory`](https://pnpm.io/npmrc#resolution-mode): enabled by default.
+- Lockfile modifications:
+
+  - [Lockfile v6](https://github.com/pnpm/pnpm/pull/5810) is adopted. This new format improves the readability of the lockfile by removing hashes from package IDs.
+
+    > This lockfile is supported in pnpm v7 as an opt-in, so if someone in your team is still using pnpm v7, you may set `use-lockfile-v6=true` in an `.npmrc` file in the root of the project and even pnpm v7 will read and write the lockfile in the new format.
+
+  - The registry field is removed from the `resolution` object in `pnpm-lock.yaml`.
+  - A lockfile is generated even for projects with no dependencies.
+
+- Other changes:
+  - When there's a `files` field in the `package.json`, only the files that are listed in it will be [deployed](https://pnpm.io/cli/deploy). The same logic is applied when [injecting packages](https://pnpm.io/package_json#dependenciesmetainjected). This behaviour can be changed by setting the [`deploy-all-files`](https://pnpm.io/8.x/npmrc#deploy-all-files) setting to `true` (Related issue [#5911](https://github.com/pnpm/pnpm/issues/5911)).
+  - Direct dependencies are deduped. If a dependency is present in both a project and the workspace root, it will only be linked to the workspace root.
 
 ## 7.30.0
 

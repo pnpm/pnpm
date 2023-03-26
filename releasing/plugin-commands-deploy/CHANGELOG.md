@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-deploy
 
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [51445f955]
+  - @pnpm/plugin-commands-installation@12.0.1
+  - @pnpm/cli-utils@2.0.1
+
 ## 3.0.0
 
 ### Major Changes
