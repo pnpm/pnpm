@@ -63,8 +63,8 @@ importers:
         specifier: 0.2.2
         version: 0.2.2(typanion@3.12.1)
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@pnpm/tsconfig':
         specifier: workspace:*
         version: link:__utils__/tsconfig
@@ -175,8 +175,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -215,8 +215,8 @@ importers:
         specifier: workspace:*
         version: link:../../store/cafs
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -1103,8 +1103,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -1212,8 +1212,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@types/is-windows':
         specifier: ^1.0.0
         version: 1.0.0
@@ -2563,8 +2563,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -2811,8 +2811,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -3075,8 +3075,8 @@ importers:
         specifier: workspace:*
         version: link:../read-projects-context
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -3438,8 +3438,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -3625,8 +3625,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -4166,8 +4166,8 @@ importers:
         specifier: workspace:*
         version: link:../pkg-manifest/read-project-manifest
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
@@ -4420,8 +4420,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
 
   releasing/plugin-commands-publishing:
     dependencies:
@@ -4517,8 +4517,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@types/cross-spawn':
         specifier: ^6.0.2
         version: 6.0.2
@@ -5065,8 +5065,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -5129,8 +5129,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -5226,8 +5226,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5573,8 +5573,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.7.0
-        version: 3.7.0(typanion@3.12.1)
+        specifier: 3.8.0
+        version: 3.8.0(typanion@3.12.1)
       '@types/archy':
         specifier: 0.0.32
         version: 0.0.32
@@ -8531,8 +8531,8 @@ packages:
       - typanion
     dev: true
 
-  /@pnpm/registry-mock@3.7.0(typanion@3.12.1):
-    resolution: {integrity: sha512-W8yuEfiDyUi/h7ybUltXqY4XkXYjBBDSq7ZyIoIDenVS0dL3wT0lyIgVx8L+Bgf5zX8IWa3jhHIxIZNJ2KjaDg==}
+  /@pnpm/registry-mock@3.8.0(typanion@3.12.1):
+    resolution: {integrity: sha512-gLVTermIw6dnEdKIfPtbU3TcA+CyS8zRy3gc4ZEr0BEvJjld13O7tHM14yxutkr1EEYHhI3PR0wQZYVw+/fksQ==}
     engines: {node: '>=10.13'}
     hasBin: true
     dependencies:
@@ -8837,7 +8837,7 @@ packages:
   /@types/byline@4.2.33:
     resolution: {integrity: sha512-LJYez7wrWcJQQDknqZtrZuExMGP0IXmPl1rOOGDqLbu+H7UNNRfKNuSxCBcQMLH1EfjeWidLedC/hCc5dDfBog==}
     dependencies:
-      '@types/node': 18.15.5
+      '@types/node': 18.15.9
     dev: true
 
   /@types/cacheable-request@6.0.3:
@@ -8992,8 +8992,8 @@ packages:
     resolution: {integrity: sha512-1y36CC5iL5CMyKALzwX9cwwxcWIxvIBe3gzs4GrXWXEQ8klQnCZ2U/WDGiNrXHmQcUhnaun17XG9TEIDlGj2RA==}
     dev: true
 
-  /@types/node@18.15.5:
-    resolution: {integrity: sha512-Ark2WDjjZO7GmvsyFFf81MXuGTA/d6oP38anyxWOL6EREyBKAxKoFHwBhaZxCfLRLpO8JgVXwqOwSwa7jRcjew==}
+  /@types/node@18.15.9:
+    resolution: {integrity: sha512-dUxhiNzBLr6IqlZXz6e/rN2YQXlFgOei/Dxy+e3cyXTJ4txSUbGT2/fmnD6zd/75jDMeW5bDee+YXxlFKHoV0A==}
 
   /@types/normalize-package-data@2.4.1:
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
@@ -9505,7 +9505,7 @@ packages:
     resolution: {integrity: sha512-Y5CCMK38k0mrdG7qo5cVpqiQ9+poegNBo3tHv44OPfoF8ktR1BcIqlAcCh0B4D2+lo1PjA411JeRxa0izTyP4Q==}
     engines: {node: '>=14.15.0'}
     dependencies:
-      '@types/node': 18.15.5
+      '@types/node': 18.15.9
       '@yarnpkg/fslib': 3.0.0-rc.25
 
   /@yarnpkg/shell@3.2.0-rc.8(typanion@3.12.1):
@@ -17767,7 +17767,7 @@ packages:
 
 time:
   /@pnpm/ramda@0.28.1: '2022-08-03T13:56:59.597Z'
-  /@pnpm/registry-mock@3.7.0: '2023-03-22T00:44:25.728Z'
+  /@pnpm/registry-mock@3.8.0: '2023-03-25T20:52:46.924Z'
   /@types/byline@4.2.33: '2021-07-06T18:22:06.440Z'
   /@types/table@6.0.0: '2020-09-17T17:56:44.787Z'
   /@zkochan/hosted-git-info@4.0.2: '2021-09-05T21:33:51.709Z'
