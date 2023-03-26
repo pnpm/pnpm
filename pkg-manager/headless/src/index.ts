@@ -664,11 +664,27 @@ async function getRootPackagesToLink (
   }
 ): Promise<LinkedDirectDep[]> {
   const projectSnapshot = lockfile.importers[opts.importerId]
-  const allDeps = {
-    ...projectSnapshot.devDependencies,
-    ...projectSnapshot.dependencies,
-    ...projectSnapshot.optionalDependencies,
+  const allDeps = new Map<string, string>();
+
+  const devDependencies = projectSnapshot.devDependencies
+  if (devDependencies) {
+    for (const name in devDependencies) {
+      allDeps.set(name, devDependencies[name])
+    }
   }
+  const requiredDependencies = projectSnapshot.dependencies
+  if (requiredDependencies) {
+    for (const name in requiredDependencies) {
+      allDeps.set(name, requiredDependencies[name])
+    }
+  }
+  const optionalDependencies = projectSnapshot.optionalDependencies
+  if (optionalDependencies) {
+    for (const name in optionalDependencies) {
+      allDeps.set(name, optionalDependencies[name])
+    }
+  }
+
   return (await Promise.all(
     Object.entries(allDeps)
       .map(async ([alias, ref]) => {
