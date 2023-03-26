@@ -90,3 +90,37 @@ auto-install-peers=false`, 'utf8')
   expect(loadJsonFile<any>('project-1/package.json').dependencies['@pnpm.e2e/abc-grand-parent-with-c']).toBe('^1.0.0') // eslint-disable-line
   expect(loadJsonFile<any>('project-2/package.json').dependencies['@pnpm.e2e/abc-grand-parent-with-c']).toBe('^1.0.1') // eslint-disable-line
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/6154
+test('peer dependents deduplication should not remove peer dependencies', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-b', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+  preparePackages([
+    {
+      location: '',
+      package: {
+        name: 'project-1',
+
+        dependencies: {
+          '@pnpm.e2e/abc-parent-with-missing-peers': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'project-2',
+      package: {
+        name: 'project-2',
+      },
+    },
+  ])
+
+  writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeFileSync('.npmrc', `dedupe-peer-dependents=true
+auto-install-peers=true`, 'utf8')
+  await execPnpm(['install'])
+  await execPnpm(['--filter=project-2', 'add', 'is-positive@1.0.0'])
+
+  const lockfile = readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
+  expect(lockfile.importers['.']?.dependencies?.['@pnpm.e2e/abc-parent-with-missing-peers'].version).toStrictEqual('1.0.0(@pnpm.e2e/peer-a@1.0.0)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)')
+})
