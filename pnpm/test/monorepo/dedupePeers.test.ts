@@ -117,7 +117,8 @@ test('peer dependents deduplication should not remove peer dependencies', async 
 
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   writeFileSync('.npmrc', `dedupe-peer-dependents=true
-auto-install-peers=true`, 'utf8')
+auto-install-peers=true
+use-lockfile-v6=true`, 'utf8')
   await execPnpm(['install'])
   await execPnpm(['--filter=project-2', 'add', 'is-positive@1.0.0'])
 
