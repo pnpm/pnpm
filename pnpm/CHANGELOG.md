@@ -1,5 +1,11 @@
 # pnpm
 
+## 7.30.4
+
+### Patch Changes
+
+- Don't remove automatically installed peer dependencies from the root workspace project, when `dedupe-peer-dependents` is `true` [#6154](https://github.com/pnpm/pnpm/issues/6154).
+
 ## 7.30.3
 
 ### Patch Changes
