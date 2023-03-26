@@ -44,10 +44,20 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
   return { graph, unmatched }
 
   function createNode (pkg: Package): string[] {
-    const dependencies = {
-      ...(!opts?.ignoreDevDeps && pkg.manifest.devDependencies),
-      ...pkg.manifest.optionalDependencies,
-      ...pkg.manifest.dependencies,
+    const dependencies = new Map<string, string>();
+    if (!opts?.ignoreDevDeps) {
+      const devDependencies = pkg.manifest.devDependencies
+      for (const name in devDependencies) {
+        dependencies.set(name, devDependencies[name])
+      }
+    }
+    const optionalDependencies = pkg.manifest.optionalDependencies;
+    for (const name in optionalDependencies) {
+      dependencies.set(name, optionalDependencies[name])
+    }
+    const requiredDependencies = pkg.manifest.dependencies
+    for (const name in requiredDependencies) {
+      dependencies.set(name, requiredDependencies[name])
     }
 
     return Object.entries(dependencies)
