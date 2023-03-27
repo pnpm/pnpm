@@ -66,5 +66,5 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
   await projects.root.has('@pnpm.e2e/foo')
   await projects.root.has('@pnpm.e2e/foobar')
   await projects.project.hasNot('@pnpm.e2e/foo')
-  await projects.project.hasNot('@pnpm.e2e/foobar')
+  // await projects.project.hasNot('@pnpm.e2e/foobar') // dedupe direct deps is off in v7, so this is not deduped
 })
