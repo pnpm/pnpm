@@ -36,6 +36,12 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
   } {
   const pkgMap = createPkgMap(pkgs)
   const pkgMapValues = Object.values(pkgMap)
+  const pkgMapByManifestName: Record<string, Package[] | undefined> = {}
+  for (const pkg of pkgMapValues) {
+    if (pkg.manifest.name) {
+      (pkgMapByManifestName[pkg.manifest.name] ??= []).push(pkg)
+    }
+  }
   const unmatched: Array<{ pkgName: string, range: string }> = []
   const graph = mapValues((pkg) => ({
     dependencies: createNode(pkg),
@@ -76,8 +82,8 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
 
         if (spec.type !== 'version' && spec.type !== 'range') return ''
 
-        const pkgs = pkgMapValues.filter(pkg => pkg.manifest.name === depName)
-        if (pkgs.length === 0) return ''
+        const pkgs = pkgMapByManifestName[depName]
+        if (!pkgs || pkgs.length === 0) return ''
         const versions = pkgs.filter(({ manifest }) => manifest.version)
           .map(pkg => pkg.manifest.version) as string[]
 
