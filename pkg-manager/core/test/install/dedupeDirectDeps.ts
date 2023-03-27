@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
 import { mutateModules, type MutatedProject } from '@pnpm/core'
+import rimraf from '@zkochan/rimraf'
 import { testDefaults } from '../utils'
 
 test('dedupe direct dependencies', async () => {
@@ -101,4 +102,78 @@ test('dedupe direct dependencies', async () => {
   expect(fs.readdirSync('project-2/node_modules').sort()).toEqual(['is-odd'])
   await projects['project-3'].hasNot('is-negative')
   expect(fs.existsSync('project-3/node_modules')).toBeFalsy()
+})
+
+test('dedupe direct dependencies after public hoisting', async () => {
+  const projects = preparePackages([
+    {
+      location: '',
+      package: { name: 'project-1' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2' },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+        },
+      },
+      rootDir: process.cwd(),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+        },
+      },
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const opts = await testDefaults({
+    allProjects,
+    dedupeDirectDeps: true,
+    publicHoistPattern: ['@pnpm.e2e/dep-of-pkg-with-1-dep'],
+  })
+  await mutateModules(importers, opts)
+  await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await projects['project-2'].hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  expect(Array.from(fs.readdirSync('node_modules/@pnpm.e2e').sort())).toEqual([
+    'dep-of-pkg-with-1-dep',
+    'pkg-with-1-dep',
+  ])
+  expect(fs.existsSync('project-2/node_modules')).toBeFalsy()
+
+  // Test the same with headless install
+  await rimraf('node_modules')
+  await mutateModules(importers, { ...opts, frozenLockfile: true })
+  await projects['project-1'].has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await projects['project-2'].hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  expect(Array.from(fs.readdirSync('node_modules/@pnpm.e2e').sort())).toEqual([
+    'dep-of-pkg-with-1-dep',
+    'pkg-with-1-dep',
+  ])
+  expect(fs.existsSync('project-2/node_modules')).toBeFalsy()
 })
