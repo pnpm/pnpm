@@ -1,5 +1,12 @@
 # pnpm
 
+## 7.30.5
+
+### Patch Changes
+
+- `pnpm audit` should work even if there are no `package.json` file, just a `pnpm-lock.yaml` file.
+- Dedupe direct dependencies after hoisting.
+
 ## 7.30.4
 
 ### Patch Changes
