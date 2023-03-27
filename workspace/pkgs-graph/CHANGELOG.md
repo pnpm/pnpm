@@ -1,5 +1,11 @@
 # @pnpm/workspace.pkgs-graph
 
+## 2.0.2
+
+### Patch Changes
+
+- 35d98c7a8: Speed up createPkgGraph by using a table for manifest name lookup
+
 ## 2.0.1
 
 ### Patch Changes

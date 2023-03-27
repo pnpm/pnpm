@@ -1,5 +1,13 @@
 # @pnpm/filter-workspace-packages
 
+## 7.0.2
+
+### Patch Changes
+
+- Updated dependencies [35d98c7a8]
+  - @pnpm/workspace.pkgs-graph@2.0.2
+  - @pnpm/find-workspace-packages@6.0.2
+
 ## 7.0.1
 
 ### Patch Changes

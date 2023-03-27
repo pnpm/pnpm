@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 9.0.2
+
+### Patch Changes
+
+- 3f0ea1def: Dedupe direct dependencies after hoisting.
+- Updated dependencies [65e3af8a0]
+  - @pnpm/resolve-dependencies@31.0.1
+
 ## 9.0.1
 
 ### Patch Changes

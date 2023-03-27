@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 31.0.1
+
+### Patch Changes
+
+- 65e3af8a0: Remove the replaceall polyfill from the dependencies.
+
 ## 31.0.0
 
 ### Major Changes

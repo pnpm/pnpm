@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-installation
 
+## 12.0.2
+
+### Patch Changes
+
+- Updated dependencies [35d98c7a8]
+- Updated dependencies [3f0ea1def]
+  - @pnpm/workspace.pkgs-graph@2.0.2
+  - @pnpm/core@9.0.2
+  - @pnpm/filter-workspace-packages@7.0.2
+  - @pnpm/pnpmfile@5.0.2
+  - @pnpm/plugin-commands-rebuild@8.0.2
+  - @pnpm/config@18.0.2
+  - @pnpm/cli-utils@2.0.2
+  - @pnpm/store-connection-manager@6.0.2
+  - @pnpm/find-workspace-packages@6.0.2
+
 ## 12.0.1
 
 ### Patch Changes
