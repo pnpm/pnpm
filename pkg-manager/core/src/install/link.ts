@@ -157,52 +157,6 @@ export async function linkPackages (
     stage: 'importing_done',
   })
 
-  if (opts.symlink) {
-    const projectsToLink = Object.fromEntries(await Promise.all(
-      projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
-        const deps = opts.dependenciesByProjectId[id]
-        const importerFromLockfile = newCurrentLockfile.importers[id]
-        return [id, {
-          dir: rootDir,
-          modulesDir,
-          dependencies: await Promise.all([
-            ...Object.entries(deps)
-              .filter(([rootAlias]) => importerFromLockfile.specifiers[rootAlias])
-              .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
-              .filter(({ depGraphNode }) => depGraphNode)
-              .map(async ({ rootAlias, depGraphNode }) => {
-                const isDev = Boolean(manifest.devDependencies?.[depGraphNode.name])
-                const isOptional = Boolean(manifest.optionalDependencies?.[depGraphNode.name])
-                return {
-                  alias: rootAlias,
-                  name: depGraphNode.name,
-                  version: depGraphNode.version,
-                  dir: depGraphNode.dir,
-                  id: depGraphNode.id,
-                  dependencyType: (isDev && 'dev' || isOptional && 'optional' || 'prod') as 'dev' | 'optional' | 'prod',
-                  latest: opts.outdatedDependencies[depGraphNode.id],
-                  isExternalLink: false,
-                }
-              }),
-            ...opts.linkedDependenciesByProjectId[id].map(async (linkedDependency) => {
-              const dir = resolvePath(rootDir, linkedDependency.resolution.directory)
-              return {
-                alias: linkedDependency.alias,
-                name: linkedDependency.name,
-                version: linkedDependency.version,
-                dir,
-                id: linkedDependency.resolution.directory,
-                dependencyType: (linkedDependency.dev && 'dev' || linkedDependency.optional && 'optional' || 'prod') as 'dev' | 'optional' | 'prod',
-                isExternalLink: true,
-              }
-            }),
-          ]),
-        }]
-      }))
-    )
-    await linkDirectDeps(projectsToLink, { dedupe: opts.dedupeDirectDeps })
-  }
-
   let currentLockfile: Lockfile
   const allImportersIncluded = equals(projectIds.sort(), Object.keys(opts.wantedLockfile.importers).sort())
   if (
@@ -267,6 +221,52 @@ export async function linkPackages (
     })
   } else {
     newHoistedDependencies = opts.hoistedDependencies
+  }
+
+  if (opts.symlink) {
+    const projectsToLink = Object.fromEntries(await Promise.all(
+      projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
+        const deps = opts.dependenciesByProjectId[id]
+        const importerFromLockfile = newCurrentLockfile.importers[id]
+        return [id, {
+          dir: rootDir,
+          modulesDir,
+          dependencies: await Promise.all([
+            ...Object.entries(deps)
+              .filter(([rootAlias]) => importerFromLockfile.specifiers[rootAlias])
+              .map(([rootAlias, depPath]) => ({ rootAlias, depGraphNode: depGraph[depPath] }))
+              .filter(({ depGraphNode }) => depGraphNode)
+              .map(async ({ rootAlias, depGraphNode }) => {
+                const isDev = Boolean(manifest.devDependencies?.[depGraphNode.name])
+                const isOptional = Boolean(manifest.optionalDependencies?.[depGraphNode.name])
+                return {
+                  alias: rootAlias,
+                  name: depGraphNode.name,
+                  version: depGraphNode.version,
+                  dir: depGraphNode.dir,
+                  id: depGraphNode.id,
+                  dependencyType: (isDev && 'dev' || isOptional && 'optional' || 'prod') as 'dev' | 'optional' | 'prod',
+                  latest: opts.outdatedDependencies[depGraphNode.id],
+                  isExternalLink: false,
+                }
+              }),
+            ...opts.linkedDependenciesByProjectId[id].map(async (linkedDependency) => {
+              const dir = resolvePath(rootDir, linkedDependency.resolution.directory)
+              return {
+                alias: linkedDependency.alias,
+                name: linkedDependency.name,
+                version: linkedDependency.version,
+                dir,
+                id: linkedDependency.resolution.directory,
+                dependencyType: (linkedDependency.dev && 'dev' || linkedDependency.optional && 'optional' || 'prod') as 'dev' | 'optional' | 'prod',
+                isExternalLink: true,
+              }
+            }),
+          ]),
+        }]
+      }))
+    )
+    await linkDirectDeps(projectsToLink, { dedupe: opts.dedupeDirectDeps })
   }
 
   return {
