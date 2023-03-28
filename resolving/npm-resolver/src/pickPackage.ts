@@ -45,12 +45,37 @@ export type PackageInRegistry = PackageManifest & {
   }
 }
 
+interface RefCountedLimiter {
+  count: number
+  limit: pLimit.Limit
+}
+
 /**
  * prevents simultaneous operations on the meta.json
  * otherwise it would cause EPERM exceptions
  */
 const metafileOperationLimits = {} as {
-  [pkgMirror: string]: pLimit.Limit
+  [pkgMirror: string]: RefCountedLimiter | undefined
+}
+
+/**
+ * To prevent metafileOperationLimits from holding onto objects in memory on
+ * the order of the number of packages, refcount the limiters and drop them
+ * once they are no longer needed. Callers of this function should ensure
+ * that the limiter is no longer referenced once fn's Promise has resolved.
+ */
+async function runLimited<T> (pkgMirror: string, fn: (limit: pLimit.Limit) => Promise<T>): Promise<T> {
+  let entry!: RefCountedLimiter
+  try {
+    entry = metafileOperationLimits[pkgMirror] ??= { count: 0, limit: pLimit(1) }
+    entry.count++
+    return await fn(entry.limit)
+  } finally {
+    entry.count--
+    if (entry.count === 0) {
+      metafileOperationLimits[pkgMirror] = undefined
+    }
+  }
 }
 
 export interface PickPackageOptions {
@@ -104,89 +129,90 @@ export async function pickPackage (
 
   const registryName = getRegistryName(opts.registry)
   const pkgMirror = path.join(ctx.cacheDir, ctx.metaDir, registryName, `${encodePkgName(spec.name)}.json`)
-  const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
 
-  let metaCachedInStore: PackageMeta | null | undefined
-  if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
-    metaCachedInStore = await limit(async () => loadMeta(pkgMirror))
+  return runLimited(pkgMirror, async (limit) => {
+    let metaCachedInStore: PackageMeta | null | undefined
+    if (ctx.offline === true || ctx.preferOffline === true || opts.pickLowestVersion) {
+      metaCachedInStore = await limit(async () => loadMeta(pkgMirror))
 
-    if (ctx.offline) {
-      if (metaCachedInStore != null) return {
-        meta: metaCachedInStore,
-        pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy),
+      if (ctx.offline) {
+        if (metaCachedInStore != null) return {
+          meta: metaCachedInStore,
+          pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy),
+        }
+
+        throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
       }
 
-      throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
-    }
-
-    if (metaCachedInStore != null) {
-      const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
-      if (pickedPackage) {
-        return {
-          meta: metaCachedInStore,
-          pickedPackage,
+      if (metaCachedInStore != null) {
+        const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
+        if (pickedPackage) {
+          return {
+            meta: metaCachedInStore,
+            pickedPackage,
+          }
         }
       }
     }
-  }
 
-  if (spec.type === 'version') {
-    metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-    // use the cached meta only if it has the required package version
-    // otherwise it is probably out of date
-    if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
+    if (spec.type === 'version') {
+      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
+      // use the cached meta only if it has the required package version
+      // otherwise it is probably out of date
+      if ((metaCachedInStore?.versions?.[spec.fetchSpec]) != null) {
+        return {
+          meta: metaCachedInStore,
+          pickedPackage: metaCachedInStore.versions[spec.fetchSpec],
+        }
+      }
+    }
+    if (opts.publishedBy) {
+      metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
+      if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
+        const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
+        if (pickedPackage) {
+          return {
+            meta: metaCachedInStore,
+            pickedPackage,
+          }
+        }
+      }
+    }
+
+    try {
+      let meta = await ctx.fetch(spec.name, opts.registry, opts.authHeaderValue)
+      if (ctx.filterMetadata) {
+        meta = clearMeta(meta)
+      }
+      meta.cachedAt = Date.now()
+      // only save meta to cache, when it is fresh
+      ctx.metaCache.set(spec.name, meta)
+      if (!opts.dryRun) {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        runLimited(pkgMirror, (limit) => limit(async () => {
+          try {
+            await saveMeta(pkgMirror, meta)
+          } catch (err: any) { // eslint-disable-line
+            // We don't care if this file was not written to the cache
+          }
+        }))
+      }
       return {
-        meta: metaCachedInStore,
-        pickedPackage: metaCachedInStore.versions[spec.fetchSpec],
+        meta,
+        pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy),
+      }
+    } catch (err: any) { // eslint-disable-line
+      err.spec = spec
+      const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
+      if (meta == null) throw err
+      logger.error(err, err)
+      logger.debug({ message: `Using cached meta from ${pkgMirror}` })
+      return {
+        meta,
+        pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy),
       }
     }
-  }
-  if (opts.publishedBy) {
-    metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
-    if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
-      const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
-      if (pickedPackage) {
-        return {
-          meta: metaCachedInStore,
-          pickedPackage,
-        }
-      }
-    }
-  }
-
-  try {
-    let meta = await ctx.fetch(spec.name, opts.registry, opts.authHeaderValue)
-    if (ctx.filterMetadata) {
-      meta = clearMeta(meta)
-    }
-    meta.cachedAt = Date.now()
-    // only save meta to cache, when it is fresh
-    ctx.metaCache.set(spec.name, meta)
-    if (!opts.dryRun) {
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      limit(async () => {
-        try {
-          await saveMeta(pkgMirror, meta)
-        } catch (err: any) { // eslint-disable-line
-          // We don't care if this file was not written to the cache
-        }
-      })
-    }
-    return {
-      meta,
-      pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy),
-    }
-  } catch (err: any) { // eslint-disable-line
-    err.spec = spec
-    const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
-    if (meta == null) throw err
-    logger.error(err, err)
-    logger.debug({ message: `Using cached meta from ${pkgMirror}` })
-    return {
-      meta,
-      pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy),
-    }
-  }
+  })
 }
 
 function clearMeta (pkg: PackageMeta): PackageMeta {
