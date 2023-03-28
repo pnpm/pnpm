@@ -351,8 +351,8 @@ export async function mutateModules (
       )
     ) {
       if (needsFullResolution) {
-        throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot perform a frozen installation because the lockfile needs updates', {
-          hint: 'Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"',
+        throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot perform a frozen installation because the version of the lockfile is incompatible with this version of pnpm', {
+          hint: 'Try either: 1. aligning the version of pnpm which generated the lockfile with the version that installs from it or 2. migrate the lockfile so that it is compatible with the newer version of pnpm or 3. use "pnpm install --no-frozen-lockfile". Note that in CI environments this setting is true by default',
         })
       }
       if (opts.lockfileOnly) {
