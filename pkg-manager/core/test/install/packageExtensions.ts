@@ -89,7 +89,7 @@ test('manifests are extended with fields specified by packageExtensions', async 
     }, await testDefaults({ frozenLockfile: true, packageExtensions }))
   ).rejects.toThrow(
     new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
-      'Cannot perform a frozen installation because the lockfile needs updates'
+      'Cannot perform a frozen installation because the version of the lockfile is incompatible with this version of pnpm'
     )
   )
 })
