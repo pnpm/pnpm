@@ -36,12 +36,8 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
   } {
   const pkgMap = createPkgMap(pkgs)
   const pkgMapValues = Object.values(pkgMap)
-  const pkgMapByManifestName: Record<string, Package[] | undefined> = {}
-  for (const pkg of pkgMapValues) {
-    if (pkg.manifest.name) {
-      (pkgMapByManifestName[pkg.manifest.name] ??= []).push(pkg)
-    }
-  }
+  const pkgMapByManifestName = getPkgMapByManifestName(pkgMapValues)
+  let pkgMapByDir: Record<string, Package | undefined> | undefined
   const unmatched: Array<{ pkgName: string, range: string }> = []
   const graph = mapValues((pkg) => ({
     dependencies: createNode(pkg),
@@ -73,10 +69,19 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
         }
 
         if (spec.type === 'directory') {
+          pkgMapByDir ??= getPkgMapByDir(pkgMapValues)
+          const resolvedPath = path.resolve(pkg.dir, spec.fetchSpec)
+          const found = pkgMapByDir[resolvedPath]
+          if (found) {
+            return found.dir
+          }
+
+          // Slow path; only needed when there are case mismatches on case-insensitive filesystems.
           const matchedPkg = pkgMapValues.find(pkg => path.relative(pkg.dir, spec.fetchSpec) === '')
           if (matchedPkg == null) {
             return ''
           }
+          pkgMapByDir[resolvedPath] = matchedPkg
           return matchedPkg.dir
         }
 
@@ -119,4 +124,22 @@ function createPkgMap (pkgs: Package[]): Record<string, Package> {
     pkgMap[pkg.dir] = pkg
   }
   return pkgMap
+}
+
+function getPkgMapByManifestName (pkgMapValues: Package[]) {
+  const pkgMapByManifestName: Record<string, Package[] | undefined> = {}
+  for (const pkg of pkgMapValues) {
+    if (pkg.manifest.name) {
+      (pkgMapByManifestName[pkg.manifest.name] ??= []).push(pkg)
+    }
+  }
+  return pkgMapByManifestName
+}
+
+function getPkgMapByDir (pkgMapValues: Package[]) {
+  const pkgMapByDir: Record<string, Package | undefined> = {}
+  for (const pkg of pkgMapValues) {
+    pkgMapByDir[path.resolve(pkg.dir)] = pkg
+  }
+  return pkgMapByDir
 }
