@@ -36,7 +36,7 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
   } {
   const pkgMap = createPkgMap(pkgs)
   const pkgMapValues = Object.values(pkgMap)
-  const pkgMapByManifestName = getPkgMapByManifestName(pkgMapValues)
+  let pkgMapByManifestName: Record<string, Package[] | undefined> | undefined
   let pkgMapByDir: Record<string, Package | undefined> | undefined
   const unmatched: Array<{ pkgName: string, range: string }> = []
   const graph = mapValues((pkg) => ({
@@ -87,6 +87,7 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
 
         if (spec.type !== 'version' && spec.type !== 'range') return ''
 
+        pkgMapByManifestName ??= getPkgMapByManifestName(pkgMapValues)
         const pkgs = pkgMapByManifestName[depName]
         if (!pkgs || pkgs.length === 0) return ''
         const versions = pkgs.filter(({ manifest }) => manifest.version)
