@@ -286,6 +286,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'workspaceDir'
 | 'extraEnv'
 | 'resolutionMode'
+| 'ignoreWorkspaceCycles'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
