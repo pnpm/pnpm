@@ -1,5 +1,17 @@
 # pnpm
 
+## 8.1.0
+
+### Minor Changes
+
+- A new setting has been added called `dedupe-direct-deps`, which is disabled by default. When set to `true`, dependencies that are already symlinked to the root `node_modules` directory of the workspace will not be symlinked to subproject `node_modules` directories. This feature was enabled by default in v8.0.0 but caused issues, so it's best to disable it by default [#6299](https://github.com/pnpm/pnpm/issues/6299).
+- Add `ignore-workspace-cycles` to silence workspace cycle warning [#6308](https://github.com/pnpm/pnpm/pull/6308).
+
+### Patch Changes
+
+- Print the right lowest supported Node.js version in the error message, when pnpm is executed with an old Node.js version [#6297](https://github.com/pnpm/pnpm/issues/6297).
+- Improve the outdated lockfile error message [#6304](https://github.com/pnpm/pnpm/pull/6304).
+
 ## 8.0.0
 
 ### Major Changes

@@ -1,5 +1,13 @@
 # @pnpm/outdated
 
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [642f8c1d0]
+  - @pnpm/npm-resolver@16.0.1
+  - @pnpm/client@10.0.1
+
 ## 12.0.0
 
 ### Major Changes

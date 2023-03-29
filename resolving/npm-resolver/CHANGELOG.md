@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 16.0.1
+
+### Patch Changes
+
+- 642f8c1d0: Reduce max memory usage in npm-resolver
+
 ## 16.0.0
 
 ### Major Changes

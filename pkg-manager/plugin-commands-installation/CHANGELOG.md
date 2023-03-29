@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-installation
 
+## 12.1.0
+
+### Minor Changes
+
+- e2cb4b63d: Add `ignore-workspace-cycles` to silence workspace cycle warning [#6308](https://github.com/pnpm/pnpm/pull/6308).
+
+### Patch Changes
+
+- Updated dependencies [e2cb4b63d]
+- Updated dependencies [e87754df1]
+- Updated dependencies [9fd0e375e]
+- Updated dependencies [cd6ce11f0]
+  - @pnpm/core@9.1.0
+  - @pnpm/config@18.1.0
+  - @pnpm/workspace.pkgs-graph@2.0.3
+  - @pnpm/pnpmfile@5.0.3
+  - @pnpm/cli-utils@2.0.3
+  - @pnpm/plugin-commands-rebuild@8.0.3
+  - @pnpm/store-connection-manager@6.0.3
+  - @pnpm/outdated@12.0.1
+  - @pnpm/filter-workspace-packages@7.0.3
+  - @pnpm/find-workspace-packages@6.0.3
+  - @pnpm/package-store@16.0.0
+
 ## 12.0.2
 
 ### Patch Changes

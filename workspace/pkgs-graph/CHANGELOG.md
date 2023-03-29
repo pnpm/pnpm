@@ -1,5 +1,11 @@
 # @pnpm/workspace.pkgs-graph
 
+## 2.0.3
+
+### Patch Changes
+
+- 9fd0e375e: Speed up createPkgGraph when directory specifiers are present
+
 ## 2.0.2
 
 ### Patch Changes

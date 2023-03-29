@@ -1,5 +1,18 @@
 # @pnpm/core
 
+## 9.1.0
+
+### Minor Changes
+
+- e2cb4b63d: Add `ignore-workspace-cycles` to silence workspace cycle warning [#6308](https://github.com/pnpm/pnpm/pull/6308).
+
+### Patch Changes
+
+- e87754df1: Improve the outdated lockfile error message [#6304](https://github.com/pnpm/pnpm/pull/6304).
+  - @pnpm/resolve-dependencies@31.0.2
+  - @pnpm/headless@20.0.1
+  - @pnpm/package-requester@21.0.0
+
 ## 9.0.2
 
 ### Patch Changes
