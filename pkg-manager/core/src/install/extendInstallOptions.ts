@@ -103,6 +103,7 @@ export interface StrictInstallOptions {
   preferSymlinkedExecutables: boolean
   resolutionMode: 'highest' | 'time-based' | 'lowest-direct'
   resolvePeersFromWorkspaceRoot: boolean
+  ignoreWorkspaceCycles: boolean
 
   publicHoistPattern: string[] | undefined
   hoistPattern: string[] | undefined
@@ -208,6 +209,7 @@ const defaults = async (opts: InstallOptions) => {
     dedupePeerDependents: false,
     resolvePeersFromWorkspaceRoot: false,
     extendNodePath: true,
+    ignoreWorkspaceCycles: false,
   } as StrictInstallOptions
 }
 

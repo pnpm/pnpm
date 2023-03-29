@@ -88,6 +88,7 @@ export type ImportCommandOptions = Pick<Config,
 | 'allProjectsGraph'
 | 'selectedProjectsGraph'
 | 'workspaceDir'
+| 'ignoreWorkspaceCycles'
 > & CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>
 
 export async function handler (
@@ -120,7 +121,7 @@ export async function handler (
     if (selectedProjectsGraph != null) {
       const sequencedGraph = sequenceGraph(selectedProjectsGraph)
       // Check and warn if there are cyclic dependencies
-      if (!sequencedGraph.safe) {
+      if (!opts.ignoreWorkspaceCycles && !sequencedGraph.safe) {
         const cyclicDependenciesInfo = sequencedGraph.cycles.length > 0
           ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
           : ''
