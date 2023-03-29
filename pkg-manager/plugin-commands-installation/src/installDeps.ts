@@ -78,6 +78,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'workspaceConcurrency'
 | 'workspaceDir'
 | 'extraEnv'
+| 'ignoreWorkspaceCycles'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -138,7 +139,7 @@ when running add/update with the --workspace option')
     if (selectedProjectsGraph != null) {
       const sequencedGraph = sequenceGraph(selectedProjectsGraph)
       // Check and warn if there are cyclic dependencies
-      if (!sequencedGraph.safe) {
+      if (!opts.ignoreWorkspaceCycles && !sequencedGraph.safe) {
         const cyclicDependenciesInfo = sequencedGraph.cycles.length > 0
           ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
           : ''

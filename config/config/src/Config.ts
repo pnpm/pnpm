@@ -158,6 +158,7 @@ export interface Config {
   onlyBuiltDependencies?: string[]
   dedupePeerDependents?: boolean
   patchesDir?: string
+  ignoreWorkspaceCycles?: boolean
 
   registries: Registries
   ignoreWorkspaceRootCheck: boolean
