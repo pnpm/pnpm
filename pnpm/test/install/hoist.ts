@@ -66,5 +66,40 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
   await projects.root.has('@pnpm.e2e/foo')
   await projects.root.has('@pnpm.e2e/foobar')
   await projects.project.hasNot('@pnpm.e2e/foo')
+  await projects.project.has('@pnpm.e2e/foobar')
+})
+
+test('shamefully-hoist: applied to all the workspace projects when set to true in the root .npmrc file (with dedupe-direct-deps=true)', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+
+        dependencies: {
+          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+        },
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/foobar': '100.0.0',
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await fs.writeFile('.npmrc', `shamefully-hoist=true
+dedupe-direct-deps=true`, 'utf8')
+
+  await execPnpm(['install'])
+
+  await projects.root.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await projects.root.has('@pnpm.e2e/foo')
+  await projects.root.has('@pnpm.e2e/foobar')
+  await projects.project.hasNot('@pnpm.e2e/foo')
   await projects.project.hasNot('@pnpm.e2e/foobar')
 })
