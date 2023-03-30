@@ -1,4 +1,5 @@
 import type { Lockfile } from '@pnpm/lockfile-file'
+import type { Registries } from '@pnpm/types'
 
 export interface PreResolutionHookContext {
   wantedLockfile: Lockfile
@@ -7,6 +8,7 @@ export interface PreResolutionHookContext {
   existsWantedLockfile: boolean
   lockfileDir: string
   storeDir: string
+  registries: Registries
 }
 
 export interface PreResolutionHookLogger {
