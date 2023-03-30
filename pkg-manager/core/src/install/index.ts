@@ -239,6 +239,7 @@ export async function mutateModules (
       existsWantedLockfile: ctx.existsWantedLockfile,
       lockfileDir: ctx.lockfileDir,
       storeDir: ctx.storeDir,
+      registries: ctx.registries,
     })
   }
 

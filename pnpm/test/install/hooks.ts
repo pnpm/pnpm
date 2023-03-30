@@ -631,6 +631,7 @@ test('preResolution hook', async () => {
 
   const npmrc = `
     global-pnpmfile=.pnpmfile.cjs
+    @foo:registry=https://foo.com
   `
 
   await fs.writeFile('.npmrc', npmrc, 'utf8')
@@ -645,4 +646,9 @@ test('preResolution hook', async () => {
   expect(ctx.storeDir).toBeDefined()
   expect(ctx.existsCurrentLockfile).toBe(false)
   expect(ctx.existsWantedLockfile).toBe(false)
+
+  expect(ctx.registries).toEqual({
+    default: 'http://localhost:7776/',
+    '@foo': 'https://foo.com/',
+  })
 })
