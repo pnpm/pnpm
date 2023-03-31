@@ -58,6 +58,33 @@ export function pickPackageFromMeta (
   }
 }
 
+const semverRangeCache = new Map<string, semver.Range | null>()
+
+// This is a performance optimization; working with string-ish semver
+// causes lots of allocations and repeated work, but caching the Range
+// and ensuring we give it a SemVer instance greatly speeds things up.
+function semverSatisfiesLoose (version: string, range: string): boolean {
+  let semverRange = semverRangeCache.get(range)
+  if (semverRange === undefined) {
+    try {
+      semverRange = new semver.Range(range, true)
+    } catch {
+      semverRange = null
+    }
+    semverRangeCache.set(range, semverRange)
+  }
+
+  if (semverRange) {
+    try {
+      return semverRange.test(new semver.SemVer(version, true))
+    } catch {
+      return false
+    }
+  }
+
+  return false
+}
+
 export function pickLowestVersionByVersionRange (
   meta: PackageMeta,
   versionRange: string,
@@ -89,7 +116,7 @@ export function pickVersionByVersionRange (
   if (preferredVerSels != null && Object.keys(preferredVerSels).length > 0) {
     const prioritizedPreferredVersions = prioritizePreferredVersions(meta, versionRange, preferredVerSels)
     for (const preferredVersions of prioritizedPreferredVersions) {
-      if (preferredVersions.includes(latest) && semver.satisfies(latest, versionRange, true)) {
+      if (preferredVersions.includes(latest) && semverSatisfiesLoose(latest, versionRange)) {
         return latest
       }
       const preferredVersion = semver.maxSatisfying(preferredVersions, versionRange, true)
@@ -106,7 +133,7 @@ export function pickVersionByVersionRange (
       latest = undefined
     }
   }
-  if (latest && (versionRange === '*' || semver.satisfies(latest, versionRange, true))) {
+  if (latest && (versionRange === '*' || semverSatisfiesLoose(latest, versionRange))) {
     // Not using semver.satisfies in case of * because it does not select beta versions.
     // E.g.: 1.0.0-beta.1. See issue: https://github.com/pnpm/pnpm/issues/865
     return latest
@@ -144,12 +171,9 @@ function prioritizePreferredVersions (
       break
     }
     case 'range': {
-      // This might be slow if there are many versions
-      // and the package is an indirect dependency many times in the project.
-      // If it will create noticeable slowdown, then might be a good idea to add some caching
       const versions = Object.keys(meta.versions)
       for (const version of versions) {
-        if (semver.satisfies(version, preferredSelector, true)) {
+        if (semverSatisfiesLoose(version, preferredSelector)) {
           versionsPrioritizer.add(version, weight)
         }
       }
