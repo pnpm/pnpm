@@ -126,12 +126,23 @@ function getChangelogEntry (changelog: string, version: string) {
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://depot.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/depot.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/depot_light.svg" />
             <img src="https://pnpm.io/img/users/depot.svg" width="200" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://moonrepo.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/moonrepo.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/moonrepo_light.svg" />
+            <img src="https://pnpm.io/img/users/moonrepo.svg" width="200" />
           </picture>
         </a>
       </td>
