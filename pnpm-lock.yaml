@@ -960,8 +960,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       '@pnpm/npm-lifecycle':
-        specifier: ^2.0.0
-        version: 2.0.0(typanion@3.12.1)
+        specifier: ^2.0.1
+        version: 2.0.1(typanion@3.12.1)
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -8191,6 +8191,26 @@ packages:
       - bluebird
       - supports-color
       - typanion
+    dev: true
+
+  /@pnpm/npm-lifecycle@2.0.1(typanion@3.12.1):
+    resolution: {integrity: sha512-ehpxDjVCR5znzdYty9Mia53tJ66G5ZbCG0y2EAiUYeDW8DkcbWWQewsJLVfHVDay/oG/GkTbU+hqfGKkftQZUw==}
+    engines: {node: '>=12.17'}
+    dependencies:
+      '@pnpm/byline': 1.0.0
+      '@pnpm/error': 4.0.1
+      '@yarnpkg/shell': 3.2.5(typanion@3.12.1)
+      node-gyp: 8.4.1
+      resolve-from: 5.0.0
+      slide: 1.1.6
+      uid-number: 0.0.6
+      umask: 1.1.0
+      which: 2.0.2
+    transitivePeerDependencies:
+      - bluebird
+      - supports-color
+      - typanion
+    dev: false
 
   /@pnpm/npm-package-arg@1.0.0:
     resolution: {integrity: sha512-oQYP08exi6mOPdAZZWcNIGS+KKPsnNwUBzSuAEGWuCcqwMAt3k/WVCqVIXzBxhO5sP2b43og69VHmPj6IroKqw==}
@@ -9453,6 +9473,25 @@ packages:
       tslib: 1.14.1
     transitivePeerDependencies:
       - typanion
+    dev: true
+
+  /@yarnpkg/shell@3.2.5(typanion@3.12.1):
+    resolution: {integrity: sha512-QLQNDgUatiXWs47ULRAyliFt4/gQbGwprvgBVRF9OJw0aNY1DO7rnmebB3wDg927uy4Oj1uKVRfGAGAgAVQHWg==}
+    engines: {node: '>=12 <14 || 14.2 - 14.9 || >14.10.0'}
+    hasBin: true
+    dependencies:
+      '@yarnpkg/fslib': 3.0.0-rc.25
+      '@yarnpkg/parsers': 2.5.1
+      chalk: 3.0.0
+      clipanion: 3.2.0-rc.6(typanion@3.12.1)
+      cross-spawn: 7.0.3
+      fast-glob: 3.2.12
+      micromatch: 4.0.5
+      stream-buffers: 3.0.2
+      tslib: 1.14.1
+    transitivePeerDependencies:
+      - typanion
+    dev: false
 
   /@yarnpkg/shell@4.0.0-rc.40(typanion@3.12.1):
     resolution: {integrity: sha512-2glHpyln7SdnYKKsdge8eLxwdhCDVLUpe0WiqjIG7bZgEZhCFDqkE1TyZ/LB+/hx+E6alEkpRuxei9L+yIaUpg==}
@@ -17255,7 +17294,7 @@ packages:
   /wide-align@1.1.5:
     resolution: {integrity: sha512-eDMORYaPNZ4sQIuuYPDHdQvf4gyCF9rEEV/yPxGfwPkRodwEgiMUUXTx/dex+Me0wxx53S+NgUHaP7y3MGlDmg==}
     dependencies:
-      string-width: 1.0.2
+      string-width: 4.2.3
 
   /widest-line@3.1.0:
     resolution: {integrity: sha512-NsmoXalsWVDMGupxZ5R08ka9flZjjiLvHVAWYOKtiKM8ujtZWr9cRffak+uSE48+Ob8ObalXpwyeUiyDD6QFgg==}
@@ -17564,7 +17603,7 @@ time:
   /@pnpm/network.agent@0.1.0: '2023-02-18T01:03:06.709Z'
   /@pnpm/nopt@0.2.1: '2021-06-01T19:45:54.552Z'
   /@pnpm/npm-conf@2.0.4: '2022-11-11T20:26:48.028Z'
-  /@pnpm/npm-lifecycle@2.0.0: '2022-11-30T19:58:42.868Z'
+  /@pnpm/npm-lifecycle@2.0.1: '2023-04-01T22:20:38.506Z'
   /@pnpm/npm-package-arg@1.0.0: '2022-06-28T12:48:31.287Z'
   /@pnpm/os.env.path-extender@0.2.10: '2023-02-28T01:46:02.862Z'
   /@pnpm/ramda@0.28.1: '2022-08-03T13:56:59.597Z'
