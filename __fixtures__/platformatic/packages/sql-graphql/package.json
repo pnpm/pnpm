@@ -1,0 +1,50 @@
+{
+  "name": "@platformatic/sql-graphql",
+  "version": "0.19.1",
+  "description": "Map SQL dbs to GraphQL",
+  "main": "index.js",
+  "scripts": {
+    "lint": "standard | snazzy",
+    "test": "standard | snazzy && npm run test:typescript && npm run test:postgresql && npm run test:mariadb && npm run test:mysql && npm run test:mysql8 && npm run test:sqlite",
+    "test:postgresql": "DB=postgresql tap test/*.test.js",
+    "test:mariadb": "DB=mariadb tap test/*.test.js",
+    "test:mysql": "DB=mysql tap test/*.test.js",
+    "test:mysql8": "DB=mysql8 tap test/*.test.js",
+    "test:sqlite": "DB=sqlite tap test/*.test.js",
+    "test:typescript": "tsd"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/platformatic/platformatic.git"
+  },
+  "author": "Matteo Collina <hello@matteocollina.com>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/platformatic/platformatic/issues"
+  },
+  "homepage": "https://github.com/platformatic/platformatic#readme",
+  "devDependencies": {
+    "@mercuriusjs/gateway": "^1.2.0",
+    "@platformatic/sql-events": "workspace:*",
+    "@platformatic/sql-mapper": "workspace:*",
+    "fastify": "^4.13.0",
+    "snazzy": "^9.0.0",
+    "standard": "^17.0.0",
+    "tap": "^16.3.4",
+    "tsd": "^0.28.0",
+    "ws": "^8.12.1"
+  },
+  "dependencies": {
+    "@mercuriusjs/federation": "^1.0.1",
+    "camelcase": "^6.3.0",
+    "fastify-plugin": "^4.5.0",
+    "graphql": "^16.6.0",
+    "graphql-scalars": "^1.20.1",
+    "graphql-type-json": "^0.3.2",
+    "inflected": "^2.1.0",
+    "mercurius": "^12.2.0"
+  },
+  "tsd": {
+    "directory": "test/types"
+  }
+}

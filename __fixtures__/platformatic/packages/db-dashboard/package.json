@@ -1,0 +1,78 @@
+{
+  "name": "@platformatic/db-dashboard",
+  "version": "0.19.1",
+  "main": "index.js",
+  "description": "Platformatic DB Dashboard",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/platformatic/platformatic.git"
+  },
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/platformatic/platformatic/issues"
+  },
+  "homepage": "https://github.com/platformatic/platformatic#readme",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "prepublish": "npm run build",
+    "preview": "vite preview",
+    "test": "standard | snazzy && vitest run",
+    "test:e2e": "playwright test",
+    "test:watch": "vitest watch",
+    "lint": "standard | snazzy"
+  },
+  "dependencies": {
+    "@fastify/static": "^6.9.0"
+  },
+  "devDependencies": {
+    "@graphiql/toolkit": "0.8.3",
+    "@mui/material": "^5.11.10",
+    "@platformatic/db-ra-data-rest": "workspace:*",
+    "@platformatic/service": "workspace:*",
+    "@platformatic/ui-components": "^0.1.48",
+    "@playwright/test": "^1.31.1",
+    "@types/react": "^18.0.28",
+    "@types/react-dom": "^18.0.11",
+    "@vitejs/plugin-react": "^3.1.0",
+    "autoprefixer": "^10.4.13",
+    "camelcase": "^6.3.0",
+    "graphiql": "2.4.1",
+    "happy-dom": "^8.7.2",
+    "history": "^5.3.0",
+    "inflected": "^2.1.0",
+    "json-format-highlight": "^1.0.4",
+    "jsoneditor": "^9.10.0",
+    "playwright": "^1.31.1",
+    "postcss": "^8.4.21",
+    "react": "^18.2.0",
+    "react-admin": "^4.8.1",
+    "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.4.0",
+    "react-router-dom": "^6.8.1",
+    "react-test-renderer": "^18.2.0",
+    "snazzy": "^9.0.0",
+    "standard": "^17.0.0",
+    "swagger-ui-react": "4.13.0",
+    "tailwindcss": "^3.2.7",
+    "vite": "^4.1.4",
+    "vitest": "^0.29.0"
+  },
+  "standard": {
+    "globals": [
+      "describe",
+      "context",
+      "before",
+      "beforeEach",
+      "after",
+      "afterEach",
+      "it",
+      "expect",
+      "test",
+      "screen"
+    ],
+    "ignore": [
+      "/build"
+    ]
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "@platformatic/db-core",
+  "version": "0.19.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "standard | snazzy && tap test/*test.js",
+    "lint": "standard | snazzy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/platformatic/platformatic.git"
+  },
+  "author": "Matteo Collina <hello@matteocollina.com>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/platformatic/platformatic/issues"
+  },
+  "homepage": "https://github.com/platformatic/platformatic#readme",
+  "devDependencies": {
+    "fastify": "^4.13.0",
+    "snazzy": "^9.0.0",
+    "standard": "^17.0.0",
+    "tap": "^16.3.4",
+    "why-is-node-running": "^2.2.2"
+  },
+  "dependencies": {
+    "@platformatic/sql-events": "workspace:*",
+    "@platformatic/sql-graphql": "workspace:*",
+    "@platformatic/sql-mapper": "workspace:*",
+    "@platformatic/sql-openapi": "workspace:*",
+    "fastify-plugin": "^4.5.0"
+  }
+}

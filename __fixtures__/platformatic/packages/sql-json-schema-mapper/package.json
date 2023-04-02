@@ -1,0 +1,32 @@
+{
+  "name": "@platformatic/sql-json-schema-mapper",
+  "version": "0.19.1",
+  "description": "Map SQL entity to JSON schema",
+  "main": "index.js",
+  "scripts": {
+    "lint": "standard | snazzy",
+    "test": "standard | snazzy && npm run test:postgresql && npm run test:mariadb && npm run test:mysql && npm run test:mysql8 && npm run test:sqlite",
+    "test:postgresql": "DB=postgresql tap test/*.test.js",
+    "test:mariadb": "DB=mariadb tap test/*.test.js",
+    "test:mysql": "DB=mysql tap test/*.test.js",
+    "test:mysql8": "DB=mysql8 tap test/*.test.js",
+    "test:sqlite": "DB=sqlite tap test/*.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/platformatic/platformatic.git"
+  },
+  "author": "Matteo Collina <hello@matteocollina.com>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/platformatic/platformatic/issues"
+  },
+  "homepage": "https://github.com/platformatic/platformatic#readme",
+  "devDependencies": {
+    "@platformatic/sql-mapper": "workspace:*",
+    "fastify": "^4.13.0",
+    "snazzy": "^9.0.0",
+    "standard": "^17.0.0",
+    "tap": "^16.3.4"
+  }
+}

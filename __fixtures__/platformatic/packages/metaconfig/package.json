@@ -1,0 +1,30 @@
+{
+  "name": "@platformatic/metaconfig",
+  "version": "0.19.1",
+  "main": "metaconfig.js",
+  "description": "Manage mulitple configuration versions at the same time",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/plaformatic/platformatic.git"
+  },
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/plaformatic/platformatic/issues"
+  },
+  "homepage": "https://github.com/plaformatic/platformatic#readme",
+  "scripts": {
+    "lint": "standard | snazzy",
+    "test": "tap test/*.js"
+  },
+  "devDependencies": {
+    "snazzy": "^9.0.0",
+    "standard": "^17.0.0",
+    "tap": "^16.3.4"
+  },
+  "dependencies": {
+    "@iarna/toml": "^2.2.5",
+    "json5": "^2.2.3",
+    "rfdc": "^1.3.0",
+    "yaml": "^2.2.1"
+  }
+}

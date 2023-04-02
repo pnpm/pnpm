@@ -1,0 +1,59 @@
+{
+  "name": "@platformatic/db-ra-data-rest",
+  "version": "0.19.1",
+  "description": "Platformatic DB React-Admin REST data provider",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/platformatic/platformatic.git"
+  },
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/platformatic/platformatic/issues"
+  },
+  "homepage": "https://github.com/platformatic/platformatic#readme",
+  "main": "dist/index.umd.js",
+  "module": "dist/index.es.js",
+  "sideEffects": false,
+  "files": [
+    "*.md",
+    "src"
+  ],
+  "scripts": {
+    "prepublish": "npm run build",
+    "build": "vite build",
+    "test": "standard | snazzy && vitest run --coverage",
+    "test:watch": "vitest watch",
+    "lint": "standard | snazzy"
+  },
+  "dependencies": {
+    "query-string": "^7.1.3",
+    "ra-core": "^4.8.1"
+  },
+  "devDependencies": {
+    "@vitest/coverage-c8": "^0.29.0",
+    "rimraf": "^4.1.2",
+    "snazzy": "^9.0.0",
+    "standard": "^17.0.0",
+    "vite": "^4.1.4",
+    "vitest": "^0.29.0",
+    "whatwg-fetch": "^3.6.2"
+  },
+  "standard": {
+    "globals": [
+      "describe",
+      "context",
+      "before",
+      "beforeEach",
+      "after",
+      "afterEach",
+      "it",
+      "expect",
+      "test",
+      "screen",
+      "Headers"
+    ],
+    "ignore": [
+      "/dist"
+    ]
+  }
+}

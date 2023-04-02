@@ -1,0 +1,32 @@
+{
+  "name": "@platformatic/authenticate",
+  "version": "0.19.1",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "author": "Platformatic.dev",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/platformatic/platformatic.git"
+  },
+  "bugs": {
+    "url": "https://github.com/platformatic/platformatic/issues"
+  },
+  "homepage": "https://github.com/platformatic/platformatic#readme",
+  "devDependencies": {
+    "c8": "^7.13.0",
+    "snazzy": "^9.0.0",
+    "standard": "^17.0.0",
+    "tap": "^16.3.4"
+  },
+  "dependencies": {
+    "@platformatic/config": "workspace:*",
+    "colorette": "^2.0.19",
+    "commist": "^3.2.0",
+    "es-main": "^1.2.0",
+    "minimist": "^1.2.8",
+    "open": "^8.4.2",
+    "undici": "^5.20.0"
+  }
+}

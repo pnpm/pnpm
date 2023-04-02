@@ -1,0 +1,45 @@
+{
+  "name": "@platformatic/sql-mapper",
+  "version": "0.19.1",
+  "description": "A data mapper utility for SQL databases",
+  "main": "mapper.js",
+  "scripts": {
+    "lint": "standard | snazzy",
+    "test": "standard | snazzy && npm run test:typescript && npm run test:postgresql && npm run test:mariadb && npm run test:mysql && npm run test:mysql8 && npm run test:sqlite",
+    "test:postgresql": "DB=postgresql tap test/*.test.js",
+    "test:mariadb": "DB=mariadb tap test/*.test.js",
+    "test:mysql": "DB=mysql tap test/*.test.js",
+    "test:mysql8": "DB=mysql8 tap test/*.test.js",
+    "test:sqlite": "DB=sqlite tap test/*.test.js",
+    "test:typescript": "tsd"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/platformatic/platformatic.git"
+  },
+  "author": "Matteo Collina <hello@matteocollina.com>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/platformatic/platformatic/issues"
+  },
+  "homepage": "https://github.com/platformatic/platformatic#readme",
+  "devDependencies": {
+    "fastify": "^4.13.0",
+    "snazzy": "^9.0.0",
+    "standard": "^17.0.0",
+    "tap": "^16.3.4",
+    "tsd": "^0.28.0"
+  },
+  "dependencies": {
+    "@databases/mysql": "^5.2.1",
+    "@databases/pg": "^5.4.1",
+    "@databases/sql": "^3.3.0",
+    "@databases/sqlite": "^4.0.2",
+    "camelcase": "^6.3.0",
+    "fastify-plugin": "^4.5.0",
+    "inflected": "^2.1.0"
+  },
+  "tsd": {
+    "directory": "test/types"
+  }
+}
