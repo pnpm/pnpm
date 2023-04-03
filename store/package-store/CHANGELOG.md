@@ -1,5 +1,11 @@
 # @pnpm/package-store
 
+## 16.0.1
+
+### Patch Changes
+
+- @pnpm/package-requester@21.0.1
+
 ## 16.0.0
 
 ### Major Changes

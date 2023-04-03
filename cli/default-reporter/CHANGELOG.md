@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 12.0.4
+
+### Patch Changes
+
+- af3e5559d: Should report error summary as expected.
+  - @pnpm/config@18.1.1
+
 ## 12.0.3
 
 ### Patch Changes

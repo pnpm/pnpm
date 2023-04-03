@@ -1,5 +1,12 @@
 # @pnpm/pnpmfile
 
+## 5.0.4
+
+### Patch Changes
+
+- Updated dependencies [c36c87c1c]
+  - @pnpm/core@9.1.1
+
 ## 5.0.3
 
 ### Patch Changes

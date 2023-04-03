@@ -1,5 +1,15 @@
 # pnpm
 
+## 8.1.1
+
+### Patch Changes
+
+- Repeat installation should work on a project that has a dependency with parentheses in the scope name [#6348](https://github.com/pnpm/pnpm/issues/6348).
+- Error summary should be reported as expected.
+- Update `@yarnpkg/shell` to fix issues in the shell emulator [#6320](https://github.com/pnpm/pnpm/issues/6320).
+- Installation should not fail when there is a local dependency in a directory that starts with the `@` character [#6332](https://github.com/pnpm/pnpm/issues/6332).
+- Registries are now passed to the `preResolution` hook.
+
 ## 8.1.0
 
 ### Minor Changes

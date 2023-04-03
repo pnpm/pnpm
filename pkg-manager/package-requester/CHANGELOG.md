@@ -1,5 +1,13 @@
 # @pnpm/package-requester
 
+## 21.0.1
+
+### Patch Changes
+
+- Updated dependencies [5087636b6]
+- Updated dependencies [94f94eed6]
+  - @pnpm/dependency-path@2.1.0
+
 ## 21.0.0
 
 ### Major Changes

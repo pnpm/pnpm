@@ -1,5 +1,22 @@
 # @pnpm/headless
 
+## 20.0.2
+
+### Patch Changes
+
+- Updated dependencies [5087636b6]
+- Updated dependencies [94f94eed6]
+- Updated dependencies [94f94eed6]
+  - @pnpm/dependency-path@2.1.0
+  - @pnpm/lockfile-file@8.0.1
+  - @pnpm/filter-lockfile@8.0.1
+  - @pnpm/lockfile-to-pnp@3.0.1
+  - @pnpm/lockfile-utils@6.0.1
+  - @pnpm/hoist@8.0.1
+  - @pnpm/modules-cleaner@14.0.1
+  - @pnpm/package-requester@21.0.1
+  - @pnpm/real-hoist@2.0.1
+
 ## 20.0.1
 
 ### Patch Changes

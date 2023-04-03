@@ -1,5 +1,27 @@
 # @pnpm/core
 
+## 9.1.1
+
+### Patch Changes
+
+- c36c87c1c: Registries are now passed to the preResolution hook.
+- Updated dependencies [5087636b6]
+- Updated dependencies [94f94eed6]
+- Updated dependencies [94f94eed6]
+  - @pnpm/dependency-path@2.1.0
+  - @pnpm/lockfile-file@8.0.1
+  - @pnpm/filter-lockfile@8.0.1
+  - @pnpm/lockfile-to-pnp@3.0.1
+  - @pnpm/lockfile-utils@6.0.1
+  - @pnpm/lockfile-walker@7.0.1
+  - @pnpm/prune-lockfile@5.0.1
+  - @pnpm/headless@20.0.2
+  - @pnpm/hoist@8.0.1
+  - @pnpm/modules-cleaner@14.0.1
+  - @pnpm/package-requester@21.0.1
+  - @pnpm/resolve-dependencies@31.0.3
+  - @pnpm/get-context@9.0.1
+
 ## 9.1.0
 
 ### Minor Changes

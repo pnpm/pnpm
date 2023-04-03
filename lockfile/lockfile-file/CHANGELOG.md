@@ -1,5 +1,15 @@
 # @pnpm/lockfile-file
 
+## 8.0.1
+
+### Patch Changes
+
+- 5087636b6: Repeat installation should work on a project that has a dependency with () chars in the scope name [#6348](https://github.com/pnpm/pnpm/issues/6348).
+- 94f94eed6: Installation should not fail when there is a local dependency that starts in a directory that starts with the `@` char [#6332](https://github.com/pnpm/pnpm/issues/6332).
+- Updated dependencies [5087636b6]
+- Updated dependencies [94f94eed6]
+  - @pnpm/dependency-path@2.1.0
+
 ## 8.0.0
 
 ### Major Changes

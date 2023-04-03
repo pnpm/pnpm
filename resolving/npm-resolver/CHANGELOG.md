@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 16.0.2
+
+### Patch Changes
+
+- ef6c22e12: Improve performance of clean install by preconverting and caching semver objects
+
 ## 16.0.1
 
 ### Patch Changes

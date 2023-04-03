@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-store
 
+## 7.0.4
+
+### Patch Changes
+
+- Updated dependencies [5087636b6]
+- Updated dependencies [94f94eed6]
+  - @pnpm/dependency-path@2.1.0
+  - @pnpm/lockfile-utils@6.0.1
+  - @pnpm/get-context@9.0.1
+  - @pnpm/cli-utils@2.0.4
+  - @pnpm/config@18.1.1
+  - @pnpm/store-connection-manager@6.0.4
+
 ## 7.0.3
 
 ### Patch Changes

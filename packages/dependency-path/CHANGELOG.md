@@ -1,5 +1,15 @@
 # @pnpm/dependency-path
 
+## 2.1.0
+
+### Minor Changes
+
+- 94f94eed6: Export `indexOfPeersSuffix`.
+
+### Patch Changes
+
+- 5087636b6: Repeat installation should work on a project that has a dependency with () chars in the scope name [#6348](https://github.com/pnpm/pnpm/issues/6348).
+
 ## 2.0.0
 
 ### Major Changes

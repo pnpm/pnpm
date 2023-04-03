@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 18.1.1
+
+### Patch Changes
+
+- @pnpm/pnpmfile@5.0.4
+
 ## 18.1.0
 
 ### Minor Changes
