@@ -572,7 +572,7 @@ ${formatError('ERROR', 'f failed')}`)
   })
 
   const err = new PnpmError('RECURSIVE_FAIL', '...')
-  err['fails'] = [
+  err['failures'] = [
     {
       message: 'a failed',
       prefix: '/a',

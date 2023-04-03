@@ -258,10 +258,10 @@ function reportLockfileBreakingChange (err: Error, msg: object) {
   }
 }
 
-function formatRecursiveCommandSummary (msg: { fails: Array<Error & { prefix: string }>, passes: number }) {
-  const output = EOL + `Summary: ${chalk.red(`${msg.fails.length} fails`)}, ${msg.passes} passes` + EOL + EOL +
-    msg.fails.map((fail) => {
-      return fail.prefix + ':' + EOL + formatErrorSummary(fail.message)
+function formatRecursiveCommandSummary (msg: { failures: Array<Error & { prefix: string }>, passes: number }) {
+  const output = EOL + `Summary: ${chalk.red(`${msg.failures.length} fails`)}, ${msg.passes} passes` + EOL + EOL +
+    msg.failures.map(({ message, prefix }) => {
+      return prefix + ':' + EOL + formatErrorSummary(message)
     }).join(EOL + EOL)
   return {
     title: '',
