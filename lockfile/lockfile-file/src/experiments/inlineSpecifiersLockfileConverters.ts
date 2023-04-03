@@ -162,6 +162,7 @@ export function revertFromInlineSpecifiersFormat (lockfile: InlineSpecifiersLock
 export function convertNewDepPathToOldDepPath (oldDepPath: string) {
   if (!oldDepPath.includes('@', 2)) return oldDepPath
   const index = oldDepPath.indexOf('@', oldDepPath.indexOf('/@') + 2)
+  if (oldDepPath.includes('(') && index > oldDepPath.search(/\([^)]+\)+$/)) return oldDepPath
   return `${oldDepPath.substring(0, index)}/${oldDepPath.substring(index + 1)}`
 }
 
