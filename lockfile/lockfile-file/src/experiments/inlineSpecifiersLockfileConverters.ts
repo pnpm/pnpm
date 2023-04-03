@@ -140,7 +140,7 @@ export function revertFromInlineSpecifiersFormat (lockfile: InlineSpecifiersLock
           if (newSnapshot.optionalDependencies != null) {
             newSnapshot.optionalDependencies = mapValues(newSnapshot.optionalDependencies, convertNewRefToOldRef)
           }
-          return [convertNewDepPathToOldDepPath(depPath), newSnapshot]
+          return [convertLockfileV6DepPathToV5DepPath(depPath), newSnapshot]
         })
     )
   }
@@ -153,17 +153,19 @@ export function revertFromInlineSpecifiersFormat (lockfile: InlineSpecifiersLock
   if (originalVersion === 6 && newLockfile.time) {
     newLockfile.time = Object.fromEntries(
       Object.entries(newLockfile.time)
-        .map(([depPath, time]) => [convertNewDepPathToOldDepPath(depPath), time])
+        .map(([depPath, time]) => [convertLockfileV6DepPathToV5DepPath(depPath), time])
     )
   }
   return newLockfile
 }
 
-export function convertNewDepPathToOldDepPath (oldDepPath: string) {
-  if (!oldDepPath.includes('@', 2)) return oldDepPath
-  const index = oldDepPath.indexOf('@', oldDepPath.indexOf('/@') + 2)
-  if (oldDepPath.includes('(') && index > oldDepPath.indexOf('(')) return oldDepPath
-  return `${oldDepPath.substring(0, index)}/${oldDepPath.substring(index + 1)}`
+const PEERS_SUFFIX_REGEX = /(\([^)]+\))+$/
+
+export function convertLockfileV6DepPathToV5DepPath (newDepPath: string) {
+  if (!newDepPath.includes('@', 2)) return newDepPath
+  const index = newDepPath.indexOf('@', newDepPath.indexOf('/@') + 2)
+  if (newDepPath.includes('(') && index > newDepPath.search(PEERS_SUFFIX_REGEX)) return newDepPath
+  return `${newDepPath.substring(0, index)}/${newDepPath.substring(index + 1)}`
 }
 
 function convertNewRefToOldRef (oldRef: string) {
@@ -171,7 +173,7 @@ function convertNewRefToOldRef (oldRef: string) {
     return oldRef
   }
   if (oldRef.includes('@')) {
-    return convertNewDepPathToOldDepPath(oldRef)
+    return convertLockfileV6DepPathToV5DepPath(oldRef)
   }
   return oldRef
 }

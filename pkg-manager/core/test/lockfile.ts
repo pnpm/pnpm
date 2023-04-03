@@ -1596,3 +1596,10 @@ test('lockfile is not written when it has no changes', async () => {
   await install(manifest, await testDefaults())
   expect(await fs.stat(WANTED_LOCKFILE)).toHaveProperty('mtimeMs', initialMtime)
 })
+
+test('installation should work with packages that have () in the scope name', async () => {
+  prepareEmpty()
+  const opts = await testDefaults()
+  const manifest = await addDependenciesToPackage({}, ['@(-.-)/env@0.3.1'], opts)
+  await install(manifest, opts)
+})
