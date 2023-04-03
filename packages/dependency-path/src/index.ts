@@ -26,13 +26,15 @@ export function resolve (
   return resolutionLocation
 }
 
+const PEERS_SUFFIX_REGEX = /(\([^)]+\))+$/
+
 export function tryGetPackageId (registries: Registries, relDepPath: string) {
   if (relDepPath[0] !== '/') {
     return null
   }
   const sepIndex = relDepPath.indexOf('(')
-  if (sepIndex !== -1) {
-    return resolve(registries, relDepPath.slice(0, sepIndex))
+  if (sepIndex !== -1 && relDepPath.search(PEERS_SUFFIX_REGEX) !== -1) {
+    return resolve(registries, relDepPath.replace(PEERS_SUFFIX_REGEX, ''))
   }
   const underscoreIndex = relDepPath.indexOf('_', relDepPath.lastIndexOf('/'))
   if (underscoreIndex !== -1) {

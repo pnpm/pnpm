@@ -1,4 +1,5 @@
 ---
+"@pnpm/dependency-path": patch
 "@pnpm/lockfile-file": patch
 "pnpm": patch
 ---
