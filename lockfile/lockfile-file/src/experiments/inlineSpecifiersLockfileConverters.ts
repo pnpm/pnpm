@@ -159,10 +159,12 @@ export function revertFromInlineSpecifiersFormat (lockfile: InlineSpecifiersLock
   return newLockfile
 }
 
+const PEERS_SUFFIX_REGEX = /(\([^)]+\))+$/
+
 export function convertLockfileV6DepPathToV5DepPath (newDepPath: string) {
   if (!newDepPath.includes('@', 2)) return newDepPath
   const index = newDepPath.indexOf('@', newDepPath.indexOf('/@') + 2)
-  if (newDepPath.includes('(') && index > newDepPath.search(/(\([^)]+\))+$/)) return newDepPath
+  if (newDepPath.includes('(') && index > newDepPath.search(PEERS_SUFFIX_REGEX)) return newDepPath
   return `${newDepPath.substring(0, index)}/${newDepPath.substring(index + 1)}`
 }
 
