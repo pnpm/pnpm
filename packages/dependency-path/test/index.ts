@@ -180,4 +180,5 @@ test('depPathToFilename()', () => {
 test('tryGetPackageId', () => {
   expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/foo/1.0.0_@types+babel__core@7.1.14')).toEqual('registry.npmjs.org/foo/1.0.0')
   expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/foo/1.0.0(@types/babel__core@7.1.14)')).toEqual('registry.npmjs.org/foo/1.0.0')
+  expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/@(-.-)/foo/1.0.0(@types/babel__core@7.1.14)')).toEqual('registry.npmjs.org/@(-.-)/foo/1.0.0')
 })
