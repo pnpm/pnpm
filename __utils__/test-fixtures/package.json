@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@pnpm/prepare": "workspace:*",
-    "fs-extra": "^11.1.0"
+    "fs-extra": "^11.1.1"
   },
   "devDependencies": {
     "@pnpm/test-fixtures": "workspace:*",
