@@ -1,0 +1,13 @@
+diff --git a/graceful-fs.js b/graceful-fs.js
+index 8d5b89e4fa7fdbaebf58556cc044d2a912bce5de..d09757f19e32ba534453832abb8afe05ebaff94d 100644
+--- a/graceful-fs.js
++++ b/graceful-fs.js
+@@ -179,7 +179,7 @@ function patch (fs) {
+ 
+     function go$copyFile (src, dest, flags, cb, startTime) {
+       return fs$copyFile(src, dest, flags, function (err) {
+-        if (err && (err.code === 'EMFILE' || err.code === 'ENFILE'))
++        if (err && (err.code === 'EMFILE' || err.code === 'ENFILE' || err.code === 'EBUSY'))
+           enqueue([go$copyFile, [src, dest, flags, cb], err, startTime || Date.now(), Date.now()])
+         else {
+           if (typeof cb === 'function')
