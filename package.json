@@ -126,7 +126,8 @@
       ]
     },
     "patchedDependencies": {
-      "pkg@5.7.0": "__patches__/pkg@5.7.0.patch"
+      "pkg@5.7.0": "__patches__/pkg@5.7.0.patch",
+      "graceful-fs@4.2.11": "__patches__/graceful-fs@4.2.11.patch"
     },
     "updateConfig": {
       "ignoreDependencies": [
