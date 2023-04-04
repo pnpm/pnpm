@@ -1,5 +1,19 @@
 # pnpm
 
+## 7.31.0
+
+### Minor Changes
+
+- Add `ignore-workspace-cycles` to silence workspace cycle warning [#6308](https://github.com/pnpm/pnpm/pull/6308).
+
+### Patch Changes
+
+- Registries are now passed to the preResolution hook.
+- Repeat installation should work on a project that has a dependency with () chars in the scope name [#6348](https://github.com/pnpm/pnpm/issues/6348).
+- Should report error summary as expected.
+- Update `@yarnpkg/shell` to fix issues in the shell emulator [#6320](https://github.com/pnpm/pnpm/issues/6320).
+- Installation should not fail when there is a local dependency that starts in a directory that starts with the `@` char [#6332](https://github.com/pnpm/pnpm/issues/6332).
+
 ## 7.30.5
 
 ### Patch Changes
