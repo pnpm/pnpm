@@ -1070,7 +1070,7 @@ test('lockfile is not getting broken if the used registry changes', async () => 
   ])
 })
 
-test('When using a different registry, add -g to the error report according to options.global', async () => {
+test('when using a different registry, add -g to the error report according to options.global', async () => {
   prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['is-positive@1'], await testDefaults())
