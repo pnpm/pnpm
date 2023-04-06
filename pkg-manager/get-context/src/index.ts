@@ -93,6 +93,7 @@ export interface GetContextOptions {
 
   publicHoistPattern?: string[] | undefined
   forcePublicHoistPattern?: boolean
+  global?: boolean
 }
 
 export async function getContext (
@@ -119,6 +120,7 @@ export async function getContext (
 
       forcePublicHoistPattern: opts.forcePublicHoistPattern,
       publicHoistPattern: opts.publicHoistPattern,
+      global: opts.global,
     })
     if (purged) {
       importersContext = await readProjectsContext(opts.allProjects, {
@@ -215,6 +217,7 @@ async function validateModules (
 
     publicHoistPattern?: string[] | undefined
     forcePublicHoistPattern?: boolean
+    global?: boolean
   }
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
@@ -278,7 +281,7 @@ async function validateModules (
       await Promise.all(projects.map(purgeModulesDirsOfImporter.bind(null, opts.virtualStoreDir)))
       return { purged: true }
     }
-    throw new PnpmError('REGISTRIES_MISMATCH', `This modules directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}. To recreate the modules directory using the new settings, run "pnpm install".`)
+    throw new PnpmError('REGISTRIES_MISMATCH', `This modules directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}. To recreate the modules directory using the new settings, run "pnpm install${opts.global ? ' -g' : ''}".`)
   }
   if (purged && (rootProject == null)) {
     await purgeModulesDirsOfImporter(opts.virtualStoreDir, {
