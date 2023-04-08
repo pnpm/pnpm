@@ -56,7 +56,7 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
-import { type DependencyManifest, type HoistedDependencies, type ProjectManifest, type Registries } from '@pnpm/types'
+import { type DependencyManifest, type HoistedDependencies, type ProjectManifest, type Registries, DEPENDENCIES_FIELDS } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
@@ -104,6 +104,7 @@ export interface HeadlessOptions {
   dedupeDirectDeps?: boolean
   enablePnp?: boolean
   engineStrict: boolean
+  excludeLinksFromLockfile?: boolean
   extraBinPaths?: string[]
   extraEnv?: Record<string, string>
   extraNodePaths?: string[]
@@ -184,8 +185,12 @@ export async function headlessInstall (opts: HeadlessOptions) {
   const selectedProjects = Object.values(pick(opts.selectedProjectDirs, opts.allProjects))
 
   if (!opts.ignorePackageManifest) {
+    const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
+      autoInstallPeers: opts.autoInstallPeers,
+      excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+    })
     for (const { id, manifest, rootDir } of selectedProjects) {
-      if (!satisfiesPackageManifest(wantedLockfile, manifest, id, { autoInstallPeers: opts.autoInstallPeers })) {
+      if (!_satisfiesPackageManifest(wantedLockfile.importers[id], manifest)) {
         throw new PnpmError('OUTDATED_LOCKFILE',
           `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ` +
           path.relative(lockfileDir, path.join(rootDir, 'package.json')), {
@@ -260,6 +265,22 @@ export async function headlessInstall (opts: HeadlessOptions) {
     includeIncompatiblePackages: opts.force,
     lockfileDir,
   })
+  if (opts.excludeLinksFromLockfile) {
+    for (const { id, manifest } of selectedProjects) {
+      if (filteredLockfile.importers[id]) {
+        for (const depType of DEPENDENCIES_FIELDS) {
+          for (const [depName, spec] of Object.entries(manifest[depType] ?? {})) {
+            if (spec.startsWith('link:')) {
+              if (!filteredLockfile.importers[id][depType]) {
+                filteredLockfile.importers[id][depType] = {}
+              }
+              filteredLockfile.importers[id][depType]![depName] = spec
+            }
+          }
+        }
+      }
+    }
+  }
 
   // Update selectedProjects to add missing projects. importerIds will have the updated ids, found from deeply linked workspace projects
   const initialImporterIdSet = new Set(initialImporterIds)
