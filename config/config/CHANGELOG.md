@@ -1,5 +1,16 @@
 # @pnpm/config
 
+## 18.2.0
+
+### Minor Changes
+
+- fc8780ca9: Allow env variables to be specified with default values in `.npmrc`. This is a convention used by Yarn too.
+  Using `${NAME-fallback}` will return `fallback` if `NAME` isn't set. `${NAME:-fallback}` will return `fallback` if `NAME` isn't set, or is an empty string [#6018](https://github.com/pnpm/pnpm/issues/6018).
+
+### Patch Changes
+
+- @pnpm/pnpmfile@5.0.5
+
 ## 18.1.1
 
 ### Patch Changes

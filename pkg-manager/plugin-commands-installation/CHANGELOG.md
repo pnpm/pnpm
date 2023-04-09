@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-installation
 
+## 12.1.2
+
+### Patch Changes
+
+- e440d784f: Update yarn dependencies.
+- Updated dependencies [fc8780ca9]
+- Updated dependencies [080fee0b8]
+- Updated dependencies [72ba638e3]
+  - @pnpm/config@18.2.0
+  - @pnpm/core@9.2.0
+  - @pnpm/plugin-commands-rebuild@8.0.5
+  - @pnpm/outdated@12.0.3
+  - @pnpm/cli-utils@2.0.5
+  - @pnpm/store-connection-manager@6.0.5
+  - @pnpm/pnpmfile@5.0.5
+  - @pnpm/find-workspace-packages@6.0.5
+  - @pnpm/filter-workspace-packages@7.0.5
+
 ## 12.1.1
 
 ### Patch Changes

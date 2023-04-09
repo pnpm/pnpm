@@ -1,5 +1,22 @@
 # @pnpm/headless
 
+## 20.1.0
+
+### Minor Changes
+
+- 72ba638e3: When `excludeLinksFromLockfile` is set to `true`, linked dependencies are not added to the lockfile.
+
+### Patch Changes
+
+- Updated dependencies [72ba638e3]
+- Updated dependencies [e440d784f]
+  - @pnpm/lockfile-utils@7.0.0
+  - @pnpm/real-hoist@2.0.2
+  - @pnpm/filter-lockfile@8.0.2
+  - @pnpm/lockfile-to-pnp@3.0.2
+  - @pnpm/hoist@8.0.2
+  - @pnpm/modules-cleaner@14.0.2
+
 ## 20.0.2
 
 ### Patch Changes

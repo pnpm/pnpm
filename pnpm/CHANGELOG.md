@@ -1,5 +1,16 @@
 # pnpm
 
+## 8.2.0
+
+### Minor Changes
+
+- Allow env variables to be specified with default values in `.npmrc`. This is a convention used by Yarn too.
+  Using `${NAME-fallback}` will return `fallback` if `NAME` isn't set. `${NAME:-fallback}` will return `fallback` if `NAME` isn't set, or is an empty string [#6018](https://github.com/pnpm/pnpm/issues/6018).
+
+### Patch Changes
+
+- Add `-g` to mismatch registries error info when original command has `-g` option [#6224](https://github.com/pnpm/pnpm/issues/6224).
+
 ## 8.1.1
 
 ### Patch Changes

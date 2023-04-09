@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-listing
 
+## 7.0.5
+
+### Patch Changes
+
+- Updated dependencies [fc8780ca9]
+  - @pnpm/config@18.2.0
+  - @pnpm/cli-utils@2.0.5
+  - @pnpm/list@9.0.2
+
 ## 7.0.4
 
 ### Patch Changes

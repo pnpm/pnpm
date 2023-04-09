@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 7.0.0
+
+### Major Changes
+
+- 72ba638e3: Breaking changes to the API of `satisfiesPackageManifest`.
+
 ## 6.0.1
 
 ### Patch Changes

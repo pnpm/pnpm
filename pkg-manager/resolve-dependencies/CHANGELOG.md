@@ -1,5 +1,18 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.0
+
+### Minor Changes
+
+- 72ba638e3: When `excludeLinksFromLockfile` is set to `true`, linked dependencies are not added to the lockfile.
+
+### Patch Changes
+
+- e440d784f: Update yarn dependencies.
+- d52c6d751: Don't print an info message about linked dependencies if they are real linked dependencies specified via the `link:` protocol in `package.json`.
+- Updated dependencies [72ba638e3]
+  - @pnpm/lockfile-utils@7.0.0
+
 ## 31.0.3
 
 ### Patch Changes

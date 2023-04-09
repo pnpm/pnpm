@@ -1,5 +1,11 @@
 # @pnpm/get-context
 
+## 9.0.2
+
+### Patch Changes
+
+- 080fee0b8: Add -g to mismatch registries error info when original command has -g option [#6224](https://github.com/pnpm/pnpm/issues/6224).
+
 ## 9.0.1
 
 ### Patch Changes

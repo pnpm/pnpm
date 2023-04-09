@@ -1,5 +1,12 @@
 # @pnpm/outdated
 
+## 12.0.3
+
+### Patch Changes
+
+- Updated dependencies [72ba638e3]
+  - @pnpm/lockfile-utils@7.0.0
+
 ## 12.0.2
 
 ### Patch Changes

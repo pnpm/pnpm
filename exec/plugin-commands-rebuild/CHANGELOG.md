@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-rebuild
 
+## 8.0.5
+
+### Patch Changes
+
+- Updated dependencies [72ba638e3]
+- Updated dependencies [fc8780ca9]
+- Updated dependencies [080fee0b8]
+  - @pnpm/lockfile-utils@7.0.0
+  - @pnpm/config@18.2.0
+  - @pnpm/get-context@9.0.2
+  - @pnpm/cli-utils@2.0.5
+  - @pnpm/store-connection-manager@6.0.5
+  - @pnpm/find-workspace-packages@6.0.5
+
 ## 8.0.4
 
 ### Patch Changes

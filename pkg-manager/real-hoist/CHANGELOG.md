@@ -1,5 +1,13 @@
 # @pnpm/real-hoist
 
+## 2.0.2
+
+### Patch Changes
+
+- e440d784f: Update yarn dependencies.
+- Updated dependencies [72ba638e3]
+  - @pnpm/lockfile-utils@7.0.0
+
 ## 2.0.1
 
 ### Patch Changes

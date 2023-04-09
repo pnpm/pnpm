@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-config
 
+## 2.0.5
+
+### Patch Changes
+
+- bb287272a: `pnpm config get <key>` returns empty when the value is a boolean
+- Updated dependencies [fc8780ca9]
+  - @pnpm/config@18.2.0
+  - @pnpm/cli-utils@2.0.5
+
 ## 2.0.4
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-patching
 
+## 3.0.5
+
+### Patch Changes
+
+- Updated dependencies [72ba638e3]
+- Updated dependencies [e440d784f]
+- Updated dependencies [fc8780ca9]
+  - @pnpm/lockfile-utils@7.0.0
+  - @pnpm/plugin-commands-installation@12.1.2
+  - @pnpm/config@18.2.0
+  - @pnpm/cli-utils@2.0.5
+  - @pnpm/store-connection-manager@6.0.5
+
 ## 3.0.4
 
 ### Patch Changes

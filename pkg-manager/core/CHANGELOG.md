@@ -1,5 +1,28 @@
 # @pnpm/core
 
+## 9.2.0
+
+### Minor Changes
+
+- 72ba638e3: When `excludeLinksFromLockfile` is set to `true`, linked dependencies are not added to the lockfile.
+
+### Patch Changes
+
+- 080fee0b8: Add -g to mismatch registries error info when original command has -g option [#6224](https://github.com/pnpm/pnpm/issues/6224).
+- Updated dependencies [72ba638e3]
+- Updated dependencies [e440d784f]
+- Updated dependencies [d52c6d751]
+- Updated dependencies [080fee0b8]
+- Updated dependencies [72ba638e3]
+  - @pnpm/lockfile-utils@7.0.0
+  - @pnpm/resolve-dependencies@31.1.0
+  - @pnpm/get-context@9.0.2
+  - @pnpm/headless@20.1.0
+  - @pnpm/filter-lockfile@8.0.2
+  - @pnpm/lockfile-to-pnp@3.0.2
+  - @pnpm/hoist@8.0.2
+  - @pnpm/modules-cleaner@14.0.2
+
 ## 9.1.1
 
 ### Patch Changes

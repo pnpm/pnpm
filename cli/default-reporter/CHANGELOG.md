@@ -1,5 +1,16 @@
 # @pnpm/default-reporter
 
+## 12.1.0
+
+### Minor Changes
+
+- 6cfaf31a1: In order to filter out packages from the installation summary, a filter function may be passed to the reporter: filterPkgsDiff.
+
+### Patch Changes
+
+- Updated dependencies [fc8780ca9]
+  - @pnpm/config@18.2.0
+
 ## 12.0.4
 
 ### Patch Changes
