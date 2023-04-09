@@ -35,7 +35,7 @@ const h1 = chalk.cyanBright
 
 const EOL = '\n'
 
-test.only('prints summary (of current package only)', (done) => {
+test('prints summary (of current package only)', (done) => {
   const prefix = '/home/jane/project'
   const output$ = toOutput$({
     context: {
@@ -225,6 +225,68 @@ ${ADD} qar ${versionColor('2.0.0')}
 
 ${h1('node_modules:')}
 ${ADD} is-linked2 ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked2')}`)}
+`)
+    },
+  })
+})
+
+test('prints summary without the filtered out entries', (done) => {
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: {
+        dir: prefix,
+      } as Config,
+    },
+    streamParser: createStreamParser(),
+    filterPkgsDiff: (diff) => diff.name !== 'bar',
+  })
+
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/foo/1.0.0',
+      latest: '2.0.0',
+      name: 'foo',
+      realName: 'foo',
+      version: '1.0.0',
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      id: 'registry.npmjs.org/bar/2.0.0',
+      latest: '1.0.0', // this won't be printed in summary because latest is less than current version
+      name: 'bar',
+      realName: 'bar',
+      version: '2.0.0',
+    },
+    prefix,
+  })
+  packageManifestLogger.debug({
+    prefix,
+    updated: {
+      dependencies: {
+        'is-negative': '^1.0.0',
+      },
+      devDependencies: {
+        'is-13': '^1.0.0',
+      },
+    },
+  })
+  summaryLogger.debug({ prefix })
+
+  expect.assertions(1)
+
+  output$.pipe(take(1), map(normalizeNewline)).subscribe({
+    complete: () => done(),
+    error: done,
+    next: output => {
+      expect(output).toBe(EOL + `\
+${h1('dependencies:')}
+${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
 `)
     },
   })
