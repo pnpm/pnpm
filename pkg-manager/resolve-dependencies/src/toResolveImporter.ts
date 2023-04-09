@@ -100,11 +100,13 @@ async function partitionLinkedPackages (
       nonLinkedDependencies.push(dependency)
       continue
     }
-    // This info-log might be better to be moved to the reporter
-    logger.info({
-      message: `${dependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
-      prefix: opts.projectDir,
-    })
+    if (!dependency.pref.startsWith('link:')) {
+      // This info-log might be better to be moved to the reporter
+      logger.info({
+        message: `${dependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
+        prefix: opts.projectDir,
+      })
+    }
     linkedAliases.add(dependency.alias)
   }
   return nonLinkedDependencies
