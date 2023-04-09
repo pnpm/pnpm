@@ -17,7 +17,7 @@ import { reportRequestRetry } from './reportRequestRetry'
 import { reportScope } from './reportScope'
 import { reportSkippedOptionalDependencies } from './reportSkippedOptionalDependencies'
 import { reportStats } from './reportStats'
-import { reportSummary } from './reportSummary'
+import { reportSummary, type FilterPkgsDiff } from './reportSummary'
 import { reportUpdateCheck } from './reportUpdateCheck'
 
 const PRINT_EXECUTION_TIME_IN_COMMANDS = {
@@ -57,6 +57,7 @@ export function reporterForClient (
     cmd: string
     config?: Config
     env: NodeJS.ProcessEnv
+    filterPkgsDiff?: FilterPkgsDiff
     process: NodeJS.Process
     isRecursive: boolean
     logLevel?: LogLevel
@@ -139,6 +140,7 @@ export function reporterForClient (
     outputs.push(reportSummary(log$, {
       cwd,
       env: opts.env,
+      filterPkgsDiff: opts.filterPkgsDiff,
       pnpmConfig: opts.pnpmConfig,
     }))
   }

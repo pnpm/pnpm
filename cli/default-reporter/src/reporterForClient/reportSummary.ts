@@ -37,12 +37,14 @@ export function reportSummary (
   opts: {
     cwd: string
     env: NodeJS.ProcessEnv
+    filterPkgsDiff?: FilterPkgsDiff
     pnpmConfig?: Config
   }
 ) {
   const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
 
   const summaryLog$ = log$.summary.pipe(take(1))
+  const _printDiffs = printDiffs.bind(null, { prefix: opts.cwd, filterPkgsDiff: opts.filterPkgsDiff })
 
   return Rx.combineLatest(
     pkgsDiff$,
@@ -62,7 +64,7 @@ export function reportSummary (
               msg += chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)
             }
             msg += EOL
-            msg += printDiffs(diffs, { prefix: opts.cwd })
+            msg += _printDiffs(diffs)
             msg += EOL
           } else if (opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
             msg += EOL
@@ -78,12 +80,20 @@ export function reportSummary (
     )
 }
 
+export type FilterPkgsDiff = (pkgsDiff: PackageDiff) => boolean
+
 function printDiffs (
-  pkgsDiff: PackageDiff[],
   opts: {
     prefix: string
-  }
+    filterPkgsDiff?: FilterPkgsDiff
+  },
+  pkgsDiff: PackageDiff[]
 ) {
+  // This filtering is only used by Bit CLI currently.
+  // Related PR: https://github.com/teambit/bit/pull/7176
+  if (opts.filterPkgsDiff) {
+    pkgsDiff = pkgsDiff.filter((pkgDiff) => opts.filterPkgsDiff!(pkgDiff))
+  }
   // Sorts by alphabet then by removed/added
   // + ava 0.10.0
   // - chalk 1.0.0

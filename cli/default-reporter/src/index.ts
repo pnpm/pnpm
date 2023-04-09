@@ -9,6 +9,7 @@ import { mergeOutputs } from './mergeOutputs'
 import { reporterForClient } from './reporterForClient'
 import { formatWarn } from './reporterForClient/utils/formatWarn'
 import { reporterForServer } from './reporterForServer'
+import { type FilterPkgsDiff } from './reporterForClient/reportSummary'
 
 export { formatWarn }
 
@@ -30,6 +31,7 @@ export function initDefaultReporter (
       env?: NodeJS.ProcessEnv
       process?: NodeJS.Process
     }
+    filterPkgsDiff?: FilterPkgsDiff
   }
 ): () => void {
   if (opts.context.argv[0] === 'server') {
@@ -108,6 +110,7 @@ export function toOutput$ (
       env?: NodeJS.ProcessEnv
       process?: NodeJS.Process
     }
+    filterPkgsDiff?: FilterPkgsDiff
   }
 ): Rx.Observable<string> {
   opts = opts || {}
@@ -247,6 +250,7 @@ export function toOutput$ (
       cmd: opts.context.argv[0],
       config: opts.context.config,
       env: opts.context.env ?? process.env,
+      filterPkgsDiff: opts.filterPkgsDiff,
       process: opts.context.process ?? process,
       isRecursive: opts.context.config?.['recursive'] === true,
       logLevel: opts.reportingOptions?.logLevel,
