@@ -1,5 +1,18 @@
 # pnpm
 
+## 7.32.0
+
+### Minor Changes
+
+- Allow env variables to be specified with default values in `.npmrc`. This is a convention used by Yarn too.
+  Using `${NAME-fallback}` will return `fallback` if `NAME` isn't set. `${NAME:-fallback}` will return `fallback` if `NAME` isn't set, or is an empty string [#6018](https://github.com/pnpm/pnpm/issues/6018).
+
+### Patch Changes
+
+- `pnpm config get <key>` returns empty when the value is a boolean
+- Don't print an info message about linked dependencies if they are real linked dependencies specified via the `link:` protocol in `package.json`.
+- Add -g to mismatch registries error info when original command has -g option [#6224](https://github.com/pnpm/pnpm/issues/6224).
+
 ## 7.31.0
 
 ### Minor Changes
