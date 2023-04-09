@@ -1,20 +1,22 @@
-import { type Lockfile } from '@pnpm/lockfile-types'
+import { type ProjectSnapshot } from '@pnpm/lockfile-types'
 import {
   DEPENDENCIES_FIELDS,
   type ProjectManifest,
 } from '@pnpm/types'
 import equals from 'ramda/src/equals'
+import pickBy from 'ramda/src/pickBy'
 import omit from 'ramda/src/omit'
 
 export function satisfiesPackageManifest (
-  lockfile: Lockfile,
-  pkg: ProjectManifest,
-  importerId: string,
-  opts?: { autoInstallPeers?: boolean }
+  opts: {
+    autoInstallPeers?: boolean
+    excludeLinksFromLockfile?: boolean
+  },
+  importer: ProjectSnapshot | undefined,
+  pkg: ProjectManifest
 ) {
-  const importer = lockfile.importers[importerId]
   if (!importer) return false
-  let existingDeps = { ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }
+  let existingDeps: Record<string, string> = { ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }
   if (opts?.autoInstallPeers) {
     pkg = {
       ...pkg,
@@ -28,6 +30,10 @@ export function satisfiesPackageManifest (
       ...existingDeps,
     }
   }
+  const pickNonLinkedDeps = pickBy((spec) => !spec.startsWith('link:'))
+  if (opts?.excludeLinksFromLockfile) {
+    existingDeps = pickNonLinkedDeps(existingDeps)
+  }
   if (
     !equals(existingDeps, importer.specifiers) ||
     importer.publishDirectory !== pkg.publishConfig?.directory
@@ -37,7 +43,10 @@ export function satisfiesPackageManifest (
   if (!equals(pkg.dependenciesMeta ?? {}, importer.dependenciesMeta ?? {})) return false
   for (const depField of DEPENDENCIES_FIELDS) {
     const importerDeps = importer[depField] ?? {}
-    const pkgDeps = pkg[depField] ?? {}
+    let pkgDeps: Record<string, string> = pkg[depField] ?? {}
+    if (opts?.excludeLinksFromLockfile) {
+      pkgDeps = pickNonLinkedDeps(pkgDeps)
+    }
 
     let pkgDepNames!: string[]
     switch (depField) {

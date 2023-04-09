@@ -33,6 +33,7 @@ test('allProjectsAreUpToDate(): works with packages linked through the workspace
     },
   ], {
     autoInstallPeers: false,
+    excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {
       importers: {
@@ -74,6 +75,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies', async ()
     },
   ], {
     autoInstallPeers: false,
+    excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {
       importers: {
@@ -115,6 +117,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies that speci
     },
   ], {
     autoInstallPeers: false,
+    excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {
       importers: {
@@ -156,6 +159,7 @@ test('allProjectsAreUpToDate(): returns false if the aliased dependency version 
     },
   ], {
     autoInstallPeers: false,
+    excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {
       importers: {
@@ -230,6 +234,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
       ],
       {
         autoInstallPeers: false,
+        excludeLinksFromLockfile: false,
         linkWorkspacePackages: false,
         wantedLockfile: {
           importers: {
@@ -296,6 +301,7 @@ test('allProjectsAreUpToDate(): returns false if dependenciesMeta differs', asyn
     },
   ], {
     autoInstallPeers: false,
+    excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {
       importers: {
@@ -342,6 +348,7 @@ test('allProjectsAreUpToDate(): returns true if dependenciesMeta matches', async
     },
   ], {
     autoInstallPeers: false,
+    excludeLinksFromLockfile: false,
     linkWorkspacePackages: true,
     wantedLockfile: {
       importers: {

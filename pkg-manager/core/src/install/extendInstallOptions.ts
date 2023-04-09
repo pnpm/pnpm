@@ -120,6 +120,7 @@ export interface StrictInstallOptions {
   dedupeDirectDeps: boolean
   dedupePeerDependents: boolean
   extendNodePath: boolean
+  excludeLinksFromLockfile: boolean
 }
 
 export type InstallOptions =
@@ -207,6 +208,7 @@ const defaults = async (opts: InstallOptions) => {
     resolvePeersFromWorkspaceRoot: true,
     extendNodePath: true,
     ignoreWorkspaceCycles: false,
+    excludeLinksFromLockfile: false,
   } as StrictInstallOptions
 }
 

@@ -94,6 +94,7 @@ export async function resolveDependencies (
   opts: ResolveDependenciesOptions & {
     defaultUpdateDepth: number
     dedupePeerDependents?: boolean
+    excludeLinksFromLockfile?: boolean
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
@@ -170,7 +171,7 @@ export async function resolveDependencies (
         resolvedImporter.linkedDependencies,
         resolvedImporter.directDependencies,
         opts.registries,
-        opts.autoInstallPeers
+        opts.excludeLinksFromLockfile
       )
     }
 
@@ -354,7 +355,7 @@ function addDirectDependenciesToLockfile (
   linkedPackages: Array<{ alias: string }>,
   directDependencies: ResolvedDirectDependency[],
   registries: Registries,
-  autoInstallPeers?: boolean
+  excludeLinksFromLockfile?: boolean
 ): ProjectSnapshot {
   const newProjectSnapshot: ProjectSnapshot & Required<Pick<ProjectSnapshot, 'dependencies' | 'devDependencies' | 'optionalDependencies'>> = {
     dependencies: {},
@@ -379,7 +380,7 @@ function addDirectDependenciesToLockfile (
   const allDeps = Array.from(new Set(Object.keys(getAllDependenciesFromManifest(newManifest))))
 
   for (const alias of allDeps) {
-    if (directDependenciesByAlias[alias]) {
+    if (directDependenciesByAlias[alias] && (!excludeLinksFromLockfile || !(directDependenciesByAlias[alias] as LinkedDependency).isLinkedDependency)) {
       const dep = directDependenciesByAlias[alias]
       const ref = depPathToRef(dep.pkgId, {
         alias: dep.alias,

@@ -20,13 +20,17 @@ export async function allProjectsAreUpToDate (
   projects: Array<ProjectOptions & { id: string }>,
   opts: {
     autoInstallPeers: boolean
+    excludeLinksFromLockfile: boolean
     linkWorkspacePackages: boolean
     wantedLockfile: Lockfile
     workspacePackages: WorkspacePackages
   }
 ) {
   const manifestsByDir = opts.workspacePackages ? getWorkspacePackagesByDirectory(opts.workspacePackages) : {}
-  const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, opts.wantedLockfile)
+  const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
+    autoInstallPeers: opts.autoInstallPeers,
+    excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+  })
   const _linkedPackagesAreUpToDate = linkedPackagesAreUpToDate.bind(null, {
     linkWorkspacePackages: opts.linkWorkspacePackages,
     manifestsByDir,
@@ -35,7 +39,7 @@ export async function allProjectsAreUpToDate (
   return pEvery(projects, (project) => {
     const importer = opts.wantedLockfile.importers[project.id]
     return !hasLocalTarballDepsInRoot(importer) &&
-      _satisfiesPackageManifest(project.manifest, project.id, { autoInstallPeers: opts.autoInstallPeers }) &&
+      _satisfiesPackageManifest(importer, project.manifest) &&
       _linkedPackagesAreUpToDate({
         dir: project.rootDir,
         manifest: project.manifest,

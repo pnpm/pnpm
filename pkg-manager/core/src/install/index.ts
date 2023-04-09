@@ -345,6 +345,7 @@ export async function mutateModules (
         ) &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
           autoInstallPeers: opts.autoInstallPeers,
+          excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
           wantedLockfile: ctx.wantedLockfile,
           workspacePackages: opts.workspacePackages,
@@ -892,6 +893,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
+      excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
       forceFullResolution,
       ignoreScripts: opts.ignoreScripts,
