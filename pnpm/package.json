@@ -82,7 +82,7 @@
     "deep-require-cwd": "1.0.0",
     "delay": "^5.0.0",
     "dir-is-case-sensitive": "^2.0.0",
-    "esbuild": "^0.17.15",
+    "esbuild": "^0.17.16",
     "execa": "npm:safe-execa@0.1.2",
     "exists-link": "2.0.0",
     "is-windows": "^1.0.2",

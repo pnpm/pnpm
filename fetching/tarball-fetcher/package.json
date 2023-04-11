@@ -43,7 +43,7 @@
     "@zkochan/retry": "^0.2.0",
     "p-map-values": "^1.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "ssri": "10.0.1"
+    "ssri": "10.0.3"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",

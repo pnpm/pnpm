@@ -44,7 +44,7 @@
     "@zkochan/rimraf": "^2.1.2",
     "execa": "npm:safe-execa@0.1.2",
     "path-exists": "^4.0.0",
-    "ssri": "10.0.1",
+    "ssri": "10.0.3",
     "tempy": "^1.0.1"
   },
   "dependencies": {
