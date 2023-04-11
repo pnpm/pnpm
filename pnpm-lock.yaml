@@ -1665,9 +1665,9 @@ importers:
 
   hooks/types:
     dependencies:
-      '@pnpm/lockfile-file':
+      '@pnpm/lockfile-types':
         specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
+        version: link:../../lockfile/lockfile-types
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
