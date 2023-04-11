@@ -25,10 +25,10 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../pkg-manager/core"
+      "path": "../../store/store-controller-types"
     },
     {
-      "path": "../../store/store-controller-types"
+      "path": "../types"
     }
   ],
   "composite": true

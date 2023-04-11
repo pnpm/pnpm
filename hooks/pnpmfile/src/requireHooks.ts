@@ -1,5 +1,5 @@
 import path from 'path'
-import type { PreResolutionHook, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/core'
+import type { PreResolutionHook, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
 import { hookLogger } from '@pnpm/core-loggers'
 import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
