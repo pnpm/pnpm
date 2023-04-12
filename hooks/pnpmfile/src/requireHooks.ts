@@ -1,5 +1,10 @@
 import path from 'path'
-import type { PreResolutionHook, PreResolutionHookContext, PreResolutionHookLogger } from '@pnpm/hooks.types'
+import {
+  type AfterPkgResolvedHook,
+  type PreResolutionHook,
+  type PreResolutionHookContext,
+  type PreResolutionHookLogger,
+} from '@pnpm/hooks.types'
 import { hookLogger } from '@pnpm/core-loggers'
 import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
@@ -13,6 +18,7 @@ interface HookContext {
 }
 
 interface Hooks {
+  afterPkgResolved?: AfterPkgResolvedHook
   // eslint-disable-next-line
   readPackage?: (pkg: any, context: HookContext) => any
   preResolution?: PreResolutionHook
@@ -30,6 +36,7 @@ type Cook<T extends (...args: any[]) => any> = (
 ) => ReturnType<T>
 
 export interface CookedHooks {
+  afterPkgResolved?: AfterPkgResolvedHook
   readPackage?: Array<Cook<Required<Hooks>['readPackage']>>
   preResolution?: Cook<Required<Hooks>['preResolution']>
   afterAllResolved?: Array<Cook<Required<Hooks>['afterAllResolved']>>
@@ -79,7 +86,7 @@ export function requireHooks (
     cookedHooks.filterLog.push(hooks.filterLog)
   }
 
-  // `importPackage`, `preResolution` and `fetchers` can only be defined via a global pnpmfile
+  // `afterPkgResolved`, `importPackage`, `preResolution` and `fetchers` can only be defined via a global pnpmfile
 
   cookedHooks.importPackage = globalHooks.importPackage
 
@@ -90,6 +97,7 @@ export function requireHooks (
     : undefined
 
   cookedHooks.fetchers = globalHooks.fetchers
+  cookedHooks.afterPkgResolved = globalHooks.afterPkgResolved
 
   return cookedHooks
 }

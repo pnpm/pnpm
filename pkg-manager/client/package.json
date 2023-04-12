@@ -36,6 +36,7 @@
     "@pnpm/fetch": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/git-fetcher": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
     "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
