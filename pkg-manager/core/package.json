@@ -28,6 +28,7 @@
     "@pnpm/headless": "workspace:*",
     "@pnpm/hoist": "workspace:*",
     "@pnpm/hooks.read-package-hook": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",

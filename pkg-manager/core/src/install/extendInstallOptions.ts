@@ -17,7 +17,7 @@ import {
 } from '@pnpm/types'
 import { pnpmPkgJson } from '../pnpmPkgJson'
 import { type ReporterFunction } from '../types'
-import { type PreResolutionHookContext } from './hooks'
+import { type PreResolutionHookContext } from '@pnpm/hooks.types'
 
 export interface StrictInstallOptions {
   autoInstallPeers: boolean

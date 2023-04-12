@@ -1,4 +1,4 @@
-import type { Lockfile } from '@pnpm/lockfile-file'
+import type { Lockfile } from '@pnpm/lockfile-types'
 import type { Registries } from '@pnpm/types'
 
 export interface PreResolutionHookContext {

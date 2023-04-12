@@ -43,6 +43,9 @@
       "path": "../../hooks/read-package-hook"
     },
     {
+      "path": "../../hooks/types"
+    },
+    {
       "path": "../../lockfile/filter-lockfile"
     },
     {

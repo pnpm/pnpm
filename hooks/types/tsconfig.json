@@ -10,25 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../fetching/fetcher-base"
-    },
-    {
       "path": "../../lockfile/lockfile-types"
     },
     {
-      "path": "../../packages/core-loggers"
-    },
-    {
-      "path": "../../packages/error"
-    },
-    {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../store/store-controller-types"
-    },
-    {
-      "path": "../types"
     }
   ],
   "composite": true

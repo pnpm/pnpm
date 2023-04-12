@@ -33,9 +33,9 @@
     "@pnpm/pnpmfile": "workspace:*"
   },
   "dependencies": {
-    "@pnpm/core": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",

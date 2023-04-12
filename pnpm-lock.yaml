@@ -1582,15 +1582,15 @@ importers:
 
   hooks/pnpmfile:
     dependencies:
-      '@pnpm/core':
-        specifier: workspace:*
-        version: link:../../pkg-manager/core
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/hooks.types':
+        specifier: workspace:*
+        version: link:../types
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-types
@@ -1662,6 +1662,19 @@ importers:
       '@yarnpkg/core':
         specifier: 4.0.0-rc.42
         version: 4.0.0-rc.42(typanion@3.12.1)
+
+  hooks/types:
+    dependencies:
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/hooks.types':
+        specifier: workspace:*
+        version: 'link:'
 
   lockfile/audit:
     dependencies:
@@ -2668,6 +2681,9 @@ importers:
       '@pnpm/hooks.read-package-hook':
         specifier: workspace:*
         version: link:../../hooks/read-package-hook
+      '@pnpm/hooks.types':
+        specifier: workspace:*
+        version: link:../../hooks/types
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../../exec/lifecycle
@@ -8787,7 +8803,7 @@ packages:
     dependencies:
       '@types/http-cache-semantics': 4.0.1
       '@types/keyv': 3.1.4
-      '@types/node': 18.15.11
+      '@types/node': 14.18.42
       '@types/responselike': 1.0.0
 
   /@types/concat-stream@2.0.0:
@@ -8815,7 +8831,7 @@ packages:
     resolution: {integrity: sha512-IO+MJPVhoqz+28h1qLAcBEH2+xHMK6MTyHJc7MTnnYb6wsoLR29POVGJ7LycmVXIqyy/4/2ShP5sUwTXuOwb/w==}
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 18.15.11
+      '@types/node': 14.18.42
     dev: true
 
   /@types/graceful-fs@4.1.6:
@@ -8889,7 +8905,7 @@ packages:
   /@types/keyv@3.1.4:
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
     dependencies:
-      '@types/node': 18.15.11
+      '@types/node': 14.18.42
 
   /@types/lodash@4.14.181:
     resolution: {integrity: sha512-n3tyKthHJbkiWhDZs3DkhkCzt2MexYHXlX0td5iMplyfwketaOeKboEVBqzceH7juqvEg3q5oUoBFxSLu7zFag==}
@@ -8932,7 +8948,6 @@ packages:
 
   /@types/node@14.18.42:
     resolution: {integrity: sha512-xefu+RBie4xWlK8hwAzGh3npDz/4VhF6icY/shU+zv/1fNn+ZVG7T7CRwe9LId9sAYRPxI+59QBPuKL3WpyGRg==}
-    dev: true
 
   /@types/node@18.15.11:
     resolution: {integrity: sha512-E5Kwq2n4SbMzQOn6wnmBjuK9ouqlURrcZDVfbo9ftDDTFt3nk7ZKK4GMOzoYgnpQJKcxwQw+lGaBvvlMo0qN/Q==}
@@ -8969,7 +8984,7 @@ packages:
   /@types/responselike@1.0.0:
     resolution: {integrity: sha512-85Y2BjiufFzaMIlvJDvTTB8Fxl2xfLo4HgmHzVBz08w4wDePCTjYw66PdrolO0kzli3yam/YCgRufyo1DdQVTA==}
     dependencies:
-      '@types/node': 18.15.11
+      '@types/node': 14.18.42
 
   /@types/retry@0.12.2:
     resolution: {integrity: sha512-XISRgDJ2Tc5q4TRqvgJtzsRkFYNJzZrhTdtMoGVBttwzzQJkPnS3WWTFc7kuDRoPtPakl+T+OfdEUjYJj7Jbow==}
