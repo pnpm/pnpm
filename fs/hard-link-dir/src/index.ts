@@ -1,11 +1,26 @@
 import path from 'path'
 import { promises as fs } from 'fs'
+import { globalWarn } from '@pnpm/logger'
 
 export async function hardLinkDir (src: string, destDirs: string[]) {
   if (destDirs.length === 0) return
   // Don't try to hard link the source directory to itself
   destDirs = destDirs.filter((destDir) => path.relative(destDir, src) !== '')
-  const files = await fs.readdir(src)
+  // TODO try/catch  proceed to make destDir but leave empty
+  let files: string[] = []
+  try {
+    files = await fs.readdir(src)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'ENOENT') {
+      globalWarn(`Source directory not found when creating hardLinks for: ${src}. Creating destinations as empty: ${destDirs.join(', ')}`)
+      await Promise.all(
+        destDirs.map(async (dir) => {
+          await fs.mkdir(dir, { recursive: true })
+        })
+      )
+    }
+  }
+
   await Promise.all(
     files.map(async (file) => {
       if (file === 'node_modules') return

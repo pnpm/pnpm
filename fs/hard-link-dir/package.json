@@ -36,5 +36,8 @@
   },
   "exports": {
     ".": "./lib/index.js"
+  },
+  "dependencies": {
+    "@pnpm/logger": "^5.0.0"
   }
 }
