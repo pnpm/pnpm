@@ -32,3 +32,15 @@ test('hardLinkDirectory()', async () => {
   expect(fs.existsSync(path.join(dest1Dir, 'node_modules/file.txt'))).toBe(false)
   expect(fs.existsSync(path.join(dest2Dir, 'node_modules/file.txt'))).toBe(false)
 })
+
+test("don't fail on missing source and dest directories", async () => {
+  const tempDir = createTempDir()
+  const missingDirSrc = path.join(tempDir, 'missing_source')
+  const missingDirDest = path.join(tempDir, 'missing_dest')
+
+  await hardLinkDir(missingDirSrc, [missingDirDest])
+
+  // It should create an empty dest dir if src does not exist
+  expect(fs.existsSync(missingDirSrc)).toBe(false)
+  expect(fs.existsSync(missingDirDest)).toBe(true)
+})
