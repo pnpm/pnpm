@@ -42,6 +42,7 @@ export interface StrictInstallOptions {
   ignorePackageManifest: boolean
   preferFrozenLockfile: boolean
   saveWorkspaceProtocol: boolean | 'rolling'
+  lockfileCheck?: (prev: Lockfile, next: Lockfile) => void
   lockfileIncludeTarballUrl: boolean
   preferWorkspacePackages: boolean
   preserveWorkspaceProtocol: boolean

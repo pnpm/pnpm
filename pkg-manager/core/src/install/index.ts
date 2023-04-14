@@ -65,6 +65,7 @@ import pLimit from 'p-limit'
 import pMapValues from 'p-map-values'
 import flatten from 'ramda/src/flatten'
 import mapValues from 'ramda/src/map'
+import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
 import isEmpty from 'ramda/src/isEmpty'
 import pickBy from 'ramda/src/pickBy'
@@ -801,6 +802,19 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     })
   }
 
+  // The wanted lockfile is mutated during installation. To compare changes, a
+  // deep copy before installation is needed. This copy should represent the
+  // original wanted lockfile on disk as close as possible.
+  //
+  // This object can be quite large. Intentionally avoiding an expensive copy
+  // if no lockfileCheck option was passed in.
+  const originalLockfileForCheck = opts.lockfileCheck != null
+    ? clone(ctx.wantedLockfile)
+    : null
+
+  // Aliasing for clarity in boolean expressions below.
+  const isInstallationOnlyForLockfileCheck = opts.lockfileCheck != null
+
   ctx.wantedLockfile.importers = ctx.wantedLockfile.importers || {}
   for (const { id } of projects) {
     if (!ctx.wantedLockfile.importers[id]) {
@@ -965,7 +979,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
-  if (!opts.lockfileOnly && opts.enableModulesDir) {
+  if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
       dependenciesGraph,
@@ -1199,7 +1213,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     }
   } else {
     await finishLockfileUpdates()
-    if (opts.useLockfile) {
+    if (opts.useLockfile && !isInstallationOnlyForLockfileCheck) {
       await writeWantedLockfile(ctx.lockfileDir, newLockfile, lockfileOpts)
     }
 
@@ -1222,6 +1236,14 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     lockfileDir: opts.lockfileDir,
     strictPeerDependencies: opts.strictPeerDependencies,
   })
+
+  // Similar to the sequencing for when the original wanted lockfile is
+  // copied, the new lockfile passed here should be as close as possible to
+  // what will eventually be written to disk. Ex: peers should be resolved,
+  // the afterAllResolved hook has been applied, etc.
+  if (originalLockfileForCheck != null) {
+    opts.lockfileCheck?.(originalLockfileForCheck, newLockfile)
+  }
 
   return {
     newLockfile,
