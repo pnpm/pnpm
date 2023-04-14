@@ -7,6 +7,7 @@ import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/find-workspace-packages'
+import { type Lockfile } from '@pnpm/lockfile-types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type IncludedDependencies, type Project, type ProjectsGraph } from '@pnpm/types'
@@ -88,6 +89,17 @@ export type InstallDepsOptions = Pick<Config,
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
   latest?: boolean
+  /**
+   * If specified, the installation will only be performed for comparison of the
+   * wanted lockfile. The wanted lockfile will not be updated on disk and no
+   * modules will be linked.
+   *
+   * The given callback is passed the wanted lockfile before installation and
+   * after. This allows functions to reasonably determine whether the wanted
+   * lockfile will change on disk after installation. The lockfile arguments
+   * passed to this callback should not be mutated.
+   */
+  lockfileCheck?: (prev: Lockfile, next: Lockfile) => void
   update?: boolean
   updateMatching?: (pkgName: string) => boolean
   updatePackageManifest?: boolean
