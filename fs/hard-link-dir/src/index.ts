@@ -17,9 +17,7 @@ async function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean) 
     if (!isRoot || err.code !== 'ENOENT') throw err
     globalWarn(`Source directory not found when creating hardLinks for: ${src}. Creating destinations as empty: ${destDirs.join(', ')}`)
     await Promise.all(
-      destDirs.map(async (dir) => {
-        await fs.mkdir(dir, { recursive: true })
-      })
+      destDirs.map((dir) => fs.mkdir(dir, { recursive: true }))
     )
     return
   }
