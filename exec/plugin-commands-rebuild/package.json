@@ -58,7 +58,7 @@
     "@pnpm/find-workspace-packages": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/get-context": "workspace:*",
-    "@pnpm/graph-sequencer": "1.0.0",
+    "@pnpm/graph-sequencer": "1.1.0",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
