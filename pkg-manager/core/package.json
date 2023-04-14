@@ -24,7 +24,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/filter-lockfile": "workspace:*",
     "@pnpm/get-context": "workspace:*",
-    "@pnpm/graph-sequencer": "1.0.0",
+    "@pnpm/graph-sequencer": "1.1.0",
     "@pnpm/headless": "workspace:*",
     "@pnpm/hoist": "workspace:*",
     "@pnpm/hooks.read-package-hook": "workspace:*",
