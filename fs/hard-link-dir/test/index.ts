@@ -8,8 +8,6 @@ test('hardLinkDirectory()', async () => {
   const srcDir = path.join(tempDir, 'source')
   const dest1Dir = path.join(tempDir, 'dest1')
   const dest2Dir = path.join(tempDir, 'dest2')
-  const missingDirSrc = path.join(tempDir, 'missing_source')
-  const missingDirDest = path.join(tempDir, 'missing_dest')
 
   fs.mkdirSync(srcDir, { recursive: true })
   fs.mkdirSync(dest1Dir, { recursive: true })
@@ -33,6 +31,12 @@ test('hardLinkDirectory()', async () => {
   // It should not link files from node_modules
   expect(fs.existsSync(path.join(dest1Dir, 'node_modules/file.txt'))).toBe(false)
   expect(fs.existsSync(path.join(dest2Dir, 'node_modules/file.txt'))).toBe(false)
+})
+
+test("don't fail on missing source and dest directories", async () => {
+  const tempDir = createTempDir()
+  const missingDirSrc = path.join(tempDir, 'missing_source')
+  const missingDirDest = path.join(tempDir, 'missing_dest')
 
   await hardLinkDir(missingDirSrc, [missingDirDest])
 

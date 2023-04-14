@@ -6,21 +6,23 @@ export async function hardLinkDir (src: string, destDirs: string[]) {
   if (destDirs.length === 0) return
   // Don't try to hard link the source directory to itself
   destDirs = destDirs.filter((destDir) => path.relative(destDir, src) !== '')
-  // TODO try/catch  proceed to make destDir but leave empty
+  await _hardLinkDir(src, destDirs, true)
+}
+
+async function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean) {
   let files: string[] = []
   try {
     files = await fs.readdir(src)
   } catch (err: any) { // eslint-disable-line
-    if (err.code === 'ENOENT') {
-      globalWarn(`Source directory not found when creating hardLinks for: ${src}. Creating destinations as empty: ${destDirs.join(', ')}`)
-      await Promise.all(
-        destDirs.map(async (dir) => {
-          await fs.mkdir(dir, { recursive: true })
-        })
-      )
-    }
+    if (!isRoot || err.code !== 'ENOENT') throw err
+    globalWarn(`Source directory not found when creating hardLinks for: ${src}. Creating destinations as empty: ${destDirs.join(', ')}`)
+    await Promise.all(
+      destDirs.map(async (dir) => {
+        await fs.mkdir(dir, { recursive: true })
+      })
+    )
+    return
   }
-
   await Promise.all(
     files.map(async (file) => {
       if (file === 'node_modules') return
@@ -37,7 +39,7 @@ export async function hardLinkDir (src: string, destDirs: string[]) {
             return destSubdir
           })
         )
-        await hardLinkDir(srcFile, destSubdirs)
+        await _hardLinkDir(srcFile, destSubdirs)
         return
       }
       await Promise.all(

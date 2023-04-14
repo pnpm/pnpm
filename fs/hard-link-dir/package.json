@@ -30,14 +30,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/hard-link-dir#readme",
   "funding": "https://opencollective.com/pnpm",
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
   "devDependencies": {
     "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/prepare": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"
-  },
-  "dependencies": {
-    "@pnpm/logger": "^5.0.0"
   }
 }
