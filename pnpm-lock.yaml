@@ -3579,6 +3579,9 @@ importers:
       '@pnpm/core':
         specifier: workspace:*
         version: link:../core
+      '@pnpm/dedupe.check':
+        specifier: workspace:*
+        version: link:../../dedupe/check
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
