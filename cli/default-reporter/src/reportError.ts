@@ -1,5 +1,7 @@
 import { type Config } from '@pnpm/config'
 import { type Log } from '@pnpm/core-loggers'
+import { renderDedupeCheckIssues } from '@pnpm/dedupe.issues-renderer'
+import { type DedupeCheckIssues } from '@pnpm/dedupe.types'
 import { type PnpmError } from '@pnpm/error'
 import { renderPeerIssues } from '@pnpm/render-peer-issues'
 import { type PeerDependencyIssuesByProjects } from '@pnpm/types'
@@ -66,6 +68,8 @@ function getErrorInfo (logObj: Log, config?: Config): {
       return reportEngineError(logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_PEER_DEP_ISSUES':
       return reportPeerDependencyIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    case 'ERR_PNPM_DEDUPE_CHECK_ISSUES':
+      return reportDedupeCheckIssuesError(err, logObj as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     case 'ERR_PNPM_FETCH_401':
     case 'ERR_PNPM_FETCH_403':
       return reportAuthError(err, logObj as any, config) // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -413,4 +417,14 @@ ${hints.map((hint) => `hint: ${hint}`).join('\n')}
 function getHasMissingPeers (issuesByProjects: PeerDependencyIssuesByProjects) {
   return Object.values(issuesByProjects)
     .some((issues) => Object.values(issues.missing).flat().some(({ optional }) => !optional))
+}
+
+function reportDedupeCheckIssuesError (err: Error, msg: { dedupeCheckIssues: DedupeCheckIssues }) {
+  return {
+    title: err.message,
+    body: `\
+${renderDedupeCheckIssues(msg.dedupeCheckIssues)}
+Run ${chalk.yellow('pnpm dedupe')} to apply the changes above.
+`,
+  }
 }
