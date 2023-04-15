@@ -35,6 +35,8 @@
   "dependencies": {
     "@pnpm/config": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/dedupe.issues-renderer": "workspace:*",
+    "@pnpm/dedupe.types": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/render-peer-issues": "workspace:*",
     "@pnpm/types": "workspace:*",

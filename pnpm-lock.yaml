@@ -433,6 +433,12 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/dedupe.issues-renderer':
+        specifier: workspace:*
+        version: link:../../dedupe/issues-renderer
+      '@pnpm/dedupe.types':
+        specifier: workspace:*
+        version: link:../../dedupe/types
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
