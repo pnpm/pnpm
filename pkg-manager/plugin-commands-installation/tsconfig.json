@@ -34,6 +34,9 @@
       "path": "../../config/matcher"
     },
     {
+      "path": "../../dedupe/check"
+    },
+    {
       "path": "../../exec/plugin-commands-rebuild"
     },
     {
