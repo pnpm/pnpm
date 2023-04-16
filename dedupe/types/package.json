@@ -1,0 +1,36 @@
+{
+  "name": "@pnpm/dedupe.types",
+  "version": "0.0.0",
+  "description": "Types for the pnpm dedupe command",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=16.14"
+  },
+  "scripts": {
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix",
+    "lint": "eslint \"src/**/*.ts\""
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/dedupe/types",
+  "keywords": [
+    "pnpm8"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/dedupe/types#readme",
+  "funding": "https://opencollective.com/pnpm",
+  "devDependencies": {
+    "@pnpm/dedupe.types": "workspace:*"
+  }
+}
