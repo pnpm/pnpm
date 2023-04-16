@@ -1,5 +1,17 @@
 # pnpm
 
+## 8.3.0-0
+
+### Minor Changes
+
+- A custom compression level may be specified for the `pnpm pack` command using the `pack-gzip-level` setting [#6393](https://github.com/pnpm/pnpm/issues/6393).
+- Add `--check` flag to `pnpm dedupe`. No changes will be made to `node_modules` or the lockfile. Exits with a non-zero status code if changes are possible.
+
+### Patch Changes
+
+- Warn user when `publishConfig.directory` of an injected workspace dependency does not exist [#6396](https://github.com/pnpm/pnpm/pull/6396).
+- Use hard links to link the node executable on Windows machines [#4315](https://github.com/pnpm/pnpm/issues/4315).
+
 ## 8.2.0
 
 ### Minor Changes
