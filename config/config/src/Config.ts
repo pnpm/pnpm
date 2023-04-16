@@ -159,6 +159,7 @@ export interface Config {
   dedupePeerDependents?: boolean
   patchesDir?: string
   ignoreWorkspaceCycles?: boolean
+  packGzipLevel?: number
 
   registries: Registries
   ignoreWorkspaceRootCheck: boolean

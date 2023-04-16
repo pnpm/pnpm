@@ -30,6 +30,9 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return {
     'pack-destination': String,
+    ...pick([
+      'pack-gzip-level',
+    ], allTypes),
   }
 }
 
@@ -55,7 +58,7 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig' | 'embedReadme'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
+  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig' | 'embedReadme' | 'packGzipLevel'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
     argv: {
       original: string[]
     }
@@ -110,6 +113,7 @@ export async function handler (
     projectDir: dir,
     embedReadme: opts.embedReadme,
     modulesDir: path.join(opts.dir, 'node_modules'),
+    packGzipLevel: opts.packGzipLevel,
   })
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['postpack'], entryManifest)
@@ -133,6 +137,7 @@ async function packPkg (opts: {
   projectDir: string
   embedReadme?: boolean
   modulesDir: string
+  packGzipLevel?: number
 }): Promise<void> {
   const {
     destFile,
@@ -160,7 +165,7 @@ async function packPkg (opts: {
     pack.entry({ mode, mtime, name }, fs.readFileSync(source))
   }
   const tarball = fs.createWriteStream(destFile)
-  pack.pipe(createGzip()).pipe(tarball)
+  pack.pipe(createGzip({ level: opts.packGzipLevel })).pipe(tarball)
   pack.finalize()
   return new Promise((resolve, reject) => {
     tarball.on('close', () => {
