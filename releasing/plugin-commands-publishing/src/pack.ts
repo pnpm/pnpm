@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { createGzip, type ZlibOptions } from 'zlib'
+import { createGzip } from 'zlib'
 import { PnpmError } from '@pnpm/error'
 import { types as allTypes, type UniversalOptions, type Config } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
@@ -55,7 +55,7 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig' | 'embedReadme'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
+  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig' | 'embedReadme' | 'packGzipLevel'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
     argv: {
       original: string[]
     }
@@ -127,27 +127,13 @@ async function readReadmeFile (filesMap: Record<string, string>) {
   return readmeFile
 }
 
-function getGzipConfig () {
-  const gzipConfig: ZlibOptions = {}
-
-  const level = process.env.PNPM_PACK_GZIP_LEVEL
-  if (level !== undefined) {
-    const parsedLevel = parseInt(level)
-    if (isNaN(parsedLevel)) {
-      throw new PnpmError('INVALID_GZIP_LEVEL', `Invalid gzip level: '${level}'`)
-    }
-    gzipConfig.level = parsedLevel
-  }
-
-  return gzipConfig
-}
-
 async function packPkg (opts: {
   destFile: string
   filesMap: Record<string, string>
   projectDir: string
   embedReadme?: boolean
   modulesDir: string
+  packGzipLevel?: number
 }): Promise<void> {
   const {
     destFile,
@@ -175,7 +161,7 @@ async function packPkg (opts: {
     pack.entry({ mode, mtime, name }, fs.readFileSync(source))
   }
   const tarball = fs.createWriteStream(destFile)
-  pack.pipe(createGzip(getGzipConfig())).pipe(tarball)
+  pack.pipe(createGzip({ level: opts.packGzipLevel })).pipe(tarball)
   pack.finalize()
   return new Promise((resolve, reject) => {
     tarball.on('close', () => {
