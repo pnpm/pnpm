@@ -867,6 +867,9 @@ importers:
       semver:
         specifier: ^7.4.0
         version: 7.4.0
+      symlink-dir:
+        specifier: ^5.1.1
+        version: 5.1.1
       write-json-file:
         specifier: ^4.3.0
         version: 4.3.0
@@ -8818,7 +8821,7 @@ packages:
     dependencies:
       '@types/http-cache-semantics': 4.0.1
       '@types/keyv': 3.1.4
-      '@types/node': 18.15.11
+      '@types/node': 14.18.42
       '@types/responselike': 1.0.0
 
   /@types/concat-stream@2.0.0:
@@ -8846,7 +8849,7 @@ packages:
     resolution: {integrity: sha512-IO+MJPVhoqz+28h1qLAcBEH2+xHMK6MTyHJc7MTnnYb6wsoLR29POVGJ7LycmVXIqyy/4/2ShP5sUwTXuOwb/w==}
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 18.15.11
+      '@types/node': 14.18.42
     dev: true
 
   /@types/graceful-fs@4.1.6:
@@ -8999,7 +9002,7 @@ packages:
   /@types/responselike@1.0.0:
     resolution: {integrity: sha512-85Y2BjiufFzaMIlvJDvTTB8Fxl2xfLo4HgmHzVBz08w4wDePCTjYw66PdrolO0kzli3yam/YCgRufyo1DdQVTA==}
     dependencies:
-      '@types/node': 18.15.11
+      '@types/node': 14.18.42
 
   /@types/retry@0.12.2:
     resolution: {integrity: sha512-XISRgDJ2Tc5q4TRqvgJtzsRkFYNJzZrhTdtMoGVBttwzzQJkPnS3WWTFc7kuDRoPtPakl+T+OfdEUjYJj7Jbow==}

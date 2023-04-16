@@ -5,6 +5,7 @@ import { createFetchFromRegistry } from '@pnpm/fetch'
 import { resolveNodeVersion } from '@pnpm/node.resolver'
 import cmdShim from '@zkochan/cmd-shim'
 import isWindows from 'is-windows'
+import symlinkDir from 'symlink-dir'
 import { getNodeDir, type NvmNodeCommandOptions } from './node'
 import { getNodeMirror } from './getNodeMirror'
 import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
@@ -28,6 +29,7 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]) {
   })
   const src = getNodeExecPathInNodeDir(nodeDir)
   const dest = getNodeExecPathInBinDir(opts.bin)
+  await symlinkDir(nodeDir, path.join(opts.pnpmHomeDir, 'nodejs_current'))
   try {
     await fs.unlink(dest)
   } catch (err) {}

@@ -3,13 +3,14 @@ import path from 'path'
 
 export async function getNodeExecPathAndTargetDir (pnpmHomeDir: string) {
   const nodePath = getNodeExecPathInBinDir(pnpmHomeDir)
-  let nodeLink: string | undefined
+  const nodeCurrentDirLink = path.join(pnpmHomeDir, 'nodejs_current')
+  let nodeCurrentDir: string | undefined
   try {
-    nodeLink = await fs.readlink(nodePath)
+    nodeCurrentDir = await fs.readlink(nodeCurrentDirLink)
   } catch (err) {
-    nodeLink = undefined
+    nodeCurrentDir = undefined
   }
-  return { nodePath, nodeLink }
+  return { nodePath, nodeLink: nodeCurrentDir ? getNodeExecPathInNodeDir(nodeCurrentDir) : undefined }
 }
 
 export function getNodeExecPathInBinDir (pnpmHomeDir: string) {
