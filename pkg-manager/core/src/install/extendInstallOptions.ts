@@ -35,6 +35,7 @@ export interface StrictInstallOptions {
   mergeGitBranchLockfiles: boolean
   linkWorkspacePackagesDepth: number
   lockfileOnly: boolean
+  forceFullResolution: boolean
   fixLockfile: boolean
   dedupe: boolean
   ignoreCompatibilityDb: boolean
@@ -142,6 +143,7 @@ const defaults = async (opts: InstallOptions) => {
     enablePnp: false,
     engineStrict: false,
     force: false,
+    forceFullResolution: false,
     forceSharedLockfile: false,
     frozenLockfile: false,
     hoistPattern: undefined,
