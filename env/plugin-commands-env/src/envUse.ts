@@ -9,7 +9,7 @@ import symlinkDir from 'symlink-dir'
 import { getNodeDir, type NvmNodeCommandOptions } from './node'
 import { getNodeMirror } from './getNodeMirror'
 import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
-import { getNodeExecPathInBinDir, getNodeExecPathInNodeDir } from './utils'
+import { CURRENT_NODE_DIRNAME, getNodeExecPathInBinDir, getNodeExecPathInNodeDir } from './utils'
 
 export async function envUse (opts: NvmNodeCommandOptions, params: string[]) {
   if (!opts.global) {
@@ -29,7 +29,7 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]) {
   })
   const src = getNodeExecPathInNodeDir(nodeDir)
   const dest = getNodeExecPathInBinDir(opts.bin)
-  await symlinkDir(nodeDir, path.join(opts.pnpmHomeDir, 'nodejs_current'))
+  await symlinkDir(nodeDir, path.join(opts.pnpmHomeDir, CURRENT_NODE_DIRNAME))
   try {
     await fs.unlink(dest)
   } catch (err) {}
