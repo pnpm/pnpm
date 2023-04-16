@@ -133,7 +133,7 @@ export async function publish (
     engineStrict?: boolean
     recursive?: boolean
     workspaceDir?: string
-  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'embedReadme'>,
+  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>,
   params: string[]
 ) {
   if (opts.gitChecks !== false && await isGitRepo()) {

@@ -287,14 +287,25 @@ test('pack: custom pack-gzip-level', async () => {
     version: '0.0.0',
   })
 
-  await pack.handler({
+  const packOpts = {
     ...DEFAULT_OPTS,
     argv: { original: [] },
     dir: process.cwd(),
     extraBinPaths: [],
+  }
+  await pack.handler({
+    ...packOpts,
     packGzipLevel: 9,
+    packDestination: path.resolve('../small'),
   })
 
-  expect(await exists('test-publish-package.json-0.0.0.tgz')).toBeTruthy()
-  expect(await exists('package.json')).toBeTruthy()
+  await pack.handler({
+    ...packOpts,
+    packGzipLevel: 0,
+    packDestination: path.resolve('../big'),
+  })
+
+  const tgz1 = fs.statSync(path.resolve('../small/test-publish-package.json-0.0.0.tgz'))
+  const tgz2 = fs.statSync(path.resolve('../big/test-publish-package.json-0.0.0.tgz'))
+  expect(tgz1.size).not.toEqual(tgz2.size)
 })

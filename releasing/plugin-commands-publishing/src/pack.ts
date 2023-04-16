@@ -113,6 +113,7 @@ export async function handler (
     projectDir: dir,
     embedReadme: opts.embedReadme,
     modulesDir: path.join(opts.dir, 'node_modules'),
+    packGzipLevel: opts.packGzipLevel,
   })
   if (!opts.ignoreScripts) {
     await _runScriptsIfPresent(['postpack'], entryManifest)
