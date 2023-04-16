@@ -746,6 +746,25 @@ importers:
         specifier: 1.3.31
         version: 1.3.31
 
+  dedupe/check:
+    dependencies:
+      '@pnpm/dedupe.types':
+        specifier: workspace:*
+        version: link:../types
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/dedupe.check':
+        specifier: workspace:*
+        version: 'link:'
+
   dedupe/issues-renderer:
     dependencies:
       '@pnpm/dedupe.types':
