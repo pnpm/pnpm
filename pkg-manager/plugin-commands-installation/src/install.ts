@@ -296,7 +296,6 @@ export type InstallCommandOptions = Pick<Config,
   pruneDirectDependencies?: boolean
   pruneStore?: boolean
   recursive?: boolean
-  dedupe?: boolean
   saveLockfile?: boolean
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
