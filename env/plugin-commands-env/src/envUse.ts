@@ -4,6 +4,7 @@ import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { resolveNodeVersion } from '@pnpm/node.resolver'
 import cmdShim from '@zkochan/cmd-shim'
+import isWindows from 'is-windows'
 import { getNodeDir, type NvmNodeCommandOptions } from './node'
 import { getNodeMirror } from './getNodeMirror'
 import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
@@ -30,7 +31,7 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]) {
   try {
     await fs.unlink(dest)
   } catch (err) {}
-  await fs.symlink(src, dest, 'file')
+  await symlinkOrHardLink(src, dest)
   try {
     let npmDir = nodeDir
     if (process.platform !== 'win32') {
@@ -51,4 +52,13 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]) {
   }
   return `Node.js ${nodeVersion as string} is activated
 ${dest} -> ${src}`
+}
+
+// On Windows, symlinks only work with developer mode enabled
+// or with admin permissions. So it is better to use hard links on Windows.
+async function symlinkOrHardLink (existingPath: string, newPath: string) {
+  if (isWindows()) {
+    return fs.link(existingPath, newPath)
+  }
+  return fs.symlink(existingPath, newPath, 'file')
 }
