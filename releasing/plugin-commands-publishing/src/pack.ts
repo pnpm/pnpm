@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { createGzip } from 'zlib'
+import { createGzip, type ZlibOptions } from 'zlib'
 import { PnpmError } from '@pnpm/error'
 import { types as allTypes, type UniversalOptions, type Config } from '@pnpm/config'
 import { readProjectManifest } from '@pnpm/cli-utils'
@@ -127,6 +127,21 @@ async function readReadmeFile (filesMap: Record<string, string>) {
   return readmeFile
 }
 
+function getGzipConfig () {
+  const gzipConfig: ZlibOptions = {}
+
+  const level = process.env.PNPM_PACK_GZIP_LEVEL
+  if (level !== undefined) {
+    const parsedLevel = parseInt(level)
+    if (isNaN(parsedLevel)) {
+      throw new PnpmError('INVALID_GZIP_LEVEL', `Invalid gzip level: '${level}'`)
+    }
+    gzipConfig.level = parsedLevel
+  }
+
+  return gzipConfig
+}
+
 async function packPkg (opts: {
   destFile: string
   filesMap: Record<string, string>
@@ -160,7 +175,7 @@ async function packPkg (opts: {
     pack.entry({ mode, mtime, name }, fs.readFileSync(source))
   }
   const tarball = fs.createWriteStream(destFile)
-  pack.pipe(createGzip()).pipe(tarball)
+  pack.pipe(createGzip(getGzipConfig())).pipe(tarball)
   pack.finalize()
   return new Promise((resolve, reject) => {
     tarball.on('close', () => {
