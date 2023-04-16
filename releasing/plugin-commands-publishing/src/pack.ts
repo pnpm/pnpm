@@ -30,6 +30,9 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return {
     'pack-destination': String,
+    ...pick([
+      'pack-gzip-level',
+    ], allTypes),
   }
 }
 

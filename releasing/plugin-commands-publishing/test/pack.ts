@@ -280,3 +280,21 @@ test('pack to custom destination directory', async () => {
 
   expect(output).toBe(path.resolve('custom-dest/custom-dest-0.0.0.tgz'))
 })
+
+test('pack: custom pack-gzip-level', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+  })
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packGzipLevel: 9,
+  })
+
+  expect(await exists('test-publish-package.json-0.0.0.tgz')).toBeTruthy()
+  expect(await exists('package.json')).toBeTruthy()
+})
