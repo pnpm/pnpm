@@ -4,6 +4,7 @@ packages:
   - __utils__/*
   - cli/*
   - config/*
+  - dedupe/*
   - env/*
   - exec/*
   - fetching/*
