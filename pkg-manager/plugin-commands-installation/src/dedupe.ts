@@ -1,7 +1,8 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import renderHelp from 'render-help'
-import * as install from './install'
+import { type InstallCommandOptions } from './install'
+import { installDeps } from './installDeps'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -27,11 +28,16 @@ export function help () {
   })
 }
 
-export async function handler (
-  opts: install.InstallCommandOptions
-) {
-  return install.handler({
+export async function handler (opts: InstallCommandOptions) {
+  const include = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
+  return installDeps({
     ...opts,
     dedupe: true,
-  })
+    include,
+    includeDirect: include,
+  }, [])
 }
