@@ -1,0 +1,56 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`renderDedupeCheckIssues prints new importers and packages 1`] = `
+"Importers
+.
+└── + packages/a 0.0.0
+
++ packages/a
+
+Packages
+@types/tar-stream/2.2.2
+└── @types/node 14.18.42 → 18.15.11
+
+@types/tar/6.1.4
+└── @types/node 14.18.42 → 18.15.11
+
++ /@types/node/18.15.11
+- /@types/node/14.18.42
+"
+`;
+
+exports[`renderDedupeCheckIssues prints removed importer 1`] = `
+"Importers
+.
+└── @types/node 18.15.11 → 14.18.42
+
+- packages/a
+
+Packages
+@types/tar-stream/2.2.2
+└── @types/node 18.15.11 → 14.18.42
+
+@types/tar/6.1.4
+└── @types/node 18.15.11 → 14.18.42
+
++ /@types/node/14.18.42
+- /@types/node/18.15.11
+"
+`;
+
+exports[`renderDedupeCheckIssues prints removed packages and updated resolutions 1`] = `
+"Importers
+.
+└── @types/node 14.18.42 → 18.15.11
+
+
+Packages
+@types/tar-stream/2.2.2
+└── @types/node 14.18.42 → 18.15.11
+
+@types/tar/6.1.4
+└── @types/node 14.18.42 → 18.15.11
+
+- /@types/node/14.18.42
+"
+`;
