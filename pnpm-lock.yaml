@@ -433,6 +433,12 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/dedupe.issues-renderer':
+        specifier: workspace:*
+        version: link:../../dedupe/issues-renderer
+      '@pnpm/dedupe.types':
+        specifier: workspace:*
+        version: link:../../dedupe/types
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -745,6 +751,53 @@ importers:
       '@types/ini':
         specifier: 1.3.31
         version: 1.3.31
+
+  dedupe/check:
+    dependencies:
+      '@pnpm/dedupe.types':
+        specifier: workspace:*
+        version: link:../types
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+    devDependencies:
+      '@pnpm/dedupe.check':
+        specifier: workspace:*
+        version: 'link:'
+
+  dedupe/issues-renderer:
+    dependencies:
+      '@pnpm/dedupe.types':
+        specifier: workspace:*
+        version: link:../types
+      archy:
+        specifier: ^1.0.0
+        version: 1.0.0
+      chalk:
+        specifier: ^4.1.2
+        version: 4.1.2
+    devDependencies:
+      '@pnpm/dedupe.issues-renderer':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/archy':
+        specifier: 0.0.32
+        version: 0.0.32
+      strip-ansi:
+        specifier: ^6.0.1
+        version: 6.0.1
+
+  dedupe/types:
+    devDependencies:
+      '@pnpm/dedupe.types':
+        specifier: workspace:*
+        version: 'link:'
 
   env/node.fetcher:
     dependencies:
@@ -3526,6 +3579,9 @@ importers:
       '@pnpm/core':
         specifier: workspace:*
         version: link:../core
+      '@pnpm/dedupe.check':
+        specifier: workspace:*
+        version: link:../../dedupe/check
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
