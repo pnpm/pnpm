@@ -229,6 +229,10 @@ Install all optionalDependencies even they don\'t satisfy the current environmen
             description: 'Only use the side effects cache if present, do not create it for new packages',
             name: '--side-effects-cache-readonly',
           },
+          {
+            description: 'Re-runs resolution: useful for printing out peer dependency issues',
+            name: '--resolution-only',
+          },
           ...UNIVERSAL_OPTIONS,
         ],
       },
