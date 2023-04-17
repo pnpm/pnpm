@@ -265,6 +265,17 @@ test('prints summary without the filtered out entries', (done) => {
     },
     prefix,
   })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'dev',
+      id: 'registry.npmjs.org/qar/2.0.0',
+      latest: '1.0.0', // this won't be printed in summary because latest is less than current version
+      name: 'qar',
+      realName: 'qar',
+      version: '2.0.0',
+    },
+    prefix,
+  })
   packageManifestLogger.debug({
     prefix,
     updated: {
