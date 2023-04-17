@@ -31,11 +31,13 @@ export function satisfiesPackageManifest (
     }
   }
   const pickNonLinkedDeps = pickBy((spec) => !spec.startsWith('link:'))
+  let specs = importer.specifiers
   if (opts?.excludeLinksFromLockfile) {
     existingDeps = pickNonLinkedDeps(existingDeps)
+    specs = pickNonLinkedDeps(specs)
   }
   if (
-    !equals(existingDeps, importer.specifiers) ||
+    !equals(existingDeps, specs) ||
     importer.publishDirectory !== pkg.publishConfig?.directory
   ) {
     return false

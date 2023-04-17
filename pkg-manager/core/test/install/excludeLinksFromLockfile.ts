@@ -2,15 +2,21 @@ import fs from 'fs'
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
+  addDependenciesToPackage,
+  install,
   mutateModules,
   type MutatedProject,
   type ProjectOptions,
 } from '@pnpm/core'
 import { type LockfileV6 } from '@pnpm/lockfile-types'
-import { preparePackages, tempDir } from '@pnpm/prepare'
+import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
 import rimraf from '@zkochan/rimraf'
+import normalizePath from 'normalize-path'
 import readYamlFile from 'read-yaml-file'
 import { testDefaults } from '../utils'
+
+const f = fixtures(__dirname)
 
 test('links are not added to the lockfile when excludeLinksFromLockfile is true', async () => {
   const externalPkg1 = tempDir(false)
@@ -106,4 +112,50 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
   expect(fs.existsSync(path.resolve('project-1/node_modules/external-1'))).toBeTruthy()
   // expect(fs.existsSync(path.resolve('project-2/node_modules/external-2'))).toBeFalsy() // Should we remove external links that are not in deps anymore?
   expect(fs.existsSync(path.resolve('project-2/node_modules/external-3'))).toBeTruthy()
+})
+
+test('local file using absolute path is correctly installed on repeat install', async () => {
+  const project = prepareEmpty()
+  const absolutePath = path.resolve('..', 'local-pkg')
+  f.copy('local-pkg', absolutePath)
+
+  // is-odd is only added because otherwise no lockfile is created
+  const manifest = await addDependenciesToPackage({},
+    [`link:${absolutePath}`, 'is-odd@1.0.0'],
+    await testDefaults({ excludeLinksFromLockfile: true })
+  )
+
+  const expectedSpecs = {
+    'is-odd': '1.0.0',
+    'local-pkg': `link:${normalizePath(absolutePath)}`,
+  }
+  expect(manifest.dependencies).toStrictEqual(expectedSpecs)
+
+  await rimraf('node_modules')
+  await install(manifest, await testDefaults({ frozenLockfile: true, excludeLinksFromLockfile: true }))
+  {
+    const m = project.requireModule('local-pkg')
+    expect(m).toBeTruthy()
+  }
+})
+
+test('hoisted install should not fail with excludeLinksFromLockfile true', async () => {
+  const project = prepareEmpty()
+  const absolutePath = path.resolve('..', 'local-pkg')
+  f.copy('local-pkg', absolutePath)
+
+  // is-odd is only added because otherwise no lockfile is created
+  const manifest = await addDependenciesToPackage({},
+    [`link:${absolutePath}`, 'is-odd@1.0.0'],
+    await testDefaults({ excludeLinksFromLockfile: true, nodeLinker: 'hoisted' })
+  )
+
+  const expectedSpecs = {
+    'is-odd': '1.0.0',
+    'local-pkg': `link:${normalizePath(absolutePath)}`,
+  }
+  expect(manifest.dependencies).toStrictEqual(expectedSpecs)
+
+  const m = project.requireModule('local-pkg')
+  expect(m).toBeTruthy()
 })
