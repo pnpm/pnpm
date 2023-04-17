@@ -274,7 +274,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
               if (!filteredLockfile.importers[id][depType]) {
                 filteredLockfile.importers[id][depType] = {}
               }
-              filteredLockfile.importers[id][depType]![depName] = spec
+              filteredLockfile.importers[id][depType]![depName] = `link:${path.relative(opts.lockfileDir, spec.substring(5))}`
             }
           }
         }
