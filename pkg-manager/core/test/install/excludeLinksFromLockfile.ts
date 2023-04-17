@@ -12,6 +12,7 @@ import { type LockfileV6 } from '@pnpm/lockfile-types'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import rimraf from '@zkochan/rimraf'
+import normalizePath from 'normalize-path'
 import readYamlFile from 'read-yaml-file'
 import { testDefaults } from '../utils'
 
@@ -126,7 +127,7 @@ test('local file using absolute path is correctly installed on repeat install', 
 
   const expectedSpecs = {
     'is-odd': '1.0.0',
-    'local-pkg': `link:${absolutePath}`,
+    'local-pkg': `link:${normalizePath(absolutePath)}`,
   }
   expect(manifest.dependencies).toStrictEqual(expectedSpecs)
 
