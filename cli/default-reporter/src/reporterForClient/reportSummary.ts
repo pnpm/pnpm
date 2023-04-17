@@ -44,7 +44,7 @@ export function reportSummary (
   const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
 
   const summaryLog$ = log$.summary.pipe(take(1))
-  const _printDiffs = printDiffs.bind(null, { prefix: opts.cwd, filterPkgsDiff: opts.filterPkgsDiff })
+  const _printDiffs = printDiffs.bind(null, { prefix: opts.cwd })
 
   return Rx.combineLatest(
     pkgsDiff$,
@@ -55,7 +55,12 @@ export function reportSummary (
       map(([pkgsDiff]) => {
         let msg = ''
         for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly'] as const) {
-          const diffs: PackageDiff[] = Object.values(pkgsDiff[depType as keyof typeof pkgsDiff])
+          let diffs: PackageDiff[] = Object.values(pkgsDiff[depType as keyof typeof pkgsDiff])
+          if (opts.filterPkgsDiff) {
+            // This filtering is only used by Bit CLI currently.
+            // Related PR: https://github.com/teambit/bit/pull/7176
+            diffs = diffs.filter((pkgDiff) => opts.filterPkgsDiff!(pkgDiff))
+          }
           if (diffs.length > 0) {
             msg += EOL
             if (opts.pnpmConfig?.global) {
@@ -85,15 +90,9 @@ export type FilterPkgsDiff = (pkgsDiff: PackageDiff) => boolean
 function printDiffs (
   opts: {
     prefix: string
-    filterPkgsDiff?: FilterPkgsDiff
   },
   pkgsDiff: PackageDiff[]
 ) {
-  // This filtering is only used by Bit CLI currently.
-  // Related PR: https://github.com/teambit/bit/pull/7176
-  if (opts.filterPkgsDiff) {
-    pkgsDiff = pkgsDiff.filter((pkgDiff) => opts.filterPkgsDiff!(pkgDiff))
-  }
   // Sorts by alphabet then by removed/added
   // + ava 0.10.0
   // - chalk 1.0.0
