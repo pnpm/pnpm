@@ -6,7 +6,7 @@ import { type CreateStoreControllerOptions } from '@pnpm/store-connection-manage
 import { isCI } from 'ci-info'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
-import { installDeps } from './installDeps'
+import { installDeps, type InstallDepsOptions } from './installDeps'
 
 export function rcOptionsTypes () {
   return pick([
@@ -74,6 +74,7 @@ export const cliOptionsTypes = () => ({
   ...rcOptionsTypes(),
   ...pick(['force'], allTypes),
   'fix-lockfile': Boolean,
+  'resolution-only': Boolean,
   recursive: Boolean,
 })
 
@@ -228,6 +229,10 @@ Install all optionalDependencies even they don\'t satisfy the current environmen
             description: 'Only use the side effects cache if present, do not create it for new packages',
             name: '--side-effects-cache-readonly',
           },
+          {
+            description: 'Re-runs resolution: useful for printing out peer dependency issues',
+            name: '--resolution-only',
+          },
           ...UNIVERSAL_OPTIONS,
         ],
       },
@@ -296,6 +301,7 @@ export type InstallCommandOptions = Pick<Config,
   pruneDirectDependencies?: boolean
   pruneStore?: boolean
   recursive?: boolean
+  resolutionOnly?: boolean
   saveLockfile?: boolean
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
@@ -309,12 +315,17 @@ export async function handler (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  return installDeps({
+  const installDepsOptions: InstallDepsOptions = {
     ...opts,
     frozenLockfileIfExists: isCI && !opts.lockfileOnly &&
       typeof opts.rawLocalConfig['frozen-lockfile'] === 'undefined' &&
       typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined',
     include,
     includeDirect: include,
-  }, [])
+  }
+  if (opts.resolutionOnly) {
+    installDepsOptions.lockfileOnly = true
+    installDepsOptions.forceFullResolution = true
+  }
+  return installDeps(installDepsOptions, [])
 }

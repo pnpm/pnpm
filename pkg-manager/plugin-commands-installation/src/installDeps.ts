@@ -85,6 +85,7 @@ export type InstallDepsOptions = Pick<Config,
     original: string[]
   }
   allowNew?: boolean
+  forceFullResolution?: boolean
   frozenLockfileIfExists?: boolean
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies
