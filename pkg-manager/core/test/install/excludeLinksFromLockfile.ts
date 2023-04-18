@@ -8,7 +8,7 @@ import {
   type MutatedProject,
   type ProjectOptions,
 } from '@pnpm/core'
-import { type LockfileV6 } from '@pnpm/lockfile-types'
+import { type Lockfile, type LockfileV6 } from '@pnpm/lockfile-types'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import rimraf from '@zkochan/rimraf'
@@ -158,4 +158,56 @@ test('hoisted install should not fail with excludeLinksFromLockfile true', async
 
   const m = project.requireModule('local-pkg')
   expect(m).toBeTruthy()
+})
+
+test('update the lockfile when a new project is added to the workspace but do not add external links', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1' },
+    },
+  ])
+  const absolutePath = path.resolve('..', 'local-pkg')
+  f.copy('local-pkg', absolutePath)
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+  ]
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+          'local-pkg': `link:${normalizePath(absolutePath)}`,
+        },
+      },
+      rootDir: path.resolve('project-1'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({ allProjects, excludeLinksFromLockfile: true }))
+
+  importers.push({
+    mutation: 'install',
+    rootDir: path.resolve('project-2'),
+  })
+  allProjects.push({
+    buildIndex: 0,
+    manifest: {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+    rootDir: path.resolve('project-2'),
+  })
+  await mutateModules(importers, await testDefaults({ allProjects, excludeLinksFromLockfile: true, frozenLockfile: true }))
+
+  const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
+  expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
+  expect(Object.keys(lockfile.importers['project-1'].dependencies ?? {})).toStrictEqual(['is-positive'])
 })
