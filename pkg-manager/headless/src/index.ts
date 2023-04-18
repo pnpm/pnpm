@@ -269,13 +269,14 @@ export async function headlessInstall (opts: HeadlessOptions) {
     for (const { id, manifest } of selectedProjects) {
       if (filteredLockfile.importers[id]) {
         for (const depType of DEPENDENCIES_FIELDS) {
-          for (const [depName, spec] of Object.entries(manifest[depType] ?? {})) {
-            if (spec.startsWith('link:')) {
-              if (!filteredLockfile.importers[id][depType]) {
-                filteredLockfile.importers[id][depType] = {}
-              }
-              filteredLockfile.importers[id][depType]![depName] = `link:${path.relative(opts.lockfileDir, spec.substring(5))}`
-            }
+          filteredLockfile.importers[id][depType] = {
+            ...filteredLockfile.importers[id][depType],
+            ...Object.entries(manifest[depType] ?? {})
+              .filter(([_, spec]) => spec.startsWith('link:'))
+              .reduce((acc, [depName, spec]) => {
+                acc[depName] = `link:${path.relative(opts.lockfileDir, spec.substring(5))}`
+                return acc
+              }, {} as Record<string, string>),
           }
         }
       }
