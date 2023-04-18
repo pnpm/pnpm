@@ -1,5 +1,12 @@
 # pnpm
 
+## 7.32.1
+
+### Patch Changes
+
+- Warn user when `publishConfig.directory` of an injected workspace dependency does not exist [#6396](https://github.com/pnpm/pnpm/pull/6396).
+- Use hard links to link the node executable on Windows machines [#4315](https://github.com/pnpm/pnpm/issues/4315).
+
 ## 7.32.0
 
 ### Minor Changes
