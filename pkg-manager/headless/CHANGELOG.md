@@ -1,5 +1,24 @@
 # @pnpm/headless
 
+## 20.1.1
+
+### Patch Changes
+
+- 8f7e99477: External links should be correctly installed on repeat install, when `excludeLinksFromLockfile` is set to `true`.
+- Updated dependencies [d43ccc44d]
+- Updated dependencies [c0760128d]
+  - @pnpm/build-modules@11.0.1
+  - @pnpm/package-is-installable@8.0.1
+  - @pnpm/package-requester@21.0.2
+  - @pnpm/dependency-path@2.1.1
+  - @pnpm/lockfile-file@8.0.2
+  - @pnpm/filter-lockfile@8.0.3
+  - @pnpm/lockfile-to-pnp@3.0.3
+  - @pnpm/lockfile-utils@7.0.1
+  - @pnpm/hoist@8.0.3
+  - @pnpm/modules-cleaner@14.0.3
+  - @pnpm/real-hoist@2.0.3
+
 ## 20.1.0
 
 ### Minor Changes

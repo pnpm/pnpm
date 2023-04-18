@@ -1,5 +1,16 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.1
+
+### Patch Changes
+
+- c0760128d: bump semver to 7.4.0
+- Updated dependencies [c0760128d]
+  - @pnpm/dependency-path@2.1.1
+  - @pnpm/npm-resolver@16.0.3
+  - @pnpm/lockfile-utils@7.0.1
+  - @pnpm/prune-lockfile@5.0.2
+
 ## 31.1.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/fs.hard-link-dir
 
+## 2.0.1
+
+### Patch Changes
+
+- 64d0f47ff: Warn user when `publishConfig.directory` of an injected workspace dependency does not exist [#6396](https://github.com/pnpm/pnpm/pull/6396).
+
 ## 2.0.0
 
 ### Major Changes

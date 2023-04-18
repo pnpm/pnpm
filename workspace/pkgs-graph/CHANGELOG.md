@@ -1,5 +1,12 @@
 # @pnpm/workspace.pkgs-graph
 
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [c0760128d]
+  - @pnpm/resolve-workspace-range@5.0.1
+
 ## 2.0.3
 
 ### Patch Changes

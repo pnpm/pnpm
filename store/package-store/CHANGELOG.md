@@ -1,5 +1,12 @@
 # @pnpm/package-store
 
+## 16.0.2
+
+### Patch Changes
+
+- Updated dependencies [c0760128d]
+  - @pnpm/package-requester@21.0.2
+
 ## 16.0.1
 
 ### Patch Changes

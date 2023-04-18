@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-workspace-range",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "Resolves a range from versions that are present inside a workspace",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

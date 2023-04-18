@@ -1,5 +1,15 @@
 # @pnpm/config
 
+## 18.3.0
+
+### Minor Changes
+
+- 32f8e08c6: A custom compression level may be specified for the `pnpm pack` command using the `pack-gzip-level` setting [#6393](https://github.com/pnpm/pnpm/issues/6393).
+
+### Patch Changes
+
+- @pnpm/pnpmfile@5.0.6
+
 ## 18.2.0
 
 ### Minor Changes

@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-rebuild
 
+## 8.0.6
+
+### Patch Changes
+
+- d43ccc44d: Update `@pnpm/graph-sequencer`.
+- c0760128d: bump semver to 7.4.0
+- Updated dependencies [64d0f47ff]
+- Updated dependencies [32f8e08c6]
+- Updated dependencies [d43ccc44d]
+- Updated dependencies [c0760128d]
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/config@18.3.0
+  - @pnpm/sort-packages@5.0.1
+  - @pnpm/dependency-path@2.1.1
+  - @pnpm/cli-utils@2.0.6
+  - @pnpm/store-connection-manager@6.0.6
+  - @pnpm/lockfile-utils@7.0.1
+  - @pnpm/lockfile-walker@7.0.2
+  - @pnpm/get-context@9.0.3
+  - @pnpm/find-workspace-packages@6.0.6
+
 ## 8.0.5
 
 ### Patch Changes

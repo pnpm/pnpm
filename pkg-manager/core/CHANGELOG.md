@@ -1,5 +1,37 @@
 # @pnpm/core
 
+## 9.3.0
+
+### Minor Changes
+
+- 71a3ee77b: `pnpm install --resolution-only` re-runs resolution to print out any peer dependency issues [#6411](https://github.com/pnpm/pnpm/pull/6411).
+
+### Patch Changes
+
+- 6706a7d17: Add lockfileCheck option for lockfile only diff installs
+- d43ccc44d: Update `@pnpm/graph-sequencer`.
+- c0760128d: bump semver to 7.4.0
+- Updated dependencies [8f7e99477]
+- Updated dependencies [d43ccc44d]
+- Updated dependencies [ece5a1aeb]
+- Updated dependencies [c0760128d]
+  - @pnpm/headless@20.1.1
+  - @pnpm/build-modules@11.0.1
+  - @pnpm/hooks.types@1.0.0
+  - @pnpm/resolve-dependencies@31.1.1
+  - @pnpm/package-requester@21.0.2
+  - @pnpm/dependency-path@2.1.1
+  - @pnpm/hooks.read-package-hook@3.0.1
+  - @pnpm/lockfile-file@8.0.2
+  - @pnpm/filter-lockfile@8.0.3
+  - @pnpm/lockfile-to-pnp@3.0.3
+  - @pnpm/lockfile-utils@7.0.1
+  - @pnpm/lockfile-walker@7.0.2
+  - @pnpm/prune-lockfile@5.0.2
+  - @pnpm/hoist@8.0.3
+  - @pnpm/modules-cleaner@14.0.3
+  - @pnpm/get-context@9.0.3
+
 ## 9.2.0
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # @pnpm/list
 
+## 9.0.3
+
+### Patch Changes
+
+- c0760128d: bump semver to 7.4.0
+  - @pnpm/reviewing.dependencies-hierarchy@2.0.3
+
 ## 9.0.2
 
 ### Patch Changes

@@ -1,11 +1,12 @@
 # pnpm
 
-## 8.3.0-0
+## 8.3.0
 
 ### Minor Changes
 
 - A custom compression level may be specified for the `pnpm pack` command using the `pack-gzip-level` setting [#6393](https://github.com/pnpm/pnpm/issues/6393).
 - Add `--check` flag to `pnpm dedupe`. No changes will be made to `node_modules` or the lockfile. Exits with a non-zero status code if changes are possible.
+- `pnpm install --resolution-only` re-runs resolution to print out any peer dependency issues [#6411](https://github.com/pnpm/pnpm/pull/6411).
 
 ### Patch Changes
 

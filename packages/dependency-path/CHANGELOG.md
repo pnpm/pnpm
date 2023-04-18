@@ -1,5 +1,11 @@
 # @pnpm/dependency-path
 
+## 2.1.1
+
+### Patch Changes
+
+- c0760128d: bump semver to 7.4.0
+
 ## 2.1.0
 
 ### Minor Changes

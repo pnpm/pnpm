@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-patching
 
+## 3.0.6
+
+### Patch Changes
+
+- c0760128d: bump semver to 7.4.0
+- Updated dependencies [8e7a86dd9]
+- Updated dependencies [6706a7d17]
+- Updated dependencies [32f8e08c6]
+- Updated dependencies [6850bb135]
+- Updated dependencies [71a3ee77b]
+- Updated dependencies [8e7a86dd9]
+- Updated dependencies [c0760128d]
+  - @pnpm/plugin-commands-installation@13.0.0
+  - @pnpm/config@18.3.0
+  - @pnpm/lockfile-file@8.0.2
+  - @pnpm/cli-utils@2.0.6
+  - @pnpm/store-connection-manager@6.0.6
+  - @pnpm/lockfile-utils@7.0.1
+
 ## 3.0.5
 
 ### Patch Changes

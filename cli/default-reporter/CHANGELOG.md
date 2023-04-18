@@ -1,5 +1,22 @@
 # @pnpm/default-reporter
 
+## 12.2.0
+
+### Minor Changes
+
+- 6850bb135: Report errors from pnpm dedupe --check
+
+### Patch Changes
+
+- 31ca5a218: Don't print empty sections in the summary, when results are filtered.
+- c0760128d: bump semver to 7.4.0
+- Updated dependencies [32f8e08c6]
+- Updated dependencies [6850bb135]
+- Updated dependencies [6850bb135]
+  - @pnpm/config@18.3.0
+  - @pnpm/dedupe.issues-renderer@1.0.0
+  - @pnpm/dedupe.types@1.0.0
+
 ## 12.1.0
 
 ### Minor Changes

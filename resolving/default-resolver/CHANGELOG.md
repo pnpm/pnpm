@@ -1,5 +1,13 @@
 # @pnpm/default-resolver
 
+## 18.0.3
+
+### Patch Changes
+
+- Updated dependencies [c0760128d]
+  - @pnpm/git-resolver@8.0.1
+  - @pnpm/npm-resolver@16.0.3
+
 ## 18.0.2
 
 ### Patch Changes

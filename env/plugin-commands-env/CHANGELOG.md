@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-env
 
+## 4.0.6
+
+### Patch Changes
+
+- 49b15ac2e: Use hard links to link the node executable on Windows machines [#4315](https://github.com/pnpm/pnpm/issues/4315).
+- c0760128d: bump semver to 7.4.0
+- Updated dependencies [32f8e08c6]
+- Updated dependencies [c0760128d]
+  - @pnpm/config@18.3.0
+  - @pnpm/node.resolver@2.0.1
+  - @pnpm/cli-utils@2.0.6
+
 ## 4.0.5
 
 ### Patch Changes

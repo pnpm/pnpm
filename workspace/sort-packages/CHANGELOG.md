@@ -1,5 +1,11 @@
 # @pnpm/sort-packages
 
+## 5.0.1
+
+### Patch Changes
+
+- d43ccc44d: Update `@pnpm/graph-sequencer`.
+
 ## 5.0.0
 
 ### Major Changes

@@ -1,5 +1,11 @@
 # @pnpm/merge-lockfile-changes
 
+## 5.0.1
+
+### Patch Changes
+
+- c0760128d: bump semver to 7.4.0
+
 ## 5.0.0
 
 ### Major Changes

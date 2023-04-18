@@ -1,5 +1,14 @@
 # @pnpm/lockfile-file
 
+## 8.0.2
+
+### Patch Changes
+
+- c0760128d: bump semver to 7.4.0
+- Updated dependencies [c0760128d]
+  - @pnpm/merge-lockfile-changes@5.0.1
+  - @pnpm/dependency-path@2.1.1
+
 ## 8.0.1
 
 ### Patch Changes

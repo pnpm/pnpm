@@ -1,5 +1,13 @@
 # @pnpm/npm-resolver
 
+## 16.0.3
+
+### Patch Changes
+
+- c0760128d: bump semver to 7.4.0
+- Updated dependencies [c0760128d]
+  - @pnpm/resolve-workspace-range@5.0.1
+
 ## 16.0.2
 
 ### Patch Changes

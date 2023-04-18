@@ -1,5 +1,11 @@
 # @pnpm/package-is-installable
 
+## 8.0.1
+
+### Patch Changes
+
+- c0760128d: bump semver to 7.4.0
+
 ## 8.0.0
 
 ### Major Changes

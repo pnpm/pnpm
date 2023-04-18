@@ -1,5 +1,11 @@
 # @pnpm/hooks.read-package-hook
 
+## 3.0.1
+
+### Patch Changes
+
+- c0760128d: bump semver to 7.4.0
+
 ## 3.0.0
 
 ### Major Changes

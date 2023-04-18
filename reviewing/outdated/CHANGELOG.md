@@ -1,5 +1,17 @@
 # @pnpm/outdated
 
+## 12.0.4
+
+### Patch Changes
+
+- c0760128d: bump semver to 7.4.0
+- Updated dependencies [c0760128d]
+  - @pnpm/dependency-path@2.1.1
+  - @pnpm/lockfile-file@8.0.2
+  - @pnpm/npm-resolver@16.0.3
+  - @pnpm/lockfile-utils@7.0.1
+  - @pnpm/client@10.0.3
+
 ## 12.0.3
 
 ### Patch Changes

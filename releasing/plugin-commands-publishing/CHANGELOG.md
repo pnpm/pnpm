@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.1.0
+
+### Minor Changes
+
+- 32f8e08c6: A custom compression level may be specified for the `pnpm pack` command using the `pack-gzip-level` setting [#6393](https://github.com/pnpm/pnpm/issues/6393).
+
+### Patch Changes
+
+- Updated dependencies [32f8e08c6]
+- Updated dependencies [d43ccc44d]
+  - @pnpm/config@18.3.0
+  - @pnpm/sort-packages@5.0.1
+  - @pnpm/cli-utils@2.0.6
+  - @pnpm/client@10.0.3
+
 ## 7.0.5
 
 ### Patch Changes

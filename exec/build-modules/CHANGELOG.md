@@ -1,5 +1,13 @@
 # @pnpm/build-modules
 
+## 11.0.1
+
+### Patch Changes
+
+- d43ccc44d: Update `@pnpm/graph-sequencer`.
+- Updated dependencies [64d0f47ff]
+  - @pnpm/fs.hard-link-dir@2.0.1
+
 ## 11.0.0
 
 ### Major Changes

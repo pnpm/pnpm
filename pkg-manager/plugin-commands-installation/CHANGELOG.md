@@ -1,5 +1,40 @@
 # @pnpm/plugin-commands-installation
 
+## 13.0.0
+
+### Major Changes
+
+- 8e7a86dd9: Remove the `dedupe` option from `InstallCommandOptions`. This was not intentionally part of the public install command's API when it was added.
+
+### Minor Changes
+
+- 6850bb135: Add `--check` flag to `pnpm dedupe`. No changes will be made to `node_modules` or the lockfile. Exits with a non-zero status code if changes are possible.
+- 71a3ee77b: `pnpm install --resolution-only` re-runs resolution to print out any peer dependency issues [#6411](https://github.com/pnpm/pnpm/pull/6411).
+
+### Patch Changes
+
+- 8e7a86dd9: Internal refactor to call installDeps directly in the pnpm dedupe command handler. No behavior changes are expected with this refactor.
+- 6706a7d17: Add lockfileCheck option for lockfile only diff installs
+- Updated dependencies [6706a7d17]
+- Updated dependencies [32f8e08c6]
+- Updated dependencies [6850bb135]
+- Updated dependencies [d43ccc44d]
+- Updated dependencies [71a3ee77b]
+- Updated dependencies [c0760128d]
+  - @pnpm/core@9.3.0
+  - @pnpm/config@18.3.0
+  - @pnpm/dedupe.check@1.0.0
+  - @pnpm/plugin-commands-rebuild@8.0.6
+  - @pnpm/sort-packages@5.0.1
+  - @pnpm/outdated@12.0.4
+  - @pnpm/cli-utils@2.0.6
+  - @pnpm/store-connection-manager@6.0.6
+  - @pnpm/pnpmfile@5.0.6
+  - @pnpm/workspace.pkgs-graph@2.0.4
+  - @pnpm/package-store@16.0.2
+  - @pnpm/find-workspace-packages@6.0.6
+  - @pnpm/filter-workspace-packages@7.0.6
+
 ## 12.1.2
 
 ### Patch Changes
