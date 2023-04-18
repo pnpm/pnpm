@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-installation
 
+## 13.0.1
+
+### Patch Changes
+
+- @pnpm/core@9.3.1
+
 ## 13.0.0
 
 ### Major Changes

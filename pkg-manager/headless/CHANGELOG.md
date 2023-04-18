@@ -1,5 +1,11 @@
 # @pnpm/headless
 
+## 20.1.2
+
+### Patch Changes
+
+- 837078f92: Don't add links to the lockfile on repeat install, when excludeLinksFromLockfile is enabled.
+
 ## 20.1.1
 
 ### Patch Changes

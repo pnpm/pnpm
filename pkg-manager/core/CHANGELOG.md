@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 9.3.1
+
+### Patch Changes
+
+- Updated dependencies [837078f92]
+  - @pnpm/headless@20.1.2
+
 ## 9.3.0
 
 ### Minor Changes
