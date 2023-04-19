@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 18.0.4
+
+### Patch Changes
+
+- @pnpm/git-resolver@8.0.2
+- @pnpm/npm-resolver@16.0.3
+
 ## 18.0.3
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/git-resolver
 
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [8228c2cb1]
+  - @pnpm/fetch@7.0.1
+
 ## 8.0.1
 
 ### Patch Changes

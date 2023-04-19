@@ -1,5 +1,11 @@
 # @pnpm/fetch
 
+## 7.0.1
+
+### Patch Changes
+
+- 8228c2cb1: Patch node-fetch to fix an error that happens on Node.js 20 [#6424](https://github.com/pnpm/pnpm/issues/6424).
+
 ## 7.0.0
 
 ### Major Changes

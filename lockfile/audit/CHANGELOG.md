@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 7.0.5
+
+### Patch Changes
+
+- Updated dependencies [8228c2cb1]
+  - @pnpm/fetch@7.0.1
+
 ## 7.0.4
 
 ### Patch Changes
