@@ -1,0 +1,25 @@
+lockfileVersion: '6.0'
+
+importers:
+
+  .: {}
+
+  packages/a:
+    dependencies:
+      ws-b:
+        specifier: workspace:*
+        version: link:../b
+    devDependencies:
+      ws-a:
+        specifier: workspace:*
+        version: 'link:'
+
+  packages/b:
+    dependencies:
+      ws-a:
+        specifier: workspace:*
+        version: link:../a
+    devDependencies:
+      ws-b:
+        specifier: workspace:*
+        version: 'link:'

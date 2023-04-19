@@ -5037,6 +5037,34 @@ importers:
         specifier: 7.3.13
         version: 7.3.13
 
+  reviewing/lockfile:
+    dependencies:
+      chalk:
+        specifier: 4.1.2
+        version: 4.1.2
+      js-yaml:
+        specifier: npm:@zkochan/js-yaml@0.0.6
+        version: /@zkochan/js-yaml@0.0.6
+      semver:
+        specifier: 7.3.8
+        version: 7.3.8
+    devDependencies:
+      '@pnpm/lockfile-review':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-types
+      '@pnpm/types':
+        specifier: 8.10.0
+        version: link:../../packages/types
+      '@types/js-yaml':
+        specifier: 4.0.5
+        version: 4.0.5
+      '@types/semver':
+        specifier: 7.3.13
+        version: 7.3.13
+
   reviewing/outdated:
     dependencies:
       '@pnpm/client':
