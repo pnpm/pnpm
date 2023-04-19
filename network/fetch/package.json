@@ -37,7 +37,7 @@
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/network.agent": "0.1.0",
     "@zkochan/retry": "^0.2.0",
-    "node-fetch": "3.0.0-beta.9"
+    "node-fetch": "npm:@pnpm/node-fetch@1.0.0"
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",

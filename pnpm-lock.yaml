@@ -845,8 +845,8 @@ importers:
         specifier: ^0.5.0
         version: 0.5.0
       node-fetch:
-        specifier: 3.0.0-beta.9
-        version: 3.0.0-beta.9
+        specifier: npm:@pnpm/node-fetch@1.0.0
+        version: /@pnpm/node-fetch@1.0.0
 
   env/node.resolver:
     dependencies:
@@ -952,8 +952,8 @@ importers:
         specifier: 13.3.0
         version: 13.3.0
       node-fetch:
-        specifier: 3.0.0-beta.9
-        version: 3.0.0-beta.9
+        specifier: npm:@pnpm/node-fetch@1.0.0
+        version: /@pnpm/node-fetch@1.0.0
       path-name:
         specifier: ^1.0.0
         version: 1.0.0
@@ -2209,8 +2209,8 @@ importers:
         specifier: ^0.2.0
         version: 0.2.0
       node-fetch:
-        specifier: 3.0.0-beta.9
-        version: 3.0.0-beta.9
+        specifier: npm:@pnpm/node-fetch@1.0.0
+        version: /@pnpm/node-fetch@1.0.0
     devDependencies:
       '@pnpm/fetch':
         specifier: workspace:*
@@ -2225,8 +2225,8 @@ importers:
         specifier: ^0.2.0
         version: 0.2.0
       node-fetch:
-        specifier: 3.0.0-beta.9
-        version: 3.0.0-beta.9
+        specifier: npm:@pnpm/node-fetch@1.0.0
+        version: /@pnpm/node-fetch@1.0.0
     devDependencies:
       '@pnpm/fetching-types':
         specifier: workspace:*
@@ -5743,8 +5743,8 @@ importers:
         specifier: ^6.2.0
         version: 6.2.0
       node-fetch:
-        specifier: 3.0.0-beta.9
-        version: 3.0.0-beta.9
+        specifier: npm:@pnpm/node-fetch@1.0.0
+        version: /@pnpm/node-fetch@1.0.0
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -8239,6 +8239,15 @@ packages:
     transitivePeerDependencies:
       - supports-color
     dev: false
+
+  /@pnpm/node-fetch@1.0.0:
+    resolution: {integrity: sha512-eYwrzhKUBGFdq78rJStGjaHTUHA2VH+Avr//CVx/T+EJkI7hnFmOy6YghvcB2clj8HpO4V8tXRNuFNfRX08ayw==}
+    engines: {node: ^10.17 || >=12.3}
+    dependencies:
+      data-uri-to-buffer: 3.0.1
+      fetch-blob: 2.1.2
+    transitivePeerDependencies:
+      - domexception
 
   /@pnpm/nopt@0.2.1:
     resolution: {integrity: sha512-zkgDE6q3Y6KeZPjqXCk/hRQ2t6iw9JXbdnYZghwpe/HR73e4VmV5JZ5QSFypmSd5Sx4+gjNfAqME5BVAOBCk9g==}
@@ -14469,6 +14478,7 @@ packages:
       fetch-blob: 2.1.2
     transitivePeerDependencies:
       - domexception
+    dev: true
 
   /node-gyp-build@4.6.0:
     resolution: {integrity: sha512-NTZVKn9IylLwUzaKjkas1e4u2DLNcV4rdYagA4PWdPwW87Bi7z+BznyKSRwS/761tV/lzCGXplWsiaMjLqP2zQ==}
@@ -17718,6 +17728,7 @@ time:
   /@pnpm/logger@5.0.0: '2022-10-14T13:56:04.285Z'
   /@pnpm/meta-updater@0.2.2: '2022-11-18T12:00:42.706Z'
   /@pnpm/network.agent@0.1.0: '2023-02-18T01:03:06.709Z'
+  /@pnpm/node-fetch@1.0.0: '2023-04-19T11:13:43.487Z'
   /@pnpm/nopt@0.2.1: '2021-06-01T19:45:54.552Z'
   /@pnpm/npm-conf@2.1.1: '2023-04-04T19:12:09.926Z'
   /@pnpm/npm-lifecycle@2.0.1: '2023-04-01T22:20:38.506Z'
@@ -17856,7 +17867,6 @@ time:
   /micromatch@4.0.5: '2022-03-24T19:31:47.722Z'
   /nerf-dart@1.0.0: '2015-08-20T12:22:17.009Z'
   /nock@13.3.0: '2023-01-10T20:34:45.381Z'
-  /node-fetch@3.0.0-beta.9: '2020-09-05T12:52:27.791Z'
   /node-gyp@9.3.1: '2022-12-19T22:43:10.187Z'
   /normalize-newline@3.0.0: '2016-09-06T12:35:43.571Z'
   /normalize-package-data@5.0.0: '2022-10-14T05:22:41.916Z'
