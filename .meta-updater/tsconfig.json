@@ -12,6 +12,9 @@
   "references": [
     {
       "path": "../lockfile/lockfile-file"
+    },
+    {
+      "path": "../packages/types"
     }
   ],
   "composite": true

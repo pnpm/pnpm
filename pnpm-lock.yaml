@@ -132,8 +132,8 @@ importers:
         specifier: workspace:*
         version: link:../lockfile/lockfile-file
       '@pnpm/types':
-        specifier: 8.9.0
-        version: 8.9.0
+        specifier: workspace:*
+        version: link:../packages/types
       '@types/normalize-path':
         specifier: ^3.0.0
         version: 3.0.0
@@ -724,8 +724,8 @@ importers:
         specifier: workspace:*
         version: link:../../exec/run-npm
       ini:
-        specifier: 3.0.1
-        version: 3.0.1
+        specifier: 4.1.0
+        version: 4.1.0
       read-ini-file:
         specifier: 4.0.0
         version: 4.0.0
@@ -4788,8 +4788,8 @@ importers:
         specifier: ^6.2.0
         version: 6.2.0
       lru-cache:
-        specifier: ^8.0.5
-        version: 8.0.5
+        specifier: ^9.1.0
+        version: 9.1.0
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
@@ -5282,9 +5282,6 @@ importers:
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
-      lru-cache:
-        specifier: ^8.0.5
-        version: 8.0.5
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
@@ -8735,11 +8732,6 @@ packages:
     resolution: {integrity: sha512-A4pcNNvFJdkMXArEjTCOIYNL2VxD4uBynWZ6cBIELXb5qJ0tUzwKsaSz4J953I0rQFqnsFpUYqaWIquI10W1sw==}
     engines: {node: '>=14.6'}
     dev: true
-
-  /@pnpm/types@8.9.0:
-    resolution: {integrity: sha512-3MYHYm8epnciApn6w5Fzx6sepawmsNU7l6lvIq+ER22/DPSrr83YMhU/EQWnf4lORn2YyiXFj0FJSyJzEtIGmw==}
-    engines: {node: '>=14.6'}
-    dev: false
 
   /@pnpm/util.lex-comparator@1.0.0:
     resolution: {integrity: sha512-3aBQPHntVgk5AweBWZn+1I/fqZ9krK/w01197aYVkAJQGftb+BVWgEepxY5GChjSW12j52XX+CmfynYZ/p0DFQ==}
@@ -12679,6 +12671,11 @@ packages:
     resolution: {integrity: sha512-it4HyVAUTKBc6m8e1iXWvXSTdndF7HbdN713+kvLrymxTaU4AUBWrJ4vEooP+V7fexnVD3LKcBshjGGPefSMUQ==}
     engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
 
+  /ini@4.1.0:
+    resolution: {integrity: sha512-HLR38RSF2iulAzc3I/sma4CoYxQP844rPYCNfzGDOHqa/YqVlwuuZgBx6M50/X8dKgzk0cm1qRg3+47mK2N+cQ==}
+    engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
+    dev: false
+
   /inquirer@6.5.2:
     resolution: {integrity: sha512-cntlB5ghuB0iuO65Ovoi8ogLHiWGs/5yNrtUcKjFhSSiVeAIVpD7koaSU9RM8mpXw5YDi9RdYXGQMaOURB7ycQ==}
     engines: {node: '>=6.0.0'}
@@ -13891,9 +13888,9 @@ packages:
     resolution: {integrity: sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==}
     engines: {node: '>=12'}
 
-  /lru-cache@8.0.5:
-    resolution: {integrity: sha512-MhWWlVnuab1RG5/zMRRcVGXZLCXrZTgfwMikgzCegsPnG62yDQo5JnqKkrK4jO5iKqDAZGItAqN5CtKBCBWRUA==}
-    engines: {node: '>=16.14'}
+  /lru-cache@9.1.0:
+    resolution: {integrity: sha512-qFXQEwchrZcMVen2uIDceR8Tii6kCJak5rzDStfEM0qA3YLMswaxIEZO0DhIbJ3aqaJiDjt+3crlplOb0tDtKQ==}
+    engines: {node: 14 || >=16.14}
     dev: false
 
   /lunr-mutable-indexes@2.3.2:
@@ -17738,7 +17735,6 @@ time:
   /@pnpm/registry-mock@3.8.0: '2023-03-25T20:52:46.924Z'
   /@pnpm/semver-diff@1.1.0: '2021-11-16T12:40:59.941Z'
   /@pnpm/tabtab@0.1.2: '2021-03-05T17:31:19.932Z'
-  /@pnpm/types@8.9.0: '2022-11-09T23:07:02.862Z'
   /@pnpm/util.lex-comparator@1.0.0: '2022-11-04T01:03:46.134Z'
   /@types/adm-zip@0.5.0: '2022-04-01T08:01:50.776Z'
   /@types/archy@0.0.32: '2021-07-06T18:11:33.301Z'
@@ -17846,7 +17842,7 @@ time:
   /graceful-git@3.1.2: '2021-09-16T00:23:26.185Z'
   /husky@8.0.3: '2023-01-03T08:01:18.807Z'
   /hyperdrive-schemas@2.0.0: '2020-07-14T11:16:33.671Z'
-  /ini@3.0.1: '2022-08-22T17:22:43.830Z'
+  /ini@4.1.0: '2023-04-13T17:45:05.058Z'
   /is-inner-link@4.0.0: '2021-02-11T22:54:33.386Z'
   /is-port-reachable@3.0.0: '2019-11-12T09:49:42.096Z'
   /is-subdir@1.2.0: '2021-01-05T16:52:45.485Z'
@@ -17860,7 +17856,7 @@ time:
   /lcov-result-merger@3.3.0: '2022-06-21T06:32:52.863Z'
   /load-json-file@6.2.0: '2019-07-11T08:30:09.981Z'
   /loud-rejection@2.2.0: '2019-09-28T16:02:58.271Z'
-  /lru-cache@8.0.5: '2023-04-05T06:06:32.862Z'
+  /lru-cache@9.1.0: '2023-04-18T06:24:06.133Z'
   /make-empty-dir@2.0.0: '2021-04-11T12:30:52.269Z'
   /mdast-util-to-string@2.0.0: '2020-11-11T09:15:26.835Z'
   /mem@8.1.1: '2021-04-20T15:49:07.407Z'

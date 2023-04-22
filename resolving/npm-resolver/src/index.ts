@@ -13,7 +13,7 @@ import {
   type WorkspacePackages,
 } from '@pnpm/resolver-base'
 import { type DependencyManifest } from '@pnpm/types'
-import LRU from 'lru-cache'
+import { LRUCache } from 'lru-cache'
 import normalize from 'normalize-path'
 import pMemoize from 'p-memoize'
 import clone from 'ramda/src/clone'
@@ -86,7 +86,7 @@ export function createNpmResolver (
     cacheKey: (...args) => JSON.stringify(args),
     maxAge: 1000 * 20, // 20 seconds
   })
-  const metaCache = new LRU<string, PackageMeta>({
+  const metaCache = new LRUCache<string, PackageMeta>({
     max: 10000,
     ttl: 120 * 1000, // 2 minutes
   })

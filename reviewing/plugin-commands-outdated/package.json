@@ -61,7 +61,6 @@
     "@pnpm/types": "workspace:*",
     "@zkochan/table": "^2.0.1",
     "chalk": "^4.1.2",
-    "lru-cache": "^8.0.5",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "render-help": "^1.0.3",
     "strip-ansi": "^6.0.1",
