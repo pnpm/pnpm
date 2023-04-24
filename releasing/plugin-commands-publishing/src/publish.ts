@@ -22,6 +22,7 @@ export function rcOptionsTypes () {
     'access',
     'git-checks',
     'ignore-scripts',
+    'provenance',
     'npm-path',
     'otp',
     'publish-branch',

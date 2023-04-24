@@ -726,3 +726,16 @@ test('publish: exit with non-zero code when publish tgz', async () => {
   ])
   expect(result?.exitCode).not.toBe(0)
 })
+
+test('publish: provenance', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.2',
+  })
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', '--provenance'] },
+    dir: process.cwd(),
+  }, [])
+})
