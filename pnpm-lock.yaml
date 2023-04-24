@@ -3032,6 +3032,9 @@ importers:
       ci-info:
         specifier: ^3.8.0
         version: 3.8.0
+      enquirer:
+        specifier: ^2.3.6
+        version: 2.3.6
       path-absolute:
         specifier: ^1.0.1
         version: 1.0.1
