@@ -29,15 +29,17 @@ import pickAll from 'ramda/src/pickAll'
 import props from 'ramda/src/props'
 import { removeDirectDependency } from './removeDirectDependency'
 
+export interface ImporterToPrune {
+  binsDir: string
+  id: string
+  modulesDir: string
+  pruneDirectDependencies?: boolean
+  removePackages?: string[]
+  rootDir: string
+}
+
 export async function prune (
-  importers: Array<{
-    binsDir: string
-    id: string
-    modulesDir: string
-    pruneDirectDependencies?: boolean
-    removePackages?: string[]
-    rootDir: string
-  }>,
+  importers: ImporterToPrune[],
   opts: {
     dryRun?: boolean
     include: { [dependenciesField in DependenciesField]: boolean }
@@ -59,47 +61,12 @@ export async function prune (
     include: opts.include,
     skipped: opts.skipped,
   })
-  await Promise.all(importers.map(async ({ binsDir, id, modulesDir, pruneDirectDependencies, removePackages, rootDir }) => {
-    const currentImporter = opts.currentLockfile.importers[id] || {} as ProjectSnapshot
-    const currentPkgs = Object.entries(mergeDependencies(currentImporter))
-    const wantedPkgs = Object.entries(mergeDependencies(wantedLockfile.importers[id]))
-
-    const allCurrentPackages = new Set(
-      (pruneDirectDependencies === true || removePackages?.length)
-        ? (await readModulesDir(modulesDir) ?? [])
-        : []
-    )
-    const depsToRemove = new Set([
-      ...(removePackages ?? []).filter((removePackage) => allCurrentPackages.has(removePackage)),
-      ...difference(currentPkgs, wantedPkgs).map(([depName]) => depName),
-    ])
-    if (pruneDirectDependencies) {
-      const publiclyHoistedDeps = getPubliclyHoistedDependencies(opts.hoistedDependencies)
-      if (allCurrentPackages.size > 0) {
-        const newPkgsSet = new Set<string>(wantedPkgs.map(([depName]) => depName))
-        for (const currentPackage of Array.from(allCurrentPackages)) {
-          if (!newPkgsSet.has(currentPackage) && !publiclyHoistedDeps.has(currentPackage)) {
-            depsToRemove.add(currentPackage)
-          }
-        }
-      }
-    }
-
-    return Promise.all(Array.from(depsToRemove).map(async (depName) => {
-      return removeDirectDependency({
-        dependenciesField: currentImporter.devDependencies?.[depName] != null && 'devDependencies' ||
-          currentImporter.optionalDependencies?.[depName] != null && 'optionalDependencies' ||
-          currentImporter.dependencies?.[depName] != null && 'dependencies' ||
-          undefined,
-        name: depName,
-      }, {
-        binsDir,
-        dryRun: opts.dryRun,
-        modulesDir,
-        rootDir,
-      })
-    }))
-  }))
+  await pruneDirectDeps(importers, {
+    currentLockfile: opts.currentLockfile,
+    dryRun: opts.dryRun,
+    filteredWantedLockfile: wantedLockfile,
+    hoistedDependencies: opts.hoistedDependencies,
+  })
 
   const selectedImporterIds = importers.map((importer) => importer.id).sort()
   // In case installation is done on a subset of importers,
@@ -171,6 +138,58 @@ export async function prune (
   }
 
   return new Set(orphanDepPaths)
+}
+
+async function pruneDirectDeps (
+  importers: ImporterToPrune[],
+  opts: {
+    currentLockfile: Lockfile
+    dryRun?: boolean
+    hoistedDependencies: HoistedDependencies
+    filteredWantedLockfile: Lockfile
+  }
+) {
+  await Promise.all(importers.map(async ({ binsDir, id, modulesDir, pruneDirectDependencies, removePackages, rootDir }) => {
+    const currentImporter = opts.currentLockfile.importers[id] || {} as ProjectSnapshot
+    const currentPkgs = Object.entries(mergeDependencies(currentImporter))
+    const wantedPkgs = Object.entries(mergeDependencies(opts.filteredWantedLockfile.importers[id]))
+
+    const allCurrentPackages = new Set(
+      (pruneDirectDependencies === true || removePackages?.length)
+        ? (await readModulesDir(modulesDir) ?? [])
+        : []
+    )
+    const depsToRemove = new Set([
+      ...(removePackages ?? []).filter((removePackage) => allCurrentPackages.has(removePackage)),
+      ...difference(currentPkgs, wantedPkgs).map(([depName]) => depName),
+    ])
+    if (pruneDirectDependencies) {
+      const publiclyHoistedDeps = getPubliclyHoistedDependencies(opts.hoistedDependencies)
+      if (allCurrentPackages.size > 0) {
+        const newPkgsSet = new Set<string>(wantedPkgs.map(([depName]) => depName))
+        for (const currentPackage of Array.from(allCurrentPackages)) {
+          if (!newPkgsSet.has(currentPackage) && !publiclyHoistedDeps.has(currentPackage)) {
+            depsToRemove.add(currentPackage)
+          }
+        }
+      }
+    }
+
+    return Promise.all(Array.from(depsToRemove).map(async (depName) => {
+      return removeDirectDependency({
+        dependenciesField: currentImporter.devDependencies?.[depName] != null && 'devDependencies' ||
+          currentImporter.optionalDependencies?.[depName] != null && 'optionalDependencies' ||
+          currentImporter.dependencies?.[depName] != null && 'dependencies' ||
+          undefined,
+        name: depName,
+      }, {
+        binsDir,
+        dryRun: opts.dryRun,
+        modulesDir,
+        rootDir,
+      })
+    }))
+  }))
 }
 
 async function readVirtualStoreDir (virtualStoreDir: string, lockfileDir: string) {
