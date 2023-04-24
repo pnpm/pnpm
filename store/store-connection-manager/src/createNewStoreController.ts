@@ -50,6 +50,7 @@ export async function createNewStoreController (
 ) {
   const fullMetadata = opts.resolutionMode === 'time-based' && !opts.registrySupportsTimeField
   const { resolve, fetchers } = createClient({
+    afterPkgResolved: opts.hooks?.afterPkgResolved,
     customFetchers: opts.hooks?.fetchers,
     userConfig: opts.userConfig,
     unsafePerm: opts.unsafePerm,

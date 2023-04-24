@@ -8,6 +8,7 @@ import { type FetchFromRegistry, type GetAuthHeader, type RetryTimeoutOptions } 
 import type { CustomFetchers, GitFetcher, DirectoryFetcher } from '@pnpm/fetcher-base'
 import { createDirectoryFetcher } from '@pnpm/directory-fetcher'
 import { createGitFetcher } from '@pnpm/git-fetcher'
+import { type AfterPkgResolvedHook } from '@pnpm/hooks.types'
 import { createTarballFetcher, type TarballFetchers } from '@pnpm/tarball-fetcher'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import mapValues from 'ramda/src/map'
@@ -15,6 +16,7 @@ import mapValues from 'ramda/src/map'
 export type { ResolveFunction }
 
 export type ClientOptions = {
+  afterPkgResolved?: AfterPkgResolvedHook
   authConfig: Record<string, string>
   customFetchers?: CustomFetchers
   ignoreScripts?: boolean
@@ -37,16 +39,22 @@ export interface Client {
 export function createClient (opts: ClientOptions): Client {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
+  const _resolve = _createResolver(fetchFromRegistry, getAuthHeader, opts)
   return {
     fetchers: createFetchers(fetchFromRegistry, getAuthHeader, opts, opts.customFetchers),
-    resolve: _createResolver(fetchFromRegistry, getAuthHeader, opts),
+    resolve: opts.afterPkgResolved
+      ? async (wantedDependency, _opts) => opts.afterPkgResolved!(await _resolve(wantedDependency, _opts))
+      : _resolve,
   }
 }
 
-export function createResolver (opts: ClientOptions) {
+export function createResolver (opts: ClientOptions): ResolveFunction {
   const fetchFromRegistry = createFetchFromRegistry(opts)
   const getAuthHeader = createGetAuthHeaderByURI({ allSettings: opts.authConfig, userSettings: opts.userConfig })
-  return _createResolver(fetchFromRegistry, getAuthHeader, opts)
+  const _resolve = _createResolver(fetchFromRegistry, getAuthHeader, opts)
+  return opts.afterPkgResolved
+    ? async (wantedDependency, _opts) => opts.afterPkgResolved!(await _resolve(wantedDependency, _opts))
+    : _resolve
 }
 
 type Fetchers = {

@@ -1,4 +1,5 @@
 import type { Lockfile } from '@pnpm/lockfile-types'
+import { type ResolveResult } from '@pnpm/resolver-base'
 import type { Registries } from '@pnpm/types'
 
 export interface PreResolutionHookContext {
@@ -17,3 +18,5 @@ export interface PreResolutionHookLogger {
 }
 
 export type PreResolutionHook = (ctx: PreResolutionHookContext, logger: PreResolutionHookLogger) => Promise<void>
+
+export type AfterPkgResolvedHook = (resolveResult: ResolveResult) => Promise<ResolveResult>

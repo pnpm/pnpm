@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",

@@ -224,3 +224,37 @@ test('custom fetcher can call default fetcher', async () => {
 
   expect(args.opts).toBeDefined()
 })
+
+test('afterPkgResolved', async () => {
+  const project = prepare()
+
+  const pnpmfile = `
+const fs = require('fs')
+
+module.exports = {
+  hooks: {
+    afterPkgResolved: (resolveResult) => {
+      fs.writeFileSync('resolveResult.json', JSON.stringify(resolveResult), 'utf8')
+      return resolveResult
+    }
+  }
+}
+`
+
+  const npmrc = 'global-pnpmfile=.pnpmfile.cjs'
+
+  await fs.writeFile('.npmrc', npmrc, 'utf8')
+  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+
+  await execPnpm(['add', 'is-positive@1.0.0'])
+
+  await project.cafsHas('is-positive', '1.0.0')
+
+  const resolveResult = await loadJsonFile<any>('resolveResult.json') // eslint-disable-line
+
+  expect(resolveResult.resolution).toEqual({
+    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+  })
+})
