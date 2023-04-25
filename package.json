@@ -76,7 +76,8 @@
       "clipanion": "3.2.0-rc.6",
       "jsonwebtoken@<=8.5.1": ">=9.0.0",
       "json5@<2.2.2": ">=2.2.2",
-      "debug@<3.1.0": ">=3.1.0"
+      "debug@<3.1.0": ">=3.1.0",
+      "yaml@<2.2.2": ">=2.2.2"
     },
     "packageExtensions": {
       "@babel/parser": {
