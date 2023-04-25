@@ -48,7 +48,7 @@ import {
   type IncludedDependencies,
   writeModulesManifest,
 } from '@pnpm/modules-yaml'
-import { type HoistingLimits } from '@pnpm/real-hoist'
+import { getHoistingLimits, type HoistingLimitMode, type HoistingLimits } from '@pnpm/real-hoist'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifestOnly, safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
@@ -73,10 +73,9 @@ import {
   type DirectDependenciesByImporterId,
   type DependenciesGraph,
   type DependenciesGraphNode,
-  type LockfileToDepGraphOptions,
   lockfileToDepGraph,
 } from './lockfileToDepGraph'
-import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph'
+import { lockfileToHoistedDepGraph, type LockfileToHoistedDepGraphOptions } from './lockfileToHoistedDepGraph'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
 
 export type { HoistingLimits }
@@ -153,6 +152,7 @@ export interface HeadlessOptions {
   skipped: Set<string>
   enableModulesDir?: boolean
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
+  hoistingLimitMode?: HoistingLimitMode
   useGitBranchLockfile?: boolean
   useLockfile?: boolean
 }
@@ -315,7 +315,12 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     virtualStoreDir,
     nodeVersion: opts.currentEngine.nodeVersion,
     pnpmVersion: opts.currentEngine.pnpmVersion,
-  } as LockfileToDepGraphOptions
+  } as LockfileToHoistedDepGraphOptions
+
+  if (opts.nodeLinker === 'hoisted' && !opts.hoistingLimits) {
+    lockfileToDepGraphOpts.hoistingLimits = getHoistingLimits(filteredLockfile, opts.hoistingLimitMode)
+  }
+
   const {
     directDependenciesByImporterId,
     graph,

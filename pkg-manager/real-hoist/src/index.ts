@@ -10,6 +10,65 @@ export type HoistingLimits = Map<string, Set<string>>
 
 export type { HoisterResult }
 
+/**
+ * In the (default) "none" mode, dependencies are hoisted as far as possible.
+ * For example, given workspace package "A" which depends on package "B" which
+ * depends on package "C", the layout on disk will be:
+ *
+ * - /packages/A
+ * - /node_modules/B
+ * - /node_modules/C
+ *
+ * In the "workspaces" mode, dependencies are hoisted only as far as each
+ * workspace package. Given the same example, the layout would be:
+ *
+ * - /packages/A
+ * - /packages/A/node_modules/B
+ * - /packages/A/node_modules/C
+ *
+ * In the "dependencies" mode, dependencies are only hoisted up to the direct
+ * dependencies of each workspace package. Given the same example:
+ *
+ * - /packages/A
+ * - /packages/A/node_modules/B
+ * - /packages/A/node_modules/B/node_modules/C
+ */
+export type HoistingLimitMode = 'none' | 'workspaces' | 'dependencies'
+
+export function getHoistingLimits (lockfile: Lockfile, mode: HoistingLimitMode | undefined): HoistingLimits | undefined {
+  if (!mode || mode === 'none') return undefined
+
+  const hoistingLimits = new Map<string, Set<string>>()
+  const rootHoistingLimit = new Set<string>()
+
+  for (const [importerId, importer] of Object.entries(lockfile.importers)) {
+    const isWorkspaceRoot = importerId === '.'
+    const encodedId = encodeURIComponent(importerId)
+    if (!isWorkspaceRoot) {
+      rootHoistingLimit.add(encodedId)
+      if (mode !== 'dependencies') {
+        // If we're not going to prevent hoisting of non-direct dependencies,
+        // skip the below for all but the workspace root.
+        continue
+      }
+    }
+
+    const reference = isWorkspaceRoot ? '' : `workspace:${importerId}`
+    const hoistingLimit = isWorkspaceRoot ? rootHoistingLimit : new Set<string>()
+
+    hoistingLimits.set(`${encodedId}@${reference}`, hoistingLimit)
+
+    for (const deps of [importer.dependencies, importer.devDependencies, importer.optionalDependencies]) {
+      if (!deps) continue
+      for (const dep of Object.keys(deps)) {
+        hoistingLimit.add(dep)
+      }
+    }
+  }
+
+  return hoistingLimits
+}
+
 export function hoist (
   lockfile: Lockfile,
   opts?: {
