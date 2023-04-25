@@ -131,7 +131,10 @@ export async function link (
   if (opts.targetDependenciesField) {
     newPkg = await updateProjectManifestObject(opts.dir, opts.manifest, specsToUpsert)
     for (const { alias } of specsToUpsert) {
-      updatedWantedLockfile.importers[importerId].specifiers[alias] = getSpecFromPackageManifest(newPkg, alias)
+      const spec = getSpecFromPackageManifest(newPkg, alias)
+      if (spec != null) {
+        updatedWantedLockfile.importers[importerId].specifiers[alias] = spec
+      }
     }
   } else {
     newPkg = opts.manifest
@@ -182,7 +185,7 @@ function addLinkToLockfile (
   if (opts.manifest == null) return
 
   const availableSpec = getSpecFromPackageManifest(opts.manifest, opts.linkedPkgName)
-  if (availableSpec) {
+  if (availableSpec != null) {
     projectSnapshot.specifiers[opts.linkedPkgName] = availableSpec
   } else {
     delete projectSnapshot.specifiers[opts.linkedPkgName]
