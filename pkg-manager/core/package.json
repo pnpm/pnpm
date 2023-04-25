@@ -66,7 +66,7 @@
     "path-exists": "^4.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "run-groups": "^3.0.1",
-    "semver": "^7.4.0",
+    "semver": "^7.5.0",
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
@@ -87,7 +87,7 @@
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",
-    "@types/sinon": "^10.0.13",
+    "@types/sinon": "^10.0.14",
     "@yarnpkg/core": "4.0.0-rc.42",
     "ci-info": "^3.8.0",
     "deep-require-cwd": "1.0.0",
@@ -98,7 +98,7 @@
     "path-name": "^1.0.0",
     "read-yaml-file": "^2.1.0",
     "resolve-link-target": "^2.0.0",
-    "sinon": "^15.0.3",
+    "sinon": "^15.0.4",
     "symlink-dir": "^5.1.1",
     "write-json-file": "^4.3.0",
     "write-yaml-file": "^4.2.0"
