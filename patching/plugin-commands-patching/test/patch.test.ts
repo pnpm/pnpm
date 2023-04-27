@@ -31,6 +31,8 @@ const basePatchOption = {
 
 describe('patch and commit', () => {
   let defaultPatchOption: patch.PatchCommandOptions
+  let cacheDir: string
+  let storeDir: string
 
   beforeEach(async () => {
     prepare({
@@ -38,8 +40,8 @@ describe('patch and commit', () => {
         'is-positive': '1.0.0',
       },
     })
-    const cacheDir = path.resolve('cache')
-    const storeDir = path.resolve('store')
+    cacheDir = path.resolve('cache')
+    storeDir = path.resolve('store')
     defaultPatchOption = {
       ...basePatchOption,
       cacheDir,
@@ -73,9 +75,11 @@ describe('patch and commit', () => {
 
     await patchCommit.handler({
       ...DEFAULT_OPTS,
+      cacheDir,
       dir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
+      storeDir,
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
@@ -104,9 +108,11 @@ describe('patch and commit', () => {
 
     await patchCommit.handler({
       ...DEFAULT_OPTS,
+      cacheDir,
       dir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
+      storeDir,
     }, [patchDir])
 
     expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
@@ -124,10 +130,12 @@ describe('patch and commit', () => {
 
     await patchCommit.handler({
       ...DEFAULT_OPTS,
+      cacheDir,
       dir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
       patchesDir,
+      storeDir,
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
@@ -160,9 +168,11 @@ describe('patch and commit', () => {
 
     await patchCommit.handler({
       ...DEFAULT_OPTS,
+      cacheDir,
       dir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
+      storeDir,
     }, [patchDir])
 
     expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
@@ -177,9 +187,11 @@ describe('patch and commit', () => {
 
     await patchCommit.handler({
       ...DEFAULT_OPTS,
+      cacheDir,
       dir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
+      storeDir,
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
@@ -224,9 +236,11 @@ describe('patch and commit', () => {
 
     await patchCommit.handler({
       ...DEFAULT_OPTS,
+      cacheDir,
       dir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
+      storeDir,
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
@@ -318,9 +332,11 @@ describe('prompt to choose version', () => {
     fs.appendFileSync(path.join(patchDir, 'source/index.js'), '// test patching', 'utf8')
     await patchCommit.handler({
       ...DEFAULT_OPTS,
+      cacheDir,
       dir: process.cwd(),
       frozenLockfile: false,
       fixLockfile: true,
+      storeDir,
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
