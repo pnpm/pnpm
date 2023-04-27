@@ -22,17 +22,13 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
     name: 'spnpmImports',
     setup: (build) => {
       // E.g. @pnpm/config -> /<some_dir>/pnpm/packages/config/src/index.ts
-      build.onResolve({ filter: /@pnpm\// }, ({path, resolveDir}) => {
-        const pathParts = path.split('/')
-        const packageName = pathParts[1]
-
+      build.onResolve({ filter: /@pnpm\// }, ({ path, resolveDir }) => {
         // Bail if the package isn't present locally
-        if (!localPackages.includes(packageName)) {
+        if (!localPackages.includes(path)) {
           return
         }
 
-        const newPath = pathLib.resolve(dirByPackageName[packageName], packageName, 'src', 'index.ts')
-
+        const newPath = pathLib.resolve(dirByPackageName[path], 'src', 'index.ts')
         return {
           path: newPath
         }
