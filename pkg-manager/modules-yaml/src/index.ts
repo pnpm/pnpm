@@ -114,5 +114,12 @@ export async function writeModulesManifest (
   if (!isWindows()) {
     saveModules.virtualStoreDir = path.relative(modulesDir, saveModules.virtualStoreDir)
   }
-  return writeYamlFile(modulesYamlPath, saveModules, YAML_OPTS)
+  try {
+    await writeYamlFile(modulesYamlPath, saveModules, {
+      ...YAML_OPTS,
+      makeDir: false,
+    })
+  } catch (err: any) { // eslint-disable-line
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+  }
 }

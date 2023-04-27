@@ -313,8 +313,8 @@ importers:
         specifier: 4.0.0
         version: 4.0.0
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
     devDependencies:
       '@pnpm/prepare':
         specifier: workspace:*
@@ -1193,8 +1193,8 @@ importers:
         specifier: ^15.0.4
         version: 15.0.4
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
 
   exec/plugin-commands-script-runners:
     dependencies:
@@ -1290,8 +1290,8 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
 
   exec/prepare-package:
     dependencies:
@@ -1844,8 +1844,8 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
       yaml-tag:
         specifier: 1.1.0
         version: 1.1.0
@@ -1929,8 +1929,8 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
       yaml-tag:
         specifier: 1.1.0
         version: 1.1.0
@@ -2019,8 +2019,8 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
       yaml-tag:
         specifier: 1.1.0
         version: 1.1.0
@@ -2664,8 +2664,8 @@ importers:
         specifier: 7.3.13
         version: 7.3.13
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
 
   pkg-manager/client:
     dependencies:
@@ -2966,8 +2966,8 @@ importers:
         specifier: ^4.3.0
         version: 4.3.0
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
 
   pkg-manager/direct-dep-linker:
     dependencies:
@@ -3401,8 +3401,8 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
     devDependencies:
       '@pnpm/modules-yaml':
         specifier: workspace:*
@@ -3768,8 +3768,8 @@ importers:
         specifier: 4.0.0
         version: 4.0.0
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
 
   pkg-manager/read-projects-context:
     dependencies:
@@ -4001,8 +4001,8 @@ importers:
         specifier: ^7.0.3
         version: 7.0.3
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
 
   pkg-manifest/manifest-utils:
     dependencies:
@@ -4112,8 +4112,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
     devDependencies:
       '@pnpm/write-project-manifest':
         specifier: workspace:*
@@ -4399,8 +4399,8 @@ importers:
         specifier: 4.0.0
         version: 4.0.0
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
 
   pnpm/artifacts/exe:
     optionalDependencies:
@@ -4651,8 +4651,8 @@ importers:
         specifier: ^6.1.13
         version: 6.1.13
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
 
   resolving/default-resolver:
     dependencies:
@@ -5230,8 +5230,8 @@ importers:
         specifier: ^6.0.1
         version: 6.0.1
       write-yaml-file:
-        specifier: ^4.2.0
-        version: 4.2.0
+        specifier: ^5.0.0
+        version: 5.0.0
 
   reviewing/plugin-commands-outdated:
     dependencies:
@@ -8871,7 +8871,7 @@ packages:
   /@types/byline@4.2.33:
     resolution: {integrity: sha512-LJYez7wrWcJQQDknqZtrZuExMGP0IXmPl1rOOGDqLbu+H7UNNRfKNuSxCBcQMLH1EfjeWidLedC/hCc5dDfBog==}
     dependencies:
-      '@types/node': 18.16.0
+      '@types/node': 18.16.2
     dev: true
 
   /@types/cacheable-request@6.0.3:
@@ -9028,6 +9028,10 @@ packages:
 
   /@types/node@18.16.0:
     resolution: {integrity: sha512-BsAaKhB+7X+H4GnSjGhJG9Qi8Tw+inU9nJDwmD5CgOmBLEI6ArdhikpLX7DjbjDRDTbqZzU2LSQNZg8WGPiSZQ==}
+
+  /@types/node@18.16.2:
+    resolution: {integrity: sha512-GQW/JL/5Fz/0I8RpeBG9lKp0+aNcXEaVL71c0D2Q0QHDTFvlYKT7an0onCUXj85anv7b4/WesqdfchLc0jtsCg==}
+    dev: true
 
   /@types/normalize-package-data@2.4.1:
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
@@ -16057,6 +16061,10 @@ packages:
   /signal-exit@3.0.7:
     resolution: {integrity: sha512-wnD2ZE+l+SPC/uoS0vXeE9L1+0wuaMqKlfz9AMUo38JsyLSBWSFcHR1Rri62LZc12vLr1gb3jl7iwQhgwpAbGQ==}
 
+  /signal-exit@4.0.1:
+    resolution: {integrity: sha512-uUWsN4aOxJAS8KOuf3QMyFtgm1pkb6I+KRZbRF/ghdf5T7sM+B1lLLzPDxswUjkmHyxQAVzEgG35E3NzDM9GVw==}
+    engines: {node: '>=14'}
+
   /signed-varint@2.0.1:
     resolution: {integrity: sha512-abgDPg1106vuZZOvw7cFwdCABddfJRz5akcCcchzTbhyhYnsG31y4AlZEgp315T7W3nQq5P4xeOm186ZiPVFzw==}
     dependencies:
@@ -17485,6 +17493,13 @@ packages:
       imurmurhash: 0.1.4
       signal-exit: 3.0.7
 
+  /write-file-atomic@5.0.1:
+    resolution: {integrity: sha512-+QU2zd6OTD8XWIJCbffaiQeH9U73qIqafo1x6V1snCWYGJf6cVE0cDR4D8xRzcEnfI21IFrUPzPGtcPf8AC+Rw==}
+    engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
+    dependencies:
+      imurmurhash: 0.1.4
+      signal-exit: 4.0.1
+
   /write-ini-file@4.0.1:
     resolution: {integrity: sha512-8XPBFS/EqPls2V4vYSc8kPVXjLg2b0GgVVC52w2WEH4sVDXew9rgch60ckXLiTfiYQKmkxezRaRctbGQr7oj5Q==}
     engines: {node: '>=14.6'}
@@ -17549,6 +17564,13 @@ packages:
     dependencies:
       js-yaml: /@zkochan/js-yaml@0.0.6
       write-file-atomic: 3.0.3
+
+  /write-yaml-file@5.0.0:
+    resolution: {integrity: sha512-FdNA4RyH1L43TlvGG8qOMIfcEczwA5ij+zLXUy3Z83CjxhLvcV7/Q/8pk22wnCgYw7PJhtK+7lhO+qqyT4NdvQ==}
+    engines: {node: '>=16.14'}
+    dependencies:
+      js-yaml: /@zkochan/js-yaml@0.0.6
+      write-file-atomic: 5.0.1
 
   /xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
@@ -17951,5 +17973,5 @@ time:
   /write-json-file@4.3.0: '2020-02-07T08:54:49.528Z'
   /write-json5-file@3.1.0: '2021-02-11T22:54:24.439Z'
   /write-pkg@4.0.0: '2019-04-29T10:37:09.855Z'
-  /write-yaml-file@4.2.0: '2021-02-11T22:54:29.120Z'
+  /write-yaml-file@5.0.0: '2023-04-27T22:24:56.969Z'
   /yaml-tag@1.1.0: '2017-06-06T16:19:00.523Z'

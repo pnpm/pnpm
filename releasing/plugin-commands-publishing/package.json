@@ -53,7 +53,7 @@
     "load-json-file": "^6.2.0",
     "path-exists": "^4.0.0",
     "tar": "^6.1.13",
-    "write-yaml-file": "^4.2.0"
+    "write-yaml-file": "^5.0.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
