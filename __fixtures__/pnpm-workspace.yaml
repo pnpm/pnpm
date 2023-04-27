@@ -10,3 +10,8 @@ packages:
   - '!hello-world-js-bin'
   - '!has-yarn-lock'
   - '!has-yarn2-lock'
+  - '!workspace-with-lockfile-dupes'
+  - '!workspace-with-lockfile-subdep-dupes'
+  - '!workspace-has-shared-yarn-lock'
+  - '!workspace-has-shared-package-lock-json'
+  - '!workspace-has-shared-npm-shrinkwrap-json'
