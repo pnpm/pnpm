@@ -566,6 +566,8 @@ export async function headlessInstall (opts: HeadlessOptions) {
       skipped: Array.from(skipped),
       storeDir: opts.storeDir,
       virtualStoreDir,
+    }, {
+      makeModulesDir: Object.keys(filteredLockfile.packages ?? {}).length > 0,
     })
     if (opts.useLockfile) {
       // We need to write the wanted lockfile as well.

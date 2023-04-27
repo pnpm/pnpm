@@ -1,5 +1,5 @@
 ---
-"@pnpm/modules-yaml": patch
+"@pnpm/modules-yaml": minor
 "pnpm": patch
 ---
 

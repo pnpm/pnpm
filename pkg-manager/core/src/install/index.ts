@@ -1195,6 +1195,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           skipped: Array.from(ctx.skipped),
           storeDir: ctx.storeDir,
           virtualStoreDir: ctx.virtualStoreDir,
+        }, {
+          makeModulesDir: Object.keys(result.currentLockfile.packages ?? {}).length > 0,
         })
       })(),
     ])

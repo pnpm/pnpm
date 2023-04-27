@@ -87,3 +87,29 @@ test('readModulesManifest() should not create a node_modules directory if it doe
   await writeModulesManifest(modulesDir, modulesYaml)
   expect(fs.existsSync(modulesDir)).toBeFalsy()
 })
+
+test('readModulesManifest() should create a node_modules directory if makeModuleDir is set to true', async () => {
+  const modulesDir = path.join(tempy.directory(), 'node_modules')
+  const modulesYaml = {
+    hoistedDependencies: {},
+    included: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    layoutVersion: 1,
+    packageManager: 'pnpm@2',
+    pendingBuilds: [],
+    publicHoistPattern: [],
+    prunedAt: new Date().toUTCString(),
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+    shamefullyHoist: false,
+    skipped: [],
+    storeDir: '/.pnpm-store',
+    virtualStoreDir: path.join(modulesDir, '.pnpm'),
+  }
+  await writeModulesManifest(modulesDir, modulesYaml, { makeModulesDir: true })
+  expect(await readModulesManifest(modulesDir)).toEqual(modulesYaml)
+})

@@ -91,7 +91,10 @@ const YAML_OPTS = {
 
 export async function writeModulesManifest (
   modulesDir: string,
-  modules: Modules & { registries: Registries }
+  modules: Modules & { registries: Registries },
+  opts?: {
+    makeModulesDir?: boolean
+  }
 ) {
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   const saveModules = { ...modules }
@@ -117,7 +120,7 @@ export async function writeModulesManifest (
   try {
     await writeYamlFile(modulesYamlPath, saveModules, {
       ...YAML_OPTS,
-      makeDir: false,
+      makeDir: opts?.makeModulesDir ?? false,
     })
   } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
