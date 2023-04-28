@@ -65,7 +65,10 @@ test('do not fail on non-compatible node_modules when forced with a named instal
   }
   expect(err.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
 
-  await install({}, opts)
+  await install({}, {
+    ...opts,
+    force: true, // Don't ask for prompt
+  })
 })
 
 test("don't fail on non-compatible store when forced", async () => {
@@ -91,7 +94,10 @@ test('do not fail on non-compatible store when forced during named installation'
   }
   expect(err.code).toBe('ERR_PNPM_MODULES_BREAKING_CHANGE')
 
-  await install({}, opts)
+  await install({}, {
+    ...opts,
+    force: true, // Don't ask for prompt
+  })
 })
 
 async function saveModulesYaml (pnpmVersion: string, storeDir: string) {
