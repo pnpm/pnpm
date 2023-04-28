@@ -91,7 +91,10 @@ const YAML_OPTS = {
 
 export async function writeModulesManifest (
   modulesDir: string,
-  modules: Modules & { registries: Registries }
+  modules: Modules & { registries: Registries },
+  opts?: {
+    makeModulesDir?: boolean
+  }
 ) {
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   const saveModules = { ...modules }
@@ -114,5 +117,12 @@ export async function writeModulesManifest (
   if (!isWindows()) {
     saveModules.virtualStoreDir = path.relative(modulesDir, saveModules.virtualStoreDir)
   }
-  return writeYamlFile(modulesYamlPath, saveModules, YAML_OPTS)
+  try {
+    await writeYamlFile(modulesYamlPath, saveModules, {
+      ...YAML_OPTS,
+      makeDir: opts?.makeModulesDir ?? false,
+    })
+  } catch (err: any) { // eslint-disable-line
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+  }
 }

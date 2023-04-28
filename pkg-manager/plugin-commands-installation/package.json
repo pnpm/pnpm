@@ -55,7 +55,7 @@
     "tempy": "^1.0.1",
     "write-json-file": "^4.3.0",
     "write-pkg": "4.0.0",
-    "write-yaml-file": "^4.2.0"
+    "write-yaml-file": "^5.0.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",

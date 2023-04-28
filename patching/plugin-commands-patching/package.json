@@ -41,7 +41,7 @@
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",
-    "write-yaml-file": "^4.2.0"
+    "write-yaml-file": "^5.0.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
