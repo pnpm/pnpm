@@ -323,8 +323,8 @@ async function purgeModulesDirsOfImporters (
       type: 'confirm',
       name: 'question',
       message: importers.length === 1
-        ? `pnpm wants to remove ${importers[0].modulesDir}. Proceed?`
-        : 'pnpm wants to remove modules directories. Proceed?',
+        ? `The modules directory at "${importers[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
+        : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
       initial: true,
     })
     if (!confirmed) {
