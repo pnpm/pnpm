@@ -10,6 +10,11 @@ export const rcOptionsTypes = cliOptionsTypes
 
 export { cliOptionsTypes }
 
+export const shorthands = {
+  D: '--dev',
+  P: '--production',
+}
+
 export const commandNames = ['fetch']
 
 export function help () {
@@ -23,10 +28,12 @@ export function help () {
           {
             description: 'Only development packages will be fetched',
             name: '--dev',
+            shortAlias: '-D',
           },
           {
             description: 'Development packages will not be fetched',
             name: '--prod',
+            shortAlias: '-P',
           },
           ...UNIVERSAL_OPTIONS,
         ],
