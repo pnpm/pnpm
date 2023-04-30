@@ -17,6 +17,7 @@ import {
   type Registries,
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
+import enquirer from 'enquirer'
 import pathAbsolute from 'path-absolute'
 import clone from 'ramda/src/clone'
 import equals from 'ramda/src/equals'
@@ -114,6 +115,7 @@ export async function getContext (
       registries: opts.registries,
       storeDir: opts.storeDir,
       virtualStoreDir,
+      confirmModulesPurge: !opts.force,
 
       forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,
@@ -211,6 +213,7 @@ async function validateModules (
     registries: Registries
     storeDir: string
     virtualStoreDir: string
+    confirmModulesPurge?: boolean
 
     hoistPattern?: string[] | undefined
     forceHoistPattern?: boolean
@@ -227,7 +230,7 @@ async function validateModules (
     !equals(modules.publicHoistPattern, opts.publicHoistPattern || undefined)
   ) {
     if (opts.forceNewModules && (rootProject != null)) {
-      await purgeModulesDirsOfImporter(opts.virtualStoreDir, rootProject)
+      await purgeModulesDirsOfImporter(opts, rootProject)
       return { purged: true }
     }
     throw new PnpmError(
@@ -249,7 +252,7 @@ async function validateModules (
       }
     } catch (err: any) { // eslint-disable-line
       if (!opts.forceNewModules) throw err
-      await purgeModulesDirsOfImporter(opts.virtualStoreDir, rootProject)
+      await purgeModulesDirsOfImporter(opts, rootProject)
       purged = true
     }
   }
@@ -272,19 +275,19 @@ async function validateModules (
       }
     } catch (err: any) { // eslint-disable-line
       if (!opts.forceNewModules) throw err
-      await purgeModulesDirsOfImporter(opts.virtualStoreDir, project)
+      await purgeModulesDirsOfImporter(opts, project)
       purged = true
     }
   }))
   if ((modules.registries != null) && !equals(opts.registries, modules.registries)) {
     if (opts.forceNewModules) {
-      await Promise.all(projects.map(purgeModulesDirsOfImporter.bind(null, opts.virtualStoreDir)))
+      await purgeModulesDirsOfImporters(opts, projects)
       return { purged: true }
     }
     throw new PnpmError('REGISTRIES_MISMATCH', `This modules directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}. To recreate the modules directory using the new settings, run "pnpm install${opts.global ? ' -g' : ''}".`)
   }
   if (purged && (rootProject == null)) {
-    await purgeModulesDirsOfImporter(opts.virtualStoreDir, {
+    await purgeModulesDirsOfImporter(opts, {
       modulesDir: path.join(opts.lockfileDir, opts.modulesDir),
       rootDir: opts.lockfileDir,
     })
@@ -293,23 +296,54 @@ async function validateModules (
 }
 
 async function purgeModulesDirsOfImporter (
-  virtualStoreDir: string,
+  opts: {
+    confirmModulesPurge?: boolean
+    virtualStoreDir: string
+  },
   importer: {
     modulesDir: string
     rootDir: string
   }
 ) {
-  logger.info({
-    message: `Recreating ${importer.modulesDir}`,
-    prefix: importer.rootDir,
-  })
-  try {
-    // We don't remove the actual modules directory, just the contents of it.
-    // 1. we will need the directory anyway.
-    // 2. in some setups, pnpm won't even have permission to remove the modules directory.
-    await removeContentsOfDir(importer.modulesDir, virtualStoreDir)
-  } catch (err: any) { // eslint-disable-line
-    if (err.code !== 'ENOENT') throw err
+  return purgeModulesDirsOfImporters(opts, [importer])
+}
+
+async function purgeModulesDirsOfImporters (
+  opts: {
+    confirmModulesPurge?: boolean
+    virtualStoreDir: string
+  },
+  importers: Array<{
+    modulesDir: string
+    rootDir: string
+  }>
+) {
+  if (opts.confirmModulesPurge ?? true) {
+    const confirmed = await enquirer.prompt({
+      type: 'confirm',
+      name: 'question',
+      message: importers.length === 1
+        ? `The modules directory at "${importers[0].modulesDir}" will be removed and reinstalled from scratch. Proceed?`
+        : 'The modules directories will be removed and reinstalled from scratch. Proceed?',
+      initial: true,
+    })
+    if (!confirmed) {
+      throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
+    }
+  }
+  for (const importer of importers) {
+    logger.info({
+      message: `Recreating ${importer.modulesDir}`,
+      prefix: importer.rootDir,
+    })
+    try {
+      // We don't remove the actual modules directory, just the contents of it.
+      // 1. we will need the directory anyway.
+      // 2. in some setups, pnpm won't even have permission to remove the modules directory.
+      await removeContentsOfDir(importer.modulesDir, opts.virtualStoreDir)
+    } catch (err: any) { // eslint-disable-line
+      if (err.code !== 'ENOENT') throw err
+    }
   }
 }
 
@@ -437,6 +471,7 @@ export async function getContextForSingleImporter (
       registries: opts.registries,
       storeDir: opts.storeDir,
       virtualStoreDir,
+      confirmModulesPurge: !opts.force,
 
       forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,

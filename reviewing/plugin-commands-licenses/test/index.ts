@@ -2,35 +2,18 @@
 import path from 'path'
 import { licenses } from '@pnpm/plugin-commands-licenses'
 import { install } from '@pnpm/plugin-commands-installation'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { tempDir } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
 import stripAnsi from 'strip-ansi'
 import { DEFAULT_OPTS } from './utils'
-import tempy from 'tempy'
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
-
-const LICENSES_OPTIONS = {
-  cacheDir: 'cache',
-  fetchRetries: 1,
-  fetchRetryFactor: 1,
-  fetchRetryMaxtimeout: 60,
-  fetchRetryMintimeout: 10,
-  global: false,
-  networkConcurrency: 16,
-  offline: false,
-  rawConfig: { registry: REGISTRY_URL },
-  registries: { default: REGISTRY_URL },
-  strictSsl: false,
-  tag: 'latest',
-  userAgent: '',
-  userConfig: {},
-}
+const f = fixtures(__dirname)
 
 test('pnpm licenses', async () => {
-  const workspaceDir = path.resolve('./test/fixtures/complex-licenses')
+  const workspaceDir = tempDir()
+  f.copy('complex-licenses', workspaceDir)
 
-  const tmp = tempy.directory()
-  const storeDir = path.join(tmp, 'store')
+  const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
@@ -40,7 +23,7 @@ test('pnpm licenses', async () => {
 
   // Attempt to run the licenses command now
   const { output, exitCode } = await licenses.handler({
-    ...LICENSES_OPTIONS,
+    ...DEFAULT_OPTS,
     dir: workspaceDir,
     pnpmHomeDir: '',
     long: false,
@@ -54,10 +37,10 @@ test('pnpm licenses', async () => {
 })
 
 test('pnpm licenses: show details', async () => {
-  const workspaceDir = path.resolve('./test/fixtures/simple-licenses')
+  const workspaceDir = tempDir()
+  f.copy('simple-licenses', workspaceDir)
 
-  const tmp = tempy.directory()
-  const storeDir = path.join(tmp, 'store')
+  const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
@@ -67,7 +50,7 @@ test('pnpm licenses: show details', async () => {
 
   // Attempt to run the licenses command now
   const { output, exitCode } = await licenses.handler({
-    ...LICENSES_OPTIONS,
+    ...DEFAULT_OPTS,
     dir: workspaceDir,
     pnpmHomeDir: '',
     long: true,
@@ -81,10 +64,10 @@ test('pnpm licenses: show details', async () => {
 })
 
 test('pnpm licenses: output as json', async () => {
-  const workspaceDir = path.resolve('./test/fixtures/simple-licenses')
+  const workspaceDir = tempDir()
+  f.copy('simple-licenses', workspaceDir)
 
-  const tmp = tempy.directory()
-  const storeDir = path.join(tmp, 'store')
+  const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
@@ -94,7 +77,7 @@ test('pnpm licenses: output as json', async () => {
 
   // Attempt to run the licenses command now
   const { output, exitCode } = await licenses.handler({
-    ...LICENSES_OPTIONS,
+    ...DEFAULT_OPTS,
     dir: workspaceDir,
     pnpmHomeDir: '',
     long: false,
@@ -126,7 +109,7 @@ test('pnpm licenses: output as json', async () => {
 test('pnpm licenses: fails when lockfile is missing', async () => {
   await expect(
     licenses.handler({
-      ...LICENSES_OPTIONS,
+      ...DEFAULT_OPTS,
       dir: path.resolve('./test/fixtures/invalid'),
       pnpmHomeDir: '',
       long: true,
@@ -137,10 +120,10 @@ test('pnpm licenses: fails when lockfile is missing', async () => {
 })
 
 test('pnpm licenses: should correctly read LICENSE file with executable file mode', async () => {
-  const workspaceDir = path.resolve('./test/fixtures/file-mode-test')
+  const workspaceDir = tempDir()
+  f.copy('file-mode-test', workspaceDir)
 
-  const tmp = tempy.directory()
-  const storeDir = path.join(tmp, 'store')
+  const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
@@ -150,7 +133,7 @@ test('pnpm licenses: should correctly read LICENSE file with executable file mod
 
   // Attempt to run the licenses command now
   const { output, exitCode } = await licenses.handler({
-    ...LICENSES_OPTIONS,
+    ...DEFAULT_OPTS,
     dir: workspaceDir,
     pnpmHomeDir: '',
     long: true,
@@ -164,10 +147,10 @@ test('pnpm licenses: should correctly read LICENSE file with executable file mod
 })
 
 test('pnpm licenses should work with file protocol dependency', async () => {
-  const workspaceDir = path.resolve('./test/fixtures/with-file-protocol')
+  const workspaceDir = tempDir()
+  f.copy('with-file-protocol', workspaceDir)
 
-  const tmp = tempy.directory()
-  const storeDir = path.join(tmp, 'store')
+  const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
@@ -176,7 +159,7 @@ test('pnpm licenses should work with file protocol dependency', async () => {
   })
 
   const { output, exitCode } = await licenses.handler({
-    ...LICENSES_OPTIONS,
+    ...DEFAULT_OPTS,
     dir: workspaceDir,
     pnpmHomeDir: '',
     long: false,

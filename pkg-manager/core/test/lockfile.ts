@@ -1061,7 +1061,10 @@ test('lockfile is not getting broken if the used registry changes', async () => 
     manifest,
     mutation: 'install',
     rootDir: process.cwd(),
-  }, newOpts)
+  }, {
+    ...newOpts,
+    force: true, // Don't ask for prompt
+  })
   await addDependenciesToPackage(manifest, ['is-negative@1'], newOpts)
 
   expect(Object.keys((await project.readLockfile()).packages)).toStrictEqual([

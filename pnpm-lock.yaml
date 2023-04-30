@@ -3032,6 +3032,9 @@ importers:
       ci-info:
         specifier: ^3.8.0
         version: 3.8.0
+      enquirer:
+        specifier: ^2.3.6
+        version: 2.3.6
       path-absolute:
         specifier: ^1.0.1
         version: 1.0.1
@@ -5150,12 +5153,18 @@ importers:
       '@pnpm/plugin-commands-licenses':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
         specifier: 3.8.0
         version: 3.8.0(typanion@3.12.1)
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -5168,9 +5177,6 @@ importers:
       strip-ansi:
         specifier: ^6.0.1
         version: 6.0.1
-      tempy:
-        specifier: ^1.0.1
-        version: 1.0.1
 
   reviewing/plugin-commands-listing:
     dependencies:
@@ -8871,7 +8877,7 @@ packages:
   /@types/byline@4.2.33:
     resolution: {integrity: sha512-LJYez7wrWcJQQDknqZtrZuExMGP0IXmPl1rOOGDqLbu+H7UNNRfKNuSxCBcQMLH1EfjeWidLedC/hCc5dDfBog==}
     dependencies:
-      '@types/node': 18.16.2
+      '@types/node': 14.18.42
     dev: true
 
   /@types/cacheable-request@6.0.3:
@@ -8879,7 +8885,7 @@ packages:
     dependencies:
       '@types/http-cache-semantics': 4.0.1
       '@types/keyv': 3.1.4
-      '@types/node': 18.16.0
+      '@types/node': 14.18.42
       '@types/responselike': 1.0.0
 
   /@types/concat-stream@2.0.0:
@@ -8907,7 +8913,7 @@ packages:
     resolution: {integrity: sha512-IO+MJPVhoqz+28h1qLAcBEH2+xHMK6MTyHJc7MTnnYb6wsoLR29POVGJ7LycmVXIqyy/4/2ShP5sUwTXuOwb/w==}
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 18.16.0
+      '@types/node': 14.18.42
     dev: true
 
   /@types/graceful-fs@4.1.6:
@@ -8981,7 +8987,7 @@ packages:
   /@types/keyv@3.1.4:
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
     dependencies:
-      '@types/node': 18.16.0
+      '@types/node': 14.18.42
 
   /@types/lodash@4.14.181:
     resolution: {integrity: sha512-n3tyKthHJbkiWhDZs3DkhkCzt2MexYHXlX0td5iMplyfwketaOeKboEVBqzceH7juqvEg3q5oUoBFxSLu7zFag==}
@@ -9024,14 +9030,9 @@ packages:
 
   /@types/node@14.18.42:
     resolution: {integrity: sha512-xefu+RBie4xWlK8hwAzGh3npDz/4VhF6icY/shU+zv/1fNn+ZVG7T7CRwe9LId9sAYRPxI+59QBPuKL3WpyGRg==}
-    dev: true
 
   /@types/node@18.16.0:
     resolution: {integrity: sha512-BsAaKhB+7X+H4GnSjGhJG9Qi8Tw+inU9nJDwmD5CgOmBLEI6ArdhikpLX7DjbjDRDTbqZzU2LSQNZg8WGPiSZQ==}
-
-  /@types/node@18.16.2:
-    resolution: {integrity: sha512-GQW/JL/5Fz/0I8RpeBG9lKp0+aNcXEaVL71c0D2Q0QHDTFvlYKT7an0onCUXj85anv7b4/WesqdfchLc0jtsCg==}
-    dev: true
 
   /@types/normalize-package-data@2.4.1:
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
@@ -9065,7 +9066,7 @@ packages:
   /@types/responselike@1.0.0:
     resolution: {integrity: sha512-85Y2BjiufFzaMIlvJDvTTB8Fxl2xfLo4HgmHzVBz08w4wDePCTjYw66PdrolO0kzli3yam/YCgRufyo1DdQVTA==}
     dependencies:
-      '@types/node': 18.16.0
+      '@types/node': 14.18.42
 
   /@types/retry@0.12.2:
     resolution: {integrity: sha512-XISRgDJ2Tc5q4TRqvgJtzsRkFYNJzZrhTdtMoGVBttwzzQJkPnS3WWTFc7kuDRoPtPakl+T+OfdEUjYJj7Jbow==}
@@ -13577,7 +13578,7 @@ packages:
       jws: 3.2.2
       lodash: 4.17.21
       ms: 2.1.3
-      semver: 7.3.8
+      semver: 7.5.0
 
   /jsprim@1.4.2:
     resolution: {integrity: sha512-P2bSOMAc/ciLz6DzgjVlGJP9+BrJWu5UDGK70C2iweC5QBIeFf0ZXRvGjEj2uYgrY2MkAAhsSWHDWlFtEroZWw==}
