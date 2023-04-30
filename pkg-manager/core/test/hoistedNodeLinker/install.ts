@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingleProject } from '@pnpm/core'
-import { prepareEmpty } from '@pnpm/prepare'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import rimraf from '@zkochan/rimraf'
 import { sync as loadJsonFile } from 'load-json-file'
@@ -249,4 +249,70 @@ test('externalDependencies should prevent package from being hoisted to the root
 
   expect(fs.existsSync('node_modules/ms')).toBeFalsy()
   expect(fs.existsSync('node_modules/send/node_modules/ms')).toBeTruthy()
+})
+
+test('linking bins of local projects when node-linker is set to hoisted', async () => {
+  const project1Manifest = {
+    name: 'project-1',
+    version: '1.0.0',
+
+    dependencies: {
+      'project-2': 'workspace:*',
+    },
+  }
+  const project2Manifest = {
+    name: 'project-2',
+    version: '1.0.0',
+    bin: {
+      'project-2': 'index.js',
+    },
+  }
+  preparePackages([
+    project1Manifest,
+    project2Manifest,
+  ])
+  fs.writeFileSync('project-2/index.js', '#!/usr/bin/env node\nconsole.log("hello")', 'utf8')
+
+  const workspacePackages = {
+    'project-1': {
+      '1.0.0': {
+        dir: path.resolve('project-1'),
+        manifest: project1Manifest,
+      },
+    },
+    'project-2': {
+      '1.0.0': {
+        dir: path.resolve('project-2'),
+        manifest: project2Manifest,
+      },
+    },
+  }
+
+  await mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ], await testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: project1Manifest,
+        rootDir: path.resolve('project-1'),
+      },
+      {
+        buildIndex: 1,
+        manifest: project2Manifest,
+        rootDir: path.resolve('project-2'),
+      },
+    ],
+    nodeLinker: 'hoisted',
+    workspacePackages,
+  }))
+
+  expect(fs.existsSync('project-1/node_modules/.bin/project-2')).toBeTruthy()
 })
