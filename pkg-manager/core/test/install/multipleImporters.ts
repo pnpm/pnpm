@@ -248,7 +248,7 @@ test('dependencies of other importers are not pruned when installing for a subse
     },
   ])
 
-  const [{ manifest }] = await mutateModules([
+  const [{ manifest }] = (await mutateModules([
     {
       mutation: 'install',
       rootDir: path.resolve('project-1'),
@@ -284,7 +284,7 @@ test('dependencies of other importers are not pruned when installing for a subse
         rootDir: path.resolve('project-2'),
       },
     ],
-  }))
+  }))).updatedProjects
 
   await addDependenciesToPackage(manifest, ['is-positive@2'], await testDefaults({
     dir: path.resolve('project-1'),
@@ -357,7 +357,7 @@ test('dependencies of other importers are not pruned when (headless) installing 
       rootDir: path.resolve('project-2'),
     },
   ]
-  const [{ manifest }] = await mutateModules(importers, await testDefaults({ allProjects }))
+  const [{ manifest }] = (await mutateModules(importers, await testDefaults({ allProjects }))).updatedProjects
 
   await addDependenciesToPackage(manifest, ['is-positive@2'], await testDefaults({
     dir: path.resolve('project-1'),
@@ -384,7 +384,7 @@ test('dependencies of other importers are not pruned when (headless) installing 
 test('adding a new dev dependency to project that uses a shared lockfile', async () => {
   prepareEmpty()
 
-  let [{ manifest }] = await mutateModules([
+  let [{ manifest }] = (await mutateModules([
     {
       mutation: 'install',
       rootDir: path.resolve('project-1'),
@@ -404,7 +404,7 @@ test('adding a new dev dependency to project that uses a shared lockfile', async
         rootDir: path.resolve('project-1'),
       },
     ],
-  }))
+  }))).updatedProjects
   manifest = await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
 
   expect(manifest.dependencies).toStrictEqual({ 'is-positive': '1.0.0' })
@@ -922,7 +922,7 @@ test('adding a new dependency with the workspace: protocol and save-workspace-pr
 test('update workspace range', async () => {
   prepareEmpty()
 
-  const updatedImporters = await mutateModules([
+  const { updatedProjects: updatedImporters } = await mutateModules([
     {
       dependencySelectors: ['dep1', 'dep2', 'dep3', 'dep4', 'dep5', 'dep6'],
       mutation: 'installSome',
@@ -1068,7 +1068,7 @@ test('update workspace range', async () => {
 test('update workspace range when save-workspace-protocol is "rolling"', async () => {
   prepareEmpty()
 
-  const updatedImporters = await mutateModules([
+  const { updatedProjects: updatedImporters } = await mutateModules([
     {
       dependencySelectors: ['dep1', 'dep2', 'dep3', 'dep4', 'dep5', 'dep6'],
       mutation: 'installSome',

@@ -1481,11 +1481,11 @@ test('do not modify the manifest of the injected workpspace project', async () =
       },
     },
   }
-  const [project1] = await mutateModules(importers, await testDefaults({
+  const [project1] = (await mutateModules(importers, await testDefaults({
     autoInstallPeers: false,
     allProjects,
     workspacePackages,
-  }))
+  }))).updatedProjects
   expect(project1.manifest).toStrictEqual({
     name: 'project-1',
     version: '1.0.0',
