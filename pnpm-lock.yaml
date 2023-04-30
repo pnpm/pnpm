@@ -17,6 +17,7 @@ overrides:
   json5@<2.2.2: '>=2.2.2'
   debug@<3.1.0: '>=3.1.0'
   verdaccio: 5.20.1
+  yaml@>=2.0.0-5 <2.2.2: '>=2.2.2'
 
 packageExtensionsChecksum: 66c6aa53b7057053eae6c4a5ea9612f3
 
@@ -9242,7 +9243,7 @@ packages:
       debug: 4.3.4
       lodash: 4.17.21
       minimatch: 3.1.2
-      yaml: 2.2.0
+      yaml: 2.2.2
       yup: 0.32.11
     transitivePeerDependencies:
       - supports-color
@@ -17525,8 +17526,8 @@ packages:
     resolution: {integrity: sha512-r3vXyErRCYJ7wg28yvBY5VSoAF8ZvlcW9/BwUzEtUsjvX/DKs24dIkuwjtuprwJJHsbyUbLApepYTR1BN4uHrg==}
     engines: {node: '>= 6'}
 
-  /yaml@2.2.0:
-    resolution: {integrity: sha512-auf7Gi6QwO7HW//GA9seGvTXVGWl1CM/ADWh1+RxtXr6XOxnT65ovDl9fTi4e0monEyJxCHqDpF6QnFDXmJE4g==}
+  /yaml@2.2.2:
+    resolution: {integrity: sha512-CBKFWExMn46Foo4cldiChEzn7S7SRV+wqiluAb6xmueD/fGyRHIhX8m14vVGgeFWjN540nKCNVj6P21eQjgTuA==}
     engines: {node: '>= 14'}
 
   /yargs-parser@18.1.3:

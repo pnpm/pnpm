@@ -77,7 +77,8 @@
       "jsonwebtoken@<=8.5.1": ">=9.0.0",
       "json5@<2.2.2": ">=2.2.2",
       "debug@<3.1.0": ">=3.1.0",
-      "verdaccio": "5.20.1"
+      "verdaccio": "5.20.1",
+      "yaml@>=2.0.0-5 <2.2.2": ">=2.2.2"
     },
     "packageExtensions": {
       "@babel/parser": {
