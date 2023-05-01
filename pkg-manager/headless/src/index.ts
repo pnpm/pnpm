@@ -159,6 +159,7 @@ export interface HeadlessOptions {
 
 export interface InstallationResultStats {
   added: number
+  removed: number
   linkedToRoot: number
 }
 
@@ -224,9 +225,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }
 
   const skipped = opts.skipped || new Set<string>()
+  let removed = 0
   if (opts.nodeLinker !== 'hoisted') {
     if (currentLockfile != null && !opts.ignorePackageManifest) {
-      await prune(
+      const removedDepPaths = await prune(
         selectedProjects,
         {
           currentLockfile,
@@ -245,6 +247,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           wantedLockfile,
         }
       )
+      removed = removedDepPaths.size
     } else {
       statsLogger.debug({
         prefix: lockfileDir,
@@ -616,6 +619,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   return {
     stats: {
       added,
+      removed,
       linkedToRoot,
     },
   }

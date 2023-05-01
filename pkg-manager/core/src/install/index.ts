@@ -378,6 +378,7 @@ Note that in CI environments, this setting is enabled by default.`,
           updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
           stats: {
             added: 0,
+            removed: 0,
             linkedToRoot: 0,
           },
         }
@@ -510,6 +511,7 @@ Note that in CI environments, this setting is enabled by default.`,
             updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
             stats: {
               added: 0,
+              removed: 0,
               linkedToRoot: 0,
             },
           }
@@ -548,6 +550,7 @@ Note that in CI environments, this setting is enabled by default.`,
             updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
             stats: {
               added: 0,
+              removed: 0,
               linkedToRoot: 0,
             },
           }
@@ -1011,6 +1014,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
   let added = 0
+  let removed = 0
   let linkedToRoot = 0
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
@@ -1047,6 +1051,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     )
     added = result.stats.added
+    removed = result.stats.removed
     linkedToRoot = result.stats.linkedToRoot
     await finishLockfileUpdates()
     if (opts.enablePnp) {
@@ -1291,6 +1296,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     })),
     stats: {
       added,
+      removed,
       linkedToRoot,
     },
   }

@@ -76,7 +76,7 @@ export async function linkPackages (
     newDepPaths: string[]
     newHoistedDependencies: HoistedDependencies
     removedDepPaths: Set<string>
-    stats: { added: number, linkedToRoot: number }
+    stats: { added: number, removed: number, linkedToRoot: number }
   }> {
   let depNodes = Object.values(depGraph).filter(({ depPath, id }) => {
     if (((opts.wantedLockfile.packages?.[depPath]) != null) && !opts.wantedLockfile.packages[depPath].optional) {
@@ -276,7 +276,11 @@ export async function linkPackages (
     newDepPaths,
     newHoistedDependencies,
     removedDepPaths,
-    stats: { added, linkedToRoot },
+    stats: {
+      added,
+      removed: removedDepPaths.size,
+      linkedToRoot,
+    },
   }
 }
 
