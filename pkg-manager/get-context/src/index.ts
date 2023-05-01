@@ -17,6 +17,7 @@ import {
   type Registries,
 } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
+import { isCI } from 'ci-info'
 import enquirer from 'enquirer'
 import pathAbsolute from 'path-absolute'
 import clone from 'ramda/src/clone'
@@ -115,7 +116,7 @@ export async function getContext (
       registries: opts.registries,
       storeDir: opts.storeDir,
       virtualStoreDir,
-      confirmModulesPurge: !opts.force,
+      confirmModulesPurge: !opts.force && !isCI,
 
       forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,
@@ -471,7 +472,7 @@ export async function getContextForSingleImporter (
       registries: opts.registries,
       storeDir: opts.storeDir,
       virtualStoreDir,
-      confirmModulesPurge: !opts.force,
+      confirmModulesPurge: !opts.force && !isCI,
 
       forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,
