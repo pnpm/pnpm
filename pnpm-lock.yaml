@@ -554,8 +554,8 @@ importers:
         specifier: workspace:*
         version: link:../matcher
       '@pnpm/npm-conf':
-        specifier: 2.1.1
-        version: 2.1.1
+        specifier: 2.2.0
+        version: 2.2.0
       '@pnpm/pnpmfile':
         specifier: workspace:*
         version: link:../../hooks/pnpmfile
@@ -8278,8 +8278,8 @@ packages:
       config-chain: 1.1.13
     dev: true
 
-  /@pnpm/npm-conf@2.1.1:
-    resolution: {integrity: sha512-yfRcuupmxxeDOSxvw4g+wFCrGiPD0L32f5WMzqMXp7Rl93EOCdFiDcaSNnZ10Up9GdNqkj70UTa8hfhPFphaZA==}
+  /@pnpm/npm-conf@2.2.0:
+    resolution: {integrity: sha512-roLI1ul/GwzwcfcVpZYPdrgW2W/drLriObl1h+yLF5syc8/5ULWw2ALbCHUWF+4YltIqA3xFSbG4IwyJz37e9g==}
     engines: {node: '>=12'}
     dependencies:
       '@pnpm/config.env-replace': 1.1.0
@@ -17748,7 +17748,7 @@ time:
   /@pnpm/network.agent@0.1.0: '2023-02-18T01:03:06.709Z'
   /@pnpm/node-fetch@1.0.0: '2023-04-19T11:13:43.487Z'
   /@pnpm/nopt@0.2.1: '2021-06-01T19:45:54.552Z'
-  /@pnpm/npm-conf@2.1.1: '2023-04-04T19:12:09.926Z'
+  /@pnpm/npm-conf@2.2.0: '2023-05-02T09:52:48.941Z'
   /@pnpm/npm-lifecycle@2.0.1: '2023-04-01T22:20:38.506Z'
   /@pnpm/npm-package-arg@1.0.0: '2022-06-28T12:48:31.287Z'
   /@pnpm/os.env.path-extender@0.2.10: '2023-02-28T01:46:02.862Z'
