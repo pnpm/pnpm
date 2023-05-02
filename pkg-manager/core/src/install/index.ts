@@ -276,9 +276,12 @@ export async function mutateModules (
     await cleanGitBranchLockfiles(ctx.lockfileDir)
   }
 
-  return result
+  return {
+    updatedProjects: result.updatedProjects,
+    stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
+  }
 
-  async function _install (): Promise<{ updatedProjects: UpdatedProject[], stats: InstallationResultStats }> {
+  async function _install (): Promise<{ updatedProjects: UpdatedProject[], stats?: InstallationResultStats }> {
     const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
       extraEnv: opts.extraEnv,
@@ -376,11 +379,6 @@ Note that in CI environments, this setting is enabled by default.`,
         await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
         return {
           updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
-          stats: {
-            added: 0,
-            removed: 0,
-            linkedToRoot: 0,
-          },
         }
       }
       if (!ctx.existsWantedLockfile) {
@@ -509,11 +507,6 @@ Note that in CI environments, this setting is enabled by default.`,
         if (packagesToInstall.length === 0) {
           return {
             updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
-            stats: {
-              added: 0,
-              removed: 0,
-              linkedToRoot: 0,
-            },
           }
         }
 
@@ -548,11 +541,6 @@ Note that in CI environments, this setting is enabled by default.`,
         if (packagesToInstall.length === 0) {
           return {
             updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
-            stats: {
-              added: 0,
-              removed: 0,
-              linkedToRoot: 0,
-            },
           }
         }
 
@@ -807,7 +795,7 @@ export interface UpdatedProject {
 interface InstallFunctionResult {
   newLockfile: Lockfile
   projects: UpdatedProject[]
-  stats: InstallationResultStats
+  stats?: InstallationResultStats
 }
 
 type InstallFunction = (
@@ -1013,9 +1001,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
-  let added = 0
-  let removed = 0
-  let linkedToRoot = 0
+  let stats: InstallationResultStats | undefined
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
@@ -1050,9 +1036,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         wantedToBeSkippedPackageIds,
       }
     )
-    added = result.stats.added
-    removed = result.stats.removed
-    linkedToRoot = result.stats.linkedToRoot
+    stats = result.stats
     await finishLockfileUpdates()
     if (opts.enablePnp) {
       const importerNames = Object.fromEntries(
@@ -1294,11 +1278,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       peerDependencyIssues: peerDependencyIssuesByProjects[id],
       rootDir,
     })),
-    stats: {
-      added,
-      removed,
-      linkedToRoot,
-    },
+    stats,
   }
 }
 

@@ -10,6 +10,7 @@ import {
   filterLockfileByImporters,
 } from '@pnpm/filter-lockfile'
 import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
+import { type InstallationResultStats } from '@pnpm/headless'
 import { hoist } from '@pnpm/hoist'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import { logger } from '@pnpm/logger'
@@ -76,7 +77,7 @@ export async function linkPackages (
     newDepPaths: string[]
     newHoistedDependencies: HoistedDependencies
     removedDepPaths: Set<string>
-    stats: { added: number, removed: number, linkedToRoot: number }
+    stats: InstallationResultStats
   }> {
   let depNodes = Object.values(depGraph).filter(({ depPath, id }) => {
     if (((opts.wantedLockfile.packages?.[depPath]) != null) && !opts.wantedLockfile.packages[depPath].optional) {
