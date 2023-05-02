@@ -114,7 +114,7 @@ test('preserve subdeps on update', async () => {
 test('adding a new dependency to one of the workspace projects', async () => {
   prepareEmpty()
 
-  let [{ manifest }] = await mutateModules([
+  let [{ manifest }] = (await mutateModules([
     {
       mutation: 'install',
       rootDir: path.resolve('project-1'),
@@ -151,7 +151,7 @@ test('adding a new dependency to one of the workspace projects', async () => {
       },
     ],
     nodeLinker: 'hoisted',
-  }))
+  }))).updatedProjects
   manifest = await addDependenciesToPackage(
     manifest,
     ['is-negative@1.0.0'],

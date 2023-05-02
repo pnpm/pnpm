@@ -14,7 +14,7 @@ import {
 import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
-import { headlessInstall } from '@pnpm/headless'
+import { headlessInstall, type InstallationResultStats } from '@pnpm/headless'
 import {
   makeNodeRequireOption,
   runLifecycleHook,
@@ -137,7 +137,7 @@ export async function install (
   } & InstallMutationOptions
 ) {
   const rootDir = opts.dir ?? process.cwd()
-  const projects = await mutateModules(
+  const { updatedProjects: projects } = await mutateModules(
     [
       {
         mutation: 'install',
@@ -186,7 +186,7 @@ export async function mutateModulesInSingleProject (
   },
   maybeOpts: Omit<MutateModulesOptions, 'allProjects'> & InstallMutationOptions
 ): Promise<UpdatedProject> {
-  const [updatedProject] = await mutateModules(
+  const result = await mutateModules(
     [
       {
         ...project,
@@ -203,13 +203,18 @@ export async function mutateModulesInSingleProject (
       }],
     }
   )
-  return updatedProject
+  return result.updatedProjects[0]
+}
+
+interface MutateModulesResult {
+  updatedProjects: UpdatedProject[]
+  stats: InstallationResultStats
 }
 
 export async function mutateModules (
   projects: MutatedProject[],
   maybeOpts: MutateModulesOptions
-): Promise<UpdatedProject[]> {
+): Promise<MutateModulesResult> {
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -271,9 +276,12 @@ export async function mutateModules (
     await cleanGitBranchLockfiles(ctx.lockfileDir)
   }
 
-  return result
+  return {
+    updatedProjects: result.updatedProjects,
+    stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
+  }
 
-  async function _install (): Promise<UpdatedProject[]> {
+  async function _install (): Promise<{ updatedProjects: UpdatedProject[], stats?: InstallationResultStats }> {
     const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
       extraEnv: opts.extraEnv,
@@ -369,7 +377,9 @@ Note that in CI environments, this setting is enabled by default.`,
       if (opts.lockfileOnly) {
         // The lockfile will only be changed if the workspace will have new projects with no dependencies.
         await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
-        return projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir])
+        return {
+          updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
+        }
       }
       if (!ctx.existsWantedLockfile) {
         if (Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
@@ -382,7 +392,7 @@ Note that in CI environments, this setting is enabled by default.`,
           logger.info({ message: 'Lockfile is up to date, resolution step is skipped', prefix: opts.lockfileDir })
         }
         try {
-          await headlessInstall({
+          const { stats } = await headlessInstall({
             ...ctx,
             ...opts,
             currentEngine: {
@@ -409,13 +419,16 @@ Note that in CI environments, this setting is enabled by default.`,
               mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
             })
           }
-          return projects.map((mutatedProject) => {
-            const project = ctx.projects[mutatedProject.rootDir]
-            return {
-              ...project,
-              manifest: project.originalManifest ?? project.manifest,
-            }
-          })
+          return {
+            updatedProjects: projects.map((mutatedProject) => {
+              const project = ctx.projects[mutatedProject.rootDir]
+              return {
+                ...project,
+                manifest: project.originalManifest ?? project.manifest,
+              }
+            }),
+            stats,
+          }
         } catch (error: any) { // eslint-disable-line
           if (
             frozenLockfile ||
@@ -492,7 +505,9 @@ Note that in CI environments, this setting is enabled by default.`,
           }
         }
         if (packagesToInstall.length === 0) {
-          return projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir])
+          return {
+            updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
+          }
         }
 
         // TODO: install only those that were unlinked
@@ -524,7 +539,9 @@ Note that in CI environments, this setting is enabled by default.`,
           }
         }
         if (packagesToInstall.length === 0) {
-          return projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir])
+          return {
+            updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
+          }
         }
 
         // TODO: install only those that were unlinked
@@ -611,7 +628,10 @@ Note that in CI environments, this setting is enabled by default.`,
       patchedDependencies: patchedDependenciesWithResolvedPath,
     })
 
-    return result.projects
+    return {
+      updatedProjects: result.projects,
+      stats: result.stats,
+    }
   }
 }
 
@@ -721,7 +741,7 @@ export async function addDependenciesToPackage (
   } & InstallMutationOptions
 ) {
   const rootDir = opts.dir ?? process.cwd()
-  const projects = await mutateModules(
+  const { updatedProjects: projects } = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
@@ -775,6 +795,7 @@ export interface UpdatedProject {
 interface InstallFunctionResult {
   newLockfile: Lockfile
   projects: UpdatedProject[]
+  stats?: InstallationResultStats
 }
 
 type InstallFunction = (
@@ -980,6 +1001,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }
+  let stats: InstallationResultStats | undefined
   if (!opts.lockfileOnly && !isInstallationOnlyForLockfileCheck && opts.enableModulesDir) {
     const result = await linkPackages(
       projects,
@@ -1014,6 +1036,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         wantedToBeSkippedPackageIds,
       }
     )
+    stats = result.stats
     await finishLockfileUpdates()
     if (opts.enablePnp) {
       const importerNames = Object.fromEntries(
@@ -1255,6 +1278,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       peerDependencyIssues: peerDependencyIssuesByProjects[id],
       rootDir,
     })),
+    stats,
   }
 }
 
@@ -1281,7 +1305,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         ...opts,
         lockfileOnly: true,
       })
-      await headlessInstall({
+      const { stats } = await headlessInstall({
         ...ctx,
         ...opts,
         currentEngine: {
@@ -1295,7 +1319,10 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         wantedLockfile: result.newLockfile,
         useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
       })
-      return result
+      return {
+        ...result,
+        stats,
+      }
     }
     return await _installInContext(projects, ctx, opts)
   } catch (error: any) { // eslint-disable-line

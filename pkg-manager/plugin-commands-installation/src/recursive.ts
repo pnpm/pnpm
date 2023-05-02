@@ -277,7 +277,7 @@ export async function recursive (
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies of any of the projects.')
     }
-    const mutatedPkgs = await mutateModules(mutatedImporters, {
+    const { updatedProjects: mutatedPkgs } = await mutateModules(mutatedImporters, {
       ...installOpts,
       storeController: store.ctrl,
     })
@@ -340,14 +340,14 @@ export async function recursive (
           break
         case 'remove':
           action = async (manifest: PackageManifest, opts: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-            const [{ manifest: newManifest }] = await mutateModules([
+            const mutationResult = await mutateModules([
               {
                 dependencyNames: currentInput,
                 mutation: 'uninstallSome',
                 rootDir,
               },
             ], opts)
-            return newManifest
+            return mutationResult.updatedProjects[0].manifest
           }
           break
         default:

@@ -465,7 +465,7 @@ test('skip optional dependency that does not support the current OS, when doing 
     },
   ])
 
-  const [{ manifest }] = await mutateModules(
+  const [{ manifest }] = (await mutateModules(
     [
       {
         mutation: 'install',
@@ -506,7 +506,7 @@ test('skip optional dependency that does not support the current OS, when doing 
       lockfileDir: process.cwd(),
       lockfileOnly: true,
     })
-  )
+  )).updatedProjects
 
   await mutateModulesInSingleProject({
     manifest,

@@ -10,6 +10,7 @@ import {
   filterLockfileByImporters,
 } from '@pnpm/filter-lockfile'
 import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
+import { type InstallationResultStats } from '@pnpm/headless'
 import { hoist } from '@pnpm/hoist'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import { logger } from '@pnpm/logger'
@@ -76,6 +77,7 @@ export async function linkPackages (
     newDepPaths: string[]
     newHoistedDependencies: HoistedDependencies
     removedDepPaths: Set<string>
+    stats: InstallationResultStats
   }> {
   let depNodes = Object.values(depGraph).filter(({ depPath, id }) => {
     if (((opts.wantedLockfile.packages?.[depPath]) != null) && !opts.wantedLockfile.packages[depPath].optional) {
@@ -131,7 +133,7 @@ export async function linkPackages (
     failOnMissingDependencies: true,
     skipped: new Set(),
   })
-  const newDepPaths = await linkNewPackages(
+  const { newDepPaths, added } = await linkNewPackages(
     filterLockfileByImporters(opts.currentLockfile, projectIds, {
       ...filterOpts,
       failOnMissingDependencies: false,
@@ -223,6 +225,7 @@ export async function linkPackages (
     newHoistedDependencies = opts.hoistedDependencies
   }
 
+  let linkedToRoot = 0
   if (opts.symlink) {
     const projectsToLink = Object.fromEntries(await Promise.all(
       projects.map(async ({ id, manifest, modulesDir, rootDir }) => {
@@ -266,7 +269,7 @@ export async function linkPackages (
         }]
       }))
     )
-    await linkDirectDeps(projectsToLink, { dedupe: opts.dedupeDirectDeps })
+    linkedToRoot = await linkDirectDeps(projectsToLink, { dedupe: opts.dedupeDirectDeps })
   }
 
   return {
@@ -274,6 +277,11 @@ export async function linkPackages (
     newDepPaths,
     newHoistedDependencies,
     removedDepPaths,
+    stats: {
+      added,
+      removed: removedDepPaths.size,
+      linkedToRoot,
+    },
   }
 }
 
@@ -301,7 +309,7 @@ async function linkNewPackages (
     storeController: StoreController
     virtualStoreDir: string
   }
-): Promise<string[]> {
+): Promise<{ newDepPaths: string[], added: number }> {
   const wantedRelDepPaths = difference(Object.keys(wantedLockfile.packages ?? {}), Array.from(opts.skipped))
 
   let newDepPathsSet: Set<string>
@@ -316,8 +324,9 @@ async function linkNewPackages (
     newDepPathsSet = await selectNewFromWantedDeps(wantedRelDepPaths, currentLockfile, depGraph)
   }
 
+  const added = newDepPathsSet.size
   statsLogger.debug({
-    added: newDepPathsSet.size,
+    added,
     prefix: opts.lockfileDir,
   })
 
@@ -338,7 +347,7 @@ async function linkNewPackages (
     }
   }
 
-  if (!newDepPathsSet.size && (existingWithUpdatedDeps.length === 0)) return []
+  if (!newDepPathsSet.size && (existingWithUpdatedDeps.length === 0)) return { newDepPaths: [], added }
 
   const newDepPaths = Array.from(newDepPathsSet)
 
@@ -362,7 +371,7 @@ async function linkNewPackages (
     }),
   ])
 
-  return newDepPaths
+  return { newDepPaths, added }
 }
 
 async function selectNewFromWantedDeps (

@@ -157,7 +157,17 @@ export interface HeadlessOptions {
   useLockfile?: boolean
 }
 
-export async function headlessInstall (opts: HeadlessOptions) {
+export interface InstallationResultStats {
+  added: number
+  removed: number
+  linkedToRoot: number
+}
+
+export interface InstallationResult {
+  stats: InstallationResultStats
+}
+
+export async function headlessInstall (opts: HeadlessOptions): Promise<InstallationResult> {
   const reporter = opts.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -215,9 +225,10 @@ export async function headlessInstall (opts: HeadlessOptions) {
   }
 
   const skipped = opts.skipped || new Set<string>()
+  let removed = 0
   if (opts.nodeLinker !== 'hoisted') {
     if (currentLockfile != null && !opts.ignorePackageManifest) {
-      await prune(
+      const removedDepPaths = await prune(
         selectedProjects,
         {
           currentLockfile,
@@ -236,6 +247,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
           wantedLockfile,
         }
       )
+      removed = removedDepPaths.size
     } else {
       statsLogger.debug({
         prefix: lockfileDir,
@@ -337,8 +349,9 @@ export async function headlessInstall (opts: HeadlessOptions) {
   }
   const depNodes = Object.values(graph)
 
+  const added = depNodes.length
   statsLogger.debug({
-    added: depNodes.length,
+    added,
     prefix: lockfileDir,
   })
 
@@ -350,6 +363,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
   }
 
   let newHoistedDependencies!: HoistedDependencies
+  let linkedToRoot = 0
   if (opts.nodeLinker === 'hoisted' && hierarchy && prevGraph) {
     await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
       depsStateCache,
@@ -364,7 +378,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
       stage: 'importing_done',
     })
 
-    await symlinkDirectDependencies({
+    linkedToRoot = await symlinkDirectDependencies({
       directDependenciesByImporterId: symlinkedDirectDependenciesByImporterId!,
       dedupe: Boolean(opts.dedupeDirectDeps),
       filteredLockfile,
@@ -433,7 +447,7 @@ export async function headlessInstall (opts: HeadlessOptions) {
 
     /** Skip linking and due to no project manifest */
     if (!opts.ignorePackageManifest) {
-      await symlinkDirectDependencies({
+      linkedToRoot = await symlinkDirectDependencies({
         dedupe: Boolean(opts.dedupeDirectDeps),
         directDependenciesByImporterId,
         filteredLockfile,
@@ -602,6 +616,13 @@ export async function headlessInstall (opts: HeadlessOptions) {
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.removeListener('data', reporter)
   }
+  return {
+    stats: {
+      added,
+      removed,
+      linkedToRoot,
+    },
+  }
 }
 
 type SymlinkDirectDependenciesOpts = Pick<HeadlessOptions, 'registries' | 'symlink' | 'lockfileDir'> & {
@@ -621,7 +642,7 @@ async function symlinkDirectDependencies (
     registries,
     symlink,
   }: SymlinkDirectDependenciesOpts
-) {
+): Promise<number> {
   projects.forEach(({ rootDir, manifest }) => {
     // Even though headless installation will never update the package.json
     // this needs to be logged because otherwise install summary won't be printed
@@ -630,28 +651,27 @@ async function symlinkDirectDependencies (
       updated: manifest,
     })
   })
-  if (symlink !== false) {
-    const importerManifestsByImporterId = {} as { [id: string]: ProjectManifest }
-    for (const { id, manifest } of projects) {
-      importerManifestsByImporterId[id] = manifest
-    }
-    const projectsToLink = Object.fromEntries(await Promise.all(
-      projects.map(async ({ rootDir, id, modulesDir }) => ([id, {
-        dir: rootDir,
-        modulesDir,
-        dependencies: await getRootPackagesToLink(filteredLockfile, {
-          importerId: id,
-          importerModulesDir: modulesDir,
-          lockfileDir,
-          projectDir: rootDir,
-          importerManifestsByImporterId,
-          registries,
-          rootDependencies: directDependenciesByImporterId[id],
-        }),
-      }]))
-    ))
-    await linkDirectDeps(projectsToLink, { dedupe: Boolean(dedupe) })
+  if (symlink === false) return 0
+  const importerManifestsByImporterId = {} as { [id: string]: ProjectManifest }
+  for (const { id, manifest } of projects) {
+    importerManifestsByImporterId[id] = manifest
   }
+  const projectsToLink = Object.fromEntries(await Promise.all(
+    projects.map(async ({ rootDir, id, modulesDir }) => ([id, {
+      dir: rootDir,
+      modulesDir,
+      dependencies: await getRootPackagesToLink(filteredLockfile, {
+        importerId: id,
+        importerModulesDir: modulesDir,
+        lockfileDir,
+        projectDir: rootDir,
+        importerManifestsByImporterId,
+        registries,
+        rootDependencies: directDependenciesByImporterId[id],
+      }),
+    }]))
+  ))
+  return linkDirectDeps(projectsToLink, { dedupe: Boolean(dedupe) })
 }
 
 async function linkBinsOfImporter (
