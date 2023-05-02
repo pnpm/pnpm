@@ -1,5 +1,5 @@
 import path from 'path'
-import { docsUrl, type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
+import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { type Config, types } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
@@ -20,6 +20,7 @@ import {
 } from './run'
 import { PnpmError } from '@pnpm/error'
 import writeJsonFile from 'write-json-file'
+import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
 
 export const shorthands = {
   parallel: runShorthands.parallel,
@@ -224,6 +225,10 @@ export async function handler (
 
           if (!opts.bail) {
             return
+          }
+
+          if (err.originalMessage === `spawn ${params[0]} ENOENT`) {
+            err.hint = buildCommandNotFoundHint(params[0], (await readProjectManifestOnly(opts.dir)).scripts)
           }
 
           if (!err['code']?.startsWith('ERR_PNPM_')) {

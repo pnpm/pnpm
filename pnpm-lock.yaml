@@ -1243,6 +1243,9 @@ importers:
       '@zkochan/rimraf':
         specifier: ^2.1.2
         version: 2.1.2
+      didyoumean2:
+        specifier: ^5.0.0
+        version: 5.0.0
       execa:
         specifier: npm:safe-execa@0.1.2
         version: /safe-execa@0.1.2

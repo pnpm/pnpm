@@ -21,6 +21,7 @@ import renderHelp from 'render-help'
 import { runRecursive, type RecursiveRunOpts, getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand } from './runRecursive'
 import { existsInDir } from './existsInDir'
 import { handler as exec } from './exec'
+import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
 
 export const IF_PRESENT_OPTION = {
   'if-present': Boolean,
@@ -197,7 +198,10 @@ so you may run "pnpm -w run ${scriptName}"`,
         })
       }
     }
-    throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`)
+
+    throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`, {
+      hint: buildCommandNotFoundHint(scriptName, manifest.scripts),
+    })
   }
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
