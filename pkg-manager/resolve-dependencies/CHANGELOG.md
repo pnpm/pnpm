@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.2
+
+### Patch Changes
+
+- Updated dependencies [edb3072a9]
+  - @pnpm/npm-resolver@16.0.4
+
 ## 31.1.1
 
 ### Patch Changes

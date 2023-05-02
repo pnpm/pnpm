@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-rebuild
 
+## 8.0.8
+
+### Patch Changes
+
+- Updated dependencies [497b0a79c]
+- Updated dependencies [2809e89ab]
+- Updated dependencies [e6b83c84e]
+  - @pnpm/get-context@9.0.4
+  - @pnpm/config@18.3.1
+  - @pnpm/modules-yaml@12.1.0
+  - @pnpm/cli-utils@2.0.7
+  - @pnpm/store-connection-manager@6.0.8
+  - @pnpm/find-workspace-packages@6.0.7
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/lifecycle@15.0.0
+  - @pnpm/link-bins@9.0.0
+
 ## 8.0.7
 
 ### Patch Changes

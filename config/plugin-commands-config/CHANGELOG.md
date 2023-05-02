@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-config
 
+## 2.0.7
+
+### Patch Changes
+
+- edb3072a9: Update dependencies.
+- Updated dependencies [2809e89ab]
+  - @pnpm/config@18.3.1
+  - @pnpm/cli-utils@2.0.7
+
 ## 2.0.6
 
 ### Patch Changes

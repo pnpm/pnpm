@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 18.0.5
+
+### Patch Changes
+
+- Updated dependencies [edb3072a9]
+  - @pnpm/npm-resolver@16.0.4
+
 ## 18.0.4
 
 ### Patch Changes

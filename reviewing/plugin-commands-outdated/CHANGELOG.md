@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-outdated
 
+## 9.0.8
+
+### Patch Changes
+
+- edb3072a9: Update dependencies.
+- Updated dependencies [2809e89ab]
+- Updated dependencies [e6b83c84e]
+  - @pnpm/config@18.3.1
+  - @pnpm/modules-yaml@12.1.0
+  - @pnpm/default-resolver@18.0.5
+  - @pnpm/outdated@12.0.6
+  - @pnpm/cli-utils@2.0.7
+
 ## 9.0.7
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 16.0.4
+
+### Patch Changes
+
+- edb3072a9: Update dependencies.
+
 ## 16.0.3
 
 ### Patch Changes

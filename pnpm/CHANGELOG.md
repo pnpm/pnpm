@@ -1,5 +1,17 @@
 # pnpm
 
+## 8.4.0
+
+### Minor Changes
+
+- `pnpm publish` supports the `--provenance` CLI option [#6435](https://github.com/pnpm/pnpm/issues/6435).
+
+### Patch Changes
+
+- Link the bin files of local workspace dependencies, when `node-linker` is set to `hoisted` [6486](https://github.com/pnpm/pnpm/issues/6486).
+- Ask the user to confirm the removal of `node_modules` directory unless the `--force` option is passed.
+- Do not create a `node_modules` folder with a `.modules.yaml` file if there are no dependencies inside `node_modules`.
+
 ## 8.3.1
 
 ### Patch Changes

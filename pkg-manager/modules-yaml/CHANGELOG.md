@@ -1,5 +1,11 @@
 # @pnpm/modules-yaml
 
+## 12.1.0
+
+### Minor Changes
+
+- e6b83c84e: Do not create a `node_modules` folder with a `.modules.yaml` file if there are now dependencies inside `node_modules`.
+
 ## 12.0.0
 
 ### Major Changes

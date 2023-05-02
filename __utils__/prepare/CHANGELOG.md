@@ -1,5 +1,11 @@
 # @pnpm/prepare
 
+## 0.0.66
+
+### Patch Changes
+
+- @pnpm/assert-project@2.3.23
+
 ## 0.0.65
 
 ### Patch Changes

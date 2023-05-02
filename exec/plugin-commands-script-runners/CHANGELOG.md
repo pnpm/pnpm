@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-script-runners
 
+## 7.0.9
+
+### Patch Changes
+
+- Updated dependencies [2809e89ab]
+  - @pnpm/config@18.3.1
+  - @pnpm/plugin-commands-installation@13.0.3
+  - @pnpm/cli-utils@2.0.7
+  - @pnpm/lifecycle@15.0.0
+
 ## 7.0.8
 
 ### Patch Changes

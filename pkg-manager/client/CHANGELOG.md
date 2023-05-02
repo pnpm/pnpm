@@ -1,5 +1,13 @@
 # @pnpm/client
 
+## 10.0.5
+
+### Patch Changes
+
+- @pnpm/default-resolver@18.0.5
+- @pnpm/directory-fetcher@6.0.0
+- @pnpm/tarball-fetcher@15.0.0
+
 ## 10.0.4
 
 ### Patch Changes

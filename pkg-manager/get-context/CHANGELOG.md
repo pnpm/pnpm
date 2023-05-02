@@ -1,5 +1,14 @@
 # @pnpm/get-context
 
+## 9.0.4
+
+### Patch Changes
+
+- 497b0a79c: Ask the user to confirm the removal of node_modules directory unless the `--force` option is passed.
+- Updated dependencies [e6b83c84e]
+  - @pnpm/modules-yaml@12.1.0
+  - @pnpm/read-projects-context@8.0.3
+
 ## 9.0.3
 
 ### Patch Changes

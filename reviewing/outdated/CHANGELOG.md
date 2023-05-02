@@ -1,5 +1,15 @@
 # @pnpm/outdated
 
+## 12.0.6
+
+### Patch Changes
+
+- Updated dependencies [edb3072a9]
+- Updated dependencies [e6b83c84e]
+  - @pnpm/npm-resolver@16.0.4
+  - @pnpm/modules-yaml@12.1.0
+  - @pnpm/client@10.0.5
+
 ## 12.0.5
 
 ### Patch Changes

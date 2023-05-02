@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.2.0
+
+### Minor Changes
+
+- ad8e3b6a0: `pnpm publish` supports the `--provenance` CLI option [#6435](https://github.com/pnpm/pnpm/issues/6435).
+
+### Patch Changes
+
+- Updated dependencies [2809e89ab]
+  - @pnpm/config@18.3.1
+  - @pnpm/cli-utils@2.0.7
+  - @pnpm/client@10.0.5
+  - @pnpm/exportable-manifest@5.0.0
+  - @pnpm/lifecycle@15.0.0
+
 ## 7.1.1
 
 ### Patch Changes

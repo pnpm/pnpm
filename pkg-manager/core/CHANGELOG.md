@@ -1,5 +1,29 @@
 # @pnpm/core
 
+## 10.0.0
+
+### Major Changes
+
+- 42902ef85: Return installation stats. Breaking change to the API.
+
+### Patch Changes
+
+- Updated dependencies [3a1a1385d]
+- Updated dependencies [42902ef85]
+- Updated dependencies [497b0a79c]
+- Updated dependencies [e6b83c84e]
+- Updated dependencies [42902ef85]
+  - @pnpm/headless@20.2.0
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.0
+  - @pnpm/get-context@9.0.4
+  - @pnpm/modules-yaml@12.1.0
+  - @pnpm/resolve-dependencies@31.1.2
+  - @pnpm/package-requester@21.0.2
+  - @pnpm/symlink-dependency@7.0.0
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/lifecycle@15.0.0
+  - @pnpm/link-bins@9.0.0
+
 ## 9.3.1
 
 ### Patch Changes

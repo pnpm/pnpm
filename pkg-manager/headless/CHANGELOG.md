@@ -1,5 +1,23 @@
 # @pnpm/headless
 
+## 20.2.0
+
+### Minor Changes
+
+- 42902ef85: Return installation stats.
+
+### Patch Changes
+
+- 3a1a1385d: Link the bin files of local workspace dependencies, when `node-linker` is set to `hoisted` [6486](https://github.com/pnpm/pnpm/issues/6486).
+- Updated dependencies [42902ef85]
+- Updated dependencies [e6b83c84e]
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.0
+  - @pnpm/modules-yaml@12.1.0
+  - @pnpm/package-requester@21.0.2
+  - @pnpm/symlink-dependency@7.0.0
+  - @pnpm/lifecycle@15.0.0
+  - @pnpm/link-bins@9.0.0
+
 ## 20.1.2
 
 ### Patch Changes

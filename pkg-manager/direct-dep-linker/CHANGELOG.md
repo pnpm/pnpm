@@ -1,5 +1,15 @@
 # @pnpm/pkg-manager.direct-dep-linker
 
+## 2.1.0
+
+### Minor Changes
+
+- 42902ef85: Return the amount of linked dependencies.
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@7.0.0
+
 ## 2.0.0
 
 ### Major Changes

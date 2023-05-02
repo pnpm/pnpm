@@ -1,5 +1,12 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [e6b83c84e]
+  - @pnpm/modules-yaml@12.1.0
+
 ## 2.0.3
 
 ### Patch Changes
