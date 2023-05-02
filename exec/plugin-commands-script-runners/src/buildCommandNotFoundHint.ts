@@ -9,7 +9,7 @@ export function buildCommandNotFoundHint (scriptName: string, scripts?: PackageS
   })
 
   if (nearestCommand) {
-    hint += ` Did you mean "pnpm run ${nearestCommand}"`
+    hint += ` Did you mean "pnpm run ${nearestCommand}"?`
   }
 
   return hint

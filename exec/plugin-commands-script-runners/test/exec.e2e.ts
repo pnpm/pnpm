@@ -832,5 +832,5 @@ test('pnpm exec command not found', async () => {
   } catch (err: any) { // eslint-disable-line
     error = err
   }
-  expect(error?.hint).toBe('Command "buil" not found. Did you mean "pnpm run build"')
+  expect(error?.hint).toBe('Command "buil" not found. Did you mean "pnpm run build"?')
 })

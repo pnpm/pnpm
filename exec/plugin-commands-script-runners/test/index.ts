@@ -601,6 +601,6 @@ test('pnpm run with slightly incorrect command suggests correct one', async () =
     workspaceConcurrency: 1,
   }, ['buil'])).rejects.toEqual(expect.objectContaining({
     code: 'ERR_PNPM_NO_SCRIPT',
-    hint: 'Command "buil" not found. Did you mean "pnpm run build"',
+    hint: 'Command "buil" not found. Did you mean "pnpm run build"?',
   }))
 })
