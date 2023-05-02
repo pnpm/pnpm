@@ -24,6 +24,7 @@ export function rcOptionsTypes () {
     'ignore-scripts',
     'provenance',
     'npm-path',
+    'otp',
     'publish-branch',
     'registry',
     'tag',
@@ -35,7 +36,6 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return {
     ...rcOptionsTypes(),
-    otp: String,
     'dry-run': Boolean,
     force: Boolean,
     json: Boolean,
