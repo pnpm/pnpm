@@ -25,6 +25,7 @@ import {
 import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
 import zipWith from 'ramda/src/zipWith'
+import isSubdir from 'is-subdir'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
 import { depPathToRef } from './depPathToRef'
 import { createNodeIdForLinkedLocalPkg, type UpdateMatchingFunction } from './resolveDependencies'
@@ -185,10 +186,16 @@ export async function resolveDependencies (
       )
       : []
     resolvedImporter.linkedDependencies.forEach((linkedDependency) => {
+      // The location of the external link may vary on different machines, so it is better not to include it in the lockfile.
+      // As a workaround, we symlink to the root of node_modules, which is a symlink to the actual location of the external link.
+      const target = !opts.excludeLinksFromLockfile || isSubdir(opts.lockfileDir, linkedDependency.resolution.directory)
+        ? linkedDependency.resolution.directory
+        : path.join(project.modulesDir, linkedDependency.alias)
+      const linkedDir = createNodeIdForLinkedLocalPkg(opts.lockfileDir, target)
       topParents.push({
         name: linkedDependency.alias,
         version: linkedDependency.version,
-        linkedDir: createNodeIdForLinkedLocalPkg(opts.lockfileDir, linkedDependency.resolution.directory),
+        linkedDir,
       })
     })
 
