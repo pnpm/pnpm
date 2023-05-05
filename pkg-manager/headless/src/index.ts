@@ -278,7 +278,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     lockfileDir,
   })
   if (opts.excludeLinksFromLockfile) {
-    for (const { id, manifest } of selectedProjects) {
+    for (const { id, manifest, rootDir } of selectedProjects) {
       if (filteredLockfile.importers[id]) {
         for (const depType of DEPENDENCIES_FIELDS) {
           filteredLockfile.importers[id][depType] = {
@@ -286,7 +286,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
             ...Object.entries(manifest[depType] ?? {})
               .filter(([_, spec]) => spec.startsWith('link:'))
               .reduce((acc, [depName, spec]) => {
-                acc[depName] = `link:${path.relative(opts.lockfileDir, spec.substring(5))}`
+                acc[depName] = `link:${path.relative(rootDir, spec.substring(5))}`
                 return acc
               }, {} as Record<string, string>),
           }
