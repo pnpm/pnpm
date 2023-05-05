@@ -62,7 +62,7 @@
     "semver": "^7.5.0",
     "sort-keys": "^4.2.0",
     "strip-bom": "^4.0.0",
-    "write-file-atomic": "^5.0.0"
+    "write-file-atomic": "^5.0.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

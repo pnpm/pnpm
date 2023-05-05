@@ -52,7 +52,7 @@
     "is-windows": "^1.0.2",
     "load-json-file": "^6.2.0",
     "path-exists": "^4.0.0",
-    "tar": "^6.1.13",
+    "tar": "^6.1.14",
     "write-yaml-file": "^5.0.0"
   },
   "dependencies": {

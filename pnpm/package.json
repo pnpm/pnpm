@@ -105,7 +105,7 @@
     "symlink-dir": "^5.1.1",
     "tempy": "^1.0.1",
     "tree-kill": "^1.2.2",
-    "which": "^3.0.0",
+    "which": "^3.0.1",
     "write-json-file": "^4.3.0",
     "write-pkg": "4.0.0",
     "write-yaml-file": "^5.0.0"

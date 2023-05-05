@@ -32,7 +32,7 @@
     "@pnpm/text.comments-parser": "workspace:*",
     "@pnpm/types": "workspace:*",
     "json5": "^2.2.3",
-    "write-file-atomic": "^5.0.0",
+    "write-file-atomic": "^5.0.1",
     "write-yaml-file": "^5.0.0"
   },
   "devDependencies": {

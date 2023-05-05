@@ -48,7 +48,7 @@
     "pretty-ms": "^7.0.1",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "right-pad": "^1.0.1",
-    "rxjs": "^7.8.0",
+    "rxjs": "^7.8.1",
     "semver": "^7.5.0",
     "stacktracey": "^2.1.8",
     "string-length": "^4.0.2",
