@@ -20,8 +20,11 @@ const f = fixtures(__dirname)
 
 test('links are not added to the lockfile when excludeLinksFromLockfile is true', async () => {
   const externalPkg1 = tempDir(false)
+  fs.writeFileSync(path.join(externalPkg1, 'index.js'), '', 'utf8')
   const externalPkg2 = tempDir(false)
+  fs.writeFileSync(path.join(externalPkg2, 'index.js'), '', 'utf8')
   const externalPkg3 = tempDir(false)
+  fs.writeFileSync(path.join(externalPkg3, 'index.js'), '', 'utf8')
   preparePackages([
     {
       location: 'project-1',
@@ -53,7 +56,7 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
 
         dependencies: {
           'is-positive': '1.0.0',
-          'external-1': `link:${path.relative(project1Dir, externalPkg1)}`,
+          'external-1': `link:${externalPkg1}`,
         },
       },
       rootDir: project1Dir,
@@ -77,8 +80,8 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
   expect(lockfile.importers['project-1'].dependencies?.['external-1']).toBeUndefined()
   expect(lockfile.importers['project-2'].dependencies?.['external-2']).toBeUndefined()
 
-  expect(fs.existsSync(path.resolve('project-1/node_modules/external-1'))).toBeTruthy()
-  expect(fs.existsSync(path.resolve('project-2/node_modules/external-2'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-1/node_modules/external-1/index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-2/node_modules/external-2/index.js'))).toBeTruthy()
 
   await rimraf('node_modules')
   await rimraf('project-1/node_modules')
@@ -88,8 +91,8 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
   expect(lockfile.importers['project-1'].dependencies?.['external-1']).toBeUndefined()
   expect(lockfile.importers['project-2'].dependencies?.['external-2']).toBeUndefined()
 
-  expect(fs.existsSync(path.resolve('project-1/node_modules/external-1'))).toBeTruthy()
-  expect(fs.existsSync(path.resolve('project-2/node_modules/external-2'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-1/node_modules/external-1/index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-2/node_modules/external-2/index.js'))).toBeTruthy()
 
   await rimraf('node_modules')
   await rimraf('project-1/node_modules')
@@ -99,8 +102,8 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
   expect(lockfile.importers['project-1'].dependencies?.['external-1']).toBeUndefined()
   expect(lockfile.importers['project-2'].dependencies?.['external-2']).toBeUndefined()
 
-  expect(fs.existsSync(path.resolve('project-1/node_modules/external-1'))).toBeTruthy()
-  expect(fs.existsSync(path.resolve('project-2/node_modules/external-2'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-1/node_modules/external-1/index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-2/node_modules/external-2/index.js'))).toBeTruthy()
 
   delete allProjects[1].manifest.dependencies!['external-2']
   allProjects[1].manifest.dependencies!['external-3'] = `link:${path.relative(project2Dir, externalPkg3)}`
@@ -109,9 +112,9 @@ test('links are not added to the lockfile when excludeLinksFromLockfile is true'
   expect(lockfile.importers['project-2'].dependencies?.['external-2']).toBeUndefined()
   expect(lockfile.importers['project-2'].dependencies?.['external-3']).toBeUndefined()
 
-  expect(fs.existsSync(path.resolve('project-1/node_modules/external-1'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-1/node_modules/external-1/index.js'))).toBeTruthy()
   // expect(fs.existsSync(path.resolve('project-2/node_modules/external-2'))).toBeFalsy() // Should we remove external links that are not in deps anymore?
-  expect(fs.existsSync(path.resolve('project-2/node_modules/external-3'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('project-2/node_modules/external-3/index.js'))).toBeTruthy()
 })
 
 test('local file using absolute path is correctly installed on repeat install', async () => {
