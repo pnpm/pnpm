@@ -10,10 +10,12 @@ import {
 } from '@pnpm/core'
 import { type Lockfile, type LockfileV6 } from '@pnpm/lockfile-types'
 import { prepareEmpty, preparePackages, tempDir } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import rimraf from '@zkochan/rimraf'
 import normalizePath from 'normalize-path'
 import readYamlFile from 'read-yaml-file'
+import { sync as writeJsonFile } from 'write-json-file'
 import { testDefaults } from '../utils'
 
 const f = fixtures(__dirname)
@@ -213,4 +215,25 @@ test('update the lockfile when a new project is added to the workspace but do no
   const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
   expect(Object.keys(lockfile.importers)).toStrictEqual(['project-1', 'project-2'])
   expect(Object.keys(lockfile.importers['project-1'].dependencies ?? {})).toStrictEqual(['is-positive'])
+})
+
+test('path to external link is not added to the lockfile, when it resolves a peer dependency', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-b', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.0', distTag: 'latest' })
+  const externalPkg = tempDir(false)
+  writeJsonFile(path.join(externalPkg, 'package.json'), {
+    name: '@pnpm.e2e/peer-a',
+    version: '1.0.0',
+  })
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({},
+    ['@pnpm.e2e/abc@1.0.0', `link:${externalPkg}`],
+    await testDefaults({ excludeLinksFromLockfile: true })
+  )
+
+  const lockfile = await project.readLockfile()
+  const key = '/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-a@node_modules+@pnpm.e2e+peer-a)(@pnpm.e2e/peer-b@1.0.0)(@pnpm.e2e/peer-c@1.0.0)'
+  expect(lockfile.packages[key]).toBeTruthy()
+  expect(lockfile.packages[key].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:node_modules/@pnpm.e2e/peer-a')
 })
