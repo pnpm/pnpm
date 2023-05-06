@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/sort-packages#readme",
   "dependencies": {
-    "@pnpm/graph-sequencer": "1.1.0",
+    "@pnpm/graph-sequencer": "1.1.1",
     "@pnpm/types": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",

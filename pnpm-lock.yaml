@@ -971,8 +971,8 @@ importers:
         specifier: workspace:*
         version: link:../../fs/hard-link-dir
       '@pnpm/graph-sequencer':
-        specifier: 1.1.0
-        version: 1.1.0
+        specifier: 1.1.1
+        version: 1.1.1
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../lifecycle
@@ -1093,8 +1093,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
       '@pnpm/graph-sequencer':
-        specifier: 1.1.0
-        version: 1.1.0
+        specifier: 1.1.1
+        version: 1.1.1
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../lifecycle
@@ -2737,8 +2737,8 @@ importers:
         specifier: workspace:*
         version: link:../get-context
       '@pnpm/graph-sequencer':
-        specifier: 1.1.0
-        version: 1.1.0
+        specifier: 1.1.1
+        version: 1.1.1
       '@pnpm/headless':
         specifier: workspace:*
         version: link:../headless
@@ -5999,8 +5999,8 @@ importers:
   workspace/sort-packages:
     dependencies:
       '@pnpm/graph-sequencer':
-        specifier: 1.1.0
-        version: 1.1.0
+        specifier: 1.1.1
+        version: 1.1.1
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -7922,8 +7922,8 @@ packages:
     resolution: {integrity: sha512-iIJhmi7QjmafhijaEkh34Yxhjq3S/eiZnxww9K/SRXuDB5/30QnCyihR4R7vep8ONsGIR29hNPAtaNGd1rC/VA==}
     dev: true
 
-  /@pnpm/graph-sequencer@1.1.0:
-    resolution: {integrity: sha512-YWrRI5VWm14GXrYeNB0lgQ42eVyvbTKwlWZkHDTnMcKkExJkOo3/dh6oQ7IRovw26w0jrdyCC5kAsUK3yPCFGQ==}
+  /@pnpm/graph-sequencer@1.1.1:
+    resolution: {integrity: sha512-nlLogZV9i8J2z9vw1cHtKAX8Caj3WeYUw63G1ni2ULLwvb+FfRAhdIfDsuce0gUHdOClF/gsKN+7H28yryNlAw==}
     dev: false
 
   /@pnpm/headless@19.5.4(@pnpm/logger@5.0.0)(typanion@3.12.1):
@@ -17785,7 +17785,7 @@ time:
   /@pnpm/colorize-semver-diff@1.0.1: '2020-10-25T15:50:17.812Z'
   /@pnpm/config.env-replace@1.1.0: '2023-04-04T18:59:45.025Z'
   /@pnpm/exec@2.0.0: '2020-10-29T23:51:01.271Z'
-  /@pnpm/graph-sequencer@1.1.0: '2023-04-14T13:43:13.918Z'
+  /@pnpm/graph-sequencer@1.1.1: '2023-05-06T12:36:46.075Z'
   /@pnpm/logger@5.0.0: '2022-10-14T13:56:04.285Z'
   /@pnpm/meta-updater@0.2.3: '2023-05-05T12:38:11.197Z'
   /@pnpm/network.agent@0.1.0: '2023-02-18T01:03:06.709Z'
