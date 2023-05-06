@@ -6,7 +6,7 @@ export function getSystemNodeVersionNonCached () {
   if (process['pkg'] != null) {
     return execa.sync('node', ['--version']).stdout.toString()
   }
-  return process.version
+  return process.version.replace(/-.*$/, '')
 }
 
 export const getSystemNodeVersion = mem(getSystemNodeVersionNonCached)
