@@ -1,5 +1,12 @@
 # pnpm
 
+## 7.32.3
+
+### Patch Changes
+
+- Link the bin files of local workspace dependencies, when `node-linker` is set to `hoisted` [6486](https://github.com/pnpm/pnpm/issues/6486).
+- Show cyclic workspace dependency details [#5059](https://github.com/pnpm/pnpm/issues/5059).
+
 ## 7.32.2
 
 ### Patch Changes
