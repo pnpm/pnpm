@@ -67,7 +67,7 @@ test('do not fail on non-compatible node_modules when forced with a named instal
 
   await install({}, {
     ...opts,
-    force: true, // Don't ask for prompt
+    confirmModulesPurge: false,
   })
 })
 
@@ -96,7 +96,7 @@ test('do not fail on non-compatible store when forced during named installation'
 
   await install({}, {
     ...opts,
-    force: true, // Don't ask for prompt
+    confirmModulesPurge: false,
   })
 })
 

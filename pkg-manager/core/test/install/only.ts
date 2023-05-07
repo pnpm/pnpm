@@ -137,7 +137,7 @@ test('fail if installing different types of dependencies in a project that uses 
   await project.hasNot('once')
 
   const newOpts = await testDefaults({
-    force: true, // Don't ask for prompt
+    confirmModulesPurge: false,
     include: {
       dependencies: true,
       devDependencies: true,

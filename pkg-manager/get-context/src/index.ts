@@ -72,6 +72,7 @@ interface HookOptions {
 
 export interface GetContextOptions {
   allProjects: Array<ProjectOptions & HookOptions>
+  confirmModulesPurge?: boolean
   force: boolean
   forceNewModules?: boolean
   forceSharedLockfile: boolean
@@ -116,7 +117,7 @@ export async function getContext (
       registries: opts.registries,
       storeDir: opts.storeDir,
       virtualStoreDir,
-      confirmModulesPurge: !opts.force && !isCI,
+      confirmModulesPurge: opts.confirmModulesPurge && !isCI,
 
       forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,
@@ -408,6 +409,7 @@ export async function getContextForSingleImporter (
     force: boolean
     forceNewModules?: boolean
     forceSharedLockfile: boolean
+    confirmModulesPurge?: boolean
     extraBinPaths: string[]
     extendNodePath?: boolean
     lockfileDir: string
@@ -472,7 +474,7 @@ export async function getContextForSingleImporter (
       registries: opts.registries,
       storeDir: opts.storeDir,
       virtualStoreDir,
-      confirmModulesPurge: !opts.force && !isCI,
+      confirmModulesPurge: opts.confirmModulesPurge && !isCI,
 
       forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,

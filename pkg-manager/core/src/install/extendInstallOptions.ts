@@ -123,6 +123,7 @@ export interface StrictInstallOptions {
   dedupePeerDependents: boolean
   extendNodePath: boolean
   excludeLinksFromLockfile: boolean
+  confirmModulesPurge: boolean
 }
 
 export type InstallOptions =
@@ -139,6 +140,7 @@ const defaults = async (opts: InstallOptions) => {
     allowNonAppliedPatches: false,
     autoInstallPeers: true,
     childConcurrency: 5,
+    confirmModulesPurge: !opts.force,
     depth: 0,
     enablePnp: false,
     engineStrict: false,
