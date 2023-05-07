@@ -6,7 +6,7 @@ test('no engine defined', () => {
   expect(checkEngine(packageId, {}, { pnpm: '1.1.2', node: '0.2.1' })).toBe(null)
 })
 
-test('special node version', () => {
+test('prerelease node version', () => {
   expect(checkEngine(packageId, { node: '^14.18.0 || >=16.0.0' }, { node: 'v21.0.0-nightly20230429c968361829' })).toBe(null)
 })
 
