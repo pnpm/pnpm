@@ -1,5 +1,23 @@
 # @pnpm/core
 
+## 10.1.0
+
+### Minor Changes
+
+- 1ffedcb8d: New option added: confirmModulesPurge.
+
+### Patch Changes
+
+- 3fa14d7e4: Show cyclic workspace dependency details [#5059](https://github.com/pnpm/pnpm/issues/5059).
+- Updated dependencies [1ffedcb8d]
+- Updated dependencies [d8c1013a9]
+- Updated dependencies [3fa14d7e4]
+- Updated dependencies [32801442e]
+  - @pnpm/get-context@9.1.0
+  - @pnpm/resolve-dependencies@31.1.3
+  - @pnpm/build-modules@11.0.2
+  - @pnpm/headless@20.2.1
+
 ## 10.0.0
 
 ### Major Changes

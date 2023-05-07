@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 11.0.2
+
+### Patch Changes
+
+- 3fa14d7e4: Show cyclic workspace dependency details [#5059](https://github.com/pnpm/pnpm/issues/5059).
+
 ## 11.0.1
 
 ### Patch Changes

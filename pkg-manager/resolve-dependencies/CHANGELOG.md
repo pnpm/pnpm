@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.3
+
+### Patch Changes
+
+- d8c1013a9: Do not include external links in the lockfile, when they are used to resolve peers.
+
 ## 31.1.2
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-rebuild
 
+## 8.0.9
+
+### Patch Changes
+
+- 3fa14d7e4: Show cyclic workspace dependency details [#5059](https://github.com/pnpm/pnpm/issues/5059).
+- Updated dependencies [1ffedcb8d]
+- Updated dependencies [3fa14d7e4]
+  - @pnpm/get-context@9.1.0
+  - @pnpm/sort-packages@5.0.2
+
 ## 8.0.8
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 20.2.1
+
+### Patch Changes
+
+- 32801442e: Don't create broken symlinks in subprojects that have external symlinks, when the linked dependencies are excluded from the lockfile.
+- Updated dependencies [3fa14d7e4]
+  - @pnpm/build-modules@11.0.2
+
 ## 20.2.0
 
 ### Minor Changes

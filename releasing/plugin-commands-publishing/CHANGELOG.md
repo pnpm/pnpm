@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.2.1
+
+### Patch Changes
+
+- Updated dependencies [3fa14d7e4]
+  - @pnpm/sort-packages@5.0.2
+
 ## 7.2.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @pnpm/get-context
 
+## 9.1.0
+
+### Minor Changes
+
+- 1ffedcb8d: New option added: confirmModulesPurge.
+
 ## 9.0.4
 
 ### Patch Changes

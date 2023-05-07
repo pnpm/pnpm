@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-deploy
 
+## 3.0.10
+
+### Patch Changes
+
+- 1ffedcb8d: The deploy command should not ask for confirmation to purge the `node_modules` directory [#6510](https://github.com/pnpm/pnpm/issues/6510).
+  - @pnpm/plugin-commands-installation@13.0.4
+
 ## 3.0.9
 
 ### Patch Changes
