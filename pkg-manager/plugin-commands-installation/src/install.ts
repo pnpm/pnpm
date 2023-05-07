@@ -305,6 +305,7 @@ export type InstallCommandOptions = Pick<Config,
   saveLockfile?: boolean
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
+  confirmModulesPurge?: boolean
 } & Partial<Pick<Config, 'modulesCacheMaxAge' | 'pnpmHomeDir' | 'preferWorkspacePackages'>>
 
 export async function handler (

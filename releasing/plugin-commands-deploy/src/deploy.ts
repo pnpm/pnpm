@@ -78,6 +78,7 @@ export async function handler (
   await copyProject(deployedDir, deployDir, { includeOnlyPackageFiles })
   await install.handler({
     ...opts,
+    confirmModulesPurge: false,
     depth: Infinity,
     hooks: {
       ...opts.hooks,
