@@ -200,7 +200,9 @@ export async function handler (
     storeDir: storeL.dir,
     manifest,
   } as LinkFunctionOptions)
-  await writeProjectManifest(newManifest)
+  if (!opts.cliOptions?.global) {
+    await writeProjectManifest(newManifest)
+  }
 
   await Promise.all(
     Array.from(storeControllerCache.values())
