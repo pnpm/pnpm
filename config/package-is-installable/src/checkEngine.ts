@@ -21,10 +21,10 @@ export function checkEngine (
 ) {
   if (!wantedEngine) return null
   const unsatisfiedWanted: WantedEngine = {}
-  if (wantedEngine.node && !semver.satisfies(currentEngine.node, wantedEngine.node)) {
+  if (wantedEngine.node && !semver.satisfies(currentEngine.node, wantedEngine.node, { includePrerelease: true })) {
     unsatisfiedWanted.node = wantedEngine.node
   }
-  if (currentEngine.pnpm && wantedEngine.pnpm && !semver.satisfies(currentEngine.pnpm, wantedEngine.pnpm)) {
+  if (currentEngine.pnpm && wantedEngine.pnpm && !semver.satisfies(currentEngine.pnpm, wantedEngine.pnpm, { includePrerelease: true })) {
     unsatisfiedWanted.pnpm = wantedEngine.pnpm
   }
   if (Object.keys(unsatisfiedWanted).length > 0) {
