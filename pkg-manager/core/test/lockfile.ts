@@ -1063,7 +1063,7 @@ test('lockfile is not getting broken if the used registry changes', async () => 
     rootDir: process.cwd(),
   }, {
     ...newOpts,
-    force: true, // Don't ask for prompt
+    confirmModulesPurge: false,
   })
   await addDependenciesToPackage(manifest, ['is-negative@1'], newOpts)
 

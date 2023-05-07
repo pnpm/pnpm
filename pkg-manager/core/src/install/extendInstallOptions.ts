@@ -140,7 +140,7 @@ const defaults = async (opts: InstallOptions) => {
     allowNonAppliedPatches: false,
     autoInstallPeers: true,
     childConcurrency: 5,
-    confirmModulesPurge: opts.force,
+    confirmModulesPurge: !opts.force,
     depth: 0,
     enablePnp: false,
     engineStrict: false,
