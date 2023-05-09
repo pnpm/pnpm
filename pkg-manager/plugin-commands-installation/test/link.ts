@@ -5,6 +5,7 @@ import { install, link } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { assertProject, isExecutable } from '@pnpm/assert-project'
 import { fixtures } from '@pnpm/test-fixtures'
+import { sync as loadJsonFile } from 'load-json-file'
 import PATH from 'path-name'
 import writePkg from 'write-pkg'
 import { DEFAULT_OPTS } from './utils'
@@ -107,7 +108,7 @@ test('link to global bin from the specified directory', async function () {
 })
 
 test('link a global package to the specified directory', async function () {
-  const project = prepare()
+  const project = prepare({ dependencies: { 'global-package-with-bin': '0.0.0' } })
   process.chdir('..')
 
   const globalDir = path.resolve('global')
@@ -132,20 +133,24 @@ test('link a global package to the specified directory', async function () {
   })
 
   process.chdir('..')
+  const projectDir = path.resolve('./project')
 
   // link from global
   await link.handler({
     ...DEFAULT_OPTS,
     cliOptions: {
       global: true,
-      dir: path.resolve('./project'),
+      dir: projectDir,
     },
     bin: globalBin,
     dir: globalDir,
+    saveProd: true, // @pnpm/config sets this setting to true when global is true. This should probably be changed.
   }, ['global-package-with-bin'])
 
   process.env[PATH] = oldPath
 
+  const manifest = loadJsonFile<any>(path.join(projectDir, 'package.json')) // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(manifest.dependencies).toStrictEqual({ 'global-package-with-bin': '0.0.0' })
   await project.has('global-package-with-bin')
 })
 
