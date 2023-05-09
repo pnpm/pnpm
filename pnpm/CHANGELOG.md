@@ -11,6 +11,7 @@
 - `pnpm link -g <pkg-name>` should not modify the `package.json` file [#4341](https://github.com/pnpm/pnpm/issues/4341).
 - The deploy command should not ask for confirmation to purge the `node_modules` directory [#6510](https://github.com/pnpm/pnpm/issues/6510).
 - Show cyclic workspace dependency details [#5059](https://github.com/pnpm/pnpm/issues/5059).
+- Node.js range specified through the `engines` field should match prerelease versions [#6509](https://github.com/pnpm/pnpm/pull/6509).
 
 ## 8.4.0
 
