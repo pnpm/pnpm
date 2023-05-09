@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-patching
 
+## 3.1.0
+
+### Minor Changes
+
+- `pnpm patch-remove` command added [#6521](https://github.com/pnpm/pnpm/pull/6521).
+
+### Patch Changes
+
+- Updated dependencies [d5c40b556]
+  - @pnpm/plugin-commands-installation@13.0.5
+
 ## 3.0.10
 
 ### Patch Changes

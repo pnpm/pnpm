@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-script-runners
 
+## 7.0.11
+
+### Patch Changes
+
+- Updated dependencies [d5c40b556]
+  - @pnpm/plugin-commands-installation@13.0.5
+
 ## 7.0.10
 
 ### Patch Changes

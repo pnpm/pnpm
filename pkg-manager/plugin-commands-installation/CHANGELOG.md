@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-installation
 
+## 13.0.5
+
+### Patch Changes
+
+- d5c40b556: `pnpm link -g <pkg-name>` should not modify the `package.json` file [#4341](https://github.com/pnpm/pnpm/issues/4341).
+
 ## 13.0.4
 
 ### Patch Changes
