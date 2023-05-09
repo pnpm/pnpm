@@ -1,5 +1,13 @@
 # pnpm
 
+## 7.32.4
+
+### Patch Changes
+
+- `pnpm link -g <pkg-name>` should not modify the `package.json` file [#4341](https://github.com/pnpm/pnpm/issues/4341).
+- Node.js range specified through the `engines` field should match prerelease versions [#6509](https://github.com/pnpm/pnpm/pull/6509).
+- `pnpm publish --otp` should work [#6514](https://github.com/pnpm/pnpm/issues/6514).
+
 ## 7.32.3
 
 ### Patch Changes
