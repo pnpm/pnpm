@@ -6,7 +6,7 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import writeYamlFile from 'write-yaml-file'
 import tempy from 'tempy'
-import { patch, patchCommit } from '@pnpm/plugin-commands-patching'
+import { patch, patchCommit, patchRemove } from '@pnpm/plugin-commands-patching'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS } from './utils/index'
@@ -590,6 +590,77 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
     // restore package.json and package-lock.yaml
     fs.writeFileSync(path.join(customModulesDirFixture, 'package.json'), manifest, 'utf8')
     fs.writeFileSync(path.join(customModulesDirFixture, 'pnpm-lock.yaml'), lockfileYaml, 'utf8')
+  })
+})
+
+describe('patch-remove', () => {
+  let defaultPatchRemoveOption: patchRemove.PatchRemoveCommandOptions
+  let cacheDir: string
+  let storeDir: string
+
+  beforeEach(async () => {
+    prompt.mockClear()
+    prepare({
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    })
+    cacheDir = path.resolve('cache')
+    storeDir = path.resolve('store')
+    defaultPatchRemoveOption = {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }
+
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      dir: process.cwd(),
+      saveLockfile: true,
+    })
+  })
+  test('patch-remove should work as expected', async () => {
+    const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+    manifest.pnpm = {
+      patchedDependencies: {
+        'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+      },
+    }
+    await writeProjectManifest(manifest)
+    fs.mkdirSync(path.join(process.cwd(), 'patches'))
+    fs.writeFileSync(path.join(process.cwd(), 'patches/is-positive@1.0.0.patch'), 'test patch content', 'utf8')
+
+    await patchRemove.handler(defaultPatchRemoveOption, ['is-positive@1.0.0'])
+
+    const { manifest: newManifest } = await readProjectManifest(process.cwd())
+    expect(newManifest!.pnpm!.patchedDependencies).toEqual({})
+    expect(fs.existsSync(path.join(process.cwd(), 'patches/is-positive@1.0.0.patch'))).toBe(false)
+  })
+
+  test('prompt to select patches that to be removed', async () => {
+    const { manifest, writeProjectManifest } = await readProjectManifest(process.cwd())
+    manifest.pnpm = {
+      patchedDependencies: {
+        'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+        'chalk@4.1.2': 'patches/chalk@4.1.2.patch',
+      },
+    }
+    await writeProjectManifest(manifest)
+    prompt.mockResolvedValue({
+      patches: ['is-positive@1.0.0', 'chalk@4.1.2'],
+    })
+    await patchRemove.handler(defaultPatchRemoveOption, [])
+    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining(['is-positive@1.0.0', 'chalk@4.1.2']))
+    prompt.mockClear()
+
+    const { manifest: newManifest } = await readProjectManifest(process.cwd())
+    expect(newManifest!.pnpm!.patchedDependencies).toEqual({})
+  })
+
+  test('should throw error when there is no patch to remove', async () => {
+    await expect(() => patchRemove.handler(defaultPatchRemoveOption, []))
+      .rejects.toThrow('There are no patches that need to be removed')
   })
 })
 

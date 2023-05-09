@@ -168,7 +168,7 @@ export async function main (inputArgv: string[]) {
   }
 
   if (
-    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch') &&
+    (cmd === 'install' || cmd === 'import' || cmd === 'dedupe' || cmd === 'patch-commit' || cmd === 'patch' || cmd === 'patch-remove') &&
     typeof workspaceDir === 'string'
   ) {
     cliOptions['recursive'] = true
