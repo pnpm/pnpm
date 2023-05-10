@@ -8,6 +8,7 @@ import { requireHooks } from '@pnpm/pnpmfile'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import { createMatcher } from '@pnpm/matcher'
+import betterPathResolve from 'better-path-resolve'
 import camelcase from 'camelcase'
 import isWindows from 'is-windows'
 import normalizeRegistryUrl from 'normalize-registry-url'
@@ -267,7 +268,7 @@ export async function getConfig (
     ...rcOptions.map((configKey) => [camelcase(configKey), npmConfig.get(configKey)]) as any, // eslint-disable-line
     ...Object.entries(cliOptions).filter(([name, value]) => typeof value !== 'undefined').map(([name, value]) => [camelcase(name), value]),
   ]) as unknown as ConfigWithDeprecatedSettings
-  const cwd = (cliOptions.dir && path.resolve(cliOptions.dir)) ?? npmConfig.localPrefix
+  const cwd = betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix)
 
   pnpmConfig.maxSockets = npmConfig.maxsockets
   // @ts-expect-error
