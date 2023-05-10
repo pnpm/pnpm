@@ -559,6 +559,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      better-path-resolve:
+        specifier: 1.0.0
+        version: 1.0.0
       camelcase:
         specifier: ^6.3.0
         version: 6.3.0
@@ -8095,7 +8098,7 @@ packages:
       '@pnpm/find-workspace-dir': 5.0.1
       '@pnpm/find-workspace-packages': 5.0.45(@pnpm/logger@5.0.0)(@yarnpkg/core@4.0.0-rc.14)(typanion@3.12.1)
       '@pnpm/logger': 5.0.0
-      '@pnpm/types': 8.10.0
+      '@pnpm/types': 8.9.0
       '@yarnpkg/core': 4.0.0-rc.14(typanion@3.12.1)
       load-json-file: 7.0.1
       meow: 10.1.5
@@ -8663,7 +8666,6 @@ packages:
   /@pnpm/types@8.9.0:
     resolution: {integrity: sha512-3MYHYm8epnciApn6w5Fzx6sepawmsNU7l6lvIq+ER22/DPSrr83YMhU/EQWnf4lORn2YyiXFj0FJSyJzEtIGmw==}
     engines: {node: '>=14.6'}
-    dev: false
 
   /@pnpm/util.lex-comparator@1.0.0:
     resolution: {integrity: sha512-3aBQPHntVgk5AweBWZn+1I/fqZ9krK/w01197aYVkAJQGftb+BVWgEepxY5GChjSW12j52XX+CmfynYZ/p0DFQ==}
@@ -8802,7 +8804,7 @@ packages:
   /@types/byline@4.2.33:
     resolution: {integrity: sha512-LJYez7wrWcJQQDknqZtrZuExMGP0IXmPl1rOOGDqLbu+H7UNNRfKNuSxCBcQMLH1EfjeWidLedC/hCc5dDfBog==}
     dependencies:
-      '@types/node': 20.1.1
+      '@types/node': 14.18.46
     dev: true
 
   /@types/cacheable-request@6.0.3:
@@ -8810,7 +8812,7 @@ packages:
     dependencies:
       '@types/http-cache-semantics': 4.0.1
       '@types/keyv': 3.1.4
-      '@types/node': 20.1.1
+      '@types/node': 14.18.46
       '@types/responselike': 1.0.0
 
   /@types/concat-stream@2.0.0:
@@ -8838,7 +8840,7 @@ packages:
     resolution: {integrity: sha512-IO+MJPVhoqz+28h1qLAcBEH2+xHMK6MTyHJc7MTnnYb6wsoLR29POVGJ7LycmVXIqyy/4/2ShP5sUwTXuOwb/w==}
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 20.1.1
+      '@types/node': 14.18.46
     dev: true
 
   /@types/graceful-fs@4.1.6:
@@ -8912,7 +8914,7 @@ packages:
   /@types/keyv@3.1.4:
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
     dependencies:
-      '@types/node': 20.1.1
+      '@types/node': 14.18.46
 
   /@types/lodash@4.14.181:
     resolution: {integrity: sha512-n3tyKthHJbkiWhDZs3DkhkCzt2MexYHXlX0td5iMplyfwketaOeKboEVBqzceH7juqvEg3q5oUoBFxSLu7zFag==}
@@ -8955,7 +8957,6 @@ packages:
 
   /@types/node@14.18.46:
     resolution: {integrity: sha512-n4yVT5FuY5NCcGHCosQSGvvCT74HhowymPN2OEcsHPw6U1NuxV9dvxWbrM2dnBukWjdMYzig1WfIkWdTTQJqng==}
-    dev: true
 
   /@types/node@18.16.6:
     resolution: {integrity: sha512-N7KINmeB8IN3vRR8dhgHEp+YpWvGFcpDoh5XZ8jB5a00AdFKCKEyyGTOPTddUf4JqU1ZKTVxkOxakDvchNVI2Q==}
@@ -8995,7 +8996,7 @@ packages:
   /@types/responselike@1.0.0:
     resolution: {integrity: sha512-85Y2BjiufFzaMIlvJDvTTB8Fxl2xfLo4HgmHzVBz08w4wDePCTjYw66PdrolO0kzli3yam/YCgRufyo1DdQVTA==}
     dependencies:
-      '@types/node': 20.1.1
+      '@types/node': 14.18.46
 
   /@types/retry@0.12.2:
     resolution: {integrity: sha512-XISRgDJ2Tc5q4TRqvgJtzsRkFYNJzZrhTdtMoGVBttwzzQJkPnS3WWTFc7kuDRoPtPakl+T+OfdEUjYJj7Jbow==}
@@ -13500,7 +13501,7 @@ packages:
       jws: 3.2.2
       lodash: 4.17.21
       ms: 2.1.3
-      semver: 7.3.8
+      semver: 7.5.0
 
   /jsprim@1.4.2:
     resolution: {integrity: sha512-P2bSOMAc/ciLz6DzgjVlGJP9+BrJWu5UDGK70C2iweC5QBIeFf0ZXRvGjEj2uYgrY2MkAAhsSWHDWlFtEroZWw==}
@@ -17668,218 +17669,12 @@ packages:
     patched: true
 
 time:
-  /@babel/core@7.21.8: '2023-05-02T15:15:13.385Z'
-  /@babel/plugin-proposal-dynamic-import@7.18.6: '2022-06-27T19:49:50.843Z'
-  /@babel/plugin-transform-modules-commonjs@7.21.5: '2023-04-28T19:50:29.845Z'
-  /@babel/preset-typescript@7.21.5: '2023-04-28T19:50:31.699Z'
-  /@babel/types@7.21.5: '2023-04-28T19:50:22.207Z'
-  /@changesets/cli@2.26.1: '2023-03-22T06:39:51.961Z'
-  /@commitlint/cli@17.6.3: '2023-05-04T09:23:17.204Z'
-  /@commitlint/config-conventional@17.6.3: '2023-05-04T09:23:15.031Z'
-  /@commitlint/prompt-cli@17.6.3: '2023-05-04T09:23:53.063Z'
-  /@gwhitney/detect-indent@7.0.1: '2022-11-22T14:07:22.341Z'
-  /@pnpm/byline@1.0.0: '2021-10-31T23:25:00.031Z'
-  /@pnpm/colorize-semver-diff@1.0.1: '2020-10-25T15:50:17.812Z'
-  /@pnpm/config.env-replace@1.1.0: '2023-04-04T18:59:45.025Z'
-  /@pnpm/exec@2.0.0: '2020-10-29T23:51:01.271Z'
-  /@pnpm/graph-sequencer@1.1.1: '2023-05-06T12:36:46.075Z'
-  /@pnpm/logger@5.0.0: '2022-10-14T13:56:04.285Z'
-  /@pnpm/meta-updater@0.2.2: '2022-11-18T12:00:42.706Z'
-  /@pnpm/network.agent@0.1.0: '2023-02-18T01:03:06.709Z'
   /@pnpm/node-fetch@1.0.0: '2023-04-19T11:13:43.487Z'
-  /@pnpm/nopt@0.2.1: '2021-06-01T19:45:54.552Z'
-  /@pnpm/npm-conf@2.2.0: '2023-05-02T09:52:48.941Z'
-  /@pnpm/npm-lifecycle@2.0.1: '2023-04-01T22:20:38.506Z'
-  /@pnpm/npm-package-arg@1.0.0: '2022-06-28T12:48:31.287Z'
-  /@pnpm/os.env.path-extender@0.2.10: '2023-02-28T01:46:02.862Z'
   /@pnpm/ramda@0.28.1: '2022-08-03T13:56:59.597Z'
-  /@pnpm/registry-mock@3.8.0: '2023-03-25T20:52:46.924Z'
-  /@pnpm/semver-diff@1.1.0: '2021-11-16T12:40:59.941Z'
-  /@pnpm/tabtab@0.1.2: '2021-03-05T17:31:19.932Z'
-  /@pnpm/types@8.9.0: '2022-11-09T23:07:02.862Z'
-  /@pnpm/util.lex-comparator@1.0.0: '2022-11-04T01:03:46.134Z'
-  /@types/adm-zip@0.5.0: '2022-04-01T08:01:50.776Z'
-  /@types/archy@0.0.32: '2021-07-06T18:11:33.301Z'
   /@types/byline@4.2.33: '2021-07-06T18:22:06.440Z'
-  /@types/concat-stream@2.0.0: '2022-02-01T09:02:05.296Z'
-  /@types/cross-spawn@6.0.2: '2020-05-15T04:43:58.956Z'
-  /@types/fs-extra@9.0.13: '2021-09-21T19:02:27.512Z'
-  /@types/graceful-fs@4.1.6: '2023-01-09T00:02:51.051Z'
-  /@types/hosted-git-info@3.0.2: '2021-07-06T21:35:19.353Z'
-  /@types/ini@1.3.31: '2021-10-07T21:01:49.672Z'
-  /@types/is-windows@1.0.0: '2019-11-19T19:37:55.992Z'
-  /@types/isexe@2.0.1: '2021-07-06T21:42:29.330Z'
-  /@types/jest@29.5.1: '2023-04-19T10:02:42.658Z'
-  /@types/js-yaml@4.0.5: '2021-11-19T18:01:41.484Z'
-  /@types/micromatch@4.0.2: '2021-07-06T22:16:07.649Z'
-  /@types/mz@2.7.4: '2021-07-07T00:08:08.635Z'
-  /@types/node@14.18.46: '2023-05-08T20:34:19.838Z'
-  /@types/normalize-package-data@2.4.1: '2021-07-07T16:35:08.730Z'
-  /@types/normalize-path@3.0.0: '2018-12-25T05:20:59.823Z'
-  /@types/npm-packlist@3.0.0: '2022-03-02T17:32:47.919Z'
-  /@types/parse-json@4.0.0: '2017-11-14T00:31:12.629Z'
-  /@types/proxyquire@1.3.28: '2017-08-21T22:01:15.006Z'
-  /@types/ramda@0.28.20: '2022-11-11T10:32:59.530Z'
-  /@types/retry@0.12.2: '2022-04-26T19:32:23.281Z'
-  /@types/rimraf@3.0.2: '2021-08-18T21:02:03.570Z'
-  /@types/semver@7.3.13: '2022-10-26T20:03:07.384Z'
-  /@types/signal-exit@3.0.1: '2021-07-06T17:09:42.542Z'
-  /@types/sinon@10.0.14: '2023-04-17T08:32:45.426Z'
-  /@types/ssri@7.1.1: '2021-07-06T17:33:37.041Z'
   /@types/table@6.0.0: '2020-09-17T17:56:44.787Z'
-  /@types/tar-stream@2.2.2: '2021-10-17T15:01:27.866Z'
-  /@types/tar@6.1.4: '2023-02-16T06:02:41.170Z'
-  /@types/touch@3.1.2: '2021-07-02T19:48:20.467Z'
-  /@types/uuid@8.3.4: '2022-01-06T07:32:21.196Z'
-  /@types/validate-npm-package-name@4.0.0: '2022-06-23T08:01:45.971Z'
-  /@types/which@2.0.2: '2023-02-14T10:32:38.403Z'
-  /@types/wrap-ansi@8.0.1: '2021-07-02T19:06:52.938Z'
-  /@types/write-file-atomic@4.0.0: '2022-02-10T19:02:13.425Z'
-  /@types/yarnpkg__lockfile@1.1.5: '2021-07-02T16:36:17.969Z'
-  /@typescript-eslint/eslint-plugin@5.59.5: '2023-05-08T18:02:26.941Z'
-  /@typescript-eslint/parser@5.59.5: '2023-05-08T18:01:58.431Z'
-  /@yarnpkg/core@4.0.0-rc.27: '2022-10-28T20:14:12.960Z'
-  /@yarnpkg/extensions@2.0.0-rc.9: '2022-10-28T20:09:02.171Z'
-  /@yarnpkg/lockfile@1.1.0: '2018-09-10T13:37:58.652Z'
-  /@yarnpkg/nm@4.0.0-rc.27: '2022-10-28T20:14:26.306Z'
-  /@yarnpkg/parsers@3.0.0-rc.27: '2022-10-28T20:12:42.896Z'
-  /@yarnpkg/pnp@2.3.2: '2020-11-30T14:45:51.504Z'
-  /@zkochan/cmd-shim@6.0.0: '2023-03-16T02:26:12.592Z'
-  /@zkochan/diable@1.0.2: '2020-07-07T02:01:35.635Z'
   /@zkochan/hosted-git-info@4.0.2: '2021-09-05T21:33:51.709Z'
   /@zkochan/js-yaml@0.0.6: '2022-05-10T14:42:39.813Z'
-  /@zkochan/retry@0.2.0: '2020-06-06T23:36:55.687Z'
-  /@zkochan/rimraf@2.1.2: '2022-01-30T23:37:31.206Z'
-  /@zkochan/table@1.0.1: '2023-03-19T21:47:05.638Z'
-  /@zkochan/which@2.0.3: '2021-09-14T23:50:27.657Z'
-  /adm-zip@0.5.10: '2022-12-20T11:08:08.848Z'
-  /ansi-diff@1.1.1: '2018-06-16T13:37:28.365Z'
-  /archy@1.0.0: '2014-09-14T07:57:58.806Z'
-  /better-path-resolve@1.0.0: '2019-03-01T23:22:26.750Z'
-  /bin-links@4.0.1: '2022-10-17T19:35:27.798Z'
-  /c8@7.13.0: '2023-02-16T16:59:27.148Z'
-  /can-link@2.0.0: '2021-02-11T22:53:11.538Z'
-  /can-write-to-dir@1.1.1: '2021-04-01T00:51:46.475Z'
-  /ci-info@3.8.0: '2023-02-11T14:11:34.779Z'
-  /cli-columns@4.0.0: '2021-09-23T18:51:13.897Z'
-  /cmd-extension@1.0.2: '2021-09-28T21:08:51.481Z'
-  /comver-to-semver@1.0.0: '2021-04-04T23:59:39.895Z'
-  /concat-stream@2.0.0: '2018-12-21T14:22:15.876Z'
-  /cross-env@7.0.3: '2020-12-01T20:25:26.541Z'
-  /cross-spawn@7.0.3: '2020-05-25T15:35:07.209Z'
-  /cross-var-no-babel@1.2.0: '2017-11-12T10:58:04.011Z'
-  /decompress-maybe@1.0.0: '2016-08-22T09:02:46.873Z'
-  /deep-require-cwd@1.0.0: '2017-05-08T20:09:31.558Z'
-  /delay@5.0.0: '2021-02-01T15:29:35.501Z'
-  /detect-libc@2.0.1: '2022-02-14T10:44:10.231Z'
-  /didyoumean2@5.0.0: '2021-05-27T03:31:55.835Z'
-  /dint@5.1.0: '2021-02-12T01:22:54.214Z'
-  /dir-is-case-sensitive@2.0.0: '2021-02-11T22:53:28.072Z'
-  /encode-registry@3.0.0: '2020-10-28T18:56:36.241Z'
-  /enquirer@2.3.6: '2020-07-02T13:00:19.453Z'
-  /esbuild@0.17.18: '2023-04-22T20:42:17.552Z'
-  /eslint-config-standard-with-typescript@34.0.1: '2023-03-14T09:26:58.154Z'
-  /eslint-plugin-import@2.27.5: '2023-01-16T19:44:39.790Z'
-  /eslint-plugin-n@15.7.0: '2023-03-29T03:42:13.802Z'
-  /eslint-plugin-node@11.1.0: '2020-03-28T11:46:46.795Z'
-  /eslint-plugin-promise@6.1.1: '2022-10-19T21:06:14.552Z'
-  /eslint@8.40.0: '2023-05-05T20:42:42.590Z'
-  /exists-link@2.0.0: '2017-03-02T20:50:23.918Z'
-  /fast-deep-equal@3.1.3: '2020-06-08T07:27:28.474Z'
-  /fast-glob@3.2.12: '2022-09-09T06:40:27.748Z'
-  /fs-extra@11.1.1: '2023-03-20T14:56:50.321Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
-  /get-npm-tarball-url@2.0.3: '2021-11-22T22:17:09.184Z'
-  /get-stream@6.0.1: '2021-04-15T04:56:42.936Z'
-  /ghooks@2.0.4: '2018-04-29T00:47:15.439Z'
-  /graceful-git@3.1.2: '2021-09-16T00:23:26.185Z'
-  /husky@8.0.3: '2023-01-03T08:01:18.807Z'
-  /hyperdrive-schemas@2.0.0: '2020-07-14T11:16:33.671Z'
-  /ini@3.0.1: '2022-08-22T17:22:43.830Z'
-  /is-inner-link@4.0.0: '2021-02-11T22:54:33.386Z'
-  /is-subdir@1.2.0: '2021-01-05T16:52:45.485Z'
-  /is-windows@1.0.2: '2018-02-14T07:36:43.207Z'
-  /isexe@2.0.0: '2017-03-23T00:53:16.356Z'
-  /jest-diff@29.5.0: '2023-03-06T13:33:30.577Z'
-  /jest@29.5.0: '2023-03-06T13:33:57.077Z'
-  /json-append@1.1.1: '2017-01-07T04:45:27.600Z'
-  /json5@2.2.3: '2022-12-31T17:11:32.047Z'
-  /keyv@4.5.2: '2022-11-07T15:23:30.660Z'
-  /lcov-result-merger@3.3.0: '2022-06-21T06:32:52.863Z'
-  /loud-rejection@2.2.0: '2019-09-28T16:02:58.271Z'
-  /lru-cache@7.18.3: '2023-03-05T18:04:26.750Z'
-  /make-empty-dir@2.0.0: '2021-04-11T12:30:52.269Z'
-  /mdast-util-to-string@2.0.0: '2020-11-11T09:15:26.835Z'
-  /micromatch@4.0.5: '2022-03-24T19:31:47.722Z'
-  /nerf-dart@1.0.0: '2015-08-20T12:22:17.009Z'
-  /nock@13.2.9: '2022-07-19T18:34:55.582Z'
   /node-gyp@9.3.1: '2022-12-19T22:43:10.187Z'
-  /normalize-package-data@5.0.0: '2022-10-14T05:22:41.916Z'
-  /normalize-path@3.0.0: '2018-04-19T14:54:47.609Z'
-  /normalize-registry-url@2.0.0: '2021-11-22T21:36:37.421Z'
-  /npm-packlist@5.1.3: '2022-08-25T19:33:59.963Z'
-  /npm-run-all@4.1.5: '2018-11-24T13:52:41.635Z'
-  /p-every@2.0.0: '2019-03-15T09:22:34.849Z'
-  /p-map-values@1.0.0: '2022-11-19T01:54:52.912Z'
-  /parse-npm-tarball-url@3.0.0: '2019-05-27T23:50:09.183Z'
-  /patch-package@6.5.1: '2023-01-03T17:56:53.472Z'
-  /path-absolute@1.0.1: '2018-11-28T20:25:53.253Z'
-  /path-name@1.0.0: '2016-10-20T18:43:50.780Z'
-  /path-temp@2.0.0: '2019-05-04T14:35:52.401Z'
-  /pidtree@0.6.0: '2022-06-05T18:35:44.206Z'
-  /pkg-deb@1.1.2: '2020-10-26T14:13:54.373Z'
-  /pkg-rpm@1.0.3: '2021-01-12T09:42:07.762Z'
-  /preferred-pm@3.0.3: '2021-02-09T01:16:52.150Z'
-  /promise-share@1.0.0: '2019-09-13T19:01:32.578Z'
-  /proxyquire@2.1.3: '2019-08-12T13:54:46.049Z'
-  /publish-packed@4.1.1: '2022-01-04T09:56:54.476Z'
-  /read-ini-file@4.0.0: '2022-12-23T20:19:57.971Z'
-  /read-yaml-file@2.1.0: '2021-02-11T22:53:46.064Z'
-  /realpath-missing@1.1.0: '2021-02-11T22:53:50.718Z'
-  /remark-parse@9.0.0: '2020-10-14T08:48:35.392Z'
-  /remark-stringify@9.0.1: '2020-12-09T17:54:33.099Z'
-  /rename-overwrite@4.0.3: '2022-10-31T02:06:57.577Z'
-  /render-help@1.0.3: '2023-01-29T01:46:41.262Z'
-  /resolve-link-target@2.0.0: '2021-02-11T22:54:11.438Z'
-  /rfc4648@1.5.2: '2022-05-30T17:55:52.370Z'
-  /right-pad@1.0.1: '2016-08-04T20:06:31.415Z'
-  /rimraf@3.0.2: '2020-02-09T06:18:37.504Z'
-  /root-link-target@3.1.0: '2021-02-11T22:54:37.968Z'
-  /run-groups@3.0.1: '2020-06-06T16:33:09.423Z'
-  /rxjs@7.8.1: '2023-04-26T22:56:33.678Z'
-  /safe-buffer@5.2.1: '2020-05-10T16:37:30.776Z'
   /safe-execa@0.1.2: '2022-07-18T01:09:17.517Z'
-  /safe-execa@0.1.3: '2023-01-04T13:29:20.746Z'
-  /safe-promise-defer@1.0.1: '2022-06-18T13:48:40.297Z'
-  /sanitize-filename@1.6.3: '2019-08-26T02:10:56.988Z'
-  /semver-range-intersect@0.3.1: '2019-07-20T15:11:40.243Z'
-  /semver-utils@1.1.4: '2018-10-09T04:14:32.485Z'
-  /semver@7.5.0: '2023-04-17T17:22:56.540Z'
-  /shx@0.3.4: '2022-01-10T02:16:53.953Z'
-  /signal-exit@3.0.7: '2022-02-03T21:05:34.544Z'
-  /sinon@15.0.4: '2023-04-20T12:01:19.002Z'
-  /split-cmd@1.0.1: '2020-01-22T19:18:26.255Z'
-  /ssri@10.0.1: '2022-12-07T20:32:53.754Z'
-  /stacktracey@2.1.8: '2022-01-10T09:22:17.926Z'
-  /string.prototype.replaceall@1.0.7: '2022-11-07T19:04:29.156Z'
-  /strip-comments-strings@1.2.0: '2022-06-12T23:34:53.852Z'
-  /symlink-dir@5.1.1: '2023-02-01T00:19:14.193Z'
-  /syncpack@8.5.14: '2023-02-07T19:51:38.723Z'
-  /tar-stream@2.2.0: '2020-12-29T10:22:57.508Z'
-  /tar@6.1.14: '2023-05-02T22:46:07.312Z'
-  /touch@3.1.0: '2017-06-30T23:40:39.606Z'
-  /tree-kill@1.2.2: '2019-12-11T18:34:21.876Z'
-  /ts-jest@29.0.3: '2022-09-29T06:14:41.529Z'
-  /ts-node@10.9.1: '2022-07-14T02:33:44.792Z'
-  /typescript@5.0.0-beta: '2023-01-26T20:44:26.509Z'
-  /unified@9.2.2: '2021-07-01T16:39:11.345Z'
-  /uuid@9.0.0: '2022-09-05T20:03:54.869Z'
-  /validate-npm-package-name@5.0.0: '2022-10-14T05:22:33.343Z'
-  /verdaccio@5.20.1: '2023-01-29T15:45:43.205Z'
-  /version-selector-type@3.0.0: '2020-05-02T19:53:43.038Z'
-  /which@3.0.1: '2023-05-01T17:34:02.081Z'
-  /write-file-atomic@5.0.1: '2023-04-26T19:28:58.689Z'
-  /write-ini-file@4.0.1: '2022-12-23T20:19:59.977Z'
-  /write-json5-file@3.1.0: '2021-02-11T22:54:24.439Z'
-  /write-yaml-file@4.2.0: '2021-02-11T22:54:29.120Z'
-  /yaml-tag@1.1.0: '2017-06-06T16:19:00.523Z'

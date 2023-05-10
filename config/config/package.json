@@ -41,6 +41,7 @@
     "@pnpm/pnpmfile": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "better-path-resolve": "1.0.0",
     "camelcase": "^6.3.0",
     "camelcase-keys": "^6.2.2",
     "can-write-to-dir": "^1.1.1",
