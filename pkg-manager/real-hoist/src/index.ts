@@ -6,8 +6,6 @@ import {
 import * as dp from '@pnpm/dependency-path'
 import { hoist as _hoist, HoisterDependencyKind, type HoisterTree, type HoisterResult } from '@yarnpkg/nm'
 
-export type HoistingLimits = Map<string, Set<string>>
-
 export type { HoisterResult }
 
 /**
@@ -33,9 +31,9 @@ export type { HoisterResult }
  * - /packages/A/node_modules/B
  * - /packages/A/node_modules/B/node_modules/C
  */
-export type HoistingLimitMode = 'none' | 'workspaces' | 'dependencies'
+export type HoistingLimits = 'none' | 'workspaces' | 'dependencies'
 
-export function getHoistingLimits (lockfile: Lockfile, mode: HoistingLimitMode | undefined): HoistingLimits | undefined {
+function getHoistingLimits (lockfile: Lockfile, mode: HoistingLimits | undefined): Map<string, Set<string>> | undefined {
   if (!mode || mode === 'none') return undefined
 
   const hoistingLimits = new Map<string, Set<string>>()
@@ -115,7 +113,8 @@ export function hoist (
     node.dependencies.add(importerNode)
   }
 
-  const hoisterResult = _hoist(node, opts)
+  const hoistingLimits = getHoistingLimits(lockfile, opts?.hoistingLimits)
+  const hoisterResult = _hoist(node, { ...opts, hoistingLimits })
   if (opts?.externalDependencies) {
     for (const hoistedDep of hoisterResult.dependencies.values()) {
       if (opts.externalDependencies.has(hoistedDep.name)) {

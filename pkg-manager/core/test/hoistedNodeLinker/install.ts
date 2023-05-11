@@ -219,15 +219,13 @@ test('running install scripts in a workspace that has no root project', async ()
 test('hoistingLimits should prevent packages to be hoisted', async () => {
   prepareEmpty()
 
-  const hoistingLimits = new Map()
-  hoistingLimits.set('.@', new Set(['send']))
   await install({
     dependencies: {
       send: '0.17.2',
     },
   }, await testDefaults({
     nodeLinker: 'hoisted',
-    hoistingLimits,
+    hoistingLimits: 'dependencies',
   }))
 
   expect(fs.existsSync('node_modules/ms')).toBeFalsy()
