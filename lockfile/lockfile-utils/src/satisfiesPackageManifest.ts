@@ -14,8 +14,8 @@ export function satisfiesPackageManifest (
   },
   importer: ProjectSnapshot | undefined,
   pkg: ProjectManifest
-) {
-  if (!importer) return false
+): { satisfies: boolean, detailedReason?: string } {
+  if (!importer) return { satisfies: false, detailedReason: 'no importer' }
   let existingDeps: Record<string, string> = { ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }
   if (opts?.autoInstallPeers) {
     pkg = {
@@ -36,13 +36,24 @@ export function satisfiesPackageManifest (
     existingDeps = pickNonLinkedDeps(existingDeps)
     specs = pickNonLinkedDeps(specs)
   }
-  if (
-    !equals(existingDeps, specs) ||
-    importer.publishDirectory !== pkg.publishConfig?.directory
-  ) {
-    return false
+  if (!equals(existingDeps, specs)) {
+    return {
+      satisfies: false,
+      detailedReason: `importer specifiers don't match package manifest`,
+    }
   }
-  if (!equals(pkg.dependenciesMeta ?? {}, importer.dependenciesMeta ?? {})) return false
+  if (importer.publishDirectory !== pkg.publishConfig?.directory) {
+    return {
+      satisfies: false,
+      detailedReason: `importer publish directory doesn't match package manifest`,
+    }
+  }
+  if (!equals(pkg.dependenciesMeta ?? {}, importer.dependenciesMeta ?? {})) {
+    return {
+      satisfies: false,
+      detailedReason: `importer dependencies meta doesn't match package manifest`,
+    }
+  }
   for (const depField of DEPENDENCIES_FIELDS) {
     const importerDeps = importer[depField] ?? {}
     let pkgDeps: Record<string, string> = pkg[depField] ?? {}
@@ -69,15 +80,25 @@ export function satisfiesPackageManifest (
     default:
       throw new Error(`Unknown dependency type "${depField as string}"`)
     }
-    if (pkgDepNames.length !== Object.keys(importerDeps).length &&
-      pkgDepNames.length !== countOfNonLinkedDeps(importerDeps)) {
-      return false
+    if (
+      pkgDepNames.length !== Object.keys(importerDeps).length &&
+      pkgDepNames.length !== countOfNonLinkedDeps(importerDeps)
+    ) {
+      return {
+        satisfies: false,
+        detailedReason: `importer ${depField} don't match package manifest`,
+      }
     }
     for (const depName of pkgDepNames) {
-      if (!importerDeps[depName] || importer.specifiers?.[depName] !== pkgDeps[depName]) return false
+      if (!importerDeps[depName] || importer.specifiers?.[depName] !== pkgDeps[depName]) {
+        return {
+          satisfies: false,
+          detailedReason: `importer ${depField} don't match package manifest`,
+        }
+      }
     }
   }
-  return true
+  return { satisfies: true }
 }
 
 function countOfNonLinkedDeps (lockfileDeps: { [depName: string]: string }): number {
