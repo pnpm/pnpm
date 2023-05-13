@@ -40,6 +40,7 @@
     "@pnpm/registry-mock": "3.8.0",
     "@types/is-windows": "^1.0.0",
     "@types/ramda": "0.28.20",
+    "@types/which": "^2.0.2",
     "is-windows": "^1.0.2",
     "write-yaml-file": "^5.0.0"
   },
@@ -66,6 +67,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "realpath-missing": "^1.1.0",
     "render-help": "^1.0.3",
+    "which": "^3.0.0",
     "write-json-file": "^4.3.0"
   },
   "peerDependencies": {
