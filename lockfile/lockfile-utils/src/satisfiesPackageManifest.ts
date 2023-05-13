@@ -39,19 +39,19 @@ export function satisfiesPackageManifest (
   if (!equals(existingDeps, specs)) {
     return {
       satisfies: false,
-      detailedReason: `importer specifiers don't match package manifest`,
+      detailedReason: `specifiers in the lockfile (${JSON.stringify(specs)}) don't match specs in package.json (${JSON.stringify(existingDeps)})`,
     }
   }
   if (importer.publishDirectory !== pkg.publishConfig?.directory) {
     return {
       satisfies: false,
-      detailedReason: `importer publish directory doesn't match package manifest`,
+      detailedReason: `"publishDirectory" in the lockfile (${importer.publishDirectory ?? 'undefined'}) doesn't match "publishConfig.directory" in package.json (${pkg.publishConfig?.directory ?? 'undefined'})`,
     }
   }
   if (!equals(pkg.dependenciesMeta ?? {}, importer.dependenciesMeta ?? {})) {
     return {
       satisfies: false,
-      detailedReason: `importer dependencies meta doesn't match package manifest`,
+      detailedReason: `importer dependencies meta (${JSON.stringify(importer.dependenciesMeta)}) doesn't match package manifest dependencies meta (${JSON.stringify(pkg.dependenciesMeta)})`,
     }
   }
   for (const depField of DEPENDENCIES_FIELDS) {
@@ -86,14 +86,14 @@ export function satisfiesPackageManifest (
     ) {
       return {
         satisfies: false,
-        detailedReason: `importer ${depField} don't match package manifest`,
+        detailedReason: `"${depField}" in the lockfile (${JSON.stringify(importerDeps)}) doesn't match the same field in package.json (${JSON.stringify(pkgDeps)})`,
       }
     }
     for (const depName of pkgDepNames) {
       if (!importerDeps[depName] || importer.specifiers?.[depName] !== pkgDeps[depName]) {
         return {
           satisfies: false,
-          detailedReason: `importer ${depField} don't match package manifest`,
+          detailedReason: `importer ${depField}.${depName} specifier ${importer.specifiers[depName]} don't match package manifest specifier (${pkgDeps[depName]})`,
         }
       }
     }
