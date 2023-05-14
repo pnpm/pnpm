@@ -31,6 +31,7 @@
   "dependencies": {
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.2",
     "execa": "npm:safe-execa@0.1.2",
     "preferred-pm": "^3.0.3",
@@ -41,7 +42,6 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@pnpm/types": "workspace:*",
     "@types/ramda": "0.28.20",
     "load-json-file": "^6.2.0"
   },

@@ -34,7 +34,6 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/plugin-commands-rebuild#readme",
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
-    "@pnpm/error": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare": "workspace:*",
@@ -55,6 +54,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/find-workspace-packages": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/get-context": "workspace:*",

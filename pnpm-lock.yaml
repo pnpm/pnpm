@@ -1086,6 +1086,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/find-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/find-workspace-packages
@@ -1159,9 +1162,6 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
@@ -1304,6 +1304,9 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@zkochan/rimraf':
         specifier: ^2.1.2
         version: 2.1.2
@@ -1326,9 +1329,6 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -3604,6 +3604,9 @@ importers:
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-types
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -3710,9 +3713,6 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
-      '@pnpm/lockfile-types':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-types
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
