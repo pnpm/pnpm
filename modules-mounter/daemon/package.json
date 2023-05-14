@@ -21,7 +21,7 @@
     "_test": "pnpm pretest && jest",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/mount-modules",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/modules-mounter/daemon",
   "keywords": [
     "pnpm8",
     "pnpm",
@@ -32,7 +32,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/mount-modules#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/modules-mounter/daemon#readme",
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"
   },

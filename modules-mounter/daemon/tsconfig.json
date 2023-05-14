@@ -19,16 +19,16 @@
       "path": "../../lockfile/lockfile-utils"
     },
     {
+      "path": "../../packages/dependency-path"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../../store/cafs"
     },
     {
       "path": "../../store/store-path"
-    },
-    {
-      "path": "../dependency-path"
-    },
-    {
-      "path": "../types"
     }
   ],
   "composite": true

@@ -12,6 +12,7 @@ packages:
   - hooks/*
   - lockfile/*
   - network/*
+  - modules-mounter/*
   - packages/*
   - pkg-manager/*
   - pkg-manifest/*

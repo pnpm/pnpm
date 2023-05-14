@@ -2179,6 +2179,56 @@ importers:
         specifier: 1.1.0
         version: 1.1.0
 
+  modules-mounter/daemon:
+    dependencies:
+      '@pnpm/cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
+      '@pnpm/config':
+        specifier: workspace:*
+        version: link:../../config/config
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      '@pnpm/lockfile-file':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-file
+      '@pnpm/lockfile-utils':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-utils
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/store-path':
+        specifier: workspace:*
+        version: link:../../store/store-path
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      hyperdrive-schemas:
+        specifier: ^2.0.0
+        version: 2.0.0
+      load-json-file:
+        specifier: ^6.2.0
+        version: 6.2.0
+      normalize-path:
+        specifier: ^3.0.0
+        version: 3.0.0
+    optionalDependencies:
+      fuse-native:
+        specifier: ^2.2.6
+        version: 2.2.6
+    devDependencies:
+      '@pnpm/mount-modules':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/normalize-path':
+        specifier: ^3.0.0
+        version: 3.0.0
+      rimraf:
+        specifier: ^3.0.2
+        version: 3.0.2
+
   network/auth-header:
     dependencies:
       '@pnpm/error':
@@ -2371,56 +2421,6 @@ importers:
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
-
-  packages/mount-modules:
-    dependencies:
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
-      '@pnpm/config':
-        specifier: workspace:*
-        version: link:../../config/config
-      '@pnpm/dependency-path':
-        specifier: workspace:*
-        version: link:../dependency-path
-      '@pnpm/lockfile-file':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-file
-      '@pnpm/lockfile-utils':
-        specifier: workspace:*
-        version: link:../../lockfile/lockfile-utils
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
-      '@pnpm/store-path':
-        specifier: workspace:*
-        version: link:../../store/store-path
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../types
-      hyperdrive-schemas:
-        specifier: ^2.0.0
-        version: 2.0.0
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
-      normalize-path:
-        specifier: ^3.0.0
-        version: 3.0.0
-    optionalDependencies:
-      fuse-native:
-        specifier: ^2.2.6
-        version: 2.2.6
-    devDependencies:
-      '@pnpm/mount-modules':
-        specifier: workspace:*
-        version: 'link:'
-      '@types/normalize-path':
-        specifier: ^3.0.0
-        version: 3.0.0
-      rimraf:
-        specifier: ^3.0.2
-        version: 3.0.2
 
   packages/parse-wanted-dependency:
     dependencies:
