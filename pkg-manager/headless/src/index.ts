@@ -200,11 +200,15 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     })
     for (const { id, manifest, rootDir } of selectedProjects) {
-      if (!_satisfiesPackageManifest(wantedLockfile.importers[id], manifest)) {
+      const { satisfies, detailedReason } = _satisfiesPackageManifest(wantedLockfile.importers[id], manifest)
+      if (!satisfies) {
         throw new PnpmError('OUTDATED_LOCKFILE',
           `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ` +
           path.relative(lockfileDir, path.join(rootDir, 'package.json')), {
-            hint: 'Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"',
+            hint: `Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"
+
+Failure reason:
+${detailedReason ?? ''}`,
           })
       }
     }

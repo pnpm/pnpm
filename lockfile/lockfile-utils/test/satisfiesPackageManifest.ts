@@ -16,7 +16,7 @@ test('satisfiesPackageManifest()', () => {
       ...DEFAULT_PKG_FIELDS,
       dependencies: { foo: '^1.0.0' },
     }
-  )).toBe(true)
+  )).toStrictEqual({ satisfies: true })
   expect(satisfiesPackageManifest(
     {},
     {
@@ -28,7 +28,7 @@ test('satisfiesPackageManifest()', () => {
       ...DEFAULT_PKG_FIELDS,
       dependencies: { foo: '^1.0.0' },
     }
-  )).toBe(true)
+  )).toStrictEqual({ satisfies: true })
   expect(satisfiesPackageManifest(
     {},
     {
@@ -39,7 +39,7 @@ test('satisfiesPackageManifest()', () => {
       ...DEFAULT_PKG_FIELDS,
       devDependencies: { foo: '^1.0.0' },
     }
-  )).toBe(true)
+  )).toStrictEqual({ satisfies: true })
   expect(satisfiesPackageManifest(
     {},
     {
@@ -50,7 +50,7 @@ test('satisfiesPackageManifest()', () => {
       ...DEFAULT_PKG_FIELDS,
       optionalDependencies: { foo: '^1.0.0' },
     }
-  )).toBe(true)
+  )).toStrictEqual({ satisfies: true })
   expect(satisfiesPackageManifest(
     {},
     {
@@ -61,7 +61,10 @@ test('satisfiesPackageManifest()', () => {
       ...DEFAULT_PKG_FIELDS,
       optionalDependencies: { foo: '^1.0.0' },
     }
-  )).toBe(false)
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: '"optionalDependencies" in the lockfile ({}) doesn\'t match the same field in package.json ({"foo":"^1.0.0"})',
+  })
   expect(satisfiesPackageManifest(
     {},
     {
@@ -72,7 +75,10 @@ test('satisfiesPackageManifest()', () => {
       ...DEFAULT_PKG_FIELDS,
       dependencies: { foo: '^1.1.0' },
     }
-  )).toBe(false)
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: 'specifiers in the lockfile ({"foo":"^1.0.0"}) don\'t match specs in package.json ({"foo":"^1.1.0"})',
+  })
   expect(satisfiesPackageManifest(
     {},
     {
@@ -83,7 +89,10 @@ test('satisfiesPackageManifest()', () => {
       ...DEFAULT_PKG_FIELDS,
       dependencies: { foo: '^1.0.0', bar: '2.0.0' },
     }
-  )).toBe(false)
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: 'specifiers in the lockfile ({"foo":"^1.0.0"}) don\'t match specs in package.json ({"foo":"^1.0.0","bar":"2.0.0"})',
+  })
 
   expect(satisfiesPackageManifest(
     {},
@@ -95,7 +104,10 @@ test('satisfiesPackageManifest()', () => {
       ...DEFAULT_PKG_FIELDS,
       dependencies: { foo: '^1.0.0', bar: '2.0.0' },
     }
-  )).toBe(false)
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: '"dependencies" in the lockfile ({"foo":"1.0.0"}) doesn\'t match the same field in package.json ({"foo":"^1.0.0","bar":"2.0.0"})',
+  })
 
   {
     const importer = {
@@ -120,7 +132,7 @@ test('satisfiesPackageManifest()', () => {
         bar: '2.0.0',
       },
     }
-    expect(satisfiesPackageManifest({}, importer, pkg)).toBe(true)
+    expect(satisfiesPackageManifest({}, importer, pkg)).toStrictEqual({ satisfies: true })
   }
 
   {
@@ -140,7 +152,10 @@ test('satisfiesPackageManifest()', () => {
         bar: '2.0.0',
       },
     }
-    expect(satisfiesPackageManifest({}, importer, pkg)).toBe(false)
+    expect(satisfiesPackageManifest({}, importer, pkg)).toStrictEqual({
+      satisfies: false,
+      detailedReason: 'specifiers in the lockfile ({"bar":"2.0.0","qar":"^1.0.0"}) don\'t match specs in package.json ({"bar":"2.0.0"})',
+    })
   }
 
   {
@@ -159,7 +174,10 @@ test('satisfiesPackageManifest()', () => {
         bar: '2.0.0',
       },
     }
-    expect(satisfiesPackageManifest({}, importer, pkg)).toBe(false)
+    expect(satisfiesPackageManifest({}, importer, pkg)).toStrictEqual({
+      satisfies: false,
+      detailedReason: '"dependencies" in the lockfile ({"bar":"2.0.0","qar":"1.0.0"}) doesn\'t match the same field in package.json ({"bar":"2.0.0"})',
+    })
   }
 
   expect(satisfiesPackageManifest(
@@ -172,7 +190,7 @@ test('satisfiesPackageManifest()', () => {
       ...DEFAULT_PKG_FIELDS,
       dependencies: { foo: '^1.0.0' },
     }
-  )).toBe(true)
+  )).toStrictEqual({ satisfies: true })
 
   expect(satisfiesPackageManifest(
     {},
@@ -181,7 +199,7 @@ test('satisfiesPackageManifest()', () => {
       ...DEFAULT_PKG_FIELDS,
       dependencies: { foo: '^1.0.0' },
     }
-  )).toBe(false)
+  )).toStrictEqual({ satisfies: false, detailedReason: 'no importer' })
 
   expect(satisfiesPackageManifest(
     {},
@@ -202,7 +220,7 @@ test('satisfiesPackageManifest()', () => {
         foo: '1.0.0',
       },
     }
-  )).toBe(true)
+  )).toStrictEqual({ satisfies: true })
 
   expect(satisfiesPackageManifest(
     {},
@@ -224,7 +242,7 @@ test('satisfiesPackageManifest()', () => {
       },
       dependenciesMeta: {},
     }
-  )).toBe(true)
+  )).toStrictEqual({ satisfies: true })
 
   expect(satisfiesPackageManifest(
     { autoInstallPeers: true },
@@ -247,7 +265,7 @@ test('satisfiesPackageManifest()', () => {
         bar: '^1.0.0',
       },
     }
-  )).toBe(true)
+  )).toStrictEqual({ satisfies: true })
 
   expect(satisfiesPackageManifest(
     { autoInstallPeers: true },
@@ -284,7 +302,7 @@ test('satisfiesPackageManifest()', () => {
         qar: '^1.0.0',
       },
     }
-  )).toBe(true)
+  )).toStrictEqual({ satisfies: true })
 
   expect(satisfiesPackageManifest(
     {},
@@ -306,7 +324,7 @@ test('satisfiesPackageManifest()', () => {
         directory: 'dist',
       },
     }
-  )).toBe(true)
+  )).toStrictEqual({ satisfies: true })
 
   expect(satisfiesPackageManifest(
     {},
@@ -328,7 +346,10 @@ test('satisfiesPackageManifest()', () => {
         directory: 'lib',
       },
     }
-  )).toBe(false)
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: '"publishDirectory" in the lockfile (dist) doesn\'t match "publishConfig.directory" in package.json (lib)',
+  })
 
   expect(satisfiesPackageManifest(
     {
@@ -349,5 +370,5 @@ test('satisfiesPackageManifest()', () => {
         bar: 'link:../bar',
       },
     }
-  )).toBe(true)
+  )).toStrictEqual({ satisfies: true })
 })

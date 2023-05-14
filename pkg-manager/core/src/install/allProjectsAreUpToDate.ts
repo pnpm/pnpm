@@ -39,7 +39,7 @@ export async function allProjectsAreUpToDate (
   return pEvery(projects, (project) => {
     const importer = opts.wantedLockfile.importers[project.id]
     return !hasLocalTarballDepsInRoot(importer) &&
-      _satisfiesPackageManifest(importer, project.manifest) &&
+      _satisfiesPackageManifest(importer, project.manifest).satisfies &&
       _linkedPackagesAreUpToDate({
         dir: project.rootDir,
         manifest: project.manifest,
