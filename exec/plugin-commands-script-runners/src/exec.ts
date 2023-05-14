@@ -212,7 +212,8 @@ export async function handler (
         } catch (err: any) { // eslint-disable-line
           if (await isErrorCommandNotFound(params[0], err)) {
             err.hint = buildCommandNotFoundHint(params[0], (await readProjectManifestOnly(opts.dir)).scripts)
-          } else if (!opts.recursive && typeof err.exitCode === 'number') {
+          }
+          if (!opts.recursive && typeof err.exitCode === 'number') {
             exitCode = err.exitCode
             return
           }
