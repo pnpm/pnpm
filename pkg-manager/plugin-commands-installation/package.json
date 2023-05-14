@@ -90,7 +90,7 @@
     "@yarnpkg/parsers": "3.0.0-rc.42",
     "@zkochan/rimraf": "^2.1.2",
     "@zkochan/table": "^2.0.1",
-    "@zkochan/which": "^2.0.3",
+    "@pnpm/which": "^3.0.1",
     "chalk": "^4.1.2",
     "ci-info": "^3.8.0",
     "enquirer": "^2.3.6",

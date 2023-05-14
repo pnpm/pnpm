@@ -39,7 +39,7 @@ declare module '@pnpm/npm-package-arg' {
   export = anything
 }
 
-declare module '@zkochan/which' {
+declare module '@pnpm/which' {
   const anything: any
   export = anything
 }
