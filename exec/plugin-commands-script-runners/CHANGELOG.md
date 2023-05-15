@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-script-runners
 
+## 7.1.0
+
+### Minor Changes
+
+- ee429b300: Expanded missing command error, including 'did you mean' [#6492](https://github.com/pnpm/pnpm/issues/6492).
+
+### Patch Changes
+
+- Updated dependencies [ee429b300]
+- Updated dependencies [1de07a4af]
+  - @pnpm/cli-utils@2.0.8
+  - @pnpm/config@18.3.2
+  - @pnpm/plugin-commands-installation@13.0.6
+
 ## 7.0.11
 
 ### Patch Changes

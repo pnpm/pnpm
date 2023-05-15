@@ -1,5 +1,13 @@
 # pnpm
 
+## 8.5.1
+
+### Patch Changes
+
+- Expanded missing command error, including 'did you mean' [#6492](https://github.com/pnpm/pnpm/issues/6492).
+- When installation fails because the lockfile is not up-to-date with the `package.json` file(s), print out what are the differences [#6536](https://github.com/pnpm/pnpm/pull/6536).
+- Normalize current working directory on Windows [#6524](https://github.com/pnpm/pnpm/issues/6524).
+
 ## 8.5.0
 
 ### Minor Changes

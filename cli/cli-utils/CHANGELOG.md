@@ -1,5 +1,14 @@
 # @pnpm/cli-utils
 
+## 2.0.8
+
+### Patch Changes
+
+- ee429b300: Expanded missing command error, including 'did you mean' [#6492](https://github.com/pnpm/pnpm/issues/6492).
+- Updated dependencies [1de07a4af]
+  - @pnpm/config@18.3.2
+  - @pnpm/default-reporter@12.2.2
+
 ## 2.0.7
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @pnpm/core
 
+## 10.1.1
+
+### Patch Changes
+
+- Updated dependencies [d58cdb962]
+- Updated dependencies [d58cdb962]
+  - @pnpm/lockfile-utils@8.0.0
+  - @pnpm/headless@20.2.2
+  - @pnpm/filter-lockfile@8.0.4
+  - @pnpm/lockfile-to-pnp@3.0.4
+  - @pnpm/hoist@8.0.4
+  - @pnpm/modules-cleaner@14.0.4
+  - @pnpm/resolve-dependencies@31.1.4
+
 ## 10.1.0
 
 ### Minor Changes

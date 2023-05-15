@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 18.3.2
+
+### Patch Changes
+
+- 1de07a4af: Normalize current working directory on Windows [#6524](https://github.com/pnpm/pnpm/issues/6524).
+
 ## 18.3.1
 
 ### Patch Changes

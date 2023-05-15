@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 8.0.0
+
+### Major Changes
+
+- d58cdb962: Return details about the reason why the lockfile doesn't satisfy the manifest.
+
 ## 7.0.1
 
 ### Patch Changes
