@@ -1193,6 +1193,9 @@ importers:
       '@zkochan/rimraf':
         specifier: ^2.1.2
         version: 2.1.2
+      didyoumean2:
+        specifier: ^5.0.0
+        version: 5.0.0
       execa:
         specifier: npm:safe-execa@0.1.2
         version: /safe-execa@0.1.2
@@ -1214,6 +1217,9 @@ importers:
       render-help:
         specifier: ^1.0.3
         version: 1.0.3
+      which:
+        specifier: npm:@pnpm/which@^3.0.1
+        version: /@pnpm/which@3.0.1
       write-json-file:
         specifier: ^4.3.0
         version: 4.3.0
@@ -1236,6 +1242,9 @@ importers:
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
+      '@types/which':
+        specifier: ^2.0.2
+        version: 2.0.2
       is-windows:
         specifier: ^1.0.2
         version: 1.0.2
@@ -3568,6 +3577,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/which':
+        specifier: ^3.0.1
+        version: 3.0.1
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../../workspace/pkgs-graph
@@ -3586,9 +3598,6 @@ importers:
       '@zkochan/table':
         specifier: ^1.0.1
         version: 1.0.1
-      '@zkochan/which':
-        specifier: ^2.0.3
-        version: 2.0.3
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
@@ -8677,6 +8686,14 @@ packages:
     dependencies:
       semver-utils: 1.1.4
     dev: true
+
+  /@pnpm/which@3.0.1:
+    resolution: {integrity: sha512-4ivtS12Oni9axgGefaq+gTPD+7N0VPCFdxFH8izCaWfnxLQblX3iVxba+25ZoagStlzUs8sQg8OMKlCVhyGWTw==}
+    engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
+    hasBin: true
+    dependencies:
+      isexe: 2.0.0
+    dev: false
 
   /@pnpm/write-project-manifest@4.1.2:
     resolution: {integrity: sha512-/C0j7SsE9tGoj++f0dwePIV7zNZHcX8TcYL6pXNvZZCq4HsOMCBsIlcU9oMI/AGe+KMDfHFQSayWPO9QUuGE5w==}
@@ -17671,10 +17688,12 @@ packages:
 time:
   /@pnpm/node-fetch@1.0.0: '2023-04-19T11:13:43.487Z'
   /@pnpm/ramda@0.28.1: '2022-08-03T13:56:59.597Z'
+  /@pnpm/which@3.0.1: '2023-05-14T22:08:27.551Z'
   /@types/byline@4.2.33: '2021-07-06T18:22:06.440Z'
   /@types/table@6.0.0: '2020-09-17T17:56:44.787Z'
   /@zkochan/hosted-git-info@4.0.2: '2021-09-05T21:33:51.709Z'
   /@zkochan/js-yaml@0.0.6: '2022-05-10T14:42:39.813Z'
+  /@zkochan/table@1.0.1: '2023-03-19T21:47:05.638Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@9.3.1: '2022-12-19T22:43:10.187Z'
   /safe-execa@0.1.2: '2022-07-18T01:09:17.517Z'

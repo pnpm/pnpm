@@ -1,5 +1,5 @@
 import path from 'path'
-import { docsUrl, type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
+import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { type Config, types } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
@@ -19,7 +19,9 @@ import {
   shorthands as runShorthands,
 } from './run'
 import { PnpmError } from '@pnpm/error'
+import which from 'which'
 import writeJsonFile from 'write-json-file'
+import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
 
 export const shorthands = {
   parallel: runShorthands.parallel,
@@ -208,7 +210,9 @@ export async function handler (
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
-          if (!opts.recursive && typeof err.exitCode === 'number') {
+          if (await isErrorCommandNotFound(params[0], err)) {
+            err.hint = buildCommandNotFoundHint(params[0], (await readProjectManifestOnly(opts.dir)).scripts)
+          } else if (!opts.recursive && typeof err.exitCode === 'number') {
             exitCode = err.exitCode
             return
           }
@@ -247,4 +251,20 @@ export async function handler (
   })
   throwOnCommandFail('pnpm recursive exec', result)
   return { exitCode }
+}
+
+interface CommandError extends Error {
+  originalMessage: string
+  shortMessage: string
+}
+
+async function isErrorCommandNotFound (command: string, error: CommandError) {
+  // Mac/Linux
+  if (error.originalMessage === `spawn ${command} ENOENT`) {
+    return true
+  }
+
+  // Windows
+  return error.shortMessage === `Command failed with exit code 1: ${command}` &&
+    !(await which(command, { nothrow: true }))
 }

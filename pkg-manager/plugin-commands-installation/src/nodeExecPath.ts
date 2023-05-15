@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs'
-import which from '@zkochan/which'
+import which from '@pnpm/which'
 
 export async function getNodeExecPath () {
   try {
