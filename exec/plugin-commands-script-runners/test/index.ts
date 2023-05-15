@@ -585,3 +585,22 @@ test('pnpm run with RegExp script selector with flag should throw error', async 
   }
   expect(err.message).toBe('RegExp flags are not supported in script command selector')
 })
+
+test('pnpm run with slightly incorrect command suggests correct one', async () => {
+  prepare({
+    scripts: {
+      build: 'echo 0',
+    },
+  })
+
+  await expect(run.handler({
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    rawConfig: {},
+    workspaceConcurrency: 1,
+  }, ['buil'])).rejects.toEqual(expect.objectContaining({
+    code: 'ERR_PNPM_NO_SCRIPT',
+    hint: 'Command "buil" not found. Did you mean "pnpm run build"?',
+  }))
+})

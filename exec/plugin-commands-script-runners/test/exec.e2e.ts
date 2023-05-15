@@ -811,3 +811,26 @@ test('pnpm recursive exec report summary with --bail', async () => {
   expect(executionStatus[path.resolve('project-3')].status).toBe('running')
   expect(executionStatus[path.resolve('project-4')].status).toBe('queued')
 })
+
+test('pnpm exec command not found', async () => {
+  prepare({
+    scripts: {
+      build: 'echo hello',
+    },
+  })
+
+  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  let error!: Error & { hint: string }
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: false,
+      bail: true,
+      selectedProjectsGraph,
+    }, ['buil'])
+  } catch (err: any) { // eslint-disable-line
+    error = err
+  }
+  expect(error?.hint).toBe('Command "buil" not found. Did you mean "pnpm run build"?')
+})
