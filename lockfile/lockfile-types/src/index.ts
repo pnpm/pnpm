@@ -2,6 +2,11 @@ import { type DependenciesMeta, type PatchFile } from '@pnpm/types'
 
 export type { PatchFile }
 
+export interface LockfileSettings {
+  autoInstallPeers?: boolean
+  excludeLinksFromLockfile?: boolean
+}
+
 export interface Lockfile {
   importers: Record<string, ProjectSnapshot>
   lockfileVersion: number | string
@@ -12,6 +17,7 @@ export interface Lockfile {
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
   patchedDependencies?: Record<string, PatchFile>
+  settings?: LockfileSettings
 }
 
 export interface ProjectSnapshot {
@@ -33,6 +39,7 @@ export interface LockfileV6 {
   overrides?: Record<string, string>
   packageExtensionsChecksum?: string
   patchedDependencies?: Record<string, PatchFile>
+  settings?: LockfileSettings
 }
 
 export interface ProjectSnapshotV6 {

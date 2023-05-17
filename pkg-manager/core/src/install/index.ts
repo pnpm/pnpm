@@ -84,6 +84,15 @@ import { getAllUniqueSpecs, getPreferredVersionsFromLockfileAndManifests } from 
 import { linkPackages } from './link'
 import { reportPeerDependencyIssues } from './reportPeerDependencyIssues'
 
+class LockfileConfigMismatchError extends PnpmError {
+  constructor (outdatedLockfileSettingName: string) {
+    super('LOCKFILE_CONFIG_MISMATCH',
+      `Cannot proceed with the frozen installation. The current "${outdatedLockfileSettingName!}" configuration doesn't match the value found in the lockfile`, {
+        hint: 'Update your lockfile using "pnpm install --no-frozen-lockfile"',
+      })
+  }
+}
+
 const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
   'ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE',
   'ERR_PNPM_TARBALL_INTEGRITY',
@@ -317,26 +326,44 @@ export async function mutateModules (
         path: path.join(opts.lockfileDir, patchFile.path),
       }), patchedDependencies)
       : undefined
-    let needsFullResolution = !maybeOpts.ignorePackageManifest &&
-      lockfileIsNotUpToDate(ctx.wantedLockfile, {
+    const frozenLockfile = opts.frozenLockfile ||
+      opts.frozenLockfileIfExists && ctx.existsWantedLockfile
+    let outdatedLockfileSettings = false
+    if (!opts.ignorePackageManifest) {
+      const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
+        autoInstallPeers: opts.autoInstallPeers,
+        excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
         overrides: opts.overrides,
         neverBuiltDependencies: opts.neverBuiltDependencies,
         onlyBuiltDependencies: opts.onlyBuiltDependencies,
         packageExtensionsChecksum,
         patchedDependencies,
-      }) ||
+      })
+      outdatedLockfileSettings = outdatedLockfileSettingName != null
+      if (frozenLockfile && outdatedLockfileSettings) {
+        throw new LockfileConfigMismatchError(outdatedLockfileSettingName!)
+      }
+    }
+    let needsFullResolution = outdatedLockfileSettings ||
       opts.fixLockfile ||
       !ctx.wantedLockfile.lockfileVersion.toString().startsWith('6.') ||
       opts.forceFullResolution
     if (needsFullResolution) {
+      ctx.wantedLockfile.settings = {
+        autoInstallPeers: opts.autoInstallPeers,
+        excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      }
       ctx.wantedLockfile.overrides = opts.overrides
       ctx.wantedLockfile.neverBuiltDependencies = opts.neverBuiltDependencies
       ctx.wantedLockfile.onlyBuiltDependencies = opts.onlyBuiltDependencies
       ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum
       ctx.wantedLockfile.patchedDependencies = patchedDependencies
+    } else if (!frozenLockfile) {
+      ctx.wantedLockfile.settings = {
+        autoInstallPeers: opts.autoInstallPeers,
+        excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      }
     }
-    const frozenLockfile = opts.frozenLockfile ||
-      opts.frozenLockfileIfExists && ctx.existsWantedLockfile
     if (
       !ctx.lockfileHadConflicts &&
       !opts.fixLockfile &&
@@ -645,7 +672,7 @@ async function calcPatchHashes (patches: Record<string, string>, lockfileDir: st
   }, patches)
 }
 
-function lockfileIsNotUpToDate (
+function getOutdatedLockfileSetting (
   lockfile: Lockfile,
   {
     neverBuiltDependencies,
@@ -653,18 +680,40 @@ function lockfileIsNotUpToDate (
     overrides,
     packageExtensionsChecksum,
     patchedDependencies,
+    autoInstallPeers,
+    excludeLinksFromLockfile,
   }: {
     neverBuiltDependencies?: string[]
     onlyBuiltDependencies?: string[]
     overrides?: Record<string, string>
     packageExtensionsChecksum?: string
     patchedDependencies?: Record<string, PatchFile>
-  }) {
-  return !equals(lockfile.overrides ?? {}, overrides ?? {}) ||
-    !equals((lockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort()) ||
-    !equals(onlyBuiltDependencies?.sort(), lockfile.onlyBuiltDependencies) ||
-    lockfile.packageExtensionsChecksum !== packageExtensionsChecksum ||
-    !equals(lockfile.patchedDependencies ?? {}, patchedDependencies ?? {})
+    autoInstallPeers?: boolean
+    excludeLinksFromLockfile?: boolean
+  }
+) {
+  if (!equals(lockfile.overrides ?? {}, overrides ?? {})) {
+    return 'overrides'
+  }
+  if (!equals((lockfile.neverBuiltDependencies ?? []).sort(), (neverBuiltDependencies ?? []).sort())) {
+    return 'neverBuiltDependencies'
+  }
+  if (!equals(onlyBuiltDependencies?.sort(), lockfile.onlyBuiltDependencies)) {
+    return 'onlyBuiltDependencies'
+  }
+  if (lockfile.packageExtensionsChecksum !== packageExtensionsChecksum) {
+    return 'packageExtensionsChecksum'
+  }
+  if (!equals(lockfile.patchedDependencies ?? {}, patchedDependencies ?? {})) {
+    return 'patchedDependencies'
+  }
+  if ((lockfile.settings?.autoInstallPeers != null && lockfile.settings.autoInstallPeers !== autoInstallPeers)) {
+    return 'settings.autoInstallPeers'
+  }
+  if (lockfile.settings?.excludeLinksFromLockfile != null && lockfile.settings.excludeLinksFromLockfile !== excludeLinksFromLockfile) {
+    return 'settings.excludeLinksFromLockfile'
+  }
+  return null
 }
 
 export function createObjectChecksum (obj: unknown) {

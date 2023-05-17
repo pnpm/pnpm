@@ -26,6 +26,8 @@ export interface PnpmContext {
 
 export async function readLockfiles (
   opts: {
+    autoInstallPeers: boolean
+    excludeLinksFromLockfile: boolean
     force: boolean
     forceSharedLockfile: boolean
     frozenLockfile: boolean
@@ -103,7 +105,11 @@ export async function readLockfiles (
     })()
   )
   const files = await Promise.all<Lockfile | null | undefined>(fileReads)
-  const sopts = { lockfileVersion: wantedLockfileVersion }
+  const sopts = {
+    autoInstallPeers: opts.autoInstallPeers,
+    excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+    lockfileVersion: wantedLockfileVersion,
+  }
   const importerIds = opts.projects.map((importer) => importer.id)
   const currentLockfile = files[1] ?? createLockfileObject(importerIds, sopts)
   for (const importerId of importerIds) {

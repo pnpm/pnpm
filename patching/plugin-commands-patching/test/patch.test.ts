@@ -532,18 +532,24 @@ describe('patch and commit in workspaces', () => {
 })
 
 describe('patch with custom modules-dir and virtual-store-dir', () => {
-  const customModulesDirFixture = tempDir()
-  f.copy('custom-modules-dir', customModulesDirFixture)
-  const cacheDir = path.resolve(customModulesDirFixture, 'cache')
-  const storeDir = path.resolve(customModulesDirFixture, 'store')
-  const defaultPatchOption = {
-    ...basePatchOption,
-    cacheDir,
-    dir: customModulesDirFixture,
-    storeDir,
-    modulesDir: 'fake_modules',
-    virtualStoreDir: 'fake_modules/.fake_store',
-  }
+  let defaultPatchOption: patch.PatchCommandOptions
+  let customModulesDirFixture: string
+  let cacheDir: string
+  let storeDir: string
+  beforeAll(() => {
+    customModulesDirFixture = tempDir()
+    f.copy('custom-modules-dir', customModulesDirFixture)
+    cacheDir = path.resolve(customModulesDirFixture, 'cache')
+    storeDir = path.resolve(customModulesDirFixture, 'store')
+    defaultPatchOption = {
+      ...basePatchOption,
+      cacheDir,
+      dir: customModulesDirFixture,
+      storeDir,
+      modulesDir: 'fake_modules',
+      virtualStoreDir: 'fake_modules/.fake_store',
+    }
+  })
 
   test('should work with custom modules-dir and virtual-store-dir', async () => {
     const manifest = fs.readFileSync(path.join(customModulesDirFixture, 'package.json'), 'utf8')

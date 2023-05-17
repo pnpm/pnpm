@@ -13,6 +13,10 @@ test('installing aliased dependency', async () => {
   expect(typeof project.requireModule('positive')).toBe('function')
 
   expect(await project.readLockfile()).toStrictEqual({
+    settings: {
+      autoInstallPeers: true,
+      excludeLinksFromLockfile: false,
+    },
     dependencies: {
       negative: {
         specifier: 'npm:is-negative@1.0.0',
@@ -70,6 +74,10 @@ test('a dependency has an aliased subdependency', async () => {
   expect(project.requireModule('@pnpm.e2e/pkg-with-1-aliased-dep')().name).toEqual('@pnpm.e2e/dep-of-pkg-with-1-dep')
 
   expect(await project.readLockfile()).toStrictEqual({
+    settings: {
+      autoInstallPeers: true,
+      excludeLinksFromLockfile: false,
+    },
     dependencies: {
       '@pnpm.e2e/pkg-with-1-aliased-dep': {
         specifier: '^100.0.0',
