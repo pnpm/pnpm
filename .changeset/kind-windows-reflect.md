@@ -1,5 +1,4 @@
 ---
-"@pnpm/plugin-commands-rebuild": patch
 "pnpm": patch
 ---
 

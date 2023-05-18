@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-patching
 
+## 3.1.2
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.0.7
+
 ## 3.1.1
 
 ### Patch Changes

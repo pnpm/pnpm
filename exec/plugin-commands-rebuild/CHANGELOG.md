@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-rebuild
 
+## 8.0.11
+
+### Patch Changes
+
+- ea28b6f6c: `pnpm rebuild` should not fail when `node-linker` is set to `hoisted` and there are skipped optional dependencies [#6553](https://github.com/pnpm/pnpm/pull/6553).
+
 ## 8.0.10
 
 ### Patch Changes

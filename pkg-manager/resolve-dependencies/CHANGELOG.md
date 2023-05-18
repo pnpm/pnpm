@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.5
+
+### Patch Changes
+
+- ee78f144d: Peers resolution should not fail when a linked in dependency resolves a peer dependency.
+
 ## 31.1.4
 
 ### Patch Changes

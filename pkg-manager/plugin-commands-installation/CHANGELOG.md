@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-installation
 
+## 13.0.7
+
+### Patch Changes
+
+- Updated dependencies [ea28b6f6c]
+  - @pnpm/plugin-commands-rebuild@8.0.11
+  - @pnpm/core@10.1.2
+
 ## 13.0.6
 
 ### Patch Changes
