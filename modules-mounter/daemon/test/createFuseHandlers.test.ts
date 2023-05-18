@@ -83,7 +83,7 @@ describe('FUSE handlers', () => {
   it('getattr', () => {
     handlers.getattr('/.pnpm/@zkochan+git-config@0.1.0/node_modules/@zkochan/git-config/index.js', (returnCode, stat) => {
       expect(returnCode).toBe(0)
-      expect(stat.mode).toBe(33188)
+      expect(stat.mode).toBe(33206)
     })
     handlers.getattr('/.pnpm/@zkochan+git-config@0.1.0/node_modules/@zkochan/git-config/test/fixtures', (returnCode, stat) => {
       expect(returnCode).toBe(0)
@@ -94,7 +94,7 @@ describe('FUSE handlers', () => {
     })
     handlers.getattr('/.pnpm/is-positive@1.0.0/node_modules/is-positive/package.json', (returnCode, stat) => {
       expect(returnCode).toBe(0)
-      expect(stat.mode).toBe(33188)
+      expect(stat.mode).toBe(33204)
     })
   })
   it('open and read', (done) => {

@@ -103,13 +103,16 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
       }
       if (dirEnt.entryType === 'index') {
         switch (cafsExplorer.dirEntityType(dirEnt.index, dirEnt.subPath)) {
-        case 'file':
-        // eslint-disable-next-line n/no-callback-literal
+        case 'file': {
+          const { size, mode } = dirEnt.index.files[dirEnt.subPath]
+          // eslint-disable-next-line n/no-callback-literal
           cb(0, schemas.Stat.file({
             ...STAT_DEFAULT,
-            size: dirEnt.index.files[dirEnt.subPath].size,
+            mode,
+            size,
           }))
           return
+        }
         case 'directory':
         // eslint-disable-next-line n/no-callback-literal
           cb(0, schemas.Stat.directory({
