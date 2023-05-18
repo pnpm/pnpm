@@ -279,6 +279,9 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
           ctx.pathsByNodeId[cachedNodeId] &&
           ctx.pathsByNodeId[cachedNodeId] === ctx.pathsByNodeId[parentPkgNodeId]
         ) return true
+        if (!ctx.dependenciesTree[parentPkgNodeId] && parentPkgNodeId.startsWith('link:')) {
+          return false
+        }
         const parentDepPath = (ctx.dependenciesTree[parentPkgNodeId].resolvedPackage as T).depPath
         if (!ctx.purePkgs.has(parentDepPath)) return false
         const cachedDepPath = (ctx.dependenciesTree[cachedNodeId].resolvedPackage as T).depPath
