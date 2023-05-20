@@ -38,7 +38,7 @@ export async function runLifecycleHooksConcurrently (
       importersByBuildIndex.get(importer.buildIndex)!.push(importer)
     }
   }
-  const sortedBuildIndexes = Array.from(importersByBuildIndex.keys()).sort()
+  const sortedBuildIndexes = Array.from(importersByBuildIndex.keys()).sort((a, b) => a - b)
   const groups = sortedBuildIndexes.map((buildIndex) => {
     const importers = importersByBuildIndex.get(buildIndex)!
     return importers.map(({ manifest, modulesDir, rootDir, stages: importerStages, targetDirs }) =>
