@@ -88,8 +88,8 @@ test('manifests are extended with fields specified by packageExtensions', async 
       rootDir: process.cwd(),
     }, await testDefaults({ frozenLockfile: true, packageExtensions }))
   ).rejects.toThrow(
-    new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
-      'Cannot perform a frozen installation because the version of the lockfile is incompatible with this version of pnpm'
+    new PnpmError('LOCKFILE_CONFIG_MISMATCH',
+      'Cannot proceed with the frozen installation. The current "packageExtensionsChecksum" configuration doesn\'t match the value found in the lockfile'
     )
   )
 })

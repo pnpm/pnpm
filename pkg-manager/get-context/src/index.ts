@@ -71,6 +71,8 @@ interface HookOptions {
 }
 
 export interface GetContextOptions {
+  autoInstallPeers: boolean
+  excludeLinksFromLockfile: boolean
   allProjects: Array<ProjectOptions & HookOptions>
   confirmModulesPurge?: boolean
   force: boolean
@@ -178,6 +180,8 @@ export async function getContext (
     storeDir: opts.storeDir,
     virtualStoreDir,
     ...await readLockfiles({
+      autoInstallPeers: opts.autoInstallPeers,
+      excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
       frozenLockfile: opts.frozenLockfile === true,
@@ -406,6 +410,8 @@ export interface PnpmSingleContext {
 export async function getContextForSingleImporter (
   manifest: ProjectManifest,
   opts: {
+    autoInstallPeers: boolean
+    excludeLinksFromLockfile: boolean
     force: boolean
     forceNewModules?: boolean
     forceSharedLockfile: boolean
@@ -520,6 +526,8 @@ export async function getContextForSingleImporter (
     storeDir,
     virtualStoreDir,
     ...await readLockfiles({
+      autoInstallPeers: opts.autoInstallPeers,
+      excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
       frozenLockfile: false,

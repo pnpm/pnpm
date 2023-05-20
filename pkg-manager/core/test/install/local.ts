@@ -45,6 +45,10 @@ test('local file', async () => {
   const lockfile = await project.readLockfile()
 
   expect(lockfile).toStrictEqual({
+    settings: {
+      autoInstallPeers: true,
+      excludeLinksFromLockfile: false,
+    },
     dependencies: {
       'local-pkg': {
         specifier: expectedSpecs['local-pkg'],
@@ -88,6 +92,10 @@ test('local file via link:', async () => {
   const lockfile = await project.readLockfile()
 
   expect(lockfile).toStrictEqual({
+    settings: {
+      autoInstallPeers: true,
+      excludeLinksFromLockfile: false,
+    },
     dependencies: {
       'local-pkg': {
         specifier: expectedSpecs['local-pkg'],
@@ -116,6 +124,10 @@ test('local file with symlinked node_modules', async () => {
   const lockfile = await project.readLockfile()
 
   expect(lockfile).toStrictEqual({
+    settings: {
+      autoInstallPeers: true,
+      excludeLinksFromLockfile: false,
+    },
     dependencies: {
       'local-pkg': {
         specifier: expectedSpecs['local-pkg'],
