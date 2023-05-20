@@ -287,3 +287,18 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
   await projects['p1'].has('p2')
   await projects['p2'].has('is-negative')
 })
+
+test('frozen-lockfile: installation fails if the value of auto-install-peers changes', async () => {
+  prepareEmpty()
+  const manifest = {
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }
+
+  await install(manifest, await testDefaults({ autoInstallPeers: true }))
+
+  await expect(
+    install(manifest, await testDefaults({ frozenLockfile: true, autoInstallPeers: false }))
+  ).rejects.toThrow('Cannot proceed with the frozen installation. The current "settings.autoInstallPeers" configuration doesn\'t match the value found in the lockfile')
+})

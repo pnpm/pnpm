@@ -94,8 +94,8 @@ test('versions are replaced with versions specified through overrides option', a
       rootDir: process.cwd(),
     }, await testDefaults({ frozenLockfile: true, overrides }))
   ).rejects.toThrow(
-    new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE',
-      'Cannot perform a frozen installation because the lockfile needs updates'
+    new PnpmError('LOCKFILE_CONFIG_MISMATCH',
+      'Cannot proceed with the frozen installation. The current "overrides" configuration doesn\'t match the value found in the lockfile'
     )
   )
 })

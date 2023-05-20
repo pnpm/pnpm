@@ -4,6 +4,8 @@ import { type Registries } from '@pnpm/types'
 import { type ReporterFunction } from '../types'
 
 export interface StrictStoreStatusOptions {
+  autoInstallPeers: boolean
+  excludeLinksFromLockfile: boolean
   lockfileDir: string
   dir: string
   storeDir: string

@@ -6,8 +6,10 @@ import { type Registries } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
 
 export interface StrictRebuildOptions {
+  autoInstallPeers: boolean
   cacheDir: string
   childConcurrency: number
+  excludeLinksFromLockfile: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
   lockfileDir: string
