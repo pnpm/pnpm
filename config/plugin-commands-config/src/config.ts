@@ -57,6 +57,10 @@ export function help () {
             description: 'When set to "project", the .npmrc file at the nearest package.json will be used',
             name: '--location <project|global>',
           },
+          {
+            description: 'Show all the config settings in JSON format',
+            name: '--json',
+          },
         ],
       },
     ],
@@ -66,6 +70,7 @@ export function help () {
       'pnpm config get <key>',
       'pnpm config delete <key>',
       'pnpm config list',
+      'pnpm config list --json',
     ],
   })
 }
