@@ -237,3 +237,73 @@ test('path to external link is not added to the lockfile, when it resolves a pee
   expect(lockfile.packages[key]).toBeTruthy()
   expect(lockfile.packages[key].dependencies?.['@pnpm.e2e/peer-a']).toBe('link:node_modules/@pnpm.e2e/peer-a')
 })
+
+test('links resolved from workspace protocol dependencies are not removed', async () => {
+  const pkg1 = {
+    name: 'project-1',
+    version: '1.0.0',
+
+    dependencies: {
+      'is-positive': '1.0.0',
+      'project-2': 'workspace:1.0.0',
+    },
+  }
+  const pkg2 = {
+    name: 'project-2',
+    version: '1.0.0',
+
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  }
+  preparePackages([pkg1, pkg2])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: pkg1,
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: pkg2,
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const workspacePackages = {
+    'project-1': {
+      '1.0.0': {
+        dir: path.resolve('project-1'),
+        manifest: pkg1,
+      },
+    },
+    'project-2': {
+      '1.0.0': {
+        dir: path.resolve('project-2'),
+        manifest: pkg2,
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({
+    allProjects,
+    excludeLinksFromLockfile: true,
+    lockfileOnly: true,
+    workspacePackages,
+  }))
+
+  const lockfile: LockfileV6 = await readYamlFile(WANTED_LOCKFILE)
+  expect(lockfile.importers['project-1'].dependencies?.['project-2']).toStrictEqual({
+    specifier: 'workspace:1.0.0',
+    version: 'link:../project-2',
+  })
+})

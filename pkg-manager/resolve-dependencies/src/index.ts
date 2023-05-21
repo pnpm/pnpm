@@ -387,8 +387,16 @@ function addDirectDependenciesToLockfile (
   const allDeps = Array.from(new Set(Object.keys(getAllDependenciesFromManifest(newManifest))))
 
   for (const alias of allDeps) {
-    if (directDependenciesByAlias[alias] && (!excludeLinksFromLockfile || !(directDependenciesByAlias[alias] as LinkedDependency).isLinkedDependency)) {
-      const dep = directDependenciesByAlias[alias]
+    const dep = directDependenciesByAlias[alias]
+    const spec = dep && getSpecFromPackageManifest(newManifest, dep.alias)
+    if (
+      dep &&
+      (
+        !excludeLinksFromLockfile ||
+        !(dep as LinkedDependency).isLinkedDependency ||
+        spec.startsWith('workspace:')
+      )
+    ) {
       const ref = depPathToRef(dep.pkgId, {
         alias: dep.alias,
         realName: dep.name,
@@ -402,7 +410,7 @@ function addDirectDependenciesToLockfile (
       } else {
         newProjectSnapshot.dependencies[dep.alias] = ref
       }
-      newProjectSnapshot.specifiers[dep.alias] = getSpecFromPackageManifest(newManifest, dep.alias)
+      newProjectSnapshot.specifiers[dep.alias] = spec
     } else if (projectSnapshot.specifiers[alias]) {
       newProjectSnapshot.specifiers[alias] = projectSnapshot.specifiers[alias]
       if (projectSnapshot.dependencies?.[alias]) {
