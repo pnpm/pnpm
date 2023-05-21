@@ -19,6 +19,7 @@ export interface Config {
   color: 'always' | 'auto' | 'never'
   cliOptions: Record<string, any>, // eslint-disable-line
   useBetaCli: boolean
+  excludeLinksFromLockfile: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
   filter: string[]
