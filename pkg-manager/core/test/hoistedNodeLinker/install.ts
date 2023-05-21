@@ -219,15 +219,13 @@ test('running install scripts in a workspace that has no root project', async ()
 test('hoistingLimits should prevent packages to be hoisted', async () => {
   prepareEmpty()
 
-  const hoistingLimits = new Map()
-  hoistingLimits.set('.@', new Set(['send']))
   await install({
     dependencies: {
       send: '0.17.2',
     },
   }, await testDefaults({
     nodeLinker: 'hoisted',
-    hoistingLimits,
+    hoistingLimits: 'dependencies',
   }))
 
   expect(fs.existsSync('node_modules/ms')).toBeFalsy()
@@ -315,4 +313,76 @@ test('linking bins of local projects when node-linker is set to hoisted', async 
   }))
 
   expect(fs.existsSync('project-1/node_modules/.bin/project-2')).toBeTruthy()
+})
+
+test('peer dep satisfied by local project', async () => {
+  prepareEmpty()
+
+  const project1Manifest = {
+    name: 'package-1',
+    version: '1.0.0',
+    devDependencies: {
+      '@pnpm.e2e/wants-peer-c-1': '*',
+    },
+  }
+
+  const peerCManifest = {
+    name: '@pnpm.e2e/peer-c',
+    version: '1.999.999',
+  }
+
+  preparePackages([
+    {
+      location: 'package-1',
+      package: project1Manifest,
+    },
+    {
+      location: 'peer-c',
+      package: peerCManifest,
+    },
+  ])
+
+  const workspacePackages = {
+    'project-1': {
+      '1.0.0': {
+        dir: path.resolve('project-1'),
+        manifest: project1Manifest,
+      },
+    },
+    '@pnpm.e2e/peer-c': {
+      '1.999.999': {
+        dir: path.resolve('peer-c'),
+        manifest: peerCManifest,
+      },
+    },
+  }
+
+  // This should not throw.
+  await mutateModules([
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('peer-c'),
+    },
+  ], await testDefaults({
+    allProjects: [
+      {
+        buildIndex: 0,
+        manifest: project1Manifest,
+        rootDir: path.resolve('project-1'),
+      },
+      {
+        buildIndex: 1,
+        manifest: peerCManifest,
+        rootDir: path.resolve('peer-c'),
+      },
+    ],
+    workspacePackages,
+    nodeLinker: 'hoisted',
+    resolutionMode: 'highest',
+    preferWorkspacePackages: true,
+  }))
 })

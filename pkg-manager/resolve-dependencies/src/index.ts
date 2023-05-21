@@ -376,7 +376,10 @@ function addDirectDependenciesToLockfile (
   }
 
   linkedPackages.forEach((linkedPkg) => {
-    newProjectSnapshot.specifiers[linkedPkg.alias] = getSpecFromPackageManifest(newManifest, linkedPkg.alias)
+    const spec = getSpecFromPackageManifest(newManifest, linkedPkg.alias)
+    if (spec != null) {
+      newProjectSnapshot.specifiers[linkedPkg.alias] = spec
+    }
   })
 
   const directDependenciesByAlias = directDependencies.reduce((acc, directDependency) => {
@@ -402,7 +405,10 @@ function addDirectDependenciesToLockfile (
       } else {
         newProjectSnapshot.dependencies[dep.alias] = ref
       }
-      newProjectSnapshot.specifiers[dep.alias] = getSpecFromPackageManifest(newManifest, dep.alias)
+      const spec = getSpecFromPackageManifest(newManifest, dep.alias)
+      if (spec != null) {
+        newProjectSnapshot.specifiers[dep.alias] = spec
+      }
     } else if (projectSnapshot.specifiers[alias]) {
       newProjectSnapshot.specifiers[alias] = projectSnapshot.specifiers[alias]
       if (projectSnapshot.dependencies?.[alias]) {

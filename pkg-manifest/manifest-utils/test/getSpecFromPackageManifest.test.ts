@@ -30,4 +30,8 @@ test('getSpecFromPackageManifest()', () => {
         foo: '2.0.0',
       },
     }, 'foo')).toEqual('2.0.0')
+
+  expect(
+    getSpecFromPackageManifest({}, 'foo')
+  ).toBeUndefined()
 })
