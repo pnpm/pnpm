@@ -13,7 +13,6 @@ import {
   statsLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
-import { PnpmError } from '@pnpm/error'
 import {
   filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
@@ -36,7 +35,6 @@ import { writePnpFile } from '@pnpm/lockfile-to-pnp'
 import {
   extendProjectsWithTargetDirs,
   nameVerFromPkgSnapshot,
-  satisfiesPackageManifest,
 } from '@pnpm/lockfile-utils'
 import {
   type LogBase,
@@ -193,26 +191,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const hoistedModulesDir = path.join(virtualStoreDir, 'node_modules')
   const publicHoistedModulesDir = rootModulesDir
   const selectedProjects = Object.values(pick(opts.selectedProjectDirs, opts.allProjects))
-
-  if (!opts.ignorePackageManifest) {
-    const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
-      autoInstallPeers: opts.autoInstallPeers,
-      excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-    })
-    for (const { id, manifest, rootDir } of selectedProjects) {
-      const { satisfies, detailedReason } = _satisfiesPackageManifest(wantedLockfile.importers[id], manifest)
-      if (!satisfies) {
-        throw new PnpmError('OUTDATED_LOCKFILE',
-          `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ` +
-          path.relative(lockfileDir, path.join(rootDir, 'package.json')), {
-            hint: `Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"
-
-Failure reason:
-${detailedReason ?? ''}`,
-          })
-      }
-    }
-  }
 
   const scriptsOpts = {
     optional: false,

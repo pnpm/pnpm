@@ -32,7 +32,7 @@ import {
   type PatchFile,
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
-import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
+import { extendProjectsWithTargetDirs, satisfiesPackageManifest } from '@pnpm/lockfile-utils'
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
@@ -400,6 +400,25 @@ export async function mutateModules (
 Note that in CI environments, this setting is enabled by default.`,
           }
         )
+      }
+      if (!opts.ignorePackageManifest) {
+        const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
+          autoInstallPeers: opts.autoInstallPeers,
+          excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+        })
+        for (const { id, manifest, rootDir } of Object.values(ctx.projects)) {
+          const { satisfies, detailedReason } = _satisfiesPackageManifest(ctx.wantedLockfile.importers[id], manifest)
+          if (!satisfies) {
+            throw new PnpmError('OUTDATED_LOCKFILE',
+              `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ` +
+              path.relative(opts.lockfileDir, path.join(rootDir, 'package.json')), {
+                hint: `Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"
+
+    Failure reason:
+    ${detailedReason ?? ''}`,
+              })
+          }
+        }
       }
       if (opts.lockfileOnly) {
         // The lockfile will only be changed if the workspace will have new projects with no dependencies.
