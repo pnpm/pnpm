@@ -290,7 +290,7 @@ when running add/update with the --workspace option')
   }
 
   const updatedManifest = await install(manifest, installOpts)
-  if (opts.update === true && opts.save !== false) {
+  if (opts.update !== false && opts.save !== false) {
     await writeProjectManifest(updatedManifest)
   }
 

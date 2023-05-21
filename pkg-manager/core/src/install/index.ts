@@ -529,9 +529,12 @@ Note that in CI environments, this setting is enabled by default.`,
         })
         break
       case 'install': {
+        const updatePackageManifest = (projectOpts as InstallDepsMutation).updatePackageManifest ??
+          (projectOpts as InstallDepsMutation).update ??
+          (!ctx.existsWantedLockfile && !ctx.existsCurrentLockfile)
         await installCase({
           ...projectOpts,
-          updatePackageManifest: (projectOpts as InstallDepsMutation).updatePackageManifest ?? (projectOpts as InstallDepsMutation).update,
+          updatePackageManifest,
         })
         break
       }
