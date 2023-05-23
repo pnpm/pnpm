@@ -34,32 +34,6 @@ test('time-based resolution mode with a registry that supports the time field in
   ])
 })
 
-test('the lowest version of a direct dependency is installed when resolution mode is time-based', async () => {
-  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
-  const project = prepareEmpty()
-
-  let manifest = await install({
-    dependencies: {
-      '@pnpm.e2e/foo': '^100.0.0',
-    },
-  }, await testDefaults({ resolutionMode: 'time-based' }))
-
-  {
-    const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/@pnpm.e2e/foo@100.0.0']).toBeTruthy()
-  }
-
-  manifest = await install(manifest, await testDefaults({ resolutionMode: 'time-based', update: true }))
-
-  {
-    const lockfile = await project.readLockfile()
-    expect(lockfile.packages['/@pnpm.e2e/foo@100.1.0']).toBeTruthy()
-  }
-  expect(manifest.dependencies).toStrictEqual({
-    '@pnpm.e2e/foo': '^100.1.0',
-  })
-})
-
 test('time-based resolution mode should not fail when publishedBy date cannot be calculated', async () => {
   prepareEmpty()
   await install({}, await testDefaults({ resolutionMode: 'time-based' }))

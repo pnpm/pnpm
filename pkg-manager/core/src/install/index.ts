@@ -531,7 +531,7 @@ Note that in CI environments, this setting is enabled by default.`,
       case 'install': {
         const updatePackageManifest = (projectOpts as InstallDepsMutation).updatePackageManifest ??
           (projectOpts as InstallDepsMutation).update ??
-          (!ctx.existsWantedLockfile && !ctx.existsCurrentLockfile)
+          (opts.resolutionMode === 'highest' && !ctx.existsWantedLockfile && !ctx.existsCurrentLockfile)
         await installCase({
           ...projectOpts,
           updatePackageManifest,
