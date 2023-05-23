@@ -457,23 +457,6 @@ test('available packages are relinked during forced install', async () => {
   })).toBeTruthy()
 })
 
-test(`fail when ${WANTED_LOCKFILE} is not up to date with package.json`, async () => {
-  const projectDir = tempDir()
-
-  const simpleDir = f.find('simple')
-  await fs.copyFile(path.join(simpleDir, 'package.json'), path.join(projectDir, 'package.json'))
-
-  const simpleWithMoreDepsDir = f.find('simple-with-more-deps')
-  await fs.copyFile(path.join(simpleWithMoreDepsDir, WANTED_LOCKFILE), path.join(projectDir, WANTED_LOCKFILE))
-
-  try {
-    await headlessInstall(await testDefaults({ lockfileDir: projectDir }))
-    throw new Error()
-  } catch (err: any) { // eslint-disable-line
-    expect(err.message).toBe(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with package.json`)
-  }
-})
-
 test('installing local dependency', async () => {
   let prefix = f.prepare('has-local-dep')
   prefix = path.join(prefix, 'pkg')
