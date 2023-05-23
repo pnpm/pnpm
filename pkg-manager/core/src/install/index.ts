@@ -32,7 +32,7 @@ import {
   type PatchFile,
 } from '@pnpm/lockfile-file'
 import { writePnpFile } from '@pnpm/lockfile-to-pnp'
-import { extendProjectsWithTargetDirs } from '@pnpm/lockfile-utils'
+import { extendProjectsWithTargetDirs, satisfiesPackageManifest } from '@pnpm/lockfile-utils'
 import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
@@ -251,7 +251,7 @@ export async function mutateModules (
       currentLockfile: ctx.currentLockfile,
       wantedLockfile: ctx.wantedLockfile,
       existsCurrentLockfile: ctx.existsCurrentLockfile,
-      existsWantedLockfile: ctx.existsWantedLockfile,
+      existsNonEmptyWantedLockfile: ctx.existsNonEmptyWantedLockfile,
       lockfileDir: ctx.lockfileDir,
       storeDir: ctx.storeDir,
       registries: ctx.registries,
@@ -327,7 +327,7 @@ export async function mutateModules (
       }), patchedDependencies)
       : undefined
     const frozenLockfile = opts.frozenLockfile ||
-      opts.frozenLockfileIfExists && ctx.existsWantedLockfile
+      opts.frozenLockfileIfExists && ctx.existsNonEmptyWantedLockfile
     let outdatedLockfileSettings = false
     if (!opts.ignorePackageManifest) {
       const outdatedLockfileSettingName = getOutdatedLockfileSetting(ctx.wantedLockfile, {
@@ -375,7 +375,7 @@ export async function mutateModules (
         !needsFullResolution &&
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === Object.keys(ctx.projects).length) &&
-        ctx.existsWantedLockfile &&
+        ctx.existsNonEmptyWantedLockfile &&
         (
           ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION ||
           ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V6
@@ -401,6 +401,31 @@ Note that in CI environments, this setting is enabled by default.`,
           }
         )
       }
+      if (!opts.ignorePackageManifest) {
+        const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, {
+          autoInstallPeers: opts.autoInstallPeers,
+          excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+        })
+        for (const { id, manifest, rootDir } of Object.values(ctx.projects)) {
+          const { satisfies, detailedReason } = _satisfiesPackageManifest(ctx.wantedLockfile.importers[id], manifest)
+          if (!satisfies) {
+            if (!ctx.existsWantedLockfile) {
+              throw new PnpmError('NO_LOCKFILE',
+                `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is present`, {
+                  hint: 'Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"',
+                })
+            }
+            throw new PnpmError('OUTDATED_LOCKFILE',
+              `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ` +
+              path.relative(opts.lockfileDir, path.join(rootDir, 'package.json')), {
+                hint: `Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"
+
+    Failure reason:
+    ${detailedReason ?? ''}`,
+              })
+          }
+        }
+      }
       if (opts.lockfileOnly) {
         // The lockfile will only be changed if the workspace will have new projects with no dependencies.
         await writeWantedLockfile(ctx.lockfileDir, ctx.wantedLockfile)
@@ -408,7 +433,7 @@ Note that in CI environments, this setting is enabled by default.`,
           updatedProjects: projects.map((mutatedProject) => ctx.projects[mutatedProject.rootDir]),
         }
       }
-      if (!ctx.existsWantedLockfile) {
+      if (!ctx.existsNonEmptyWantedLockfile) {
         if (Object.values(ctx.projects).some((project) => pkgHasDependencies(project.manifest))) {
           throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
         }
@@ -463,7 +488,7 @@ Note that in CI environments, this setting is enabled by default.`,
               error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' &&
               !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)
             ) ||
-            (!ctx.existsWantedLockfile && !ctx.existsCurrentLockfile)
+            (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile)
           ) throw error
           if (BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code)) {
             needsFullResolution = true
@@ -641,12 +666,12 @@ Note that in CI environments, this setting is enabled by default.`,
     // Unfortunately, the private lockfile may differ from the public one.
     // A user might run named installations on a project that has a pnpm-lock.yaml file before running a noop install
     const makePartialCurrentLockfile = !installsOnly && (
-      ctx.existsWantedLockfile && !ctx.existsCurrentLockfile ||
+      ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile ||
       !ctx.currentLockfileIsUpToDate
     )
     const result = await installInContext(projectsToInstall, ctx, {
       ...opts,
-      currentLockfileIsUpToDate: !ctx.existsWantedLockfile || ctx.currentLockfileIsUpToDate,
+      currentLockfileIsUpToDate: !ctx.existsNonEmptyWantedLockfile || ctx.currentLockfileIsUpToDate,
       makePartialCurrentLockfile,
       needsFullResolution,
       pruneVirtualStore,
@@ -1377,7 +1402,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
   } catch (error: any) { // eslint-disable-line
     if (
       !BROKEN_LOCKFILE_INTEGRITY_ERRORS.has(error.code) ||
-      (!ctx.existsWantedLockfile && !ctx.existsCurrentLockfile)
+      (!ctx.existsNonEmptyWantedLockfile && !ctx.existsCurrentLockfile)
     ) throw error
     opts.needsFullResolution = true
     // Ideally, we would not update but currently there is no other way to redownload the integrity of the package

@@ -2,12 +2,12 @@ import fs from 'fs'
 import path from 'path'
 import { getWantedLockfileName } from './lockfileName'
 
-interface ExistsWantedLockfileOptions {
+interface existsNonEmptyWantedLockfileOptions {
   useGitBranchLockfile?: boolean
   mergeGitBranchLockfiles?: boolean
 }
 
-export async function existsWantedLockfile (pkgPath: string, opts: ExistsWantedLockfileOptions = {
+export async function existsNonEmptyWantedLockfile (pkgPath: string, opts: existsNonEmptyWantedLockfileOptions = {
   useGitBranchLockfile: false,
   mergeGitBranchLockfiles: false,
 }) {

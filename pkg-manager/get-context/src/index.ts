@@ -34,6 +34,7 @@ export interface PnpmContext {
   currentLockfileIsUpToDate: boolean
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
+  existsNonEmptyWantedLockfile: boolean
   extraBinPaths: string[]
   extraNodePaths: string[]
   lockfileHadConflicts: boolean
@@ -383,6 +384,7 @@ export interface PnpmSingleContext {
   currentLockfileIsUpToDate: boolean
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
+  existsNonEmptyWantedLockfile: boolean
   extraBinPaths: string[]
   extraNodePaths: string[]
   lockfileHadConflicts: boolean

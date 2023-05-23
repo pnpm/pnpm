@@ -5,7 +5,7 @@ export interface PreResolutionHookContext {
   wantedLockfile: Lockfile
   currentLockfile: Lockfile
   existsCurrentLockfile: boolean
-  existsWantedLockfile: boolean
+  existsNonEmptyWantedLockfile: boolean
   lockfileDir: string
   storeDir: string
   registries: Registries
