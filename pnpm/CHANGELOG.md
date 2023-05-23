@@ -1,5 +1,14 @@
 # pnpm
 
+## 7.32.5
+
+### Patch Changes
+
+- `pnpm rebuild` should not fail when `node-linker` is set to `hoisted` and there are skipped optional dependencies [#6553](https://github.com/pnpm/pnpm/pull/6553).
+- Expanded missing command error, including 'did you mean' [#6492](https://github.com/pnpm/pnpm/issues/6492).
+- Normalize current working directory on Windows [#6524](https://github.com/pnpm/pnpm/issues/6524).
+- Build projects in a workspace in correct order [#6568](https://github.com/pnpm/pnpm/pull/6568).
+
 ## 7.32.4
 
 ### Patch Changes
