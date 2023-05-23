@@ -28,7 +28,7 @@ if the lockfile file format is not compatible with the current library.
 
 Reads the lockfile file from `<virtualStoreDir>/lock.yaml`.
 
-### `existsWantedLockfile(pkgPath) => Promise<Boolean>`
+### `existsNonEmptyWantedLockfile(pkgPath) => Promise<Boolean>`
 
 Returns `true` if a `pnpm-lock.yaml` exists in the root of the package.
 

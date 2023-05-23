@@ -4,7 +4,7 @@ export {
   writeCurrentLockfile,
   writeWantedLockfile,
 } from './write'
-export { existsWantedLockfile } from './existsWantedLockfile'
+export { existsNonEmptyWantedLockfile } from './existsWantedLockfile'
 export { getLockfileImporterId } from './getLockfileImporterId'
 export * from '@pnpm/lockfile-types'
 export * from './read'

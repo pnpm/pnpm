@@ -1,7 +1,7 @@
 import path from 'path'
 import { getCurrentBranch } from '@pnpm/git-utils'
 import {
-  existsWantedLockfile,
+  existsNonEmptyWantedLockfile,
   readCurrentLockfile,
   readWantedLockfile,
   writeCurrentLockfile,
@@ -154,9 +154,9 @@ test('writeCurrentLockfile()', async () => {
   expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
 })
 
-test('existsWantedLockfile()', async () => {
+test('existsNonEmptyWantedLockfile()', async () => {
   const projectPath = tempy.directory()
-  expect(await existsWantedLockfile(projectPath)).toBe(false)
+  expect(await existsNonEmptyWantedLockfile(projectPath)).toBe(false)
   await writeWantedLockfile(projectPath, {
     importers: {
       '.': {
@@ -192,7 +192,7 @@ test('existsWantedLockfile()', async () => {
       },
     },
   })
-  expect(await existsWantedLockfile(projectPath)).toBe(true)
+  expect(await existsNonEmptyWantedLockfile(projectPath)).toBe(true)
 })
 
 test('readWantedLockfile() when useGitBranchLockfile', async () => {

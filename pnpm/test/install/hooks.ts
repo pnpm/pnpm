@@ -646,7 +646,7 @@ test('preResolution hook', async () => {
   expect(ctx.lockfileDir).toBeDefined()
   expect(ctx.storeDir).toBeDefined()
   expect(ctx.existsCurrentLockfile).toBe(false)
-  expect(ctx.existsWantedLockfile).toBe(false)
+  expect(ctx.existsNonEmptyWantedLockfile).toBe(false)
 
   expect(ctx.registries).toEqual({
     default: 'http://localhost:7776/',

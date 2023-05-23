@@ -5,7 +5,7 @@ import {
 } from '@pnpm/constants'
 import {
   createLockfileObject,
-  existsWantedLockfile,
+  existsNonEmptyWantedLockfile,
   isEmptyLockfile,
   type Lockfile,
   readCurrentLockfile,
@@ -21,6 +21,7 @@ export interface PnpmContext {
   currentLockfile: Lockfile
   existsCurrentLockfile: boolean
   existsWantedLockfile: boolean
+  existsNonEmptyWantedLockfile: boolean
   wantedLockfile: Lockfile
 }
 
@@ -47,6 +48,7 @@ export async function readLockfiles (
     currentLockfileIsUpToDate: boolean
     existsCurrentLockfile: boolean
     existsWantedLockfile: boolean
+    existsNonEmptyWantedLockfile: boolean
     wantedLockfile: Lockfile
     wantedLockfileIsModified: boolean
     lockfileHadConflicts: boolean
@@ -83,7 +85,7 @@ export async function readLockfiles (
       fileReads.push(readWantedLockfile(opts.lockfileDir, lockfileOpts))
     }
   } else {
-    if (await existsWantedLockfile(opts.lockfileDir, lockfileOpts)) {
+    if (await existsNonEmptyWantedLockfile(opts.lockfileDir, lockfileOpts)) {
       logger.warn({
         message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a lockfile`,
         prefix: opts.lockfileDir,
@@ -131,11 +133,13 @@ export async function readLockfiles (
       }
     }
   }
+  const existsWantedLockfile = files[0] != null
   return {
     currentLockfile,
     currentLockfileIsUpToDate: equals(currentLockfile, wantedLockfile),
     existsCurrentLockfile: files[1] != null,
-    existsWantedLockfile: files[0] != null && !isEmptyLockfile(wantedLockfile),
+    existsWantedLockfile,
+    existsNonEmptyWantedLockfile: existsWantedLockfile && !isEmptyLockfile(wantedLockfile),
     wantedLockfile,
     wantedLockfileIsModified,
     lockfileHadConflicts,
