@@ -80,7 +80,8 @@ test('partial update in a workspace should work with dedupe-peer-dependents is t
 
   writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   writeFileSync('.npmrc', `dedupe-peer-dependents=true
-auto-install-peers=false`, 'utf8')
+auto-install-peers=false
+resolution-mode=lowest-direct`, 'utf8')
   await execPnpm(['install'])
   await addDistTag({ package: '@pnpm.e2e/abc-parent-with-ab', version: '1.0.1', distTag: 'latest' })
   process.chdir('project-2')
