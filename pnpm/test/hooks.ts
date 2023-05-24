@@ -21,6 +21,7 @@ test('readPackage hook in single project doesn\'t modify manifest', async () => 
       }
   `
   await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
+  await fs.writeFile('.npmrc', 'resolution-mode=lowest-direct', 'utf8')
   await execPnpm(['add', 'is-positive@1.0.0'])
   let pkg: PackageManifest = await loadJsonFile(path.resolve('package.json'))
   expect(pkg?.dependencies).toStrictEqual({ 'is-positive': '1.0.0' }) // add dependency & readPackage hook work
