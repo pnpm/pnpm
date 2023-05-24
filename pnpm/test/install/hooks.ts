@@ -567,7 +567,7 @@ test('readPackage hook overrides project package', async () => {
     }
   `, 'utf8')
 
-  await execPnpm(['install'])
+  await execPnpm(['install', '--config.resolution-mode=lowest-direct'])
 
   await project.has('is-positive')
 
