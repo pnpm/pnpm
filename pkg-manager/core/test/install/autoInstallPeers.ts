@@ -170,7 +170,7 @@ test('automatically install root peer dependencies', async () => {
 
   let manifest = await install({
     dependencies: {
-      'is-negative': '^1.0.0',
+      'is-negative': '^1.0.1',
     },
     peerDependencies: {
       'is-positive': '^1.0.0',
@@ -188,8 +188,8 @@ test('automatically install root peer dependencies', async () => {
         version: '1.0.0',
       },
       'is-negative': {
-        specifier: '^1.0.0',
-        version: '1.0.0',
+        specifier: '^1.0.1',
+        version: '1.0.1',
       },
     })
   }
@@ -220,8 +220,8 @@ test('automatically install root peer dependencies', async () => {
         version: '1.0.0',
       },
       'is-negative': {
-        specifier: '^1.0.0',
-        version: '1.0.0',
+        specifier: '^1.0.1',
+        version: '1.0.1',
       },
     })
   }
@@ -245,8 +245,8 @@ test('automatically install root peer dependencies', async () => {
         version: '1.0.0',
       },
       'is-negative': {
-        specifier: '^1.0.0',
-        version: '1.0.0',
+        specifier: '^1.0.1',
+        version: '1.0.1',
       },
     })
   }

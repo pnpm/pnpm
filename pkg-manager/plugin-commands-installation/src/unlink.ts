@@ -50,6 +50,7 @@ export async function handler (
   | 'engineStrict'
   | 'hooks'
   | 'linkWorkspacePackages'
+  | 'saveWorkspaceProtocol'
   | 'selectedProjectsGraph'
   | 'rawLocalConfig'
   | 'registries'

@@ -33,6 +33,7 @@ test('recursive linking/unlinking', async () => {
     allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
+    saveWorkspaceProtocol: false,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
@@ -51,6 +52,7 @@ test('recursive linking/unlinking', async () => {
     allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
+    saveWorkspaceProtocol: false,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, [])
@@ -96,6 +98,7 @@ test('recursive unlink specific package', async () => {
     allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
+    saveWorkspaceProtocol: false,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
@@ -114,6 +117,7 @@ test('recursive unlink specific package', async () => {
     allProjectsGraph,
     dir: process.cwd(),
     recursive: true,
+    saveWorkspaceProtocol: false,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, ['is-positive'])

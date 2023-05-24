@@ -241,7 +241,11 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
     },
   ])
 
-  await fs.writeFile('.npmrc', 'link-workspace-packages = true\nshared-workspace-lockfile=false', 'utf8')
+  await fs.writeFile('.npmrc', `
+link-workspace-packages = true
+shared-workspace-lockfile=false
+save-workspace-protocol=false
+`, 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('project-1')
@@ -341,8 +345,8 @@ test('test-pattern is respected by the test script', async () => {
     {
       name: 'project-1',
       version: '1.0.0',
-      dependencies: { 'project-2': '1.0.0', 'project-3': '1.0.0' },
-      devDependencies: { 'json-append': '1' },
+      dependencies: { 'project-2': 'workspace:*', 'project-3': 'workspace:*' },
+      devDependencies: { 'json-append': '1.1.1' },
       scripts: {
         test: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output.json',
       },
@@ -351,7 +355,7 @@ test('test-pattern is respected by the test script', async () => {
       name: 'project-2',
       version: '1.0.0',
       dependencies: {},
-      devDependencies: { 'json-append': '1' },
+      devDependencies: { 'json-append': '1.1.1' },
       scripts: {
         test: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output.json',
       },
@@ -359,8 +363,8 @@ test('test-pattern is respected by the test script', async () => {
     {
       name: 'project-3',
       version: '1.0.0',
-      dependencies: { 'project-2': '1.0.0' },
-      devDependencies: { 'json-append': '1' },
+      dependencies: { 'project-2': 'workspace:*' },
+      devDependencies: { 'json-append': '1.1.1' },
       scripts: {
         test: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output.json',
       },
@@ -369,7 +373,7 @@ test('test-pattern is respected by the test script', async () => {
       name: 'project-4',
       version: '1.0.0',
       dependencies: {},
-      devDependencies: { 'json-append': '1' },
+      devDependencies: { 'json-append': '1.1.1' },
       scripts: {
         test: 'node -e "process.stdout.write(\'project-4\')" | json-append ../output.json',
       },
@@ -935,7 +939,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
 
         dependencies: {
           'is-positive': '1.0.0',
-          'package-2': '1.0.0',
+          'package-2': 'workspace:*',
         },
       },
     },
@@ -976,7 +980,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
             version: '1.0.0',
           },
           'package-2': {
-            specifier: '1.0.0',
+            specifier: 'workspace:*',
             version: 'link:../package-2',
           },
         },
@@ -1040,7 +1044,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
 
   process.chdir('monorepo/workspace')
 
-  await execPnpm(['recursive', 'install', '--store-dir', 'store', '--shared-workspace-lockfile', '--link-workspace-packages'])
+  await execPnpm(['-r', 'install', '--store-dir', 'store', '--shared-workspace-lockfile', '--link-workspace-packages', '--no-save-workspace-protocol'])
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 

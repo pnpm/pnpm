@@ -36,7 +36,7 @@ test('skip non-existing optional dependency', async () => {
   const reporter = sinon.spy()
   await install({
     dependencies: {
-      'is-positive': '*',
+      'is-positive': '1.0.0',
     },
     optionalDependencies: {
       '@pnpm.e2e/i-do-not-exist': '1000',
@@ -56,7 +56,7 @@ test('skip non-existing optional dependency', async () => {
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.dependencies['is-positive'].specifier).toBe('*')
+  expect(lockfile.dependencies['is-positive'].specifier).toBe('1.0.0')
 })
 
 test('skip optional dependency that does not support the current OS', async () => {

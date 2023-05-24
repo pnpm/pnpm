@@ -15,7 +15,7 @@ test(`frozen-lockfile: installation fails if specs in package.json don't match t
   await install(
     {
       dependencies: {
-        'is-positive': '^3.0.0',
+        'is-positive': '1.0.0',
       },
     },
     await testDefaults()
@@ -35,7 +35,7 @@ test(`frozen-lockfile+hoistPattern: installation fails if specs in package.json 
 
   await install({
     dependencies: {
-      'is-positive': '^3.0.0',
+      'is-positive': '1.0.0',
     },
   }, await testDefaults({ hoistPattern: '*' }))
 
@@ -67,7 +67,7 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
       name: 'p1',
 
       dependencies: {
-        'is-positive': '^3.0.0',
+        'is-positive': '1.0.0',
       },
     },
     rootDir: path.resolve('p1'),

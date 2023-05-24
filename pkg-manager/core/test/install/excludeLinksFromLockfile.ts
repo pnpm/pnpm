@@ -245,7 +245,7 @@ test('links resolved from workspace protocol dependencies are not removed', asyn
 
     dependencies: {
       'is-positive': '1.0.0',
-      'project-2': 'workspace:1.0.0',
+      'project-2': 'workspace:*',
     },
   }
   const pkg2 = {
@@ -303,7 +303,7 @@ test('links resolved from workspace protocol dependencies are not removed', asyn
 
   const lockfile: LockfileV6 = await readYamlFile(WANTED_LOCKFILE)
   expect(lockfile.importers['project-1'].dependencies?.['project-2']).toStrictEqual({
-    specifier: 'workspace:1.0.0',
+    specifier: 'workspace:*',
     version: 'link:../project-2',
   })
 })
