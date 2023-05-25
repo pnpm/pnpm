@@ -15,6 +15,7 @@ import {
 import pEvery from 'p-every'
 import any from 'ramda/src/any'
 import semver from 'semver'
+import getVersionSelectorType from 'version-selector-type'
 
 export async function allProjectsAreUpToDate (
   projects: Array<ProjectOptions & { id: string }>,
@@ -94,6 +95,8 @@ async function linkedPackagesAreUpToDate (
       ) {
         continue
       }
+      const spec = getVersionSelectorType(currentSpec)
+
       const linkedDir = isLinked
         ? path.join(project.dir, lockfileRef.slice(5))
         : workspacePackages?.[depName]?.[lockfileRef]?.dir
@@ -106,7 +109,7 @@ async function linkedPackagesAreUpToDate (
       const linkedPkg = manifestsByDir[linkedDir] ?? await safeReadPackageJsonFromDir(linkedDir)
       const availableRange = getVersionRange(currentSpec)
       // This should pass the same options to semver as @pnpm/npm-resolver
-      const localPackageSatisfiesRange = availableRange === '*' || availableRange === '^' || availableRange === '~' ||
+      const localPackageSatisfiesRange = availableRange === '*' || availableRange === '^' || availableRange === '~' || spec?.type === 'tag' ||
         linkedPkg && semver.satisfies(linkedPkg.version, availableRange, { loose: true })
       if (isLinked !== localPackageSatisfiesRange) return false
     }
