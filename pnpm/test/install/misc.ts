@@ -3,6 +3,7 @@ import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { writeProjectManifest } from '@pnpm/write-project-manifest'
@@ -448,4 +449,21 @@ test('installation fails with a timeout error', async () => {
   await expect(
     execPnpm(['add', 'typescript@2.4.2', '--fetch-timeout=1', '--fetch-retries=0'])
   ).rejects.toThrow()
+})
+
+test('install on a project with no lockfile updates the ranges in package.json', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '100.0.0',
+      '@pnpm.e2e/bar': '^100.0.0',
+    },
+  })
+  await execPnpm(['install'])
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg.dependencies).toStrictEqual({
+    '@pnpm.e2e/foo': '100.0.0',
+    '@pnpm.e2e/bar': '^100.1.0',
+  })
 })
