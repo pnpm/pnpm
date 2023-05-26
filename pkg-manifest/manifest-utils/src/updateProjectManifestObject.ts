@@ -1,7 +1,9 @@
 import { packageManifestLogger } from '@pnpm/core-loggers'
 import {
+  type DependenciesOrPeersField,
   type DependenciesField,
   DEPENDENCIES_FIELDS,
+  DEPENDENCIES_OR_PEER_FIELDS,
   type ProjectManifest,
 } from '@pnpm/types'
 
@@ -36,8 +38,10 @@ export async function updateProjectManifestObject (
       }
     } else if (packageSpec.pref) {
       const usedDepType = guessDependencyType(packageSpec.alias, packageManifest) ?? 'dependencies'
-      packageManifest[usedDepType] = packageManifest[usedDepType] ?? {}
-      packageManifest[usedDepType]![packageSpec.alias] = packageSpec.pref
+      if (usedDepType !== 'peerDependencies') {
+        packageManifest[usedDepType] = packageManifest[usedDepType] ?? {}
+        packageManifest[usedDepType]![packageSpec.alias] = packageSpec.pref
+      }
     }
     if (packageSpec.nodeExecPath) {
       if (packageManifest.dependenciesMeta == null) {
@@ -59,7 +63,7 @@ function findSpec (alias: string, manifest: ProjectManifest): string | undefined
   return foundDepType && manifest[foundDepType]![alias]
 }
 
-export function guessDependencyType (alias: string, manifest: ProjectManifest): DependenciesField | undefined {
-  return DEPENDENCIES_FIELDS
+export function guessDependencyType (alias: string, manifest: ProjectManifest): DependenciesOrPeersField | undefined {
+  return DEPENDENCIES_OR_PEER_FIELDS
     .find((depField) => manifest[depField]?.[alias] === '' || Boolean(manifest[depField]?.[alias]))
 }

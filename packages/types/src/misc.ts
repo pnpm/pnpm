@@ -9,6 +9,11 @@ export const DEPENDENCIES_FIELDS: DependenciesField[] = [
   'devDependencies',
 ]
 
+export const DEPENDENCIES_OR_PEER_FIELDS: DependenciesOrPeersField[] = [
+  ...DEPENDENCIES_FIELDS,
+  'peerDependencies',
+]
+
 export interface Registries {
   default: string
   [scope: string]: string

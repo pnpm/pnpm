@@ -463,6 +463,9 @@ test('install on a project with no lockfile updates the ranges in package.json',
       qar: 'npm:@pnpm.e2e/qar@100.0.0',
       bravo: 'npm:@pnpm.e2e/bravo-dep@^1.0.0',
     },
+    peerDependencies: {
+      'is-positive': '^3.0.0',
+    },
   })
   await execPnpm(['install'])
   const pkg = await readPackageJsonFromDir(process.cwd())
@@ -471,5 +474,8 @@ test('install on a project with no lockfile updates the ranges in package.json',
     '@pnpm.e2e/bar': '^100.1.0',
     qar: 'npm:@pnpm.e2e/qar@100.0.0',
     bravo: 'npm:@pnpm.e2e/bravo-dep@^1.1.0',
+  })
+  expect(pkg.peerDependencies).toStrictEqual({
+    'is-positive': '^3.0.0',
   })
 })
