@@ -210,3 +210,17 @@ test('update only the specified package', async () => {
     'is-positive': '3.1.0',
   })
 })
+
+test('peer dependency is not added to prod deps on update', async () => {
+  prepareEmpty()
+  const manifest = await install({
+    peerDependencies: {
+      'is-positive': '^3.0.0',
+    },
+  }, await testDefaults({ autoInstallPeers: true, update: true, depth: 0 }))
+  expect(manifest).toStrictEqual({
+    peerDependencies: {
+      'is-positive': '^3.0.0',
+    },
+  })
+})
