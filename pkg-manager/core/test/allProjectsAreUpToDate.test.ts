@@ -374,3 +374,36 @@ test('allProjectsAreUpToDate(): returns true if dependenciesMeta matches', async
     workspacePackages,
   })).toBeTruthy()
 })
+
+test('allProjectsAreUpToDate(): returns true if a dist tag is used', async () => {
+  expect(await allProjectsAreUpToDate([
+    {
+      buildIndex: 0,
+      id: 'bar',
+      manifest: {
+        dependencies: {
+          zoo: 'latest',
+        },
+      },
+      rootDir: 'bar',
+    },
+  ], {
+    autoInstallPeers: false,
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        bar: {
+          dependencies: {
+            zoo: '1.0.0',
+          },
+          specifiers: {
+            zoo: 'latest',
+          },
+        },
+      },
+      lockfileVersion: 5,
+    },
+    workspacePackages,
+  })).toBeTruthy()
+})
