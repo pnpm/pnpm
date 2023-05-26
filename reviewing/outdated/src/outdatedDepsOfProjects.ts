@@ -18,7 +18,7 @@ export async function outdatedDepsOfProjects (
   args: string[],
   opts: Omit<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'> & {
     compatible?: boolean
-    ignoreDependencies?: Set<string>
+    ignoreDependencies?: string[]
     include: IncludedDependencies
   } & Partial<Pick<ManifestGetterOptions, 'fullMetadata' | 'lockfileDir'>>
 ): Promise<OutdatedPackage[][]> {

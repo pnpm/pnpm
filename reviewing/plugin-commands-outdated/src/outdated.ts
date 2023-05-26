@@ -181,7 +181,7 @@ export async function handler (
   const [outdatedPackages] = await outdatedDepsOfProjects(packages, params, {
     ...opts,
     fullMetadata: opts.long,
-    ignoreDependencies: new Set(manifest?.pnpm?.updateConfig?.ignoreDependencies ?? []),
+    ignoreDependencies: manifest?.pnpm?.updateConfig?.ignoreDependencies,
     include,
     retry: {
       factor: opts.fetchRetryFactor,

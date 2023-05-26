@@ -192,7 +192,7 @@ async function interactiveUpdate (
   const outdatedPkgsOfProjects = await outdatedDepsOfProjects(projects, input, {
     ...opts,
     compatible: opts.latest !== true,
-    ignoreDependencies: new Set(rootProject?.manifest?.pnpm?.updateConfig?.ignoreDependencies ?? []),
+    ignoreDependencies: rootProject?.manifest?.pnpm?.updateConfig?.ignoreDependencies,
     include,
     retry: {
       factor: opts.fetchRetryFactor,
