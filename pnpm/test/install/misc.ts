@@ -454,10 +454,14 @@ test('installation fails with a timeout error', async () => {
 test('install on a project with no lockfile updates the ranges in package.json', async () => {
   await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/qar', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/bravo-dep', version: '1.1.0', distTag: 'latest' })
   prepare({
     dependencies: {
       '@pnpm.e2e/foo': '100.0.0',
       '@pnpm.e2e/bar': '^100.0.0',
+      qar: 'npm:@pnpm.e2e/qar@100.0.0',
+      bravo: 'npm:@pnpm.e2e/bravo-dep@^1.0.0',
     },
   })
   await execPnpm(['install'])
@@ -465,5 +469,7 @@ test('install on a project with no lockfile updates the ranges in package.json',
   expect(pkg.dependencies).toStrictEqual({
     '@pnpm.e2e/foo': '100.0.0',
     '@pnpm.e2e/bar': '^100.1.0',
+    qar: 'npm:@pnpm.e2e/qar@100.0.0',
+    bravo: 'npm:@pnpm.e2e/bravo-dep@^1.1.0',
   })
 })
