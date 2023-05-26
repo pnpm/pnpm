@@ -1852,3 +1852,57 @@ test('pick lowest version by * when there are only prerelease versions', async (
   expect(resolveResult!.manifest!.name).toBe('is-positive')
   expect(resolveResult!.manifest!.version).toBe('1.0.0-alpha.1')
 })
+
+test('tag exist registry not resolve from workspace', async () => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    cacheDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', pref: 'latest' }, {
+    projectDir: '/home/istvan/src',
+    registry,
+    workspacePackages: {
+      'is-positive': {
+        '1.0.0': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+  })
+  expect(resolveResult!.resolvedVia).toBe('npm-registry')
+})
+
+test('tag not exist registry resolve from workspace', async () => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const cacheDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    cacheDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', pref: 'beta' }, {
+    projectDir: '/home/istvan/src',
+    registry,
+    workspacePackages: {
+      'is-positive': {
+        '1.0.0': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+  })
+  expect(resolveResult!.resolvedVia).toBe('local-filesystem')
+})

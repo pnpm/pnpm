@@ -198,7 +198,7 @@ async function resolveNpm (
       }
     }
     const localVersion = pickMatchingLocalVersionOrNull(workspacePackages[pickedPackage.name], spec)
-    if (localVersion && (semver.gt(localVersion, pickedPackage.version) || opts.preferWorkspacePackages)) {
+    if (localVersion && spec.type !== 'tag' && (semver.gt(localVersion, pickedPackage.version) || opts.preferWorkspacePackages)) {
       return {
         ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][localVersion], spec.normalizedPref, {
           projectDir: opts.projectDir,
