@@ -399,7 +399,7 @@ test('recursive update --latest specific dependency on projects that do not shar
 
   const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
   expect(manifest1.dependencies).toStrictEqual({
-    alias: 'npm:@pnpm.e2e/qar@^100.1.0', // this might be not correct
+    alias: 'npm:@pnpm.e2e/qar@100.1.0',
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
     '@pnpm.e2e/foo': '^100.1.0',
   })
@@ -574,7 +574,7 @@ test('recursive update --latest specific dependency on projects with a shared a 
 
   const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
   expect(manifest1.dependencies).toStrictEqual({
-    alias: 'npm:@pnpm.e2e/qar@^100.1.0', // this might be incorrect
+    alias: 'npm:@pnpm.e2e/qar@100.1.0',
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
     '@pnpm.e2e/foo': '100.1.0',
   })
