@@ -19,6 +19,7 @@ import {
 } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import semver from 'semver'
+import { createMatcher } from '@pnpm/matcher'
 
 export * from './createManifestGetter'
 
@@ -38,7 +39,7 @@ export async function outdated (
     compatible?: boolean
     currentLockfile: Lockfile | null
     getLatestManifest: GetLatestManifestFunction
-    ignoreDependencies?: Set<string>
+    ignoreDependencies?: string[]
     include?: IncludedDependencies
     lockfileDir: string
     manifest: ProjectManifest
@@ -57,6 +58,8 @@ export async function outdated (
   const currentLockfile = opts.currentLockfile ?? { importers: { [importerId]: {} } }
 
   const outdated: OutdatedPackage[] = []
+
+  const ignoreDependenciesMatcher = opts.ignoreDependencies?.length ? createMatcher(opts.ignoreDependencies) : undefined
 
   await Promise.all(
     DEPENDENCIES_FIELDS.map(async (depType) => {
@@ -78,7 +81,7 @@ export async function outdated (
 
           if (
             ref.startsWith('file:') || // ignoring linked packages. (For backward compatibility)
-            opts.ignoreDependencies?.has(alias)
+            ignoreDependenciesMatcher?.(alias)
           ) {
             return
           }

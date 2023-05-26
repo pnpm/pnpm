@@ -56,7 +56,7 @@ export async function outdatedRecursive (
   const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, params, {
     ...opts,
     fullMetadata: opts.long,
-    ignoreDependencies: new Set(rootManifest?.manifest?.pnpm?.updateConfig?.ignoreDependencies ?? []),
+    ignoreDependencies: rootManifest?.manifest?.pnpm?.updateConfig?.ignoreDependencies,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,
