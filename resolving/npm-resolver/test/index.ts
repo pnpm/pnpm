@@ -1622,8 +1622,41 @@ test('workspace protocol: resolution fails if there is no matching local package
   }
 
   expect(err).toBeTruthy()
+  expect(err.code).toBe('ERR_PNPM_WORKSPACE_PKG_NOT_FOUND')
+  expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: "is-positive@workspace:^3.0.0" is in the dependencies but no package named "is-positive" is present in the workspace`)
+})
+
+test('workspace protocol: resolution fails if there is no matching local package version', async () => {
+  const cacheDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    cacheDir,
+  })
+
+  const projectDir = '/home/istvan/src'
+  let err!: Error & { code: string }
+  try {
+    await resolve({ alias: 'is-positive', pref: 'workspace:^3.0.0' }, {
+      projectDir,
+      registry,
+      workspacePackages: {
+        'is-positive': {
+          '2.0.0': {
+            dir: '/home/istvan/src/is-positive',
+            manifest: {
+              name: 'is-positive',
+              version: '2.0.0',
+            },
+          },
+        },
+      },
+    })
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+
+  expect(err).toBeTruthy()
   expect(err.code).toBe('ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE')
-  expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@^3.0.0 inside the workspace`)
+  expect(err.message).toBe(`In ${path.relative(process.cwd(), projectDir)}: No matching version found for is-positive@workspace:^3.0.0 inside the workspace`)
 })
 
 test('workspace protocol: resolution fails if there are no local packages', async () => {

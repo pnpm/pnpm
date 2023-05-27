@@ -163,12 +163,16 @@ async function resolveNpm (
     })
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {
-      const resolvedFromLocal = tryResolveFromWorkspacePackages(workspacePackages, spec, {
-        projectDir: opts.projectDir,
-        lockfileDir: opts.lockfileDir,
-        hardLinkLocalPackages: wantedDependency.injected,
-      })
-      if (resolvedFromLocal != null) return resolvedFromLocal
+      try {
+        return tryResolveFromWorkspacePackages(workspacePackages, spec, {
+          wantedDependency,
+          projectDir: opts.projectDir,
+          lockfileDir: opts.lockfileDir,
+          hardLinkLocalPackages: wantedDependency.injected,
+        })
+      } catch {
+        // ignore
+      }
     }
     throw err
   }
@@ -176,12 +180,16 @@ async function resolveNpm (
   const meta = pickResult.meta
   if (pickedPackage == null) {
     if ((workspacePackages != null) && opts.projectDir) {
-      const resolvedFromLocal = tryResolveFromWorkspacePackages(workspacePackages, spec, {
-        projectDir: opts.projectDir,
-        lockfileDir: opts.lockfileDir,
-        hardLinkLocalPackages: wantedDependency.injected,
-      })
-      if (resolvedFromLocal != null) return resolvedFromLocal
+      try {
+        return tryResolveFromWorkspacePackages(workspacePackages, spec, {
+          wantedDependency,
+          projectDir: opts.projectDir,
+          lockfileDir: opts.lockfileDir,
+          hardLinkLocalPackages: wantedDependency.injected,
+        })
+      } catch {
+        // ignore
+      }
     }
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta })
   }
@@ -250,32 +258,40 @@ function tryResolveFromWorkspace (
   if (!opts.projectDir) {
     throw new Error('Cannot resolve package from workspace because opts.projectDir is not defined')
   }
-  const resolvedFromLocal = tryResolveFromWorkspacePackages(opts.workspacePackages, spec, {
+  return tryResolveFromWorkspacePackages(opts.workspacePackages, spec, {
+    wantedDependency,
     projectDir: opts.projectDir,
     hardLinkLocalPackages: wantedDependency.injected,
     lockfileDir: opts.lockfileDir,
   })
-  if (resolvedFromLocal == null) {
-    throw new PnpmError(
-      'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
-      `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${wantedDependency.alias ?? ''}@${pref} inside the workspace`
-    )
-  }
-  return resolvedFromLocal
 }
 
 function tryResolveFromWorkspacePackages (
   workspacePackages: WorkspacePackages,
   spec: RegistryPackageSpec,
   opts: {
+    wantedDependency: WantedDependency
     hardLinkLocalPackages?: boolean
     projectDir: string
     lockfileDir?: string
   }
 ) {
-  if (!workspacePackages[spec.name]) return null
+  if (!workspacePackages[spec.name]) {
+    throw new PnpmError(
+      'WORKSPACE_PKG_NOT_FOUND',
+      `In ${path.relative(process.cwd(), opts.projectDir)}: "${spec.name}@${opts.wantedDependency.pref ?? ''}" is in the dependencies but no package named "${spec.name}" is present in the workspace`,
+      {
+        hint: 'Packages found in the workspace: ' + Object.keys(workspacePackages).join(', '),
+      }
+    )
+  }
   const localVersion = pickMatchingLocalVersionOrNull(workspacePackages[spec.name], spec)
-  if (!localVersion) return null
+  if (!localVersion) {
+    throw new PnpmError(
+      'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
+      `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${opts.wantedDependency.alias ?? ''}@${opts.wantedDependency.pref ?? ''} inside the workspace`
+    )
+  }
   return resolveFromLocalPackage(workspacePackages[spec.name][localVersion], spec.normalizedPref, opts)
 }
 
