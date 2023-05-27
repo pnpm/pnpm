@@ -260,7 +260,6 @@ function tryResolveFromWorkspace (
   }
   return tryResolveFromWorkspacePackages(opts.workspacePackages, spec, {
     wantedDependency,
-    pref,
     projectDir: opts.projectDir,
     hardLinkLocalPackages: wantedDependency.injected,
     lockfileDir: opts.lockfileDir,
@@ -273,14 +272,13 @@ function tryResolveFromWorkspacePackages (
   opts: {
     wantedDependency: WantedDependency
     hardLinkLocalPackages?: boolean
-    pref?: string
     projectDir: string
     lockfileDir?: string
   }
 ) {
   if (!workspacePackages[spec.name]) {
     throw new PnpmError(
-      'NO_MATCHING_PKG_INSIDE_WORKSPACE',
+      'WORKSPACE_PKG_NOT_FOUND',
       `In ${path.relative(process.cwd(), opts.projectDir)}: "${spec.name}@${opts.wantedDependency.pref ?? ''}" is in the dependencies but no package named "${spec.name}" is present in the workspace`,
       {
         hint: 'Packages found in the workspace: ' + Object.keys(workspacePackages).join(', '),
@@ -291,7 +289,7 @@ function tryResolveFromWorkspacePackages (
   if (!localVersion) {
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
-      `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${opts.wantedDependency.alias ?? ''}@${opts.pref ?? spec.normalizedPref ?? ''} inside the workspace`
+      `In ${path.relative(process.cwd(), opts.projectDir)}: No matching version found for ${opts.wantedDependency.alias ?? ''}@${opts.wantedDependency.pref ?? ''} inside the workspace`
     )
   }
   return resolveFromLocalPackage(workspacePackages[spec.name][localVersion], spec.normalizedPref, opts)
