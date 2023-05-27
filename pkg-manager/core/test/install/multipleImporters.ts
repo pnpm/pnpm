@@ -233,7 +233,7 @@ test('some projects were removed from the workspace and the ones that are left d
       pruneLockfileImporters: true,
       workspacePackages: pick(['project-1'], workspacePackages),
     } as any)) // eslint-disable-line
-  ).rejects.toThrow(/No matching version found for/)
+  ).rejects.toThrow(/"project-2@workspace:1.0.0" is in the dependencies but no package named "project-2" is present in the workspace/)
 })
 
 test('dependencies of other importers are not pruned when installing for a subset of importers', async () => {
