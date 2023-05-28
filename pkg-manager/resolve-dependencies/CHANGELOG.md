@@ -1,5 +1,31 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.6
+
+### Patch Changes
+
+- Updated dependencies [4fc497882]
+- Updated dependencies [e6052260c]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [9c4ae87bd]
+  - @pnpm/which-version-is-pinned@5.0.1
+  - @pnpm/npm-resolver@16.0.5
+  - @pnpm/lockfile-types@5.1.0
+  - @pnpm/types@9.1.0
+  - @pnpm/manifest-utils@5.0.1
+  - @pnpm/constants@7.1.0
+  - @pnpm/lockfile-utils@8.0.1
+  - @pnpm/prune-lockfile@5.0.3
+  - @pnpm/pick-registry-for-package@5.0.1
+  - @pnpm/core-loggers@9.0.1
+  - @pnpm/dependency-path@2.1.2
+  - @pnpm/read-package-json@8.0.1
+  - @pnpm/resolver-base@10.0.1
+  - @pnpm/store-controller-types@15.0.1
+  - @pnpm/error@5.0.1
+
 ## 31.1.5
 
 ### Patch Changes

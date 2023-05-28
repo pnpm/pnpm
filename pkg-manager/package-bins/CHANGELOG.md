@@ -1,5 +1,12 @@
 # @pnpm/package-bins
 
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [a9e0b7cbf]
+  - @pnpm/types@9.1.0
+
 ## 8.0.0
 
 ### Major Changes

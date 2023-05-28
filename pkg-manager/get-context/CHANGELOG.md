@@ -1,5 +1,27 @@
 # @pnpm/get-context
 
+## 10.0.0
+
+### Major Changes
+
+- a53ef4d19: New property returned: `existsNonEmptyWantedLockfile`.
+  The `existsWantedLockfile` now means only that a file existed.
+- 9c4ae87bd: New required options added: autoInstallPeers and excludeLinksFromLockfile.
+
+### Patch Changes
+
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [9c4ae87bd]
+  - @pnpm/lockfile-file@8.1.0
+  - @pnpm/types@9.1.0
+  - @pnpm/constants@7.1.0
+  - @pnpm/read-projects-context@8.0.4
+  - @pnpm/core-loggers@9.0.1
+  - @pnpm/modules-yaml@12.1.1
+  - @pnpm/error@5.0.1
+
 ## 9.1.0
 
 ### Minor Changes

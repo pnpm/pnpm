@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-patching
 
+## 3.1.3
+
+### Patch Changes
+
+- 9c4ae87bd: Don't run install with the `frozen-lockfile=true` setting.
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [301b8e2da]
+- Updated dependencies [04a279881]
+  - @pnpm/lockfile-file@8.1.0
+  - @pnpm/constants@7.1.0
+  - @pnpm/config@18.4.0
+  - @pnpm/plugin-commands-installation@13.0.8
+  - @pnpm/lockfile-utils@8.0.1
+  - @pnpm/cli-utils@2.0.9
+  - @pnpm/pick-registry-for-package@5.0.1
+  - @pnpm/modules-yaml@12.1.1
+  - @pnpm/read-package-json@8.0.1
+  - @pnpm/read-project-manifest@5.0.1
+  - @pnpm/error@5.0.1
+  - @pnpm/store-connection-manager@6.0.10
+  - @pnpm/patching.apply-patch@2.0.1
+
 ## 3.1.2
 
 ### Patch Changes

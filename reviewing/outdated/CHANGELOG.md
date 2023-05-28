@@ -1,5 +1,31 @@
 # @pnpm/outdated
 
+## 13.0.0
+
+### Major Changes
+
+- 04a279881: Should respect ignore patterns in updateConfig.ignoreDependencies [#6548](https://github.com/pnpm/pnpm/issues/6548)
+
+### Patch Changes
+
+- Updated dependencies [e6052260c]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [9c4ae87bd]
+  - @pnpm/npm-resolver@16.0.5
+  - @pnpm/lockfile-file@8.1.0
+  - @pnpm/types@9.1.0
+  - @pnpm/manifest-utils@5.0.1
+  - @pnpm/constants@7.1.0
+  - @pnpm/lockfile-utils@8.0.1
+  - @pnpm/pick-registry-for-package@5.0.1
+  - @pnpm/dependency-path@2.1.2
+  - @pnpm/modules-yaml@12.1.1
+  - @pnpm/error@5.0.1
+  - @pnpm/client@10.0.6
+
 ## 12.0.7
 
 ### Patch Changes

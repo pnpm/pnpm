@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-init",
-  "version": "3.0.8",
+  "version": "3.0.9",
   "description": "Create a package.json file",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

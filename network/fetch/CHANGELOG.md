@@ -1,5 +1,11 @@
 # @pnpm/fetch
 
+## 7.0.2
+
+### Patch Changes
+
+- @pnpm/core-loggers@9.0.1
+
 ## 7.0.1
 
 ### Patch Changes

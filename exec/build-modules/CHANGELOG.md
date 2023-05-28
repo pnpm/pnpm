@@ -1,5 +1,21 @@
 # @pnpm/build-modules
 
+## 11.0.3
+
+### Patch Changes
+
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [6ce3424a9]
+  - @pnpm/types@9.1.0
+  - @pnpm/lifecycle@15.0.1
+  - @pnpm/core-loggers@9.0.1
+  - @pnpm/link-bins@9.0.1
+  - @pnpm/read-package-json@8.0.1
+  - @pnpm/store-controller-types@15.0.1
+  - @pnpm/calc-dep-state@4.0.1
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/patching.apply-patch@2.0.1
+
 ## 11.0.2
 
 ### Patch Changes

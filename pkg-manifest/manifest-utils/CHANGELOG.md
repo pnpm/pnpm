@@ -1,5 +1,15 @@
 # @pnpm/manifest-utils
 
+## 5.0.1
+
+### Patch Changes
+
+- a9e0b7cbf: Don't update peer dependencies.
+- Updated dependencies [a9e0b7cbf]
+  - @pnpm/types@9.1.0
+  - @pnpm/core-loggers@9.0.1
+  - @pnpm/error@5.0.1
+
 ## 5.0.0
 
 ### Major Changes

@@ -1,5 +1,14 @@
 # @pnpm/read-project-manifest
 
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [a9e0b7cbf]
+  - @pnpm/types@9.1.0
+  - @pnpm/write-project-manifest@5.0.1
+  - @pnpm/error@5.0.1
+
 ## 5.0.0
 
 ### Major Changes

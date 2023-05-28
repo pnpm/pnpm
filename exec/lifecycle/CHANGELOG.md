@@ -1,5 +1,18 @@
 # @pnpm/lifecycle
 
+## 15.0.1
+
+### Patch Changes
+
+- 6ce3424a9: Build projects in a workspace in correct order [#6568](https://github.com/pnpm/pnpm/pull/6568).
+- Updated dependencies [a9e0b7cbf]
+  - @pnpm/types@9.1.0
+  - @pnpm/core-loggers@9.0.1
+  - @pnpm/read-package-json@8.0.1
+  - @pnpm/store-controller-types@15.0.1
+  - @pnpm/error@5.0.1
+  - @pnpm/directory-fetcher@6.0.1
+
 ## 15.0.0
 
 ### Major Changes

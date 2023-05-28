@@ -1,5 +1,67 @@
 # @pnpm/core
 
+## 10.2.0
+
+### Minor Changes
+
+- 9c4ae87bd: Some settings influence the structure of the lockfile, so we cannot reuse the lockfile if those settings change. As a result, we need to store such settings in the lockfile. This way we will know with which settings the lockfile has been created.
+
+  A new field will now be present in the lockfile: `settings`. It will store the values of two settings: `autoInstallPeers` and `excludeLinksFromLockfile`. If someone tries to perform a `frozen-lockfile` installation and their active settings don't match the ones in the lockfile, then an error message will be thrown.
+
+  The lockfile format version is bumped from v6.0 to v6.1.
+
+  Related PR: [#6557](https://github.com/pnpm/pnpm/pull/6557)
+  Related issue: [#6312](https://github.com/pnpm/pnpm/issues/6312)
+
+### Patch Changes
+
+- a53ef4d19: Don't print "Lockfile is up-to-date" message before finishing all the lockfile checks [#6544](https://github.com/pnpm/pnpm/issues/6544).
+- Updated dependencies [a53ef4d19]
+- Updated dependencies [4fc497882]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [a53ef4d19]
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [6ce3424a9]
+  - @pnpm/headless@21.0.0
+  - @pnpm/which-version-is-pinned@5.0.1
+  - @pnpm/lockfile-file@8.1.0
+  - @pnpm/types@9.1.0
+  - @pnpm/get-context@10.0.0
+  - @pnpm/manifest-utils@5.0.1
+  - @pnpm/constants@7.1.0
+  - @pnpm/lifecycle@15.0.1
+  - @pnpm/resolve-dependencies@31.1.6
+  - @pnpm/hooks.types@1.0.1
+  - @pnpm/filter-lockfile@8.0.5
+  - @pnpm/lockfile-utils@8.0.1
+  - @pnpm/lockfile-walker@7.0.3
+  - @pnpm/prune-lockfile@5.0.3
+  - @pnpm/hoist@8.0.5
+  - @pnpm/modules-cleaner@14.0.5
+  - @pnpm/lockfile-to-pnp@3.0.5
+  - @pnpm/normalize-registries@5.0.1
+  - @pnpm/build-modules@11.0.3
+  - @pnpm/symlink-dependency@7.0.1
+  - @pnpm/hooks.read-package-hook@3.0.2
+  - @pnpm/core-loggers@9.0.1
+  - @pnpm/dependency-path@2.1.2
+  - @pnpm/link-bins@9.0.1
+  - @pnpm/modules-yaml@12.1.1
+  - @pnpm/package-requester@21.0.3
+  - @pnpm/remove-bins@5.0.1
+  - @pnpm/read-package-json@8.0.1
+  - @pnpm/read-project-manifest@5.0.1
+  - @pnpm/resolver-base@10.0.1
+  - @pnpm/store-controller-types@15.0.1
+  - @pnpm/calc-dep-state@4.0.1
+  - @pnpm/error@5.0.1
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.1
+
 ## 10.1.2
 
 ### Patch Changes

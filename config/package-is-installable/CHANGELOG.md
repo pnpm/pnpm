@@ -1,5 +1,14 @@
 # @pnpm/package-is-installable
 
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [a9e0b7cbf]
+  - @pnpm/types@9.1.0
+  - @pnpm/core-loggers@9.0.1
+  - @pnpm/error@5.0.1
+
 ## 8.0.1
 
 ### Patch Changes

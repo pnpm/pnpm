@@ -1,5 +1,30 @@
 # @pnpm/plugin-commands-store
 
+## 8.0.0
+
+### Major Changes
+
+- 9c4ae87bd: New required options added: autoInstallPeers and excludeLinksFromLockfile.
+
+### Patch Changes
+
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [a53ef4d19]
+- Updated dependencies [301b8e2da]
+- Updated dependencies [9c4ae87bd]
+  - @pnpm/types@9.1.0
+  - @pnpm/get-context@10.0.0
+  - @pnpm/config@18.4.0
+  - @pnpm/lockfile-utils@8.0.1
+  - @pnpm/cli-utils@2.0.9
+  - @pnpm/normalize-registries@5.0.1
+  - @pnpm/pick-registry-for-package@5.0.1
+  - @pnpm/dependency-path@2.1.2
+  - @pnpm/cafs@7.0.1
+  - @pnpm/store-controller-types@15.0.1
+  - @pnpm/error@5.0.1
+  - @pnpm/store-connection-manager@6.0.10
+
 ## 7.0.10
 
 ### Patch Changes

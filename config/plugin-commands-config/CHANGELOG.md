@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-config
 
+## 2.0.9
+
+### Patch Changes
+
+- 78e839291: Add `--json` option in `pnpm config --help` command
+- Updated dependencies [301b8e2da]
+  - @pnpm/config@18.4.0
+  - @pnpm/cli-utils@2.0.9
+  - @pnpm/error@5.0.1
+
 ## 2.0.8
 
 ### Patch Changes

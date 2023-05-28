@@ -1,5 +1,43 @@
 # @pnpm/headless
 
+## 21.0.0
+
+### Major Changes
+
+- a53ef4d19: Don't print "Lockfile is up-to-date" message before finishing all the lockfile checks [#6544](https://github.com/pnpm/pnpm/issues/6544).
+
+### Patch Changes
+
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [6ce3424a9]
+  - @pnpm/lockfile-file@8.1.0
+  - @pnpm/types@9.1.0
+  - @pnpm/constants@7.1.0
+  - @pnpm/lifecycle@15.0.1
+  - @pnpm/filter-lockfile@8.0.5
+  - @pnpm/lockfile-utils@8.0.1
+  - @pnpm/hoist@8.0.5
+  - @pnpm/modules-cleaner@14.0.5
+  - @pnpm/lockfile-to-pnp@3.0.5
+  - @pnpm/real-hoist@2.0.5
+  - @pnpm/package-is-installable@8.0.2
+  - @pnpm/build-modules@11.0.3
+  - @pnpm/symlink-dependency@7.0.1
+  - @pnpm/core-loggers@9.0.1
+  - @pnpm/dependency-path@2.1.2
+  - @pnpm/link-bins@9.0.1
+  - @pnpm/modules-yaml@12.1.1
+  - @pnpm/package-requester@21.0.3
+  - @pnpm/read-package-json@8.0.1
+  - @pnpm/read-project-manifest@5.0.1
+  - @pnpm/store-controller-types@15.0.1
+  - @pnpm/calc-dep-state@4.0.1
+  - @pnpm/error@5.0.1
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.1
+
 ## 20.2.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/constants
 
+## 7.1.0
+
+### Minor Changes
+
+- 9c4ae87bd: Bump lockfile v6 version to v6.1.
+
 ## 7.0.0
 
 ### Major Changes

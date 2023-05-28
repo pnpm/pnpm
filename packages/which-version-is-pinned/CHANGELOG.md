@@ -1,5 +1,11 @@
 # @pnpm/which-version-is-pinned
 
+## 5.0.1
+
+### Patch Changes
+
+- 4fc497882: When updating dependencies, preserve the range prefix in aliased dependencies. So `npm:foo@1.0.0` becomes `npm:foo@1.1.0`.
+
 ## 5.0.0
 
 ### Major Changes

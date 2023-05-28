@@ -1,5 +1,39 @@
 # @pnpm/plugin-commands-rebuild
 
+## 9.0.0
+
+### Major Changes
+
+- 9c4ae87bd: New required options added: autoInstallPeers and excludeLinksFromLockfile.
+
+### Patch Changes
+
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [a53ef4d19]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [301b8e2da]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [6ce3424a9]
+  - @pnpm/types@9.1.0
+  - @pnpm/get-context@10.0.0
+  - @pnpm/constants@7.1.0
+  - @pnpm/config@18.4.0
+  - @pnpm/lifecycle@15.0.1
+  - @pnpm/lockfile-utils@8.0.1
+  - @pnpm/lockfile-walker@7.0.3
+  - @pnpm/cli-utils@2.0.9
+  - @pnpm/normalize-registries@5.0.1
+  - @pnpm/core-loggers@9.0.1
+  - @pnpm/dependency-path@2.1.2
+  - @pnpm/link-bins@9.0.1
+  - @pnpm/modules-yaml@12.1.1
+  - @pnpm/store-controller-types@15.0.1
+  - @pnpm/find-workspace-packages@6.0.9
+  - @pnpm/sort-packages@5.0.3
+  - @pnpm/error@5.0.1
+  - @pnpm/store-connection-manager@6.0.10
+  - @pnpm/fs.hard-link-dir@2.0.1
+
 ## 8.0.11
 
 ### Patch Changes

@@ -1,5 +1,39 @@
 # @pnpm/plugin-commands-installation
 
+## 13.0.8
+
+### Patch Changes
+
+- 04a279881: Should respect ignore patterns in updateConfig.ignoreDependencies [#6548](https://github.com/pnpm/pnpm/issues/6548)
+- Updated dependencies [a53ef4d19]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [301b8e2da]
+- Updated dependencies [04a279881]
+- Updated dependencies [9c4ae87bd]
+  - @pnpm/core@10.2.0
+  - @pnpm/lockfile-types@5.1.0
+  - @pnpm/types@9.1.0
+  - @pnpm/manifest-utils@5.0.1
+  - @pnpm/constants@7.1.0
+  - @pnpm/config@18.4.0
+  - @pnpm/outdated@13.0.0
+  - @pnpm/plugin-commands-rebuild@9.0.0
+  - @pnpm/dedupe.check@1.0.1
+  - @pnpm/pnpmfile@5.0.7
+  - @pnpm/cli-utils@2.0.9
+  - @pnpm/read-project-manifest@5.0.1
+  - @pnpm/resolver-base@10.0.1
+  - @pnpm/package-store@16.0.3
+  - @pnpm/find-workspace-packages@6.0.9
+  - @pnpm/sort-packages@5.0.3
+  - @pnpm/error@5.0.1
+  - @pnpm/store-connection-manager@6.0.10
+  - @pnpm/filter-workspace-packages@7.0.9
+  - @pnpm/find-workspace-dir@6.0.1
+
 ## 13.0.7
 
 ### Patch Changes

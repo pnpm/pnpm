@@ -1,5 +1,31 @@
 # pnpm
 
+## 8.6.0
+
+### Minor Changes
+
+- Some settings influence the structure of the lockfile, so we cannot reuse the lockfile if those settings change. As a result, we need to store such settings in the lockfile. This way we will know with which settings the lockfile has been created.
+
+  A new field will now be present in the lockfile: `settings`. It will store the values of two settings: `autoInstallPeers` and `excludeLinksFromLockfile`. If someone tries to perform a `frozen-lockfile` installation and their active settings don't match the ones in the lockfile, then an error message will be thrown.
+
+  The lockfile format version is bumped from v6.0 to v6.1.
+
+  Related PR: [#6557](https://github.com/pnpm/pnpm/pull/6557)
+  Related issue: [#6312](https://github.com/pnpm/pnpm/issues/6312)
+
+- A new setting, `exclude-links-from-lockfile`, is now supported. When enabled, specifiers of local linked dependencies won't be duplicated in the lockfile.
+
+  This setting was primarily added for use by [Bit CLI](https://github.com/teambit/bit), which links core aspects to `node_modules` from external directories. As such, the locations may vary across different machines, resulting in the generation of lockfiles with differing locations.
+
+### Patch Changes
+
+- Don't print "Lockfile is up-to-date" message before finishing all the lockfile checks [#6544](https://github.com/pnpm/pnpm/issues/6544).
+- When updating dependencies, preserve the range prefix in aliased dependencies. So `npm:foo@1.0.0` becomes `npm:foo@1.1.0`.
+- Print a meaningful error when a project referenced by the `workspace:` protocol is not found in the workspace [#4477](https://github.com/pnpm/pnpm/issues/4477).
+- `pnpm rebuild` should not fail when `node-linker` is set to `hoisted` and there are skipped optional dependencies [#6553](https://github.com/pnpm/pnpm/pull/6553).
+- Peers resolution should not fail when a linked in dependency resolves a peer dependency.
+- Build projects in a workspace in correct order [#6568](https://github.com/pnpm/pnpm/pull/6568).
+
 ## 8.5.1
 
 ### Patch Changes

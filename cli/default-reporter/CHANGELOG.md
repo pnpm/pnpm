@@ -1,5 +1,17 @@
 # @pnpm/default-reporter
 
+## 12.2.3
+
+### Patch Changes
+
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [301b8e2da]
+  - @pnpm/types@9.1.0
+  - @pnpm/config@18.4.0
+  - @pnpm/core-loggers@9.0.1
+  - @pnpm/render-peer-issues@4.0.1
+  - @pnpm/error@5.0.1
+
 ## 12.2.2
 
 ### Patch Changes

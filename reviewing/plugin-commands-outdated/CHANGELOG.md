@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-outdated
 
+## 9.0.10
+
+### Patch Changes
+
+- 04a279881: Should respect ignore patterns in updateConfig.ignoreDependencies [#6548](https://github.com/pnpm/pnpm/issues/6548)
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [301b8e2da]
+- Updated dependencies [04a279881]
+  - @pnpm/lockfile-file@8.1.0
+  - @pnpm/types@9.1.0
+  - @pnpm/config@18.4.0
+  - @pnpm/outdated@13.0.0
+  - @pnpm/default-resolver@18.0.6
+  - @pnpm/cli-utils@2.0.9
+  - @pnpm/modules-yaml@12.1.1
+  - @pnpm/error@5.0.1
+
 ## 9.0.9
 
 ### Patch Changes

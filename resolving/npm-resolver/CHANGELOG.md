@@ -1,5 +1,16 @@
 # @pnpm/npm-resolver
 
+## 16.0.5
+
+### Patch Changes
+
+- e6052260c: Print a meaningful error when a project referenced by the `workspace:` protocol is not found in the workspace [#4477](https://github.com/pnpm/pnpm/issues/4477).
+- Updated dependencies [a9e0b7cbf]
+  - @pnpm/types@9.1.0
+  - @pnpm/core-loggers@9.0.1
+  - @pnpm/resolver-base@10.0.1
+  - @pnpm/error@5.0.1
+
 ## 16.0.4
 
 ### Patch Changes

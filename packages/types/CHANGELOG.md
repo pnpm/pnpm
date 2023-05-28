@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 9.1.0
+
+### Minor Changes
+
+- a9e0b7cbf: Add new types.
+
 ## 9.0.0
 
 ### Major Changes
