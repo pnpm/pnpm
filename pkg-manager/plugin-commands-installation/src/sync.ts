@@ -2,15 +2,16 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import { findWorkspacePackages } from '@pnpm/find-workspace-packages'
-import * as install from './install'
+import type * as install from './install'
 import renderHelp from 'render-help'
+import resolvePackagePath from 'resolve-package-path'
 
 import path from 'node:path'
 import pathExists from 'path-exists'
-import loadJsonFile from 'load-json-file'
 
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import { PnpmError } from '@pnpm/error'
+import { readExactProjectManifest } from '@pnpm/read-project-manifest'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -44,21 +45,22 @@ export async function handler (opts: install.InstallCommandOptions) {
   }
 
   const localProjects = await findWorkspacePackages(root)
+  const localManifestPath = path.join(dir, 'package.json')
+  const localManifest = await readExactProjectManifest(localManifestPath)
 
-  const localName = (await loadJsonFile(path.join(dir, 'package.json')))?.['name']
+  const localName = localManifest['name']
   const ownProject = localProjects.find(project => project.manifest.name === localName)
 
   if (!ownProject) {
     throw new PnpmError('INVALID_PROJECT', 'Could not find package.json for current directory')
   }
 
-const ownPackageJson = ownProject.manifest
+  const ownPackageJson = ownProject.manifest
 
   const ownDependencies = [
     ...Object.keys(ownPackageJson.dependencies ?? {}),
     ...Object.keys(ownPackageJson.devDependencies ?? {}),
   ]
-
 
   const packagesToSync = localProjects.filter((p) => {
     if (!p.manifest.name) return false
@@ -67,6 +69,13 @@ const ownPackageJson = ownProject.manifest
   })
 
   for (const pkg of packagesToSync) {
+    const name = pkg.manifest.name
+    /**
+      * It's not worth trying to sync dpendencies without a name.
+      * How would the be depended on, anyway?
+      */
+    if (!name) continue
+
     /**
       * We only need to sync files, because
       * these are the only things that would be available in the npm package when published
@@ -77,34 +86,49 @@ const ownPackageJson = ownProject.manifest
       * we'd have to fallback to syncing the whole package
       */
     const { files } = pkg.manifest
+    const syncFrom = pkg.dir
+
+    if (!files && !pkg.manifest.exports) {
+      // TODO: sync the whole package
+      continue
+    }
 
     if (!files) {
-      const syncFrom = pkg.dir
-      const resolvedPackagePath = path.dirname(
-        resolvePackagePath(pkg.manifest.name, dir)
-      )
+      const resolvedPackagePath = resolveDepPath(name, dir)
+      const packageRelativePath = path.relative(pkg.dir, resolvedPackagePath)
       const syncTo = path.join(resolvedPackagePath, packageRelativePath)
 
       if (await pathExists(syncFrom)) {
         await hardLinkDir(syncFrom, [syncTo])
       }
 
-
-      continue;
+      continue
     }
 
-    for (const packageRelativePath of files) {
-      const syncFrom = path.join(pkg.dir, packageRelativePath)
-      const resolvedPackagePath = path.dirname(
-        resolvePackagePath(pkg.manifest.name, dir)
-      )
-      const syncTo = path.join(resolvedPackagePath, packageRelativePath)
-
-      if (await pathExists(syncFrom)) {
-        await hardLinkDir(syncFrom, [syncTo])
-      }
-    }
-
+    await syncFiles(files, name, { from: syncFrom, to: dir })
   }
 }
 
+async function syncFiles (files: string[], name: string, { from: fromDir, to: toDir }: { from: string, to: string }) {
+  for (const packageRelativePath of files) {
+    const syncFrom = path.join(fromDir, packageRelativePath)
+    const resolvedPackagePath = resolveDepPath(name, toDir)
+    const syncTo = path.join(resolvedPackagePath, packageRelativePath)
+
+    if (await pathExists(syncFrom)) {
+      await hardLinkDir(syncFrom, [syncTo])
+    }
+  }
+}
+
+function resolveDepPath (name: string, fromDir: string) {
+  const resolvedManifestPath = resolvePackagePath(name, fromDir)
+
+  if (!resolvedManifestPath) {
+    throw new Error(`Could not resolve package path for ${name}`)
+  }
+
+  const resolvedPackagePath = path.dirname(resolvedManifestPath)
+
+  return resolvedPackagePath
+}

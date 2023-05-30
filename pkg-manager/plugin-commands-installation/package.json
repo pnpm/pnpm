@@ -104,6 +104,7 @@
     "path-absolute": "^1.0.1",
     "path-exists": "^4.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
+    "resolve-package-path": "^4.0.3",
     "render-help": "^1.0.3",
     "version-selector-type": "^3.0.0"
   },

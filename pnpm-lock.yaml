@@ -3719,6 +3719,9 @@ importers:
       render-help:
         specifier: ^1.0.3
         version: 1.0.3
+      resolve-package-path:
+        specifier: ^4.0.3
+        version: 4.0.3
       version-selector-type:
         specifier: ^3.0.0
         version: 3.0.0
@@ -15118,6 +15121,18 @@ packages:
   /path-parse@1.0.7:
     resolution: {integrity: sha512-LDJzPVEEEPR+y48z93A0Ed0yXb8pAByGWo/k5YYdYgpY2/2EsOsksJrq7lOHxryrVOn1ejG6oAp8ahvOIQD8sw==}
 
+  /path-root-regex@0.1.2:
+    resolution: {integrity: sha512-4GlJ6rZDhQZFE0DPVKh0e9jmZ5egZfxTkp7bcRDuPlJXbAwhxcl2dINPUAsjLdejqaLsCeg8axcLjIbvBjN4pQ==}
+    engines: {node: '>=0.10.0'}
+    dev: false
+
+  /path-root@0.1.1:
+    resolution: {integrity: sha512-QLcPegTHF11axjfojBIoDygmS2E3Lf+8+jI6wOVmNVenrKSo3mFdSGiIgdSHenczw3wPtlVMQaFVwGmM7BJdtg==}
+    engines: {node: '>=0.10.0'}
+    dependencies:
+      path-root-regex: 0.1.2
+    dev: false
+
   /path-temp@2.0.0:
     resolution: {integrity: sha512-92olbatybjsHTGB2CUnAM7s0mU/27gcMfLNA7t09UftndUdxywlQKur3fzXEPpfLrgZD3I2Bt8+UmiL7YDEgXQ==}
     engines: {node: '>=8.15'}
@@ -15855,6 +15870,13 @@ packages:
     dependencies:
       value-or-function: 3.0.0
     dev: true
+
+  /resolve-package-path@4.0.3:
+    resolution: {integrity: sha512-SRpNAPW4kewOaNUt8VPqhJ0UMxawMwzJD8V7m1cJfdSTK9ieZwS6K7Dabsm4bmLFM96Z5Y/UznrpG5kt1im8yA==}
+    engines: {node: '>= 12'}
+    dependencies:
+      path-root: 0.1.1
+    dev: false
 
   /resolve.exports@2.0.2:
     resolution: {integrity: sha512-X2UW6Nw3n/aMgDVy+0rSqgHlv39WZAlZrXCdnbyEiKm17DSqHX4MmQMaST3FbeWR5FTuRcUwYAziZajji0Y7mg==}
@@ -17806,4 +17828,5 @@ time:
   /@zkochan/js-yaml@0.0.6: '2022-05-10T14:42:39.813Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@9.3.1: '2022-12-19T22:43:10.187Z'
+  /resolve-package-path@4.0.3: '2021-09-13T23:14:56.258Z'
   /safe-execa@0.1.2: '2022-07-18T01:09:17.517Z'

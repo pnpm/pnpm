@@ -75,6 +75,9 @@ export interface BaseManifest {
     bin?: string
   }
   files?: string[]
+  exports?: {
+    [exportPath: string]: string | { [importerContext: string]: unknown }
+  }
   dependencies?: Dependencies
   devDependencies?: Dependencies
   optionalDependencies?: Dependencies
