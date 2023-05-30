@@ -5,13 +5,18 @@ import { findWorkspacePackages } from '@pnpm/find-workspace-packages'
 import type * as install from './install'
 import renderHelp from 'render-help'
 import resolvePackagePath from 'resolve-package-path'
+import Debug from 'debug'
+import lockfile from 'proper-lockfile'
 
+import fs from 'node:fs/promises'
 import path from 'node:path'
 import pathExists from 'path-exists'
 
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import { PnpmError } from '@pnpm/error'
 import { readExactProjectManifest } from '@pnpm/read-project-manifest'
+
+const debug = Debug('pnpm:sync')
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -116,7 +121,26 @@ async function syncFiles (files: string[], name: string, { from: fromDir, to: to
     const syncTo = path.join(resolvedPackagePath, packageRelativePath)
 
     if (await pathExists(syncFrom)) {
+      let releaseLock
+      try {
+        releaseLock = await lockfile.lock(syncTo, { realpath: false })
+        debug(`lockfile created for syncing to ${syncTo}`)
+      } catch (e) {
+        debug(
+          `lockfile already exists for syncing to ${syncTo}, some other sync process is already handling this directory, so skipping...`
+        )
+        continue
+      }
+
+      if (await pathExists(syncTo)) {
+        await fs.rm(syncTo, { recursive: true })
+        debug(`removed ${syncTo} before syncing`)
+      }
+
+      debug(`syncing from ${syncFrom} to ${syncTo}`)
+
       await hardLinkDir(syncFrom, [syncTo])
+      releaseLock()
     }
   }
 }

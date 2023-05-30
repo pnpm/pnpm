@@ -3689,6 +3689,9 @@ importers:
       ci-info:
         specifier: ^3.8.0
         version: 3.8.0
+      debug:
+        specifier: 4.3.4
+        version: 4.3.4
       enquirer:
         specifier: ^2.3.6
         version: 2.3.6
@@ -3713,6 +3716,9 @@ importers:
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
+      proper-lockfile:
+        specifier: 4.1.2
+        version: 4.1.2
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
@@ -15412,6 +15418,14 @@ packages:
     engines: {node: '>= 8'}
     dev: true
 
+  /proper-lockfile@4.1.2:
+    resolution: {integrity: sha512-TjNPblN4BwAWMXU8s9AEz4JmQxnD1NNL7bNOY/AKUzyamc379FWASUhc/K1pL2noVb+XmZKLL68cjzLsiOAMaA==}
+    dependencies:
+      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      retry: 0.12.0
+      signal-exit: 3.0.7
+    dev: false
+
   /property-expr@2.0.5:
     resolution: {integrity: sha512-IJUkICM5dP5znhCckHSv30Q4b5/JA5enCtkRHYaOVOAocnH/1BQEYTC5NMfT3AVl/iXKdr3aqQbQn9DxyWknwA==}
 
@@ -17826,7 +17840,9 @@ time:
   /@types/table@6.0.0: '2020-09-17T17:56:44.787Z'
   /@zkochan/hosted-git-info@4.0.2: '2021-09-05T21:33:51.709Z'
   /@zkochan/js-yaml@0.0.6: '2022-05-10T14:42:39.813Z'
+  /debug@4.3.4: '2022-03-17T13:38:47.641Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@9.3.1: '2022-12-19T22:43:10.187Z'
+  /proper-lockfile@4.1.2: '2021-01-25T18:55:18.544Z'
   /resolve-package-path@4.0.3: '2021-09-13T23:14:56.258Z'
   /safe-execa@0.1.2: '2022-07-18T01:09:17.517Z'
