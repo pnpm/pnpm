@@ -296,9 +296,9 @@ test('frozen-lockfile: installation fails if the value of auto-install-peers cha
     },
   }
 
-  await install(manifest, await testDefaults({ autoInstallPeers: true }))
+  await install(manifest, await testDefaults({ autoInstallPeers: true, useLockfileV6: true }))
 
   await expect(
-    install(manifest, await testDefaults({ frozenLockfile: true, autoInstallPeers: false }))
+    install(manifest, await testDefaults({ frozenLockfile: true, autoInstallPeers: false, useLockfileV6: true }))
   ).rejects.toThrow('Cannot proceed with the frozen installation. The current "settings.autoInstallPeers" configuration doesn\'t match the value found in the lockfile')
 })

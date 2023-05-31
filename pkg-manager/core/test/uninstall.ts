@@ -317,10 +317,6 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
   expect(lockfile).toStrictEqual({
-    settings: {
-      autoInstallPeers: true,
-      excludeLinksFromLockfile: false,
-    },
     importers: {
       'project-1': {
         specifiers: {},
