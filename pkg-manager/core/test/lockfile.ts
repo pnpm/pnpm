@@ -454,10 +454,6 @@ test('scoped module from different registry', async () => {
   const lockfile = await project.readLockfile()
 
   expect(lockfile).toStrictEqual({
-    settings: {
-      autoInstallPeers: true,
-      excludeLinksFromLockfile: false,
-    },
     dependencies: {
       '@foo/has-dep-from-same-scope': '1.0.0',
       '@zkochan/foo': '1.0.0',
@@ -761,10 +757,6 @@ test('packages installed via tarball URL from the default registry are normalize
   const lockfile = await project.readLockfile()
 
   expect(lockfile).toStrictEqual({
-    settings: {
-      autoInstallPeers: true,
-      excludeLinksFromLockfile: false,
-    },
     dependencies: {
       'is-positive': '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       '@pnpm.e2e/pkg-with-tarball-dep-from-registry': '1.0.0',
@@ -1138,10 +1130,6 @@ test('tarball domain differs from registry domain', async () => {
   const lockfile = await project.readLockfile()
 
   expect(lockfile).toStrictEqual({
-    settings: {
-      autoInstallPeers: true,
-      excludeLinksFromLockfile: false,
-    },
     dependencies: {
       'is-positive': 'registry.npmjs.org/is-positive/3.1.0',
     },
@@ -1186,10 +1174,6 @@ test('tarball installed through non-standard URL endpoint from the registry doma
   const lockfile = await project.readLockfile()
 
   expect(lockfile).toStrictEqual({
-    settings: {
-      autoInstallPeers: true,
-      excludeLinksFromLockfile: false,
-    },
     dependencies: {
       'is-positive': '@registry.npmjs.org/is-positive/download/is-positive-3.1.0.tgz',
     },
@@ -1462,7 +1446,11 @@ test('lockfile v6', async () => {
 
   {
     const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
-    expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
+    expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION_V6)
+    expect(lockfile.settings).toStrictEqual({
+      autoInstallPeers: false,
+      excludeLinksFromLockfile: false,
+    })
     expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep@100.0.0'])
   }
 
@@ -1470,7 +1458,7 @@ test('lockfile v6', async () => {
 
   {
     const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
-    expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION)
+    expect(lockfile.lockfileVersion).toBe(LOCKFILE_VERSION_V6)
     expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep@100.0.0'])
     expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/foo@100.0.0'])
   }
@@ -1484,6 +1472,7 @@ test('lockfile v5 is converted to lockfile v6', async () => {
   {
     const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(lockfile.lockfileVersion).toBe(5.4)
+    expect(lockfile.settings).toBeFalsy()
     expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep/100.0.0'])
   }
 
@@ -1491,7 +1480,11 @@ test('lockfile v5 is converted to lockfile v6', async () => {
 
   {
     const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
-    expect(lockfile.lockfileVersion).toBe('6.0')
+    expect(lockfile.lockfileVersion).toBe('6.1')
+    expect(lockfile.settings).toStrictEqual({
+      autoInstallPeers: false,
+      excludeLinksFromLockfile: false,
+    })
     expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/pkg-with-1-dep@100.0.0'])
   }
 })

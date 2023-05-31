@@ -147,8 +147,12 @@ export function normalizeLockfile (lockfile: Lockfile, opts: NormalizeLockfileOp
       delete lockfileToSave.packages
     }
   }
+  const isLockfileV6 = lockfileToSave.lockfileVersion.toString().startsWith('6.')
+  if (!isLockfileV6) {
+    delete lockfileToSave['settings']
+  }
   if (lockfileToSave.time) {
-    lockfileToSave.time = (lockfileToSave.lockfileVersion.toString().startsWith('6.') ? pruneTimeInLockfileV6 : pruneTime)(lockfileToSave.time, lockfile.importers)
+    lockfileToSave.time = (isLockfileV6 ? pruneTimeInLockfileV6 : pruneTime)(lockfileToSave.time, lockfile.importers)
   }
   if ((lockfileToSave.overrides != null) && isEmpty(lockfileToSave.overrides)) {
     delete lockfileToSave.overrides
