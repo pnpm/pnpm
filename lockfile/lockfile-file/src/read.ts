@@ -136,6 +136,7 @@ export function createLockfileObject (
   importerIds: string[],
   opts: {
     lockfileVersion: number | string
+    autoInstallPeers: boolean
   }
 ) {
   const importers = importerIds.reduce((acc, importerId) => {
@@ -148,6 +149,10 @@ export function createLockfileObject (
   return {
     importers,
     lockfileVersion: opts.lockfileVersion || LOCKFILE_VERSION,
+    settings: {
+      autoInstallPeers: opts.autoInstallPeers,
+      excludeLinksFromLockfile: false,
+    },
   }
 }
 

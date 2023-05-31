@@ -74,7 +74,13 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
     opts.allProjectsGraph[lockfileDir].package.manifest = rootProjectManifest
   }
 
-  return install.handler(opts)
+  return install.handler({
+    ...opts,
+    rawLocalConfig: {
+      ...opts.rawLocalConfig,
+      'frozen-lockfile': false,
+    },
+  })
 }
 
 async function diffFolders (folderA: string, folderB: string) {

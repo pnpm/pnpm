@@ -5,6 +5,7 @@ import { type GetContextOptions } from '../src'
 
 const DEFAULT_OPTIONS: GetContextOptions = {
   allProjects: [],
+  autoInstallPeers: true,
   extraBinPaths: [],
   force: false,
   forceSharedLockfile: false,

@@ -9,7 +9,9 @@ import {
 import { type ReporterFunction } from '../types'
 
 interface StrictLinkOptions {
+  autoInstallPeers: boolean
   binsDir: string
+  excludeLinksFromLockfile: boolean
   force: boolean
   forceSharedLockfile: boolean
   useLockfile: boolean
