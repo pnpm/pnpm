@@ -102,6 +102,7 @@ export async function tryLoadServerJson (
   }> {
   let beforeFirstAttempt = true
   const startHRTime = process.hrtime()
+  /* eslint-disable no-await-in-loop */
   while (true) {
     if (!beforeFirstAttempt) {
       const elapsedHRTime = process.hrtime(startHRTime)
@@ -150,4 +151,5 @@ export async function tryLoadServerJson (
     }
     return serverJson
   }
+  /* eslint-enable no-await-in-loop */
 }
