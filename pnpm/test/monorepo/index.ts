@@ -964,10 +964,6 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
   expect(lockfile).toStrictEqual({
-    settings: {
-      autoInstallPeers: true,
-      excludeLinksFromLockfile: false,
-    },
     importers: {
       'package-1': {
         dependencies: {
@@ -1043,10 +1039,6 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
   expect(lockfile).toStrictEqual({
-    settings: {
-      autoInstallPeers: true,
-      excludeLinksFromLockfile: false,
-    },
     importers: {
       '.': {
         dependencies: {
