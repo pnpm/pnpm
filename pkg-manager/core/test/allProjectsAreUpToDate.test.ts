@@ -374,3 +374,48 @@ test('allProjectsAreUpToDate(): returns true if dependenciesMeta matches', async
     workspacePackages,
   })).toBeTruthy()
 })
+
+test('allProjectsAreUpToDate(): returns false if has dependency with file: protocol', async () => {
+  expect(await allProjectsAreUpToDate([
+    {
+      buildIndex: 0,
+      id: 'bar',
+      manifest: {
+        dependencies: {
+          foo: 'workspace:*',
+          local: 'file:../local-dir',
+        },
+      },
+      rootDir: 'bar',
+    },
+    {
+      buildIndex: 0,
+      id: 'foo',
+      manifest: fooManifest,
+      rootDir: 'foo',
+    },
+  ], {
+    autoInstallPeers: false,
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        bar: {
+          dependencies: {
+            foo: 'link:../foo',
+            local: 'file:../local-dir',
+          },
+          specifiers: {
+            foo: 'workspace:../foo',
+            local: 'file:../local-dir',
+          },
+        },
+        foo: {
+          specifiers: {},
+        },
+      },
+      lockfileVersion: 5,
+    },
+    workspacePackages,
+  })).toBeFalsy()
+})
