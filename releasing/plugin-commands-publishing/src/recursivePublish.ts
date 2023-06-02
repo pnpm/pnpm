@@ -81,14 +81,14 @@ export async function recursivePublish (
     }, pkg.manifest.name, pkg.manifest.version))
   })
   const publishedPkgDirs = new Set(pkgsToPublish.map(({ dir }) => dir))
-  const publishedPackages = []
+  const publishedPackages: Array<{ name?: string, version?: string }> = []
   if (publishedPkgDirs.size === 0) {
     logger.info({
       message: 'There are no new packages that should be published',
       prefix: opts.dir,
     })
   } else {
-    const appendedArgs = []
+    const appendedArgs: string[] = []
     if (opts.cliOptions['access']) {
       appendedArgs.push(`--access=${opts.cliOptions['access'] as string}`)
     }
@@ -101,8 +101,9 @@ export async function recursivePublish (
     const chunks = sortPackages(opts.selectedProjectsGraph)
     const tag = opts.tag ?? 'latest'
     for (const chunk of chunks) {
-      for (const pkgDir of chunk) {
-        if (!publishedPkgDirs.has(pkgDir)) continue
+      // eslint-disable-next-line no-await-in-loop
+      const publishResults = await Promise.all(chunk.map(async (pkgDir) => {
+        if (!publishedPkgDirs.has(pkgDir)) return null
         const pkg = opts.selectedProjectsGraph[pkgDir].package
         const publishResult = await publish({
           ...opts,
@@ -122,9 +123,12 @@ export async function recursivePublish (
         }, [pkg.dir])
         if (publishResult?.manifest != null) {
           publishedPackages.push(pick(['name', 'version'], publishResult.manifest))
-        } else if (publishResult?.exitCode) {
-          return { exitCode: publishResult.exitCode }
         }
+        return publishResult
+      }))
+      const failedPublish = publishResults.find((result) => result?.exitCode)
+      if (failedPublish) {
+        return { exitCode: failedPublish.exitCode! }
       }
     }
   }

@@ -276,6 +276,6 @@ export async function runScriptsIfPresent (
 ) {
   for (const scriptName of scriptNames) {
     if (!manifest.scripts?.[scriptName]) continue
-    await runLifecycleHook(scriptName, manifest, opts)
+    await runLifecycleHook(scriptName, manifest, opts) // eslint-disable-line no-await-in-loop
   }
 }
