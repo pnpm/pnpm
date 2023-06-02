@@ -113,25 +113,8 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId[nodeId], directNodeIdsByAlias)
   }
   if (opts.dedupePeerDependents) {
-    let duplicates = Object.values(depPathsByPkgId).filter((item) => item.length > 1)
-    let maxPasses = duplicates.length
-    let allDepPathsMap: Record<string, string> = {}
-
-    function deduplicationPass () {
-      const res = deduplicateDepPaths(duplicates, depGraph)
-      const { depPathsMap } = res
-      duplicates = res.remainingDuplicates
-
-      Object.values(depGraph).forEach((node) => {
-        node.children = mapValues((childDepPath) => depPathsMap[childDepPath] ?? childDepPath, node.children)
-      })
-
-      allDepPathsMap = { ...allDepPathsMap, ...depPathsMap }
-      return Object.keys(depPathsMap).length > 0
-    }
-
-    while (deduplicationPass() && maxPasses--);
-
+    const duplicates = Object.values(depPathsByPkgId).filter((item) => item.length > 1)
+    const allDepPathsMap = deduplicationPass(depGraph, duplicates)
     for (const { id } of opts.projects) {
       dependenciesByProjectId[id] = mapValues((depPath) => allDepPathsMap[depPath] ?? depPath, dependenciesByProjectId[id])
     }
@@ -145,6 +128,26 @@ export function resolvePeers<T extends PartialResolvedPackage> (
 
 function nodeDepsCount (node: GenericDependenciesGraphNode) {
   return Object.keys(node.children).length + node.resolvedPeerNames.length
+}
+
+function deduplicationPass<T extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraph<T>,
+  duplicates: string[][]
+): Record<string, string> {
+  const { depPathsMap, remainingDuplicates } = deduplicateDepPaths(duplicates, depGraph)
+  if (remainingDuplicates.length === duplicates.length) {
+    return depPathsMap
+  }
+  Object.values(depGraph).forEach((node) => {
+    node.children = mapValues((childDepPath) => depPathsMap[childDepPath] ?? childDepPath, node.children)
+  })
+  if (Object.keys(depPathsMap).length > 0) {
+    return {
+      ...depPathsMap,
+      ...deduplicationPass(depGraph, remainingDuplicates),
+    }
+  }
+  return depPathsMap
 }
 
 function deduplicateDepPaths<T extends PartialResolvedPackage> (
