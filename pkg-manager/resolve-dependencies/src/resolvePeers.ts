@@ -114,7 +114,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   }
   if (opts.dedupePeerDependents) {
     const duplicates = Object.values(depPathsByPkgId).filter((item) => item.length > 1)
-    const allDepPathsMap = deduplicationPass(depGraph, duplicates)
+    const allDepPathsMap = deduplicateAll(depGraph, duplicates)
     for (const { id } of opts.projects) {
       dependenciesByProjectId[id] = mapValues((depPath) => allDepPathsMap[depPath] ?? depPath, dependenciesByProjectId[id])
     }
@@ -130,7 +130,7 @@ function nodeDepsCount (node: GenericDependenciesGraphNode) {
   return Object.keys(node.children).length + node.resolvedPeerNames.length
 }
 
-function deduplicationPass<T extends PartialResolvedPackage> (
+function deduplicateAll<T extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraph<T>,
   duplicates: string[][]
 ): Record<string, string> {
@@ -144,7 +144,7 @@ function deduplicationPass<T extends PartialResolvedPackage> (
   if (Object.keys(depPathsMap).length > 0) {
     return {
       ...depPathsMap,
-      ...deduplicationPass(depGraph, remainingDuplicates),
+      ...deduplicateAll(depGraph, remainingDuplicates),
     }
   }
   return depPathsMap
