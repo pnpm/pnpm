@@ -3,7 +3,7 @@
 "pnpm": patch
 ---
 
-When `dedupe-peer-dependents` is enabled (default), use the path (not id) to
+When `dedupe-peer-dependents` is enabled, use the path (not id) to
 determine compatibility.
 
 When multiple dependency groups can be deduplicated, the
