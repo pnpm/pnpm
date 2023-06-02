@@ -108,17 +108,15 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     node.children = mapValues((childNodeId) => pathsByNodeId[childNodeId] ?? childNodeId, node.children)
   })
 
-  const dependenciesByProjectId: { [id: string]: { [alias: string]: string } } = {}
+  const dependenciesByProjectId: { [id: string]: Record<string, string> } = {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
     dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId[nodeId], directNodeIdsByAlias)
   }
   if (opts.dedupePeerDependents) {
-    const depPathsMap = deduplicateDepPaths(depPathsByPkgId, depGraph)
-    Object.values(depGraph).forEach((node) => {
-      node.children = mapValues((childDepPath) => depPathsMap[childDepPath] ?? childDepPath, node.children)
-    })
+    const duplicates = Object.values(depPathsByPkgId).filter((item) => item.length > 1)
+    const allDepPathsMap = deduplicateAll(depGraph, duplicates)
     for (const { id } of opts.projects) {
-      dependenciesByProjectId[id] = mapValues((depPath) => depPathsMap[depPath] ?? depPath, dependenciesByProjectId[id])
+      dependenciesByProjectId[id] = mapValues((depPath) => allDepPathsMap[depPath] ?? depPath, dependenciesByProjectId[id])
     }
   }
   return {
@@ -132,15 +130,38 @@ function nodeDepsCount (node: GenericDependenciesGraphNode) {
   return Object.keys(node.children).length + node.resolvedPeerNames.length
 }
 
+function deduplicateAll<T extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraph<T>,
+  duplicates: string[][]
+): Record<string, string> {
+  const { depPathsMap, remainingDuplicates } = deduplicateDepPaths(duplicates, depGraph)
+  if (remainingDuplicates.length === duplicates.length) {
+    return depPathsMap
+  }
+  Object.values(depGraph).forEach((node) => {
+    node.children = mapValues((childDepPath) => depPathsMap[childDepPath] ?? childDepPath, node.children)
+  })
+  if (Object.keys(depPathsMap).length > 0) {
+    return {
+      ...depPathsMap,
+      ...deduplicateAll(depGraph, remainingDuplicates),
+    }
+  }
+  return depPathsMap
+}
+
 function deduplicateDepPaths<T extends PartialResolvedPackage> (
-  depPathsByPkgId: Record<string, string[]>,
+  duplicates: string[][],
   depGraph: GenericDependenciesGraph<T>
 ) {
+  const depCountSorter = (depPath1: string, depPath2: string) => nodeDepsCount(depGraph[depPath1]) - nodeDepsCount(depGraph[depPath2])
   const depPathsMap: Record<string, string> = {}
-  for (let depPaths of Object.values(depPathsByPkgId)) {
-    if (depPaths.length === 1) continue
-    depPaths = depPaths.sort((depPath1, depPath2) => nodeDepsCount(depGraph[depPath1]) - nodeDepsCount(depGraph[depPath2]))
-    let currentDepPaths = depPaths
+  const remainingDuplicates: string[][] = []
+
+  for (const depPaths of duplicates) {
+    const unresolvedDepPaths = new Set(depPaths)
+    let currentDepPaths = depPaths.sort(depCountSorter)
+
     while (currentDepPaths.length) {
       const depPath1 = currentDepPaths.pop()!
       const nextDepPaths = []
@@ -148,15 +169,24 @@ function deduplicateDepPaths<T extends PartialResolvedPackage> (
         const depPath2 = currentDepPaths.pop()!
         if (isCompatibleAndHasMoreDeps(depGraph, depPath1, depPath2)) {
           depPathsMap[depPath2] = depPath1
+          unresolvedDepPaths.delete(depPath1)
+          unresolvedDepPaths.delete(depPath2)
         } else {
           nextDepPaths.push(depPath2)
         }
       }
       nextDepPaths.push(...currentDepPaths)
-      currentDepPaths = nextDepPaths
+      currentDepPaths = nextDepPaths.sort(depCountSorter)
+    }
+
+    if (unresolvedDepPaths.size) {
+      remainingDuplicates.push([...unresolvedDepPaths])
     }
   }
-  return depPathsMap
+  return {
+    depPathsMap,
+    remainingDuplicates,
+  }
 }
 
 function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
@@ -166,8 +196,8 @@ function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
 ) {
   const node1 = depGraph[depPath1]
   const node2 = depGraph[depPath2]
-  const node1DepPaths = Object.keys(node1.children)
-  const node2DepPaths = Object.keys(node2.children)
+  const node1DepPaths = Object.values(node1.children)
+  const node2DepPaths = Object.values(node2.children)
   return nodeDepsCount(node1) > nodeDepsCount(node2) &&
     node2DepPaths.every((depPath) => node1DepPaths.includes(depPath)) &&
     node2.resolvedPeerNames.every((depPath) => node1.resolvedPeerNames.includes(depPath))

@@ -1,0 +1,106 @@
+import { resolvePeers } from '../lib/resolvePeers'
+
+test('packages are not deduplicated when versions do not match', () => {
+  const fooPkg = {
+    name: 'foo',
+    version: '1.0.0',
+    depPath: 'foo/1.0.0',
+    peerDependencies: {
+      bar: '1.0.0 || 2.0.0',
+      baz: '1.0.0 || 2.0.0',
+    },
+    peerDependenciesMeta: {
+      baz: {
+        optional: true,
+      },
+    },
+  }
+
+  const peers = Object.fromEntries(
+    [
+      ['bar', '1.0.0'],
+      ['bar', '2.0.0'],
+      ['baz', '1.0.0'],
+      ['baz', '2.0.0'],
+    ].map(([name, version]) => [
+      `${name}_${version.replace(/\./g, '_')}`,
+      {
+        name,
+        version,
+        depPath: `${name}/${version}`,
+        peerDependencies: {},
+      },
+    ])
+  )
+
+  const { dependenciesByProjectId } = resolvePeers({
+    projects: [
+      {
+        directNodeIdsByAlias: {
+          foo: '>project1>foo/1.0.0>',
+          bar: '>project1>bar/1.0.0>',
+        },
+        topParents: [],
+        rootDir: '',
+        id: 'project1',
+      },
+      {
+        directNodeIdsByAlias: {
+          foo: '>project2>foo/1.0.0>',
+          bar: '>project2>bar/1.0.0>',
+          baz: '>project2>baz/1.0.0>',
+        },
+        topParents: [],
+        rootDir: '',
+        id: 'project2',
+      },
+      {
+        directNodeIdsByAlias: {
+          foo: '>project3>foo/1.0.0>',
+          bar: '>project3>bar/2.0.0>',
+        },
+        topParents: [],
+        rootDir: '',
+        id: 'project3',
+      },
+      {
+        directNodeIdsByAlias: {
+          foo: '>project4>foo/1.0.0>',
+          bar: '>project4>bar/2.0.0>',
+          baz: '>project4>baz/2.0.0>',
+        },
+        topParents: [],
+        rootDir: '',
+        id: 'project4',
+      },
+    ],
+    dependenciesTree: Object.fromEntries([
+      ['>project1>foo/1.0.0>', fooPkg],
+      ['>project1>bar/1.0.0>', peers.bar_1_0_0],
+
+      ['>project2>foo/1.0.0>', fooPkg],
+      ['>project2>bar/1.0.0>', peers.bar_1_0_0],
+      ['>project2>baz/1.0.0>', peers.baz_1_0_0],
+
+      ['>project3>foo/1.0.0>', fooPkg],
+      ['>project3>bar/2.0.0>', peers.bar_2_0_0],
+
+      ['>project4>foo/1.0.0>', fooPkg],
+      ['>project4>bar/2.0.0>', peers.bar_2_0_0],
+      ['>project4>baz/2.0.0>', peers.baz_2_0_0],
+
+    ].map(([path, resolvedPackage]) => [path, {
+      children: {},
+      installable: {},
+      resolvedPackage,
+      depth: 0,
+    }])),
+    dedupePeerDependents: true,
+    virtualStoreDir: '',
+    lockfileDir: '',
+  })
+
+  expect(dependenciesByProjectId.project1.foo).toEqual(dependenciesByProjectId.project2.foo)
+  expect(dependenciesByProjectId.project1.foo).not.toEqual(dependenciesByProjectId.project3.foo)
+  expect(dependenciesByProjectId.project3.foo).toEqual(dependenciesByProjectId.project4.foo)
+})
