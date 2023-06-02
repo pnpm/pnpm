@@ -13,6 +13,7 @@ import renderHelp from 'render-help'
 import tempy from 'tempy'
 import { writePackage } from './writePackage'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
+import packlist from 'npm-packlist'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -49,7 +50,10 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
   const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
   const srcDir = tempy.directory()
   await writePackage(parseWantedDependency(pkgNameAndVersion), srcDir, opts)
-  const patchContent = await diffFolders(srcDir, userDir)
+
+  const filteredFolder = await filterAndCopyFiles(userDir, tempy.directory())
+  const patchContent = await diffFolders(srcDir, filteredFolder)
+
   const patchFileName = pkgNameAndVersion.replace('/', '__')
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')
   const { writeProjectManifest, manifest } = await tryReadProjectManifest(lockfileDir)
@@ -128,4 +132,21 @@ function removeTrailingAndLeadingSlash (p: string) {
     return p.replace(/^\/|\/$/g, '')
   }
   return p
+}
+async function filterAndCopyFiles (source: string, destination: string) {
+  const files = await packlist({ path: source })
+  if (files.length === 0) {
+    return source
+  }
+  await Promise.all(
+    files.map(async (file) => {
+      const sourcePath = path.join(source, file)
+      const destinationPath = path.join(destination, file)
+      const destDir = path.dirname(destinationPath)
+      await fs.promises.mkdir(destDir, { recursive: true })
+      await fs.promises.copyFile(sourcePath, destinationPath)
+    })
+  )
+
+  return destination
 }
