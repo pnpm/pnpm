@@ -64,7 +64,6 @@ async function renderTreeForPackage (
   if (pkg.private) {
     label += ' (PRIVATE)'
   }
-  let output = `${chalk.bold.underline(label)}\n`
   const useColumns = opts.depth === 0 && !opts.long && !opts.search
   const dependenciesFields: Array<DependenciesField | 'unsavedDependencies'> = [
     ...DEPENDENCIES_FIELDS.sort(),
@@ -72,30 +71,33 @@ async function renderTreeForPackage (
   if (opts.showExtraneous) {
     dependenciesFields.push('unsavedDependencies')
   }
-  for (const dependenciesField of dependenciesFields) {
-    if (pkg[dependenciesField]?.length) {
-      const depsLabel = chalk.cyanBright(
-        dependenciesField !== 'unsavedDependencies'
-          ? `${dependenciesField}:`
-          : 'not saved (you should add these dependencies to package.json if you need them):'
-      )
-      output += `\n${depsLabel}\n`
-      const gPkgColor = dependenciesField === 'unsavedDependencies' ? () => NOT_SAVED_DEP_CLR : getPkgColor
-      if (useColumns && pkg[dependenciesField]!.length > 10) {
-        output += cliColumns(pkg[dependenciesField]!.map(printLabel.bind(printLabel, gPkgColor))) + '\n'
-        continue
+  const output = (await Promise.all(
+    dependenciesFields.map(async (dependenciesField) => {
+      if (pkg[dependenciesField]?.length) {
+        const depsLabel = chalk.cyanBright(
+          dependenciesField !== 'unsavedDependencies'
+            ? `${dependenciesField}:`
+            : 'not saved (you should add these dependencies to package.json if you need them):'
+        )
+        let output = `${depsLabel}\n`
+        const gPkgColor = dependenciesField === 'unsavedDependencies' ? () => NOT_SAVED_DEP_CLR : getPkgColor
+        if (useColumns && pkg[dependenciesField]!.length > 10) {
+          output += cliColumns(pkg[dependenciesField]!.map(printLabel.bind(printLabel, gPkgColor))) + '\n'
+          return output
+        }
+        const data = await toArchyTree(gPkgColor, pkg[dependenciesField]!, {
+          long: opts.long,
+          modules: path.join(pkg.path, 'node_modules'),
+        })
+        for (const d of data) {
+          output += archy(d)
+        }
+        return output
       }
-      const data = await toArchyTree(gPkgColor, pkg[dependenciesField]!, {
-        long: opts.long,
-        modules: path.join(pkg.path, 'node_modules'),
-      })
-      for (const d of data) {
-        output += archy(d)
-      }
-    }
-  }
+      return null
+    }))).filter(Boolean).join('\n')
 
-  return output.replace(/\n$/, '')
+  return `${chalk.bold.underline(label)}\n\n${output}`.replace(/(\n)+$/, '')
 }
 
 type GetPkgColor = (node: PackageNode) => (s: string) => string

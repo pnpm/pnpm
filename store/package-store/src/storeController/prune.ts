@@ -51,12 +51,12 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions) {
   globalInfo(`Removed ${fileCounter} file${fileCounter === 1 ? '' : 's'}`)
 
   let pkgCounter = 0
-  for (const pkgIndexFilePath of pkgIndexFiles) {
+  await Promise.all(pkgIndexFiles.map(async (pkgIndexFilePath) => {
     const { files: pkgFilesIndex } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
     if (removedHashes.has(pkgFilesIndex['package.json'].integrity)) {
       await fs.unlink(pkgIndexFilePath)
       pkgCounter++
     }
-  }
+  }))
   globalInfo(`Removed ${pkgCounter} package${pkgCounter === 1 ? '' : 's'}`)
 }
