@@ -18,7 +18,7 @@ import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import mapValues from 'ramda/src/map'
 import renderHelp from 'render-help'
-import { parse as parseYarnLock } from '@yarnpkg/lockfile'
+import { parse as parseYarnLock, type LockFileObject } from '@yarnpkg/lockfile'
 import * as yarnCore from '@yarnpkg/core'
 import { parseSyml } from '@yarnpkg/parsers'
 import exists from 'path-exists'
@@ -159,20 +159,19 @@ export async function handler (
   await install(manifest, installOpts)
 }
 
-async function readYarnLockFile (dir: string) {
+async function readYarnLockFile (dir: string): Promise<LockFileObject> {
   try {
     const yarnLockFile = await gfs.readFile(path.join(dir, 'yarn.lock'), 'utf8')
-    let lockJsonFile
     const yarnLockFileType = getYarnLockfileType(yarnLockFile)
     if (yarnLockFileType === YarnLockType.yarn) {
-      lockJsonFile = parseYarnLock(yarnLockFile)
+      const lockJsonFile = parseYarnLock(yarnLockFile)
       if (lockJsonFile.type === 'success') {
         return lockJsonFile.object
       } else {
         throw new PnpmError('YARN_LOCKFILE_PARSE_FAILED', `Yarn.lock file was ${lockJsonFile.type}`)
       }
     } else if (yarnLockFileType === YarnLockType.yarn2) {
-      lockJsonFile = parseYarn2Lock(yarnLockFile)
+      const lockJsonFile = parseYarn2Lock(yarnLockFile)
       if (lockJsonFile.type === YarnLockType.yarn2) {
         return lockJsonFile.object
       }
@@ -184,8 +183,7 @@ async function readYarnLockFile (dir: string) {
 }
 
 function parseYarn2Lock (lockFileContents: string): YarnLock2Struct {
-  // eslint-disable-next-line
-  const parseYarnLock: any = parseSyml(lockFileContents)
+  const parseYarnLock = parseSyml(lockFileContents)
 
   delete parseYarnLock.__metadata
   const dependencies: YarnPackageLock = {}
@@ -252,7 +250,7 @@ function getAllVersionsByPackageNames (
 }
 
 function getAllVersionsFromYarnLockFile (
-  yarnPackageLock: YarnPackageLock,
+  yarnPackageLock: LockFileObject,
   versionsByPackageNames: {
     [packageName: string]: Set<string>
   }

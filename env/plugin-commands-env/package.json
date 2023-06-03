@@ -44,7 +44,7 @@
     "is-windows": "^1.0.2",
     "load-json-file": "^6.2.0",
     "render-help": "^1.0.3",
-    "semver": "^7.5.0",
+    "semver": "^7.5.1",
     "symlink-dir": "^5.1.1",
     "write-json-file": "^4.3.0"
   },
@@ -57,7 +57,7 @@
     "@types/semver": "7.3.13",
     "adm-zip": "^0.5.10",
     "execa": "npm:safe-execa@0.1.2",
-    "nock": "13.3.0",
+    "nock": "13.3.1",
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0",
     "path-name": "^1.0.0"
   },

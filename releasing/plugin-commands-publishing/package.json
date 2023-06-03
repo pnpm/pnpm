@@ -44,15 +44,15 @@
     "@types/npm-packlist": "^3.0.0",
     "@types/proxyquire": "^1.3.28",
     "@types/ramda": "0.28.20",
-    "@types/sinon": "^10.0.14",
-    "@types/tar": "^6.1.4",
+    "@types/sinon": "^10.0.15",
+    "@types/tar": "^6.1.5",
     "@types/tar-stream": "^2.2.2",
     "ci-info": "^3.8.0",
     "cross-spawn": "^7.0.3",
     "is-windows": "^1.0.2",
     "load-json-file": "^6.2.0",
     "path-exists": "^4.0.0",
-    "tar": "^6.1.14",
+    "tar": "^6.1.15",
     "write-yaml-file": "^5.0.0"
   },
   "dependencies": {

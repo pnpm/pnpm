@@ -44,7 +44,7 @@
     "@zkochan/retry": "^0.2.0",
     "encode-registry": "^3.0.0",
     "load-json-file": "^6.2.0",
-    "lru-cache": "^9.1.1",
+    "lru-cache": "^9.1.2",
     "normalize-path": "^3.0.0",
     "p-limit": "^3.1.0",
     "p-memoize": "4.0.1",
@@ -52,7 +52,7 @@
     "path-temp": "^2.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "rename-overwrite": "^4.0.3",
-    "semver": "^7.5.0",
+    "semver": "^7.5.1",
     "ssri": "10.0.3",
     "version-selector-type": "^3.0.0"
   },
@@ -64,7 +64,7 @@
     "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",
     "@types/ssri": "^7.1.1",
-    "nock": "13.3.0",
+    "nock": "13.3.1",
     "path-exists": "^4.0.0",
     "tempy": "^1.0.1"
   },
