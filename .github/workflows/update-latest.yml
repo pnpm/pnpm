@@ -30,7 +30,7 @@ jobs:
         npm dist-tag add @pnpm/exe@${{ github.event.inputs.version }} ${{ github.event.inputs.tag }}
 
   publish-to-winget:
-    runs-on: windows-latest # Action can only be run on windows
+    runs-on: ubuntu-latest
     environment: release
     needs: tag-in-registry
     steps:
