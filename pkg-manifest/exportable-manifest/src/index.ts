@@ -29,12 +29,12 @@ export async function createExportableManifest (
   if (originalManifest.scripts != null) {
     publishManifest.scripts = omit(PREPUBLISH_SCRIPTS, originalManifest.scripts)
   }
-  for (const depsField of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const) {
+  await Promise.all((['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const).map(async (depsField) => {
     const deps = await makePublishDependencies(dir, originalManifest[depsField], opts?.modulesDir)
     if (deps != null) {
       publishManifest[depsField] = deps
     }
-  }
+  }))
 
   overridePublishConfig(publishManifest)
 

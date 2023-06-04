@@ -41,6 +41,7 @@ export async function preparePackage (opts: PreparePackageOptions, pkgDir: strin
     await runLifecycleHook(installScriptName, manifest, execOpts)
     for (const scriptName of PREPUBLISH_SCRIPTS) {
       if (manifest.scripts[scriptName] == null || manifest.scripts[scriptName] === '') continue
+      // eslint-disable-next-line no-await-in-loop
       await runLifecycleHook(scriptName, manifest, execOpts)
     }
   } catch (err: any) { // eslint-disable-line

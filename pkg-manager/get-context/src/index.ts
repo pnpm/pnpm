@@ -146,10 +146,10 @@ export async function getContext (
     })
   })
   if (opts.readPackageHook != null) {
-    for (const project of importersContext.projects) {
+    await Promise.all(importersContext.projects.map(async (project) => {
       project.originalManifest = project.manifest
-      project.manifest = await opts.readPackageHook(clone(project.manifest), project.rootDir)
-    }
+      project.manifest = await opts.readPackageHook!(clone(project.manifest), project.rootDir)
+    }))
   }
 
   const extraBinPaths = [

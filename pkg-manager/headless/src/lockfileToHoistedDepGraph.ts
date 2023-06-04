@@ -85,21 +85,23 @@ async function _lockfileToHoistedDepGraph (
     '.': directDepsMap(Object.keys(hierarchy[opts.lockfileDir]), graph),
   }
   const symlinkedDirectDependenciesByImporterId: DirectDependenciesByImporterId = { '.': {} }
-  for (const rootDep of Array.from(tree.dependencies)) {
-    const reference = Array.from(rootDep.references)[0]
-    if (reference.startsWith('workspace:')) {
-      const importerId = reference.replace('workspace:', '')
-      const projectDir = path.join(opts.lockfileDir, importerId)
-      const modulesDir = path.join(projectDir, 'node_modules')
-      const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies))
-      hierarchy[projectDir] = nextHierarchy
+  await Promise.all(
+    Array.from(tree.dependencies).map(async (rootDep) => {
+      const reference = Array.from(rootDep.references)[0]
+      if (reference.startsWith('workspace:')) {
+        const importerId = reference.replace('workspace:', '')
+        const projectDir = path.join(opts.lockfileDir, importerId)
+        const modulesDir = path.join(projectDir, 'node_modules')
+        const nextHierarchy = (await fetchDeps(fetchDepsOpts, modulesDir, rootDep.dependencies))
+        hierarchy[projectDir] = nextHierarchy
 
-      const importer = lockfile.importers[importerId]
-      const importerDir = path.join(opts.lockfileDir, importerId)
-      symlinkedDirectDependenciesByImporterId[importerId] = pickLinkedDirectDeps(importer, importerDir, opts.include)
-      directDependenciesByImporterId[importerId] = directDepsMap(Object.keys(nextHierarchy), graph)
-    }
-  }
+        const importer = lockfile.importers[importerId]
+        const importerDir = path.join(opts.lockfileDir, importerId)
+        symlinkedDirectDependenciesByImporterId[importerId] = pickLinkedDirectDeps(importer, importerDir, opts.include)
+        directDependenciesByImporterId[importerId] = directDepsMap(Object.keys(nextHierarchy), graph)
+      }
+    })
+  )
   return {
     directDependenciesByImporterId,
     graph,
