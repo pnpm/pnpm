@@ -22,22 +22,19 @@ export async function listRecursive (
       lockfileDir: opts.lockfileDir,
     })
   }
-  const outputs = []
-  for (const { dir } of pkgs) {
+  const outputs = (await Promise.all(pkgs.map(async ({ dir }) => {
     try {
-      const output = await render([dir], params, {
+      return await render([dir], params, {
         ...opts,
         alwaysPrintRootPackage: depth === -1,
         lockfileDir: opts.lockfileDir ?? dir,
       })
-      if (!output) continue
-      outputs.push(output)
     } catch (err: any) { // eslint-disable-line
       logger.info(err)
       err['prefix'] = dir
       throw err
     }
-  }
+  }))).filter(Boolean)
   if (outputs.length === 0) return ''
 
   const joiner = typeof depth === 'number' && depth > -1 ? '\n\n' : '\n'
