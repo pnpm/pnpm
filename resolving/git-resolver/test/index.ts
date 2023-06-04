@@ -24,7 +24,7 @@ test('resolveFromGit() with no commit', async () => {
   // The issue occurred because .hosted field (which is class from the 'hosted-git-info' package)
   // was mutated. A 'committish' field was added to it.
   for (let i = 0; i < 2; i++) {
-    const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative' })
+    const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative' }) // eslint-disable-line no-await-in-loop
     expect(resolveResult).toStrictEqual({
       id: 'github.com/zkochan/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c',
       normalizedPref: 'github:zkochan/is-negative',

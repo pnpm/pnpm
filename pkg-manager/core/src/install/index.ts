@@ -513,6 +513,7 @@ Note that in CI environments, this setting is enabled by default.`,
     let preferredSpecs: Record<string, string> | null = null
 
     // TODO: make it concurrent
+    /* eslint-disable no-await-in-loop */
     for (const project of projects) {
       const projectOpts = {
         ...project,
@@ -608,6 +609,7 @@ Note that in CI environments, this setting is enabled by default.`,
       }
       }
     }
+    /* eslint-enable no-await-in-loop */
 
     async function installCase (project: any) { // eslint-disable-line
       const wantedDependencies = getWantedDependencies(project.manifest, {

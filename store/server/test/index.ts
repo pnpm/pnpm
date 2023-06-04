@@ -293,12 +293,14 @@ test('server should only allow POST', async () => {
   // Try various methods (not including POST)
   const methods = ['GET', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
 
+  /* eslint-disable no-await-in-loop */
   for (const method of methods) {
     // Ensure 405 error is received
     const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method })
     expect(response.status).toBe(405)
     expect((await response.json() as any).error).toBeTruthy() // eslint-disable-line
   }
+  /* eslint-enable no-await-in-loop */
 
   await server.close()
   await storeCtrlForServer.close()
