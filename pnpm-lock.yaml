@@ -5369,6 +5369,9 @@ importers:
       get-stream:
         specifier: ^6.0.1
         version: 6.0.1
+      gunzip-maybe:
+        specifier: 1.4.2
+        version: 1.4.2
       p-limit:
         specifier: ^3.1.0
         version: 3.1.0
@@ -5400,6 +5403,9 @@ importers:
       '@types/concat-stream':
         specifier: ^2.0.0
         version: 2.0.0
+      '@types/gunzip-maybe':
+        specifier: 1.4.0
+        version: 1.4.0
       '@types/node':
         specifier: ^14.18.48
         version: 14.18.48
@@ -8944,6 +8950,12 @@ packages:
       '@types/node': 20.2.5
     dev: true
 
+  /@types/gunzip-maybe@1.4.0:
+    resolution: {integrity: sha512-dFP9GrYAR9KhsjTkWJ8q8Gsfql75YIKcg9DuQOj/IrlPzR7W+1zX+cclw1McV82UXAQ+Lpufvgk3e9bC8+HzgA==}
+    dependencies:
+      '@types/node': 14.18.48
+    dev: true
+
   /@types/hosted-git-info@3.0.2:
     resolution: {integrity: sha512-RURNTeEFUwF+ifnp7kK3WLLlTmBSlRynLNS9jeAsI6RHtSrupV0l0nO6kmpaz75EUJVexy348bR452SvmH98vQ==}
     dev: true
@@ -10240,7 +10252,6 @@ packages:
     resolution: {integrity: sha512-19OEpq7vWgsH6WkvkBJQDFvJS1uPcbFOQ4v9CU839dO+ZZXUZO6XpE6hNCqvlIIj+4fZvRiJ6DsAQ382GwiyTQ==}
     dependencies:
       pako: 0.2.9
-    dev: true
 
   /browserslist@4.21.7:
     resolution: {integrity: sha512-BauCXrQ7I2ftSqd2mvKHGo85XR0u7Ru3C/Hxsy/0TkfCtjrmAbPdzLGasmoiBxplpDXlPvdjX9u7srIMfgasNA==}
@@ -11214,7 +11225,6 @@ packages:
       inherits: 2.0.4
       readable-stream: 2.3.8
       stream-shift: 1.0.1
-    dev: true
 
   /duplexify@4.1.2:
     resolution: {integrity: sha512-fz3OjcNCHmRP12MJoZMPglx8m4rrFP8rovnk4vT8Fs+aonZoCwGg10dSsQsfP/E62eZcPTMSMP6686fu9Qlqtw==}
@@ -12455,7 +12465,6 @@ packages:
       peek-stream: 1.1.3
       pumpify: 1.5.1
       through2: 2.0.5
-    dev: true
 
   /handlebars@4.7.7:
     resolution: {integrity: sha512-aAcXm5OAfE/8IXkcZvCepKU3VzW1/39Fb5ZuqMtgI/hT8X2YgoMvBY5dLhq/cpOvw7Lk1nK/UF71aLG/ZnVYRA==}
@@ -12863,7 +12872,6 @@ packages:
 
   /is-deflate@1.0.0:
     resolution: {integrity: sha512-YDoFpuZWu1VRXlsnlYMzKyVRITXj7Ej/V9gXQ2/pAe7X1J7M/RNOqaIYi6qUn+B7nGyB9pDXrv02dsB58d2ZAQ==}
-    dev: true
 
   /is-docker@2.2.1:
     resolution: {integrity: sha512-F+i2BKsFrH66iaUFc0woD8sLy8getkwTwtOBjvs56Cx4CgJDeKQeqfz8wAYiSb8JOprWhHH5p77PbmYCvvUuXQ==}
@@ -12903,7 +12911,6 @@ packages:
   /is-gzip@1.0.0:
     resolution: {integrity: sha512-rcfALRIb1YewtnksfRIHGcIY93QnK8BIQ/2c9yDYcG/Y6+vRoJuTWBmmSEbyLLYtXm7q35pHOHbZFQBaLrhlWQ==}
     engines: {node: '>=0.10.0'}
-    dev: true
 
   /is-hexadecimal@1.0.4:
     resolution: {integrity: sha512-gyPJuv83bHMpocVYoqof5VDiZveEoGoFL8m3BXNb2VW8Xs+rz9kqO8LOQ5DH6EsuvilT1ApazU0pyl+ytbPtlw==}
@@ -14983,7 +14990,6 @@ packages:
 
   /pako@0.2.9:
     resolution: {integrity: sha512-NUcwaKxUxWrZLpDG+z/xZaCgQITkA/Dv4V/T6bw7VON6l1Xz/VnrBqrYjZQ12TamKHzITTfOEIYUj48y2KXImA==}
-    dev: true
 
   /parent-module@1.0.1:
     resolution: {integrity: sha512-GQ2EWRpQV8/o+Aw8YqtfZZPfNRWZYkbidE9k5rpl/hC3vtHHBfGm2Ifi6qWV+coDGkrUKZAxE3Lot5kcsRlh+g==}
@@ -15146,7 +15152,6 @@ packages:
       buffer-from: 1.1.2
       duplexify: 3.7.1
       through2: 2.0.5
-    dev: true
 
   /performance-now@2.1.0:
     resolution: {integrity: sha512-7EAHlyLHI56VEIdK57uwHdHKIaAGbnXPiw0yWbarQZOKaKpvUIgW0jWRVLiatnM+XXlSwsanIBH/hzGMJulMow==}
@@ -15469,7 +15474,6 @@ packages:
     dependencies:
       end-of-stream: 1.4.4
       once: 1.4.0
-    dev: true
 
   /pump@3.0.0:
     resolution: {integrity: sha512-LwZy+p3SFs1Pytd/jYct4wpv49HiYCqd9Rlc5ZVdk0V+8Yzv6jR5Blk3TRmPL1ft69TxP0IMZGJ+WPFU2BFhww==}
@@ -15483,7 +15487,6 @@ packages:
       duplexify: 3.7.1
       inherits: 2.0.4
       pump: 2.0.1
-    dev: true
 
   /pumpify@2.0.1:
     resolution: {integrity: sha512-m7KOje7jZxrmutanlkS1daj1dS6z6BgslzOXmcSEpIlCxM3VJH7lG5QLeck/6hgF6F4crFf01UtQmNsJfweTAw==}
@@ -16456,7 +16459,6 @@ packages:
 
   /stream-shift@1.0.1:
     resolution: {integrity: sha512-AiisoFqQ0vbGcZgQPY1cdP2I76glaVA/RauYR4G4thNFgkTqr90yXTo4LYX60Jl+sIlPNHHdGSwo01AvbKUSVQ==}
-    dev: true
 
   /stream-transform@2.1.3:
     resolution: {integrity: sha512-9GHUiM5hMiCi6Y03jD2ARC1ettBXkQBoQAe7nJsPknnI0ow10aXjTnew8QtYQmLjzn974BnmWEAJgCY6ZP1DeQ==}
@@ -16774,7 +16776,6 @@ packages:
     dependencies:
       readable-stream: 2.3.8
       xtend: 4.0.2
-    dev: true
 
   /through2@4.0.2:
     resolution: {integrity: sha512-iOqSav00cVxEEICeD7TjLB1sueEL+81Wpzp2bY17uZjZN0pWZPuo4suZ/61VujxmqSGFfgOcNuTZ85QJwNZQpw==}
@@ -17700,7 +17701,6 @@ packages:
   /xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
-    dev: true
 
   /y18n@4.0.3:
     resolution: {integrity: sha512-JKhqTOwSrqNA1NY5lSztJ1GrBiUodLMmIZuLiDaMRJ+itFd+ABVE8XBjOvIWL+rSqNDC74LCSFmlb/U4UZ4hJQ==}

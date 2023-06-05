@@ -132,11 +132,6 @@ declare module 'yaml-tag' {
   export = anything
 }
 
-declare module 'decompress-maybe' {
-  const anything: any
-  export = anything
-}
-
 declare module 'nerf-dart' {
   const anything: any
   export = anything
