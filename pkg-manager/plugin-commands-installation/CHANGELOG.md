@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-installation
 
+## 13.0.9
+
+### Patch Changes
+
+- d55b41a8b: Dependencies have been updated.
+- Updated dependencies [4b97f1f07]
+- Updated dependencies [d55b41a8b]
+  - @pnpm/package-store@16.0.4
+  - @pnpm/core@10.2.1
+  - @pnpm/plugin-commands-rebuild@9.0.1
+  - @pnpm/store-connection-manager@6.0.11
+  - @pnpm/outdated@13.0.1
+  - @pnpm/config@18.4.0
+
 ## 13.0.8
 
 ### Patch Changes

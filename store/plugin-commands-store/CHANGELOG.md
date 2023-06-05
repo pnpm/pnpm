@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-store
 
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [4b97f1f07]
+- Updated dependencies [d55b41a8b]
+- Updated dependencies [614d5bd72]
+  - @pnpm/get-context@10.0.1
+  - @pnpm/cafs@7.0.2
+  - @pnpm/store-connection-manager@6.0.11
+  - @pnpm/config@18.4.0
+
 ## 8.0.0
 
 ### Major Changes

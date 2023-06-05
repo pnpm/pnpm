@@ -1,5 +1,11 @@
 # @pnpm/get-context
 
+## 10.0.1
+
+### Patch Changes
+
+- 4b97f1f07: Don't use await in loops.
+
 ## 10.0.0
 
 ### Major Changes

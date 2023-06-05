@@ -1,5 +1,27 @@
 # @pnpm/core
 
+## 10.2.1
+
+### Patch Changes
+
+- 4b97f1f07: Don't use await in loops.
+- Updated dependencies [e83eacdcc]
+- Updated dependencies [4b97f1f07]
+- Updated dependencies [d55b41a8b]
+  - @pnpm/resolve-dependencies@31.1.7
+  - @pnpm/get-context@10.0.1
+  - @pnpm/headless@21.0.1
+  - @pnpm/read-modules-dir@6.0.1
+  - @pnpm/package-requester@21.0.4
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.2
+  - @pnpm/link-bins@9.0.2
+  - @pnpm/modules-cleaner@14.0.6
+  - @pnpm/build-modules@11.0.4
+  - @pnpm/hoist@8.0.6
+  - @pnpm/symlink-dependency@7.0.1
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/lifecycle@15.0.1
+
 ## 10.2.0
 
 ### Minor Changes

@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-rebuild
 
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [4b97f1f07]
+  - @pnpm/get-context@10.0.1
+  - @pnpm/link-bins@9.0.2
+  - @pnpm/store-connection-manager@6.0.11
+  - @pnpm/config@18.4.0
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/lifecycle@15.0.1
+
 ## 9.0.0
 
 ### Major Changes

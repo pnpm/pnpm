@@ -1,5 +1,12 @@
 # @pnpm/link-bins
 
+## 9.0.2
+
+### Patch Changes
+
+- Updated dependencies [4b97f1f07]
+  - @pnpm/read-modules-dir@6.0.1
+
 ## 9.0.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/list
 
+## 9.0.7
+
+### Patch Changes
+
+- 4b97f1f07: Don't use await in loops.
+  - @pnpm/reviewing.dependencies-hierarchy@2.0.7
+
 ## 9.0.6
 
 ### Patch Changes

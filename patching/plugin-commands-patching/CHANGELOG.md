@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-patching
 
+## 3.1.4
+
+### Patch Changes
+
+- 4b97f1f07: Don't use await in loops.
+- Updated dependencies [d55b41a8b]
+- Updated dependencies [47f529ebf]
+  - @pnpm/plugin-commands-installation@13.0.9
+  - @pnpm/patching.apply-patch@2.0.2
+  - @pnpm/store-connection-manager@6.0.11
+  - @pnpm/config@18.4.0
+
 ## 3.1.3
 
 ### Patch Changes

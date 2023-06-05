@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-listing
 
+## 7.0.10
+
+### Patch Changes
+
+- 4b97f1f07: Don't use await in loops.
+- Updated dependencies [4b97f1f07]
+  - @pnpm/list@9.0.7
+  - @pnpm/config@18.4.0
+
 ## 7.0.9
 
 ### Patch Changes

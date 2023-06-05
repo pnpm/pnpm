@@ -1,5 +1,11 @@
 # @pnpm/patching.apply-patch
 
+## 2.0.2
+
+### Patch Changes
+
+- 47f529ebf: Update patch-package.
+
 ## 2.0.1
 
 ### Patch Changes

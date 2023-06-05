@@ -1,5 +1,11 @@
 # @pnpm/npm-resolver
 
+## 16.0.6
+
+### Patch Changes
+
+- d55b41a8b: Dependencies have been updated.
+
 ## 16.0.5
 
 ### Patch Changes

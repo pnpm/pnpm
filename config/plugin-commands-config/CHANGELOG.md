@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-config
 
+## 2.0.10
+
+### Patch Changes
+
+- d55b41a8b: Dependencies have been updated.
+  - @pnpm/config@18.4.0
+
 ## 2.0.9
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/audit
 
+## 7.0.9
+
+### Patch Changes
+
+- 4b97f1f07: Don't use await in loops.
+- Updated dependencies [4b97f1f07]
+  - @pnpm/list@9.0.7
+
 ## 7.0.8
 
 ### Patch Changes

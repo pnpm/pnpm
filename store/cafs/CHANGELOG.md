@@ -1,5 +1,12 @@
 # @pnpm/cafs
 
+## 7.0.2
+
+### Patch Changes
+
+- d55b41a8b: Dependencies have been updated.
+- 614d5bd72: Don't use decompress-maybe.
+
 ## 7.0.1
 
 ### Patch Changes

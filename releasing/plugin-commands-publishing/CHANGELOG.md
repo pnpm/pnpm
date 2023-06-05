@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.2.4
+
+### Patch Changes
+
+- 4b97f1f07: Don't use await in loops.
+- Updated dependencies [4b97f1f07]
+  - @pnpm/exportable-manifest@5.0.2
+  - @pnpm/client@10.0.7
+  - @pnpm/config@18.4.0
+  - @pnpm/lifecycle@15.0.1
+
 ## 7.2.3
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/license-scanner
 
+## 2.0.6
+
+### Patch Changes
+
+- 4b97f1f07: Don't use await in loops.
+- Updated dependencies [d55b41a8b]
+- Updated dependencies [614d5bd72]
+  - @pnpm/cafs@7.0.2
+  - @pnpm/directory-fetcher@6.0.1
+
 ## 2.0.5
 
 ### Patch Changes

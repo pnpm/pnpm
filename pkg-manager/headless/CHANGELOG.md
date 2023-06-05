@@ -1,5 +1,21 @@
 # @pnpm/headless
 
+## 21.0.1
+
+### Patch Changes
+
+- 4b97f1f07: Don't use await in loops.
+- Updated dependencies [d55b41a8b]
+  - @pnpm/package-requester@21.0.4
+  - @pnpm/real-hoist@2.0.6
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.2
+  - @pnpm/link-bins@9.0.2
+  - @pnpm/modules-cleaner@14.0.6
+  - @pnpm/build-modules@11.0.4
+  - @pnpm/hoist@8.0.6
+  - @pnpm/symlink-dependency@7.0.1
+  - @pnpm/lifecycle@15.0.1
+
 ## 21.0.0
 
 ### Major Changes

@@ -1,5 +1,11 @@
 # @pnpm/real-hoist
 
+## 2.0.6
+
+### Patch Changes
+
+- d55b41a8b: Dependencies have been updated.
+
 ## 2.0.5
 
 ### Patch Changes

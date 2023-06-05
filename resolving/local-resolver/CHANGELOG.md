@@ -1,5 +1,11 @@
 # @pnpm/local-resolver
 
+## 10.0.2
+
+### Patch Changes
+
+- d55b41a8b: Dependencies have been updated.
+
 ## 10.0.1
 
 ### Patch Changes

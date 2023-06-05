@@ -1,5 +1,23 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.7
+
+### Patch Changes
+
+- e83eacdcc: When `dedupe-peer-dependents` is enabled (default), use the path (not id) to
+  determine compatibility.
+
+  When multiple dependency groups can be deduplicated, the
+  latter ones are sorted according to number of peers to allow them to
+  benefit from deduplication.
+
+  Resolves: [#6605](https://github.com/pnpm/pnpm/issues/6605)
+
+- 4b97f1f07: Don't use await in loops.
+- d55b41a8b: Dependencies have been updated.
+- Updated dependencies [d55b41a8b]
+  - @pnpm/npm-resolver@16.0.6
+
 ## 31.1.6
 
 ### Patch Changes

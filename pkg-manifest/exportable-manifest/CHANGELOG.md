@@ -1,5 +1,11 @@
 # @pnpm/exportable-manifest
 
+## 5.0.2
+
+### Patch Changes
+
+- 4b97f1f07: Don't use await in loops.
+
 ## 5.0.1
 
 ### Patch Changes

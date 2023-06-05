@@ -1,5 +1,17 @@
 # @pnpm/package-store
 
+## 16.0.4
+
+### Patch Changes
+
+- 4b97f1f07: Don't use await in loops.
+- d55b41a8b: Dependencies have been updated.
+- Updated dependencies [d55b41a8b]
+- Updated dependencies [614d5bd72]
+  - @pnpm/package-requester@21.0.4
+  - @pnpm/cafs@7.0.2
+  - @pnpm/create-cafs-store@4.0.2
+
 ## 16.0.3
 
 ### Patch Changes
