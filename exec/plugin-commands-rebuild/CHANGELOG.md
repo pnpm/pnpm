@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-rebuild
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/constants@0.0.0-20230605-20230605142810
+  - @pnpm/config@0.0.0-20230605-20230605142810
+  - @pnpm/error@0.0.0-20230605-20230605142810
+  - @pnpm/get-context@0.0.0-20230605-20230605142810
+  - @pnpm/find-workspace-packages@0.0.0-20230605-20230605142810
+  - @pnpm/cli-utils@0.0.0-20230605-20230605142810
+  - @pnpm/store-connection-manager@0.0.0-20230605-20230605142810
+  - @pnpm/lifecycle@0.0.0-20230605-20230605142810
+  - @pnpm/link-bins@0.0.0-20230605-20230605142810
+  - @pnpm/fs.hard-link-dir@2.0.1
+
 ## 9.0.1
 
 ### Patch Changes

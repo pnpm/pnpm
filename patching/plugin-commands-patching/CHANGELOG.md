@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-patching
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/constants@0.0.0-20230605-20230605142810
+  - @pnpm/config@0.0.0-20230605-20230605142810
+  - @pnpm/lockfile-file@0.0.0-20230605-20230605142810
+  - @pnpm/error@0.0.0-20230605-20230605142810
+  - @pnpm/plugin-commands-installation@0.0.0-20230605-20230605142810
+  - @pnpm/cli-utils@0.0.0-20230605-20230605142810
+  - @pnpm/store-connection-manager@0.0.0-20230605-20230605142810
+  - @pnpm/patching.apply-patch@0.0.0-20230605-20230605142810
+  - @pnpm/read-package-json@0.0.0-20230605-20230605142810
+  - @pnpm/read-project-manifest@0.0.0-20230605-20230605142810
+
 ## 3.1.4
 
 ### Patch Changes

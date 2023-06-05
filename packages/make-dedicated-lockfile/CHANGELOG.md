@@ -1,5 +1,16 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- @pnpm/lockfile-file@0.0.0-20230605-20230605142810
+- @pnpm/prune-lockfile@0.0.0-20230605-20230605142810
+- @pnpm/error@0.0.0-20230605-20230605142810
+- @pnpm/exportable-manifest@0.0.0-20230605-20230605142810
+- @pnpm/read-project-manifest@0.0.0-20230605-20230605142810
+- @pnpm/find-workspace-dir@0.0.0-20230605-20230605142810
+
 ## 0.5.4
 
 ### Patch Changes

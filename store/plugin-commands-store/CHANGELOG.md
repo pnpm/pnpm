@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-store
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- @pnpm/config@0.0.0-20230605-20230605142810
+- @pnpm/error@0.0.0-20230605-20230605142810
+- @pnpm/get-context@0.0.0-20230605-20230605142810
+- @pnpm/cli-utils@0.0.0-20230605-20230605142810
+- @pnpm/store-connection-manager@0.0.0-20230605-20230605142810
+
 ## 8.0.1
 
 ### Patch Changes

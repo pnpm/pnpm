@@ -1,5 +1,11 @@
 # @pnpm/directory-fetcher
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@0.0.0-20230605-20230605142810
+
 ## 6.0.1
 
 ### Patch Changes

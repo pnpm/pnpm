@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/git-fetcher",
-  "version": "9.0.1",
+  "version": "0.0.0-20230605-20230605142810",
   "description": "A fetcher for git-hosted packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pnpmfile",
-  "version": "5.0.7",
+  "version": "0.0.0-20230605-20230605142810",
   "description": "Reading a .pnpmfile.cjs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

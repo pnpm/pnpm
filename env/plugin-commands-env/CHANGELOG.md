@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-env
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- @pnpm/config@0.0.0-20230605-20230605142810
+- @pnpm/error@0.0.0-20230605-20230605142810
+- @pnpm/cli-utils@0.0.0-20230605-20230605142810
+- @pnpm/node.fetcher@0.0.0-20230605-20230605142810
+- @pnpm/node.resolver@0.0.0-20230605-20230605142810
+- @pnpm/remove-bins@0.0.0-20230605-20230605142810
+
 ## 4.0.11
 
 ### Patch Changes

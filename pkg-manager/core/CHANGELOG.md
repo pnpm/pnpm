@@ -1,5 +1,34 @@
 # @pnpm/core
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/constants@0.0.0-20230605-20230605142810
+  - @pnpm/filter-lockfile@0.0.0-20230605-20230605142810
+  - @pnpm/lockfile-file@0.0.0-20230605-20230605142810
+  - @pnpm/prune-lockfile@0.0.0-20230605-20230605142810
+  - @pnpm/calc-dep-state@0.0.0-20230605-20230605142810
+  - @pnpm/error@0.0.0-20230605-20230605142810
+  - @pnpm/get-context@0.0.0-20230605-20230605142810
+  - @pnpm/headless@0.0.0-20230605-20230605142810
+  - @pnpm/hoist@0.0.0-20230605-20230605142810
+  - @pnpm/resolve-dependencies@0.0.0-20230605-20230605142810
+  - @pnpm/modules-cleaner@0.0.0-20230605-20230605142810
+  - @pnpm/lockfile-to-pnp@0.0.0-20230605-20230605142810
+  - @pnpm/build-modules@0.0.0-20230605-20230605142810
+  - @pnpm/lifecycle@0.0.0-20230605-20230605142810
+  - @pnpm/hooks.read-package-hook@0.0.0-20230605-20230605142810
+  - @pnpm/link-bins@0.0.0-20230605-20230605142810
+  - @pnpm/package-requester@0.0.0-20230605-20230605142810
+  - @pnpm/manifest-utils@0.0.0-20230605-20230605142810
+  - @pnpm/read-package-json@0.0.0-20230605-20230605142810
+  - @pnpm/read-project-manifest@0.0.0-20230605-20230605142810
+  - @pnpm/symlink-dependency@7.0.1
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/remove-bins@0.0.0-20230605-20230605142810
+
 ## 10.2.1
 
 ### Patch Changes

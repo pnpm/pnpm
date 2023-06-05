@@ -1,5 +1,15 @@
 # @pnpm/config
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/constants@0.0.0-20230605-20230605142810
+  - @pnpm/error@0.0.0-20230605-20230605142810
+  - @pnpm/pnpmfile@0.0.0-20230605-20230605142810
+  - @pnpm/read-project-manifest@0.0.0-20230605-20230605142810
+
 ## 18.4.0
 
 ### Minor Changes

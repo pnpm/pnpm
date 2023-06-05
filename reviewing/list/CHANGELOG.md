@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- @pnpm/reviewing.dependencies-hierarchy@0.0.0-20230605-20230605142810
+- @pnpm/read-package-json@0.0.0-20230605-20230605142810
+- @pnpm/read-project-manifest@0.0.0-20230605-20230605142810
+
 ## 9.0.7
 
 ### Patch Changes

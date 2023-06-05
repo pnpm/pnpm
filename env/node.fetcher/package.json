@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.fetcher",
-  "version": "3.0.3",
+  "version": "0.0.0-20230605-20230605142810",
   "description": "Node.js artifacts fetcher",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",

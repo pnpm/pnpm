@@ -1,5 +1,15 @@
 # @pnpm/client
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@0.0.0-20230605-20230605142810
+- @pnpm/network.auth-header@0.0.0-20230605-20230605142810
+- @pnpm/default-resolver@0.0.0-20230605-20230605142810
+- @pnpm/directory-fetcher@0.0.0-20230605-20230605142810
+- @pnpm/git-fetcher@0.0.0-20230605-20230605142810
+
 ## 10.0.7
 
 ### Patch Changes

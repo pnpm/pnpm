@@ -1,5 +1,17 @@
 # @pnpm/resolve-dependencies
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/constants@0.0.0-20230605-20230605142810
+  - @pnpm/prune-lockfile@0.0.0-20230605-20230605142810
+  - @pnpm/error@0.0.0-20230605-20230605142810
+  - @pnpm/manifest-utils@0.0.0-20230605-20230605142810
+  - @pnpm/read-package-json@0.0.0-20230605-20230605142810
+  - @pnpm/npm-resolver@0.0.0-20230605-20230605142810
+
 ## 31.1.7
 
 ### Patch Changes

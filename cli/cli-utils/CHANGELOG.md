@@ -1,5 +1,16 @@
 # @pnpm/cli-utils
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- @pnpm/config@0.0.0-20230605-20230605142810
+- @pnpm/error@0.0.0-20230605-20230605142810
+- @pnpm/default-reporter@0.0.0-20230605-20230605142810
+- @pnpm/package-is-installable@0.0.0-20230605-20230605142810
+- @pnpm/manifest-utils@0.0.0-20230605-20230605142810
+- @pnpm/read-project-manifest@0.0.0-20230605-20230605142810
+
 ## 2.0.9
 
 ### Patch Changes

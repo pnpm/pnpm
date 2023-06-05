@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/calc-dep-state",
-  "version": "4.0.1",
+  "version": "0.0.0-20230605-20230605142810",
   "description": "Calculates the state of a dependency",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

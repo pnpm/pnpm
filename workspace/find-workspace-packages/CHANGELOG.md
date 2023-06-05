@@ -1,5 +1,14 @@
 # @pnpm/find-workspace-packages
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/constants@0.0.0-20230605-20230605142810
+  - @pnpm/cli-utils@0.0.0-20230605-20230605142810
+  - @pnpm/fs.find-packages@0.0.0-20230605-20230605142810
+
 ## 6.0.9
 
 ### Patch Changes

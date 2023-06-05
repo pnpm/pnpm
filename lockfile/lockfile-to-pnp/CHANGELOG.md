@@ -1,5 +1,11 @@
 # @pnpm/lockfile-to-pnp
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- @pnpm/lockfile-file@0.0.0-20230605-20230605142810
+
 ## 3.0.5
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-script-runners
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- @pnpm/config@0.0.0-20230605-20230605142810
+- @pnpm/error@0.0.0-20230605-20230605142810
+- @pnpm/plugin-commands-installation@0.0.0-20230605-20230605142810
+- @pnpm/cli-utils@0.0.0-20230605-20230605142810
+- @pnpm/lifecycle@0.0.0-20230605-20230605142810
+- @pnpm/read-package-json@0.0.0-20230605-20230605142810
+- @pnpm/read-project-manifest@0.0.0-20230605-20230605142810
+
 ## 7.1.3
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/license-scanner
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- @pnpm/lockfile-file@0.0.0-20230605-20230605142810
+- @pnpm/error@0.0.0-20230605-20230605142810
+- @pnpm/package-is-installable@0.0.0-20230605-20230605142810
+- @pnpm/read-package-json@0.0.0-20230605-20230605142810
+- @pnpm/directory-fetcher@0.0.0-20230605-20230605142810
+
 ## 2.0.6
 
 ### Patch Changes

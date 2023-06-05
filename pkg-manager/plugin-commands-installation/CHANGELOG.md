@@ -1,5 +1,27 @@
 # @pnpm/plugin-commands-installation
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/constants@0.0.0-20230605-20230605142810
+  - @pnpm/config@0.0.0-20230605-20230605142810
+  - @pnpm/plugin-commands-rebuild@0.0.0-20230605-20230605142810
+  - @pnpm/error@0.0.0-20230605-20230605142810
+  - @pnpm/core@0.0.0-20230605-20230605142810
+  - @pnpm/outdated@0.0.0-20230605-20230605142810
+  - @pnpm/find-workspace-packages@0.0.0-20230605-20230605142810
+  - @pnpm/cli-utils@0.0.0-20230605-20230605142810
+  - @pnpm/store-connection-manager@0.0.0-20230605-20230605142810
+  - @pnpm/dedupe.check@0.0.0-20230605-20230605142810
+  - @pnpm/pnpmfile@0.0.0-20230605-20230605142810
+  - @pnpm/manifest-utils@0.0.0-20230605-20230605142810
+  - @pnpm/read-project-manifest@0.0.0-20230605-20230605142810
+  - @pnpm/filter-workspace-packages@0.0.0-20230605-20230605142810
+  - @pnpm/find-workspace-dir@0.0.0-20230605-20230605142810
+  - @pnpm/package-store@0.0.0-20230605-20230605142810
+
 ## 13.0.9
 
 ### Patch Changes

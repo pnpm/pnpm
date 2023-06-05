@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-licenses
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/constants@0.0.0-20230605-20230605142810
+  - @pnpm/config@0.0.0-20230605-20230605142810
+  - @pnpm/lockfile-file@0.0.0-20230605-20230605142810
+  - @pnpm/error@0.0.0-20230605-20230605142810
+  - @pnpm/license-scanner@0.0.0-20230605-20230605142810
+  - @pnpm/cli-utils@0.0.0-20230605-20230605142810
+
 ## 2.0.10
 
 ### Patch Changes

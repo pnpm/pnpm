@@ -1,5 +1,11 @@
 # @pnpm/constants
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- Downgrade lockfile version to 6.0
+
 ## 7.1.0
 
 ### Minor Changes

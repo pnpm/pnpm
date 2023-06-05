@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-deploy
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- @pnpm/error@0.0.0-20230605-20230605142810
+- @pnpm/plugin-commands-installation@0.0.0-20230605-20230605142810
+- @pnpm/cli-utils@0.0.0-20230605-20230605142810
+- @pnpm/fs.indexed-pkg-importer@3.0.1
+- @pnpm/directory-fetcher@0.0.0-20230605-20230605142810
+
 ## 3.0.15
 
 ### Patch Changes

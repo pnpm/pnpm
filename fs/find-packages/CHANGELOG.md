@@ -1,5 +1,11 @@
 # @pnpm/fs.find-packages
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@0.0.0-20230605-20230605142810
+
 ## 2.0.1
 
 ### Patch Changes

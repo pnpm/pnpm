@@ -1,5 +1,12 @@
 # @pnpm/parse-cli-args
 
+## 0.0.0-20230605-20230605142810
+
+### Patch Changes
+
+- @pnpm/error@0.0.0-20230605-20230605142810
+- @pnpm/find-workspace-dir@0.0.0-20230605-20230605142810
+
 ## 7.0.1
 
 ### Patch Changes
