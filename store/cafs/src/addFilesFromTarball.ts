@@ -1,6 +1,6 @@
-import { type Duplex, type PassThrough } from 'stream'
+import { type PassThrough } from 'stream'
 import type { DeferredManifestPromise, FilesIndex, FileWriteResult } from '@pnpm/cafs-types'
-import decompress from 'decompress-maybe'
+import gunzip from 'gunzip-maybe'
 import tar from 'tar-stream'
 import { parseJsonStream } from './parseJson'
 
@@ -46,7 +46,7 @@ export async function addFilesFromTarball (
     // pipe through extractor
     stream
       .on('error', reject)
-      .pipe(decompress() as Duplex)
+      .pipe(gunzip())
       .on('error', reject).pipe(extract)
   })
   if (!filesIndex['package.json'] && manifest != null) {
