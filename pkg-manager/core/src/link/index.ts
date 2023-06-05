@@ -111,7 +111,7 @@ export async function link (
 
   // Linking should happen after removing orphans
   // Otherwise would've been removed
-  for (const { alias, manifest, path } of linkedPkgs) {
+  await Promise.all(linkedPkgs.map(async ({ alias, manifest, path }) => {
     // TODO: cover with test that linking reports with correct dependency types
     const stu = specsToUpsert.find((s) => s.alias === manifest.name)
     const targetDependencyType = getDependencyTypeFromManifest(opts.manifest, manifest.name) ?? opts.targetDependenciesField
@@ -120,7 +120,7 @@ export async function link (
       linkedPackage: manifest,
       prefix: opts.dir,
     })
-  }
+  }))
 
   const linkToBin = maybeOpts?.linkToBin ?? path.join(destModules, '.bin')
   await linkBinsOfPackages(linkedPkgs.map((p) => ({ manifest: p.manifest, location: p.path })), linkToBin, {

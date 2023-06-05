@@ -209,8 +209,16 @@ async function _filterGraph<T> (
     let entryPackages: string[] | null = null
     if (selector.diff) {
       let ignoreDependentForPkgs: string[] = []
-        ;[entryPackages, ignoreDependentForPkgs] = await getChangedPackages(Object.keys(pkgGraph),
-        selector.diff, { workspaceDir: selector.parentDir ?? opts.workspaceDir, testPattern: opts.testPattern, changedFilesIgnorePattern: opts.changedFilesIgnorePattern })
+      // eslint-disable-next-line no-await-in-loop
+      ;[entryPackages, ignoreDependentForPkgs] = await getChangedPackages(
+        Object.keys(pkgGraph),
+        selector.diff,
+        {
+          changedFilesIgnorePattern: opts.changedFilesIgnorePattern,
+          testPattern: opts.testPattern,
+          workspaceDir: selector.parentDir ?? opts.workspaceDir,
+        }
+      )
       selectEntries({
         ...selector,
         includeDependents: false,
