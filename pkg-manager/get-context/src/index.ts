@@ -146,10 +146,10 @@ export async function getContext (
     })
   })
   if (opts.readPackageHook != null) {
-    for (const project of importersContext.projects) {
+    await Promise.all(importersContext.projects.map(async (project) => {
       project.originalManifest = project.manifest
-      project.manifest = await opts.readPackageHook(clone(project.manifest), project.rootDir)
-    }
+      project.manifest = await opts.readPackageHook!(clone(project.manifest), project.rootDir)
+    }))
   }
 
   const extraBinPaths = [
@@ -338,7 +338,7 @@ async function purgeModulesDirsOfImporters (
       throw new PnpmError('ABORTED_REMOVE_MODULES_DIR', 'Aborted removal of modules directory')
     }
   }
-  for (const importer of importers) {
+  await Promise.all(importers.map(async (importer) => {
     logger.info({
       message: `Recreating ${importer.modulesDir}`,
       prefix: importer.rootDir,
@@ -351,12 +351,12 @@ async function purgeModulesDirsOfImporters (
     } catch (err: any) { // eslint-disable-line
       if (err.code !== 'ENOENT') throw err
     }
-  }
+  }))
 }
 
 async function removeContentsOfDir (dir: string, virtualStoreDir: string) {
   const items = await fs.readdir(dir)
-  for (const item of items) {
+  await Promise.all(items.map(async (item) => {
     // The non-pnpm related hidden files are kept
     if (
       item.startsWith('.') &&
@@ -364,11 +364,10 @@ async function removeContentsOfDir (dir: string, virtualStoreDir: string) {
       item !== '.modules.yaml' &&
       !dirsAreEqual(path.join(dir, item), virtualStoreDir)
     ) {
-      continue
+      return
     }
-
     await rimraf(path.join(dir, item))
-  }
+  }))
 }
 
 function dirsAreEqual (dir1: string, dir2: string) {

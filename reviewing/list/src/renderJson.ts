@@ -32,11 +32,19 @@ export async function renderJson (
       path: pkg.path,
       private: !!pkg.private,
     }
-    for (const dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies'] as const) {
-      if (pkg[dependenciesField]?.length) {
-        jsonObj[dependenciesField] = await toJsonResult(pkg[dependenciesField]!, { long: opts.long })
-      }
-    }
+    Object.assign(jsonObj,
+      Object.fromEntries(
+        await Promise.all(
+          ([...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies'] as const)
+            .filter((dependenciesField) => pkg[dependenciesField]?.length)
+            .map(async (dependenciesField) => [
+              dependenciesField,
+              await toJsonResult(pkg[dependenciesField]!, { long: opts.long }),
+            ]
+            )
+        )
+      )
+    )
 
     return jsonObj
   }))

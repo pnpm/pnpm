@@ -90,6 +90,7 @@ export async function runRecursive (
       return specifiedScripts.map(script => ({ prefix, scriptName: script }))
     }).flat()
 
+    // eslint-disable-next-line no-await-in-loop
     await Promise.all(selectedScripts.map(async ({ prefix, scriptName }) =>
       limitRun(async () => {
         const pkg = opts.selectedProjectsGraph[prefix]

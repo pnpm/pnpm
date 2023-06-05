@@ -58,48 +58,49 @@ export async function link (
   }, true)
 
   const importerId = getLockfileImporterId(ctx.lockfileDir, opts.dir)
-  const linkedPkgs: Array<{ path: string, manifest: DependencyManifest, alias: string }> = []
   const specsToUpsert = [] as PackageSpecObject[]
 
-  for (const linkFrom of linkFromPkgs) {
-    let linkFromPath: string
-    let linkFromAlias: string | undefined
-    if (typeof linkFrom === 'string') {
-      linkFromPath = linkFrom
-    } else {
-      linkFromPath = linkFrom.path
-      linkFromAlias = linkFrom.alias
-    }
-    const { manifest } = await readProjectManifest(linkFromPath) as { manifest: DependencyManifest }
-    if (typeof linkFrom === 'string' && manifest.name === undefined) {
-      throw new PnpmError('INVALID_PACKAGE_NAME', `Package in ${linkFromPath} must have a name field to be linked`)
-    }
+  const linkedPkgs = await Promise.all(
+    linkFromPkgs.map(async (linkFrom) => {
+      let linkFromPath: string
+      let linkFromAlias: string | undefined
+      if (typeof linkFrom === 'string') {
+        linkFromPath = linkFrom
+      } else {
+        linkFromPath = linkFrom.path
+        linkFromAlias = linkFrom.alias
+      }
+      const { manifest } = await readProjectManifest(linkFromPath) as { manifest: DependencyManifest }
+      if (typeof linkFrom === 'string' && manifest.name === undefined) {
+        throw new PnpmError('INVALID_PACKAGE_NAME', `Package in ${linkFromPath} must have a name field to be linked`)
+      }
 
-    const targetDependencyType = getDependencyTypeFromManifest(opts.manifest, manifest.name) ?? opts.targetDependenciesField
+      const targetDependencyType = getDependencyTypeFromManifest(opts.manifest, manifest.name) ?? opts.targetDependenciesField
 
-    specsToUpsert.push({
-      alias: manifest.name,
-      pref: getPref(manifest.name, manifest.name, manifest.version, {
-        pinnedVersion: opts.pinnedVersion,
-      }),
-      saveType: (targetDependencyType ?? (ctx.manifest && guessDependencyType(manifest.name, ctx.manifest))) as DependenciesField,
+      specsToUpsert.push({
+        alias: manifest.name,
+        pref: getPref(manifest.name, manifest.name, manifest.version, {
+          pinnedVersion: opts.pinnedVersion,
+        }),
+        saveType: (targetDependencyType ?? (ctx.manifest && guessDependencyType(manifest.name, ctx.manifest))) as DependenciesField,
+      })
+
+      const packagePath = normalize(path.relative(opts.dir, linkFromPath))
+      const addLinkOpts = {
+        linkedPkgName: linkFromAlias ?? manifest.name,
+        manifest: ctx.manifest,
+        packagePath,
+      }
+      addLinkToLockfile(ctx.currentLockfile.importers[importerId], addLinkOpts)
+      addLinkToLockfile(ctx.wantedLockfile.importers[importerId], addLinkOpts)
+
+      return {
+        alias: linkFromAlias ?? manifest.name,
+        manifest,
+        path: linkFromPath,
+      }
     })
-
-    const packagePath = normalize(path.relative(opts.dir, linkFromPath))
-    const addLinkOpts = {
-      linkedPkgName: linkFromAlias ?? manifest.name,
-      manifest: ctx.manifest,
-      packagePath,
-    }
-    addLinkToLockfile(ctx.currentLockfile.importers[importerId], addLinkOpts)
-    addLinkToLockfile(ctx.wantedLockfile.importers[importerId], addLinkOpts)
-
-    linkedPkgs.push({
-      alias: linkFromAlias ?? manifest.name,
-      manifest,
-      path: linkFromPath,
-    })
-  }
+  )
 
   const updatedCurrentLockfile = pruneSharedLockfile(ctx.currentLockfile)
 
@@ -110,7 +111,7 @@ export async function link (
 
   // Linking should happen after removing orphans
   // Otherwise would've been removed
-  for (const { alias, manifest, path } of linkedPkgs) {
+  await Promise.all(linkedPkgs.map(async ({ alias, manifest, path }) => {
     // TODO: cover with test that linking reports with correct dependency types
     const stu = specsToUpsert.find((s) => s.alias === manifest.name)
     const targetDependencyType = getDependencyTypeFromManifest(opts.manifest, manifest.name) ?? opts.targetDependenciesField
@@ -119,7 +120,7 @@ export async function link (
       linkedPackage: manifest,
       prefix: opts.dir,
     })
-  }
+  }))
 
   const linkToBin = maybeOpts?.linkToBin ?? path.join(destModules, '.bin')
   await linkBinsOfPackages(linkedPkgs.map((p) => ({ manifest: p.manifest, location: p.path })), linkToBin, {

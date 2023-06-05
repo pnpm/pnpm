@@ -339,7 +339,7 @@ test('linkBins() fix window shebang line', async () => {
   const lfBinLoc = path.join(binTarget, 'lf')
   const crlfBinLoc = path.join(binTarget, 'crlf')
   for (const binLocation of [lfBinLoc, crlfBinLoc]) {
-    expect(await exists(binLocation)).toBe(true)
+    expect(await exists(binLocation)).toBe(true) // eslint-disable-line no-await-in-loop
   }
 
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
@@ -347,7 +347,7 @@ test('linkBins() fix window shebang line', async () => {
     const crlfFilePath = path.join(windowShebangFixture, 'node_modules', 'crlf/bin/crlf.js')
 
     for (const filePath of [lfFilePath, crlfFilePath]) {
-      const content = await fs.readFile(filePath, 'utf8')
+      const content = await fs.readFile(filePath, 'utf8') // eslint-disable-line no-await-in-loop
       expect(content.startsWith('#!/usr/bin/env node\n')).toBeTruthy()
     }
 

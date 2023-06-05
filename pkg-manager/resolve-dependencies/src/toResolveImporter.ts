@@ -82,14 +82,14 @@ async function partitionLinkedPackages (
 ): Promise<WantedDependency[]> {
   const nonLinkedDependencies: WantedDependency[] = []
   const linkedAliases = new Set<string>()
-  for (const dependency of dependencies) {
+  await Promise.all(dependencies.map(async (dependency) => {
     if (
       !dependency.alias ||
       opts.workspacePackages?.[dependency.alias] != null ||
       dependency.pref.startsWith('workspace:')
     ) {
       nonLinkedDependencies.push(dependency)
-      continue
+      return
     }
     const isInnerLink = await safeIsInnerLink(opts.modulesDir, dependency.alias, {
       hideAlienModules: !opts.lockfileOnly,
@@ -98,7 +98,7 @@ async function partitionLinkedPackages (
     })
     if (isInnerLink === true) {
       nonLinkedDependencies.push(dependency)
-      continue
+      return
     }
     if (!dependency.pref.startsWith('link:')) {
       // This info-log might be better to be moved to the reporter
@@ -108,7 +108,7 @@ async function partitionLinkedPackages (
       })
     }
     linkedAliases.add(dependency.alias)
-  }
+  }))
   return nonLinkedDependencies
 }
 

@@ -117,13 +117,9 @@ async function parseLicense (
   // check if we discovered a license, if not attempt to parse the LICENSE file
   if (!license || /see license/i.test(license)) {
     const { files: pkgFileIndex } = pkg.files
-    for (const filename of LICENSE_FILES) {
-      // check if the a file with the expected name exists in the file index
-      if (!(filename in pkgFileIndex)) {
-        continue
-      }
-
-      const licensePackageFileInfo = pkgFileIndex[filename]
+    const licenseFile = LICENSE_FILES.find((licenseFile) => licenseFile in pkgFileIndex)
+    if (licenseFile) {
+      const licensePackageFileInfo = pkgFileIndex[licenseFile]
       let licenseContents: Buffer | undefined
       if (pkg.files.local) {
         licenseContents = await readFile(licensePackageFileInfo as string)

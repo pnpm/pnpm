@@ -178,6 +178,7 @@ async function _readWantedLockfile (
     }
   }
   let result: { lockfile: Lockfile | null, hadConflicts: boolean } = { lockfile: null, hadConflicts: false }
+  /* eslint-disable no-await-in-loop */
   for (const lockfileName of lockfileNames) {
     result = await _read(path.join(pkgPath, lockfileName), pkgPath, { ...opts, autofixMergeConflicts: true })
     if (result.lockfile) {
@@ -187,6 +188,7 @@ async function _readWantedLockfile (
       break
     }
   }
+  /* eslint-enable no-await-in-loop */
   return result
 }
 

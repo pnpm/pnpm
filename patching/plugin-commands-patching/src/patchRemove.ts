@@ -57,13 +57,13 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
     throw new PnpmError('NO_PATCHES_TO_REMOVE', 'There are no patches that need to be removed')
   }
 
-  for (const patch of patchesToRemove) {
+  await Promise.all(patchesToRemove.map(async (patch) => {
     if (Object.prototype.hasOwnProperty.call(patchedDependencies, patch)) {
       const patchFile = path.join(lockfileDir, patchedDependencies[patch])
       await fs.rm(patchFile, { force: true })
       delete rootProjectManifest.pnpm!.patchedDependencies![patch]
     }
-  }
+  }))
 
   await writeProjectManifest(rootProjectManifest)
 

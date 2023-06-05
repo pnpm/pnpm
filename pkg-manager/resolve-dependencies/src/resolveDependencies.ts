@@ -302,6 +302,7 @@ export async function resolveRootDependencies (
       if (!Object.keys(importerResolutionResult.missingPeers).length) break
       const wantedDependencies = getNonDevWantedDependencies({ dependencies: importerResolutionResult.missingPeers })
 
+      // eslint-disable-next-line no-await-in-loop
       const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
         ...options,
         parentPkgAliases,
@@ -309,6 +310,7 @@ export async function resolveRootDependencies (
       })
       importerResolutionResult = {
         pkgAddresses: resolveDependenciesResult.pkgAddresses,
+        // eslint-disable-next-line no-await-in-loop
         ...filterMissingPeers(await resolveDependenciesResult.resolvingPeers, parentPkgAliases),
       }
       pkgAddresses.push(...importerResolutionResult.pkgAddresses)

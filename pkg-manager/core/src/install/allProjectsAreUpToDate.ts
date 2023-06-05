@@ -74,44 +74,50 @@ async function linkedPackagesAreUpToDate (
     snapshot: ProjectSnapshot
   }
 ) {
-  for (const depField of DEPENDENCIES_FIELDS) {
-    const lockfileDeps = project.snapshot[depField]
-    const manifestDeps = project.manifest[depField]
-    if ((lockfileDeps == null) || (manifestDeps == null)) continue
-    const depNames = Object.keys(lockfileDeps)
-    for (const depName of depNames) {
-      const currentSpec = manifestDeps[depName]
-      if (!currentSpec) continue
-      const lockfileRef = lockfileDeps[depName]
-      const isLinked = lockfileRef.startsWith('link:')
-      if (
-        isLinked &&
-        (
-          currentSpec.startsWith('link:') ||
-          currentSpec.startsWith('file:') ||
-          currentSpec.startsWith('workspace:.')
-        )
-      ) {
-        continue
-      }
-      const linkedDir = isLinked
-        ? path.join(project.dir, lockfileRef.slice(5))
-        : workspacePackages?.[depName]?.[lockfileRef]?.dir
-      if (!linkedDir) continue
-      if (!linkWorkspacePackages && !currentSpec.startsWith('workspace:')) {
-        // we found a linked dir, but we don't want to use it, because it's not specified as a
-        // workspace:x.x.x dependency
-        continue
-      }
-      const linkedPkg = manifestsByDir[linkedDir] ?? await safeReadPackageJsonFromDir(linkedDir)
-      const availableRange = getVersionRange(currentSpec)
-      // This should pass the same options to semver as @pnpm/npm-resolver
-      const localPackageSatisfiesRange = availableRange === '*' || availableRange === '^' || availableRange === '~' ||
-        linkedPkg && semver.satisfies(linkedPkg.version, availableRange, { loose: true })
-      if (isLinked !== localPackageSatisfiesRange) return false
+  return pEvery(
+    DEPENDENCIES_FIELDS,
+    (depField) => {
+      const lockfileDeps = project.snapshot[depField]
+      const manifestDeps = project.manifest[depField]
+      if ((lockfileDeps == null) || (manifestDeps == null)) return true
+      const depNames = Object.keys(lockfileDeps)
+      return pEvery(
+        depNames,
+        async (depName) => {
+          const currentSpec = manifestDeps[depName]
+          if (!currentSpec) return true
+          const lockfileRef = lockfileDeps[depName]
+          const isLinked = lockfileRef.startsWith('link:')
+          if (
+            isLinked &&
+            (
+              currentSpec.startsWith('link:') ||
+              currentSpec.startsWith('file:') ||
+              currentSpec.startsWith('workspace:.')
+            )
+          ) {
+            return true
+          }
+          const linkedDir = isLinked
+            ? path.join(project.dir, lockfileRef.slice(5))
+            : workspacePackages?.[depName]?.[lockfileRef]?.dir
+          if (!linkedDir) return true
+          if (!linkWorkspacePackages && !currentSpec.startsWith('workspace:')) {
+            // we found a linked dir, but we don't want to use it, because it's not specified as a
+            // workspace:x.x.x dependency
+            return true
+          }
+          const linkedPkg = manifestsByDir[linkedDir] ?? await safeReadPackageJsonFromDir(linkedDir)
+          const availableRange = getVersionRange(currentSpec)
+          // This should pass the same options to semver as @pnpm/npm-resolver
+          const localPackageSatisfiesRange = availableRange === '*' || availableRange === '^' || availableRange === '~' ||
+            linkedPkg && semver.satisfies(linkedPkg.version, availableRange, { loose: true })
+          if (isLinked !== localPackageSatisfiesRange) return false
+          return true
+        }
+      )
     }
-  }
-  return true
+  )
 }
 
 function getVersionRange (spec: string) {

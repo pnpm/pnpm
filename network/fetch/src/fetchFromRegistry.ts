@@ -48,6 +48,7 @@ export function createFetchFromRegistry (
     let redirects = 0
     let urlObject = new URL(url)
     const originalHost = urlObject.host
+    /* eslint-disable no-await-in-loop */
     while (true) {
       const agentOptions = {
         ...defaultOpts,
@@ -77,6 +78,7 @@ export function createFetchFromRegistry (
       if (!headers['authorization'] || originalHost === urlObject.host) continue
       delete headers.authorization
     }
+    /* eslint-enable no-await-in-loop */
   }
 }
 

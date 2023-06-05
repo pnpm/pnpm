@@ -83,11 +83,12 @@ async function extendWithDependencyPaths (auditReport: AuditReport, opts: {
     include: opts.include,
   }
   const _searchPackagePaths = searchPackagePaths.bind(null, searchOpts, projectDirs)
-  for (const { findings, module_name: moduleName } of Object.values(advisories)) {
-    for (const finding of findings) {
-      finding.paths = await _searchPackagePaths(`${moduleName}@${finding.version}`)
-    }
-  }
+  // eslint-disable-next-line @typescript-eslint/naming-convention
+  await Promise.all(Object.values(advisories).map(async ({ findings, module_name }) => {
+    await Promise.all(findings.map(async (finding) => {
+      finding.paths = await _searchPackagePaths(`${module_name}@${finding.version}`)
+    }))
+  }))
   return auditReport
 }
 

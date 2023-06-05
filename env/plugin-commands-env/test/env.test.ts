@@ -119,6 +119,7 @@ test('it re-attempts failed downloads', async () => {
   try {
     const attempts = 2
     for (let i = 0; i < attempts; i++) {
+      // eslint-disable-next-line no-await-in-loop
       await expect(
         env.handler({
           bin: process.cwd(),

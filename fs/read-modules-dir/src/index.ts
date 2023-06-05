@@ -17,21 +17,18 @@ async function _readModulesDir (
   modulesDir: string,
   scope?: string
 ) {
-  let pkgNames: string[] = []
+  const pkgNames: string[] = []
   const parentDir = scope ? path.join(modulesDir, scope) : modulesDir
-  for (const dir of await readdir(parentDir, { withFileTypes: true })) {
-    if (dir.isFile() || dir.name[0] === '.') continue
+  await Promise.all((await readdir(parentDir, { withFileTypes: true })).map(async (dir) => {
+    if (dir.isFile() || dir.name[0] === '.') return
 
     if (!scope && dir.name[0] === '@') {
-      pkgNames = [
-        ...pkgNames,
-        ...await _readModulesDir(modulesDir, dir.name),
-      ]
-      continue
+      pkgNames.push(...await _readModulesDir(modulesDir, dir.name))
+      return
     }
 
     const pkgName = scope ? `${scope}/${dir.name as string}` : dir.name
     pkgNames.push(pkgName)
-  }
+  }))
   return pkgNames
 }

@@ -34,6 +34,7 @@
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/no-explicit-any": "error",
     "no-return-await": "error",
+    "no-await-in-loop": "error",
     "@typescript-eslint/return-await": "off",
     "@typescript-eslint/no-require-imports": "error",
     "@typescript-eslint/no-unused-expressions": "error",

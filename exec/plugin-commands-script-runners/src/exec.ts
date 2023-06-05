@@ -180,6 +180,7 @@ export async function handler (
 
   let exitCode = 0
   for (const chunk of chunks) {
+    // eslint-disable-next-line no-await-in-loop
     await Promise.all(chunk.map(async (prefix: string) =>
       limitRun(async () => {
         result[prefix].status = 'running'

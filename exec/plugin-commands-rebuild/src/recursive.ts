@@ -111,6 +111,7 @@ export async function recursiveRebuild (
   }
   const limitRebuild = pLimit(opts.workspaceConcurrency ?? 4)
   for (const chunk of chunks) {
+    // eslint-disable-next-line no-await-in-loop
     await Promise.all(chunk.map(async (rootDir: string) =>
       limitRebuild(async () => {
         try {

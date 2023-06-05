@@ -37,6 +37,7 @@ const createResolveFromNpm = createNpmResolver.bind(null, fetch, getAuthHeader)
 
 async function retryLoadJsonFile<T> (filePath: string) {
   let retry = 0
+  /* eslint-disable no-await-in-loop */
   while (true) {
     await delay(500)
     try {
@@ -46,6 +47,7 @@ async function retryLoadJsonFile<T> (filePath: string) {
       retry++
     }
   }
+  /* eslint-enable no-await-in-loop */
 }
 
 afterEach(() => {
