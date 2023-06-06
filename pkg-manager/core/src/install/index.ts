@@ -386,6 +386,7 @@ export async function mutateModules (
           linkWorkspacePackages: opts.linkWorkspacePackagesDepth >= 0,
           wantedLockfile: ctx.wantedLockfile,
           workspacePackages: opts.workspacePackages,
+          lockfileDir: opts.lockfileDir,
         })
       )
     ) {

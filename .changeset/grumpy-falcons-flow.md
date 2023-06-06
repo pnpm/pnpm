@@ -1,5 +1,7 @@
 ---
 "@pnpm/core": patch
+"@pnpm/lockfile-utils": patch
+"@pnpm/headless": patch
 "pnpm": patch
 ---
 

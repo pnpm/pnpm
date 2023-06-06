@@ -47,13 +47,6 @@ export async function allProjectsAreUpToDate (
       })
   })
 }
-export function refIsLocalPkg (ref: string) {
-  return ref.startsWith('file:')
-}
-
-export function refIsLocalDirectoryPkg (ref: string) {
-  return refIsLocalPkg(ref) && !(ref.endsWith('.tgz') || ref.endsWith('.tar.gz') || ref.endsWith('.tar'))
-}
 
 function getWorkspacePackagesByDirectory (workspacePackages: WorkspacePackages) {
   const workspacePackagesByDirectory: Record<string, DependencyManifest> = {}
@@ -139,7 +132,11 @@ function getVersionRange (spec: string) {
 }
 
 function hasLocalTarballDepsInRoot (importer: ProjectSnapshot) {
-  return any(refIsLocalPkg, Object.values(importer.dependencies ?? {})) ||
-    any(refIsLocalPkg, Object.values(importer.devDependencies ?? {})) ||
-    any(refIsLocalPkg, Object.values(importer.optionalDependencies ?? {}))
+  return any(refIsLocalTarball, Object.values(importer.dependencies ?? {})) ||
+    any(refIsLocalTarball, Object.values(importer.devDependencies ?? {})) ||
+    any(refIsLocalTarball, Object.values(importer.optionalDependencies ?? {}))
+}
+
+function refIsLocalTarball (ref: string) {
+  return ref.startsWith('file:') && (ref.endsWith('.tgz') || ref.endsWith('.tar.gz') || ref.endsWith('.tar'))
 }

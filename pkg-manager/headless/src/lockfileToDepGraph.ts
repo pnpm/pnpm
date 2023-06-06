@@ -11,6 +11,7 @@ import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
   pkgSnapshotToResolution,
+  refIsLocalDirectory,
 } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
@@ -127,6 +128,7 @@ export async function lockfileToDepGraph (
         }
         const dir = path.join(modules, pkgName)
         if (
+          !refIsLocalDirectory(depPath) &&
           currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies) &&
           equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)
         ) {
