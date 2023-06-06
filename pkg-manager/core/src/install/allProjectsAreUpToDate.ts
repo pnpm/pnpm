@@ -97,10 +97,9 @@ async function linkedPackagesAreUpToDate (
           const currentSpec = manifestDeps[depName]
           if (!currentSpec) return true
           const lockfileRef = lockfileDeps[depName]
-          if (refIsLocalDirectory(lockfileRef)) {
+          if (refIsLocalDirectory(project.snapshot.specifiers[depName])) {
             return isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[lockfileRef])
           }
-
           const isLinked = lockfileRef.startsWith('link:')
           if (
             isLinked &&
