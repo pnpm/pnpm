@@ -96,7 +96,7 @@ function getChangelogEntry (changelog: string, version: string) {
         </a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://www.flightcontrol.dev/?ref=pnpm" target="_blank"><img src="https://pnpm.io/img/users/flightcontrol.png" width="240"></a>
+        <a href="https://www.flightcontrol.dev/?ref=pnpm" target="_blank"><img src="https://pnpm.io/img/users/flightcontrol.svg" width="240"></a>
       </td>
     </tr>
   </tbody>
