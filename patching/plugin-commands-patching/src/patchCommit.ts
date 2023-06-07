@@ -158,13 +158,16 @@ async function filterAndCopyFiles (source: string, destination: string) {
   return destination
 }
 async function checkIfAllFilesExist (files: string[], basePath: string) {
-  for (const file of files) {
+  const promises = files.map(async (file) => {
     const filePath = path.join(basePath, file)
     try {
       await fs.promises.access(filePath)
     } catch (error) {
-      return false // File doesn't exist
+      return false
     }
-  }
-  return true // All files exist
+    return true // File exists
+  })
+
+  const results = await Promise.all(promises)
+  return results.every((result) => result) // Check if all files exist
 }
