@@ -33,6 +33,10 @@ export function help () {
           description: 'The generated patch file will be saved to this directory',
           name: '--patches-dir',
         },
+        {
+          description: 'Filters and copies the files from the `patches-dir` directory. If the `files` field exists in the `package.json` file of the `patches-dir`, only the files specified in the `files` field will be included.',
+          name: '--filter-files',
+        },
       ],
     }],
     url: docsUrl('patch-commit'),
