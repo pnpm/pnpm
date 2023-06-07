@@ -61,6 +61,7 @@
     "@pnpm/store-connection-manager": "workspace:*",
     "enquirer": "^2.3.6",
     "escape-string-regexp": "^4.0.0",
+    "fast-glob": "^3.2.12",
     "normalize-path": "^3.0.0",
     "npm-packlist": "^5.1.3",
     "ramda": "npm:@pnpm/ramda@0.28.1",

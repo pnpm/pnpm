@@ -5,8 +5,10 @@ import { type Config, types as allTypes } from '@pnpm/config'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import glob from 'fast-glob'
 import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
+import equals from 'ramda/src/equals'
 import execa from 'safe-execa'
 import escapeStringRegexp from 'escape-string-regexp'
 import renderHelp from 'render-help'
@@ -33,10 +35,6 @@ export function help () {
           description: 'The generated patch file will be saved to this directory',
           name: '--patches-dir',
         },
-        {
-          description: 'Filters and copies the files from the `patches-dir` directory. If the `files` field exists in the `package.json` file of the `patches-dir`, only the files specified in the `files` field will be included.',
-          name: '--filter-files',
-        },
       ],
     }],
     url: docsUrl('patch-commit'),
@@ -55,8 +53,8 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
   const srcDir = tempy.directory()
   await writePackage(parseWantedDependency(pkgNameAndVersion), srcDir, opts)
 
-  const filteredFolder = await filterAndCopyFiles(userDir, tempy.directory())
-  const patchContent = await diffFolders(srcDir, filteredFolder)
+  const filteredDir = await filterAndCopyFiles(userDir)
+  const patchContent = await diffFolders(srcDir, filteredDir)
 
   const patchFileName = pkgNameAndVersion.replace('/', '__')
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')
@@ -137,37 +135,30 @@ function removeTrailingAndLeadingSlash (p: string) {
   }
   return p
 }
-async function filterAndCopyFiles (source: string, destination: string) {
-  const files = await packlist({ path: source })
-  const shouldCopyFiles = await checkIfAllFilesExist(files, source)
 
-  if (!shouldCopyFiles) {
-    return source
+async function filterAndCopyFiles (src: string) {
+  const files = await packlist({ path: src })
+  // If there are no extra files in the source directories, then there is no reason
+  // to copy.
+  if (await allFilesAreIncluded(files, src)) {
+    return src
   }
-
+  const dest = tempy.directory()
   await Promise.all(
     files.map(async (file) => {
-      const sourcePath = path.join(source, file)
-      const destinationPath = path.join(destination, file)
-      const destDir = path.dirname(destinationPath)
+      const srcFile = path.join(src, file)
+      const destFile = path.join(dest, file)
+      const destDir = path.dirname(destFile)
       await fs.promises.mkdir(destDir, { recursive: true })
-      await fs.promises.copyFile(sourcePath, destinationPath)
+      await fs.promises.copyFile(srcFile, destFile)
     })
   )
-
-  return destination
+  return dest
 }
-async function checkIfAllFilesExist (files: string[], basePath: string) {
-  const promises = files.map(async (file) => {
-    const filePath = path.join(basePath, file)
-    try {
-      await fs.promises.access(filePath)
-    } catch (error) {
-      return false
-    }
-    return true // File exists
-  })
 
-  const results = await Promise.all(promises)
-  return results.every((result) => result) // Check if all files exist
+async function allFilesAreIncluded (files: string[], basePath: string) {
+  const allFiles = await glob('**', {
+    cwd: basePath,
+  })
+  return equals(allFiles.sort(), files.sort())
 }

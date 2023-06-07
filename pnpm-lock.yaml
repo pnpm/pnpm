@@ -1,4 +1,8 @@
-lockfileVersion: '6.0'
+lockfileVersion: '6.1'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
 
 neverBuiltDependencies:
   - core-js
@@ -2629,6 +2633,9 @@ importers:
       escape-string-regexp:
         specifier: ^4.0.0
         version: 4.0.0
+      fast-glob:
+        specifier: ^3.2.12
+        version: 3.2.12
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
