@@ -135,9 +135,12 @@ function removeTrailingAndLeadingSlash (p: string) {
 }
 async function filterAndCopyFiles (source: string, destination: string) {
   const files = await packlist({ path: source })
-  if (files.length === 0) {
+  const shouldCopyFiles = await checkIfAllFilesExist(files, source)
+
+  if (!shouldCopyFiles) {
     return source
   }
+
   await Promise.all(
     files.map(async (file) => {
       const sourcePath = path.join(source, file)
@@ -149,4 +152,15 @@ async function filterAndCopyFiles (source: string, destination: string) {
   )
 
   return destination
+}
+async function checkIfAllFilesExist (files: string[], basePath: string) {
+  for (const file of files) {
+    const filePath = path.join(basePath, file)
+    try {
+      await fs.promises.access(filePath)
+    } catch (error) {
+      return false // File doesn't exist
+    }
+  }
+  return true // All files exist
 }
