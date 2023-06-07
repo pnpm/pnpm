@@ -1,5 +1,6 @@
 ---
-"@pnpm/plugin-commands-patching": major
+"@pnpm/plugin-commands-patching": patch
+"pnpm": patch
 ---
 
-add support for ignoring files/folders specified in ignorePatchedCommitDependencies [#6565](https://github.com/pnpm/pnpm/issues/6565)
+When patching a dependency, only consider files specified in the 'files' field of its package.json. Ignore all others [#6565](https://github.com/pnpm/pnpm/issues/6565)

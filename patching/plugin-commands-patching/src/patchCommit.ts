@@ -137,7 +137,7 @@ function removeTrailingAndLeadingSlash (p: string) {
 }
 
 async function filterAndCopyFiles (src: string) {
-  const files = await packlist({ path: src })
+  const files = Array.from(new Set((await packlist({ path: src })).map((f) => path.join(f))))
   // If there are no extra files in the source directories, then there is no reason
   // to copy.
   if (await allFilesAreIncluded(files, src)) {
@@ -150,7 +150,7 @@ async function filterAndCopyFiles (src: string) {
       const destFile = path.join(dest, file)
       const destDir = path.dirname(destFile)
       await fs.promises.mkdir(destDir, { recursive: true })
-      await fs.promises.copyFile(srcFile, destFile)
+      await fs.promises.link(srcFile, destFile)
     })
   )
   return dest
