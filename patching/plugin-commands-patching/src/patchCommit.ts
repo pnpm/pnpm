@@ -53,8 +53,8 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
   const srcDir = tempy.directory()
   await writePackage(parseWantedDependency(pkgNameAndVersion), srcDir, opts)
 
-  const filteredDir = await filterAndCopyFiles(userDir)
-  const patchContent = await diffFolders(srcDir, filteredDir)
+  const patchedPkgDir = await preparePkgFilesForDiff(userDir)
+  const patchContent = await diffFolders(srcDir, patchedPkgDir)
 
   const patchFileName = pkgNameAndVersion.replace('/', '__')
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')
@@ -136,11 +136,17 @@ function removeTrailingAndLeadingSlash (p: string) {
   return p
 }
 
-async function filterAndCopyFiles (src: string) {
+/**
+ * Link files from the source directory to a new temporary directory,
+ * but only if not all files in the source directory should be included in the package.
+ * If all files should be included, return the original source directory without creating any links.
+ * This is required in order for the diff to not include files that are not part of the package.
+ */
+async function preparePkgFilesForDiff (src: string): Promise<string> {
   const files = Array.from(new Set((await packlist({ path: src })).map((f) => path.join(f))))
   // If there are no extra files in the source directories, then there is no reason
   // to copy.
-  if (await allFilesAreIncluded(files, src)) {
+  if (await areAllFilesInPkg(files, src)) {
     return src
   }
   const dest = tempy.directory()
@@ -156,7 +162,7 @@ async function filterAndCopyFiles (src: string) {
   return dest
 }
 
-async function allFilesAreIncluded (files: string[], basePath: string) {
+async function areAllFilesInPkg (files: string[], basePath: string) {
   const allFiles = await glob('**', {
     cwd: basePath,
   })
