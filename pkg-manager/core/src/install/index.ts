@@ -262,13 +262,7 @@ export async function mutateModules (
     ? cacheExpired(ctx.modulesFile.prunedAt, opts.modulesCacheMaxAge)
     : true
 
-  if (!maybeOpts.ignorePackageManifest) {
-    for (const { manifest, rootDir } of Object.values(ctx.projects)) {
-      if (!manifest) {
-        throw new Error(`No package.json found in "${rootDir}"`)
-      }
-    }
-  }
+  checkProjectsManifest(ctx, maybeOpts)
 
   const result = await _install()
 
@@ -1437,4 +1431,22 @@ async function linkAllBins (
   return unnest(await Promise.all(
     depNodes.map(async depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))
   ))
+}
+
+function checkProjectsManifest (ctx: PnpmContext, opts: MutateModulesOptions) {
+  const fields = ['pnpm', 'resolutions']
+  for (const { manifest, rootDir } of Object.values(ctx.projects)) {
+    if (!opts.ignorePackageManifest && !manifest) {
+      throw new Error(`No package.json found in "${rootDir}"`)
+    }
+    if (rootDir === ctx.lockfileDir) continue
+    for (const field of fields) {
+      if (manifest?.[field as keyof ProjectManifest]) {
+        logger.warn({
+          message: `"${field}" was found in ${rootDir}/package.json. It will not take effect, should configure "${field}" at the root of the project.`,
+          prefix: rootDir,
+        })
+      }
+    }
+  }
 }
