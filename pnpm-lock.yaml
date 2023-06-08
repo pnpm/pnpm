@@ -2633,9 +2633,15 @@ importers:
       escape-string-regexp:
         specifier: ^4.0.0
         version: 4.0.0
+      fast-glob:
+        specifier: ^3.2.12
+        version: 3.2.12
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
+      npm-packlist:
+        specifier: ^5.1.3
+        version: 5.1.3
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
@@ -2671,6 +2677,9 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/normalize-path':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@types/npm-packlist':
         specifier: ^3.0.0
         version: 3.0.0
       '@types/ramda':

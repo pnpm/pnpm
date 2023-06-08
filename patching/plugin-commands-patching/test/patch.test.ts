@@ -95,6 +95,34 @@ describe('patch and commit', () => {
     expect(fs.existsSync('node_modules/is-positive/license')).toBe(false)
   })
 
+  test('patch and commit with filtered files', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+    const tempDir = os.tmpdir() // temp dir depends on the operating system (@see tempy)
+
+    // store patch files in a temporary directory when not given editDir option
+    expect(patchDir).toContain(tempDir)
+    expect(fs.existsSync(patchDir)).toBe(true)
+
+    // sanity check to ensure that the license file contains the expected string
+    expect(fs.readFileSync(path.join(patchDir, 'license'), 'utf8')).toContain('The MIT License (MIT)')
+    fs.writeFileSync(path.join(patchDir, 'ignore.txt'), '', 'utf8')
+
+    const { manifest } = await readProjectManifest(patchDir)
+    expect(manifest?.files).toStrictEqual(['index.js'])
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+
+    expect(fs.existsSync('node_modules/is-positive/ignore.txt')).toBe(false)
+  })
+
   test('patch and commit with a custom edit dir', async () => {
     const editDir = path.join(tempy.directory())
 
