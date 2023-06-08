@@ -484,4 +484,16 @@ describe('local file dependency', () => {
       lockfileDir: process.cwd(),
     })).toBeFalsy()
   })
+
+  test('allProjectsAreUpToDate(): returns false if remove dependency in local file', async () => {
+    await writeFile('./local-dir/package.json', JSON.stringify({
+      name: 'local-dir',
+      version: '1.0.0',
+      dependencies: {},
+    }))
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+    })).toBeFalsy()
+  })
 })

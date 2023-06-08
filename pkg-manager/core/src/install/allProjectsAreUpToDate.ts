@@ -142,11 +142,20 @@ async function isLocalFileDepUpdated (lockfileDir: string, pkgSnapshot: PackageS
     if (depField === 'devDependencies') continue
     const manifestDeps = manifest[depField] ?? {}
     const lockfileDeps = pkgSnapshot[depField] ?? {}
+
+    // Lock file has more dependencies than the current manifest, e.g. some dependencies are removed.
+    if (Object.keys(lockfileDeps).some(depName => !manifestDeps[depName])) {
+      return false
+    }
+
     for (const depName of Object.keys(manifestDeps)) {
+      // If a dependency does not exist in the lock file, e.g. a new dependency is added to the current manifest.
+      // We need to do full resolution again.
       if (!lockfileDeps[depName]) {
         return false
       }
       const currentSpec = manifestDeps[depName]
+      // We do not care about the link dependencies of local dependency.
       if (currentSpec.startsWith('file:') || currentSpec.startsWith('link:') || currentSpec.startsWith('workspace:')) continue
       if (semver.satisfies(lockfileDeps[depName], getVersionRange(currentSpec), { loose: true })) {
         continue
