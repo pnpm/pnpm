@@ -1,4 +1,7 @@
+import { prepareEmpty } from '@pnpm/prepare'
 import { allProjectsAreUpToDate } from '../lib/install/allProjectsAreUpToDate'
+import { writeFile, mkdir } from 'fs/promises'
+import { type Lockfile } from '@pnpm/lockfile-file'
 
 const fooManifest = {
   name: 'foo',
@@ -52,6 +55,7 @@ test('allProjectsAreUpToDate(): works with packages linked through the workspace
       lockfileVersion: 5,
     },
     workspacePackages,
+    lockfileDir: '',
   })).toBeTruthy()
 })
 
@@ -94,6 +98,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies', async ()
       lockfileVersion: 5,
     },
     workspacePackages,
+    lockfileDir: '',
   })).toBeTruthy()
 })
 
@@ -136,6 +141,7 @@ test('allProjectsAreUpToDate(): works with aliased local dependencies that speci
       lockfileVersion: 5,
     },
     workspacePackages,
+    lockfileDir: '',
   })).toBeTruthy()
 })
 
@@ -178,6 +184,7 @@ test('allProjectsAreUpToDate(): returns false if the aliased dependency version 
       lockfileVersion: 5,
     },
     workspacePackages,
+    lockfileDir: '',
   })).toBeFalsy()
 })
 
@@ -271,6 +278,7 @@ test('allProjectsAreUpToDate(): use link and registry version if linkWorkspacePa
           lockfileVersion: 5,
         },
         workspacePackages,
+        lockfileDir: '',
       }
     )
   ).toBeTruthy()
@@ -320,6 +328,7 @@ test('allProjectsAreUpToDate(): returns false if dependenciesMeta differs', asyn
       lockfileVersion: 5,
     },
     workspacePackages,
+    lockfileDir: '',
   })).toBeFalsy()
 })
 
@@ -372,5 +381,119 @@ test('allProjectsAreUpToDate(): returns true if dependenciesMeta matches', async
       lockfileVersion: 5,
     },
     workspacePackages,
+    lockfileDir: '',
   })).toBeTruthy()
+})
+
+describe('local file dependency', () => {
+  beforeEach(async () => {
+    prepareEmpty()
+    await mkdir('local-dir')
+    await writeFile('./local-dir/package.json', JSON.stringify({
+      name: 'local-dir',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '2.0.0',
+      },
+    }))
+  })
+  const projects = [
+    {
+      buildIndex: 0,
+      id: 'bar',
+      manifest: {
+        dependencies: {
+          local: 'file:./local-dir',
+        },
+      },
+      rootDir: 'bar',
+    },
+    {
+      buildIndex: 0,
+      id: 'foo',
+      manifest: fooManifest,
+      rootDir: 'foo',
+    },
+  ]
+  const options = {
+    autoInstallPeers: false,
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        bar: {
+          dependencies: {
+            local: 'file:./local-dir',
+          },
+          specifiers: {
+            local: 'file:./local-dir',
+          },
+        },
+        foo: {
+          specifiers: {},
+        },
+      },
+      packages: {
+        'file:./local-dir': {
+          resolution: { directory: './local-dir', type: 'directory' },
+          name: 'local-dir',
+          version: '1.0.0',
+          dependencies: {
+            'is-positive': '2.0.0',
+          },
+          dev: false,
+        },
+      },
+      lockfileVersion: 5,
+    } as Lockfile,
+    workspacePackages,
+    lockfileDir: process.cwd(),
+  }
+  test('allProjectsAreUpToDate(): returns true if local file not changed', async () => {
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+    })).toBeTruthy()
+  })
+
+  test('allProjectsAreUpToDate(): returns false if add new dependency to local file', async () => {
+    await writeFile('./local-dir/package.json', JSON.stringify({
+      name: 'local-dir',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '2.0.0',
+        'is-odd': '1.0.0',
+      },
+    }))
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+    })).toBeFalsy()
+  })
+
+  test('allProjectsAreUpToDate(): returns false if update dependency in local file', async () => {
+    await writeFile('./local-dir/package.json', JSON.stringify({
+      name: 'local-dir',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '3.0.0',
+      },
+    }))
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+    })).toBeFalsy()
+  })
+
+  test('allProjectsAreUpToDate(): returns false if remove dependency in local file', async () => {
+    await writeFile('./local-dir/package.json', JSON.stringify({
+      name: 'local-dir',
+      version: '1.0.0',
+      dependencies: {},
+    }))
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+    })).toBeFalsy()
+  })
 })

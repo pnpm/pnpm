@@ -37,6 +37,7 @@ import pick from 'ramda/src/pick'
 import pickBy from 'ramda/src/pickBy'
 import props from 'ramda/src/props'
 import { type ImporterToUpdate } from './index'
+import { refIsLocalDirectory } from '@pnpm/lockfile-utils'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
@@ -389,6 +390,9 @@ async function selectNewFromWantedDeps (
         const prevDep = prevDeps[depPath]
         if (
           prevDep &&
+          // Local file should always be treated as a new dependency
+          // https://github.com/pnpm/pnpm/issues/5381
+          !refIsLocalDirectory(depNode.depPath) &&
           (depNode.resolution as TarballResolution).integrity === (prevDep.resolution as TarballResolution).integrity
         ) {
           if (await pathExists(depNode.dir)) {

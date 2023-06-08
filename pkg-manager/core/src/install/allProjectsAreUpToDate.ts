@@ -1,14 +1,17 @@
 import path from 'path'
 import { type ProjectOptions } from '@pnpm/get-context'
 import {
+  type PackageSnapshot,
   type Lockfile,
   type ProjectSnapshot,
+  type PackageSnapshots,
 } from '@pnpm/lockfile-file'
-import { satisfiesPackageManifest } from '@pnpm/lockfile-utils'
+import { refIsLocalDirectory, refIsLocalTarball, satisfiesPackageManifest } from '@pnpm/lockfile-utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type WorkspacePackages } from '@pnpm/resolver-base'
+import { type DirectoryResolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import {
   DEPENDENCIES_FIELDS,
+  DEPENDENCIES_OR_PEER_FIELDS,
   type DependencyManifest,
   type ProjectManifest,
 } from '@pnpm/types'
@@ -24,6 +27,7 @@ export async function allProjectsAreUpToDate (
     linkWorkspacePackages: boolean
     wantedLockfile: Lockfile
     workspacePackages: WorkspacePackages
+    lockfileDir: string
   }
 ) {
   const manifestsByDir = opts.workspacePackages ? getWorkspacePackagesByDirectory(opts.workspacePackages) : {}
@@ -35,6 +39,8 @@ export async function allProjectsAreUpToDate (
     linkWorkspacePackages: opts.linkWorkspacePackages,
     manifestsByDir,
     workspacePackages: opts.workspacePackages,
+    lockfilePackages: opts.wantedLockfile.packages,
+    lockfileDir: opts.lockfileDir,
   })
   return pEvery(projects, (project) => {
     const importer = opts.wantedLockfile.importers[project.id]
@@ -63,10 +69,14 @@ async function linkedPackagesAreUpToDate (
     linkWorkspacePackages,
     manifestsByDir,
     workspacePackages,
+    lockfilePackages,
+    lockfileDir,
   }: {
     linkWorkspacePackages: boolean
     manifestsByDir: Record<string, DependencyManifest>
     workspacePackages: WorkspacePackages
+    lockfilePackages?: PackageSnapshots
+    lockfileDir: string
   },
   project: {
     dir: string
@@ -87,6 +97,9 @@ async function linkedPackagesAreUpToDate (
           const currentSpec = manifestDeps[depName]
           if (!currentSpec) return true
           const lockfileRef = lockfileDeps[depName]
+          if (refIsLocalDirectory(project.snapshot.specifiers[depName])) {
+            return isLocalFileDepUpdated(lockfileDir, lockfilePackages?.[lockfileRef])
+          }
           const isLinked = lockfileRef.startsWith('link:')
           if (
             isLinked &&
@@ -120,6 +133,40 @@ async function linkedPackagesAreUpToDate (
   )
 }
 
+async function isLocalFileDepUpdated (lockfileDir: string, pkgSnapshot: PackageSnapshot | undefined) {
+  if (!pkgSnapshot) return false
+  const localDepDir = path.join(lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
+  const manifest = await safeReadPackageJsonFromDir(localDepDir)
+  if (!manifest) return false
+  for (const depField of DEPENDENCIES_OR_PEER_FIELDS) {
+    if (depField === 'devDependencies') continue
+    const manifestDeps = manifest[depField] ?? {}
+    const lockfileDeps = pkgSnapshot[depField] ?? {}
+
+    // Lock file has more dependencies than the current manifest, e.g. some dependencies are removed.
+    if (Object.keys(lockfileDeps).some(depName => !manifestDeps[depName])) {
+      return false
+    }
+
+    for (const depName of Object.keys(manifestDeps)) {
+      // If a dependency does not exist in the lock file, e.g. a new dependency is added to the current manifest.
+      // We need to do full resolution again.
+      if (!lockfileDeps[depName]) {
+        return false
+      }
+      const currentSpec = manifestDeps[depName]
+      // We do not care about the link dependencies of local dependency.
+      if (currentSpec.startsWith('file:') || currentSpec.startsWith('link:') || currentSpec.startsWith('workspace:')) continue
+      if (semver.satisfies(lockfileDeps[depName], getVersionRange(currentSpec), { loose: true })) {
+        continue
+      } else {
+        return false
+      }
+    }
+  }
+  return true
+}
+
 function getVersionRange (spec: string) {
   if (spec.startsWith('workspace:')) return spec.slice(10)
   if (spec.startsWith('npm:')) {
@@ -135,8 +182,4 @@ function hasLocalTarballDepsInRoot (importer: ProjectSnapshot) {
   return any(refIsLocalTarball, Object.values(importer.dependencies ?? {})) ||
     any(refIsLocalTarball, Object.values(importer.devDependencies ?? {})) ||
     any(refIsLocalTarball, Object.values(importer.optionalDependencies ?? {}))
-}
-
-function refIsLocalTarball (ref: string) {
-  return ref.startsWith('file:') && (ref.endsWith('.tgz') || ref.endsWith('.tar.gz') || ref.endsWith('.tar'))
 }
