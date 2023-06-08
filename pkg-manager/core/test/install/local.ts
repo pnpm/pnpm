@@ -384,11 +384,9 @@ test('re-install should update local file dependency', async () => {
   const m = project.requireModule('local-pkg')
 
   expect(m).toBeTruthy()
-  await expect(async () => {
-    await fs.access('./node_modules/local-pkg/add.js')
-  }).rejects.toThrow()
+  await expect(fs.access('./node_modules/local-pkg/add.js')).rejects.toThrow()
 
-  const lockfile = await project.readLockfile()
+  let lockfile = await project.readLockfile()
 
   expect(lockfile).toStrictEqual({
     settings: {
@@ -412,9 +410,65 @@ test('re-install should update local file dependency', async () => {
     lockfileVersion: LOCKFILE_VERSION,
   })
 
+  // add file
   await fs.writeFile('../local-pkg/add.js', 'added', 'utf8')
-
   await install(manifest, await testDefaults())
-
   await expect(fs.access('./node_modules/local-pkg/add.js')).resolves.toBeUndefined()
+
+  // remove file
+  await fs.rm('../local-pkg/add.js')
+  await install(manifest, await testDefaults())
+  await expect(fs.access('./node_modules/local-pkg/add.js')).rejects.toThrow()
+
+  // add dependency
+  await expect(fs.access('./node_modules/.pnpm/is-positive@1.0.0')).rejects.toThrow()
+  await fs.writeFile('../local-pkg/package.json', JSON.stringify({
+    name: 'local-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }), 'utf8')
+  await install(manifest, await testDefaults())
+  await expect(fs.access('./node_modules/.pnpm/is-positive@1.0.0')).resolves.toBeUndefined()
+  lockfile = await project.readLockfile()
+  expect(lockfile).toMatchObject({
+    packages: {
+      'file:../local-pkg': {
+        resolution: { directory: '../local-pkg', type: 'directory' },
+        name: 'local-pkg',
+        version: '1.0.0',
+        dev: false,
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+  })
+
+  // update dependency
+  await fs.writeFile('../local-pkg/package.json', JSON.stringify({
+    name: 'local-pkg',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '2.0.0',
+    },
+  }), 'utf8')
+  await install(manifest, await testDefaults())
+  await expect(fs.access('./node_modules/.pnpm/is-positive@2.0.0')).resolves.toBeUndefined()
+  lockfile = await project.readLockfile()
+  expect(lockfile).toMatchObject({
+    packages: {
+      'file:../local-pkg': {
+        resolution: { directory: '../local-pkg', type: 'directory' },
+        name: 'local-pkg',
+        version: '1.0.0',
+        dev: false,
+        dependencies: {
+          'is-positive': '2.0.0',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+  })
 })
