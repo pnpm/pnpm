@@ -10,7 +10,7 @@ import {
 import gfs from '@pnpm/graceful-fs'
 import { install, type InstallOptions } from '@pnpm/core'
 import { type Config } from '@pnpm/config'
-import { findWorkspacePackages } from '@pnpm/find-workspace-packages'
+import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type Project } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'

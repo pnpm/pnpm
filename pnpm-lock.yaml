@@ -1093,9 +1093,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/find-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/find-workspace-packages
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../../fs/hard-link-dir
@@ -1141,6 +1138,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:*
+        version: link:../../workspace/find-packages
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -3620,9 +3620,6 @@ importers:
       '@pnpm/find-workspace-dir':
         specifier: workspace:*
         version: link:../../workspace/find-workspace-dir
-      '@pnpm/find-workspace-packages':
-        specifier: workspace:*
-        version: link:../../workspace/find-workspace-packages
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
@@ -3674,6 +3671,9 @@ importers:
       '@pnpm/which':
         specifier: ^3.0.1
         version: 3.0.1
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:*
+        version: link:../../workspace/find-packages
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../../workspace/pkgs-graph
@@ -4201,9 +4201,6 @@ importers:
       '@pnpm/find-workspace-dir':
         specifier: workspace:*
         version: link:../workspace/find-workspace-dir
-      '@pnpm/find-workspace-packages':
-        specifier: workspace:*
-        version: link:../workspace/find-workspace-packages
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../lockfile/lockfile-types
@@ -4297,6 +4294,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:*
+        version: link:../workspace/find-packages
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../workspace/pkgs-graph
@@ -5898,12 +5898,12 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/find-workspace-packages':
-        specifier: workspace:*
-        version: link:../find-workspace-packages
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:*
+        version: link:../find-packages
       '@pnpm/workspace.pkgs-graph':
         specifier: workspace:*
         version: link:../pkgs-graph
@@ -5951,20 +5951,7 @@ importers:
         specifier: 3.1.0
         version: 3.1.0
 
-  workspace/find-workspace-dir:
-    dependencies:
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      find-up:
-        specifier: ^5.0.0
-        version: 5.0.0
-    devDependencies:
-      '@pnpm/find-workspace-dir':
-        specifier: workspace:*
-        version: 'link:'
-
-  workspace/find-workspace-packages:
+  workspace/find-packages:
     dependencies:
       '@pnpm/cli-utils':
         specifier: workspace:*
@@ -5988,7 +5975,20 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
     devDependencies:
-      '@pnpm/find-workspace-packages':
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:*
+        version: 'link:'
+
+  workspace/find-workspace-dir:
+    dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      find-up:
+        specifier: ^5.0.0
+        version: 5.0.0
+    devDependencies:
+      '@pnpm/find-workspace-dir':
         specifier: workspace:*
         version: 'link:'
 

@@ -1,6 +1,6 @@
 {
-  "name": "@pnpm/find-workspace-packages",
-  "version": "6.0.9",
+  "name": "@pnpm/workspace.find-packages",
+  "version": "0.0.0",
   "description": "Finds packages inside a workspace",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -18,7 +18,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/find-workspace-packages",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/find-packages",
   "keywords": [
     "pnpm8",
     "pnpm"
@@ -27,7 +27,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/find-workspace-packages#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/find-packages#readme",
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/constants": "workspace:*",
@@ -38,7 +38,7 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/find-workspace-packages": "workspace:*"
+    "@pnpm/workspace.find-packages": "workspace:*"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

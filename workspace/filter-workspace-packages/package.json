@@ -30,8 +30,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/filter-workspace-packages#readme",
   "dependencies": {
     "@pnpm/error": "workspace:*",
-    "@pnpm/find-workspace-packages": "workspace:*",
     "@pnpm/matcher": "workspace:*",
+    "@pnpm/workspace.find-packages": "workspace:*",
     "@pnpm/workspace.pkgs-graph": "workspace:*",
     "execa": "npm:safe-execa@0.1.2",
     "find-up": "^5.0.0",

@@ -1,5 +1,5 @@
 ---
-"@pnpm/find-workspace-packages": major
+"@pnpm/workspace.find-packages": major
 ---
 
-`@pnpm/logger` is added as a peer dependency.
+Package renamed from `@pnpm/find-workspace-packages`.

@@ -82,10 +82,10 @@
       "path": "../../workspace/filter-workspace-packages"
     },
     {
-      "path": "../../workspace/find-workspace-dir"
+      "path": "../../workspace/find-packages"
     },
     {
-      "path": "../../workspace/find-workspace-packages"
+      "path": "../../workspace/find-workspace-dir"
     },
     {
       "path": "../../workspace/pkgs-graph"

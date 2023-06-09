@@ -16,7 +16,7 @@
       "path": "../../packages/error"
     },
     {
-      "path": "../find-workspace-packages"
+      "path": "../find-packages"
     },
     {
       "path": "../pkgs-graph"

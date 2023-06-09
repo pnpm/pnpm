@@ -73,7 +73,7 @@
       "path": "../../workspace/filter-workspace-packages"
     },
     {
-      "path": "../../workspace/find-workspace-packages"
+      "path": "../../workspace/find-packages"
     },
     {
       "path": "../../workspace/sort-packages"

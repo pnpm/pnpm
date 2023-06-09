@@ -6,7 +6,7 @@ import {
   type Config,
   readLocalConfig,
 } from '@pnpm/config'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/workspace.find-packages'
 import { logger } from '@pnpm/logger'
 import { sortPackages } from '@pnpm/sort-packages'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'

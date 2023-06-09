@@ -1,5 +1,9 @@
 import path from 'path'
-import { findWorkspacePackagesNoCheck, arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/find-workspace-packages'
+import {
+  findWorkspacePackagesNoCheck,
+  arrayOfWorkspacePackagesToMap,
+  findWorkspacePackages,
+} from '@pnpm/workspace.find-packages'
 import { logger } from '@pnpm/logger'
 
 beforeEach(() => {
