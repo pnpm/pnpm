@@ -72,13 +72,11 @@ export function arrayOfWorkspacePackagesToMap (
   }, {} as ArrayOfWorkspacePackagesToMapResult)
 }
 
-function checkNonRootProjectManifest (pkg: Project) {
-  const fields = ['pnpm', 'resolutions']
-  const { manifest, dir } = pkg
-  for (const field of fields) {
-    if (manifest?.[field as keyof ProjectManifest]) {
+function checkNonRootProjectManifest ({ manifest, dir }: Project) {
+  for (const rootOnlyField of ['pnpm', 'resolutions']) {
+    if (manifest?.[rootOnlyField as keyof ProjectManifest]) {
       logger.warn({
-        message: `"${field}" was found in ${dir}/package.json. It will not take effect, should configure "${field}" at the root of the project.`,
+        message: `The field "${rootOnlyField}" was found in ${dir}/package.json. This will not take effect. You should configure "${rootOnlyField}" at the root of the workspace instead.`,
         prefix: dir,
       })
     }
