@@ -5975,6 +5975,9 @@ importers:
       '@pnpm/fs.find-packages':
         specifier: workspace:*
         version: link:../../fs/find-packages
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types

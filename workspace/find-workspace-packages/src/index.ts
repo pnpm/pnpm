@@ -1,9 +1,10 @@
 import path from 'path'
 import { packageIsInstallable } from '@pnpm/cli-utils'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
-import { type Project } from '@pnpm/types'
+import { type ProjectManifest, type Project } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { findPackages } from '@pnpm/fs.find-packages'
+import { logger } from '@pnpm/logger'
 import readYamlFile from 'read-yaml-file'
 
 export type { Project }
@@ -19,6 +20,9 @@ export async function findWorkspacePackages (
   const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
   for (const pkg of pkgs) {
     packageIsInstallable(pkg.dir, pkg.manifest, opts ?? {})
+    if (pkg.dir !== workspaceRoot) {
+      checkNonRootProjectManifest(pkg)
+    }
   }
 
   return pkgs
@@ -66,4 +70,17 @@ export function arrayOfWorkspacePackagesToMap (
     acc[pkg.manifest.name][pkg.manifest.version ?? '0.0.0'] = pkg
     return acc
   }, {} as ArrayOfWorkspacePackagesToMapResult)
+}
+
+function checkNonRootProjectManifest (pkg: Project) {
+  const fields = ['pnpm', 'resolutions']
+  const { manifest, dir } = pkg
+  for (const field of fields) {
+    if (manifest?.[field as keyof ProjectManifest]) {
+      logger.warn({
+        message: `"${field}" was found in ${dir}/package.json. It will not take effect, should configure "${field}" at the root of the project.`,
+        prefix: dir,
+      })
+    }
+  }
 }
