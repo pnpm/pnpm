@@ -155,7 +155,7 @@ async function pkgLinkedToStore (
   filesMap: FilesMap,
   to: string
 ) {
-  if (filesMap['package.json']) {
+  if (filesMap.has('package.json')) {
     if (await isSameFile('package.json', to, filesMap)) {
       return true
     }
@@ -176,7 +176,7 @@ async function isSameFile (filename: string, linkedPkgDir: string, filesMap: Fil
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT') return false
   }
-  const stats1 = await fs.stat(filesMap[filename])
+  const stats1 = await fs.stat(filesMap.get(filename)!)
   if (stats0.ino === stats1.ino) return true
   globalInfo(`Relinking ${linkedPkgDir} from the store`)
   return false

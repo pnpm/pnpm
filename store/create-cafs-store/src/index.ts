@@ -56,7 +56,7 @@ function getFlatMap (
   let isBuilt!: boolean
   let filesIndex!: Map<string, PackageFileInfo>
   if (targetEngine && filesResponse.sideEffects?.has(targetEngine)) {
-    filesIndex = filesResponse.sideEffects?.get(targetEngine)!
+    filesIndex = filesResponse.sideEffects.get(targetEngine)!
     isBuilt = true
   } else {
     filesIndex = filesResponse.filesIndex

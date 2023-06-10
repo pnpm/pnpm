@@ -65,8 +65,8 @@ async function _fetchAllFilesFromDir (
   readFileStat: ReadFileStat,
   dir: string,
   relativeDir = ''
-): Promise<Record<string, string>> {
-  const filesIndex: Record<string, string> = {}
+): Promise<Map<string, string>> {
+  const filesIndex = new Map<string, string>()
   const files = await fs.readdir(dir)
   await Promise.all(files
     .filter((file) => file !== 'node_modules')
@@ -78,7 +78,7 @@ async function _fetchAllFilesFromDir (
         const subFilesIndex = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir)
         Object.assign(filesIndex, subFilesIndex)
       } else {
-        filesIndex[relativeSubdir] = filePath
+        filesIndex.set(relativeSubdir, filePath)
       }
     })
   )
@@ -127,7 +127,7 @@ async function fetchPackageFilesFromDir (
   opts: FetchFromDirOpts
 ) {
   const files = await packlist({ path: dir })
-  const filesIndex: Record<string, string> = Object.fromEntries(files.map((file) => [file, path.join(dir, file)]))
+  const filesIndex = new Map(files.map((file) => [file, path.join(dir, file)]))
   if (opts.manifest) {
     // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
     // Safe read was added to support the Bit workspace in which the components have no package.json files.

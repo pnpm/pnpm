@@ -99,8 +99,8 @@ async function parseLicense (
   pkg: {
     manifest: PackageManifest
     files:
-    | { local: true, files: Record<string, string> }
-    | { local: false, files: Record<string, PackageFileInfo> }
+    | { local: true, files: Map<string, string> }
+    | { local: false, files: Map<string, PackageFileInfo> }
   },
   opts: { cafsDir: string }
 ): Promise<LicenseInfo> {
@@ -119,7 +119,7 @@ async function parseLicense (
     const { files: pkgFileIndex } = pkg.files
     const licenseFile = LICENSE_FILES.find((licenseFile) => licenseFile in pkgFileIndex)
     if (licenseFile) {
-      const licensePackageFileInfo = pkgFileIndex[licenseFile]
+      const licensePackageFileInfo = pkgFileIndex.get(licenseFile)
       let licenseContents: Buffer | undefined
       if (pkg.files.local) {
         licenseContents = await readFile(licensePackageFileInfo as string)
@@ -163,11 +163,11 @@ export async function readPackageIndexFile (
 ): Promise<
   | {
     local: false
-    files: Record<string, PackageFileInfo>
+    files: Map<string, PackageFileInfo>
   }
   | {
     local: true
-    files: Record<string, string>
+    files: Map<string, string>
   }
   > {
   // If the package resolution is of type directory we need to do things
@@ -215,7 +215,7 @@ export async function readPackageIndexFile (
     const { files } = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
     return {
       local: false,
-      files,
+      files: new Map(Object.entries(files)),
     }
   } catch (err: any) {  // eslint-disable-line
     if (err.code === 'ENOENT') {
@@ -281,13 +281,10 @@ export async function getPkgInfo (
   // Fetch the package manifest
   let packageManifestDir!: string
   if (packageFileIndexInfo.local) {
-    packageManifestDir = packageFileIndexInfo.files['package.json']
+    packageManifestDir = packageFileIndexInfo.files.get('package.json')!
   } else {
-    const packageFileIndex = packageFileIndexInfo.files as Record<
-    string,
-    PackageFileInfo
-    >
-    const packageManifestFile = packageFileIndex['package.json']
+    const packageFileIndex = packageFileIndexInfo.files as Map<string, PackageFileInfo>
+    const packageManifestFile = packageFileIndex.get('package.json')!
     packageManifestDir = getFilePathByModeInCafs(
       cafsDir,
       packageManifestFile.integrity,

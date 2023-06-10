@@ -63,7 +63,7 @@ They were renamed.`)
 }
 
 function sanitizeFilenames (filenames: Map<string, string>) {
-  const sanitizedFilenames: Map<string, string> = new Map()
+  const sanitizedFilenames = new Map<string, string>()
   const invalidFilenames: string[] = []
   for (const [filename, src] of filenames.entries()) {
     const sanitizedFilename = filename.split('/').map((f) => sanitizeFilename(f)).join('/')
@@ -100,7 +100,7 @@ async function tryImportIndexedDir (importFile: ImportFile, newDir: string, file
 function getUniqueFileMap (fileMap: Map<string, string>) {
   const lowercaseFiles = new Map<string, string>()
   const conflictingFileNames: Record<string, string> = {}
-  const uniqueFileMap: Map<string, string> = new Map()
+  const uniqueFileMap = new Map<string, string>()
   for (const filename of Array.from(fileMap.keys()).sort()) {
     const lowercaseFilename = filename.toLowerCase()
     if (lowercaseFiles.has(lowercaseFilename)) {

@@ -44,7 +44,6 @@ import {
 } from '@pnpm/store-controller-types'
 import { type DependencyManifest } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
-import pMapValues from 'p-map-values'
 import PQueue from 'p-queue'
 import loadJsonFile from 'load-json-file'
 import pDefer from 'p-defer'
@@ -422,13 +421,13 @@ function fetchToStore (
   if (opts.fetchRawManifest && (result.bundledManifest == null)) {
     result.bundledManifest = removeKeyOnFail(
       result.files.then(async (filesResult) => {
-        if (!filesResult.filesIndex['package.json']) return undefined
+        if (!filesResult.filesIndex.has('package.json')) return undefined
         if (!filesResult.local) {
-          const { integrity, mode } = filesResult.filesIndex['package.json']
+          const { integrity, mode } = filesResult.filesIndex.get('package.json')!
           const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
           return readBundledManifest(manifestPath)
         }
-        return readBundledManifest(filesResult.filesIndex['package.json'])
+        return readBundledManifest(filesResult.filesIndex.get('package.json')!)
       })
     )
   }
@@ -506,9 +505,11 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           const verified = await ctx.checkFilesIntegrity(pkgFilesIndex, manifest)
           if (verified) {
             files.resolve({
-              filesIndex: pkgFilesIndex.files,
+              filesIndex: new Map(Object.entries(pkgFilesIndex.files)),
               fromStore: true,
-              sideEffects: pkgFilesIndex.sideEffects,
+              sideEffects: new Map(
+                Object.entries(pkgFilesIndex.sideEffects ?? {}).map(([k, v]) => [k, new Map(Object.entries(v))])
+              ),
             })
             if (manifest != null) {
               manifest()
@@ -575,19 +576,21 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
         // Ideally, files wouldn't care about when integrity is calculated.
         // However, we can only rename the temp folder once we know the package name.
         // And we cannot rename the temp folder till we're calculating integrities.
-        const integrity = await pMapValues(async ({ writeResult, mode, size }) => {
-          const { checkedAt, integrity } = await writeResult
-          return {
-            checkedAt,
-            integrity: integrity.toString(), // TODO: use the raw Integrity object
-            mode,
-            size,
-          }
-        }, fetchedPackage.filesIndex)
+        const integrity = new Map(await Promise.all(
+          Object.entries(fetchedPackage.filesIndex).map(async ([filename, { writeResult, mode, size }]) => {
+            const { checkedAt, integrity } = await writeResult
+            return [filename, {
+              checkedAt,
+              integrity: integrity.toString(), // TODO: use the raw Integrity object
+              mode,
+              size,
+            }] as [string, PackageFileInfo]
+          })
+        ))
         if (opts.pkg.name && opts.pkg.version) {
           await writeFilesIndexFile(filesIndexFile, {
             pkg: opts.pkg,
-            files: integrity,
+            files: Object.fromEntries(integrity),
           })
         } else {
           // Even though we could take the package name from the lockfile,
@@ -597,7 +600,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           bundledManifest.promise
             .then((manifest) => writeFilesIndexFile(filesIndexFile, {
               pkg: manifest ?? {},
-              files: integrity,
+              files: Object.fromEntries(integrity),
             }))
             .catch()
           /* eslint-enable @typescript-eslint/no-floating-promises */
