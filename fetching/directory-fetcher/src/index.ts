@@ -46,7 +46,8 @@ async function fetchAllFilesFromDir (
   dir: string,
   opts: FetchFromDirOpts
 ) {
-  const filesIndex = await _fetchAllFilesFromDir(readFileStat, dir)
+  const filesIndex = new Map<string, string>()
+  await _fetchAllFilesFromDir(filesIndex, readFileStat, dir)
   if (opts.manifest) {
     // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
     // Safe read was added to support the Bit workspace in which the components have no package.json files.
@@ -62,11 +63,11 @@ async function fetchAllFilesFromDir (
 }
 
 async function _fetchAllFilesFromDir (
+  filesIndex: Map<string, string>,
   readFileStat: ReadFileStat,
   dir: string,
   relativeDir = ''
-): Promise<Map<string, string>> {
-  const filesIndex = new Map<string, string>()
+) {
   const files = await fs.readdir(dir)
   await Promise.all(files
     .filter((file) => file !== 'node_modules')
@@ -75,14 +76,12 @@ async function _fetchAllFilesFromDir (
       if (!filePath) return
       const relativeSubdir = `${relativeDir}${relativeDir ? '/' : ''}${file}`
       if (stat.isDirectory()) {
-        const subFilesIndex = await _fetchAllFilesFromDir(readFileStat, filePath, relativeSubdir)
-        Object.assign(filesIndex, subFilesIndex)
+        await _fetchAllFilesFromDir(filesIndex, readFileStat, filePath, relativeSubdir)
       } else {
         filesIndex.set(relativeSubdir, filePath)
       }
     })
   )
-  return filesIndex
 }
 
 type ReadFileStat = (filePath: string) => Promise<{ filePath: string, stat: Stats } | { filePath: null, stat: null }>

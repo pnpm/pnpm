@@ -206,7 +206,7 @@ test("don't fail when integrity check of local file succeeds", async () => {
     lockfileDir: process.cwd(),
   })
 
-  expect(typeof filesIndex['package.json']).toBe('object')
+  expect(typeof filesIndex.get('package.json')).toBe('object')
 })
 
 test("don't fail when fetching a local tarball in offline mode", async () => {
@@ -231,7 +231,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
     lockfileDir: process.cwd(),
   })
 
-  expect(typeof filesIndex['package.json']).toBe('object')
+  expect(typeof filesIndex.get('package.json')).toBe('object')
 })
 
 test('fail when trying to fetch a non-local tarball in offline mode', async () => {
@@ -425,7 +425,7 @@ test('do not build the package when scripts are ignored', async () => {
   })
   const { filesIndex } = await fetch.gitHostedTarball(cafs, resolution, { lockfileDir: process.cwd() })
 
-  expect(filesIndex).toHaveProperty(['package.json'])
-  expect(filesIndex).not.toHaveProperty(['prepare.txt'])
+  expect(filesIndex.has('package.json')).toBeTruthy()
+  expect(filesIndex.has('prepare.txt')).toBeFalsy()
   expect(globalWarn).toHaveBeenCalledWith(`The git-hosted package fetched from "${tarball}" has to be built but the build scripts were ignored.`)
 })
