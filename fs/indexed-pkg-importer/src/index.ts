@@ -162,7 +162,7 @@ async function pkgLinkedToStore (
   } else {
     // An injected package might not have a package.json.
     // This will probably only even happen in a Bit workspace.
-    const [anyFile] = Object.keys(filesMap)
+    const [anyFile] = filesMap.keys()
     if (await isSameFile(anyFile, to, filesMap)) return true
   }
   return false

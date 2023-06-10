@@ -80,7 +80,7 @@ async function tryImportIndexedDir (importFile: ImportFile, newDir: string, file
   const alldirs = new Set<string>()
   for (const f of filenames.keys()) {
     const dir = path.dirname(f)
-    if (dir === '.') return
+    if (dir === '.') continue
     alldirs.add(dir)
   }
   await Promise.all(

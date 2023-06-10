@@ -8,10 +8,10 @@ test('importing a package with invalid files', async () => {
   const importPackage = createIndexedPkgImporter('copy')
   const target = path.resolve('target')
   await importPackage(target, {
-    filesMap: {
-      'foo?bar/qar>zoo.txt': __filename,
-      '1*2.txt': __filename,
-    },
+    filesMap: new Map([
+      ['foo?bar/qar>zoo.txt', __filename],
+      ['1*2.txt', __filename],
+    ]),
     force: false,
     fromStore: false,
   })

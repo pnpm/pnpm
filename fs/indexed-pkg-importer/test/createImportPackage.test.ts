@@ -39,10 +39,10 @@ beforeEach(() => {
 test('packageImportMethod=auto: clone files by default', async () => {
   const importPackage = createIndexedPkgImporter('auto')
   expect(await importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-      'package.json': 'hash1',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
     force: false,
     fromStore: false,
   })).toBe('clone')
@@ -64,10 +64,10 @@ test('packageImportMethod=auto: link files if cloning fails', async () => {
     throw new Error('This file system does not support cloning')
   })
   expect(await importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-      'package.json': 'hash1',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
     force: false,
     fromStore: false,
   })).toBe('hardlink')
@@ -78,10 +78,10 @@ test('packageImportMethod=auto: link files if cloning fails', async () => {
 
   // The copy function will not be called again
   expect(await importPackage('project2/package', {
-    filesMap: {
-      'index.js': 'hash2',
-      'package.json': 'hash1',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
     force: false,
     fromStore: false,
   })).toBe('hardlink')
@@ -103,9 +103,9 @@ test('packageImportMethod=auto: link files if cloning fails and even hard linkin
     }
   })
   expect(await importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+    ]),
     force: false,
     fromStore: false,
   })).toBe('hardlink')
@@ -125,9 +125,9 @@ test('packageImportMethod=auto: chooses copying if cloning and hard linking is n
     throw new Error('EXDEV: cross-device link not permitted')
   })
   expect(await importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+    ]),
     force: false,
     fromStore: false,
   })).toBe('copy')
@@ -144,11 +144,11 @@ test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', 
     throw new Error('This file system does not support hard linking')
   })
   expect(await importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-      'package.json': 'hash1',
-      license: 'hash3',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+      ['license', 'hash3'],
+    ]),
     force: false,
     fromStore: false,
   })).toBe('hardlink')
@@ -162,10 +162,10 @@ test('packageImportMethod=hardlink does not relink package from store if package
   const importPackage = createIndexedPkgImporter('hardlink')
   ;(gfs.stat as jest.Mock).mockReturnValue(Promise.resolve({ ino: 1 }))
   expect(await importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-      'package.json': 'hash1',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
     force: false,
     fromStore: true,
   })).toBe(undefined)
@@ -176,10 +176,10 @@ test('packageImportMethod=hardlink relinks package from store if package.json is
   let ino = 0
   ;(gfs.stat as jest.Mock).mockImplementation(async () => ({ ino: ++ino }))
   expect(await importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-      'package.json': 'hash1',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
     force: false,
     fromStore: true,
   })).toBe('hardlink')
@@ -193,9 +193,9 @@ test('packageImportMethod=hardlink does not relink package from store if package
     return { ino: 1 }
   })
   expect(await importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+    ]),
     force: false,
     fromStore: true,
   })).toBe(undefined)
@@ -210,10 +210,10 @@ test('packageImportMethod=hardlink links packages when they are not found', asyn
     return { ino: 0 }
   })
   expect(await importPackage('project/package', {
-    filesMap: {
-      'index.js': 'hash2',
-      'package.json': 'hash1',
-    },
+    filesMap: new Map([
+      ['index.js', 'hash2'],
+      ['package.json', 'hash1'],
+    ]),
     force: false,
     fromStore: true,
   })).toBe('hardlink')
