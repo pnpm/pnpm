@@ -60,7 +60,7 @@ export async function runLifecycleHooksConcurrently (
         await Promise.all(
           targetDirs.map(async (targetDir) => {
             const targetModulesDir = path.join(targetDir, 'node_modules')
-            const nodeModulesIndex = new Map<string, string>()
+            const nodeModulesIndex = new Map<string, string>(filesResponse.filesIndex)
             if (fs.existsSync(targetModulesDir)) {
               // If the target directory contains a node_modules directory
               // (it may happen when the hoisted node linker is used)
@@ -72,10 +72,7 @@ export async function runLifecycleHooksConcurrently (
               filesResponse: {
                 fromStore: false,
                 ...filesResponse,
-                filesIndex: {
-                  ...filesResponse.filesIndex,
-                  ...nodeModulesIndex,
-                },
+                filesIndex: nodeModulesIndex,
               },
               force: false,
             })
