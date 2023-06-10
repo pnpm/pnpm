@@ -12,7 +12,7 @@ export async function addFilesFromTarball (
 ): Promise<FilesIndex> {
   const ignore = _ignore ?? (() => false)
   const extract = tar.extract()
-  const filesIndex: FilesIndex = {}
+  const filesIndex: FilesIndex = new Map()
   await new Promise<void>((resolve, reject) => {
     extract.on('entry', (header, fileStream, next) => {
       // There are some edge cases, where the same files are extracted multiple times.
@@ -21,7 +21,7 @@ export async function addFilesFromTarball (
       // Hence, we are normalizing the file name, replacing // with / and checking for duplicates.
       // Example of such package: @pnpm/colorize-semver-diff@1.0.1
       const filename = header.name.slice(header.name.indexOf('/') + 1).replace(/\/\//g, '/')
-      if (header.type !== 'file' || ignore(filename) || filesIndex[filename]) {
+      if (header.type !== 'file' || ignore(filename) || filesIndex.has(filename)) {
         fileStream.resume()
         next()
         return
@@ -30,11 +30,11 @@ export async function addFilesFromTarball (
         parseJsonStream(fileStream, manifest)
       }
       const writeResult = addStreamToCafs(fileStream, header.mode!)
-      filesIndex[filename] = {
+      filesIndex.set(filename, {
         mode: header.mode!,
         size: header.size!,
         writeResult,
-      }
+      })
       next()
     })
     // listener
@@ -49,7 +49,7 @@ export async function addFilesFromTarball (
       .pipe(gunzip())
       .on('error', reject).pipe(extract)
   })
-  if (!filesIndex['package.json'] && manifest != null) {
+  if (!filesIndex.has('package.json') && manifest != null) {
     manifest.resolve(undefined)
   }
   return filesIndex

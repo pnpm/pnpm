@@ -15,7 +15,7 @@ export type ImportFile = (src: string, dest: string) => Promise<void>
 export async function importIndexedDir (
   importFile: ImportFile,
   newDir: string,
-  filenames: Record<string, string>,
+  filenames: Map<string, string>,
   opts: {
     keepModulesDir?: boolean
   }
@@ -62,35 +62,34 @@ They were renamed.`)
   }
 }
 
-function sanitizeFilenames (filenames: Record<string, string>) {
-  const sanitizedFilenames: Record<string, string> = {}
+function sanitizeFilenames (filenames: Map<string, string>) {
+  const sanitizedFilenames: Map<string, string> = new Map()
   const invalidFilenames: string[] = []
-  for (const [filename, src] of Object.entries(filenames)) {
+  for (const [filename, src] of filenames.entries()) {
     const sanitizedFilename = filename.split('/').map((f) => sanitizeFilename(f)).join('/')
     if (sanitizedFilename !== filename) {
       invalidFilenames.push(filename)
     }
-    sanitizedFilenames[sanitizedFilename] = src
+    sanitizedFilenames.set(sanitizedFilename, src)
   }
   return { sanitizedFilenames, invalidFilenames }
 }
 
-async function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Record<string, string>) {
+async function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Map<string, string>) {
   await makeEmptyDir(newDir, { recursive: true })
   const alldirs = new Set<string>()
-  Object.keys(filenames)
-    .forEach((f) => {
-      const dir = path.dirname(f)
-      if (dir === '.') return
-      alldirs.add(dir)
-    })
+  for (const f of filenames.keys()) {
+    const dir = path.dirname(f)
+    if (dir === '.') return
+    alldirs.add(dir)
+  }
   await Promise.all(
     Array.from(alldirs)
       .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
       .map(async (dir) => fs.mkdir(path.join(newDir, dir), { recursive: true }))
   )
   await Promise.all(
-    Object.entries(filenames)
+    Array.from(filenames.entries())
       .map(async ([f, src]: [string, string]) => {
         const dest = path.join(newDir, f)
         await importFile(src, dest)
@@ -98,18 +97,18 @@ async function tryImportIndexedDir (importFile: ImportFile, newDir: string, file
   )
 }
 
-function getUniqueFileMap (fileMap: Record<string, string>) {
+function getUniqueFileMap (fileMap: Map<string, string>) {
   const lowercaseFiles = new Map<string, string>()
   const conflictingFileNames: Record<string, string> = {}
-  const uniqueFileMap: Record<string, string> = {}
-  for (const filename of Object.keys(fileMap).sort()) {
+  const uniqueFileMap: Map<string, string> = new Map()
+  for (const filename of Array.from(fileMap.keys()).sort()) {
     const lowercaseFilename = filename.toLowerCase()
     if (lowercaseFiles.has(lowercaseFilename)) {
       conflictingFileNames[filename] = lowercaseFiles.get(lowercaseFilename)!
       continue
     }
     lowercaseFiles.set(lowercaseFilename, filename)
-    uniqueFileMap[filename] = fileMap[filename]
+    uniqueFileMap.set(filename, fileMap.get(filename)!)
   }
   return {
     conflictingFileNames,

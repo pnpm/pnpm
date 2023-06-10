@@ -13,7 +13,6 @@ import {
 } from '@pnpm/store-controller-types'
 import memoize from 'mem'
 import pathTemp from 'path-temp'
-import mapValues from 'ramda/src/map'
 
 function createPackageImporter (
   opts: {
@@ -47,7 +46,7 @@ function getFlatMap (
   cafsDir: string,
   filesResponse: PackageFilesResponse,
   targetEngine?: string
-): { filesMap: Record<string, string>, isBuilt: boolean } {
+): { filesMap: Map<string, string>, isBuilt: boolean } {
   if (filesResponse.local) {
     return {
       filesMap: filesResponse.filesIndex,
@@ -55,15 +54,18 @@ function getFlatMap (
     }
   }
   let isBuilt!: boolean
-  let filesIndex!: Record<string, PackageFileInfo>
-  if (targetEngine && ((filesResponse.sideEffects?.[targetEngine]) != null)) {
-    filesIndex = filesResponse.sideEffects?.[targetEngine]
+  let filesIndex!: Map<string, PackageFileInfo>
+  if (targetEngine && filesResponse.sideEffects?.has(targetEngine)) {
+    filesIndex = filesResponse.sideEffects?.get(targetEngine)!
     isBuilt = true
   } else {
     filesIndex = filesResponse.filesIndex
     isBuilt = false
   }
-  const filesMap = mapValues(({ integrity, mode }) => getFilePathByModeInCafs(cafsDir, integrity, mode), filesIndex)
+  const filesMap = new Map<string, string>()
+  for (const [filename, { integrity, mode }] of filesIndex.entries()) {
+    filesMap.set(filename, getFilePathByModeInCafs(cafsDir, integrity, mode))
+  }
   return { filesMap, isBuilt }
 }
 
