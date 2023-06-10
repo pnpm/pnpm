@@ -63,7 +63,7 @@ export async function createPackageStore (
     // This is duplicated in @pnpm/package-requester
     const integrity: Record<string, PackageFileInfo> = {}
     await Promise.all(
-      Object.entries(sideEffectsIndex)
+      Array.from(sideEffectsIndex.entries())
         .map(async ([filename, { writeResult, mode, size }]) => {
           const {
             checkedAt,

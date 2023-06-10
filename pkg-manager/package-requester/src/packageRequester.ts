@@ -590,7 +590,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
         if (opts.pkg.name && opts.pkg.version) {
           await writeFilesIndexFile(filesIndexFile, {
             pkg: opts.pkg,
-            files: Object.fromEntries(integrity),
+            files: integrity,
           })
         } else {
           // Even though we could take the package name from the lockfile,
@@ -600,7 +600,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           bundledManifest.promise
             .then((manifest) => writeFilesIndexFile(filesIndexFile, {
               pkg: manifest ?? {},
-              files: Object.fromEntries(integrity),
+              files: integrity,
             }))
             .catch()
           /* eslint-enable @typescript-eslint/no-floating-promises */
@@ -638,13 +638,13 @@ async function writeFilesIndexFile (
   filesIndexFile: string,
   { pkg, files }: {
     pkg: PkgNameVersion
-    files: Record<string, PackageFileInfo>
+    files: Map<string, PackageFileInfo>
   }
 ) {
   await writeJsonFile(filesIndexFile, {
     name: pkg.name,
     version: pkg.version,
-    files,
+    files: Object.fromEntries(files),
   })
 }
 
