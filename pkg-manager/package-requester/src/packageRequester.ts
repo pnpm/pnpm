@@ -577,7 +577,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
         // However, we can only rename the temp folder once we know the package name.
         // And we cannot rename the temp folder till we're calculating integrities.
         const integrity = new Map(await Promise.all(
-          Object.entries(fetchedPackage.filesIndex).map(async ([filename, { writeResult, mode, size }]) => {
+          Array.from(fetchedPackage.filesIndex.entries()).map(async ([filename, { writeResult, mode, size }]) => {
             const { checkedAt, integrity } = await writeResult
             return [filename, {
               checkedAt,

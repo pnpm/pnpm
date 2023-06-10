@@ -67,7 +67,7 @@ test('request package', async () => {
   })
 
   const files = await pkgResponse.files!()
-  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.fromStore).toBeFalsy()
 
   expect(pkgResponse.finishing!()).toBeTruthy()
@@ -396,7 +396,7 @@ test('fetchPackageToStore()', async () => {
   expect(fetchResult.bundledManifest).toBeFalsy()
 
   const files = await fetchResult.files()
-  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.fromStore).toBeFalsy()
 
   const indexFile = await loadJsonFile<PackageFilesIndex>(fetchResult.filesIndexFile)
@@ -489,9 +489,9 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[0]
     const files = await fetchResult.files()
 
-    ino1 = statSync(getFilePathInCafs(cafsDir, (files.filesIndex['package.json'] as PackageFileInfo).integrity, 'nonexec')).ino
+    ino1 = statSync(getFilePathInCafs(cafsDir, (files.filesIndex.get('package.json') as PackageFileInfo).integrity, 'nonexec')).ino
 
-    expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.fromStore).toBeFalsy()
 
     expect(fetchResult.finishing).toBeTruthy()
@@ -501,9 +501,9 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[1]
     const files = await fetchResult.files()
 
-    ino2 = statSync(getFilePathInCafs(cafsDir, (files.filesIndex['package.json'] as PackageFileInfo).integrity, 'nonexec')).ino
+    ino2 = statSync(getFilePathInCafs(cafsDir, (files.filesIndex.get('package.json') as PackageFileInfo).integrity, 'nonexec')).ino
 
-    expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+    expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.fromStore).toBeFalsy()
 
     expect(fetchResult.finishing()).toBeTruthy()
@@ -572,7 +572,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     },
   })
   const files = await fetchResult.files()
-  expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
+  expect(Array.from(files.filesIndex.keys()).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.fromStore).toBeFalsy()
 
   expect(fetchResult.finishing()).toBeTruthy()
@@ -726,7 +726,7 @@ test('refetch package to store if it has been modified', async () => {
     })
 
     const { filesIndex } = await fetchResult.files()
-    indexJsFile = getFilePathInCafs(cafsDir, (filesIndex['index.js'] as PackageFileInfo).integrity, 'nonexec')
+    indexJsFile = getFilePathInCafs(cafsDir, (filesIndex.get('index.js') as PackageFileInfo).integrity, 'nonexec')
   }
 
   await delay(200)
