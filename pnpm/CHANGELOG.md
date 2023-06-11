@@ -1,5 +1,20 @@
 # pnpm
 
+## 7.33.1
+
+### Patch Changes
+
+- When `dedupe-peer-dependents` is enabled, use the path (not id) to
+  determine compatibility.
+
+  When multiple dependency groups can be deduplicated, the
+  latter ones are sorted according to number of peers to allow them to
+  benefit from deduplication.
+
+  Resolves: [#6605](https://github.com/pnpm/pnpm/issues/6605)
+
+- Change lockfile version back to 6.0 as previous versions of pnpm fail to parse the version correctly.
+
 ## 7.33.0
 
 ### Minor Changes
