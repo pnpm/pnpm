@@ -1,5 +1,12 @@
 # @pnpm/prepare-package
 
+## 5.0.2
+
+### Patch Changes
+
+- @pnpm/lifecycle@15.0.2
+- @pnpm/read-package-json@8.0.2
+
 ## 5.0.1
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/get-context
 
+## 10.0.2
+
+### Patch Changes
+
+- Updated dependencies [302ebffc5]
+  - @pnpm/constants@7.1.1
+  - @pnpm/lockfile-file@8.1.1
+  - @pnpm/error@5.0.2
+  - @pnpm/read-projects-context@8.0.5
+
 ## 10.0.1
 
 ### Patch Changes

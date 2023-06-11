@@ -1,5 +1,19 @@
 # @pnpm/find-workspace-packages
 
+## 1.0.0
+
+### Major Changes
+
+- bd235794d: Package renamed from `@pnpm/find-workspace-packages`.
+
+### Patch Changes
+
+- bd235794d: Output a warning message when "pnpm" or "resolutions" are configured in a non-root workspace project [#6636](https://github.com/pnpm/pnpm/issues/6636)
+- Updated dependencies [302ebffc5]
+  - @pnpm/constants@7.1.1
+  - @pnpm/cli-utils@2.0.10
+  - @pnpm/fs.find-packages@2.0.2
+
 ## 6.0.9
 
 ### Patch Changes

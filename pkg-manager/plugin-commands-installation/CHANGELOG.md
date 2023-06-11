@@ -1,5 +1,30 @@
 # @pnpm/plugin-commands-installation
 
+## 13.0.10
+
+### Patch Changes
+
+- Updated dependencies [bd235794d]
+- Updated dependencies [d9da627cd]
+- Updated dependencies [302ebffc5]
+- Updated dependencies [bd235794d]
+  - @pnpm/workspace.find-packages@1.0.0
+  - @pnpm/core@10.2.2
+  - @pnpm/constants@7.1.1
+  - @pnpm/plugin-commands-rebuild@9.0.2
+  - @pnpm/filter-workspace-packages@7.0.10
+  - @pnpm/outdated@13.0.2
+  - @pnpm/config@18.4.1
+  - @pnpm/error@5.0.2
+  - @pnpm/cli-utils@2.0.10
+  - @pnpm/store-connection-manager@6.0.12
+  - @pnpm/dedupe.check@1.0.2
+  - @pnpm/pnpmfile@5.0.8
+  - @pnpm/manifest-utils@5.0.2
+  - @pnpm/read-project-manifest@5.0.2
+  - @pnpm/find-workspace-dir@6.0.2
+  - @pnpm/package-store@16.0.5
+
 ## 13.0.9
 
 ### Patch Changes

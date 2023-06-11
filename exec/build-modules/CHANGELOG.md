@@ -1,5 +1,16 @@
 # @pnpm/build-modules
 
+## 11.0.5
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@4.0.2
+- @pnpm/lifecycle@15.0.2
+- @pnpm/patching.apply-patch@2.0.3
+- @pnpm/link-bins@9.0.3
+- @pnpm/read-package-json@8.0.2
+- @pnpm/fs.hard-link-dir@2.0.1
+
 ## 11.0.4
 
 ### Patch Changes

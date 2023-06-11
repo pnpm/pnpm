@@ -1,5 +1,31 @@
 # @pnpm/headless
 
+## 21.0.2
+
+### Patch Changes
+
+- d9da627cd: Should always treat local file dependency as new dependency [#5381](https://github.com/pnpm/pnpm/issues/5381)
+- Updated dependencies [d9da627cd]
+- Updated dependencies [302ebffc5]
+  - @pnpm/lockfile-utils@8.0.2
+  - @pnpm/constants@7.1.1
+  - @pnpm/filter-lockfile@8.0.6
+  - @pnpm/lockfile-to-pnp@3.0.6
+  - @pnpm/hoist@8.0.7
+  - @pnpm/modules-cleaner@14.0.7
+  - @pnpm/real-hoist@2.0.7
+  - @pnpm/lockfile-file@8.1.1
+  - @pnpm/calc-dep-state@4.0.2
+  - @pnpm/error@5.0.2
+  - @pnpm/build-modules@11.0.5
+  - @pnpm/package-is-installable@8.0.3
+  - @pnpm/lifecycle@15.0.2
+  - @pnpm/link-bins@9.0.3
+  - @pnpm/package-requester@21.0.5
+  - @pnpm/read-package-json@8.0.2
+  - @pnpm/read-project-manifest@5.0.2
+  - @pnpm/symlink-dependency@7.0.1
+
 ## 21.0.1
 
 ### Patch Changes

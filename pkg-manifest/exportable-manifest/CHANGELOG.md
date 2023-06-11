@@ -1,5 +1,12 @@
 # @pnpm/exportable-manifest
 
+## 5.0.3
+
+### Patch Changes
+
+- @pnpm/error@5.0.2
+- @pnpm/read-project-manifest@5.0.2
+
 ## 5.0.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/calc-dep-state
 
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [302ebffc5]
+  - @pnpm/constants@7.1.1
+
 ## 4.0.1
 
 ### Patch Changes

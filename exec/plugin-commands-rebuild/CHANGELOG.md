@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-rebuild
 
+## 9.0.2
+
+### Patch Changes
+
+- Updated dependencies [bd235794d]
+- Updated dependencies [d9da627cd]
+- Updated dependencies [302ebffc5]
+- Updated dependencies [bd235794d]
+  - @pnpm/workspace.find-packages@1.0.0
+  - @pnpm/lockfile-utils@8.0.2
+  - @pnpm/constants@7.1.1
+  - @pnpm/config@18.4.1
+  - @pnpm/error@5.0.2
+  - @pnpm/get-context@10.0.2
+  - @pnpm/cli-utils@2.0.10
+  - @pnpm/store-connection-manager@6.0.12
+  - @pnpm/lifecycle@15.0.2
+  - @pnpm/link-bins@9.0.3
+  - @pnpm/fs.hard-link-dir@2.0.1
+
 ## 9.0.1
 
 ### Patch Changes

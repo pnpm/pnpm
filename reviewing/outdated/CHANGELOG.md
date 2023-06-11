@@ -1,5 +1,19 @@
 # @pnpm/outdated
 
+## 13.0.2
+
+### Patch Changes
+
+- Updated dependencies [d9da627cd]
+- Updated dependencies [302ebffc5]
+  - @pnpm/lockfile-utils@8.0.2
+  - @pnpm/constants@7.1.1
+  - @pnpm/lockfile-file@8.1.1
+  - @pnpm/error@5.0.2
+  - @pnpm/manifest-utils@5.0.2
+  - @pnpm/npm-resolver@16.0.7
+  - @pnpm/client@10.0.8
+
 ## 13.0.1
 
 ### Patch Changes

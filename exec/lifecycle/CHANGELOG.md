@@ -1,5 +1,13 @@
 # @pnpm/lifecycle
 
+## 15.0.2
+
+### Patch Changes
+
+- @pnpm/error@5.0.2
+- @pnpm/read-package-json@8.0.2
+- @pnpm/directory-fetcher@6.0.2
+
 ## 15.0.1
 
 ### Patch Changes

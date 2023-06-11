@@ -1,5 +1,14 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 2.0.8
+
+### Patch Changes
+
+- Updated dependencies [d9da627cd]
+  - @pnpm/lockfile-utils@8.0.2
+  - @pnpm/lockfile-file@8.1.1
+  - @pnpm/read-package-json@8.0.2
+
 ## 2.0.7
 
 ### Patch Changes

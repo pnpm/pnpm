@@ -1,5 +1,11 @@
 # @pnpm/manifest-utils
 
+## 5.0.2
+
+### Patch Changes
+
+- @pnpm/error@5.0.2
+
 ## 5.0.1
 
 ### Patch Changes

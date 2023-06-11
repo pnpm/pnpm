@@ -1,5 +1,11 @@
 # @pnpm/pnpmfile
 
+## 5.0.8
+
+### Patch Changes
+
+- @pnpm/error@5.0.2
+
 ## 5.0.7
 
 ### Patch Changes

@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-patching
 
+## 3.1.5
+
+### Patch Changes
+
+- f0d68ab2f: When patching a dependency, only consider files specified in the 'files' field of its package.json. Ignore all others [#6565](https://github.com/pnpm/pnpm/issues/6565)
+- Updated dependencies [d9da627cd]
+- Updated dependencies [302ebffc5]
+  - @pnpm/lockfile-utils@8.0.2
+  - @pnpm/constants@7.1.1
+  - @pnpm/plugin-commands-installation@13.0.10
+  - @pnpm/config@18.4.1
+  - @pnpm/lockfile-file@8.1.1
+  - @pnpm/error@5.0.2
+  - @pnpm/cli-utils@2.0.10
+  - @pnpm/store-connection-manager@6.0.12
+  - @pnpm/patching.apply-patch@2.0.3
+  - @pnpm/read-package-json@8.0.2
+  - @pnpm/read-project-manifest@5.0.2
+
 ## 3.1.4
 
 ### Patch Changes

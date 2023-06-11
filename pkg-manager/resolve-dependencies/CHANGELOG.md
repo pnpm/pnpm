@@ -1,5 +1,19 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.8
+
+### Patch Changes
+
+- Updated dependencies [d9da627cd]
+- Updated dependencies [302ebffc5]
+  - @pnpm/lockfile-utils@8.0.2
+  - @pnpm/constants@7.1.1
+  - @pnpm/prune-lockfile@5.0.4
+  - @pnpm/error@5.0.2
+  - @pnpm/manifest-utils@5.0.2
+  - @pnpm/read-package-json@8.0.2
+  - @pnpm/npm-resolver@16.0.7
+
 ## 31.1.7
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/dedupe.check
 
+## 1.0.2
+
+### Patch Changes
+
+- @pnpm/error@5.0.2
+
 ## 1.0.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/read-package-json
 
+## 8.0.2
+
+### Patch Changes
+
+- @pnpm/error@5.0.2
+
 ## 8.0.1
 
 ### Patch Changes

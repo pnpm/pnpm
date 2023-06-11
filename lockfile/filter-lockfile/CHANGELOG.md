@@ -1,5 +1,16 @@
 # @pnpm/filter-lockfile
 
+## 8.0.6
+
+### Patch Changes
+
+- Updated dependencies [d9da627cd]
+- Updated dependencies [302ebffc5]
+  - @pnpm/lockfile-utils@8.0.2
+  - @pnpm/constants@7.1.1
+  - @pnpm/error@5.0.2
+  - @pnpm/package-is-installable@8.0.3
+
 ## 8.0.5
 
 ### Patch Changes

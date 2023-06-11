@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/manifest-utils",
   "description": "Utils for dealing with package manifest",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

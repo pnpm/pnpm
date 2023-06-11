@@ -1,5 +1,11 @@
 # @pnpm/patching.apply-patch
 
+## 2.0.3
+
+### Patch Changes
+
+- @pnpm/error@5.0.2
+
 ## 2.0.2
 
 ### Patch Changes

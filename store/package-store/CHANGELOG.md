@@ -1,5 +1,12 @@
 # @pnpm/package-store
 
+## 16.0.5
+
+### Patch Changes
+
+- @pnpm/package-requester@21.0.5
+- @pnpm/create-cafs-store@4.0.2
+
 ## 16.0.4
 
 ### Patch Changes

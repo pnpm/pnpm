@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-store
 
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [d9da627cd]
+  - @pnpm/lockfile-utils@8.0.2
+  - @pnpm/config@18.4.1
+  - @pnpm/error@5.0.2
+  - @pnpm/get-context@10.0.2
+  - @pnpm/cli-utils@2.0.10
+  - @pnpm/store-connection-manager@6.0.12
+
 ## 8.0.1
 
 ### Patch Changes

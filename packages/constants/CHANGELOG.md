@@ -1,5 +1,11 @@
 # @pnpm/constants
 
+## 7.1.1
+
+### Patch Changes
+
+- 302ebffc5: Change lockfile version back to 6.0 as previous versions of pnpm fail to parse the version correctly.
+
 ## 7.1.0
 
 ### Minor Changes

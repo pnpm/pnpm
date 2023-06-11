@@ -1,5 +1,12 @@
 # @pnpm/error
 
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [302ebffc5]
+  - @pnpm/constants@7.1.1
+
 ## 5.0.1
 
 ### Patch Changes

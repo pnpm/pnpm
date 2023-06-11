@@ -1,5 +1,11 @@
 # @pnpm/find-workspace-dir
 
+## 6.0.2
+
+### Patch Changes
+
+- @pnpm/error@5.0.2
+
 ## 6.0.1
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # pnpm
 
+## 8.6.2
+
+### Patch Changes
+
+- Change lockfile version back to 6.0 as previous versions of pnpm fail to parse the version correctly [#6648](https://github.com/pnpm/pnpm/issues/6648)
+- When patching a dependency, only consider files specified in the 'files' field of its package.json. Ignore all others [#6565](https://github.com/pnpm/pnpm/issues/6565)
+- Should always treat local file dependency as new dependency [#5381](https://github.com/pnpm/pnpm/issues/5381)
+- Output a warning message when "pnpm" or "resolutions" are configured in a non-root workspace project [#6636](https://github.com/pnpm/pnpm/issues/6636)
+
 ## 8.6.1
 
 ### Patch Changes

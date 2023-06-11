@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 8.0.2
+
+### Patch Changes
+
+- d9da627cd: Should always treat local file dependency as new dependency [#5381](https://github.com/pnpm/pnpm/issues/5381)
+
 ## 8.0.1
 
 ### Patch Changes
