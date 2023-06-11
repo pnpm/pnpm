@@ -1480,7 +1480,7 @@ test('lockfile v5 is converted to lockfile v6', async () => {
 
   {
     const lockfile = await readYamlFile<any>(WANTED_LOCKFILE) // eslint-disable-line @typescript-eslint/no-explicit-any
-    expect(lockfile.lockfileVersion).toBe('6.1')
+    expect(lockfile.lockfileVersion).toBe('6.0')
     expect(lockfile.settings).toStrictEqual({
       autoInstallPeers: false,
       excludeLinksFromLockfile: false,
