@@ -517,6 +517,9 @@ importers:
       normalize-newline:
         specifier: 3.0.0
         version: 3.0.0
+      strip-ansi:
+        specifier: ^6.0.1
+        version: 6.0.1
 
   cli/parse-cli-args:
     dependencies:
