@@ -74,3 +74,11 @@ test('file names are normalized when unpacking a tarball', async () => {
     'package.json',
   ])
 })
+
+test('broken magic in tarball headers is handled gracefully', async () => {
+  const dest = tempy.directory()
+  const cafs = createCafs(dest)
+  await cafs.addFilesFromTarball(
+    createReadStream(path.join(__dirname, 'fixtures/jquery.dirtyforms-2.0.0.tgz'))
+  )
+})
