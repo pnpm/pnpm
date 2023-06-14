@@ -16,8 +16,8 @@ describe('cafs', () => {
     const filesIndex = await cafs.addFilesFromTarball(
       createReadStream(path.join(__dirname, '../__fixtures__/node-gyp-6.1.0.tgz'))
     )
-    expect(Object.keys(filesIndex)).toHaveLength(121)
-    const pkgFile = filesIndex['package.json']
+    expect(filesIndex.size).toBe(121)
+    const pkgFile = filesIndex.get('package.json')!
     expect(pkgFile.size).toBe(1121)
     expect(pkgFile.mode).toBe(420)
     const { checkedAt, integrity } = await pkgFile.writeResult
@@ -32,14 +32,14 @@ describe('cafs', () => {
     const addFiles = async () => createCafs(storeDir).addFilesFromDir(srcDir, manifest)
 
     let filesIndex = await addFiles()
-    const { integrity } = await filesIndex['foo.txt'].writeResult
+    const { integrity } = await filesIndex.get('foo.txt')!.writeResult
 
     // Modifying the file in the store
     const filePath = getFilePathInCafs(storeDir, integrity, 'nonexec')
     await fs.appendFile(filePath, 'bar')
 
     filesIndex = await addFiles()
-    await filesIndex['foo.txt'].writeResult
+    await filesIndex.get('foo.txt')!.writeResult
     expect(await fs.readFile(filePath, 'utf8')).toBe('foo\n')
     expect(await manifest.promise).toEqual(undefined)
   })
@@ -66,7 +66,7 @@ test('file names are normalized when unpacking a tarball', async () => {
   const filesIndex = await cafs.addFilesFromTarball(
     createReadStream(path.join(__dirname, 'fixtures/colorize-semver-diff.tgz'))
   )
-  expect(Object.keys(filesIndex).sort()).toStrictEqual([
+  expect(Array.from(filesIndex.keys()).sort()).toStrictEqual([
     'LICENSE',
     'README.md',
     'lib/index.d.ts',

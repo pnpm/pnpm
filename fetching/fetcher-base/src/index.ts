@@ -19,7 +19,7 @@ export type FetchResult = {
   filesIndex: FilesIndex
 } | {
   local: true
-  filesIndex: Record<string, string>
+  filesIndex: Map<string, string>
 }
 
 export interface GitFetcherOptions {
@@ -35,7 +35,7 @@ export interface DirectoryFetcherOptions {
 
 export interface DirectoryFetcherResult {
   local: true
-  filesIndex: Record<string, string>
+  filesIndex: Map<string, string>
   packageImportMethod: 'hardlink'
 }
 

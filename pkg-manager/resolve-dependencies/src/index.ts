@@ -337,7 +337,7 @@ async function finishLockfileUpdates (
           Boolean(pkgJson.scripts.install) ||
           Boolean(pkgJson.scripts.postinstall)
         ) ||
-        filesResponse.filesIndex['binding.gyp'] ||
+        filesResponse.filesIndex.has('binding.gyp') ||
           Object.keys(filesResponse.filesIndex).some((filename) => !(filename.match(/^[.]hooks[\\/]/) == null)) // TODO: optimize this
       )
     } else {

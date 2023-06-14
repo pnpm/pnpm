@@ -133,7 +133,7 @@ test('importPackage hooks', async () => {
     module.exports = { hooks: { importPackage } }
 
     function importPackage (to, opts) {
-      fs.writeFileSync('args.json', JSON.stringify([to, opts]), 'utf8')
+      fs.writeFileSync('args.json', JSON.stringify([to, { filesMap: Object.fromEntries(opts.filesMap.entries()) }]), 'utf8')
       return {}
     }
   `

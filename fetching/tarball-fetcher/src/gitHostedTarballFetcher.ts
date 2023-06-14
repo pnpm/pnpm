@@ -2,7 +2,6 @@ import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs, FilesIndex, PackageFileInfo } from '@pnpm/cafs-types'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
-import pMapValues from 'p-map-values'
 import omit from 'ramda/src/omit'
 
 interface Resolution {
@@ -55,13 +54,16 @@ async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs, opts: Cr
   }
 }
 
-export async function waitForFilesIndex (filesIndex: FilesIndex): Promise<Record<string, PackageFileInfo>> {
-  return pMapValues(async (fileInfo) => {
-    const { integrity, checkedAt } = await fileInfo.writeResult
-    return {
-      ...omit(['writeResult'], fileInfo),
-      checkedAt,
-      integrity: integrity.toString(),
-    }
-  }, filesIndex)
+export async function waitForFilesIndex (filesIndex: FilesIndex): Promise<Map<string, PackageFileInfo>> {
+  return new Map<string, PackageFileInfo>(await Promise.all(
+    Array.from(filesIndex.entries())
+      .map(async ([filename, fileInfo]): Promise<[string, PackageFileInfo]> => {
+        const { integrity, checkedAt } = await fileInfo.writeResult
+        return [filename, {
+          ...omit(['writeResult'], fileInfo),
+          checkedAt,
+          integrity: integrity.toString(),
+        }]
+      })
+  ))
 }

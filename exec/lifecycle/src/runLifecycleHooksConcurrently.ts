@@ -60,7 +60,7 @@ export async function runLifecycleHooksConcurrently (
         await Promise.all(
           targetDirs.map(async (targetDir) => {
             const targetModulesDir = path.join(targetDir, 'node_modules')
-            const nodeModulesIndex = {}
+            const nodeModulesIndex = new Map<string, string>(filesResponse.filesIndex)
             if (fs.existsSync(targetModulesDir)) {
               // If the target directory contains a node_modules directory
               // (it may happen when the hoisted node linker is used)
@@ -72,10 +72,7 @@ export async function runLifecycleHooksConcurrently (
               filesResponse: {
                 fromStore: false,
                 ...filesResponse,
-                filesIndex: {
-                  ...filesResponse.filesIndex,
-                  ...nodeModulesIndex,
-                },
+                filesIndex: nodeModulesIndex,
               },
               force: false,
             })
@@ -87,7 +84,7 @@ export async function runLifecycleHooksConcurrently (
   await runGroups(childConcurrency, groups)
 }
 
-async function scanDir (prefix: string, rootDir: string, currentDir: string, index: Record<string, string>) {
+async function scanDir (prefix: string, rootDir: string, currentDir: string, index: Map<string, string>) {
   const files = await fs.promises.readdir(currentDir)
   await Promise.all(files.map(async (file) => {
     const fullPath = path.join(currentDir, file)
@@ -97,7 +94,7 @@ async function scanDir (prefix: string, rootDir: string, currentDir: string, ind
     }
     if (stat.isFile()) {
       const relativePath = path.relative(rootDir, fullPath)
-      index[path.join(prefix, relativePath)] = fullPath
+      index.set(path.join(prefix, relativePath), fullPath)
     }
   }))
 }

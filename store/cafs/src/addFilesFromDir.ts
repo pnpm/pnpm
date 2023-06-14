@@ -21,9 +21,9 @@ export async function addFilesFromDir (
   dirname: string,
   manifest?: DeferredManifestPromise
 ): Promise<FilesIndex> {
-  const index: FilesIndex = {}
+  const index: FilesIndex = new Map()
   await _retrieveFileIntegrities(cafs, dirname, dirname, index, manifest)
-  if (manifest && !index['package.json']) {
+  if (manifest && !index.has('package.json')) {
     manifest.resolve(undefined)
   }
   return index
@@ -62,11 +62,11 @@ async function _retrieveFileIntegrities (
           }
           return cafs.addStream(gfs.createReadStream(fullPath), stat.mode)
         })
-        index[relativePath] = {
+        index.set(relativePath, {
           mode: stat.mode,
           size: stat.size,
           writeResult,
-        }
+        })
       }
     }))
   } catch (err: any) { // eslint-disable-line

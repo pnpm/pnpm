@@ -45,8 +45,8 @@ test('fetch', async () => {
       manifest,
     }
   )
-  expect(filesIndex['package.json']).toBeTruthy()
-  expect(filesIndex['package.json'].writeResult).toBeTruthy()
+  expect(filesIndex.has('package.json')).toBeTruthy()
+  expect(filesIndex.get('package.json')?.writeResult).toBeTruthy()
   const name = (await manifest.promise).name
   expect(name).toEqual('is-positive')
 })
@@ -66,7 +66,7 @@ test('fetch a package from Git that has a prepare script', async () => {
       manifest,
     }
   )
-  expect(filesIndex[`dist${path.sep}index.js`]).toBeTruthy()
+  expect(filesIndex.has(`dist${path.sep}index.js`)).toBeTruthy()
 })
 
 // Test case for https://github.com/pnpm/pnpm/issues/1866
@@ -86,7 +86,7 @@ test('fetch a package without a package.json', async () => {
       manifest,
     }
   )
-  expect(filesIndex['denolib.json']).toBeTruthy()
+  expect(filesIndex.has('denolib.json')).toBeTruthy()
 })
 
 // Covers the regression reported in https://github.com/pnpm/pnpm/issues/4064
@@ -128,8 +128,8 @@ test('still able to shallow fetch for allowed hosts', async () => {
     // Discard final argument as it passes temporary directory
     expect(calls[i].slice(0, -1)).toEqual(expectedCalls[i])
   }
-  expect(filesIndex['package.json']).toBeTruthy()
-  expect(filesIndex['package.json'].writeResult).toBeTruthy()
+  expect(filesIndex.has('package.json')).toBeTruthy()
+  expect(filesIndex.get('package.json')?.writeResult).toBeTruthy()
   const name = (await manifest.promise).name
   expect(name).toEqual('is-positive')
 })
@@ -158,8 +158,8 @@ test('do not build the package when scripts are ignored', async () => {
       repo: 'https://github.com/pnpm-e2e/prepare-script-works.git',
       type: 'git',
     }, { manifest })
-  expect(filesIndex['package.json']).toBeTruthy()
-  expect(filesIndex['prepare.txt']).toBeFalsy()
+  expect(filesIndex.has('package.json')).toBeTruthy()
+  expect(filesIndex.has('prepare.txt')).toBeFalsy()
   expect(globalWarn).toHaveBeenCalledWith('The git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-works.git" has to be built but the build scripts were ignored.')
 })
 
