@@ -86,3 +86,20 @@ test('run lifecycle events of global packages in correct working directory', asy
 
   expect(await exists(path.join(global, `pnpm/global/${LAYOUT_VERSION}/node_modules/@pnpm.e2e/postinstall-calls-pnpm/created-by-postinstall`))).toBeTruthy()
 })
+
+test('global update to latest', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: pnpmHome, PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  await execPnpm(['install', '--global', 'is-positive@1'], { env })
+  await execPnpm(['update', '--global', '--latest'], { env })
+
+  const globalPrefix = path.join(global, `pnpm/global/${LAYOUT_VERSION}`)
+
+  const { default: isPositive } = await import(path.join(globalPrefix, 'node_modules/is-positive/package.json'))
+  expect(isPositive.version).toBe('3.1.0')
+})

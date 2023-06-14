@@ -48,6 +48,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'global'
 | 'globalPnpmfile'
 | 'hooks'
+| 'ignoreCurrentPrefs'
 | 'ignorePnpmfile'
 | 'ignoreScripts'
 | 'linkWorkspacePackages'
