@@ -11,7 +11,7 @@ export async function addFilesFromTarball (
   manifest?: DeferredManifestPromise
 ): Promise<FilesIndex> {
   const ignore = _ignore ?? (() => false)
-  const extract = tar.extract()
+  const extract = tar.extract({ allowUnknownFormat: true })
   const filesIndex: FilesIndex = {}
   await new Promise<void>((resolve, reject) => {
     extract.on('entry', (header, fileStream, next) => {
