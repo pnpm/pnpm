@@ -50,7 +50,7 @@
     "process-exists": "^4.1.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "render-help": "^1.0.3",
-    "signal-exit": "^3.0.7",
+    "signal-exit": "^4.0.2",
     "tree-kill": "^1.2.2"
   },
   "peerDependencies": {
