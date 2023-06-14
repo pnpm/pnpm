@@ -2,7 +2,7 @@
 const fs = require('fs')
 const esbuild = require('esbuild')
 const pathLib = require('path')
-const { findWorkspacePackagesNoCheck } = require('@pnpm/find-workspace-packages')
+const { findWorkspacePackagesNoCheck } = require('@pnpm/workspace.find-packages')
 const { findWorkspaceDir } = require('@pnpm/find-workspace-dir')
 
 const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'package.json'), 'utf8'))
