@@ -57,8 +57,10 @@ jobs:
         # key: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-${{ github.run_id }}
         # restore-keys: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-
     - name: run tests (main)
+      timeout-minutes: 60
       if: github.ref == 'refs/heads/main'
       run: pnpm run test-main
     - name: run tests (branch)
+      timeout-minutes: 60
       if: github.ref != 'refs/heads/main'
       run: pnpm run test-branch
