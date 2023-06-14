@@ -37,7 +37,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/matcher": "workspace:*",
-    "@pnpm/npm-conf": "2.2.0",
+    "@pnpm/npm-conf": "2.2.2",
     "@pnpm/pnpmfile": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
