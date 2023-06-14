@@ -8,7 +8,7 @@ permissions:
 jobs:
   build:
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.platform }}-${{ matrix.node }}
       cancel-in-progress: true
 
     strategy:
