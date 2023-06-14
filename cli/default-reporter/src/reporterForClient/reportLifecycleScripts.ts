@@ -1,10 +1,10 @@
+import cliTruncate from 'cli-truncate'
 import path from 'path'
 import { type LifecycleLog } from '@pnpm/core-loggers'
 import * as Rx from 'rxjs'
 import { buffer, filter, groupBy, map, mergeAll, mergeMap } from 'rxjs/operators'
 import chalk from 'chalk'
 import prettyTime from 'pretty-ms'
-import stripAnsi from 'strip-ansi'
 import { EOL } from '../constants'
 import { formatPrefix, formatPrefixNoTrim } from './utils/formatPrefix'
 import { hlValue } from './outputConstants'
@@ -273,7 +273,7 @@ function formatLine (maxWidth: number, logObj: LifecycleLog) {
 
 function cutLine (line: string, maxLength: number) {
   if (!line) return '' // This actually should never happen but it is better to be safe
-  return stripAnsi(line).slice(0, maxLength)
+  return cliTruncate(line, maxLength)
 }
 
 function aggregateOutput (source: Rx.Observable<LifecycleLog>) {
