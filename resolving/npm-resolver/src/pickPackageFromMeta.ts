@@ -210,6 +210,6 @@ class PreferredVersionsPrioritizer {
       }, {} as Record<number, string[]>)
     return Object.keys(versionsByWeight)
       .sort((a, b) => parseInt(b, 10) - parseInt(a, 10))
-      .map((weigth) => versionsByWeight[parseInt(weigth, 10)])
+      .map((weight) => versionsByWeight[parseInt(weight, 10)])
   }
 }
