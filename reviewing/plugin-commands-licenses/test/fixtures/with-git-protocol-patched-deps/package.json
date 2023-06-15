@@ -1,0 +1,12 @@
+{
+  "name": "with-patched-deps",
+  "version": "1.0.0",
+  "dependencies": {
+    "is-positive": "github:kevva/is-positive"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "is-positive@3.1.0": "patches/is-positive@3.1.0.patch"
+    }
+  }
+}
