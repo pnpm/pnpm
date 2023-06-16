@@ -88,7 +88,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
       patchedDir: editDir,
       patchedDependencies: opts.rootProjectManifest.pnpm.patchedDependencies,
       lockfileDir,
-      name
+      name,
     })
   }
   return `You can now edit the following folder: ${editDir}
@@ -102,7 +102,7 @@ function tryPatchWithExistingPatchFile (
     patchedDir,
     patchedDependencies,
     lockfileDir,
-    name
+    name,
   }: {
     patchedDep: ParseWantedDependencyResult
     patchedDir: string
