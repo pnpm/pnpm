@@ -82,11 +82,13 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
 
   await writePackage(patchedDep, editDir, opts)
   if (!opts.ignoreExisting && opts.rootProjectManifest?.pnpm?.patchedDependencies) {
+    const [name] = params[0].split('@')
     tryPatchWithExistingPatchFile({
       patchedDep,
       patchedDir: editDir,
       patchedDependencies: opts.rootProjectManifest.pnpm.patchedDependencies,
       lockfileDir,
+      name
     })
   }
   return `You can now edit the following folder: ${editDir}
@@ -100,11 +102,13 @@ function tryPatchWithExistingPatchFile (
     patchedDir,
     patchedDependencies,
     lockfileDir,
+    name
   }: {
     patchedDep: ParseWantedDependencyResult
     patchedDir: string
     patchedDependencies: Record<string, string>
     lockfileDir: string
+    name: string
   }
 ) {
   if (!patchedDep.alias || !patchedDep.pref) {
@@ -118,5 +122,5 @@ function tryPatchWithExistingPatchFile (
   if (!fs.existsSync(existingPatchFilePath)) {
     throw new PnpmError('PATCH_FILE_NOT_FOUND', `Unable to find patch file ${existingPatchFilePath}`)
   }
-  applyPatchToDir({ patchedDir, patchFilePath: existingPatchFilePath })
+  applyPatchToDir({ patchedDir, patchFilePath: existingPatchFilePath, name })
 }

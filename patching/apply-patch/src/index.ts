@@ -4,6 +4,7 @@ import { applyPatch } from 'patch-package/dist/applyPatches'
 export interface ApplyPatchToDirOpts {
   patchedDir: string
   patchFilePath: string
+  name: string
 }
 
 export function applyPatchToDir (opts: ApplyPatchToDirOpts) {
@@ -14,6 +15,10 @@ export function applyPatchToDir (opts: ApplyPatchToDirOpts) {
   const success = applyPatch({
     patchDir: opts.patchedDir,
     patchFilePath: opts.patchFilePath,
+    packageDetails: {
+      pathSpecifier: opts.name,
+      humanReadablePath: opts.name,
+    },
   })
   process.chdir(cwd)
   if (!success) {
