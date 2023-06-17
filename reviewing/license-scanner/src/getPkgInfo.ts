@@ -196,9 +196,9 @@ export async function readPackageIndexFile (
     )
   } else if (!packageResolution.type && packageResolution.tarball) {
     // If the package resolution has a tarball then we need to clean up
-    // the call to depPathToFilename as it adds '_[hash]' part to the
+    // the return value to depPathToFilename as it adds peer deps(e.g. a@1.0.0_peer-foo@18.0.0_peer-bar@18.0.0) or patch hash(a@1.0.0_patch_hash=xxxx) part to the
     // directory for the package in the content-addressable store
-    const packageDirInStore = depPathToFilename(depPath.split('_')[0])
+    const packageDirInStore = depPathToFilename(depPath).split('_')[0]
     pkgIndexFilePath = path.join(
       opts.storeDir,
       packageDirInStore,
