@@ -1,4 +1,4 @@
-lockfileVersion: '6.1'
+lockfileVersion: '6.0'
 
 settings:
   autoInstallPeers: true
@@ -2575,13 +2575,19 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      patch-package:
-        specifier: ^7.0.0
-        version: 7.0.0
+      '@pnpm/patch-package':
+        specifier: 0.0.0
+        version: 0.0.0
     devDependencies:
       '@pnpm/patching.apply-patch':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      '@pnpm/test-fixtures':
+        specifier: workspace:*
+        version: link:../../__utils__/test-fixtures
 
   patching/plugin-commands-patching:
     dependencies:
@@ -8500,6 +8506,27 @@ packages:
     dependencies:
       validate-npm-package-name: 5.0.0
     dev: true
+
+  /@pnpm/patch-package@0.0.0:
+    resolution: {integrity: sha512-B17ZK4hUAKHDSeSlOg0N+jd+5TuxiSB/2jJcHM0oncf+W5FXslILITpwyIWut4p2P2RCgtSgTF9cSXEX/dGYQA==}
+    engines: {node: '>=14', npm: '>5'}
+    hasBin: true
+    dependencies:
+      '@yarnpkg/lockfile': 1.1.0
+      chalk: 4.1.2
+      ci-info: 3.8.0
+      cross-spawn: 7.0.3
+      find-yarn-workspace-root: 2.0.0
+      fs-extra: 9.1.0
+      klaw-sync: 6.0.0
+      minimist: 1.2.8
+      open: 7.4.2
+      rimraf: 2.7.1
+      semver: 5.7.1
+      slash: 2.0.0
+      tmp: 0.0.33
+      yaml: 2.3.1
+    dev: false
 
   /@pnpm/patching.apply-patch@1.0.0:
     resolution: {integrity: sha512-wu44YGD7K+AnV9qR3b6nsc4OCzlSr80jn1+C6OtFC4ZYZASo5kZPUHoKW265V+jYgw0KttsUCr9V6+QUZjc0QA==}
@@ -15179,27 +15206,6 @@ packages:
       yaml: 2.3.1
     dev: true
 
-  /patch-package@7.0.0:
-    resolution: {integrity: sha512-eYunHbnnB2ghjTNc5iL1Uo7TsGMuXk0vibX3RFcE/CdVdXzmdbMsG/4K4IgoSuIkLTI5oHrMQk4+NkFqSed0BQ==}
-    engines: {node: '>=14', npm: '>5'}
-    hasBin: true
-    dependencies:
-      '@yarnpkg/lockfile': 1.1.0
-      chalk: 4.1.2
-      ci-info: 3.8.0
-      cross-spawn: 7.0.3
-      find-yarn-workspace-root: 2.0.0
-      fs-extra: 9.1.0
-      klaw-sync: 6.0.0
-      minimist: 1.2.8
-      open: 7.4.2
-      rimraf: 2.7.1
-      semver: 5.7.1
-      slash: 2.0.0
-      tmp: 0.0.33
-      yaml: 2.3.1
-    dev: false
-
   /path-absolute@1.0.1:
     resolution: {integrity: sha512-gds5iRhSeOcDtj8gfWkRHLtZKTPsFVuh7utbjYtvnclw4XM+ffRzJrwqMhOD1PVqef7nBLmgsu1vIujjvAJrAw==}
     engines: {node: '>=4'}
@@ -18174,7 +18180,6 @@ time:
   /p-settle@4.1.1: '2020-05-29T08:07:35.109Z'
   /parse-json@5.2.0: '2021-01-18T11:15:13.459Z'
   /parse-npm-tarball-url@3.0.0: '2019-05-27T23:50:09.183Z'
-  /patch-package@7.0.0: '2023-04-25T18:02:53.677Z'
   /path-absolute@1.0.1: '2018-11-28T20:25:53.253Z'
   /path-exists@4.0.0: '2019-04-04T03:29:16.887Z'
   /path-name@1.0.0: '2016-10-20T18:43:50.780Z'

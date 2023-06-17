@@ -137,7 +137,7 @@ declare module 'nerf-dart' {
   export = anything
 }
 
-declare module 'patch-package/dist/applyPatches' {
+declare module '@pnpm/patch-package/dist/applyPatches' {
   export function applyPatch (opts: any): boolean
 }
 
