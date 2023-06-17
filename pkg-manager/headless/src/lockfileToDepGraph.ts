@@ -52,6 +52,7 @@ export interface DependenciesGraph {
 }
 
 export interface LockfileToDepGraphOptions {
+  autoInstallPeers: boolean
   engineStrict: boolean
   force: boolean
   importerIds: string[]

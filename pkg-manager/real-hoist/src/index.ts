@@ -17,6 +17,7 @@ export function hoist (
     // This option was added for Bit CLI in order to prevent pnpm from overwriting dependencies linked by Bit.
     // However, in the future it might be useful to use it in pnpm for skipping any dependencies added by external tools.
     externalDependencies?: Set<string>
+    autoInstallPeers?: boolean
   }
 ): HoisterResult {
   const nodes = new Map<string, HoisterTree>()
@@ -37,7 +38,7 @@ export function hoist (
         acc[dep] = 'link:'
         return acc
       }, {} as Record<string, string>),
-    }),
+    }, opts?.autoInstallPeers),
   }
   for (const [importerId, importer] of Object.entries(lockfile.importers)) {
     if (importerId === '.') continue
@@ -51,7 +52,7 @@ export function hoist (
         ...importer.dependencies,
         ...importer.devDependencies,
         ...importer.optionalDependencies,
-      }),
+      }, opts?.autoInstallPeers),
     }
     node.dependencies.add(importerNode)
   }
@@ -67,7 +68,12 @@ export function hoist (
   return hoisterResult
 }
 
-function toTree (nodes: Map<string, HoisterTree>, lockfile: Lockfile, deps: Record<string, string>): Set<HoisterTree> {
+function toTree (
+  nodes: Map<string, HoisterTree>,
+  lockfile: Lockfile,
+  deps: Record<string, string>,
+  autoInstallPeers?: boolean
+): Set<HoisterTree> {
   return new Set(Object.entries(deps).map(([alias, ref]) => {
     const depPath = dp.refToRelative(ref, alias)!
     if (!depPath) {
@@ -100,10 +106,12 @@ function toTree (nodes: Map<string, HoisterTree>, lockfile: Lockfile, deps: Reco
         reference: depPath,
         dependencyKind: HoisterDependencyKind.REGULAR,
         dependencies: new Set(),
-        peerNames: new Set([
-          ...Object.keys(pkgSnapshot.peerDependencies ?? {}),
-          ...(pkgSnapshot.transitivePeerDependencies ?? []),
-        ]),
+        peerNames: new Set(autoInstallPeers
+          ? []
+          : [
+            ...Object.keys(pkgSnapshot.peerDependencies ?? {}),
+            ...(pkgSnapshot.transitivePeerDependencies ?? []),
+          ]),
       }
       nodes.set(key, node)
       node.dependencies = toTree(nodes, lockfile, { ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
