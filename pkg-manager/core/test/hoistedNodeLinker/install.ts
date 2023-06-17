@@ -316,3 +316,17 @@ test('linking bins of local projects when node-linker is set to hoisted', async 
 
   expect(fs.existsSync('project-1/node_modules/.bin/project-2')).toBeTruthy()
 })
+
+test('peerDependencies should be installed when autoInstallPeers is set to true and nodeLinker is set to hoisted', async () => {
+  prepareEmpty()
+  await install({
+    dependencies: {
+      'react-dom': '18.2.0',
+    },
+  }, await testDefaults({
+    nodeLinker: 'hoisted',
+    autoInstallPeers: true,
+  }))
+
+  expect(fs.existsSync('node_modules/react')).toBeTruthy()
+})
