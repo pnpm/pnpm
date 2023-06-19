@@ -668,7 +668,7 @@ describe('patch-remove', () => {
     await patchRemove.handler(defaultPatchRemoveOption, ['is-positive@1.0.0'])
 
     const { manifest: newManifest } = await readProjectManifest(process.cwd())
-    expect(newManifest!.pnpm!.patchedDependencies).toEqual({})
+    expect(newManifest!.pnpm!).toBeUndefined()
     expect(fs.existsSync(path.join(process.cwd(), 'patches/is-positive@1.0.0.patch'))).toBe(false)
   })
 
@@ -689,7 +689,7 @@ describe('patch-remove', () => {
     prompt.mockClear()
 
     const { manifest: newManifest } = await readProjectManifest(process.cwd())
-    expect(newManifest!.pnpm!.patchedDependencies).toEqual({})
+    expect(newManifest!.pnpm!).toBeUndefined()
   })
 
   test('should throw error when there is no patch to remove', async () => {
