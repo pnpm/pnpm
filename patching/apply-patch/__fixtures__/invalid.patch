@@ -1,0 +1,12 @@
+diff --git a/foo.txt b/foo.txt
+index 27a8dc9..31cbe49 100644
+--- a/foo.txt
++++ b/foo.txt
+@@ -1,3 +1,9 @@
+ This is a sample file
+-and this is a broken patch
++and this is a supposed modification
++
++here is another addition
+++and here is a broken line that will cause a parse error
+
