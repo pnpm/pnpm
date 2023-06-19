@@ -1,5 +1,17 @@
 # pnpm
 
+## 8.6.3
+
+### Patch Changes
+
+- When running a script in multiple projects, the script outputs should preserve colours [#2148](https://github.com/pnpm/pnpm/issues/2148).
+- Don't crash when the `APPDATA` env variable is not set on Windows [#6659](https://github.com/pnpm/pnpm/issues/6659).
+- Don't fail when a package is archived in a tarball with malformed tar headers [#5362](https://github.com/pnpm/pnpm/issues/5362).
+- Peer dependencies of subdependencies should be installed, when `node-linker` is set to `hoisted` [#6680](https://github.com/pnpm/pnpm/pull/6680).
+- Throw a meaningful error when applying a patch to a dependency fails.
+- `pnpm update --global --latest` should work [#3779](https://github.com/pnpm/pnpm/issues/3779).
+- `pnpm license ls` should work even when there is a patched git protocol dependency [#6595](https://github.com/pnpm/pnpm/issues/6595)
+
 ## 8.6.2
 
 ### Patch Changes

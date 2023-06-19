@@ -1,5 +1,11 @@
 # @pnpm/real-hoist
 
+## 2.0.8
+
+### Patch Changes
+
+- 59aba9e72: Peer dependencies of subdependencies should be installed, when `node-linker` is set to `hoisted` [#6680](https://github.com/pnpm/pnpm/pull/6680).
+
 ## 2.0.7
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-licenses
 
+## 2.0.12
+
+### Patch Changes
+
+- c686768f0: `pnpm license ls` should work even when there is a patched git protocol dependency [#6595](https://github.com/pnpm/pnpm/issues/6595)
+- Updated dependencies [e2d631217]
+- Updated dependencies [c686768f0]
+  - @pnpm/config@18.4.2
+  - @pnpm/license-scanner@2.0.8
+  - @pnpm/cli-utils@2.0.11
+
 ## 2.0.11
 
 ### Patch Changes

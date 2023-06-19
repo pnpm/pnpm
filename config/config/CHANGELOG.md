@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 18.4.2
+
+### Patch Changes
+
+- e2d631217: Don't crash when the APPDATA env variable is not set on Windows [#6659](https://github.com/pnpm/pnpm/issues/6659).
+
 ## 18.4.1
 
 ### Patch Changes

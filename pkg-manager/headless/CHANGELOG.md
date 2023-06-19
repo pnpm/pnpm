@@ -1,5 +1,18 @@
 # @pnpm/headless
 
+## 21.0.3
+
+### Patch Changes
+
+- 59aba9e72: Peer dependencies of subdependencies should be installed, when `node-linker` is set to `hoisted` [#6680](https://github.com/pnpm/pnpm/pull/6680).
+- Updated dependencies [59aba9e72]
+  - @pnpm/real-hoist@2.0.8
+  - @pnpm/package-requester@21.0.6
+  - @pnpm/build-modules@11.0.6
+  - @pnpm/symlink-dependency@7.0.1
+  - @pnpm/lifecycle@15.0.2
+  - @pnpm/link-bins@9.0.3
+
 ## 21.0.2
 
 ### Patch Changes

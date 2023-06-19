@@ -1,5 +1,12 @@
 # @pnpm/package-requester
 
+## 21.0.6
+
+### Patch Changes
+
+- Updated dependencies [e57e2d340]
+  - @pnpm/cafs@7.0.3
+
 ## 21.0.5
 
 ### Patch Changes

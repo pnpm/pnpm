@@ -1,5 +1,11 @@
 # @pnpm/patching.apply-patch
 
+## 2.0.4
+
+### Patch Changes
+
+- 3b6930263: Throw a meaningful error when applying a patch to a dependency fails.
+
 ## 2.0.3
 
 ### Patch Changes

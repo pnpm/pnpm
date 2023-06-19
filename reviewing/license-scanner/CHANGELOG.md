@@ -1,5 +1,14 @@
 # @pnpm/license-scanner
 
+## 2.0.8
+
+### Patch Changes
+
+- c686768f0: `pnpm license ls` should work even when there is a patched git protocol dependency [#6595](https://github.com/pnpm/pnpm/issues/6595)
+- Updated dependencies [e57e2d340]
+  - @pnpm/cafs@7.0.3
+  - @pnpm/directory-fetcher@6.0.2
+
 ## 2.0.7
 
 ### Patch Changes

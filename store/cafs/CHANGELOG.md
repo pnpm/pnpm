@@ -1,5 +1,11 @@
 # @pnpm/cafs
 
+## 7.0.3
+
+### Patch Changes
+
+- e57e2d340: Don't fail when a package is archived in a tarball with malformed tar headers [#5362](https://github.com/pnpm/pnpm/issues/5362).
+
 ## 7.0.2
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-licenses",
-  "version": "2.0.11",
+  "version": "2.0.12",
   "description": "The licenses command of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

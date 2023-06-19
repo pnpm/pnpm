@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-installation
 
+## 13.0.11
+
+### Patch Changes
+
+- 0b830f947: `pnpm update --global --latest` should work [#3779](https://github.com/pnpm/pnpm/issues/3779).
+- Updated dependencies [e2d631217]
+  - @pnpm/config@18.4.2
+  - @pnpm/cli-utils@2.0.11
+  - @pnpm/plugin-commands-rebuild@9.0.3
+  - @pnpm/store-connection-manager@6.0.13
+  - @pnpm/core@10.2.3
+  - @pnpm/package-store@16.0.6
+  - @pnpm/workspace.find-packages@1.0.1
+  - @pnpm/filter-workspace-packages@7.0.11
+
 ## 13.0.10
 
 ### Patch Changes

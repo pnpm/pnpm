@@ -1,5 +1,18 @@
 # @pnpm/core
 
+## 10.2.3
+
+### Patch Changes
+
+- Updated dependencies [59aba9e72]
+  - @pnpm/headless@21.0.3
+  - @pnpm/package-requester@21.0.6
+  - @pnpm/build-modules@11.0.6
+  - @pnpm/symlink-dependency@7.0.1
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/lifecycle@15.0.2
+  - @pnpm/link-bins@9.0.3
+
 ## 10.2.2
 
 ### Patch Changes

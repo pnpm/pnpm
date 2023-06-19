@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-audit
 
+## 8.0.13
+
+### Patch Changes
+
+- Updated dependencies [e2d631217]
+  - @pnpm/config@18.4.2
+  - @pnpm/cli-utils@2.0.11
+  - @pnpm/audit@7.0.10
+
 ## 8.0.12
 
 ### Patch Changes

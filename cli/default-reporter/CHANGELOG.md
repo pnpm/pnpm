@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 12.2.5
+
+### Patch Changes
+
+- 100d03b36: When running a script in multiple projects, the script outputs should preserve colours [#2148](https://github.com/pnpm/pnpm/issues/2148).
+- Updated dependencies [e2d631217]
+  - @pnpm/config@18.4.2
+
 ## 12.2.4
 
 ### Patch Changes
