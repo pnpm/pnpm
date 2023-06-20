@@ -3,10 +3,13 @@ import path from 'path'
 import { licenses } from '@pnpm/plugin-commands-licenses'
 import { install } from '@pnpm/plugin-commands-installation'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { tempDir } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
 import stripAnsi from 'strip-ansi'
 import { DEFAULT_OPTS } from './utils'
 import tempy from 'tempy'
 
+const f = fixtures(__dirname)
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 const LICENSES_OPTIONS = {
