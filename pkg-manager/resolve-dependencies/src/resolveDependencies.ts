@@ -522,7 +522,7 @@ export async function resolveDependencies (
       postponedPeersResolutionQueue.push(postponedPeersResolution)
     }
   })
-  const newPreferredVersions = { ...preferredVersions }
+  const newPreferredVersions = Object.create(preferredVersions) as PreferredVersions
   const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
   for (const pkgAddress of pkgAddresses) {
     if (currentParentPkgAliases[pkgAddress.alias] !== true) {
