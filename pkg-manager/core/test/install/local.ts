@@ -436,7 +436,6 @@ test('re-install should update local file dependency', async () => {
       'file:../local-pkg': {
         resolution: { directory: '../local-pkg', type: 'directory' },
         name: 'local-pkg',
-        version: '1.0.0',
         dev: false,
         dependencies: {
           'is-positive': '1.0.0',

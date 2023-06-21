@@ -1268,8 +1268,8 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
         directory: 'project-2',
         type: 'directory',
       },
+      id: 'file:project-2',
       name: 'project-2',
-      version: '1.0.0',
       dependencies: {
         '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
         'project-1': 'file:project-1(is-positive@2.0.0)',
