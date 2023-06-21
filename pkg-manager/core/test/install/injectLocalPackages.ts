@@ -151,7 +151,6 @@ test('inject local packages', async () => {
       },
       id: 'file:project-1',
       name: 'project-1',
-      version: '1.0.0',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -168,7 +167,6 @@ test('inject local packages', async () => {
       },
       id: 'file:project-2',
       name: 'project-2',
-      version: '1.0.0',
       dependencies: {
         'project-1': 'file:project-1(is-positive@2.0.0)',
       },
@@ -223,7 +221,6 @@ test('inject local packages', async () => {
       },
       id: 'file:project-1',
       name: 'project-1',
-      version: '1.0.0',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -383,7 +380,6 @@ test('inject local packages declared via file protocol', async () => {
       },
       id: 'file:project-1',
       name: 'project-1',
-      version: '1.0.0',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -400,7 +396,6 @@ test('inject local packages declared via file protocol', async () => {
       },
       id: 'file:project-2',
       name: 'project-2',
-      version: '1.0.0',
       dependencies: {
         'project-1': 'file:project-1(is-positive@2.0.0)',
       },
@@ -456,7 +451,6 @@ test('inject local packages declared via file protocol', async () => {
       },
       id: 'file:project-1',
       name: 'project-1',
-      version: '1.0.0',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -601,7 +595,6 @@ test('inject local packages when the file protocol is used', async () => {
       },
       id: 'file:project-1',
       name: 'project-1',
-      version: '1.0.0',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -618,7 +611,6 @@ test('inject local packages when the file protocol is used', async () => {
       },
       id: 'file:project-2',
       name: 'project-2',
-      version: '1.0.0',
       dependencies: {
         'project-1': 'file:project-1(is-positive@2.0.0)',
       },
@@ -673,7 +665,6 @@ test('inject local packages when the file protocol is used', async () => {
       },
       id: 'file:project-1',
       name: 'project-1',
-      version: '1.0.0',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -796,7 +787,6 @@ test('inject local packages and relink them after build', async () => {
     },
     id: 'file:project-1',
     name: 'project-1',
-    version: '1.0.0',
     peerDependencies: {
       'is-positive': '1.0.0',
     },
@@ -907,7 +897,6 @@ test('inject local packages and relink them after build (file protocol is used)'
     },
     id: 'file:project-1',
     name: 'project-1',
-    version: '1.0.0',
     peerDependencies: {
       'is-positive': '1.0.0',
     },
@@ -1081,7 +1070,6 @@ test('inject local packages when node-linker is hoisted', async () => {
       },
       id: 'file:project-1',
       name: 'project-1',
-      version: '1.0.0',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -1099,7 +1087,6 @@ test('inject local packages when node-linker is hoisted', async () => {
       },
       id: 'file:project-2',
       name: 'project-2',
-      version: '1.0.0',
       dependencies: {
         '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
         'project-1': 'file:project-1(is-positive@2.0.0)',
@@ -1266,7 +1253,6 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
       },
       id: 'file:project-1',
       name: 'project-1',
-      version: '1.0.0',
       peerDependencies: {
         'is-positive': '>=1.0.0',
       },
@@ -1284,7 +1270,6 @@ test('inject local packages when node-linker is hoisted and dependenciesMeta is 
       },
       id: 'file:project-2',
       name: 'project-2',
-      version: '1.0.0',
       dependencies: {
         '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
         'project-1': 'file:project-1(is-positive@2.0.0)',

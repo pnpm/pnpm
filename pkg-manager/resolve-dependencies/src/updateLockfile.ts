@@ -6,7 +6,7 @@ import {
   pruneSharedLockfile,
   type ResolvedDependencies,
 } from '@pnpm/prune-lockfile'
-import { type Resolution } from '@pnpm/resolver-base'
+import { type DirectoryResolution, type Resolution } from '@pnpm/resolver-base'
 import { type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
@@ -97,9 +97,9 @@ function toLockfileDependency (
   if (dp.isAbsolute(opts.depPath)) {
     result['name'] = pkg.name
 
-    // There is no guarantee that a non-npmjs.org-hosted package
-    // is going to have a version field
-    if (pkg.version) {
+    // There is no guarantee that a non-npmjs.org-hosted package is going to have a version field.
+    // Also, for local directory dependencies, the version is not needed.
+    if (pkg.version && (lockfileResolution as DirectoryResolution).type !== 'directory') {
       result['version'] = pkg.version
     }
   }
