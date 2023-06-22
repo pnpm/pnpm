@@ -390,7 +390,7 @@ describe('peer dependency issues', () => {
   })
   it('should return the intersection of two compatible ranges', () => {
     expect(peerDependencyIssuesByProjects['project4'].intersections)
-      .toStrictEqual({ peer: '>=2.2.0 <3.0.0' })
+      .toStrictEqual({ peer: '>=2.2.0 <3.0.0-0' })
   })
 })
 
