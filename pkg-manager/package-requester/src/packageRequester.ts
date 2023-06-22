@@ -613,6 +613,11 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           filesIndex: fetchedPackage.filesIndex,
           packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
         }
+        if (fetchedPackage.filesIndex['package.json'] != null) {
+          readBundledManifest(fetchedPackage.filesIndex['package.json'])
+            .then(bundledManifest.resolve)
+            .catch(bundledManifest.reject)
+        }
       }
 
       if (isLocalTarballDep && (opts.pkg.resolution as TarballResolution).integrity) {
