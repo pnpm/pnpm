@@ -44,7 +44,7 @@
     "@types/sinon": "^10.0.15",
     "execa": "npm:safe-execa@0.1.2",
     "path-exists": "^4.0.0",
-    "sinon": "^15.1.0",
+    "sinon": "^15.2.0",
     "write-yaml-file": "^5.0.0"
   },
   "dependencies": {
@@ -76,7 +76,7 @@
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "render-help": "^1.0.3",
     "run-groups": "^3.0.1",
-    "semver": "^7.5.1"
+    "semver": "^7.5.3"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

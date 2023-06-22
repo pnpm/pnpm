@@ -59,7 +59,7 @@
     "js-yaml": "npm:@zkochan/js-yaml@0.0.6",
     "normalize-path": "^3.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "semver": "^7.5.1",
+    "semver": "^7.5.3",
     "sort-keys": "^4.2.0",
     "strip-bom": "^4.0.0",
     "write-file-atomic": "^5.0.1"
