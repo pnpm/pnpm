@@ -631,9 +631,9 @@ function toPkgByName<T extends PartialResolvedPackage> (nodes: Array<{ alias: st
 function updateParentRefs (parentRefs: ParentRefs, newAlias: string, pkg: ParentRef) {
   const existing = parentRefs[newAlias]
   if (existing) {
-    const existingHasAlias = existing.alias != null || existing.alias !== newAlias
+    const existingHasAlias = existing.alias != null && existing.alias !== newAlias
     if (!existingHasAlias) return
-    const newHasAlias = pkg.alias != null || pkg.alias !== newAlias
+    const newHasAlias = pkg.alias != null && pkg.alias !== newAlias
     if (newHasAlias && semver.gte(existing.version, pkg.version)) return
   }
   parentRefs[newAlias] = pkg
