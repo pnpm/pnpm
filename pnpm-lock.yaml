@@ -22,6 +22,7 @@ overrides:
   debug@<3.1.0: '>=3.1.0'
   verdaccio: 5.20.1
   yaml@>=2.0.0-5 <2.2.2: '>=2.2.2'
+  semver: '>=7.5.2'
 
 packageExtensionsChecksum: 66c6aa53b7057053eae6c4a5ea9612f3
 
@@ -478,8 +479,8 @@ importers:
         specifier: ^7.8.1
         version: 7.8.1
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
       stacktracey:
         specifier: ^2.1.8
         version: 2.1.8
@@ -678,8 +679,8 @@ importers:
         specifier: ^8.1.1
         version: 8.1.1
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
     devDependencies:
       '@pnpm/package-is-installable':
         specifier: workspace:*
@@ -812,8 +813,8 @@ importers:
         specifier: workspace:*
         version: link:../node.fetcher
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
       version-selector-type:
         specifier: ^3.0.0
         version: 3.0.0
@@ -873,8 +874,8 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
       symlink-dir:
         specifier: ^5.1.1
         version: 5.1.1
@@ -1104,8 +1105,8 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
     devDependencies:
       '@pnpm/assert-project':
         specifier: workspace:*
@@ -1674,8 +1675,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
     devDependencies:
       '@pnpm/hooks.read-package-hook':
         specifier: workspace:*
@@ -1845,8 +1846,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
       sort-keys:
         specifier: ^4.2.0
         version: 4.2.0
@@ -2012,8 +2013,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
     devDependencies:
       '@pnpm/merge-lockfile-changes':
         specifier: workspace:*
@@ -2240,8 +2241,8 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
     devDependencies:
       '@pnpm/dependency-path':
         specifier: workspace:*
@@ -2589,8 +2590,8 @@ importers:
         specifier: ^0.1.3
         version: 0.1.3
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -2819,8 +2820,8 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
       version-selector-type:
         specifier: ^3.0.0
         version: 3.0.0
@@ -3458,8 +3459,8 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
       ssri:
         specifier: 10.0.1
         version: 10.0.1
@@ -3892,8 +3893,8 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
       semver-range-intersect:
         specifier: ^0.3.1
         version: 0.3.1
@@ -4322,8 +4323,8 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
       split-cmd:
         specifier: ^1.0.1
         version: 1.0.1
@@ -4650,8 +4651,8 @@ importers:
         specifier: npm:@zkochan/hosted-git-info@4.0.2
         version: /@zkochan/hosted-git-info@4.0.2
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
     devDependencies:
       '@pnpm/git-resolver':
         specifier: workspace:*
@@ -4763,8 +4764,8 @@ importers:
         specifier: ^4.0.3
         version: 4.0.3
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
       ssri:
         specifier: 10.0.1
         version: 10.0.1
@@ -4969,8 +4970,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
     devDependencies:
       '@pnpm/list':
         specifier: workspace:*
@@ -5033,8 +5034,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
     devDependencies:
       '@pnpm/outdated':
         specifier: workspace:*
@@ -5939,8 +5940,8 @@ importers:
   workspace/resolve-workspace-range:
     dependencies:
       semver:
-        specifier: ^7.5.0
-        version: 7.5.0
+        specifier: '>=7.5.2'
+        version: 7.5.3
     devDependencies:
       '@pnpm/resolve-workspace-range':
         specifier: workspace:*
@@ -6013,7 +6014,7 @@ packages:
       debug: 4.3.4
       gensync: 1.0.0-beta.2
       json5: 2.2.3
-      semver: 6.3.0
+      semver: 7.5.3
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -6046,7 +6047,7 @@ packages:
       '@babel/helper-validator-option': 7.21.0
       browserslist: 4.21.5
       lru-cache: 5.1.1
-      semver: 6.3.0
+      semver: 7.5.3
     dev: true
 
   /@babel/helper-create-class-features-plugin@7.21.8(@babel/core@7.21.8):
@@ -6064,7 +6065,7 @@ packages:
       '@babel/helper-replace-supers': 7.21.5
       '@babel/helper-skip-transparent-expression-wrappers': 7.20.0
       '@babel/helper-split-export-declaration': 7.18.6
-      semver: 6.3.0
+      semver: 7.5.3
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -6482,7 +6483,7 @@ packages:
       outdent: 0.5.0
       prettier: 2.8.8
       resolve-from: 5.0.0
-      semver: 5.7.1
+      semver: 7.5.3
     dev: true
 
   /@changesets/assemble-release-plan@5.2.3:
@@ -6493,7 +6494,7 @@ packages:
       '@changesets/get-dependents-graph': 1.3.5
       '@changesets/types': 5.2.1
       '@manypkg/get-packages': 1.1.3
-      semver: 5.7.1
+      semver: 7.5.3
     dev: true
 
   /@changesets/changelog-git@0.1.14:
@@ -6535,7 +6536,7 @@ packages:
       p-limit: 2.3.0
       preferred-pm: 3.0.3
       resolve-from: 5.0.0
-      semver: 5.7.1
+      semver: 7.5.3
       spawndamnit: 2.0.0
       term-size: 2.2.1
       tty-table: 4.2.1
@@ -6566,7 +6567,7 @@ packages:
       '@manypkg/get-packages': 1.1.3
       chalk: 2.4.2
       fs-extra: 7.0.1
-      semver: 5.7.1
+      semver: 7.5.3
     dev: true
 
   /@changesets/get-release-plan@3.0.16:
@@ -6716,7 +6717,7 @@ packages:
     engines: {node: '>=v14'}
     dependencies:
       '@commitlint/types': 17.4.4
-      semver: 7.5.0
+      semver: 7.5.3
     dev: true
 
   /@commitlint/lint@17.6.3:
@@ -7428,14 +7429,14 @@ packages:
     resolution: {integrity: sha512-8KG5RD0GVP4ydEzRn/I4BNDuxDtqVbOdm8675T49OIG/NGhaK0pjPX7ZcDlvKYbA+ulvVK3ztfcF4uBdOxuJbQ==}
     dependencies:
       '@gar/promisify': 1.1.3
-      semver: 7.5.0
+      semver: 7.5.3
 
   /@npmcli/fs@2.1.2:
     resolution: {integrity: sha512-yOJKRvohFOaLqipNtwYB9WugyZKhC/DZC4VYPmpaCzDBrA8YpK3qHZ8/HGscMnE4GqbkLNuVcCnxkeQEdGt6LQ==}
     engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
     dependencies:
       '@gar/promisify': 1.1.3
-      semver: 7.5.0
+      semver: 7.5.3
     dev: false
     optional: true
 
@@ -7669,7 +7670,7 @@ packages:
       path-exists: 4.0.0
       ramda: /@pnpm/ramda@0.28.1
       run-groups: 3.0.1
-      semver: 7.5.0
+      semver: 7.5.3
       version-selector-type: 3.0.0
     transitivePeerDependencies:
       - '@yarnpkg/core'
@@ -7707,7 +7708,7 @@ packages:
       ramda: /@pnpm/ramda@0.28.1
       right-pad: 1.0.1
       rxjs: 7.8.1
-      semver: 7.5.0
+      semver: 7.5.3
       stacktracey: 2.1.8
       string-length: 4.0.2
       strip-ansi: 6.0.1
@@ -7726,7 +7727,7 @@ packages:
       '@pnpm/crypto.base32-hash': 1.0.1
       '@pnpm/types': 8.10.0
       encode-registry: 3.0.0
-      semver: 7.5.0
+      semver: 7.5.3
     dev: true
 
   /@pnpm/directory-fetcher@5.1.6(@pnpm/logger@5.0.0):
@@ -7957,7 +7958,7 @@ packages:
       '@yarnpkg/extensions': 2.0.0-rc.9(@yarnpkg/core@4.0.0-rc.14)
       normalize-path: 3.0.0
       ramda: /@pnpm/ramda@0.28.1
-      semver: 7.5.0
+      semver: 7.5.3
     transitivePeerDependencies:
       - '@yarnpkg/core'
     dev: true
@@ -8029,7 +8030,7 @@ packages:
       js-yaml: /@zkochan/js-yaml@0.0.6
       normalize-path: 3.0.0
       ramda: /@pnpm/ramda@0.28.1
-      semver: 7.5.0
+      semver: 7.5.3
       sort-keys: 4.2.0
       strip-bom: 4.0.0
       write-file-atomic: 5.0.1
@@ -8112,7 +8113,7 @@ packages:
       '@pnpm/lockfile-types': 4.3.6
       comver-to-semver: 1.0.0
       ramda: /@pnpm/ramda@0.28.1
-      semver: 7.5.0
+      semver: 7.5.3
     dev: true
 
   /@pnpm/meta-updater@0.2.2(typanion@3.12.1):
@@ -8264,7 +8265,7 @@ packages:
     engines: {node: '>=14.6'}
     dependencies:
       hosted-git-info: /@zkochan/hosted-git-info@4.0.2
-      semver: 7.5.0
+      semver: 7.5.3
       validate-npm-package-name: 4.0.0
 
   /@pnpm/npm-resolver@15.0.10(@pnpm/logger@5.0.0):
@@ -8292,7 +8293,7 @@ packages:
       path-temp: 2.0.0
       ramda: /@pnpm/ramda@0.28.1
       rename-overwrite: 4.0.3
-      semver: 7.5.0
+      semver: 7.5.3
       ssri: 10.0.1
       version-selector-type: 3.0.0
     transitivePeerDependencies:
@@ -8345,7 +8346,7 @@ packages:
       detect-libc: 2.0.1
       execa: /safe-execa@0.1.2
       mem: 8.1.1
-      semver: 7.5.0
+      semver: 7.5.3
     dev: true
 
   /@pnpm/package-requester@20.1.7(@pnpm/logger@5.0.0):
@@ -8377,7 +8378,7 @@ packages:
       ramda: /@pnpm/ramda@0.28.1
       rename-overwrite: 4.0.3
       safe-promise-defer: 1.0.1
-      semver: 7.5.0
+      semver: 7.5.3
       ssri: 10.0.1
     dev: true
 
@@ -8411,7 +8412,7 @@ packages:
       minimist: 1.2.8
       open: 7.4.2
       rimraf: 2.7.1
-      semver: 5.7.1
+      semver: 7.5.3
       slash: 2.0.0
       tmp: 0.0.33
       yaml: 2.2.2
@@ -8630,7 +8631,7 @@ packages:
       ramda: /@pnpm/ramda@0.28.1
       rename-overwrite: 4.0.3
       safe-promise-defer: 1.0.1
-      semver: 7.5.0
+      semver: 7.5.3
       semver-range-intersect: 0.3.1
       string.prototype.replaceall: 1.0.7
       version-selector-type: 3.0.0
@@ -8643,7 +8644,7 @@ packages:
     resolution: {integrity: sha512-MrXdfTe7CA76zvivatQHJz7Ui02nziKz7Fpht+npsKfOvAyVUcERks2mxPi1IlSFhKDeDLfe/K0v5qqMFcb54A==}
     engines: {node: '>=14.6'}
     dependencies:
-      semver: 7.5.0
+      semver: 7.5.3
     dev: true
 
   /@pnpm/resolver-base@9.2.0:
@@ -9182,7 +9183,7 @@ packages:
       grapheme-splitter: 1.0.4
       ignore: 5.2.4
       natural-compare-lite: 1.4.0
-      semver: 7.5.0
+      semver: 7.5.3
       tsutils: 3.21.0(typescript@5.0.0-beta)
       typescript: 5.0.0-beta
     transitivePeerDependencies:
@@ -9256,7 +9257,7 @@ packages:
       debug: 4.3.4
       globby: 11.1.0
       is-glob: 4.0.3
-      semver: 7.5.0
+      semver: 7.5.3
       tsutils: 3.21.0(typescript@5.0.0-beta)
       typescript: 5.0.0-beta
     transitivePeerDependencies:
@@ -9277,7 +9278,7 @@ packages:
       '@typescript-eslint/typescript-estree': 5.59.5(typescript@5.0.0-beta)
       eslint: 8.40.0
       eslint-scope: 5.1.1
-      semver: 7.5.0
+      semver: 7.5.3
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -9321,7 +9322,7 @@ packages:
       http-errors: 1.8.1
       http-status-codes: 2.2.0
       process-warning: 1.0.0
-      semver: 7.3.8
+      semver: 7.5.3
 
   /@verdaccio/file-locking@10.3.0:
     resolution: {integrity: sha512-FE5D5H4wy/nhgR/d2J5e1Na9kScj2wMjlLPBHz7XF4XZAVSRdm45+kL3ZmrfA6b2HTADP/uH7H05/cnAYW8bhw==}
@@ -9381,7 +9382,7 @@ packages:
       '@verdaccio/core': 6.0.0-6-next.55
       lodash: 4.17.21
       minimatch: 3.1.2
-      semver: 7.3.8
+      semver: 7.5.3
 
   /@yarnpkg/core@4.0.0-rc.14(typanion@3.12.1):
     resolution: {integrity: sha512-SWq+T56I7GiRMrMECGsvCJvQmbXi+pBexjX9sYICPj+OgTHbWDmIOh/OrSC8honE6WEE2ZzPNmwF4Y355NKgew==}
@@ -9406,7 +9407,7 @@ packages:
       lodash: 4.17.21
       micromatch: 4.0.5
       p-limit: 2.3.0
-      semver: 7.5.0
+      semver: 7.5.3
       strip-ansi: 6.0.1
       tar: 6.1.14
       tinylogic: 2.0.0
@@ -9440,7 +9441,7 @@ packages:
       lodash: 4.17.21
       micromatch: 4.0.5
       p-limit: 2.3.0
-      semver: 7.5.0
+      semver: 7.5.3
       strip-ansi: 6.0.1
       tar: 6.1.14
       tinylogic: 2.0.0
@@ -9473,7 +9474,7 @@ packages:
       lodash: 4.17.21
       micromatch: 4.0.5
       p-limit: 2.3.0
-      semver: 7.5.0
+      semver: 7.5.3
       strip-ansi: 6.0.1
       tar: 6.1.14
       tinylogic: 2.0.0
@@ -9779,7 +9780,7 @@ packages:
       request: 2.88.2
       retry: 0.13.1
       safe-buffer: 5.2.1
-      semver: 7.5.0
+      semver: 7.5.3
       slide: 1.1.6
       ssri: 8.0.1
     optionalDependencies:
@@ -10242,7 +10243,7 @@ packages:
   /builtins@5.0.1:
     resolution: {integrity: sha512-qwVpFEHNfhYJIzNRBvd2C1kyo6jz3ZSMPyyuR47OPdiKWlbYnZNyDWuyR175qDnAJLiCo5fBBqPb3RiXgWlkOQ==}
     dependencies:
-      semver: 7.5.0
+      semver: 7.5.3
 
   /bytes@3.0.0:
     resolution: {integrity: sha512-pMhOfFDPiv9t5jjIXkHosWmkSyQbvsgEVNkz0ERHbuLh2T/7j4Mqqpz523Fe8MVY89KC6Sh/QfS2sM+SjgFDcw==}
@@ -10838,7 +10839,7 @@ packages:
     dependencies:
       nice-try: 1.0.5
       path-key: 2.0.1
-      semver: 5.7.1
+      semver: 7.5.3
       shebang-command: 1.2.0
       which: 1.3.1
     dev: true
@@ -11482,7 +11483,7 @@ packages:
       minimatch: 3.1.2
       object.values: 1.1.6
       resolve: 1.22.2
-      semver: 6.3.0
+      semver: 7.5.3
       tsconfig-paths: 3.14.2
     transitivePeerDependencies:
       - eslint-import-resolver-typescript
@@ -11504,7 +11505,7 @@ packages:
       is-core-module: 2.12.0
       minimatch: 3.1.2
       resolve: 1.22.2
-      semver: 7.5.0
+      semver: 7.5.3
     dev: false
 
   /eslint-plugin-node@11.1.0(eslint@8.40.0):
@@ -11519,7 +11520,7 @@ packages:
       ignore: 5.2.4
       minimatch: 3.1.2
       resolve: 1.22.2
-      semver: 6.3.0
+      semver: 7.5.3
     dev: false
 
   /eslint-plugin-promise@6.1.1(eslint@8.40.0):
@@ -13033,7 +13034,7 @@ packages:
       '@babel/parser': 7.21.8(@babel/types@7.21.5)
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-coverage: 3.2.0
-      semver: 6.3.0
+      semver: 7.5.3
     transitivePeerDependencies:
       - '@babel/types'
       - supports-color
@@ -13401,7 +13402,7 @@ packages:
       jest-util: 29.5.0
       natural-compare: 1.4.0
       pretty-format: 29.5.0
-      semver: 7.5.0
+      semver: 7.5.3
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -13558,7 +13559,7 @@ packages:
       jws: 3.2.2
       lodash: 4.17.21
       ms: 2.1.3
-      semver: 7.5.0
+      semver: 7.5.3
 
   /jsprim@1.4.2:
     resolution: {integrity: sha512-P2bSOMAc/ciLz6DzgjVlGJP9+BrJWu5UDGK70C2iweC5QBIeFf0ZXRvGjEj2uYgrY2MkAAhsSWHDWlFtEroZWw==}
@@ -13888,13 +13889,13 @@ packages:
     engines: {node: '>=6'}
     dependencies:
       pify: 4.0.1
-      semver: 5.7.1
+      semver: 7.5.3
 
   /make-dir@3.1.0:
     resolution: {integrity: sha512-g3FeP20LNwhALb/6Cz6Dd4F2ngze0jz7tbzrD2wAV+o9FeNHe4rL+yK2md0J/fiSf1sa1ADhXqi5+oVwOM/eGw==}
     engines: {node: '>=8'}
     dependencies:
-      semver: 6.3.0
+      semver: 7.5.3
 
   /make-empty-dir@2.0.0:
     resolution: {integrity: sha512-kKvqQBL0LzLd6tmG1TwGTxAS8kgS0LPtKMlH5M0awKGixPo6EEaE2i0gHpXXoywoSjYOvZpdWrxln6NdgQ3q4g==}
@@ -14428,7 +14429,7 @@ packages:
   /node-abi@2.30.1:
     resolution: {integrity: sha512-/2D0wOQPgaUWzVSVgRMx+trKJRC2UG4SUc4oCJoXx9Uxjtp0Vy3/kt7zcbxHF8+Z/pK3UloLWzBISg72brfy1w==}
     dependencies:
-      semver: 5.7.1
+      semver: 7.5.3
     dev: true
 
   /node-fetch@2.6.10:
@@ -14482,7 +14483,7 @@ packages:
       nopt: /@pnpm/nopt@0.2.1
       npmlog: 6.0.2
       rimraf: 3.0.2
-      semver: 7.5.0
+      semver: 7.5.3
       tar: 6.1.14
       which: 2.0.2
     transitivePeerDependencies:
@@ -14502,7 +14503,7 @@ packages:
       nopt: 6.0.0
       npmlog: 6.0.2
       rimraf: 3.0.2
-      semver: 7.5.0
+      semver: 7.5.3
       tar: 6.1.14
       which: 2.0.2
     transitivePeerDependencies:
@@ -14544,7 +14545,7 @@ packages:
     dependencies:
       hosted-git-info: 2.8.9
       resolve: 1.22.2
-      semver: 5.7.1
+      semver: 7.5.3
       validate-npm-package-license: 3.0.4
 
   /normalize-package-data@3.0.3:
@@ -14553,7 +14554,7 @@ packages:
     dependencies:
       hosted-git-info: /@zkochan/hosted-git-info@4.0.2
       is-core-module: 2.12.0
-      semver: 7.5.0
+      semver: 7.5.3
       validate-npm-package-license: 3.0.4
     dev: true
 
@@ -14563,7 +14564,7 @@ packages:
     dependencies:
       hosted-git-info: 6.1.1
       is-core-module: 2.12.0
-      semver: 7.5.0
+      semver: 7.5.3
       validate-npm-package-license: 3.0.4
 
   /normalize-path@2.1.1:
@@ -14610,7 +14611,7 @@ packages:
     dependencies:
       hosted-git-info: 2.8.9
       osenv: 0.1.5
-      semver: 5.7.1
+      semver: 7.5.3
       validate-npm-package-name: 3.0.0
 
   /npm-packlist@5.1.3:
@@ -14965,7 +14966,7 @@ packages:
     resolution: {integrity: sha512-InpdgIdNe5xWMEUcrVQUniQKwnggBtJ7+SCwh7zQAZwbbIYZV9XdgJyhtmDSSvykFyQXoe4BINnzKTfCwWLs5g==}
     engines: {node: '>=8.15'}
     dependencies:
-      semver: 6.3.0
+      semver: 7.5.3
 
   /parseurl@1.3.3:
     resolution: {integrity: sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ==}
@@ -14986,7 +14987,7 @@ packages:
       minimist: 1.2.8
       open: 7.4.2
       rimraf: 2.7.1
-      semver: 5.7.1
+      semver: 7.5.3
       slash: 2.0.0
       tmp: 0.0.33
       yaml: 1.10.2
@@ -15138,7 +15139,7 @@ packages:
       https-proxy-agent: 5.0.1
       node-fetch: 2.6.10
       progress: 2.0.3
-      semver: 7.5.0
+      semver: 7.5.3
       tar-fs: 2.1.1
       yargs: 16.2.0
     transitivePeerDependencies:
@@ -15927,28 +15928,13 @@ packages:
     engines: {node: '>=8.3.0'}
     dependencies:
       '@types/semver': 6.2.3
-      semver: 6.3.0
+      semver: 7.5.3
 
   /semver-utils@1.1.4:
     resolution: {integrity: sha512-EjnoLE5OGmDAVV/8YDoN5KiajNadjzIp9BAHOhYeQHt7j0UWxjmgsx4YD48wp4Ue1Qogq38F1GNUJNqF1kKKxA==}
 
-  /semver@5.7.1:
-    resolution: {integrity: sha512-sauaDf/PZdVgrLTNYHRtpXa1iRiKcaebiKQ1BJdpQlWH2lCvexQdX55snPFyK7QzpudqbCI0qXFfOasHdyNDGQ==}
-    hasBin: true
-
-  /semver@6.3.0:
-    resolution: {integrity: sha512-b39TBaTSfV6yBrapU89p5fKekE2m/NwnDocOVruQFS1/veMgdzuPcnOM34M6CwxW8jH/lxEa5rBoDeUwu5HHTw==}
-    hasBin: true
-
-  /semver@7.3.8:
-    resolution: {integrity: sha512-NB1ctGL5rlHrPJtFDVIVzTyQylMLu9N9VICA6HSFJo8MCGVTMW6gfpicwKmmK/dAjTOrqu5l63JJOpDSrAis3A==}
-    engines: {node: '>=10'}
-    hasBin: true
-    dependencies:
-      lru-cache: 6.0.0
-
-  /semver@7.5.0:
-    resolution: {integrity: sha512-+XC0AD/R7Q2mPSRuy2Id0+CGTZ98+8f+KvwirxOKIEyid+XSx6HbC63p+O4IndTHuX5Z+JxQ0TghCkO5Cg/2HA==}
+  /semver@7.5.3:
+    resolution: {integrity: sha512-QBlUtyVk/5EeHbi7X0fw6liDZc7BBmEaSYn01fMU1OUYbf6GPsbTtd8WmnqbI20SeycoHSeiybkE/q1Q+qlThQ==}
     engines: {node: '>=10'}
     hasBin: true
     dependencies:
@@ -16536,7 +16522,7 @@ packages:
       glob: 8.1.0
       minimatch: 6.1.6
       read-yaml-file: 2.1.0
-      semver: 7.3.8
+      semver: 7.5.3
     dev: true
 
   /table@6.8.1:
@@ -16785,7 +16771,7 @@ packages:
       json5: 2.2.3
       lodash.memoize: 4.1.2
       make-error: 1.3.6
-      semver: 7.5.0
+      semver: 7.5.3
       typescript: 5.0.0-beta
       yargs-parser: 21.1.1
     dev: true
@@ -17270,7 +17256,7 @@ packages:
       prettier-bytes: 1.0.4
       pretty-ms: 7.0.1
       request: 2.88.0
-      semver: 7.3.8
+      semver: 7.5.3
       validator: 13.7.0
       verdaccio-audit: 10.2.4
       verdaccio-htpasswd: 10.5.2
@@ -17291,7 +17277,7 @@ packages:
     resolution: {integrity: sha512-PSvMIZS7C1MuVNBXl/CDG2pZq8EXy/NW2dHIdm3bVP5N0PC8utDK8ttXLXj44Gn3J0lQE3U7Mpm1estAOd+eiA==}
     engines: {node: '>=10.13'}
     dependencies:
-      semver: 7.5.0
+      semver: 7.5.3
 
   /vfile-message@2.0.4:
     resolution: {integrity: sha512-DjssxRGkMvifUOJre00juHoP9DPWuzjxKuMDrhNbk2TdaYYBNMStsNhEOt3idrtI12VQYM/1+iM0KOzXi4pxwQ==}
@@ -17743,3 +17729,4 @@ time:
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@9.3.1: '2022-12-19T22:43:10.187Z'
   /safe-execa@0.1.2: '2022-07-18T01:09:17.517Z'
+  /semver@7.5.3: '2023-06-22T21:53:19.774Z'
