@@ -39,7 +39,7 @@ function renderDetails (licensePackage: LicensePackage) {
     outputs.push(licensePackage.description)
   }
   if (licensePackage.homepage) {
-    outputs.push(chalk.underline(licensePackage.homepage))
+    outputs.push(licensePackage.homepage)
   }
   return outputs.join('\n')
 }
