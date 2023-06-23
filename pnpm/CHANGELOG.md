@@ -1,5 +1,17 @@
 # pnpm
 
+## 7.33.2
+
+### Patch Changes
+
+- In cases where both aliased and non-aliased dependencies exist to the same package, non-aliased dependencies will be used for resolving peer dependencies, addressing issue [#6588](https://github.com/pnpm/pnpm/issues/6588).
+- Don't crash when the APPDATA env variable is not set on Windows [#6659](https://github.com/pnpm/pnpm/issues/6659).
+- Don't fail when a package is archived in a tarball with malformed tar headers [#5362](https://github.com/pnpm/pnpm/issues/5362).
+- Peer dependencies of subdependencies should be installed, when `node-linker` is set to `hoisted` [#6680](https://github.com/pnpm/pnpm/pull/6680).
+- Ignore the port in the URL, while searching for authentication token in the `.npmrc` file [#6354](https://github.com/pnpm/pnpm/issues/6354).
+- Throw a meaningful error when applying a patch to a dependency fails.
+- `pnpm update --global --latest` should work [#3779](https://github.com/pnpm/pnpm/issues/3779).
+
 ## 7.33.1
 
 ### Patch Changes
