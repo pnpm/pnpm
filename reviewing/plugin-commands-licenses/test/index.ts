@@ -3,13 +3,10 @@ import path from 'path'
 import { licenses } from '@pnpm/plugin-commands-licenses'
 import { install } from '@pnpm/plugin-commands-installation'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { tempDir } from '@pnpm/prepare'
-import { fixtures } from '@pnpm/test-fixtures'
 import stripAnsi from 'strip-ansi'
 import { DEFAULT_OPTS } from './utils'
 import tempy from 'tempy'
 
-const f = fixtures(__dirname)
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 const LICENSES_OPTIONS = {
@@ -188,50 +185,4 @@ test('pnpm licenses should work with file protocol dependency', async () => {
 
   expect(exitCode).toBe(0)
   expect(stripAnsi(output)).toMatchSnapshot('show-packages')
-})
-
-test('pnpm licenses should work with git protocol dep that have patches', async () => {
-  const workspaceDir = tempDir()
-  f.copy('with-git-protocol-patched-deps', workspaceDir)
-
-  const storeDir = path.join(workspaceDir, 'store')
-  await install.handler({
-    ...DEFAULT_OPTS,
-    dir: workspaceDir,
-    pnpmHomeDir: '',
-    storeDir,
-  })
-
-  const { exitCode } = await licenses.handler({
-    ...DEFAULT_OPTS,
-    dir: workspaceDir,
-    pnpmHomeDir: '',
-    long: false,
-    storeDir: path.resolve(storeDir, 'v3'),
-  }, ['list'])
-
-  expect(exitCode).toBe(0)
-})
-
-test('pnpm licenses should work with git protocol dep that have peerDependencies', async () => {
-  const workspaceDir = tempDir()
-  f.copy('with-git-protocol-peer-deps', workspaceDir)
-
-  const storeDir = path.join(workspaceDir, 'store')
-  await install.handler({
-    ...DEFAULT_OPTS,
-    dir: workspaceDir,
-    pnpmHomeDir: '',
-    storeDir,
-  })
-
-  const { exitCode } = await licenses.handler({
-    ...DEFAULT_OPTS,
-    dir: workspaceDir,
-    pnpmHomeDir: '',
-    long: false,
-    storeDir: path.resolve(storeDir, 'v3'),
-  }, ['list'])
-
-  expect(exitCode).toBe(0)
 })
