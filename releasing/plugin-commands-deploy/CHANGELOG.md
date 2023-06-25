@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-deploy
 
+## 3.0.19
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.0.13
+
 ## 3.0.18
 
 ### Patch Changes

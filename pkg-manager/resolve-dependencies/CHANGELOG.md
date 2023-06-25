@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.10
+
+### Patch Changes
+
+- e2c3ef313: In cases where both aliased and non-aliased dependencies exist to the same package, non-aliased dependencies will be used for resolving peer dependencies, addressing issue [#6588](https://github.com/pnpm/pnpm/issues/6588).
+- df3eb8313: Return bundled manifest for local dependency.
+
 ## 31.1.9
 
 ### Patch Changes

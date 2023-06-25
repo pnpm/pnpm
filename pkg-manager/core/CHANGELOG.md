@@ -1,5 +1,15 @@
 # @pnpm/core
 
+## 10.2.5
+
+### Patch Changes
+
+- Updated dependencies [e2c3ef313]
+- Updated dependencies [df3eb8313]
+  - @pnpm/resolve-dependencies@31.1.10
+  - @pnpm/headless@21.0.3
+  - @pnpm/package-requester@21.0.6
+
 ## 10.2.4
 
 ### Patch Changes

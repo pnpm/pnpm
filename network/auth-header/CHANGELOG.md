@@ -1,5 +1,11 @@
 # @pnpm/network.auth-header
 
+## 2.0.3
+
+### Patch Changes
+
+- 4e7afec90: Ignore the port in the URL, while searching for authentication token in the `.npmrc` file [#6354](https://github.com/pnpm/pnpm/issues/6354).
+
 ## 2.0.2
 
 ### Patch Changes
