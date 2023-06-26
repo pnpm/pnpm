@@ -1,5 +1,11 @@
 # pnpm
 
+## 8.6.5
+
+### Patch Changes
+
+- Improve the performance of searching for auth tokens.
+
 ## 8.6.4
 
 ### Patch Changes

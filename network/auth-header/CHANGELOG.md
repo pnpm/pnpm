@@ -1,5 +1,11 @@
 # @pnpm/network.auth-header
 
+## 2.0.4
+
+### Patch Changes
+
+- e44031e71: Improve the performance of searching for auth tokens.
+
 ## 2.0.3
 
 ### Patch Changes

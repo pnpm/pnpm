@@ -1,5 +1,12 @@
 # @pnpm/client
 
+## 10.0.10
+
+### Patch Changes
+
+- Updated dependencies [e44031e71]
+  - @pnpm/network.auth-header@2.0.4
+
 ## 10.0.9
 
 ### Patch Changes

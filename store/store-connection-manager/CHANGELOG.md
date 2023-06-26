@@ -1,5 +1,13 @@
 # @pnpm/store-connection-manager
 
+## 6.0.15
+
+### Patch Changes
+
+- @pnpm/client@10.0.10
+- @pnpm/package-store@16.0.6
+- @pnpm/server@15.0.2
+
 ## 6.0.14
 
 ### Patch Changes
