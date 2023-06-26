@@ -77,3 +77,29 @@ test('getOptionsFromRootManifest() throws an error if cannot resolve an override
     },
   })).toThrow('Cannot resolve version $foo in overrides. The direct dependencies don\'t have dependency "foo".')
 })
+
+test('getOptionsFromRootManifest() throws an error if cannot resolve an override link to relative path', () => {
+  expect(() => getOptionsFromRootManifest({
+    dependencies: {
+      bar: '1.0.0',
+    },
+    pnpm: {
+      overrides: {
+        bar: 'link:../test/bar',
+      },
+    },
+  })).toThrow('Cannot resolve package bar in overrides. The address of the package link is incorrect.')
+})
+
+test('getOptionsFromRootManifest() throws an error if cannot resolve an override link to absolute path', () => {
+  expect(() => getOptionsFromRootManifest({
+    dependencies: {
+      bar: '1.0.0',
+    },
+    pnpm: {
+      overrides: {
+        bar: 'link:G:/test/bar',
+      },
+    },
+  })).toThrow('Cannot resolve package bar in overrides. The address of the package link is incorrect.')
+})
