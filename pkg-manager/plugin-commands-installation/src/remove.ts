@@ -209,5 +209,19 @@ export async function handler (
     },
     removeOpts
   )
+  const overrides = mutationResult.manifest.pnpm?.overrides
+  if (overrides) {
+    params.forEach(name => {
+      if (overrides[name]) {
+        delete overrides[name]
+      }
+    })
+    if (!Object.keys(overrides).length) {
+      delete mutationResult.manifest.pnpm!.overrides
+    }
+    if (!Object.keys(mutationResult.manifest.pnpm!).length) {
+      delete mutationResult.manifest.pnpm
+    }
+  }
   await writeProjectManifest(mutationResult.manifest)
 }

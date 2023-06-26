@@ -1,6 +1,7 @@
 import { type PnpmError } from '@pnpm/error'
 import { remove } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
+import { readProjectManifest } from '@pnpm/read-project-manifest'
 import { DEFAULT_OPTS } from '../utils'
 
 test('remove should fail if no dependency is specified for removal', async () => {
@@ -158,4 +159,34 @@ no such dependencies found in \'optionalDependencies\'')
     expect(err.hint).toBe('Available dependencies: dev-dep-1, dev-dep-2, \
 prod-dep-1, prod-dep-2, optional-dep-1, optional-dep-2')
   }
+})
+
+test('remove overrides packages', async () => {
+  prepare({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+    pnpm: {
+      overrides: {
+        'is-positive': 'link:G/test/is-positive',
+        'is-negative': 'link:G/test/is-negative'
+      }
+    }
+  })
+  await remove.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['is-positive'])
+  const { manifest } = await readProjectManifest(process.cwd())
+  expect(manifest.pnpm!.overrides!['is-positive']).toBeUndefined()
+  expect(Object.keys(manifest.pnpm!.overrides!).length).toBe(1)
+  await remove.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['is-negative'])
+  const { manifest: newMainfest } = await readProjectManifest(process.cwd())
+  expect(newMainfest.pnpm).toBeUndefined()
 })
