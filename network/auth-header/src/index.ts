@@ -40,6 +40,6 @@ function getAuthHeaderByURI (authHeaders: Record<string, string>, maxParts: numb
 function removePort (originalUrl: string) {
   const urlObj = new URL(originalUrl)
   if (urlObj.port === '') return originalUrl
-  const newUrlObj = new URL(`${urlObj.protocol}//${urlObj.hostname}${urlObj.pathname}${urlObj.search}${urlObj.hash}`)
-  return newUrlObj.toString()
+  urlObj.port = ''
+  return urlObj.toString()
 }
