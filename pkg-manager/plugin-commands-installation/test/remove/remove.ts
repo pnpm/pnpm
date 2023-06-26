@@ -172,9 +172,9 @@ test('remove overrides packages', async () => {
     pnpm: {
       overrides: {
         'is-positive': 'link:G/test/is-positive',
-        'is-negative': 'link:G/test/is-negative'
-      }
-    }
+        'is-negative': 'link:G/test/is-negative',
+      },
+    },
   })
   await remove.handler({
     ...DEFAULT_OPTS,
