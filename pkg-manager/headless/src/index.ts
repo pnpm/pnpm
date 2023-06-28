@@ -195,6 +195,8 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   const scriptsOpts = {
     optional: false,
     extraBinPaths: opts.extraBinPaths,
+    extraNodePaths: opts.extraNodePaths,
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     extraEnv: opts.extraEnv,
     rawConfig: opts.rawConfig,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,

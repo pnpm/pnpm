@@ -25,6 +25,9 @@
       "path": "../../packages/types"
     },
     {
+      "path": "../../pkg-manager/link-bins"
+    },
+    {
       "path": "../../pkg-manifest/read-package-json"
     },
     {
