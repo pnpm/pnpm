@@ -2,6 +2,7 @@ packages:
   - .meta-updater
   - __typings__
   - __utils__/*
+  - "!__utils__/build-artifacts"
   - cli/*
   - config/*
   - dedupe/*
