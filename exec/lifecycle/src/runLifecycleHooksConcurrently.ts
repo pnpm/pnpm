@@ -1,4 +1,6 @@
 import fs from 'fs'
+import { linkBins } from '@pnpm/link-bins'
+import { logger } from '@pnpm/logger'
 import path from 'path'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { type StoreController } from '@pnpm/store-controller-types'
@@ -13,6 +15,8 @@ export type RunLifecycleHooksConcurrentlyOptions = Omit<RunLifecycleHookOptions,
 > & {
   resolveSymlinksInInjectedDirs?: boolean
   storeController: StoreController
+  extraNodePaths?: string[]
+  preferSymlinkedExecutables?: boolean
 }
 
 export interface Importer {
@@ -43,6 +47,16 @@ export async function runLifecycleHooksConcurrently (
     const importers = importersByBuildIndex.get(buildIndex)!
     return importers.map(({ manifest, modulesDir, rootDir, stages: importerStages, targetDirs }) =>
       async () => {
+        // We are linking the bin files, in case they were created by lifecycle scripts of other workspace packages.
+        await linkBins(modulesDir, path.join(modulesDir, '.bin'), {
+          extraNodePaths: opts.extraNodePaths,
+          allowExoticManifests: true,
+          preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+          projectManifest: manifest,
+          warn: (message: string) => {
+            logger.warn({ message, prefix: rootDir })
+          },
+        })
         const runLifecycleHookOpts = {
           ...opts,
           depPath: rootDir,

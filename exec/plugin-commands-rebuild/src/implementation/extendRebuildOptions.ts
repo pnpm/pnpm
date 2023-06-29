@@ -14,6 +14,7 @@ export interface StrictRebuildOptions {
   extraEnv: Record<string, string>
   lockfileDir: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
+  preferSymlinkedExecutables?: boolean
   scriptShell?: string
   sideEffectsCacheRead: boolean
   scriptsPrependNodePath: boolean | 'warn-only'

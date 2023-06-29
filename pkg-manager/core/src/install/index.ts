@@ -293,7 +293,9 @@ export async function mutateModules (
   async function _install (): Promise<{ updatedProjects: UpdatedProject[], stats?: InstallationResultStats }> {
     const scriptsOpts: RunLifecycleHooksConcurrentlyOptions = {
       extraBinPaths: opts.extraBinPaths,
+      extraNodePaths: ctx.extraNodePaths,
       extraEnv: opts.extraEnv,
+      preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       rawConfig: opts.rawConfig,
       resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
       scriptsPrependNodePath: opts.scriptsPrependNodePath,

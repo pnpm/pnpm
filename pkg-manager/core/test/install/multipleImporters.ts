@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
 import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
@@ -1893,4 +1894,68 @@ test('do not symlink local package from the location described in its publishCon
 
   const linkedManifest = await loadJsonFile<{ name: string }>('project-2/node_modules/project-1/package.json')
   expect(linkedManifest.name).toBe('project-1')
+})
+
+test('link the bin file of a workspace project that is created by a lifecycle script', async () => {
+  const pkg1 = {
+    name: 'project-1',
+    version: '1.0.0',
+    scripts: {
+      prepare: 'bin',
+    },
+
+    dependencies: {
+      'project-2': 'link:../project-2',
+    },
+  }
+  const pkg2 = {
+    name: 'project-2',
+    version: '1.0.0',
+    bin: {
+      bin: 'bin.js',
+    },
+    scripts: {
+      prepare: 'node -e "require(\'fs\').renameSync(\'__bin.js\', \'bin.js\')"',
+    },
+
+    dependencies: {},
+  }
+  preparePackages([pkg1, pkg2])
+  fs.writeFileSync('project-2/__bin.js', `#!/usr/bin/env node
+require("fs").writeFileSync("created-by-prepare", "", "utf8")`)
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 1,
+      manifest: pkg1,
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: pkg2,
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({ allProjects }))
+
+  expect(fs.existsSync('project-1/created-by-prepare')).toBeTruthy()
+
+  await rimraf('node_modules')
+  await rimraf('project-1/node_modules')
+  await rimraf('project-2/node_modules')
+  fs.renameSync('project-2/bin.js', 'project-2/__bin.js')
+
+  await mutateModules(importers, await testDefaults({ allProjects, frozenLockfile: true }))
+
+  expect(fs.existsSync('project-1/created-by-prepare')).toBeTruthy()
 })

@@ -1020,6 +1020,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/link-bins':
+        specifier: workspace:*
+        version: link:../../pkg-manager/link-bins
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
