@@ -157,7 +157,9 @@ export async function rebuildProjects (
   const store = await createOrConnectStoreController(opts)
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
+    extraNodePaths: ctx.extraNodePaths,
     extraEnv: opts.extraEnv,
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     rawConfig: opts.rawConfig,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,
