@@ -1,4 +1,13 @@
 import { getOptionsFromRootManifest } from '../lib/getOptionsFromRootManifest'
+import { logger } from '@pnpm/logger'
+
+beforeEach(() => {
+  jest.spyOn(logger, 'warn')
+})
+
+afterEach(() => {
+  (logger.warn as jest.Mock).mockRestore()
+})
 
 test('getOptionsFromRootManifest() should read "resolutions" field for compatibility with Yarn', () => {
   const options = getOptionsFromRootManifest({
@@ -79,7 +88,7 @@ test('getOptionsFromRootManifest() throws an error if cannot resolve an override
 })
 
 test('getOptionsFromRootManifest() throws an error if cannot resolve an override link to relative path', () => {
-  expect(() => getOptionsFromRootManifest({
+  getOptionsFromRootManifest({
     dependencies: {
       bar: '1.0.0',
     },
@@ -88,11 +97,12 @@ test('getOptionsFromRootManifest() throws an error if cannot resolve an override
         bar: 'link:../test/bar',
       },
     },
-  })).toThrow('Cannot resolve package bar in overrides. The address of the package link is incorrect.')
+  })
+  expect(logger.warn).toBeCalledTimes(1)
 })
 
 test('getOptionsFromRootManifest() throws an error if cannot resolve an override link to absolute path', () => {
-  expect(() => getOptionsFromRootManifest({
+  getOptionsFromRootManifest({
     dependencies: {
       bar: '1.0.0',
     },
@@ -101,5 +111,6 @@ test('getOptionsFromRootManifest() throws an error if cannot resolve an override
         bar: 'link:G:/test/bar',
       },
     },
-  })).toThrow('Cannot resolve package bar in overrides. The address of the package link is incorrect.')
+  })
+  expect(logger.warn).toBeCalledTimes(1)
 })

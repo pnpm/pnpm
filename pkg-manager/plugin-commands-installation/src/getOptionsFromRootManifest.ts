@@ -1,4 +1,5 @@
 import { PnpmError } from '@pnpm/error'
+import { logger } from '@pnpm/logger'
 import {
   type AllowedDeprecatedVersions,
   type PackageExtension,
@@ -15,10 +16,10 @@ function checkOverrides (overrides: Record<string, string>) {
     if (value.startsWith('link:')) {
       const _path = path.isAbsolute(value) ? value : path.join(process.cwd(), value)
       if (!fs.existsSync(_path)) {
-        throw new PnpmError(
-          'CANNOT_RESOLVE_OVERRIDE',
-          `Cannot resolve package ${key} in overrides. The address of the package link is incorrect.`
-        )
+        logger.warn({
+          message: `Cannot resolve package ${key} in overrides. The address of the package link is incorrect.`,
+          prefix: process.cwd(),
+        })
       }
     }
   })
