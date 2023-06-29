@@ -289,16 +289,16 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   const children = node.children
   const parentPkgs = isEmpty(children)
     ? parentParentPkgs
-    : {
-      ...parentParentPkgs,
-      ...toPkgByName(
+    : Object.assign(
+      Object.create(parentParentPkgs),
+      toPkgByName(
         Object.entries(children).map(([alias, nodeId]) => ({
           alias,
           node: ctx.dependenciesTree[nodeId],
           nodeId,
         }))
-      ),
-    }
+      )
+    )
   const hit = ctx.peersCache.get(resolvedPackage.depPath)?.find((cache) =>
     cache.resolvedPeers
       .every(([name, cachedNodeId]) => {
