@@ -1921,7 +1921,8 @@ test('link the bin file of a workspace project that is created by a lifecycle sc
     dependencies: {},
   }
   preparePackages([pkg1, pkg2])
-  fs.writeFileSync('project-2/__bin.js', '#!/usr/bin/env node\nrequire("fs").writeFileSync("created-by-prepare", "", "utf8")')
+  fs.writeFileSync('project-2/__bin.js', `#!/usr/bin/env node
+require("fs").writeFileSync("created-by-prepare", "", "utf8")`)
 
   const importers: MutatedProject[] = [
     {
