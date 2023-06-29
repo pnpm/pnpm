@@ -29,7 +29,7 @@ overrides:
   '@yarnpkg/libui@^3.0.0-rc.42': 3.0.0-rc.42
   '@yarnpkg/libzip@^3.0.0-rc.42': 3.0.0-rc.45
   '@yarnpkg/libzip@^3.0.0-rc.45': 3.0.0-rc.45
-  '@yarnpkg/nm': 4.0.0-rc.42
+  '@yarnpkg/nm': 4.0.0-rc.45
   '@yarnpkg/parsers@^3.0.0-rc.45': 3.0.0-rc.45
   '@yarnpkg/plugin-compat@^4.0.0-rc.42': 4.0.0-rc.42
   '@yarnpkg/plugin-compat@^4.0.0-rc.45': 4.0.0-rc.42
@@ -3872,8 +3872,8 @@ importers:
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
       '@yarnpkg/nm':
-        specifier: 4.0.0-rc.42
-        version: 4.0.0-rc.42(typanion@3.12.1)
+        specifier: 4.0.0-rc.45
+        version: 4.0.0-rc.45(typanion@3.12.1)
     devDependencies:
       '@pnpm/lockfile-file':
         specifier: workspace:*
@@ -8692,7 +8692,7 @@ packages:
       '@pnpm/dependency-path': 1.1.3
       '@pnpm/error': 4.0.1
       '@pnpm/lockfile-utils': 5.0.7
-      '@yarnpkg/nm': 4.0.0-rc.42(typanion@3.12.1)
+      '@yarnpkg/nm': 4.0.0-rc.45(typanion@3.12.1)
     transitivePeerDependencies:
       - typanion
     dev: true
@@ -9006,7 +9006,7 @@ packages:
   /@types/byline@4.2.33:
     resolution: {integrity: sha512-LJYez7wrWcJQQDknqZtrZuExMGP0IXmPl1rOOGDqLbu+H7UNNRfKNuSxCBcQMLH1EfjeWidLedC/hCc5dDfBog==}
     dependencies:
-      '@types/node': 20.3.2
+      '@types/node': 14.18.52
     dev: true
 
   /@types/cacheable-request@6.0.3:
@@ -9014,7 +9014,7 @@ packages:
     dependencies:
       '@types/http-cache-semantics': 4.0.1
       '@types/keyv': 3.1.4
-      '@types/node': 20.3.2
+      '@types/node': 14.18.52
       '@types/responselike': 1.0.0
 
   /@types/concat-stream@2.0.0:
@@ -9122,7 +9122,7 @@ packages:
   /@types/keyv@3.1.4:
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
     dependencies:
-      '@types/node': 20.3.2
+      '@types/node': 14.18.52
 
   /@types/lodash@4.14.181:
     resolution: {integrity: sha512-n3tyKthHJbkiWhDZs3DkhkCzt2MexYHXlX0td5iMplyfwketaOeKboEVBqzceH7juqvEg3q5oUoBFxSLu7zFag==}
@@ -9165,7 +9165,6 @@ packages:
 
   /@types/node@14.18.52:
     resolution: {integrity: sha512-DGhiXKOHSFVVm+PJD+9Y0ObxXLeG6qwc0HoOn+ooQKeNNu+T2mEJCM5UBDUREKAggl9MHYjb5E71PAmx6MbzIg==}
-    dev: true
 
   /@types/node@18.16.18:
     resolution: {integrity: sha512-/aNaQZD0+iSBAGnvvN2Cx92HqE5sZCPZtx2TsK+4nvV23fFe09jVDvpArXr2j9DnYlzuU9WuoykDDc6wqvpNcw==}
@@ -9205,7 +9204,7 @@ packages:
   /@types/responselike@1.0.0:
     resolution: {integrity: sha512-85Y2BjiufFzaMIlvJDvTTB8Fxl2xfLo4HgmHzVBz08w4wDePCTjYw66PdrolO0kzli3yam/YCgRufyo1DdQVTA==}
     dependencies:
-      '@types/node': 20.3.2
+      '@types/node': 14.18.52
 
   /@types/retry@0.12.2:
     resolution: {integrity: sha512-XISRgDJ2Tc5q4TRqvgJtzsRkFYNJzZrhTdtMoGVBttwzzQJkPnS3WWTFc7kuDRoPtPakl+T+OfdEUjYJj7Jbow==}
@@ -9546,8 +9545,8 @@ packages:
       '@types/lodash': 4.14.181
       '@types/semver': 7.3.13
       '@types/treeify': 1.0.0
-      '@yarnpkg/fslib': 3.0.0-rc.45
-      '@yarnpkg/libzip': 3.0.0-rc.45(@yarnpkg/fslib@3.0.0-rc.45)
+      '@yarnpkg/fslib': 3.0.0-rc.25
+      '@yarnpkg/libzip': 3.0.0-rc.25(@yarnpkg/fslib@3.0.0-rc.25)
       '@yarnpkg/parsers': 3.0.0-rc.45
       '@yarnpkg/shell': 4.0.0-rc.45(typanion@3.12.1)
       camelcase: 5.3.1
@@ -9591,25 +9590,25 @@ packages:
     dependencies:
       tslib: 2.6.0
 
-  /@yarnpkg/libzip@3.0.0-rc.45(@yarnpkg/fslib@3.0.0-rc.45):
-    resolution: {integrity: sha512-ZsYi6Y01yMJOLnJ5ISZgOFvCEXzp4EScrM91D7bvCx0lIfH3DZ40H4M5nGNeVFk7jXUHOXuJkNYlNoXixSconA==}
+  /@yarnpkg/libzip@3.0.0-rc.25(@yarnpkg/fslib@3.0.0-rc.25):
+    resolution: {integrity: sha512-YmG+oTBCyrAoMIx5g2I9CfyurSpHyoan+9SCj7laaFKseOe3lFEyIVKvwRBQMmSt8uzh+eY5RWeQnoyyOs6AbA==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
-      '@yarnpkg/fslib': ^3.0.0-rc.45
+      '@yarnpkg/fslib': ^3.0.0-rc.25
     dependencies:
       '@types/emscripten': 1.39.6
-      '@yarnpkg/fslib': 3.0.0-rc.45
+      '@yarnpkg/fslib': 3.0.0-rc.25
       tslib: 2.6.0
 
   /@yarnpkg/lockfile@1.1.0:
     resolution: {integrity: sha512-GpSwvyXOcOOlV70vbnzjj4fW5xW/FdUF6nQEt1ENy7m4ZCczi1+/buVUPAqmGfqznsORNFzUMjctTIp8a9tuCQ==}
 
-  /@yarnpkg/nm@4.0.0-rc.42(typanion@3.12.1):
-    resolution: {integrity: sha512-VZkSRbMXG8yfImIk0y0KPFRnML3XR3jf/YG5J0Dw7xOBiOKK/jIQ5h2MNczLLenoFPCEgHCao/WwOpr1thmldQ==}
+  /@yarnpkg/nm@4.0.0-rc.45(typanion@3.12.1):
+    resolution: {integrity: sha512-cMKhX2znU0JqkPNM5jSrHyS6zIcJrIf1SgzopNtWqzuvpmtpChRMUUS6RJafS8Gzq2iDXAnyb4pn0RIqlwB+Cw==}
     engines: {node: '>=14.15.0'}
     dependencies:
       '@yarnpkg/core': 4.0.0-rc.45(typanion@3.12.1)
-      '@yarnpkg/fslib': 3.0.0-rc.25
+      '@yarnpkg/fslib': 3.0.0-rc.45
       '@yarnpkg/pnp': 4.0.0-rc.45
     transitivePeerDependencies:
       - typanion
@@ -9665,7 +9664,7 @@ packages:
     engines: {node: '>=14.15.0'}
     hasBin: true
     dependencies:
-      '@yarnpkg/fslib': 3.0.0-rc.45
+      '@yarnpkg/fslib': 3.0.0-rc.25
       '@yarnpkg/parsers': 3.0.0-rc.45
       chalk: 3.0.0
       clipanion: 3.2.0-rc.6(typanion@3.12.1)
@@ -13935,12 +13934,6 @@ packages:
     resolution: {integrity: sha512-tqNXrS78oMOE73NMxK4EMLQsQowWf8jKooH9g7xPavRT706R6bkQJ6DY2Te7QukaZsulxa30wQ7bk0pm4XiHmA==}
     engines: {node: '>=8'}
 
-  /lru-cache@10.0.0:
-    resolution: {integrity: sha512-svTf/fzsKHffP42sujkO/Rjs37BCIsQVRCeNYIm9WN8rgT7ffoUnRtZCqU+6BqcSBdv8gwJeTz8knJpgACeQMw==}
-    engines: {node: 14 || >=16.14}
-    dev: false
-    optional: true
-
   /lru-cache@4.1.5:
     resolution: {integrity: sha512-sWZlbEP2OsHNkXrMl5GYk/jKk70MBng6UU4YI/qGDYbgf6YbP4EvmqISbXCoJiRKs+1bSpFHVgQxvJ17F2li5g==}
     dependencies:
@@ -15117,7 +15110,7 @@ packages:
     resolution: {integrity: sha512-tZFEaRQbMLjwrsmidsGJ6wDMv0iazJWk6SfIKnY4Xru8auXgmJkOBa5DUbYFcFD2Rzk2+KDlIiF0GVXNCbgC7g==}
     engines: {node: '>=16 || 14 >=14.17'}
     dependencies:
-      lru-cache: 10.0.0
+      lru-cache: 9.1.2
       minipass: 5.0.0
     dev: false
     optional: true
