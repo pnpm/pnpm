@@ -341,12 +341,12 @@ describe('prompt to choose version', () => {
       saveLockfile: true,
     })
     prompt.mockResolvedValue({
-      version: '5.2.0',
+      version: '5.3.0',
     })
 
     const output = await patch.handler(defaultPatchOption, ['chalk'])
 
-    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining(['5.2.0', '4.1.2']))
+    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining(['5.3.0', '4.1.2']))
     prompt.mockClear()
 
     const patchDir = getPatchDirFromPatchOutput(output)
@@ -354,7 +354,7 @@ describe('prompt to choose version', () => {
 
     expect(patchDir).toContain(tempDir)
     expect(fs.existsSync(patchDir)).toBe(true)
-    expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('5.2.0')
+    expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('5.3.0')
     expect(fs.existsSync(path.join(patchDir, 'source/index.js'))).toBe(true)
 
     fs.appendFileSync(path.join(patchDir, 'source/index.js'), '// test patching', 'utf8')
@@ -369,9 +369,9 @@ describe('prompt to choose version', () => {
 
     const { manifest } = await readProjectManifest(process.cwd())
     expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
-      'chalk@5.2.0': 'patches/chalk@5.2.0.patch',
+      'chalk@5.3.0': 'patches/chalk@5.3.0.patch',
     })
-    const patchContent = fs.readFileSync('patches/chalk@5.2.0.patch', 'utf8')
+    const patchContent = fs.readFileSync('patches/chalk@5.3.0.patch', 'utf8')
     expect(patchContent).toContain('diff --git')
     expect(patchContent).toContain('// test patching')
     expect(fs.readFileSync('node_modules/.pnpm/ava@5.2.0/node_modules/chalk/source/index.js', 'utf8')).toContain('// test patching')
