@@ -1,5 +1,14 @@
 # pnpm
 
+## 7.33.3
+
+### Patch Changes
+
+- Improve the performance of searching for auth tokens.
+- Installation of a git-hosted dependency without `package.json` should not fail, when the dependency is read from cache [#6721](https://github.com/pnpm/pnpm/issues/6721).
+- Local workspace bin files that should be compiled first are linked to dependent projects after compilation [#1801](https://github.com/pnpm/pnpm/issues/1801).
+- Prefer versions found in parent package dependencies only [#6737](https://github.com/pnpm/pnpm/issues/6737).
+
 ## 7.33.2
 
 ### Patch Changes
