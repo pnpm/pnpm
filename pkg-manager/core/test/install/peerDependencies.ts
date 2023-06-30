@@ -1382,7 +1382,7 @@ test('when there are several aliased dependencies of the same package, pick the 
 test('when there is an aliases dependency and a non-aliased one, prefer the non-aliased dependency to resolve peers', async () => {
   prepareEmpty()
 
-  const opts = await testDefaults({ autoInstallPeers: false, strictPeerDependencies: false })
+  const opts = await testDefaults({ useLockfileV6: true, autoInstallPeers: false, strictPeerDependencies: false })
   const manifest = await addDependenciesToPackage({}, [
     '@pnpm.e2e/peer-c@1.0.0',
     'peer-c@npm:@pnpm.e2e/peer-c@2.0.0',
