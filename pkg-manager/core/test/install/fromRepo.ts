@@ -1,5 +1,4 @@
 import path from 'path'
-import fs from 'fs'
 import { type RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import {
@@ -174,10 +173,8 @@ test('from a github repo the has no package.json file', async () => {
   expect(manifest.dependencies).toStrictEqual({
     'for-testing.no-package-json': 'github:pnpm/for-testing.no-package-json',
   })
-  fs.rmSync(path.join(project.dir(), 'node_modules'), {
-    recursive: true, force: true,
-  })
-  fs.rmSync(path.join(project.dir(), 'pnpm-lock.yaml'))
+  await rimraf(path.join(project.dir(), 'node_modules'))
+  await rimraf(path.join(project.dir(), 'pnpm-lock.yaml'))
   // if there is an unresolved promise, this test will hang until timeout.
   // e.g. thrown: "Exceeded timeout of 240000 ms for a test.
   await addDependenciesToPackage({}, ['pnpm/for-testing.no-package-json'], await testDefaults())
