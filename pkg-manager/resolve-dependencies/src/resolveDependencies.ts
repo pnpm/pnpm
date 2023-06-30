@@ -533,8 +533,8 @@ export async function resolveDependencies (
     }
     const resolvedPackage = ctx.resolvedPackagesByDepPath[pkgAddress.depPath]
     if (!resolvedPackage) continue // This will happen only with linked dependencies
-    if (!newPreferredVersions[resolvedPackage.name]) {
-      newPreferredVersions[resolvedPackage.name] = {}
+    if (!Object.prototype.hasOwnProperty.call(newPreferredVersions, resolvedPackage.name)) {
+      newPreferredVersions[resolvedPackage.name] = { ...preferredVersions[resolvedPackage.name] }
     }
     if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {
       newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
