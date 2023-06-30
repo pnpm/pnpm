@@ -61,6 +61,7 @@ export const shorthands = {
     '--no-sort',
     '--stream',
     '--recursive',
+    '--include-workspace-root',
   ],
   sequential: [
     '--workspace-concurrency=1',
