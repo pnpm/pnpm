@@ -101,7 +101,7 @@ export async function resolveDependencyTree<T> (
     childrenByParentDepPath: {} as ChildrenByParentDepPath,
     currentLockfile: opts.currentLockfile,
     defaultTag: opts.tag,
-    dependenciesTree: {} as DependenciesTree<ResolvedPackage>,
+    dependenciesTree: new Map() as DependenciesTree<ResolvedPackage>,
     dryRun: opts.dryRun,
     engineStrict: opts.engineStrict,
     force: opts.force,
@@ -168,13 +168,13 @@ export async function resolveDependencyTree<T> (
   const directDepsByImporterId = zipObj(importers.map(({ id }) => id), pkgAddressesByImporters)
 
   ctx.pendingNodes.forEach((pendingNode) => {
-    ctx.dependenciesTree[pendingNode.nodeId] = {
+    ctx.dependenciesTree.set(pendingNode.nodeId, {
       children: () => buildTree(ctx, pendingNode.nodeId, pendingNode.resolvedPackage.id,
         ctx.childrenByParentDepPath[pendingNode.resolvedPackage.depPath], pendingNode.depth + 1, pendingNode.installable),
       depth: pendingNode.depth,
       installable: pendingNode.installable,
       resolvedPackage: pendingNode.resolvedPackage,
-    }
+    })
   })
 
   const resolvedImporters = {} as {
@@ -197,7 +197,7 @@ export async function resolveDependencyTree<T> (
           if (dep.isLinkedDependency === true) {
             return dep
           }
-          const resolvedPackage = ctx.dependenciesTree[dep.nodeId].resolvedPackage as ResolvedPackage
+          const resolvedPackage = ctx.dependenciesTree.get(dep.nodeId)!.resolvedPackage as ResolvedPackage
           return {
             alias: dep.alias,
             dev: resolvedPackage.dev,
@@ -254,7 +254,7 @@ function buildTree (
     const childNodeId = createNodeId(parentNodeId, child.depPath)
     childrenNodeIds[child.alias] = childNodeId
     installable = installable && !ctx.skipped.has(child.depPath)
-    ctx.dependenciesTree[childNodeId] = {
+    ctx.dependenciesTree.set(childNodeId, {
       children: () => buildTree(ctx,
         childNodeId,
         child.depPath,
@@ -265,7 +265,7 @@ function buildTree (
       depth,
       installable,
       resolvedPackage: ctx.resolvedPackagesByDepPath[child.depPath],
-    }
+    })
   }
   return childrenNodeIds
 }
