@@ -537,6 +537,9 @@ export async function resolveDependencies (
       newPreferredVersions[resolvedPackage.name] = {}
     }
     if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {
+      if (newPreferredVersions[resolvedPackage.name] === preferredVersions[resolvedPackage.name]) {
+        newPreferredVersions[resolvedPackage.name] = { ...preferredVersions[resolvedPackage.name] }
+      }
       newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
     }
   }
