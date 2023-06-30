@@ -1,6 +1,7 @@
 ---
 "@pnpm/core": patch
 "@pnpm/cafs": patch
+"pnpm": patch
 ---
 
-always resolve manifest promise even if the dependency does not have package.json [#6721](https://github.com/pnpm/pnpm/issues/6721).
+Installation of a git-hosted dependency without `package.json` should not fail, when the dependency is read from cache [#6721](https://github.com/pnpm/pnpm/issues/6721).
