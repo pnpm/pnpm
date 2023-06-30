@@ -81,6 +81,9 @@ async function checkFilesIntegrity (
         })
       )
   )
+  if (manifest && !files['package.json']) {
+    manifest.resolve(undefined)
+  }
   return allVerified
 }
 
