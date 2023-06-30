@@ -45,7 +45,6 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
             throw new ResponseError(res)
           } else {
             resolve(res)
-            return
           }
         } catch (error: any) { // eslint-disable-line
           if (error.code && NO_RETRY_ERROR_CODES.has(error.code)) {
