@@ -30,7 +30,7 @@ export interface GenericDependenciesGraphNode {
   installable: boolean
   isBuilt?: boolean
   isPure: boolean
-  resolvedPeerNames: string[]
+  resolvedPeerNames: Set<string>
 }
 
 export type PartialResolvedPackage = Pick<ResolvedPackage,
@@ -125,7 +125,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
 }
 
 function nodeDepsCount (node: GenericDependenciesGraphNode) {
-  return Object.keys(node.children).length + node.resolvedPeerNames.length
+  return Object.keys(node.children).length + node.resolvedPeerNames.size
 }
 
 function deduplicateAll<T extends PartialResolvedPackage> (
@@ -194,11 +194,16 @@ function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
 ) {
   const node1 = depGraph[depPath1]
   const node2 = depGraph[depPath2]
-  const node1DepPaths = Object.values(node1.children)
+  if (nodeDepsCount(node1) < nodeDepsCount(node2)) return false
+
+  const node1DepPathsSet = new Set(Object.values(node1.children))
   const node2DepPaths = Object.values(node2.children)
-  return nodeDepsCount(node1) > nodeDepsCount(node2) &&
-    node2DepPaths.every((depPath) => node1DepPaths.includes(depPath)) &&
-    node2.resolvedPeerNames.every((depPath) => node1.resolvedPeerNames.includes(depPath))
+  if (!node2DepPaths.every((depPath) => node1DepPathsSet.has(depPath))) return false
+
+  for (const depPath of node2.resolvedPeerNames) {
+    if (!node1.resolvedPeerNames.has(depPath)) return false
+  }
+  return true
 }
 
 function getRootPkgsByName<T extends PartialResolvedPackage> (dependenciesTree: DependenciesTree<T>, projects: ProjectToResolve[]) {
@@ -437,7 +442,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       modules,
       peerDependencies,
       transitivePeerDependencies,
-      resolvedPeerNames: [...allResolvedPeers.keys()],
+      resolvedPeerNames: new Set(allResolvedPeers.keys()),
     }
   }
   return { resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers }
