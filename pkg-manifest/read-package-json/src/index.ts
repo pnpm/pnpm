@@ -1,7 +1,7 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { type PackageManifest } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import normalizePackageData from 'normalize-package-data'
 
 export async function readPackageJson (pkgPath: string): Promise<PackageManifest> {

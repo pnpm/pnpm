@@ -10,7 +10,7 @@ import {
   type PackageFileInfo,
   type StoreController,
 } from '@pnpm/store-controller-types'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import writeJsonFile from 'write-json-file'
 import { prune } from './prune'
 

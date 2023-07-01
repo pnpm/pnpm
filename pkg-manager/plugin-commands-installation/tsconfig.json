@@ -40,6 +40,9 @@
       "path": "../../exec/plugin-commands-rebuild"
     },
     {
+      "path": "../../fs/file-reader"
+    },
+    {
       "path": "../../fs/graceful-fs"
     },
     {

@@ -4,7 +4,7 @@ import { install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import { syncJSON as loadJsonFile } from '@pnpm/file-reader'
 import { DEFAULT_OPTS } from '../utils'
 
 test('update with "*" pattern', async () => {

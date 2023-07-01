@@ -4,7 +4,7 @@ import { readWantedLockfile, Lockfile } from '@pnpm/lockfile-file'
 import { ProjectManifest } from '@pnpm/types'
 import { createUpdateOptions, FormatPluginFnOptions } from '@pnpm/meta-updater'
 import isSubdir from 'is-subdir'
-import loadJsonFile from 'load-json-file'
+import { syncJSON as loadJsonFile } from '@pnpm/file-reader'
 import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import writeJsonFile from 'write-json-file'
@@ -13,7 +13,7 @@ const NEXT_TAG = 'next-8'
 const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => {
-  const pnpmManifest = loadJsonFile.sync<any>(path.join(workspaceDir, 'pnpm/package.json'))
+  const pnpmManifest = loadJsonFile<any>(path.join(workspaceDir, 'pnpm/package.json'))
   const pnpmVersion = pnpmManifest!['version'] // eslint-disable-line
   const pnpmMajorKeyword = `pnpm${pnpmVersion.split('.')[0]}`
   const utilsDir = path.join(workspaceDir, '__utils__')

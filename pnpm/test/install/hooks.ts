@@ -4,7 +4,7 @@ import { type Lockfile } from '@pnpm/lockfile-types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { createPeersFolderSuffix } from '@pnpm/dependency-path'
 import readYamlFile from 'read-yaml-file'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import writeYamlFile from 'write-yaml-file'
 import {
   addDistTag,

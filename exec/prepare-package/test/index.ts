@@ -2,7 +2,7 @@ import path from 'path'
 import { preparePackage } from '@pnpm/prepare-package'
 import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { sync as loadJsonFile } from 'load-json-file'
+import { syncJSON as loadJsonFile } from '@pnpm/file-reader'
 
 const f = fixtures(__dirname)
 

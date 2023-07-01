@@ -5,7 +5,7 @@ import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import {
   execPnpm,
   execPnpmSync,

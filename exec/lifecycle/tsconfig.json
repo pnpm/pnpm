@@ -16,6 +16,9 @@
       "path": "../../fetching/directory-fetcher"
     },
     {
+      "path": "../../fs/file-reader"
+    },
+    {
       "path": "../../packages/core-loggers"
     },
     {

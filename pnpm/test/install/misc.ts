@@ -10,7 +10,7 @@ import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import readYamlFile from 'read-yaml-file'
 import rimraf from '@zkochan/rimraf'
 import isWindows from 'is-windows'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import exists from 'path-exists'
 import crossSpawn from 'cross-spawn'
 import {

@@ -39,11 +39,11 @@
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
+    "@pnpm/file-reader": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/ramda": "0.28.20",
-    "load-json-file": "^6.2.0"
+    "@types/ramda": "0.28.20"
   },
   "exports": {
     ".": "./lib/index.js"

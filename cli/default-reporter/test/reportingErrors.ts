@@ -7,7 +7,7 @@ import {
 } from '@pnpm/logger'
 import { map, take } from 'rxjs/operators'
 import chalk from 'chalk'
-import loadJsonFile from 'load-json-file'
+import { syncJSON as loadJsonFile } from '@pnpm/file-reader'
 import normalizeNewline from 'normalize-newline'
 import StackTracey from 'stacktracey'
 
@@ -88,7 +88,7 @@ ${ERROR_PAD}If you need the full list of all 281 published versions run "$ pnpm 
   })
 
   const err = new PnpmError('NO_MATCHING_VERSION', 'No matching version found for pnpm@1000.0.0')
-  err['packageMeta'] = loadJsonFile.sync(path.join(__dirname, 'pnpm-meta.json'))
+  err['packageMeta'] = loadJsonFile(path.join(__dirname, 'pnpm-meta.json'))
   logger.error(err, err)
 })
 
@@ -113,7 +113,7 @@ ${ERROR_PAD}If you need the full list of all 4 published versions run "$ pnpm vi
   })
 
   const err = new PnpmError('NO_MATCHING_VERSION', 'No matching version found for is-positive@1000.0.0')
-  err['packageMeta'] = loadJsonFile.sync(path.join(__dirname, 'is-positive-meta.json'))
+  err['packageMeta'] = loadJsonFile(path.join(__dirname, 'is-positive-meta.json'))
   logger.error(err, err)
 })
 

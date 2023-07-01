@@ -8,7 +8,7 @@ import {
 import { streamParser } from '@pnpm/logger'
 import * as dp from '@pnpm/dependency-path'
 import dint from 'dint'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import pFilter from 'p-filter'
 import {
   extendStoreStatusOptions,

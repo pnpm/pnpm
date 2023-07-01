@@ -38,6 +38,7 @@
     "@pnpm/dedupe.issues-renderer": "workspace:*",
     "@pnpm/dedupe.types": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/file-reader": "workspace:*",
     "@pnpm/render-peer-issues": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ansi-diff": "^1.1.1",
@@ -60,7 +61,6 @@
     "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",
     "ghooks": "2.0.4",
-    "load-json-file": "^6.2.0",
     "normalize-newline": "3.0.0",
     "strip-ansi": "^6.0.1"
   },

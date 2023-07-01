@@ -6,7 +6,7 @@ import { install } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import rimraf from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import { testDefaults } from '../utils'
 
 const f = fixtures(__dirname)

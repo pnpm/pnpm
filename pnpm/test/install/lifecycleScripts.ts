@@ -2,11 +2,11 @@ import path from 'path'
 import { prepare } from '@pnpm/prepare'
 import { type PackageManifest } from '@pnpm/types'
 import PATH from 'path-name'
-import loadJsonFile from 'load-json-file'
+import { syncJSON as loadJsonFile } from '@pnpm/file-reader'
 import { execPnpmSync } from '../utils'
 
 const pkgRoot = path.join(__dirname, '..', '..')
-const pnpmPkg = loadJsonFile.sync<PackageManifest>(path.join(pkgRoot, 'package.json'))
+const pnpmPkg = loadJsonFile<PackageManifest>(path.join(pkgRoot, 'package.json'))
 
 test('installation fails if lifecycle script fails', () => {
   prepare({

@@ -170,6 +170,9 @@ importers:
 
   .meta-updater:
     dependencies:
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../fs/file-reader
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../lockfile/lockfile-file
@@ -182,9 +185,6 @@ importers:
       is-subdir:
         specifier: ^1.2.0
         version: 1.2.0
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
@@ -388,12 +388,12 @@ importers:
 
   cli/cli-meta:
     dependencies:
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
     devDependencies:
       '@pnpm/cli-meta':
         specifier: workspace:*
@@ -431,9 +431,6 @@ importers:
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
     devDependencies:
       '@pnpm/cli-utils':
         specifier: workspace:*
@@ -471,6 +468,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -535,9 +535,6 @@ importers:
       ghooks:
         specifier: 2.0.4
         version: 2.0.4
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       normalize-newline:
         specifier: 3.0.0
         version: 3.0.0
@@ -922,6 +919,9 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -946,9 +946,6 @@ importers:
       is-windows:
         specifier: ^1.0.2
         version: 1.0.2
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       render-help:
         specifier: ^1.0.3
         version: 1.0.3
@@ -1081,6 +1078,9 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1
     devDependencies:
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: 'link:'
@@ -1096,9 +1096,6 @@ importers:
       json-append:
         specifier: 1.1.1
         version: 1.1.1
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
 
   exec/plugin-commands-rebuild:
     dependencies:
@@ -1123,6 +1120,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../../fs/hard-link-dir
@@ -1171,9 +1171,6 @@ importers:
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: link:../../workspace/find-packages
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       mem:
         specifier: ^8.1.1
         version: 8.1.1
@@ -1363,6 +1360,9 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
     devDependencies:
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../../__utils__/prepare
@@ -1375,9 +1375,6 @@ importers:
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
 
   exec/run-npm:
     dependencies:
@@ -1560,6 +1557,12 @@ importers:
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
+
+  fs/file-reader:
+    devDependencies:
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: 'link:'
 
   fs/find-packages:
     dependencies:
@@ -2166,6 +2169,9 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3
     devDependencies:
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/plugin-commands-audit':
         specifier: workspace:*
         version: 'link:'
@@ -2181,9 +2187,6 @@ importers:
       '@types/zkochan__table':
         specifier: npm:@types/table@6.0.0
         version: /@types/table@6.0.0
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       nock:
         specifier: 13.3.1
         version: 13.3.1
@@ -2233,6 +2236,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-file
@@ -2251,9 +2257,6 @@ importers:
       hyperdrive-schemas:
         specifier: ^2.0.0
         version: 2.0.0
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
@@ -2518,6 +2521,9 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3
     devDependencies:
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/plugin-commands-init':
         specifier: workspace:*
         version: 'link:'
@@ -2527,9 +2533,6 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
 
   packages/plugin-commands-setup:
     dependencies:
@@ -2791,6 +2794,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/filter-lockfile':
         specifier: workspace:*
         version: link:../../lockfile/filter-lockfile
@@ -2899,9 +2905,6 @@ importers:
       is-inner-link:
         specifier: ^4.0.0
         version: 4.0.0
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
@@ -3215,6 +3218,9 @@ importers:
       '@pnpm/client':
         specifier: workspace:*
         version: link:../client
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/headless':
         specifier: workspace:*
         version: 'link:'
@@ -3251,9 +3257,6 @@ importers:
       isexe:
         specifier: 2.0.0
         version: 2.0.0
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       npm-run-all:
         specifier: ^4.1.5
         version: 4.1.5
@@ -3517,6 +3520,9 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
@@ -3541,9 +3547,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       p-defer:
         specifier: ^3.0.0
         version: 3.0.0
@@ -3650,6 +3653,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
@@ -3740,9 +3746,6 @@ importers:
       is-subdir:
         specifier: ^1.2.0
         version: 1.2.0
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       mem:
         specifier: ^8.1.1
         version: 8.1.1
@@ -4089,12 +4092,12 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       normalize-package-data:
         specifier: ^5.0.0
         version: 5.0.0
@@ -4231,6 +4234,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../packages/dependency-path
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../fs/file-reader
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../workspace/filter-workspace-packages
@@ -4396,9 +4402,6 @@ importers:
       is-windows:
         specifier: ^1.0.2
         version: 1.0.2
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       loud-rejection:
         specifier: ^2.2.0
         version: 2.2.0
@@ -4660,6 +4663,9 @@ importers:
         specifier: ^4.3.0
         version: 4.3.0
     devDependencies:
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
@@ -4705,9 +4711,6 @@ importers:
       is-windows:
         specifier: ^1.0.2
         version: 1.0.2
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -4828,6 +4831,9 @@ importers:
       '@pnpm/fetching-types':
         specifier: workspace:*
         version: link:../../network/fetching-types
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
@@ -4849,9 +4855,6 @@ importers:
       encode-registry:
         specifier: ^3.0.0
         version: 3.0.0
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       lru-cache:
         specifier: ^9.1.2
         version: 9.1.2
@@ -5000,6 +5003,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-file
@@ -5024,9 +5030,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       p-limit:
         specifier: ^3.1.0
         version: 3.1.0
@@ -5530,6 +5533,9 @@ importers:
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -5548,9 +5554,6 @@ importers:
       '@zkochan/rimraf':
         specifier: ^2.1.2
         version: 2.1.2
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
@@ -5667,6 +5670,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
@@ -5703,9 +5709,6 @@ importers:
       dint:
         specifier: ^5.1.0
         version: 5.1.0
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       p-filter:
         specifier: ^2.1.0
         version: 2.1.0
@@ -5783,6 +5786,9 @@ importers:
       '@pnpm/client':
         specifier: workspace:*
         version: link:../../pkg-manager/client
+      '@pnpm/file-reader':
+        specifier: workspace:*
+        version: link:../../fs/file-reader
       '@pnpm/package-requester':
         specifier: workspace:*
         version: link:../../pkg-manager/package-requester
@@ -5807,9 +5813,6 @@ importers:
       is-port-reachable:
         specifier: 3.0.0
         version: 3.0.0
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
       node-fetch:
         specifier: npm:@pnpm/node-fetch@1.0.0
         version: /@pnpm/node-fetch@1.0.0
@@ -13790,6 +13793,7 @@ packages:
       parse-json: 5.2.0
       strip-bom: 4.0.0
       type-fest: 0.6.0
+    dev: true
 
   /load-json-file@7.0.1:
     resolution: {integrity: sha512-Gnxj3ev3mB5TkVBGad0JM6dmLiQL+o0t23JPBZ9sd+yvSLk05mFoqKBw5N8gbbkU4TNXyqCgIrl/VM17OgUIgQ==}
@@ -17049,6 +17053,7 @@ packages:
   /type-fest@0.6.0:
     resolution: {integrity: sha512-q+MB8nYR1KDLrgr4G5yemftpMC7/QLqVndBmEEdqzmNj5dcFOO4Oo8qlwZE3ULT3+Zim1F8Kq4cBnikNhlCMlg==}
     engines: {node: '>=8'}
+    dev: true
 
   /type-fest@0.8.1:
     resolution: {integrity: sha512-4dbzIzqvjtgiM5rw1k5rEHtBANKmdudhGyBEajN01fEyhaAIhsoKNy6y7+IN93IfpFtwY9iqi7kD+xwKhQsNJA==}
@@ -17925,7 +17930,6 @@ time:
   /json5@2.2.3: '2022-12-31T17:11:32.047Z'
   /keyv@4.5.2: '2022-11-07T15:23:30.660Z'
   /lcov-result-merger@3.3.0: '2022-06-21T06:32:52.863Z'
-  /load-json-file@6.2.0: '2019-07-11T08:30:09.981Z'
   /loud-rejection@2.2.0: '2019-09-28T16:02:58.271Z'
   /lru-cache@9.1.2: '2023-06-01T16:39:07.022Z'
   /make-empty-dir@2.0.0: '2021-04-11T12:30:52.269Z'

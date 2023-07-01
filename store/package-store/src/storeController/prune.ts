@@ -3,7 +3,7 @@ import path from 'path'
 import { type PackageFilesIndex } from '@pnpm/cafs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import ssri from 'ssri'
 
 const BIG_ONE = BigInt(1) as unknown

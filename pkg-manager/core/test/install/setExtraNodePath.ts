@@ -7,7 +7,7 @@ import {
   mutateModules,
   install,
 } from '@pnpm/core'
-import { sync as loadJsonFile } from 'load-json-file'
+import { syncJSON as loadJsonFile } from '@pnpm/file-reader'
 import { testDefaults } from '../utils'
 
 const f = fixtures(__dirname)

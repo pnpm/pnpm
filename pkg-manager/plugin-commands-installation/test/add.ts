@@ -3,7 +3,7 @@ import { type PnpmError } from '@pnpm/error'
 import { add, remove } from '@pnpm/plugin-commands-installation'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import tempy from 'tempy'
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`

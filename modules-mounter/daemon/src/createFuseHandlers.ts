@@ -5,7 +5,7 @@ import {
   nameVerFromPkgSnapshot,
 } from '@pnpm/lockfile-utils'
 import * as schemas from 'hyperdrive-schemas'
-import loadJsonFile from 'load-json-file'
+import { syncJSON as loadJsonFile } from '@pnpm/file-reader'
 import Fuse from 'fuse-native'
 import * as cafsExplorer from './cafsExplorer'
 import { makeVirtualNodeModules } from './makeVirtualNodeModules'
@@ -176,7 +176,7 @@ export function createFuseHandlersFromLockfile (lockfile: Lockfile, cafsDir: str
       pkgSnapshotCache.set(depPath, {
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
         pkgSnapshot,
-        index: loadJsonFile.sync<PackageFilesIndex>(indexPath), // TODO: maybe make it async?
+        index: loadJsonFile<PackageFilesIndex>(indexPath), // TODO: maybe make it async?
       })
     }
     return pkgSnapshotCache.get(depPath)

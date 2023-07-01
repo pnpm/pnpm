@@ -14,7 +14,7 @@ import {
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import { createPeersFolderSuffix } from '@pnpm/dependency-path'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import exists from 'path-exists'
 import pick from 'ramda/src/pick'
 import sinon from 'sinon'

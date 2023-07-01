@@ -34,9 +34,9 @@
     "@pnpm/plugin-commands-audit": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/file-reader": "workspace:*",
     "@types/ramda": "0.28.20",
     "@types/zkochan__table": "npm:@types/table@6.0.0",
-    "load-json-file": "^6.2.0",
     "nock": "13.3.1",
     "strip-ansi": "^6.0.1",
     "tempy": "^1.0.1"

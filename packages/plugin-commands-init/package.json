@@ -31,10 +31,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/plugin-commands-init#readme",
   "devDependencies": {
+    "@pnpm/file-reader": "workspace:*",
     "@pnpm/plugin-commands-init": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/test-fixtures": "workspace:*",
-    "load-json-file": "^6.2.0"
+    "@pnpm/test-fixtures": "workspace:*"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",

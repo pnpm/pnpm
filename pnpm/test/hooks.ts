@@ -3,7 +3,7 @@ import path from 'path'
 import { type PackageManifest } from '@pnpm/types'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import writeYamlFile from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from './utils'
 

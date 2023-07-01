@@ -34,6 +34,7 @@
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",
+    "@pnpm/file-reader": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/server": "workspace:*",
@@ -42,7 +43,6 @@
     "@zkochan/rimraf": "^2.1.2",
     "get-port": "^5.1.1",
     "is-port-reachable": "3.0.0",
-    "load-json-file": "^6.2.0",
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0",
     "tempy": "^1.0.1"
   },

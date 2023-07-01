@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@pnpm/types": "workspace:*",
-    "load-json-file": "^6.2.0"
+    "@pnpm/file-reader": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

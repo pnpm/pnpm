@@ -35,6 +35,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-publishing#readme",
   "devDependencies": {
+    "@pnpm/file-reader": "workspace:*",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-publishing": "workspace:*",
     "@pnpm/prepare": "workspace:*",
@@ -50,7 +51,6 @@
     "ci-info": "^3.8.0",
     "cross-spawn": "^7.0.3",
     "is-windows": "^1.0.2",
-    "load-json-file": "^6.2.0",
     "path-exists": "^4.0.0",
     "tar": "^6.1.15",
     "write-yaml-file": "^5.0.0"

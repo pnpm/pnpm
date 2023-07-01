@@ -6,7 +6,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { sync as readYamlFile } from 'read-yaml-file'
 import { createPeersFolderSuffix } from '@pnpm/dependency-path'
-import { sync as loadJsonFile } from 'load-json-file'
+import { syncJSON as loadJsonFile } from '@pnpm/file-reader'
 import { sync as writeYamlFile } from 'write-yaml-file'
 import { execPnpm } from '../utils'
 

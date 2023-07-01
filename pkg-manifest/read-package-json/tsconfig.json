@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../fs/file-reader"
+    },
+    {
       "path": "../../packages/error"
     },
     {

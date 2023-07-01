@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
 import { runLifecycleHook, runPostinstallHooks } from '@pnpm/lifecycle'
-import loadJsonFile from 'load-json-file'
+import { syncJSON } from '@pnpm/file-reader'
 import rimraf from '@zkochan/rimraf'
 import { PnpmError } from '@pnpm/error'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -51,7 +51,7 @@ test('runPostinstallHooks()', async () => {
     unsafePerm: true,
   })
 
-  expect(loadJsonFile.sync(path.join(pkgRoot, 'output.json'))).toStrictEqual(['preinstall', 'install', 'postinstall'])
+  expect(syncJSON(path.join(pkgRoot, 'output.json'))).toStrictEqual(['preinstall', 'install', 'postinstall'])
 })
 
 test('runLifecycleHook() should throw an error while missing script start or file server.js', async () => {

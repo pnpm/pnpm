@@ -4,7 +4,7 @@ import { addDependenciesToPackage, install, mutateModules, mutateModulesInSingle
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import rimraf from '@zkochan/rimraf'
-import { sync as loadJsonFile } from 'load-json-file'
+import { syncJSON as loadJsonFile } from '@pnpm/file-reader'
 import { sync as readYamlFile } from 'read-yaml-file'
 import symlinkDir from 'symlink-dir'
 import { testDefaults } from '../utils'

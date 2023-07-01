@@ -8,7 +8,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { type ProjectManifest } from '@pnpm/types'
 import execa from 'execa'
 import crossSpawn from 'cross-spawn'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import { DEFAULT_OPTS } from './utils'
 
 const CREDENTIALS = `\

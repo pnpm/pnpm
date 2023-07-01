@@ -31,8 +31,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manifest/read-package-json#readme",
   "dependencies": {
     "@pnpm/error": "workspace:*",
+    "@pnpm/file-reader": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "load-json-file": "^6.2.0",
     "normalize-package-data": "^5.0.0"
   },
   "funding": "https://opencollective.com/pnpm",

@@ -1,7 +1,7 @@
 import { getConfig } from '@pnpm/config'
 import { updateCheckLogger } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import writeJsonFile from 'write-json-file'
 import { checkForUpdates } from './checkForUpdates'
 

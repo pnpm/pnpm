@@ -21,6 +21,9 @@
       "path": "../../config/config"
     },
     {
+      "path": "../../fs/file-reader"
+    },
+    {
       "path": "../../network/auth-header"
     },
     {

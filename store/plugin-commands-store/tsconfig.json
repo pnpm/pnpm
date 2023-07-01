@@ -28,6 +28,9 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
+      "path": "../../fs/file-reader"
+    },
+    {
       "path": "../../lockfile/lockfile-file"
     },
     {

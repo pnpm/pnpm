@@ -179,7 +179,6 @@
         "find-up",
         "get-port",
         "is-port-reachable",
-        "load-json-file",
         "mem",
         "node-fetch",
         "normalize-newline",

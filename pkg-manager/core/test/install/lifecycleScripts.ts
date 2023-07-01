@@ -12,7 +12,7 @@ import {
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import isWindows from 'is-windows'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import exists from 'path-exists'
 import PATH from 'path-name'
 import sinon from 'sinon'

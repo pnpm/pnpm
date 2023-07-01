@@ -11,6 +11,9 @@
   ],
   "references": [
     {
+      "path": "../fs/file-reader"
+    },
+    {
       "path": "../lockfile/lockfile-file"
     },
     {

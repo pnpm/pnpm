@@ -11,7 +11,7 @@ import {
   type PackageFileInfo,
   type PackageFilesIndex,
 } from '@pnpm/cafs'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import { PnpmError } from '@pnpm/error'
 import { type LicensePackage } from './licenses'
 import { type DirectoryResolution, type PackageSnapshot, pkgSnapshotToResolution, type Resolution } from '@pnpm/lockfile-utils'

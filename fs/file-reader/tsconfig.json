@@ -8,13 +8,6 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../../fs/file-reader"
-    },
-    {
-      "path": "../../packages/types"
-    }
-  ],
+  "references": [],
   "composite": true
 }

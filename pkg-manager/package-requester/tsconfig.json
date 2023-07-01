@@ -22,6 +22,9 @@
       "path": "../../fetching/pick-fetcher"
     },
     {
+      "path": "../../fs/file-reader"
+    },
+    {
       "path": "../../fs/graceful-fs"
     },
     {

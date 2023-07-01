@@ -63,6 +63,9 @@
       "path": "../exec/run-npm"
     },
     {
+      "path": "../fs/file-reader"
+    },
+    {
       "path": "../lockfile/lockfile-types"
     },
     {

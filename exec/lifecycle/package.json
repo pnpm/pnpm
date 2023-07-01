@@ -47,12 +47,12 @@
     "run-groups": "^3.0.1"
   },
   "devDependencies": {
+    "@pnpm/file-reader": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/rimraf": "^3.0.2",
     "@zkochan/rimraf": "^2.1.2",
-    "json-append": "1.1.1",
-    "load-json-file": "^6.2.0"
+    "json-append": "1.1.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

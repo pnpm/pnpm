@@ -3,7 +3,7 @@ import path from 'path'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createNpmResolver } from '@pnpm/npm-resolver'
 import { fixtures } from '@pnpm/test-fixtures'
-import loadJsonFile from 'load-json-file'
+import { syncJSON as loadJsonFile } from '@pnpm/file-reader'
 import nock from 'nock'
 import tempy from 'tempy'
 
@@ -11,7 +11,7 @@ const f = fixtures(__dirname)
 const registry = 'https://registry.npmjs.org/'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const badDatesMeta = loadJsonFile.sync<any>(f.find('bad-dates.json'))
+const badDatesMeta = loadJsonFile<any>(f.find('bad-dates.json'))
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const fetch = createFetchFromRegistry({})

@@ -53,6 +53,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/file-reader": "workspace:*",
     "@pnpm/get-context": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
@@ -64,7 +65,6 @@
     "@pnpm/types": "workspace:*",
     "archy": "^1.0.0",
     "dint": "^5.1.0",
-    "load-json-file": "^6.2.0",
     "p-filter": "^2.1.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "render-help": "^1.0.3"

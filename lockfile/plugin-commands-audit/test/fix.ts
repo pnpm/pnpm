@@ -3,7 +3,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectManifest } from '@pnpm/types'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { readProjectManifest } from '@pnpm/read-project-manifest'
-import loadJsonFile from 'load-json-file'
+import { asyncJSON as loadJsonFile } from '@pnpm/file-reader'
 import nock from 'nock'
 import * as responses from './utils/responses'
 

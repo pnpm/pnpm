@@ -7,7 +7,7 @@ import { createPackageStore } from '@pnpm/package-store'
 import { connectStoreController, createServer } from '@pnpm/server'
 import fetch from 'node-fetch'
 import rimraf from '@zkochan/rimraf'
-import loadJsonFile from 'load-json-file'
+import { syncJSON as loadJsonFile } from '@pnpm/file-reader'
 import tempy from 'tempy'
 import isPortReachable from 'is-port-reachable'
 
