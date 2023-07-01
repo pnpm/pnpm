@@ -59,7 +59,6 @@ export const shorthands = {
   parallel: [
     '--workspace-concurrency=Infinity',
     '--no-sort',
-    '--stream',
     '--recursive',
     '--include-workspace-root',
   ],
