@@ -216,6 +216,11 @@ export async function main (inputArgv: string[]) {
     }
     config.allProjectsGraph = filterResults.allProjectsGraph
     config.selectedProjectsGraph = filterResults.selectedProjectsGraph
+    const isParallel = cliOptions['sort'] === false && cliOptions['workspace-concurrency'] === Number.POSITIVE_INFINITY
+    const isSingleProject = filterResults.allProjects.length === 1 && filterResults.allProjects[0].dir === wsDir
+    if (isParallel && isSingleProject) {
+      config.selectedProjectsGraph = filterResults.allProjectsGraph
+    }
     if (isEmpty(config.selectedProjectsGraph)) {
       if (printLogs) {
         console.log(`No projects matched the filters in "${wsDir}"`)

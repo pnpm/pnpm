@@ -60,7 +60,6 @@ export const shorthands = {
     '--workspace-concurrency=Infinity',
     '--no-sort',
     '--recursive',
-    '--include-workspace-root',
   ],
   sequential: [
     '--workspace-concurrency=1',
