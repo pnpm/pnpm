@@ -69,7 +69,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   } {
   const depGraph: GenericDependenciesGraph<T> = {}
-  const pathsByNodeId: Record<string, string> = {}
+  const pathsByNodeId = new Map<string, string>()
   const depPathsByPkgId: Record<string, string[]> = {}
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
@@ -103,12 +103,12 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   }
 
   Object.values(depGraph).forEach((node) => {
-    node.children = mapValues((childNodeId) => pathsByNodeId[childNodeId] ?? childNodeId, node.children)
+    node.children = mapValues((childNodeId) => pathsByNodeId.get(childNodeId) ?? childNodeId, node.children)
   })
 
   const dependenciesByProjectId: { [id: string]: Record<string, string> } = {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
-    dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId[nodeId], directNodeIdsByAlias)
+    dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId.get(nodeId)!, directNodeIdsByAlias)
   }
   if (opts.dedupePeerDependents) {
     const duplicates = Object.values(depPathsByPkgId).filter((item) => item.length > 1)
@@ -257,7 +257,7 @@ interface PeersResolution {
 }
 
 interface ResolvePeersContext {
-  pathsByNodeId: { [nodeId: string]: string }
+  pathsByNodeId: Map<string, string>
   depPathsByPkgId?: Record<string, string[]>
 }
 
@@ -283,7 +283,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     ctx.depGraph[resolvedPackage.depPath].depth <= node.depth &&
     Object.keys(resolvedPackage.peerDependencies).length === 0
   ) {
-    ctx.pathsByNodeId[nodeId] = resolvedPackage.depPath
+    ctx.pathsByNodeId.set(nodeId, resolvedPackage.depPath)
     return { resolvedPeers: new Map<string, string>(), missingPeers: new Set<string>() }
   }
   if (typeof node.children === 'function') {
@@ -308,8 +308,8 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       if (!parentPkgNodeId || !cachedNodeId) return false
       if (parentPkgNodeId === cachedNodeId) continue
       if (
-        ctx.pathsByNodeId[cachedNodeId] &&
-            ctx.pathsByNodeId[cachedNodeId] === ctx.pathsByNodeId[parentPkgNodeId]
+        ctx.pathsByNodeId.has(cachedNodeId) &&
+            ctx.pathsByNodeId.get(cachedNodeId) === ctx.pathsByNodeId.get(parentPkgNodeId)
       ) continue
       if (!ctx.dependenciesTree.has(parentPkgNodeId) && parentPkgNodeId.startsWith('link:')) {
         return false
@@ -325,7 +325,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     return true
   })
   if (hit != null) {
-    ctx.pathsByNodeId[nodeId] = hit.depPath
+    ctx.pathsByNodeId.set(nodeId, hit.depPath)
     ctx.depGraph[hit.depPath].depth = Math.min(ctx.depGraph[hit.depPath].depth, node.depth)
     return {
       missingPeers: hit.missingPeers,
@@ -403,7 +403,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     }
   }
 
-  ctx.pathsByNodeId[nodeId] = depPath
+  ctx.pathsByNodeId.set(nodeId, depPath)
   if (ctx.depPathsByPkgId != null) {
     if (!ctx.depPathsByPkgId[resolvedPackage.depPath]) {
       ctx.depPathsByPkgId[resolvedPackage.depPath] = []
