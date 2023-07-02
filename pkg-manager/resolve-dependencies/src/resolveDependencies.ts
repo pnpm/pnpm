@@ -395,7 +395,7 @@ async function resolveDependenciesOfImporters (
     }
   }
   const pkgAddressesByImportersWithoutPeers = await Promise.all(zipWith(async (importer, { pkgAddresses, postponedResolutionsQueue, postponedPeersResolutionQueue }) => {
-    const newPreferredVersions = { ...importer.preferredVersions }
+    const newPreferredVersions = Object.create(importer.preferredVersions) as PreferredVersions
     const currentParentPkgAliases: Record<string, PkgAddress | true> = {}
     for (const pkgAddress of pkgAddresses) {
       if (currentParentPkgAliases[pkgAddress.alias] !== true) {
@@ -406,8 +406,8 @@ async function resolveDependenciesOfImporters (
       }
       const resolvedPackage = ctx.resolvedPackagesByDepPath[pkgAddress.depPath]
       if (!resolvedPackage) continue // This will happen only with linked dependencies
-      if (!newPreferredVersions[resolvedPackage.name]) {
-        newPreferredVersions[resolvedPackage.name] = {}
+      if (!Object.prototype.hasOwnProperty.call(newPreferredVersions, resolvedPackage.name)) {
+        newPreferredVersions[resolvedPackage.name] = { ...importer.preferredVersions[resolvedPackage.name] }
       }
       if (!newPreferredVersions[resolvedPackage.name][resolvedPackage.version]) {
         newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = {
