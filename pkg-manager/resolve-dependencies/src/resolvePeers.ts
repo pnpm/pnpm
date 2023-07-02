@@ -70,7 +70,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   } {
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = new Map<string, string>()
-  const depPathsByPkgId: Record<string, string[]> = {}
+  const depPathsByPkgId = new Map<string, Set<string>>()
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
@@ -111,7 +111,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId.get(nodeId)!, directNodeIdsByAlias)
   }
   if (opts.dedupePeerDependents) {
-    const duplicates = Object.values(depPathsByPkgId).filter((item) => item.length > 1)
+    const duplicates = Array.from(depPathsByPkgId.values()).filter((item) => item.size > 1)
     const allDepPathsMap = deduplicateAll(depGraph, duplicates)
     for (const { id } of opts.projects) {
       dependenciesByProjectId[id] = mapValues((depPath) => allDepPathsMap[depPath] ?? depPath, dependenciesByProjectId[id])
@@ -130,7 +130,7 @@ function nodeDepsCount (node: GenericDependenciesGraphNode) {
 
 function deduplicateAll<T extends PartialResolvedPackage> (
   depGraph: GenericDependenciesGraph<T>,
-  duplicates: string[][]
+  duplicates: Array<Set<string>>
 ): Record<string, string> {
   const { depPathsMap, remainingDuplicates } = deduplicateDepPaths(duplicates, depGraph)
   if (remainingDuplicates.length === duplicates.length) {
@@ -149,16 +149,17 @@ function deduplicateAll<T extends PartialResolvedPackage> (
 }
 
 function deduplicateDepPaths<T extends PartialResolvedPackage> (
-  duplicates: string[][],
+  duplicates: Array<Set<string>>,
   depGraph: GenericDependenciesGraph<T>
 ) {
   const depCountSorter = (depPath1: string, depPath2: string) => nodeDepsCount(depGraph[depPath1]) - nodeDepsCount(depGraph[depPath2])
   const depPathsMap: Record<string, string> = {}
-  const remainingDuplicates: string[][] = []
+  const remainingDuplicates: Array<Set<string>> = []
 
   for (const depPaths of duplicates) {
-    const unresolvedDepPaths = new Set(depPaths)
-    let currentDepPaths = depPaths.sort(depCountSorter)
+    const unresolvedDepPaths = new Set(depPaths.values())
+    let currentDepPaths = [...depPaths]
+    currentDepPaths.sort(depCountSorter)
 
     while (currentDepPaths.length) {
       const depPath1 = currentDepPaths.pop()!
@@ -178,7 +179,7 @@ function deduplicateDepPaths<T extends PartialResolvedPackage> (
     }
 
     if (unresolvedDepPaths.size) {
-      remainingDuplicates.push([...unresolvedDepPaths])
+      remainingDuplicates.push(unresolvedDepPaths)
     }
   }
   return {
@@ -258,7 +259,7 @@ interface PeersResolution {
 
 interface ResolvePeersContext {
   pathsByNodeId: Map<string, string>
-  depPathsByPkgId?: Record<string, string[]>
+  depPathsByPkgId?: Map<string, Set<string>>
 }
 
 function resolvePeersOfNode<T extends PartialResolvedPackage> (
@@ -405,11 +406,11 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
 
   ctx.pathsByNodeId.set(nodeId, depPath)
   if (ctx.depPathsByPkgId != null) {
-    if (!ctx.depPathsByPkgId[resolvedPackage.depPath]) {
-      ctx.depPathsByPkgId[resolvedPackage.depPath] = []
+    if (!ctx.depPathsByPkgId.has(resolvedPackage.depPath)) {
+      ctx.depPathsByPkgId.set(resolvedPackage.depPath, new Set())
     }
-    if (!ctx.depPathsByPkgId[resolvedPackage.depPath].includes(depPath)) {
-      ctx.depPathsByPkgId[resolvedPackage.depPath].push(depPath)
+    if (!ctx.depPathsByPkgId.get(resolvedPackage.depPath)!.has(depPath)) {
+      ctx.depPathsByPkgId.get(resolvedPackage.depPath)!.add(depPath)
     }
   }
   const peerDependencies = { ...resolvedPackage.peerDependencies }
