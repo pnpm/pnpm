@@ -26,8 +26,8 @@ export function getAllDependenciesFromManifest (
   manifest: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>
 ): Dependencies {
   return {
-    ...manifest.devDependencies,
     ...manifest.dependencies,
+    ...manifest.devDependencies,
     ...manifest.optionalDependencies,
   } as Dependencies
 }

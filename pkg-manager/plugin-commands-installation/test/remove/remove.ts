@@ -109,7 +109,7 @@ test('remove should fail if the project does not have one of the removed depende
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
     expect(err.message).toBe('Cannot remove \'dev-dep-1\', \'optional-dep-1\': \
 no such dependencies found in \'dependencies\'')
-    expect(err.hint).toBe('Available dependencies: prod-dep-1, prod-dep-2')
+    expect(err.hint).toBe('Available dependencies: \nprod-dep-1\nprod-dep-2')
   }
   {
     let err!: PnpmError
@@ -125,7 +125,7 @@ no such dependencies found in \'dependencies\'')
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
     expect(err.message).toBe('Cannot remove \'prod-dep-1\', \'optional-dep-1\': \
 no such dependencies found in \'devDependencies\'')
-    expect(err.hint).toBe('Available dependencies: dev-dep-1, dev-dep-2')
+    expect(err.hint).toBe('Available dependencies: \ndev-dep-1\ndev-dep-2')
   }
   {
     let err!: PnpmError
@@ -141,7 +141,7 @@ no such dependencies found in \'devDependencies\'')
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
     expect(err.message).toBe('Cannot remove \'prod-dep-1\', \'dev-dep-1\': \
 no such dependencies found in \'optionalDependencies\'')
-    expect(err.hint).toBe('Available dependencies: optional-dep-1, optional-dep-2')
+    expect(err.hint).toBe('Available dependencies: \noptional-dep-1\noptional-dep-2')
   }
   {
     let err!: PnpmError
@@ -155,7 +155,6 @@ no such dependencies found in \'optionalDependencies\'')
     }
     expect(err.code).toBe('ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS')
     expect(err.message).toBe("Cannot remove 'express': no such dependency found")
-    expect(err.hint).toBe('Available dependencies: dev-dep-1, dev-dep-2, \
-prod-dep-1, prod-dep-2, optional-dep-1, optional-dep-2')
+    expect(err.hint).toBe('Available dependencies: \nprod-dep-1\nprod-dep-2\ndev-dep-1\ndev-dep-2\noptional-dep-1\noptional-dep-2')
   }
 })

@@ -32,7 +32,7 @@ class RemoveMissingDepsError extends PnpmError {
     if (opts.availableDependencies.length > 0) {
       message += `no such ${opts.nonMatchedDependencies.length > 1 ? 'dependencies' : 'dependency'} `
       message += `found${opts.targetDependenciesField ? ` in '${opts.targetDependenciesField}'` : ''}`
-      const hint = `Available dependencies: ${opts.availableDependencies.join(', ')}`
+      const hint = `Available dependencies: \n${opts.availableDependencies.join('\n')}`
       super('CANNOT_REMOVE_MISSING_DEPS', message, { hint })
       return
     }
