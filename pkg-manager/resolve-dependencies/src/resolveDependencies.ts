@@ -89,12 +89,13 @@ export type DependenciesTreeNode<T> = {
   depth: -1
 })
 
-export interface DependenciesTree<T> {
-  // a node ID is the join of the package's keypath with a colon
-  // E.g., a subdeps node ID which parent is `foo` will be
-  // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
-  [nodeId: string]: DependenciesTreeNode<T>
-}
+export type DependenciesTree<T> = Map<
+// a node ID is the join of the package's keypath with a colon
+// E.g., a subdeps node ID which parent is `foo` will be
+// registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
+string,
+DependenciesTreeNode<T>
+>
 
 export type ResolvedPackagesByDepPath = Record<string, ResolvedPackage>
 
@@ -680,7 +681,7 @@ async function resolveDependenciesOfDependency (
 
   if (resolveDependencyResult == null) return { resolveDependencyResult: null }
   if (resolveDependencyResult.isLinkedDependency) {
-    ctx.dependenciesTree[createNodeIdForLinkedLocalPkg(ctx.lockfileDir, resolveDependencyResult.resolution.directory)] = {
+    ctx.dependenciesTree.set(createNodeIdForLinkedLocalPkg(ctx.lockfileDir, resolveDependencyResult.resolution.directory), {
       children: {},
       depth: -1,
       installable: true,
@@ -688,7 +689,7 @@ async function resolveDependenciesOfDependency (
         name: resolveDependencyResult.name,
         version: resolveDependencyResult.version,
       },
-    }
+    })
     return { resolveDependencyResult }
   }
   if (!resolveDependencyResult.isNew) {
@@ -815,7 +816,7 @@ async function resolveChildren (
     alias: child.alias,
     depPath: child.depPath,
   }))
-  ctx.dependenciesTree[parentPkg.nodeId] = {
+  ctx.dependenciesTree.set(parentPkg.nodeId, {
     children: pkgAddresses.reduce((chn, child) => {
       chn[child.alias] = (child as PkgAddress).nodeId ?? child.pkgId
       return chn
@@ -823,7 +824,7 @@ async function resolveChildren (
     depth: parentDepth,
     installable: parentPkg.installable,
     resolvedPackage: ctx.resolvedPackagesByDepPath[parentPkg.depPath],
-  }
+  })
   return resolvingPeers
 }
 
@@ -1304,8 +1305,8 @@ async function resolveDependency (
       ctx.resolvedPackagesByDepPath[depPath].fetchingBundledManifest = pkgResponse.bundledManifest!
     }
 
-    if (ctx.dependenciesTree[nodeId]) {
-      ctx.dependenciesTree[nodeId].depth = Math.min(ctx.dependenciesTree[nodeId].depth, options.currentDepth)
+    if (ctx.dependenciesTree.has(nodeId)) {
+      ctx.dependenciesTree.get(nodeId)!.depth = Math.min(ctx.dependenciesTree.get(nodeId)!.depth, options.currentDepth)
     } else {
       ctx.pendingNodes.push({
         alias: wantedDependency.alias || pkg.name,

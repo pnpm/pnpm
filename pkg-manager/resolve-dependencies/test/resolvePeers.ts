@@ -1,5 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import { resolvePeers } from '../lib/resolvePeers'
+import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
+import { type DependenciesTreeNode } from '../lib/resolveDependencies'
 
 test('resolve peer dependencies of cyclic dependencies', () => {
   const fooPkg = {
@@ -31,24 +32,24 @@ test('resolve peer dependencies of cyclic dependencies', () => {
         id: '',
       },
     ],
-    dependenciesTree: {
-      '>foo/1.0.0>': {
+    dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>foo/1.0.0>', {
         children: {
           bar: '>foo/1.0.0>bar/1.0.0>',
         },
         installable: true,
         resolvedPackage: fooPkg,
         depth: 0,
-      },
-      '>foo/1.0.0>bar/1.0.0>': {
+      }],
+      ['>foo/1.0.0>bar/1.0.0>', {
         children: {
           qar: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>',
         },
         installable: true,
         resolvedPackage: barPkg,
         depth: 1,
-      },
-      '>foo/1.0.0>bar/1.0.0>qar/1.0.0>': {
+      }],
+      ['>foo/1.0.0>bar/1.0.0>qar/1.0.0>', {
         children: {
           zoo: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>',
         },
@@ -63,8 +64,8 @@ test('resolve peer dependencies of cyclic dependencies', () => {
           },
         },
         depth: 2,
-      },
-      '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>': {
+      }],
+      ['>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>', {
         children: {
           foo: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>foo/1.0.0>',
           bar: '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>bar/1.0.0>',
@@ -79,20 +80,20 @@ test('resolve peer dependencies of cyclic dependencies', () => {
           },
         },
         depth: 3,
-      },
-      '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>foo/1.0.0>': {
+      }],
+      ['>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>foo/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 4,
-      },
-      '>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>bar/1.0.0>': {
+      }],
+      ['>foo/1.0.0>bar/1.0.0>qar/1.0.0>zoo/1.0.0>bar/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: barPkg,
         depth: 4,
-      },
-    },
+      }],
+    ]),
     virtualStoreDir: '',
     lockfileDir: '',
   })
@@ -139,22 +140,22 @@ test('when a package is referenced twice in the dependencies graph and one of th
         id: '',
       },
     ],
-    dependenciesTree: {
-      '>zoo/1.0.0>': {
+    dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>zoo/1.0.0>', {
         children: {
           foo: '>zoo/1.0.0>foo/1.0.0>',
         },
         installable: true,
         resolvedPackage: zooPkg,
         depth: 0,
-      },
-      '>zoo/1.0.0>foo/1.0.0>': {
+      }],
+      ['>zoo/1.0.0>foo/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 1,
-      },
-      '>bar/1.0.0>': {
+      }],
+      ['>bar/1.0.0>', {
         children: {
           zoo: '>bar/1.0.0>zoo/1.0.0>',
           qar: '>bar/1.0.0>qar/1.0.0>',
@@ -162,22 +163,22 @@ test('when a package is referenced twice in the dependencies graph and one of th
         installable: true,
         resolvedPackage: barPkg,
         depth: 0,
-      },
-      '>bar/1.0.0>zoo/1.0.0>': {
+      }],
+      ['>bar/1.0.0>zoo/1.0.0>', {
         children: {
           foo: '>bar/1.0.0>zoo/1.0.0>foo/1.0.0>',
         },
         installable: true,
         resolvedPackage: zooPkg,
         depth: 1,
-      },
-      '>bar/1.0.0>zoo/1.0.0>foo/1.0.0>': {
+      }],
+      ['>bar/1.0.0>zoo/1.0.0>foo/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 2,
-      },
-      '>bar/1.0.0>qar/1.0.0>': {
+      }],
+      ['>bar/1.0.0>qar/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: {
@@ -187,8 +188,8 @@ test('when a package is referenced twice in the dependencies graph and one of th
           peerDependencies: {},
         },
         depth: 1,
-      },
-    },
+      }],
+    ]),
     virtualStoreDir: '',
     lockfileDir: '',
   })
@@ -308,68 +309,68 @@ describe('peer dependency issues', () => {
         id: 'project6',
       },
     ],
-    dependenciesTree: {
-      '>project1>foo/1.0.0>': {
+    dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>project1>foo/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 0,
-      },
-      '>project2>bar/1.0.0>': {
+      }],
+      ['>project2>bar/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: barPkg,
         depth: 0,
-      },
-      '>project3>foo/1.0.0>': {
+      }],
+      ['>project3>foo/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 0,
-      },
-      '>project3>bar/1.0.0>': {
+      }],
+      ['>project3>bar/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: barPkg,
         depth: 0,
-      },
-      '>project4>bar/1.0.0>': {
+      }],
+      ['>project4>bar/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: barPkg,
         depth: 0,
-      },
-      '>project4>qar/1.0.0>': {
+      }],
+      ['>project4>qar/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: qarPkg,
         depth: 0,
-      },
-      '>project5>foo/1.0.0>': {
+      }],
+      ['>project5>foo/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: fooPkg,
         depth: 0,
-      },
-      '>project5>bar/2.0.0>': {
+      }],
+      ['>project5>bar/2.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: barWithOptionalPeer,
         depth: 0,
-      },
-      '>project6>foo/2.0.0>': {
+      }],
+      ['>project6>foo/2.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: fooWithOptionalPeer,
         depth: 0,
-      },
-      '>project6>bar/2.0.0>': {
+      }],
+      ['>project6>bar/2.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: barWithOptionalPeer,
         depth: 0,
-      },
-    },
+      }],
+    ]),
     virtualStoreDir: '',
     lockfileDir: '',
   })
@@ -408,8 +409,8 @@ describe('unmet peer dependency issues', () => {
         id: 'project1',
       },
     ],
-    dependenciesTree: {
-      '>project1>foo/1.0.0>': {
+    dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>project1>foo/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: {
@@ -422,8 +423,8 @@ describe('unmet peer dependency issues', () => {
           },
         },
         depth: 0,
-      },
-      '>project1>peer1/1.0.0-rc.0>': {
+      }],
+      ['>project1>peer1/1.0.0-rc.0>', {
         children: {},
         installable: true,
         resolvedPackage: {
@@ -433,8 +434,8 @@ describe('unmet peer dependency issues', () => {
           peerDependencies: {},
         },
         depth: 0,
-      },
-      '>project1>peer2/1.1.0-rc.0>': {
+      }],
+      ['>project1>peer2/1.1.0-rc.0>', {
         children: {},
         installable: true,
         resolvedPackage: {
@@ -444,8 +445,8 @@ describe('unmet peer dependency issues', () => {
           peerDependencies: {},
         },
         depth: 0,
-      },
-    },
+      }],
+    ]),
     virtualStoreDir: '',
     lockfileDir: '',
   })
@@ -469,8 +470,8 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
         id: 'project',
       },
     ],
-    dependenciesTree: {
-      '>project>foo/1.0.0>': {
+    dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>project>foo/1.0.0>', {
         children: {
           dep: '>project>foo/1.0.0>dep/1.0.0>',
           bar: '>project>foo/1.0.0>bar/1.0.0>',
@@ -483,8 +484,8 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
           peerDependencies: {},
         },
         depth: 0,
-      },
-      '>project>foo/1.0.0>dep/1.0.0>': {
+      }],
+      ['>project>foo/1.0.0>dep/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: {
@@ -494,8 +495,8 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
           peerDependencies: {},
         },
         depth: 1,
-      },
-      '>project>foo/1.0.0>bar/1.0.0>': {
+      }],
+      ['>project>foo/1.0.0>bar/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: {
@@ -507,8 +508,8 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
           },
         },
         depth: 1,
-      },
-    },
+      }],
+    ]),
     virtualStoreDir: '',
     lockfileDir: '',
   })
@@ -560,48 +561,48 @@ test('resolve peer dependencies with npm aliases', () => {
         id: '',
       },
     ],
-    dependenciesTree: {
-      '>foo/1.0.0>': {
+    dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
+      ['>foo/1.0.0>', {
         children: {
           bar: '>foo/1.0.0>bar/1.0.0>',
         },
         installable: true,
         resolvedPackage: fooPkg,
         depth: 0,
-      },
-      '>foo/1.0.0>bar/1.0.0>': {
+      }],
+      ['>foo/1.0.0>bar/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: barPkg,
         depth: 1,
-      },
-      '>foo/2.0.0>': {
+      }],
+      ['>foo/2.0.0>', {
         children: {
           bar: '>foo/2.0.0>bar/2.0.0>',
         },
         installable: true,
         resolvedPackage: fooAliasPkg,
         depth: 0,
-      },
-      '>foo/2.0.0>bar/2.0.0>': {
+      }],
+      ['>foo/2.0.0>bar/2.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: barAliasPkg,
         depth: 1,
-      },
-      '>bar/1.0.0>': {
+      }],
+      ['>bar/1.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: barPkg,
         depth: 0,
-      },
-      '>bar/2.0.0>': {
+      }],
+      ['>bar/2.0.0>', {
         children: {},
         installable: true,
         resolvedPackage: barAliasPkg,
         depth: 0,
-      },
-    },
+      }],
+    ]),
     virtualStoreDir: '',
     lockfileDir: '',
   })

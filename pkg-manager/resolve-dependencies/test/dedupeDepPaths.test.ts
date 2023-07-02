@@ -1,7 +1,8 @@
-import { resolvePeers } from '../lib/resolvePeers'
+import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
+import { type DependenciesTreeNode } from '../lib/resolveDependencies'
 
 test('packages are not deduplicated when versions do not match', () => {
-  const fooPkg = {
+  const fooPkg: PartialResolvedPackage = {
     name: 'foo',
     version: '1.0.0',
     depPath: 'foo/1.0.0',
@@ -16,7 +17,7 @@ test('packages are not deduplicated when versions do not match', () => {
     },
   }
 
-  const peers = Object.fromEntries(
+  const peers: Record<string, PartialResolvedPackage> = Object.fromEntries(
     [
       ['bar', '1.0.0'],
       ['bar', '2.0.0'],
@@ -29,7 +30,7 @@ test('packages are not deduplicated when versions do not match', () => {
         version,
         depPath: `${name}/${version}`,
         peerDependencies: {},
-      },
+      } satisfies PartialResolvedPackage,
     ])
   )
 
@@ -74,7 +75,7 @@ test('packages are not deduplicated when versions do not match', () => {
         id: 'project4',
       },
     ],
-    dependenciesTree: Object.fromEntries([
+    dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>(([
       ['>project1>foo/1.0.0>', fooPkg],
       ['>project1>bar/1.0.0>', peers.bar_1_0_0],
 
@@ -89,12 +90,12 @@ test('packages are not deduplicated when versions do not match', () => {
       ['>project4>bar/2.0.0>', peers.bar_2_0_0],
       ['>project4>baz/2.0.0>', peers.baz_2_0_0],
 
-    ].map(([path, resolvedPackage]) => [path, {
+    ] satisfies Array<[string, PartialResolvedPackage]>).map(([path, resolvedPackage]) => [path, {
       children: {},
       installable: {},
       resolvedPackage,
       depth: 0,
-    }])),
+    } as DependenciesTreeNode<PartialResolvedPackage>])),
     dedupePeerDependents: true,
     virtualStoreDir: '',
     lockfileDir: '',
