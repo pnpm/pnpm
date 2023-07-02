@@ -11,7 +11,7 @@ test('remove arg completions', async () => {
     },
   })
   expect(await remove.completion({}, [])).toStrictEqual([
-    { name: 'is-negative' },
     { name: 'is-positive' },
+    { name: 'is-negative' },
   ])
 })
