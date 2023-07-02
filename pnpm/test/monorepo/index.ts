@@ -1600,6 +1600,52 @@ test('pnpm run should include the workspace root when include-workspace-root is 
   expect(await exists('project/test')).toBeTruthy()
 })
 
+test('pnpm run --parallel should include the workspace root in a single project', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        scripts: {
+          test: "node -e \"require('fs').writeFileSync('test','','utf8')\"",
+        },
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm(['run', '--parallel', 'test'])
+
+  expect(await exists('test')).toBeTruthy()
+})
+
+test('pnpm run --parallel should not include the workspace root in a monorepo', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        scripts: {
+          test: "node -e \"require('fs').writeFileSync('test','','utf8')\"",
+        },
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+      scripts: {
+        test: "node -e \"require('fs').writeFileSync('test','','utf8')\"",
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm(['run', '--parallel', 'test'])
+
+  expect(await exists('project/test')).toBeTruthy()
+  expect(await exists('test')).toBeFalsy()
+})
+
 test('legacy directory filtering', async () => {
   preparePackages([
     {
