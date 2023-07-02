@@ -95,7 +95,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
     })
-    if (Object.keys(peerDependencyIssues.bad).length !== 0 || Object.keys(peerDependencyIssues.missing).length !== 0) {
+    if (Object.keys(peerDependencyIssues.bad).length > 0 || Object.keys(peerDependencyIssues.missing).length > 0) {
       peerDependencyIssuesByProjects[id] = {
         ...peerDependencyIssues,
         ...mergePeers(peerDependencyIssues.missing),

@@ -102,10 +102,10 @@ function toLockfileDependency (
       result['version'] = pkg.version
     }
   }
-  if (Object.keys(newResolvedDeps).length !== 0) {
+  if (Object.keys(newResolvedDeps).length > 0) {
     result['dependencies'] = newResolvedDeps
   }
-  if (Object.keys(newResolvedOptionalDeps).length !== 0) {
+  if (Object.keys(newResolvedOptionalDeps).length > 0) {
     result['optionalDependencies'] = newResolvedOptionalDeps
   }
   if (pkg.dev && !pkg.prod) {
@@ -119,7 +119,7 @@ function toLockfileDependency (
   if (opts.depPath[0] !== '/' && !pkg.id.endsWith(opts.depPath)) {
     result['id'] = pkg.id
   }
-  if (Object.keys(pkg.peerDependencies ?? {}).length !== 0) {
+  if (Object.keys(pkg.peerDependencies ?? {}).length > 0) {
     result['peerDependencies'] = pkg.peerDependencies
   }
   if (pkg.transitivePeerDependencies.size) {
