@@ -158,8 +158,7 @@ function deduplicateDepPaths<T extends PartialResolvedPackage> (
 
   for (const depPaths of duplicates) {
     const unresolvedDepPaths = new Set(depPaths.values())
-    let currentDepPaths = [...depPaths]
-    currentDepPaths.sort(depCountSorter)
+    let currentDepPaths = [...depPaths].sort(depCountSorter)
 
     while (currentDepPaths.length) {
       const depPath1 = currentDepPaths.pop()!
