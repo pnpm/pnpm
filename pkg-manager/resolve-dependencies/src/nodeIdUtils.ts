@@ -18,5 +18,5 @@ export function createNodeId (parentNodeId: string, pkgId: string) {
 }
 
 export function splitNodeId (nodeId: string) {
-  return nodeId.slice(1, -1).split('>')
+  return nodeId.split('>').slice(1, -1)
 }
