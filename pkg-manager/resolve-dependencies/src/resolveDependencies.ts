@@ -44,7 +44,6 @@ import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import pDefer from 'p-defer'
 import pShare from 'promise-share'
-import isEmpty from 'ramda/src/isEmpty'
 import pickBy from 'ramda/src/pickBy'
 import omit from 'ramda/src/omit'
 import zipWith from 'ramda/src/zipWith'
@@ -1231,7 +1230,7 @@ async function resolveDependency (
     ) {
       pkg.deprecated = currentPkg.dependencyLockfile.deprecated
     }
-    hasBin = Boolean((pkg.bin && !isEmpty(pkg.bin)) ?? pkg.directories?.bin)
+    hasBin = Boolean((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin)
     /* eslint-enable @typescript-eslint/dot-notation */
   }
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
@@ -1384,12 +1383,12 @@ function getMissingPeers (pkg: PackageManifest) {
 }
 
 function pkgIsLeaf (pkg: PackageManifest) {
-  return isEmpty(pkg.dependencies ?? {}) &&
-    isEmpty(pkg.optionalDependencies ?? {}) &&
-    isEmpty(pkg.peerDependencies ?? {}) &&
+  return Object.keys(pkg.dependencies ?? {}).length === 0 &&
+    Object.keys(pkg.optionalDependencies ?? {}).length === 0 &&
+    Object.keys(pkg.peerDependencies ?? {}).length === 0 &&
     // Package manifests can declare peerDependenciesMeta without declaring
     // peerDependencies. peerDependenciesMeta implies the later.
-    isEmpty(pkg.peerDependenciesMeta ?? {})
+    Object.keys(pkg.peerDependenciesMeta ?? {}).length === 0
 }
 
 function getResolvedPackage (
@@ -1466,6 +1465,6 @@ function peerDependenciesWithoutOwn (pkg: PackageManifest) {
       result[peerName] = '*'
     }
   }
-  if (isEmpty(result)) return undefined
+  if (Object.keys(result).length === 0) return undefined
   return result
 }

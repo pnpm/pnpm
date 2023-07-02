@@ -8,7 +8,6 @@ import type {
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
 import { depPathToFilename, createPeersFolderSuffix } from '@pnpm/dependency-path'
-import isEmpty from 'ramda/src/isEmpty'
 import mapValues from 'ramda/src/map'
 import pick from 'ramda/src/pick'
 import pickBy from 'ramda/src/pickBy'
@@ -96,7 +95,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
     })
-    if (!isEmpty(peerDependencyIssues.bad) || !isEmpty(peerDependencyIssues.missing)) {
+    if (Object.keys(peerDependencyIssues.bad).length > 0 || Object.keys(peerDependencyIssues.missing).length > 0) {
       peerDependencyIssuesByProjects[id] = {
         ...peerDependencyIssues,
         ...mergePeers(peerDependencyIssues.missing),
@@ -278,7 +277,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   if (
     ctx.purePkgs.has(resolvedPackage.depPath) &&
     ctx.depGraph[resolvedPackage.depPath].depth <= node.depth &&
-    isEmpty(resolvedPackage.peerDependencies)
+    Object.keys(resolvedPackage.peerDependencies).length === 0
   ) {
     ctx.pathsByNodeId[nodeId] = resolvedPackage.depPath
     return { resolvedPeers: {}, missingPeers: [] }
@@ -287,7 +286,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     node.children = node.children()
   }
   const children = node.children
-  const parentPkgs = isEmpty(children)
+  const parentPkgs = Object.keys(children).length === 0
     ? parentParentPkgs
     : Object.assign(
       Object.create(parentParentPkgs),
@@ -332,7 +331,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     missingPeers: missingPeersOfChildren,
   } = resolvePeersOfChildren(children, parentPkgs, ctx)
 
-  const { resolvedPeers, missingPeers } = isEmpty(resolvedPackage.peerDependencies)
+  const { resolvedPeers, missingPeers } = Object.keys(resolvedPackage.peerDependencies).length === 0
     ? { resolvedPeers: {}, missingPeers: [] }
     : _resolvePeers({
       currentDepth: node.depth,
@@ -350,7 +349,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   const allMissingPeers = Array.from(new Set([...missingPeersOfChildren, ...missingPeers]))
 
   let depPath: string
-  if (isEmpty(allResolvedPeers)) {
+  if (Object.keys(allResolvedPeers).length === 0) {
     depPath = resolvedPackage.depPath
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
@@ -371,7 +370,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
   const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath))
   const modules = path.join(localLocation, 'node_modules')
-  const isPure = isEmpty(allResolvedPeers) && allMissingPeers.length === 0
+  const isPure = Object.keys(allResolvedPeers).length === 0 && allMissingPeers.length === 0
   if (isPure) {
     ctx.purePkgs.add(resolvedPackage.depPath)
   } else {

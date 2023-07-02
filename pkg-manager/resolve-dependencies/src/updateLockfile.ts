@@ -11,7 +11,6 @@ import { type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import { type KeyValuePair } from 'ramda'
-import isEmpty from 'ramda/src/isEmpty'
 import mergeRight from 'ramda/src/mergeRight'
 import partition from 'ramda/src/partition'
 import { type SafePromiseDefer } from 'safe-promise-defer'
@@ -103,10 +102,10 @@ function toLockfileDependency (
       result['version'] = pkg.version
     }
   }
-  if (!isEmpty(newResolvedDeps)) {
+  if (Object.keys(newResolvedDeps).length > 0) {
     result['dependencies'] = newResolvedDeps
   }
-  if (!isEmpty(newResolvedOptionalDeps)) {
+  if (Object.keys(newResolvedOptionalDeps).length > 0) {
     result['optionalDependencies'] = newResolvedOptionalDeps
   }
   if (pkg.dev && !pkg.prod) {
@@ -120,7 +119,7 @@ function toLockfileDependency (
   if (opts.depPath[0] !== '/' && !pkg.id.endsWith(opts.depPath)) {
     result['id'] = pkg.id
   }
-  if (!isEmpty(pkg.peerDependencies ?? {})) {
+  if (Object.keys(pkg.peerDependencies ?? {}).length > 0) {
     result['peerDependencies'] = pkg.peerDependencies
   }
   if (pkg.transitivePeerDependencies.size) {
