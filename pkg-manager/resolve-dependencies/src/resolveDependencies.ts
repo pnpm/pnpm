@@ -1241,7 +1241,7 @@ async function resolveDependency (
   // In case of leaf dependencies (dependencies that have no prod deps or peer deps),
   // we only ever need to analyze one leaf dep in a graph, so the nodeId can be short and stateless.
   const nodeId = pkgIsLeaf(pkg)
-    ? pkgResponse.body.id
+    ? `>${depPath}>`
     : createNodeId(options.parentPkg.nodeId, depPath)
 
   const parentIsInstallable = options.parentPkg.installable === undefined || options.parentPkg.installable
