@@ -1,5 +1,18 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.11
+
+### Patch Changes
+
+- e9684b559: replacing object copying with a prototype chain, avoiding extra memory allocations in resolveDependencies function
+- 9b5110810: Replacing usages of ramda isEmpty, which happens to be slow and resource intensive
+- 8a68f5ad2: replacing object copying with a prototype chain, avoiding extra memory allocations in resolvePeersOfNode function
+- fee263822: Refactor resolve-dependencies to use maps and sets instead of objects
+- 17e4a3ab1: Replacing object spread with a prototype chain, avoiding extra memory allocations in resolveDependenciesOfImporters.
+- abdb77f48: Fix edge case where invalid "nodeId" was created. Small optimization.
+- ba9335601: Prefer versions found in parent package dependencies only [#6737](https://github.com/pnpm/pnpm/issues/6737).
+  - @pnpm/npm-resolver@16.0.7
+
 ## 31.1.10
 
 ### Patch Changes

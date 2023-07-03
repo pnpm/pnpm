@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-rebuild
 
+## 9.0.6
+
+### Patch Changes
+
+- dddb8ad71: Local workspace bin files that should be compiled first are linked to dependent projects after compilation [#1801](https://github.com/pnpm/pnpm/issues/1801).
+- Updated dependencies [dddb8ad71]
+  - @pnpm/lifecycle@15.0.3
+  - @pnpm/store-connection-manager@6.0.16
+  - @pnpm/config@18.4.2
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/link-bins@9.0.3
+
 ## 9.0.5
 
 ### Patch Changes

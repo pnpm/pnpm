@@ -1,5 +1,17 @@
 # @pnpm/headless
 
+## 21.0.4
+
+### Patch Changes
+
+- dddb8ad71: Local workspace bin files that should be compiled first are linked to dependent projects after compilation [#1801](https://github.com/pnpm/pnpm/issues/1801).
+- Updated dependencies [dddb8ad71]
+  - @pnpm/lifecycle@15.0.3
+  - @pnpm/package-requester@21.0.7
+  - @pnpm/build-modules@11.0.7
+  - @pnpm/symlink-dependency@7.0.1
+  - @pnpm/link-bins@9.0.3
+
 ## 21.0.3
 
 ### Patch Changes

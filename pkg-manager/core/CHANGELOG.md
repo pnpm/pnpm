@@ -1,5 +1,28 @@
 # @pnpm/core
 
+## 10.2.6
+
+### Patch Changes
+
+- b81cefdcd: Installation of a git-hosted dependency without `package.json` should not fail, when the dependency is read from cache [#6721](https://github.com/pnpm/pnpm/issues/6721).
+- dddb8ad71: Local workspace bin files that should be compiled first are linked to dependent projects after compilation [#1801](https://github.com/pnpm/pnpm/issues/1801).
+- Updated dependencies [e9684b559]
+- Updated dependencies [9b5110810]
+- Updated dependencies [8a68f5ad2]
+- Updated dependencies [fee263822]
+- Updated dependencies [17e4a3ab1]
+- Updated dependencies [abdb77f48]
+- Updated dependencies [dddb8ad71]
+- Updated dependencies [ba9335601]
+  - @pnpm/resolve-dependencies@31.1.11
+  - @pnpm/headless@21.0.4
+  - @pnpm/lifecycle@15.0.3
+  - @pnpm/package-requester@21.0.7
+  - @pnpm/build-modules@11.0.7
+  - @pnpm/symlink-dependency@7.0.1
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/link-bins@9.0.3
+
 ## 10.2.5
 
 ### Patch Changes

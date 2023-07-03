@@ -1,5 +1,12 @@
 # @pnpm/prepare-package
 
+## 5.0.3
+
+### Patch Changes
+
+- Updated dependencies [dddb8ad71]
+  - @pnpm/lifecycle@15.0.3
+
 ## 5.0.2
 
 ### Patch Changes

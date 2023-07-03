@@ -1,5 +1,11 @@
 # @pnpm/cafs
 
+## 7.0.4
+
+### Patch Changes
+
+- b81cefdcd: Installation of a git-hosted dependency without `package.json` should not fail, when the dependency is read from cache [#6721](https://github.com/pnpm/pnpm/issues/6721).
+
 ## 7.0.3
 
 ### Patch Changes

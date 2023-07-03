@@ -1,5 +1,20 @@
 # pnpm
 
+## 8.6.6
+
+### Patch Changes
+
+- Installation of a git-hosted dependency without `package.json` should not fail, when the dependency is read from cache [#6721](https://github.com/pnpm/pnpm/issues/6721).
+- Local workspace bin files that should be compiled first are linked to dependent projects after compilation [#1801](https://github.com/pnpm/pnpm/issues/1801).
+- Prefer versions found in parent package dependencies only [#6737](https://github.com/pnpm/pnpm/issues/6737).
+- Multiple performance optimizations implemented by [@zxbodya](https://github.com/zxbodya):
+    - avoid copying `preferredVersions` object [#6735](https://github.com/pnpm/pnpm/issues/6735)
+    - avoid object copy in `resolvePeersOfNode` [#6736](https://github.com/pnpm/pnpm/issues/6736)
+    - `preferredVersions` in `resolveDependenciesOfImporters` [#6748](https://github.com/pnpm/pnpm/issues/6748)
+    - remove ramda `isEmpty` usages [#6753](https://github.com/pnpm/pnpm/issues/6753)
+    - use Maps and Sets instead of objects [#6749](https://github.com/pnpm/pnpm/issues/6749)
+    - optimize `splitNodeId`, fix invalid `nodeId` [#6755](https://github.com/pnpm/pnpm/issues/6755)
+
 ## 8.6.5
 
 ### Patch Changes

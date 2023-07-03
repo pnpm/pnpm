@@ -1,5 +1,13 @@
 # @pnpm/lifecycle
 
+## 15.0.3
+
+### Patch Changes
+
+- dddb8ad71: Local workspace bin files that should be compiled first are linked to dependent projects after compilation [#1801](https://github.com/pnpm/pnpm/issues/1801).
+  - @pnpm/directory-fetcher@6.0.2
+  - @pnpm/link-bins@9.0.3
+
 ## 15.0.2
 
 ### Patch Changes

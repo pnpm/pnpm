@@ -1,5 +1,15 @@
 # @pnpm/build-modules
 
+## 11.0.7
+
+### Patch Changes
+
+- Updated dependencies [dddb8ad71]
+  - @pnpm/lifecycle@15.0.3
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/patching.apply-patch@2.0.4
+  - @pnpm/link-bins@9.0.3
+
 ## 11.0.6
 
 ### Patch Changes
