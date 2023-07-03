@@ -26,7 +26,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'shellEmulator'
 | 'stream'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir' | 'dir'>> &
-Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
+Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' | 'workspaceConcurrency' | 'collapseOutput'>> &
 {
   ifPresent?: boolean
   resumeFrom?: string
@@ -59,7 +59,9 @@ export async function runRecursive (
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
   const stdio =
     !opts.stream &&
-    (opts.workspaceConcurrency === 1)
+    !opts.collapseOutput &&
+    (opts.workspaceConcurrency === 1 ||
+      (packageChunks.length === 1 && packageChunks[0].length === 1))
       ? 'inherit'
       : 'pipe'
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')

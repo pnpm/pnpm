@@ -16,7 +16,9 @@ import {
   PARALLEL_OPTION_HELP,
   REPORT_SUMMARY_OPTION_HELP,
   RESUME_FROM_OPTION_HELP,
+  COLLAPSE_OUTPUT_OPTION_HELP,
   shorthands as runShorthands,
+  COLLAPSE_OUTPUT_OPTION,
 } from './run'
 import { PnpmError } from '@pnpm/error'
 import which from 'which'
@@ -47,6 +49,7 @@ export function rcOptionsTypes () {
 
 export const cliOptionsTypes = () => ({
   ...rcOptionsTypes(),
+  ...COLLAPSE_OUTPUT_OPTION,
   recursive: Boolean,
   reverse: Boolean,
 })
@@ -76,6 +79,7 @@ The shell should understand the -c switch on UNIX or /d /s /c on Windows.',
           },
           RESUME_FROM_OPTION_HELP,
           REPORT_SUMMARY_OPTION_HELP,
+          COLLAPSE_OUTPUT_OPTION_HELP,
         ],
       },
     ],

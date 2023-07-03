@@ -55,10 +55,20 @@ export const REPORT_SUMMARY_OPTION_HELP = {
   name: '--report-summary',
 }
 
+export const COLLAPSE_OUTPUT_OPTION = {
+  'collapse-output': Boolean,
+}
+
+export const COLLAPSE_OUTPUT_OPTION_HELP = {
+  description: 'Collapse the output of --parallel by disabling the --stream option, which is enabled by default when you run --parallel.',
+  name: '--collapse-output',
+}
+
 export const shorthands = {
   parallel: [
     '--workspace-concurrency=Infinity',
     '--no-sort',
+    '--stream',
     '--recursive',
   ],
   sequential: [
@@ -86,6 +96,7 @@ export function cliOptionsTypes () {
       'scripts-prepend-node-path',
     ], allTypes),
     ...IF_PRESENT_OPTION,
+    ...COLLAPSE_OUTPUT_OPTION,
     recursive: Boolean,
     reverse: Boolean,
     'resume-from': String,
@@ -129,6 +140,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           ...UNIVERSAL_OPTIONS,
           SEQUENTIAL_OPTION_HELP,
           REPORT_SUMMARY_OPTION_HELP,
+          COLLAPSE_OUTPUT_OPTION_HELP,
         ],
       },
       FILTERING,

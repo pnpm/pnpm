@@ -17,6 +17,7 @@ export interface Config {
   autoInstallPeers?: boolean
   bail: boolean
   color: 'always' | 'auto' | 'never'
+  collapseOutput: boolean
   cliOptions: Record<string, any>, // eslint-disable-line
   useBetaCli: boolean
   excludeLinksFromLockfile: boolean

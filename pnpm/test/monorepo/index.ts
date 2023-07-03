@@ -20,6 +20,10 @@ import symlink from 'symlink-dir'
 import writeYamlFile from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from '../utils'
 import { addDistTag } from '@pnpm/registry-mock'
+import { initReporter } from '../../src/reporter/index'
+import { main } from '../../src/main'
+
+jest.mock('../../src/reporter/index', () => ({ initReporter: jest.fn() }))
 
 test('no projects matched the filters', async () => {
   preparePackages([
@@ -1598,6 +1602,40 @@ test('pnpm run should include the workspace root when include-workspace-root is 
 
   expect(await exists('test')).toBeTruthy()
   expect(await exists('project/test')).toBeTruthy()
+})
+
+test('pnpm run --parallel --collapse-output should disable the --stream option', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        scripts: {
+          test: "node -e \"console.log('OK')\"",
+        },
+      },
+    },
+  ])
+
+  await main(['run', '--parallel', '--collapse-output', 'test'])
+
+  expect(initReporter).toBeCalledWith(expect.anything(), expect.objectContaining({ config: expect.objectContaining({ stream: false }) }))
+})
+
+test('pnpm run --parallel should have a --stream option', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        scripts: {
+          test: "node -e \"console.log('OK')\"",
+        },
+      },
+    },
+  ])
+
+  await main(['run', '--parallel', 'test'])
+
+  expect(initReporter).toBeCalledWith(expect.anything(), expect.objectContaining({ config: expect.objectContaining({ stream: true }) }))
 })
 
 test('pnpm run --parallel should include the workspace root in a single project', async () => {
