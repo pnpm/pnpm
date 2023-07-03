@@ -50,6 +50,7 @@ export async function buildDependenciesHierarchy (
     ...modules?.registries,
   })
   const currentLockfile = (modules?.virtualStoreDir && await readCurrentLockfile(modules.virtualStoreDir, { ignoreIncompatible: false })) ?? null
+  const wantedLockfile = await readWantedLockfile(maybeOpts.lockfileDir, { ignoreIncompatible: false })
 
   const result = {} as { [projectDir: string]: DependenciesHierarchy }
 
@@ -79,7 +80,7 @@ export async function buildDependenciesHierarchy (
     await Promise.all(projectPaths.map(async (projectPath) => {
       return [
         projectPath,
-        await dependenciesHierarchyForPackage(projectPath, currentLockfile, opts),
+        await dependenciesHierarchyForPackage(projectPath, currentLockfile, wantedLockfile, opts),
       ] as [string, DependenciesHierarchy]
     }))
   ).forEach(([projectPath, dependenciesHierarchy]) => {
@@ -91,6 +92,7 @@ export async function buildDependenciesHierarchy (
 async function dependenciesHierarchyForPackage (
   projectPath: string,
   currentLockfile: Lockfile,
+  wantedLockfile: Lockfile | null,
   opts: {
     depth: number
     include: { [dependenciesField in DependenciesField]: boolean }
@@ -112,7 +114,6 @@ async function dependenciesHierarchyForPackage (
   const savedDeps = getAllDirectDependencies(currentLockfile.importers[importerId])
   const allDirectDeps = await readModulesDir(modulesDir) ?? []
   const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
-  const wantedLockfile = await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false }) ?? { packages: {} }
 
   const getChildrenTree = getTree.bind(null, {
     currentPackages: currentLockfile.packages ?? {},
@@ -126,7 +127,7 @@ async function dependenciesHierarchyForPackage (
     registries: opts.registries,
     search: opts.search,
     skipped: opts.skipped,
-    wantedPackages: wantedLockfile.packages ?? {},
+    wantedPackages: wantedLockfile?.packages ?? {},
     virtualStoreDir: opts.virtualStoreDir,
   })
   const parentId: TreeNodeId = { type: 'importer', importerId }
@@ -143,7 +144,7 @@ async function dependenciesHierarchyForPackage (
         ref,
         registries: opts.registries,
         skipped: opts.skipped,
-        wantedPackages: wantedLockfile.packages ?? {},
+        wantedPackages: wantedLockfile?.packages ?? {},
         virtualStoreDir: opts.virtualStoreDir,
       })
       let newEntry: PackageNode | null = null
