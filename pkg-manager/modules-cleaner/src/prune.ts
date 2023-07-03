@@ -26,7 +26,6 @@ import difference from 'ramda/src/difference'
 import equals from 'ramda/src/equals'
 import mergeAll from 'ramda/src/mergeAll'
 import pickAll from 'ramda/src/pickAll'
-import props from 'ramda/src/props'
 import { removeDirectDependency } from './removeDirectDependency'
 
 export async function prune (
@@ -62,23 +61,26 @@ export async function prune (
   await Promise.all(importers.map(async ({ binsDir, id, modulesDir, pruneDirectDependencies, removePackages, rootDir }) => {
     const currentImporter = opts.currentLockfile.importers[id] || {} as ProjectSnapshot
     const currentPkgs = Object.entries(mergeDependencies(currentImporter))
-    const wantedPkgs = Object.entries(mergeDependencies(wantedLockfile.importers[id]))
+    const wantedPkgs = mergeDependencies(wantedLockfile.importers[id])
 
     const allCurrentPackages = new Set(
       (pruneDirectDependencies === true || removePackages?.length)
         ? (await readModulesDir(modulesDir) ?? [])
         : []
     )
-    const depsToRemove = new Set([
-      ...(removePackages ?? []).filter((removePackage) => allCurrentPackages.has(removePackage)),
-      ...difference(currentPkgs, wantedPkgs).map(([depName]) => depName),
-    ])
+    const depsToRemove = new Set(
+      (removePackages ?? []).filter((removePackage) => allCurrentPackages.has(removePackage))
+    )
+    currentPkgs.forEach(([depName, depVersion]) => {
+      if (!wantedPkgs[depName] || wantedPkgs[depName] !== depVersion) {
+        depsToRemove.add(depName)
+      }
+    })
     if (pruneDirectDependencies) {
       const publiclyHoistedDeps = getPubliclyHoistedDependencies(opts.hoistedDependencies)
       if (allCurrentPackages.size > 0) {
-        const newPkgsSet = new Set<string>(wantedPkgs.map(([depName]) => depName))
-        for (const currentPackage of Array.from(allCurrentPackages)) {
-          if (!newPkgsSet.has(currentPackage) && !publiclyHoistedDeps.has(currentPackage)) {
+        for (const currentPackage of allCurrentPackages) {
+          if (!wantedPkgs[currentPackage] && !publiclyHoistedDeps.has(currentPackage)) {
             depsToRemove.add(currentPackage)
           }
         }
@@ -110,11 +112,8 @@ export async function prune (
     : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.registries, opts.currentLockfile, opts.include, opts.skipped)
   const wantedPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, wantedLockfile.packages ?? {}, opts.skipped)
 
-  const oldDepPaths = Object.keys(currentPkgIdsByDepPaths)
-  const newDepPaths = Object.keys(wantedPkgIdsByDepPaths)
-
-  const orphanDepPaths = difference(oldDepPaths, newDepPaths)
-  const orphanPkgIds = new Set(props<string, string>(orphanDepPaths, currentPkgIdsByDepPaths))
+  const orphanDepPaths = Object.keys(currentPkgIdsByDepPaths).filter(path => !wantedPkgIdsByDepPaths[path])
+  const orphanPkgIds = new Set(orphanDepPaths.map(path => currentPkgIdsByDepPaths[path]))
 
   statsLogger.debug({
     prefix: opts.lockfileDir,
