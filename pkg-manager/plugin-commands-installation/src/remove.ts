@@ -47,7 +47,6 @@ class RemoveMissingDepsError extends PnpmError {
       if (nearestPackages.length) {
         hint += ` Did you mean remove ${nearestPackages.map(pkg => `'${pkg}'`).join(', ')}?`
       }
-      // const hint = `Available dependencies: \n${opts.availableDependencies.join('\n')}`
       super('CANNOT_REMOVE_MISSING_DEPS', message, { hint })
       return
     }
