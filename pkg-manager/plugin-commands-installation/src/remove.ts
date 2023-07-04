@@ -18,12 +18,14 @@ import renderHelp from 'render-help'
 import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { getSaveType } from './getSaveType'
 import { recursive } from './recursive'
+import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 
 class RemoveMissingDepsError extends PnpmError {
   constructor (
     opts: {
       availableDependencies: string[]
       nonMatchedDependencies: string[]
+      allDependencies: string[]
       targetDependenciesField?: DependenciesField
     }
   ) {
@@ -32,7 +34,20 @@ class RemoveMissingDepsError extends PnpmError {
     if (opts.availableDependencies.length > 0) {
       message += `no such ${opts.nonMatchedDependencies.length > 1 ? 'dependencies' : 'dependency'} `
       message += `found${opts.targetDependenciesField ? ` in '${opts.targetDependenciesField}'` : ''}`
-      const hint = `Available dependencies: \n${opts.availableDependencies.join('\n')}`
+      let hint = ''
+      const nearestPackages: string[] = []
+      opts.nonMatchedDependencies.forEach(pkg => {
+        const nearestPackage = !opts.availableDependencies.includes(pkg) && !opts.allDependencies.includes(pkg) && didYouMean(pkg, opts.availableDependencies, {
+          returnType: ReturnTypeEnums.FIRST_CLOSEST_MATCH,
+        })
+        if (nearestPackage) {
+          nearestPackages.push(nearestPackage)
+        }
+      })
+      if (nearestPackages.length) {
+        hint += ` Did you mean remove ${nearestPackages.map(pkg => `'${pkg}'`).join(', ')}?`
+      }
+      // const hint = `Available dependencies: \n${opts.availableDependencies.join('\n')}`
       super('CANNOT_REMOVE_MISSING_DEPS', message, { hint })
       return
     }
@@ -185,9 +200,10 @@ export async function handler (
     manifest: currentManifest,
     writeProjectManifest,
   } = await readProjectManifest(opts.dir, opts)
+  const allDependencies = getAllDependenciesFromManifest(currentManifest)
   const availableDependencies = Object.keys(
     targetDependenciesField === undefined
-      ? getAllDependenciesFromManifest(currentManifest)
+      ? allDependencies
       : currentManifest[targetDependenciesField] ?? {}
   )
   const nonMatchedDependencies = without(availableDependencies, params)
@@ -195,6 +211,7 @@ export async function handler (
     throw new RemoveMissingDepsError({
       availableDependencies,
       nonMatchedDependencies,
+      allDependencies: Object.keys(allDependencies),
       targetDependenciesField,
     })
   }

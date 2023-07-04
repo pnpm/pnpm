@@ -3734,6 +3734,9 @@ importers:
       ci-info:
         specifier: ^3.8.0
         version: 3.8.0
+      didyoumean2:
+        specifier: ^5.0.0
+        version: 5.0.0
       enquirer:
         specifier: ^2.3.6
         version: 2.3.6
@@ -9042,7 +9045,7 @@ packages:
     resolution: {integrity: sha512-IO+MJPVhoqz+28h1qLAcBEH2+xHMK6MTyHJc7MTnnYb6wsoLR29POVGJ7LycmVXIqyy/4/2ShP5sUwTXuOwb/w==}
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 20.3.2
+      '@types/node': 14.18.52
     dev: true
 
   /@types/graceful-fs@4.1.6:
