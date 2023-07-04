@@ -8,7 +8,7 @@ import readYamlFile from 'read-yaml-file'
 import detectIndent from '@gwhitney/detect-indent'
 import equal from 'fast-deep-equal'
 import isWindows from 'is-windows'
-import sortKeys from 'sort-keys'
+import cloneDeep from 'lodash.clonedeep'
 import {
   readJson5File,
   readJsonFile,
@@ -214,14 +214,24 @@ const dependencyKeys = new Set([
 ])
 
 function normalize (manifest: ProjectManifest) {
-  manifest = JSON.parse(JSON.stringify(manifest))
-  const result: Record<string, any> = {} // eslint-disable-line @typescript-eslint/no-explicit-any
-
-  for (const [key, value] of Object.entries(manifest)) {
-    if (!dependencyKeys.has(key)) {
-      result[key] = value
-    } else if (Object.keys(value).length !== 0) {
-      result[key] = sortKeys(value)
+  const result: Record<string, unknown> = {} // eslint-disable-line @typescript-eslint/no-explicit-any
+  for (const key in manifest) {
+    if (Object.prototype.hasOwnProperty.call(manifest, key)) {
+      const value = manifest[key as keyof ProjectManifest]
+      if (typeof value !== 'object' || !dependencyKeys.has(key)) {
+        result[key] = cloneDeep(value)
+      } else {
+        const keys = Object.keys(value)
+        if (keys.length !== 0) {
+          keys.sort()
+          const sortedValue: Record<string, unknown> = {}
+          for (const k of keys) {
+            // @ts-expect-error this is fine
+            sortedValue[k] = value[k]
+          }
+          result[key] = sortedValue
+        }
+      }
     }
   }
 
