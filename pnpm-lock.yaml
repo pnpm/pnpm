@@ -4135,6 +4135,9 @@ importers:
       json5:
         specifier: ^2.2.3
         version: 2.2.3
+      lodash.clonedeep:
+        specifier: ^4.5.0
+        version: 4.5.0
       parse-json:
         specifier: ^5.2.0
         version: 5.2.0
@@ -4154,6 +4157,9 @@ importers:
       '@types/is-windows':
         specifier: ^1.0.0
         version: 1.0.0
+      '@types/lodash.clonedeep':
+        specifier: ^4.5.7
+        version: 4.5.7
       '@types/parse-json':
         specifier: ^4.0.0
         version: 4.0.0
@@ -9124,6 +9130,12 @@ packages:
     dependencies:
       '@types/node': 14.18.52
 
+  /@types/lodash.clonedeep@4.5.7:
+    resolution: {integrity: sha512-ccNqkPptFIXrpVqUECi60/DFxjNKsfoQxSQsgcBJCX/fuX1wgyQieojkcWH/KpE3xzLoWN/2k+ZeGqIN3paSvw==}
+    dependencies:
+      '@types/lodash': 4.14.195
+    dev: true
+
   /@types/lodash@4.14.181:
     resolution: {integrity: sha512-n3tyKthHJbkiWhDZs3DkhkCzt2MexYHXlX0td5iMplyfwketaOeKboEVBqzceH7juqvEg3q5oUoBFxSLu7zFag==}
 
@@ -13846,6 +13858,10 @@ packages:
   /lodash.clone@4.5.0:
     resolution: {integrity: sha512-GhrVeweiTD6uTmmn5hV/lzgCQhccwReIVRLHp7LT4SopOjqEZ5BbX8b5WWEtAKasjmy8hR7ZPwsYlxRCku5odg==}
     dev: true
+
+  /lodash.clonedeep@4.5.0:
+    resolution: {integrity: sha512-H5ZhCF25riFd9uB5UCkVKo61m3S/xZk1x4wA6yp/L3RFP6Z/eHH1ymQcGLo7J3GMPfm0V/7m1tryHuGVxpqEBQ==}
+    dev: false
 
   /lodash.deburr@4.1.0:
     resolution: {integrity: sha512-m/M1U1f3ddMCs6Hq2tAsYThTBDaAKFDX3dwDo97GEYzamXi9SqUpjWi/Rrj/gf3X2n8ktwgZrlP1z6E3v/IExQ==}
