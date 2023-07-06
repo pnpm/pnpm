@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/test-fixtures",
   "description": "Test fixtures",
-  "version": "0.0.40",
+  "version": "0.1.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -10,7 +10,6 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "private": true,
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [

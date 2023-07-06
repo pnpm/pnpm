@@ -1,5 +1,11 @@
 # @pnpm/test-fixtures
 
+## 0.1.0
+
+### Minor Changes
+
+- d3a27cf43: Rename files prefixed with underscore, when copying fixtures.
+
 ## 0.0.40
 
 ### Patch Changes
