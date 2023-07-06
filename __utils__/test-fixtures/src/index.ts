@@ -1,7 +1,6 @@
 import fs from 'fs'
 import path from 'path'
 import { tempDir } from '@pnpm/prepare'
-import fsx from 'fs-extra'
 
 export function fixtures (searchFromDir: string) {
   return {
@@ -20,7 +19,34 @@ function prepareFixture (searchFromDir: string, name: string): string {
 function copyFixture (searchFromDir: string, name: string, dest: string): void {
   const fixturePath = findFixture(searchFromDir, name)
   if (!fixturePath) throw new Error(`${name} not found`)
-  fsx.copySync(fixturePath, dest)
+  const stats = fs.statSync(fixturePath)
+  if (stats.isDirectory()) {
+    fs.mkdirSync(dest, { recursive: true })
+    copyAndRename(fixturePath, dest)
+  } else {
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.copyFileSync(fixturePath, dest)
+  }
+}
+
+function copyAndRename (src: string, dest: string) {
+  const entries = fs.readdirSync(src)
+
+  entries.forEach(entry => {
+    const srcPath = path.join(src, entry)
+    const destPath = path.join(dest, entry.startsWith('_') ? entry.substring(1) : entry)
+    const stats = fs.statSync(srcPath)
+
+    if (stats.isDirectory()) {
+      // If the entry is a directory, recursively copy its contents
+      if (!fs.existsSync(destPath)) {
+        fs.mkdirSync(destPath)
+      }
+      copyAndRename(srcPath, destPath)
+    } else if (stats.isFile()) {
+      fs.copyFileSync(srcPath, destPath)
+    }
+  })
 }
 
 function findFixture (dir: string, name: string): string {
