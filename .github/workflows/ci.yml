@@ -64,6 +64,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: .verdaccio-cache
+        key: verdaccio
     - name: run tests (main)
       timeout-minutes: 60
       if: github.ref == 'refs/heads/main'
