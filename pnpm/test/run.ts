@@ -177,3 +177,33 @@ testOnPosix('pnpm run with preferSymlinkedExecutables and custom virtualStoreDir
 
   expect(result.stdout.toString()).toContain(`${path.sep}foo${path.sep}bar${path.sep}node_modules`)
 })
+
+test('collapse output when running multiple scripts in one project', async () => {
+  prepare({
+    scripts: {
+      script1: 'echo 1',
+      script2: 'echo 2',
+    },
+  })
+
+  const result = execPnpmSync(['run', '/script[12]/'])
+
+  const output = result.stdout.toString()
+  expect(output).toContain('script1: 1')
+  expect(output).toContain('script2: 2')
+})
+
+test('do not collapse output when running multiple scripts in one project sequentially', async () => {
+  prepare({
+    scripts: {
+      script1: 'echo 1',
+      script2: 'echo 2',
+    },
+  })
+
+  const result = execPnpmSync(['--workspace-concurrency=1', 'run', '/script[12]/'])
+
+  const output = result.stdout.toString()
+  expect(output).not.toContain('script1: 1')
+  expect(output).not.toContain('script2: 2')
+})
