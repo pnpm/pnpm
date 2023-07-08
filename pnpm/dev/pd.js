@@ -40,7 +40,7 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
     bundle: true,
     platform: 'node',
     target: 'node14',
-    entryPoints: [pathLib.resolve(__dirname, '../lib/pnpm.js')],
+    entryPoints: [pathLib.resolve(__dirname, '../src/pnpm.ts')],
     outfile: pathLib.resolve(__dirname, 'dist/pnpm.cjs'),
     external: [
       'node-gyp',
