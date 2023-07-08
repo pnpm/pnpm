@@ -203,6 +203,7 @@ so you may run "pnpm -w run ${scriptName}"`,
       hint: buildCommandNotFoundHint(scriptName, manifest.scripts),
     })
   }
+  const concurrency = opts.workspaceConcurrency ?? 4
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
     extraBinPaths: opts.extraBinPaths,
@@ -214,7 +215,7 @@ so you may run "pnpm -w run ${scriptName}"`,
     scriptShell: opts.scriptShell,
     silent: opts.reporter === 'silent',
     shellEmulator: opts.shellEmulator,
-    stdio: 'inherit',
+    stdio: (specifiedScripts.length > 1 && concurrency > 1) ? 'pipe' : 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
@@ -227,7 +228,7 @@ so you may run "pnpm -w run ${scriptName}"`,
     }
   }
   try {
-    const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
+    const limitRun = pLimit(concurrency)
 
     const _runScript = runScript.bind(null, { manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
 
