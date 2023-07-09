@@ -253,6 +253,62 @@ fn filtered_fix_lockfile_preserves_unselected_snapshot_metadata() {
     drop((root, mock_instance));
 }
 
+fn assert_expected_fix_metadata(lockfile: &pnpm_lockfile::Lockfile) {
+    let packages = lockfile.packages.as_ref().expect("packages");
+    let (_, dep_meta) = packages
+        .iter()
+        .find(|(k, _)| k.to_string() == "@pnpm.e2e/deprecated@1.0.0")
+        .expect("deprecated package in lockfile");
+    assert!(dep_meta.deprecated.is_some());
+    let (_, bin_meta) = packages
+        .iter()
+        .find(|(k, _)| k.to_string() == "@pnpm.e2e/hello-world-js-bin@1.0.0")
+        .expect("hello-world-js-bin in lockfile");
+    assert_eq!(bin_meta.has_bin, Some(true));
+}
+
+#[test]
+fn fix_lockfile_preserves_has_bin_and_deprecated() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info: AddMockedRegistry { mock_instance, .. },
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let pkg_json = serde_json::json!({
+        "dependencies": {
+            "@pnpm.e2e/deprecated": "1.0.0",
+            "@pnpm.e2e/hello-world-js-bin": "1.0.0",
+        },
+    });
+    fs::write(workspace.join("package.json"), pkg_json.to_string()).expect("write package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let initial = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
+        .expect("load initial lockfile")
+        .expect("initial lockfile");
+    assert_expected_fix_metadata(&initial);
+
+    let mut command = new_pacquet_command(&workspace);
+    command.env("CI", "true");
+    command
+        .with_args(["install", "--fix-lockfile", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let repaired = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
+        .expect("load repaired lockfile")
+        .expect("repaired lockfile");
+    assert_expected_fix_metadata(&repaired);
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn frozen_isolated_install_rejects_required_incompatible_engine_in_strict_mode() {
     let CommandTempCwd {

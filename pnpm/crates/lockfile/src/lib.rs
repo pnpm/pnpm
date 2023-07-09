@@ -307,8 +307,6 @@ impl Lockfile {
                 metadata.cpu = None;
                 metadata.os = None;
                 metadata.libc = None;
-                metadata.deprecated = None;
-                metadata.has_bin = None;
                 metadata.prepare = None;
                 metadata.bundled_dependencies = None;
                 metadata.peer_dependencies = None;
