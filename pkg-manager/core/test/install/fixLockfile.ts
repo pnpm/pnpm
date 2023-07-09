@@ -258,3 +258,37 @@ test(
     }))
   }
 )
+
+test('--fixLockfile should preserve deprecated and hasBin fields', async () => {
+  prepareEmpty()
+
+  await writeYamlFile(WANTED_LOCKFILE, {
+    lockfileVersion: LOCKFILE_VERSION,
+    dependencies: {
+      express: {
+        specifier: '0.14.1',
+        version: '0.14.1',
+      },
+    },
+    packages: {
+      '/express@0.14.1': {
+        resolution: {
+          integrity: 'sha512-Hjpy5WUGnlZEx05p2f8h4jiIXoijUmwAcGeRyNRvG/Z0M54GG5KIopCaMQBCBGCwSYzUdxYt2pnTHRk+RzoSYg==',
+        },
+        engines: {
+          node: '>= 0.1.98',
+        },
+        // deprecated: 'express 0.x series is deprecated',
+        dev: false,
+      },
+    },
+  }, { lineWidth: 1000 })
+  await install({
+    dependencies: {
+      express: '0.14.1',
+    },
+  }, await testDefaults({ fixLockfile: true }))
+
+  const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
+  expect(lockfile.packages!['express'].deprecated).toBe('express 0.x series is deprecated')
+})
