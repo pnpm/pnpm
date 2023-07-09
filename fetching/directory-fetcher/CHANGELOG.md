@@ -1,5 +1,12 @@
 # @pnpm/directory-fetcher
 
+## 6.0.3
+
+### Patch Changes
+
+- Updated dependencies [b4892acc5]
+  - @pnpm/read-project-manifest@5.0.3
+
 ## 6.0.2
 
 ### Patch Changes

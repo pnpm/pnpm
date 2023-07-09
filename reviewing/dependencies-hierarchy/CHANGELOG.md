@@ -1,5 +1,11 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 2.0.9
+
+### Patch Changes
+
+- e334e5670: Move loading `wantedLockfile` outside `dependenciesHierarchyForPackage`, preventing OOM crash when loading the same lock file too many times
+
 ## 2.0.8
 
 ### Patch Changes

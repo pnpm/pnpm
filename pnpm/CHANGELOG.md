@@ -1,5 +1,15 @@
 # pnpm
 
+## 8.6.7
+
+### Patch Changes
+
+- Ensure consistent output for scripts executed concurrently, both within a single project and across multiple projects. Each script's output will now be printed in a separate section of the terminal, when running multiple scripts in a single project [using regex](https://pnpm.io/cli/run#running-multiple-scripts) [#6692](https://github.com/pnpm/pnpm/issues/6692).
+- The `--parallel` CLI flag should work on single project [#6692](https://github.com/pnpm/pnpm/issues/6692).
+- Optimizing project manifest normalization, reducing amoung of data copying [#6763](https://github.com/pnpm/pnpm/pull/6763).
+- Move loading `wantedLockfile` outside `dependenciesHierarchyForPackage`, preventing OOM crash when loading the same lock file too many times [#6757](https://github.com/pnpm/pnpm/pull/6757).
+- Replace ineffective use of ramda `difference` with better alternative [#6760](https://github.com/pnpm/pnpm/pull/6760).
+
 ## 8.6.6
 
 ### Patch Changes
@@ -8,12 +18,12 @@
 - Local workspace bin files that should be compiled first are linked to dependent projects after compilation [#1801](https://github.com/pnpm/pnpm/issues/1801).
 - Prefer versions found in parent package dependencies only [#6737](https://github.com/pnpm/pnpm/issues/6737).
 - Multiple performance optimizations implemented by [@zxbodya](https://github.com/zxbodya):
-    - avoid copying `preferredVersions` object [#6735](https://github.com/pnpm/pnpm/issues/6735)
-    - avoid object copy in `resolvePeersOfNode` [#6736](https://github.com/pnpm/pnpm/issues/6736)
-    - `preferredVersions` in `resolveDependenciesOfImporters` [#6748](https://github.com/pnpm/pnpm/issues/6748)
-    - remove ramda `isEmpty` usages [#6753](https://github.com/pnpm/pnpm/issues/6753)
-    - use Maps and Sets instead of objects [#6749](https://github.com/pnpm/pnpm/issues/6749)
-    - optimize `splitNodeId`, fix invalid `nodeId` [#6755](https://github.com/pnpm/pnpm/issues/6755)
+  - avoid copying `preferredVersions` object [#6735](https://github.com/pnpm/pnpm/issues/6735)
+  - avoid object copy in `resolvePeersOfNode` [#6736](https://github.com/pnpm/pnpm/issues/6736)
+  - `preferredVersions` in `resolveDependenciesOfImporters` [#6748](https://github.com/pnpm/pnpm/issues/6748)
+  - remove ramda `isEmpty` usages [#6753](https://github.com/pnpm/pnpm/issues/6753)
+  - use Maps and Sets instead of objects [#6749](https://github.com/pnpm/pnpm/issues/6749)
+  - optimize `splitNodeId`, fix invalid `nodeId` [#6755](https://github.com/pnpm/pnpm/issues/6755)
 
 ## 8.6.5
 

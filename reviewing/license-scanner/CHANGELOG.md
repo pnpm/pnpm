@@ -1,5 +1,11 @@
 # @pnpm/license-scanner
 
+## 2.0.10
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@6.0.3
+
 ## 2.0.9
 
 ### Patch Changes

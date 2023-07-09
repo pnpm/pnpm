@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-deploy
 
+## 3.0.22
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.12
+- @pnpm/directory-fetcher@6.0.3
+- @pnpm/plugin-commands-installation@13.0.16
+
 ## 3.0.21
 
 ### Patch Changes

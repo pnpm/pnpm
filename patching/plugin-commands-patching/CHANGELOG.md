@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-patching
 
+## 3.1.11
+
+### Patch Changes
+
+- Updated dependencies [b4892acc5]
+  - @pnpm/read-project-manifest@5.0.3
+  - @pnpm/cli-utils@2.0.12
+  - @pnpm/config@18.4.3
+  - @pnpm/plugin-commands-installation@13.0.16
+  - @pnpm/store-connection-manager@6.0.17
+
 ## 3.1.10
 
 ### Patch Changes

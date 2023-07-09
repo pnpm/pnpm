@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-script-runners
 
+## 7.1.10
+
+### Patch Changes
+
+- a362a3ca1: Ensure consistent output for scripts executed concurrently, both within a single project and across multiple projects. Each script's output will now be printed in a separate section of the terminal, when running multiple scripts in a single project [using regex](https://pnpm.io/cli/run#running-multiple-scripts) [#6692](https://github.com/pnpm/pnpm/issues/6692).
+- Updated dependencies [b4892acc5]
+  - @pnpm/read-project-manifest@5.0.3
+  - @pnpm/cli-utils@2.0.12
+  - @pnpm/config@18.4.3
+  - @pnpm/plugin-commands-installation@13.0.16
+  - @pnpm/lifecycle@15.0.4
+
 ## 7.1.9
 
 ### Patch Changes

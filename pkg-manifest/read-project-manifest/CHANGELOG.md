@@ -1,5 +1,11 @@
 # @pnpm/read-project-manifest
 
+## 5.0.3
+
+### Patch Changes
+
+- b4892acc5: Optimizing project manifest normalization, reducing amoung of data copying
+
 ## 5.0.2
 
 ### Patch Changes

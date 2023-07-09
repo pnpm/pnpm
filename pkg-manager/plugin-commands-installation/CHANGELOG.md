@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-installation
 
+## 13.0.16
+
+### Patch Changes
+
+- Updated dependencies [b4892acc5]
+  - @pnpm/read-project-manifest@5.0.3
+  - @pnpm/cli-utils@2.0.12
+  - @pnpm/config@18.4.3
+  - @pnpm/core@10.2.7
+  - @pnpm/plugin-commands-rebuild@9.0.7
+  - @pnpm/workspace.find-packages@1.0.2
+  - @pnpm/store-connection-manager@6.0.17
+  - @pnpm/filter-workspace-packages@7.0.12
+  - @pnpm/outdated@13.0.6
+  - @pnpm/package-store@16.0.7
+
 ## 13.0.15
 
 ### Patch Changes

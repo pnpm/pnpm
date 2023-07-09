@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exportable-manifest",
-  "version": "5.0.3",
+  "version": "5.0.4",
   "description": "Creates an exportable manifest",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

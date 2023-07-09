@@ -1,5 +1,11 @@
 # @pnpm/modules-cleaner
 
+## 14.0.8
+
+### Patch Changes
+
+- 6fb5da19d: Replace ineffective use of ramda `difference` with better alternative
+
 ## 14.0.7
 
 ### Patch Changes

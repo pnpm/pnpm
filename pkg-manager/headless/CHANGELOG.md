@@ -1,5 +1,19 @@
 # @pnpm/headless
 
+## 21.0.5
+
+### Patch Changes
+
+- Updated dependencies [b4892acc5]
+- Updated dependencies [6fb5da19d]
+  - @pnpm/read-project-manifest@5.0.3
+  - @pnpm/modules-cleaner@14.0.8
+  - @pnpm/link-bins@9.0.4
+  - @pnpm/lifecycle@15.0.4
+  - @pnpm/build-modules@11.0.8
+  - @pnpm/hoist@8.0.8
+  - @pnpm/package-requester@21.0.7
+
 ## 21.0.4
 
 ### Patch Changes

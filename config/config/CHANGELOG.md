@@ -1,5 +1,12 @@
 # @pnpm/config
 
+## 18.4.3
+
+### Patch Changes
+
+- Updated dependencies [b4892acc5]
+  - @pnpm/read-project-manifest@5.0.3
+
 ## 18.4.2
 
 ### Patch Changes
