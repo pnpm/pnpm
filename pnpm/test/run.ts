@@ -207,3 +207,18 @@ test('do not collapse output when running multiple scripts in one project sequen
   expect(output).not.toContain('script1: 1')
   expect(output).not.toContain('script2: 2')
 })
+
+test('--parallel should work with single project', async () => {
+  prepare({
+    scripts: {
+      script1: 'echo 1',
+      script2: 'echo 2',
+    },
+  })
+
+  const result = execPnpmSync(['--parallel', 'run', '/script[12]/'])
+
+  const output = result.stdout.toString()
+  expect(output).toContain('script1: 1')
+  expect(output).toContain('script2: 2')
+})
