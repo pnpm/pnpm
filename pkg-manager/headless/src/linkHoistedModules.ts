@@ -5,6 +5,10 @@ import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
+import {
+  type DepHierarchy,
+  type DependenciesGraph,
+} from '@pnpm/deps.graph-builder'
 import { linkBins } from '@pnpm/link-bins'
 import { logger } from '@pnpm/logger'
 import {
@@ -15,10 +19,6 @@ import pLimit from 'p-limit'
 import difference from 'ramda/src/difference'
 import isEmpty from 'ramda/src/isEmpty'
 import rimraf from '@zkochan/rimraf'
-import {
-  type DepHierarchy,
-  type DependenciesGraph,
-} from './lockfileToDepGraph'
 
 const limitLinking = pLimit(16)
 

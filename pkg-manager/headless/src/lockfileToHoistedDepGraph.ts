@@ -24,7 +24,7 @@ import {
   type DepHierarchy,
   type DirectDependenciesByImporterId,
   type LockfileToDepGraphResult,
-} from './lockfileToDepGraph'
+} from '@pnpm/deps.graph-builder'
 
 export interface LockfileToHoistedDepGraphOptions {
   autoInstallPeers: boolean

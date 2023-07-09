@@ -835,6 +835,52 @@ importers:
         specifier: workspace:*
         version: 'link:'
 
+  deps/graph-builder:
+    dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/core-loggers':
+        specifier: workspace:*
+        version: link:../../packages/core-loggers
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../../packages/dependency-path
+      '@pnpm/lockfile-file':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-file
+      '@pnpm/lockfile-utils':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-utils
+      '@pnpm/logger':
+        specifier: ^5.0.0
+        version: 5.0.0
+      '@pnpm/modules-yaml':
+        specifier: workspace:*
+        version: link:../../pkg-manager/modules-yaml
+      '@pnpm/package-is-installable':
+        specifier: workspace:*
+        version: link:../../config/package-is-installable
+      '@pnpm/store-controller-types':
+        specifier: workspace:*
+        version: link:../../store/store-controller-types
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      path-exists:
+        specifier: ^4.0.0
+        version: 4.0.0
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda@0.28.1
+    devDependencies:
+      '@pnpm/deps.graph-builder':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/ramda':
+        specifier: 0.28.20
+        version: 0.28.20
+
   env/node.fetcher:
     dependencies:
       '@pnpm/create-cafs-store':
@@ -3128,6 +3174,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/deps.graph-builder':
+        specifier: workspace:*
+        version: link:../../deps/graph-builder
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -9049,7 +9098,7 @@ packages:
     resolution: {integrity: sha512-IO+MJPVhoqz+28h1qLAcBEH2+xHMK6MTyHJc7MTnnYb6wsoLR29POVGJ7LycmVXIqyy/4/2ShP5sUwTXuOwb/w==}
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 20.3.2
+      '@types/node': 14.18.52
     dev: true
 
   /@types/graceful-fs@4.1.6:

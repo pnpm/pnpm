@@ -22,6 +22,9 @@
       "path": "../../config/package-is-installable"
     },
     {
+      "path": "../../deps/graph-builder"
+    },
+    {
       "path": "../../exec/build-modules"
     },
     {
