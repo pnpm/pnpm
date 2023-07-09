@@ -135,6 +135,7 @@ export interface ResolutionContext {
   updatedSet: Set<string>
   defaultTag: string
   dryRun: boolean
+  fixLockfile?: boolean
   forceFullResolution: boolean
   ignoreScripts?: boolean
   resolvedPackagesByDepPath: ResolvedPackagesByDepPath
@@ -1055,7 +1056,7 @@ async function resolveDependency (
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
-      currentPkg: currentPkg
+      currentPkg: currentPkg && !ctx.fixLockfile
         ? {
           id: currentPkg.pkgId,
           resolution: currentPkg.resolution,

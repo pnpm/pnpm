@@ -978,10 +978,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       optionalDependencies,
       resolution,
     }), ctx.wantedLockfile.packages)
-    // regenerate the fields such as hasBin deprecated
-    for (const project of projects) {
-      (project as InstallMutationOptions).update = true
-    }
   }
 
   if (opts.dedupe) {
@@ -1016,6 +1012,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      fixLockfile: opts.fixLockfile,
       force: opts.force,
       forceFullResolution,
       ignoreScripts: opts.ignoreScripts,

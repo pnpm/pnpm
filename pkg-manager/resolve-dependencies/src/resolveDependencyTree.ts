@@ -66,6 +66,7 @@ export interface ResolveDependenciesOptions {
   currentLockfile: Lockfile
   dryRun: boolean
   engineStrict: boolean
+  fixLockfile?: boolean
   force: boolean
   forceFullResolution: boolean
   ignoreScripts?: boolean
@@ -104,6 +105,7 @@ export async function resolveDependencyTree<T> (
     dependenciesTree: new Map() as DependenciesTree<ResolvedPackage>,
     dryRun: opts.dryRun,
     engineStrict: opts.engineStrict,
+    fixLockfile: opts.fixLockfile,
     force: opts.force,
     forceFullResolution: opts.forceFullResolution,
     ignoreScripts: opts.ignoreScripts,

@@ -290,5 +290,5 @@ test('--fixLockfile should preserve deprecated and hasBin fields', async () => {
   }, await testDefaults({ fixLockfile: true }))
 
   const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
-  expect(lockfile.packages!['express'].deprecated).toBe('express 0.x series is deprecated')
+  expect(lockfile.packages!['/express@0.14.1'].deprecated).toBe('express 0.x series is deprecated')
 })
