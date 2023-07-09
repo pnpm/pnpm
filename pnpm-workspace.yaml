@@ -6,6 +6,7 @@ packages:
   - cli/*
   - config/*
   - dedupe/*
+  - deps/*
   - env/*
   - exec/*
   - fetching/*

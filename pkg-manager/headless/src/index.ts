@@ -73,7 +73,7 @@ import {
   type DependenciesGraphNode,
   type LockfileToDepGraphOptions,
   lockfileToDepGraph,
-} from './lockfileToDepGraph'
+} from '@pnpm/deps.graph-builder'
 import { lockfileToHoistedDepGraph } from './lockfileToHoistedDepGraph'
 import { linkDirectDeps, type LinkedDirectDep } from '@pnpm/pkg-manager.direct-dep-linker'
 
