@@ -1,4 +1,6 @@
 import { ENGINE_NAME } from '@pnpm/constants'
+import { refToRelative } from '@pnpm/dependency-path'
+import { type Lockfile } from '@pnpm/lockfile-types'
 import sortKeys from 'sort-keys'
 
 export interface DepsGraph {
@@ -60,4 +62,32 @@ function calcDepStateObj (
   }
   cache[depPath] = sortKeys(state)
   return cache[depPath]
+}
+
+export function lockfileToDepGraph (lockfile: Lockfile): DepsGraph {
+  const graph: DepsGraph = {}
+  if (lockfile.packages != null) {
+    Object.entries(lockfile.packages).map(async ([depPath, pkgSnapshot]) => {
+      const children = lockfileDepsToGraphChildren({
+        ...pkgSnapshot.dependencies,
+        ...pkgSnapshot.optionalDependencies,
+      })
+      graph[depPath] = {
+        children,
+        depPath,
+      }
+    })
+  }
+  return graph
+}
+
+function lockfileDepsToGraphChildren (deps: Record<string, string>): Record<string, string> {
+  const children: Record<string, string> = {}
+  for (const [alias, reference] of Object.entries(deps)) {
+    const depPath = refToRelative(reference, alias)
+    if (depPath) {
+      children[alias] = depPath
+    }
+  }
+  return children
 }

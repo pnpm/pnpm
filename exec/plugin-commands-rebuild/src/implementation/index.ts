@@ -1,6 +1,6 @@
 import path from 'path'
 import { getFilePathInCafs } from '@pnpm/cafs'
-import { calcDepState, type DepsGraph, type DepsStateCache } from '@pnpm/calc-dep-state'
+import { calcDepState, lockfileToDepGraph, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -403,32 +403,4 @@ function binDirsInAllParentDirs (pkgRoot: string, lockfileDir: string): string[]
   } while (path.relative(dir, lockfileDir) !== '')
   binDirs.push(path.join(lockfileDir, 'node_modules/.bin'))
   return binDirs
-}
-
-function lockfileToDepGraph (lockfile: Lockfile): DepsGraph {
-  const graph: DepsGraph = {}
-  if (lockfile.packages != null) {
-    Object.entries(lockfile.packages).map(async ([depPath, pkgSnapshot]) => {
-      const children = lockfileDepsToGraphChildren({
-        ...pkgSnapshot.dependencies,
-        ...pkgSnapshot.optionalDependencies,
-      })
-      graph[depPath] = {
-        children,
-        depPath,
-      }
-    })
-  }
-  return graph
-}
-
-function lockfileDepsToGraphChildren (deps: Record<string, string>): Record<string, string> {
-  const children: Record<string, string> = {}
-  for (const [alias, reference] of Object.entries(deps)) {
-    const depPath = dp.refToRelative(reference, alias)
-    if (depPath) {
-      children[alias] = depPath
-    }
-  }
-  return children
 }
