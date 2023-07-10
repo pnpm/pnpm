@@ -34,10 +34,16 @@
       "path": "../../fs/hard-link-dir"
     },
     {
+      "path": "../../lockfile/lockfile-types"
+    },
+    {
       "path": "../../lockfile/lockfile-utils"
     },
     {
       "path": "../../lockfile/lockfile-walker"
+    },
+    {
+      "path": "../../packages/calc-dep-state"
     },
     {
       "path": "../../packages/constants"
@@ -62,6 +68,9 @@
     },
     {
       "path": "../../pkg-manager/modules-yaml"
+    },
+    {
+      "path": "../../store/cafs"
     },
     {
       "path": "../../store/store-connection-manager"

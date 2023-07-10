@@ -48,6 +48,8 @@
     "write-yaml-file": "^5.0.0"
   },
   "dependencies": {
+    "@pnpm/cafs": "workspace:*",
+    "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
     "@pnpm/config": "workspace:*",
@@ -60,6 +62,7 @@
     "@pnpm/graph-sequencer": "1.1.1",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/lockfile-walker": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",

@@ -30,6 +30,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/calc-dep-state#readme",
   "dependencies": {
     "@pnpm/constants": "workspace:*",
+    "@pnpm/dependency-path": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:*",
     "sort-keys": "^4.2.0"
   },
   "devDependencies": {

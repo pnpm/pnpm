@@ -1149,6 +1149,12 @@ importers:
 
   exec/plugin-commands-rebuild:
     dependencies:
+      '@pnpm/cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
+      '@pnpm/calc-dep-state':
+        specifier: workspace:*
+        version: link:../../packages/calc-dep-state
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
@@ -1185,6 +1191,9 @@ importers:
       '@pnpm/link-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/link-bins
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-types
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
@@ -2381,6 +2390,12 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../constants
+      '@pnpm/dependency-path':
+        specifier: workspace:*
+        version: link:../dependency-path
+      '@pnpm/lockfile-types':
+        specifier: workspace:*
+        version: link:../../lockfile/lockfile-types
       sort-keys:
         specifier: ^4.2.0
         version: 4.2.0

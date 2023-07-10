@@ -1,4 +1,6 @@
 import path from 'path'
+import { getFilePathInCafs } from '@pnpm/cafs'
+import { calcDepState, lockfileToDepGraph, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
   WANTED_LOCKFILE,
@@ -11,6 +13,7 @@ import {
   runPostinstallHooks,
 } from '@pnpm/lifecycle'
 import { linkBins } from '@pnpm/link-bins'
+import { type TarballResolution } from '@pnpm/lockfile-types'
 import {
   type Lockfile,
   nameVerFromPkgSnapshot,
@@ -239,6 +242,9 @@ async function _rebuild (
   } & Pick<PnpmContext, 'modulesFile'>,
   opts: StrictRebuildOptions
 ) {
+  const depGraph = lockfileToDepGraph(ctx.currentLockfile)
+  const depsStateCache: DepsStateCache = {}
+  const cafsDir = path.join(opts.storeDir, 'files')
   const pkgsThatWereRebuilt = new Set()
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages ?? {}
@@ -298,7 +304,7 @@ async function _rebuild (
         } else {
           extraBinPaths.push(...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir))
         }
-        await runPostinstallHooks({
+        const hasSideEffects = await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,
@@ -310,6 +316,31 @@ async function _rebuild (
           shellEmulator: opts.shellEmulator,
           unsafePerm: opts.unsafePerm || false,
         })
+        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && (pkgSnapshot.resolution as TarballResolution).integrity) {
+          const filesIndexFile = getFilePathInCafs(cafsDir, (pkgSnapshot.resolution as TarballResolution).integrity!.toString(), 'index')
+          try {
+            const sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
+              isBuilt: true,
+            })
+            await opts.storeController.upload(pkgRoot, {
+              sideEffectsCacheKey,
+              filesIndexFile,
+            })
+          } catch (err: any) { // eslint-disable-line
+            if (err.statusCode === 403) {
+              logger.warn({
+                message: `The store server disabled upload requests, could not upload ${pkgRoot}`,
+                prefix: opts.lockfileDir,
+              })
+            } else {
+              logger.warn({
+                error: err,
+                message: `An error occurred while uploading ${pkgRoot}`,
+                prefix: opts.lockfileDir,
+              })
+            }
+          }
+        }
         pkgsThatWereRebuilt.add(depPath)
       } catch (err: any) { // eslint-disable-line
         if (pkgSnapshot.optional) {

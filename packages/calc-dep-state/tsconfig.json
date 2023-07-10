@@ -10,7 +10,13 @@
   ],
   "references": [
     {
+      "path": "../../lockfile/lockfile-types"
+    },
+    {
       "path": "../constants"
+    },
+    {
+      "path": "../dependency-path"
     }
   ],
   "composite": true
