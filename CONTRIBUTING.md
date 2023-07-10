@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Setting Up the Environment](#setting-up-the-environment)
+- [Run selective tests in `pkg-manager/core`](#run-selective-tests-in-pkg-managercore)
 - [Submitting a Pull Request (PR)](#submitting-a-pull-request-pr)
   - [After your pull request is merged](#after-your-pull-request-is-merged)
 - [Coding Style Guidelines](#coding-style-guidelines)
@@ -28,6 +29,15 @@ Some of the e2e tests run node-gyp, so you might need to install some build-esse
 
 ```
 sudo dnf install make automake gcc gcc-c++ kernel-devel
+```
+
+## Run selective tests in `pkg-manager/core`
+
+Tests in this folder takes great amount of time to complete, so filtering them is necessary for faster iteration.
+
+```sh
+cd pkg-manager/core
+TEST_PATH_PATTERN='test path regex' TEST_NAME_PATTERN='test name regex' pnpm run filtered-test
 ```
 
 ## Submitting a Pull Request (PR)
