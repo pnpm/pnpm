@@ -2,7 +2,7 @@
 import path from 'path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
-import { prepare, prepareEmpty } from '@pnpm/prepare'
+import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import execa from 'execa'
@@ -15,7 +15,7 @@ const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 const f = fixtures(__dirname)
 
 test('rebuilds dependencies', async () => {
-  const project = prepareEmpty()
+  const project = prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
@@ -73,7 +73,7 @@ test('rebuilds dependencies', async () => {
 })
 
 test('rebuild does not fail when a linked package is present', async () => {
-  const project = prepareEmpty()
+  const project = prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
   f.copy('local-pkg', path.resolve('..', 'local-pkg'))
@@ -103,7 +103,7 @@ test('rebuild does not fail when a linked package is present', async () => {
 })
 
 test('rebuilds specific dependencies', async () => {
-  const project = prepareEmpty()
+  const project = prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
   await execa('node', [
@@ -139,7 +139,7 @@ test('rebuilds specific dependencies', async () => {
 })
 
 test('rebuild with pending option', async () => {
-  const project = prepareEmpty()
+  const project = prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
   await execa('node', [
@@ -204,7 +204,7 @@ test('rebuild with pending option', async () => {
 })
 
 test('rebuild dependencies in correct order', async () => {
-  const project = prepareEmpty()
+  const project = prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
@@ -242,7 +242,7 @@ test('rebuild dependencies in correct order', async () => {
 })
 
 test('rebuild links bins', async () => {
-  const project = prepareEmpty()
+  const project = prepare()
   const cacheDir = path.resolve('cache')
   const storeDir = path.resolve('store')
 
