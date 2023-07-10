@@ -17,6 +17,7 @@ export interface StrictRebuildOptions {
   preferSymlinkedExecutables?: boolean
   scriptShell?: string
   sideEffectsCacheRead: boolean
+  sideEffectsCacheWrite: boolean
   scriptsPrependNodePath: boolean | 'warn-only'
   shellEmulator: boolean
   storeDir: string // TODO: remove this property
