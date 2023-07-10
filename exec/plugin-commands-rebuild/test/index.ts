@@ -1,11 +1,13 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import path from 'path'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { getFilePathInCafs } from '@pnpm/cafs'
+import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { prepare } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import execa from 'execa'
+import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
 import sinon from 'sinon'
 import { DEFAULT_OPTS } from './utils'
@@ -70,6 +72,14 @@ test('rebuilds dependencies', async () => {
       'postinstall',
     ])
   }
+
+  const cafsDir = path.join(storeDir, 'v3/files')
+  const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
+  const cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(cacheIntegrity!.sideEffects).toBeTruthy()
+  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin/1.0.0': {} })}`
+  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
+  delete cacheIntegrity!.sideEffects[sideEffectsKey]['generated-by-postinstall.js']
 })
 
 test('rebuild does not fail when a linked package is present', async () => {

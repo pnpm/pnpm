@@ -316,7 +316,7 @@ async function _rebuild (
           shellEmulator: opts.shellEmulator,
           unsafePerm: opts.unsafePerm || false,
         })
-        if (hasSideEffects && opts.sideEffectsCacheWrite && (pkgSnapshot.resolution as TarballResolution).integrity) {
+        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && (pkgSnapshot.resolution as TarballResolution).integrity) {
           const filesIndexFile = getFilePathInCafs(cafsDir, (pkgSnapshot.resolution as TarballResolution).integrity!.toString(), 'index')
           try {
             const sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
