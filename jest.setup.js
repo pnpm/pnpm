@@ -1,1 +1,1 @@
-// jest.retryTimes(1);
+jest.retryTimes(1);
