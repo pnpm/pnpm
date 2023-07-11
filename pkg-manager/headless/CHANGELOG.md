@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 21.0.6
+
+### Patch Changes
+
+- Updated dependencies [16bbac8d5]
+  - @pnpm/calc-dep-state@4.1.0
+  - @pnpm/build-modules@11.0.9
+
 ## 21.0.5
 
 ### Patch Changes

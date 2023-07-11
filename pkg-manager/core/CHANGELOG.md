@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 10.2.8
+
+### Patch Changes
+
+- Updated dependencies [16bbac8d5]
+  - @pnpm/calc-dep-state@4.1.0
+  - @pnpm/build-modules@11.0.9
+  - @pnpm/headless@21.0.6
+
 ## 10.2.7
 
 ### Patch Changes

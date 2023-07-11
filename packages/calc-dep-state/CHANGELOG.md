@@ -1,5 +1,11 @@
 # @pnpm/calc-dep-state
 
+## 4.1.0
+
+### Minor Changes
+
+- 16bbac8d5: Add `lockfileToDepGraph` function.
+
 ## 4.0.2
 
 ### Patch Changes

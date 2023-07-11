@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-rebuild
 
+## 9.1.0
+
+### Minor Changes
+
+- 002f6febe: A new option added skipIfHasSideEffectsCache for skipping the build for dependencies that already have side effects cache.
+
+### Patch Changes
+
+- 16bbac8d5: `pnpm rebuild` should upload the built artifacts to the content-addressable store.
+- Updated dependencies [16bbac8d5]
+  - @pnpm/calc-dep-state@4.1.0
+
 ## 9.0.7
 
 ### Patch Changes
