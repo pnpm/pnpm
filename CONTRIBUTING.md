@@ -37,7 +37,7 @@ Tests in this folder takes great amount of time to complete, so filtering them i
 
 ```sh
 cd pkg-manager/core
-TEST_PATH_PATTERN='test path regex' TEST_NAME_PATTERN='test name regex' pnpm run filtered-test
+TEST_PATH_PATTERN='test path regex' TEST_NAME_PATTERN='test name regex' pnpm test
 ```
 
 ## Submitting a Pull Request (PR)
