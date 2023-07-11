@@ -142,15 +142,27 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
   case '@pnpm/plugin-commands-script-runners':
   case '@pnpm/plugin-commands-store':
   case '@pnpm/plugin-commands-deploy':
-  case CLI_PKG_NAME:
-  case '@pnpm/core': {
-    // @pnpm/core tests currently works only with port 4873 due to the usage of
-    // the next package: pkg-with-tarball-dep-from-registry
-    const port = manifest.name === '@pnpm/core' ? 4873 : ++registryMockPort
+  case CLI_PKG_NAME: {
+    const port = ++registryMockPort
     scripts = {
       ...(manifest.scripts as Record<string, string>),
       'registry-mock': 'registry-mock',
       'test:jest': 'jest',
+
+      'test:e2e': 'registry-mock prepare && run-p -r registry-mock test:jest',
+    }
+    scripts.test = 'pnpm run compile && pnpm run _test'
+    scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`
+    break
+  }
+  case '@pnpm/core': {
+    // @pnpm/core tests currently works only with port 4873 due to the usage of
+    // the next package: pkg-with-tarball-dep-from-registry
+    const port = 4873
+    scripts = {
+      ...(manifest.scripts as Record<string, string>),
+      'registry-mock': 'registry-mock',
+      'test:jest': "sh -c 'jest --testPathPattern=\"${TEST_PATH_PATTERN:-}\" --testNamePattern=\"${TEST_NAME_PATTERN:-}\"'",
 
       'test:e2e': 'registry-mock prepare && run-p -r registry-mock test:jest',
     }
