@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
+import fs from 'fs'
 import path from 'path'
 import { getFilePathInCafs } from '@pnpm/cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
@@ -80,6 +81,56 @@ test('rebuilds dependencies', async () => {
   const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin/1.0.0': {} })}`
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
   delete cacheIntegrity!.sideEffects[sideEffectsKey]['generated-by-postinstall.js']
+})
+
+test('skipIfHasSideEffectsCache', async () => {
+  const project = prepare()
+  const cacheDir = path.resolve('cache')
+  const storeDir = path.resolve('store')
+
+  await execa('node', [
+    pnpmBin,
+    'add',
+    '--save-dev',
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+    `--registry=${REGISTRY}`,
+    `--store-dir=${storeDir}`,
+    '--ignore-scripts',
+    `--cache-dir=${cacheDir}`,
+  ])
+
+  const cafsDir = path.join(storeDir, 'v3/files')
+  const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
+  let cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin/1.0.0': {} })}`
+  cacheIntegrity.sideEffects = {
+    [sideEffectsKey]: { foo: 'bar' },
+  }
+  fs.writeFileSync(cacheIntegrityPath, JSON.stringify(cacheIntegrity, null, 2), 'utf8')
+
+  let modules = await project.readModulesManifest()
+  expect(modules!.pendingBuilds).toStrictEqual([
+    '/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0',
+  ])
+
+  const modulesManifest = await project.readModulesManifest()
+  await rebuild.handler({
+    ...DEFAULT_OPTS,
+    cacheDir,
+    dir: process.cwd(),
+    pending: true,
+    registries: modulesManifest!.registries!,
+    skipIfHasSideEffectsCache: true,
+    storeDir,
+  }, [])
+
+  modules = await project.readModulesManifest()
+  expect(modules).toBeTruthy()
+  expect(modules!.pendingBuilds.length).toBe(0)
+
+  cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
+  expect(cacheIntegrity!.sideEffects).toBeTruthy()
+  expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'foo'])
 })
 
 test('rebuild does not fail when a linked package is present', async () => {
