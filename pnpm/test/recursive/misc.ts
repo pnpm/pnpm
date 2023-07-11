@@ -204,7 +204,6 @@ test('recursive installation of packages in workspace ignores hooks in packages'
     },
   ])
 
-  process.chdir('project-1')
   const pnpmfile = `
     module.exports = { hooks: { readPackage } }
     function readPackage (pkg) {
@@ -213,12 +212,8 @@ test('recursive installation of packages in workspace ignores hooks in packages'
       return pkg
     }
   `
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
-
-  process.chdir('../project-2')
-  await fs.writeFile('.pnpmfile.cjs', pnpmfile, 'utf8')
-
-  process.chdir('..')
+  await fs.writeFile('project-1/.pnpmfile.cjs', pnpmfile, 'utf8')
+  await fs.writeFile('project-2/.pnpmfile.cjs', pnpmfile, 'utf8')
   await fs.writeFile('.pnpmfile.cjs', `
     module.exports = { hooks: { readPackage } }
     function readPackage (pkg) {
@@ -230,11 +225,12 @@ test('recursive installation of packages in workspace ignores hooks in packages'
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
 
-  await execPnpm(['recursive', 'install'])
+  await execPnpm(['install'])
 
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
-  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
-  expect(lockfile.packages).toHaveProperty(['/is-number@1.0.0'])
+  const depPaths = Object.keys(lockfile.packages ?? [])
+  expect(depPaths).not.toContain('/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+  expect(depPaths).toContain('/is-number@1.0.0')
   /* eslint-enable @typescript-eslint/no-unnecessary-type-assertion */
 })
 
