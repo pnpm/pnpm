@@ -40,6 +40,8 @@ cd pkg-manager/core
 TEST_PATH_PATTERN='test path regex' TEST_NAME_PATTERN='test name regex' pnpm test
 ```
 
+Both `TEST_PATH_PATTERN` and `TEST_NAME_PATTERN` are optional. If both of them are not specified, `pnpm test` would run all the tests.
+
 ## Submitting a Pull Request (PR)
 
 Before you submit your Pull Request (PR) consider the following guidelines:
