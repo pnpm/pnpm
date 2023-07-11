@@ -93,6 +93,7 @@ export async function handler (
     recursive?: boolean
     reporter?: (logObj: LogBase) => void
     pending: boolean
+    skipIfHasSideEffectsCache?: boolean
   },
   params: string[]
 ) {

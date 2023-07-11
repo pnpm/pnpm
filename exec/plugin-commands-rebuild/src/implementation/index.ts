@@ -1,5 +1,5 @@
 import path from 'path'
-import { getFilePathInCafs } from '@pnpm/cafs'
+import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/cafs'
 import { calcDepState, lockfileToDepGraph, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
@@ -27,6 +27,7 @@ import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { type ProjectManifest } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
+import loadJsonFile from 'load-json-file'
 import runGroups from 'run-groups'
 import graphSequencer from '@pnpm/graph-sequencer'
 import npa from '@pnpm/npm-package-arg'
@@ -304,6 +305,19 @@ async function _rebuild (
         } else {
           extraBinPaths.push(...binDirsInAllParentDirs(pkgRoot, opts.lockfileDir))
         }
+        const resolution = (pkgSnapshot.resolution as TarballResolution)
+        let sideEffectsCacheKey: string | undefined
+        if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
+          const filesIndexFile = getFilePathInCafs(cafsDir, resolution.integrity!.toString(), 'index')
+          const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
+          sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
+            isBuilt: true,
+          })
+          if (pkgFilesIndex.sideEffects?.[sideEffectsCacheKey]) {
+            pkgsThatWereRebuilt.add(depPath)
+            return
+          }
+        }
         const hasSideEffects = await runPostinstallHooks({
           depPath,
           extraBinPaths,
@@ -316,12 +330,14 @@ async function _rebuild (
           shellEmulator: opts.shellEmulator,
           unsafePerm: opts.unsafePerm || false,
         })
-        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && (pkgSnapshot.resolution as TarballResolution).integrity) {
-          const filesIndexFile = getFilePathInCafs(cafsDir, (pkgSnapshot.resolution as TarballResolution).integrity!.toString(), 'index')
+        if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && resolution.integrity) {
+          const filesIndexFile = getFilePathInCafs(cafsDir, resolution.integrity!.toString(), 'index')
           try {
-            const sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
-              isBuilt: true,
-            })
+            if (!sideEffectsCacheKey) {
+              sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {
+                isBuilt: true,
+              })
+            }
             await opts.storeController.upload(pkgRoot, {
               sideEffectsCacheKey,
               filesIndexFile,
