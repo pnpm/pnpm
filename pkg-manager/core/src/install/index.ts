@@ -971,12 +971,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     (ctx.wantedLockfile.packages != null) &&
     !isEmpty(ctx.wantedLockfile.packages)
   ) {
-    ctx.wantedLockfile.packages = mapValues(({ dependencies, optionalDependencies, resolution }) => ({
+    ctx.wantedLockfile.packages = mapValues(({ dependencies, optionalDependencies, resolution, deprecated }) => ({
       // These fields are needed to avoid losing information of the locked dependencies if these fields are not broken
       // If these fields are broken, they will also be regenerated
       dependencies,
       optionalDependencies,
       resolution,
+      deprecated,
     }), ctx.wantedLockfile.packages)
   }
 
@@ -1012,7 +1013,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-      fixLockfile: opts.fixLockfile,
       force: opts.force,
       forceFullResolution,
       ignoreScripts: opts.ignoreScripts,

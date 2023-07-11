@@ -135,7 +135,6 @@ export interface ResolutionContext {
   updatedSet: Set<string>
   defaultTag: string
   dryRun: boolean
-  fixLockfile?: boolean
   forceFullResolution: boolean
   ignoreScripts?: boolean
   resolvedPackagesByDepPath: ResolvedPackagesByDepPath
@@ -1056,7 +1055,7 @@ async function resolveDependency (
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       alwaysTryWorkspacePackages: ctx.linkWorkspacePackagesDepth >= options.currentDepth,
-      currentPkg: currentPkg && !ctx.fixLockfile
+      currentPkg: currentPkg
         ? {
           id: currentPkg.pkgId,
           resolution: currentPkg.resolution,
@@ -1144,8 +1143,8 @@ async function resolveDependency (
     }
   }
 
-  let prepare!: boolean
-  let hasBin!: boolean
+  let prepare: boolean = false
+  let hasBin: boolean = false
   let pkg: PackageManifest = await getManifestFromResponse(pkgResponse, wantedDependency)
   if (!pkg.dependencies) {
     pkg.dependencies = {}
@@ -1220,21 +1219,22 @@ async function resolveDependency (
       ...currentPkg.dependencyLockfile,
       ...pkg,
     }
-  } else {
-    prepare = Boolean(
-      pkgResponse.body.resolvedVia === 'git-repository' &&
-      typeof pkg.scripts?.prepare === 'string'
-    )
-
-    if (
-      currentPkg.dependencyLockfile?.deprecated &&
-      !pkgResponse.body.updated && !pkg.deprecated
-    ) {
-      pkg.deprecated = currentPkg.dependencyLockfile.deprecated
-    }
-    hasBin = Boolean((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin)
-    /* eslint-enable @typescript-eslint/dot-notation */
   }
+
+  prepare = Boolean(
+    prepare ||
+    pkgResponse.body.resolvedVia === 'git-repository' &&
+      typeof pkg.scripts?.prepare === 'string'
+  )
+  hasBin = Boolean(hasBin || ((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin))
+
+  if (
+    currentPkg.dependencyLockfile?.deprecated &&
+      !pkgResponse.body.updated && !pkg.deprecated
+  ) {
+    pkg.deprecated = currentPkg.dependencyLockfile.deprecated
+  }
+  /* eslint-enable @typescript-eslint/dot-notation */
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest
   }
