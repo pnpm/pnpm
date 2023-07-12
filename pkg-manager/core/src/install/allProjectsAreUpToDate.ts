@@ -18,6 +18,7 @@ import {
 import pEvery from 'p-every'
 import any from 'ramda/src/any'
 import semver from 'semver'
+import getVersionSelectorType from 'version-selector-type'
 
 export async function allProjectsAreUpToDate (
   projects: Array<ProjectOptions & { id: string }>,
@@ -109,6 +110,11 @@ async function linkedPackagesAreUpToDate (
               currentSpec.startsWith('workspace:.')
             )
           ) {
+            return true
+          }
+          // https://github.com/pnpm/pnpm/issues/6592
+          // if the dependency is linked and the specified version type is tag, we consider it to be up-to-date to skip full resolution.
+          if (isLinked && getVersionSelectorType(currentSpec)?.type === 'tag') {
             return true
           }
           const linkedDir = isLinked

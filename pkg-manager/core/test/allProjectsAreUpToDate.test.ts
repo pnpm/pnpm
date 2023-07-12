@@ -497,3 +497,51 @@ describe('local file dependency', () => {
     })).toBeFalsy()
   })
 })
+
+test('allProjectsAreUpToDate(): returns true if workspace dependency\'s version type is tag', async () => {
+  const projects = [
+    {
+      buildIndex: 0,
+      id: 'bar',
+      manifest: {
+        dependencies: {
+          foo: 'unpublished-tag',
+        },
+      },
+      rootDir: 'bar',
+    },
+    {
+      buildIndex: 0,
+      id: 'foo',
+      manifest: fooManifest,
+      rootDir: 'foo',
+    },
+  ]
+  const options = {
+    autoInstallPeers: false,
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: true,
+    wantedLockfile: {
+      importers: {
+        bar: {
+          dependencies: {
+            foo: 'link:../foo',
+          },
+          specifiers: {
+            foo: 'unpublished-tag',
+          },
+        },
+        foo: {
+          specifiers: {},
+        },
+      },
+      lockfileVersion: 5,
+    } as Lockfile,
+    workspacePackages,
+    lockfileDir: process.cwd(),
+  }
+  expect(await allProjectsAreUpToDate(projects, {
+    ...options,
+    lockfileDir: process.cwd(),
+  })).toBeTruthy()
+})
