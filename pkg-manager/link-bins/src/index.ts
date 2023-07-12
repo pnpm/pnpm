@@ -217,7 +217,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
       if (err.code !== 'ENOENT') {
         throw err
       }
-      globalWarn(`Failed to create bin at ${externalBinPath}. The source file at ${cmd.path} does not exist.`)
+      globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
     }
     return
   }
@@ -241,7 +241,7 @@ async function linkBin (cmd: CommandInfo, binsDir: string, opts?: LinkBinOptions
     if (err.code !== 'ENOENT') {
       throw err
     }
-    globalWarn(`Failed to create bin at ${externalBinPath}. The source file at ${cmd.path} does not exist.`)
+    globalWarn(`Failed to create bin at ${externalBinPath}. ${err.message as string}`)
     return
   }
   // ensure that bin are executable and not containing
