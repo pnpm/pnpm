@@ -104,6 +104,7 @@ export async function recursivePublish (
       for (const pkgDir of chunk) {
         if (!publishedPkgDirs.has(pkgDir)) continue
         const pkg = opts.selectedProjectsGraph[pkgDir].package
+        const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registries, pkg.manifest.name!)
         const publishResult = await publish({
           ...opts,
           dir: pkg.dir,
@@ -113,7 +114,7 @@ export async function recursivePublish (
               '--tag',
               tag,
               '--registry',
-              pickRegistryForPackage(opts.registries, pkg.manifest.name!),
+              registry,
               ...appendedArgs,
             ],
           },
