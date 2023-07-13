@@ -62,6 +62,20 @@ export async function main (inputArgv: string[]) {
     process.exitCode = 1
     return
   }
+  if (cmd === 'update') {
+    const findOptionIndex = argv.original.findIndex(o => o === '-l' || o === '--l')
+    if (findOptionIndex > -1) {
+      const newOptions = argv.original.slice(1).map(o => {
+        if (o === '-l' || o === '--l') {
+          return '-L'
+        }
+        return o
+      }).filter(o => o.startsWith('-'))
+      printError(`Did you mean run 'pnpm update${cliParams.length ? ' ' + cliParams.join(' ') : ''} ${newOptions.join(' ')}'?`, `For help, run: pnpm help ${cmd}`)
+      process.exitCode = 1
+      return
+    }
+  }
 
   if (unknownOptions.size > 0 && !fallbackCommandUsed) {
     const unknownOptionsArray = Array.from(unknownOptions.keys())
