@@ -61,7 +61,7 @@ function urlToFetchSpec (urlparse: URL) {
   return fetchSpec
 }
 
-async function fromHostedGit (hosted: HostedGit): Promise<HostedPackageSpec> { // eslint-disable-line
+async function fromHostedGit (hosted: HostedGit): Promise<HostedPackageSpec> {
   let fetchSpec: string | null = null
   // try git/https url before fallback to ssh url
   const gitUrl = hosted.https({ noCommittish: true, noGitPlus: true }) ?? hosted.ssh({ noCommittish: true })
@@ -77,9 +77,9 @@ async function fromHostedGit (hosted: HostedGit): Promise<HostedPackageSpec> { /
           fetchSpec: httpsUrl,
           hosted: {
             ...hosted,
-            _fill: (hosted as any)._fill,
+            _fill: (hosted as any)._fill, // eslint-disable-line @typescript-eslint/no-explicit-any
             tarball: undefined,
-          } as any,
+          } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
           normalizedPref: `git+${httpsUrl}`,
           ...setGitCommittish(hosted.committish!),
         }
@@ -111,9 +111,9 @@ async function fromHostedGit (hosted: HostedGit): Promise<HostedPackageSpec> { /
     fetchSpec: fetchSpec!,
     hosted: {
       ...hosted,
-      _fill: (hosted as any)._fill,
+      _fill: (hosted as any)._fill, // eslint-disable-line @typescript-eslint/no-explicit-any
       tarball: hosted.tarball,
-    } as any,
+    } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     normalizedPref: hosted.shortcut(),
     ...setGitCommittish(hosted.committish!),
   }
