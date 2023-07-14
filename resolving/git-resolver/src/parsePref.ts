@@ -64,7 +64,7 @@ function urlToFetchSpec (urlparse: URL) {
 async function fromHostedGit (hosted: HostedGit): Promise<HostedPackageSpec> { // eslint-disable-line
   let fetchSpec: string | null = null
   // try git/https url before fallback to ssh url
-  const gitUrl = hosted.https({ noCommittish: true }) ?? hosted.ssh({ noCommittish: true })
+  const gitUrl = hosted.https({ noCommittish: true, noGitPlus: true }) ?? hosted.ssh({ noCommittish: true })
   if (gitUrl && await accessRepository(gitUrl)) {
     fetchSpec = gitUrl
   }
