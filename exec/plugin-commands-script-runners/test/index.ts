@@ -29,6 +29,8 @@ test('pnpm run: returns correct exit code', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['exit0'])
 
   let err!: Error & { errno: number }
@@ -38,6 +40,8 @@ test('pnpm run: returns correct exit code', async () => {
       extraBinPaths: [],
       extraEnv: {},
       rawConfig: {},
+      pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+      bin: DEFAULT_OPTS.bin,
     }, ['exit1'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
@@ -60,6 +64,8 @@ test('pnpm run --no-bail never fails', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['exit1'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -84,6 +90,8 @@ test('run: pass the args to the command that is specified in the build script', 
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -106,6 +114,8 @@ test('run: pass the args to the command that is specified in the build script of
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -128,6 +138,8 @@ test('test: pass the args to the command that is specified in the build script o
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -150,6 +162,8 @@ test('run start: pass the args to the command that is specified in the build scr
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['start', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -172,6 +186,8 @@ test('run stop: pass the args to the command that is specified in the build scri
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['stop', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -201,6 +217,8 @@ test('restart: run stop, restart and start', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, [])
 
   const { default: scriptsRan } = await import(path.resolve('output.json'))
@@ -235,6 +253,8 @@ test('restart: run stop, restart and start and all the pre/post scripts', async 
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, [])
 
   const { default: scriptsRan } = await import(path.resolve('output.json'))
@@ -264,6 +284,8 @@ test('"pnpm run" prints the list of available commands', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, [])
 
   expect(output).toBe(`\
@@ -315,6 +337,8 @@ test('"pnpm run" prints the list of available commands, including commands of th
       rawConfig: {},
       selectedProjectsGraph,
       workspaceDir,
+      pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+      bin: DEFAULT_OPTS.bin,
     }, [])
 
     expect(output).toBe(`\
@@ -342,6 +366,8 @@ Commands of the root workspace project (to run them, use "pnpm -w run"):
       rawConfig: {},
       selectedProjectsGraph,
       workspaceDir,
+      pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+      bin: DEFAULT_OPTS.bin,
     }, [])
 
     expect(output).toBe(`\
@@ -364,6 +390,8 @@ test('pnpm run does not fail with --if-present even if the wanted script is not 
     extraEnv: {},
     ifPresent: true,
     rawConfig: {},
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['build'])
 })
 
@@ -432,6 +460,8 @@ test('scripts work with PnP', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['foo'])
 
   const { default: scriptsRan } = await import(path.resolve('output.json'))
@@ -461,6 +491,8 @@ test('pnpm run with custom shell', async () => {
     extraEnv: {},
     rawConfig: {},
     scriptShell: path.resolve(`node_modules/.bin/shell-mock${isWindows() ? '.cmd' : ''}`),
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['build'])
 
   expect((await import(path.resolve('shell-input.json'))).default).toStrictEqual(['-c', 'foo bar'])
@@ -485,6 +517,8 @@ test('pnpm run with RegExp script selector should work', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['/^(lint|build):.*/'])
 
   expect(await fs.readFile('output-build-a.txt', { encoding: 'utf-8' })).toEqual('a')
@@ -510,6 +544,8 @@ test('pnpm run with RegExp script selector should work also for pre/post script'
     extraEnv: {},
     rawConfig: {},
     enablePrePostScripts: true,
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['/build:.*/'])
 
   expect(await fs.readFile('output-a.txt', { encoding: 'utf-8' })).toEqual('a')
@@ -531,6 +567,8 @@ test('pnpm run with RegExp script selector should work parallel as a default beh
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['/build:.*/'])
 
   const { default: outputsA } = await import(path.resolve('output-a.json'))
@@ -555,6 +593,8 @@ test('pnpm run with RegExp script selector should work sequentially with --works
     extraEnv: {},
     rawConfig: {},
     workspaceConcurrency: 1,
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['/build:.*/'])
 
   const { default: outputsA } = await import(path.resolve('output-a.json'))
@@ -579,6 +619,8 @@ test('pnpm run with RegExp script selector with flag should throw error', async 
       extraEnv: {},
       rawConfig: {},
       workspaceConcurrency: 1,
+      pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+      bin: DEFAULT_OPTS.bin,
     }, ['/build:.*/i'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
@@ -599,6 +641,8 @@ test('pnpm run with slightly incorrect command suggests correct one', async () =
     extraEnv: {},
     rawConfig: {},
     workspaceConcurrency: 1,
+    pnpmHomeDir: DEFAULT_OPTS.pnpmHomeDir,
+    bin: DEFAULT_OPTS.bin,
   }, ['buil'])).rejects.toEqual(expect.objectContaining({
     code: 'ERR_PNPM_NO_SCRIPT',
     hint: 'Command "buil" not found. Did you mean "pnpm run build"?',

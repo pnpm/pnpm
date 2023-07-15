@@ -49,6 +49,7 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
+  bin: process.env.PNPM_HOME as string,
 }
 
 export const DLX_DEFAULT_OPTS = {
