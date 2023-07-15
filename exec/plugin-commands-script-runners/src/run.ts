@@ -6,6 +6,7 @@ import {
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { type CompletionFunc } from '@pnpm/command'
+import { node } from '@pnpm/plugin-commands-env'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -142,7 +143,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
   & { recursive?: boolean }
-  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent' | 'extraEnv'>
+  & Pick<Config, 'bin' | 'pnpmHomeDir' | 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent' | 'extraEnv'>
   & (
     & { recursive?: false }
     & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
@@ -206,7 +207,7 @@ so you may run "pnpm -w run ${scriptName}"`,
   const concurrency = opts.workspaceConcurrency ?? 4
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
-    extraBinPaths: opts.extraBinPaths,
+    extraBinPaths: await getExtraBinPaths(opts, manifest),
     extraEnv: opts.extraEnv,
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
@@ -340,6 +341,18 @@ export const runScript: (opts: {
   ) {
     await runLifecycleHook(`post${scriptName}`, opts.manifest, opts.lifecycleOpts)
   }
+}
+
+export const getExtraBinPaths = async (
+  opts: Pick<Config, 'nodeVersion' | 'rawConfig' | 'bin' | 'pnpmHomeDir'> & Partial<Pick<Config, 'extraBinPaths' >>,
+  manifest: ProjectManifest
+): Promise<string[] | undefined> => {
+  if (!manifest.pnpm?.useNodeVersion || manifest.pnpm.useNodeVersion === opts.nodeVersion) {
+    return opts.extraBinPaths
+  }
+
+  const nodePath = await node.getNodeBinDir({ ...opts, useNodeVersion: manifest.pnpm.useNodeVersion })
+  return (opts.extraBinPaths ?? []).concat(nodePath)
 }
 
 function renderCommands (commands: string[][]) {

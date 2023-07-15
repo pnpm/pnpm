@@ -12,7 +12,7 @@ import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'
 import { existsInDir } from './existsInDir'
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec'
-import { runScript } from './run'
+import { runScript, getExtraBinPaths } from './run'
 import { tryBuildRegExpFromCommand } from './regexpCommand'
 import { type PackageScripts } from '@pnpm/types'
 
@@ -25,6 +25,8 @@ export type RecursiveRunOpts = Pick<Config,
 | 'scriptShell'
 | 'shellEmulator'
 | 'stream'
+| 'bin'
+| 'pnpmHomeDir'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir' | 'dir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
@@ -107,7 +109,7 @@ export async function runRecursive (
         try {
           const lifecycleOpts: RunLifecycleHookOptions = {
             depPath: prefix,
-            extraBinPaths: opts.extraBinPaths,
+            extraBinPaths: await getExtraBinPaths(opts, pkg.package.manifest),
             extraEnv: opts.extraEnv,
             pkgRoot: prefix,
             rawConfig: opts.rawConfig,

@@ -551,8 +551,20 @@ export async function getConfig (
   }
 
   pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig
+  pnpmConfig.useNodeVersion = await getNodeVersion(pnpmConfig)
 
   return { config: pnpmConfig, warnings }
+}
+
+async function getNodeVersion (
+  opts: Pick<Config, 'dir' | 'workspaceDir' | 'rootProjectManifest' | 'useNodeVersion'>
+): Promise<string | undefined> {
+  if (opts.dir === opts.workspaceDir) {
+    return opts.rootProjectManifest?.pnpm?.useNodeVersion ?? opts.useNodeVersion
+  }
+
+  const currentProjectManifest = await safeReadProjectManifestOnly(opts.dir) ?? undefined
+  return currentProjectManifest?.pnpm?.useNodeVersion ?? opts.useNodeVersion
 }
 
 function getProcessEnv (env: string) {

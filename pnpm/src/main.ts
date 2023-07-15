@@ -267,7 +267,7 @@ export async function main (inputArgv: string[]) {
       ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
     })
 
-    if (config.useNodeVersion != null) {
+    if (config.useNodeVersion != null && !config.recursive) {
       const nodePath = await node.getNodeBinDir(config)
       config.extraBinPaths.push(nodePath)
       config.nodeVersion = config.useNodeVersion

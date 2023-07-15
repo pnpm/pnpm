@@ -138,6 +138,7 @@ export type ProjectManifest = BaseManifest & {
       ignoreCves?: string[]
     }
     requiredScripts?: string[]
+    useNodeVersion?: string
   }
   private?: boolean
   resolutions?: Record<string, string>
