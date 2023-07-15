@@ -137,11 +137,7 @@
   "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core",
   "scripts": {
     "start": "tsc --watch",
-    "?commit": "echo 'Run Git commit wizard'",
-    "commit": "commit",
-    "commitmsg": "commitlint -e",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "registry-mock": "registry-mock",
     "test-with-preview": "preview && pnpm run test:e2e",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=4873 jest",
     "test": "pnpm run compile && pnpm run _test",

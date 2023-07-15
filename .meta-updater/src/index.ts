@@ -149,7 +149,6 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
     const port = manifest.name === '@pnpm/core' ? 4873 : ++registryMockPort
     scripts = {
       ...(manifest.scripts as Record<string, string>),
-      'registry-mock': 'registry-mock',
     }
     scripts.test = 'pnpm run compile && pnpm run _test'
     scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} jest`

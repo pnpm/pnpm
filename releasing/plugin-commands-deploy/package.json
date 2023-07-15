@@ -18,7 +18,6 @@
   "scripts": {
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "registry-mock": "registry-mock",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7777 jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",

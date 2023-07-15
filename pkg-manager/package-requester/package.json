@@ -17,8 +17,7 @@
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7774 jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix",
-    "registry-mock": "registry-mock"
+    "compile": "tsc --build && pnpm run lint --fix"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-requester",
   "keywords": [
