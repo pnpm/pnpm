@@ -1,4 +1,2 @@
-const config = require('../../jest.config.js')
-
-module.exports = config
+module.exports = require('../../jest-with-registry.config.js')
 
