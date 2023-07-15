@@ -1,5 +1,6 @@
-const { spawn } = require('child_process')
+const { start, prepare } = require('@pnpm/registry-mock')
 
 module.exports = () => {
-  global.__SERVER__ = spawn('registry-mock', [])
+  prepare()
+  global.__SERVER__ = start()
 }
