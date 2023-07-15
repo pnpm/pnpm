@@ -1,5 +1,1 @@
-module.exports = {
-  ...require('../../jest.config.js'),
-  globalSetup: './globalSetup.js',
-  globalTeardown: './globalTeardown.js',
-}
+module.exports = require('../../jest-with-registry.config.js')
