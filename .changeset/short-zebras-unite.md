@@ -1,7 +1,7 @@
 ---
 "@pnpm/plugin-commands-script-runners": minor
-"@pnpm/plugin-commands-env": minor
 "@pnpm/config": minor
+"@pnpm/types": patch
 "pnpm": minor
 ---
 
