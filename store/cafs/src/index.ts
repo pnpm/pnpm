@@ -2,7 +2,7 @@ import { promises as fs, type Stats } from 'fs'
 import path from 'path'
 import type { FileWriteResult, PackageFileInfo } from '@pnpm/cafs-types'
 import getStream from 'get-stream'
-import pathTemp from 'path-temp'
+import { fastPathTemp as pathTemp } from 'path-temp'
 import renameOverwrite from 'rename-overwrite'
 import ssri from 'ssri'
 import { addFilesFromDir } from './addFilesFromDir'
@@ -108,7 +108,7 @@ async function writeBufferToCafs (
     //
     // If we don't allow --no-verify-store-integrity then we probably can write
     // to the final file directly.
-    const temp = pathTemp(path.dirname(fileDest))
+    const temp = pathTemp(fileDest)
     await writeFile(temp, buffer, mode)
     // Unfortunately, "birth time" (time of file creation) is available not on all filesystems.
     // We log the creation time ourselves and save it in the package index file.

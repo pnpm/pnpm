@@ -33,7 +33,7 @@
     "@zkochan/rimraf": "^2.1.2",
     "can-link": "^2.0.0",
     "path-absolute": "^1.0.1",
-    "path-temp": "^2.0.0",
+    "path-temp": "^2.1.0",
     "root-link-target": "^3.1.0",
     "touch": "3.1.0"
   },
