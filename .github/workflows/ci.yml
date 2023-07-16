@@ -60,12 +60,20 @@ jobs:
           # .verdaccio-cache
         # key: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-${{ github.run_id }}
         # restore-keys: ts-jest-${{ matrix.platform }}-${{ matrix.node }}-
-    - name: Cache Verdaccio
+    # Restore cache on all branches
+    - name: Restore Verdaccio Cache
       uses: actions/cache@v3
       with:
         path: .verdaccio-cache
         key: verdaccio
-        condition: ${{ github.ref == 'refs/heads/main' }}
+        restore-keys: verdaccio
+    # Save cache only on 'main' branch
+    - name: Save Verdaccio Cache
+      if: github.ref == 'refs/heads/main'
+      uses: actions/cache@v3
+      with:
+        path: .verdaccio-cache
+        key: verdaccio
     - name: run tests (main)
       timeout-minutes: 60
       if: github.ref == 'refs/heads/main'
