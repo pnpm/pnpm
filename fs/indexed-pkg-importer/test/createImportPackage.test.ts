@@ -53,7 +53,7 @@ test('packageImportMethod=auto: clone files by default', async () => {
   )
   expect(gfs.copyFile).toBeCalledWith(
     path.join('hash2'),
-    path.join('project', '_tmp', 'index.js'),
+    path.join('project', 'package_tmp', 'index.js'),
     fs.constants.COPYFILE_FICLONE_FORCE
   )
 })
@@ -71,8 +71,8 @@ test('packageImportMethod=auto: link files if cloning fails', async () => {
     force: false,
     fromStore: false,
   })).toBe('hardlink')
-  expect(gfs.link).toBeCalledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json'))
-  expect(gfs.link).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
+  expect(gfs.link).toBeCalledWith(path.join('hash1'), path.join('project', 'package_tmp', 'package.json'))
+  expect(gfs.link).toBeCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
   expect(gfs.copyFile).toBeCalled()
   ;(gfs.copyFile as jest.Mock).mockClear()
 
@@ -86,8 +86,8 @@ test('packageImportMethod=auto: link files if cloning fails', async () => {
     fromStore: false,
   })).toBe('hardlink')
   expect(gfs.copyFile).not.toBeCalled()
-  expect(gfs.link).toBeCalledWith(path.join('hash1'), path.join('project2', '_tmp', 'package.json'))
-  expect(gfs.link).toBeCalledWith(path.join('hash2'), path.join('project2', '_tmp', 'index.js'))
+  expect(gfs.link).toBeCalledWith(path.join('hash1'), path.join('project2', 'package_tmp', 'package.json'))
+  expect(gfs.link).toBeCalledWith(path.join('hash2'), path.join('project2', 'package_tmp', 'index.js'))
 })
 
 test('packageImportMethod=auto: link files if cloning fails and even hard linking fails but not with EXDEV error', async () => {
