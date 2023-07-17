@@ -1,5 +1,13 @@
 # pnpm
 
+## 7.33.4
+
+### Patch Changes
+
+- When the same file is appended multiple times into a tarball, the last occurrence is selected when unpacking the tarball.
+- Added support for `publishConfig.registry` in `package.json` for publishing [#6775](https://github.com/pnpm/pnpm/issues/6775).
+- Fixed a bug in which pnpm passed the wrong scheme to `git ls-remote`, causing a fallback to `git+ssh` and resulting in a 'host key verification failed' issue [#6805](https://github.com/pnpm/pnpm/issues/6805)
+
 ## 7.33.3
 
 ### Patch Changes
