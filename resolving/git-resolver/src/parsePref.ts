@@ -114,7 +114,7 @@ async function fromHostedGit (hosted: HostedGit): Promise<HostedPackageSpec> {
       _fill: (hosted as any)._fill, // eslint-disable-line @typescript-eslint/no-explicit-any
       tarball: hosted.tarball,
     } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-    normalizedPref: hosted.shortcut(),
+    normalizedPref: hosted.auth ? fetchSpec! : hosted.shortcut(),
     ...setGitCommittish(hosted.committish!),
   }
 }

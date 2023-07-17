@@ -414,7 +414,7 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/master\
   const resolveResult = await resolveFromGit({ pref: 'git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git' })
   expect(resolveResult).toStrictEqual({
     id: '0000000000000000000000000000000000000000+x-oauth-basic@github.com/foo/bar/0000000000000000000000000000000000000000',
-    normalizedPref: 'github:foo/bar',
+    normalizedPref: 'https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git',
     resolution: {
       tarball: 'https://codeload.github.com/foo/bar/tar.gz/0000000000000000000000000000000000000000',
     },
