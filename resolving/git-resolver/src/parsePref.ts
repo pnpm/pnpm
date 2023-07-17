@@ -61,10 +61,10 @@ function urlToFetchSpec (urlparse: URL) {
   return fetchSpec
 }
 
-async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // eslint-disable-line
+async function fromHostedGit (hosted: HostedGit): Promise<HostedPackageSpec> {
   let fetchSpec: string | null = null
   // try git/https url before fallback to ssh url
-  const gitUrl = hosted.https({ noCommittish: true }) ?? hosted.ssh({ noCommittish: true })
+  const gitUrl = hosted.https({ noCommittish: true, noGitPlus: true }) ?? hosted.ssh({ noCommittish: true })
   if (gitUrl && await accessRepository(gitUrl)) {
     fetchSpec = gitUrl
   }
@@ -77,11 +77,11 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
           fetchSpec: httpsUrl,
           hosted: {
             ...hosted,
-            _fill: hosted._fill,
+            _fill: (hosted as any)._fill, // eslint-disable-line @typescript-eslint/no-explicit-any
             tarball: undefined,
-          },
+          } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
           normalizedPref: `git+${httpsUrl}`,
-          ...setGitCommittish(hosted.committish),
+          ...setGitCommittish(hosted.committish!),
         }
       } else {
         try {
@@ -111,11 +111,11 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
     fetchSpec: fetchSpec!,
     hosted: {
       ...hosted,
-      _fill: hosted._fill,
+      _fill: (hosted as any)._fill, // eslint-disable-line @typescript-eslint/no-explicit-any
       tarball: hosted.tarball,
-    },
-    normalizedPref: hosted.shortcut(),
-    ...setGitCommittish(hosted.committish),
+    } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    normalizedPref: hosted.auth ? fetchSpec! : hosted.shortcut(),
+    ...setGitCommittish(hosted.committish!),
   }
 }
 
