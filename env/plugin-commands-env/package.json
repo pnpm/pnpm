@@ -44,7 +44,7 @@
     "is-windows": "^1.0.2",
     "load-json-file": "^6.2.0",
     "render-help": "^1.0.3",
-    "semver": "^7.5.3",
+    "semver": "^7.5.4",
     "symlink-dir": "^5.1.1",
     "write-json-file": "^4.3.0"
   },

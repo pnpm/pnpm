@@ -66,7 +66,7 @@
     "path-exists": "^4.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "run-groups": "^3.0.1",
-    "semver": "^7.5.3",
+    "semver": "^7.5.4",
     "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
@@ -79,7 +79,7 @@
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.8.0",
+    "@pnpm/registry-mock": "3.10.2",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.13",
@@ -137,15 +137,9 @@
   "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core",
   "scripts": {
     "start": "tsc --watch",
-    "?commit": "echo 'Run Git commit wizard'",
-    "commit": "commit",
-    "commitmsg": "commitlint -e",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
-    "registry-mock": "registry-mock",
-    "test:jest": "jest",
-    "test:e2e": "registry-mock prepare && run-p -r registry-mock test:jest",
     "test-with-preview": "preview && pnpm run test:e2e",
-    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=4873 pnpm run test:e2e",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=4873 jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"

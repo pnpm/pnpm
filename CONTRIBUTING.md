@@ -3,6 +3,7 @@
 ## Table of contents
 
 - [Setting Up the Environment](#setting-up-the-environment)
+- [Running Tests](#running-tests)
 - [Submitting a Pull Request (PR)](#submitting-a-pull-request-pr)
   - [After your pull request is merged](#after-your-pull-request-is-merged)
 - [Coding Style Guidelines](#coding-style-guidelines)
@@ -28,6 +29,26 @@ Some of the e2e tests run node-gyp, so you might need to install some build-esse
 
 ```
 sudo dnf install make automake gcc gcc-c++ kernel-devel
+```
+
+## Running Tests
+
+You can run the tests of the project that you modified by going to the project's directory and running:
+
+```shell
+pnpm test
+```
+
+Alternatively, you can run it from anywhere by specifying the name of the project using the `--filter` option:
+
+```shell
+pnpm --filter=core test
+```
+
+If you want to pass options to Jest, use the `pnpm run test` command and append any needed options. For instance, if you want to run a single test in a single file, run:
+
+```shell
+pnpm --filter=core run test --testPathPattern="test/lockfile.ts" --testNamePattern="lockfile has dev deps even when installing for prod only"
 ```
 
 ## Submitting a Pull Request (PR)
