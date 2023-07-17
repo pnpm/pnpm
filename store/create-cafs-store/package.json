@@ -20,7 +20,7 @@
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "mem": "^8.1.1",
-    "path-temp": "^2.0.0",
+    "path-temp": "^2.1.0",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "devDependencies": {

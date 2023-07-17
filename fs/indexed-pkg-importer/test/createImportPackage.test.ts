@@ -19,7 +19,7 @@ jest.mock('@pnpm/graceful-fs', () => {
     default: fsMock,
   }
 })
-jest.mock('path-temp', () => (dir: string) => path.join(dir, '_tmp'))
+jest.mock('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))
 jest.mock('rename-overwrite', () => jest.fn())
 jest.mock('fs-extra', () => ({
   copy: jest.fn(),
@@ -48,12 +48,12 @@ test('packageImportMethod=auto: clone files by default', async () => {
   })).toBe('clone')
   expect(gfs.copyFile).toBeCalledWith(
     path.join('hash1'),
-    path.join('project', '_tmp', 'package.json'),
+    path.join('project', 'package_tmp', 'package.json'),
     fs.constants.COPYFILE_FICLONE_FORCE
   )
   expect(gfs.copyFile).toBeCalledWith(
     path.join('hash2'),
-    path.join('project', '_tmp', 'index.js'),
+    path.join('project', 'package_tmp', 'index.js'),
     fs.constants.COPYFILE_FICLONE_FORCE
   )
 })
@@ -71,8 +71,8 @@ test('packageImportMethod=auto: link files if cloning fails', async () => {
     force: false,
     fromStore: false,
   })).toBe('hardlink')
-  expect(gfs.link).toBeCalledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json'))
-  expect(gfs.link).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
+  expect(gfs.link).toBeCalledWith(path.join('hash1'), path.join('project', 'package_tmp', 'package.json'))
+  expect(gfs.link).toBeCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
   expect(gfs.copyFile).toBeCalled()
   ;(gfs.copyFile as jest.Mock).mockClear()
 
@@ -86,8 +86,8 @@ test('packageImportMethod=auto: link files if cloning fails', async () => {
     fromStore: false,
   })).toBe('hardlink')
   expect(gfs.copyFile).not.toBeCalled()
-  expect(gfs.link).toBeCalledWith(path.join('hash1'), path.join('project2', '_tmp', 'package.json'))
-  expect(gfs.link).toBeCalledWith(path.join('hash2'), path.join('project2', '_tmp', 'index.js'))
+  expect(gfs.link).toBeCalledWith(path.join('hash1'), path.join('project2', 'package_tmp', 'package.json'))
+  expect(gfs.link).toBeCalledWith(path.join('hash2'), path.join('project2', 'package_tmp', 'index.js'))
 })
 
 test('packageImportMethod=auto: link files if cloning fails and even hard linking fails but not with EXDEV error', async () => {
@@ -109,7 +109,7 @@ test('packageImportMethod=auto: link files if cloning fails and even hard linkin
     force: false,
     fromStore: false,
   })).toBe('hardlink')
-  expect(gfs.link).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
+  expect(gfs.link).toBeCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
   expect(gfs.link).toBeCalledTimes(2)
   expect(gfs.copyFile).toBeCalledTimes(1)
 })
@@ -131,7 +131,7 @@ test('packageImportMethod=auto: chooses copying if cloning and hard linking is n
     force: false,
     fromStore: false,
   })).toBe('copy')
-  expect(gfs.copyFile).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
+  expect(gfs.copyFile).toBeCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
   expect(gfs.copyFile).toBeCalledTimes(2)
 })
 
@@ -154,8 +154,8 @@ test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', 
   })).toBe('hardlink')
   expect(gfs.link).toBeCalledTimes(3)
   expect(gfs.copyFile).toBeCalledTimes(2) // One time the target already exists, so it won't be copied
-  expect(gfs.copyFile).toBeCalledWith(path.join('hash1'), path.join('project', '_tmp', 'package.json'))
-  expect(gfs.copyFile).toBeCalledWith(path.join('hash2'), path.join('project', '_tmp', 'index.js'))
+  expect(gfs.copyFile).toBeCalledWith(path.join('hash1'), path.join('project', 'package_tmp', 'package.json'))
+  expect(gfs.copyFile).toBeCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
 })
 
 test('packageImportMethod=hardlink does not relink package from store if package.json is linked from the store', async () => {

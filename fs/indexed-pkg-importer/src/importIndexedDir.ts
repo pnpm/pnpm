@@ -5,7 +5,7 @@ import { globalWarn, logger } from '@pnpm/logger'
 import rimraf from '@zkochan/rimraf'
 import sanitizeFilename from 'sanitize-filename'
 import makeEmptyDir from 'make-empty-dir'
-import pathTemp from 'path-temp'
+import { fastPathTemp as pathTemp } from 'path-temp'
 import renameOverwrite from 'rename-overwrite'
 
 const filenameConflictsLogger = logger('_filename-conflicts')
@@ -20,7 +20,7 @@ export async function importIndexedDir (
     keepModulesDir?: boolean
   }
 ) {
-  const stage = pathTemp(path.dirname(newDir))
+  const stage = pathTemp(newDir)
   try {
     await tryImportIndexedDir(importFile, stage, filenames)
     if (opts.keepModulesDir) {

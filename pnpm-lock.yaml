@@ -1704,8 +1704,8 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       path-temp:
-        specifier: ^2.0.0
-        version: 2.0.0
+        specifier: ^2.1.0
+        version: 2.1.0
       rename-overwrite:
         specifier: ^4.0.3
         version: 4.0.3
@@ -3631,8 +3631,8 @@ importers:
         specifier: ^6.6.2
         version: 6.6.2
       path-temp:
-        specifier: ^2.0.0
-        version: 2.0.0
+        specifier: ^2.1.0
+        version: 2.1.0
       promise-share:
         specifier: ^1.0.0
         version: 1.0.0
@@ -4945,8 +4945,8 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       path-temp:
-        specifier: ^2.0.0
-        version: 2.0.0
+        specifier: ^2.1.0
+        version: 2.1.0
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
@@ -5495,8 +5495,8 @@ importers:
         specifier: ^3.1.0
         version: 3.1.0
       path-temp:
-        specifier: ^2.0.0
-        version: 2.0.0
+        specifier: ^2.1.0
+        version: 2.1.0
       rename-overwrite:
         specifier: ^4.0.3
         version: 4.0.3
@@ -5577,8 +5577,8 @@ importers:
         specifier: ^8.1.1
         version: 8.1.1
       path-temp:
-        specifier: ^2.0.0
-        version: 2.0.0
+        specifier: ^2.1.0
+        version: 2.1.0
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
@@ -5965,8 +5965,8 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
       path-temp:
-        specifier: ^2.0.0
-        version: 2.0.0
+        specifier: ^2.1.0
+        version: 2.1.0
       root-link-target:
         specifier: ^3.1.0
         version: 3.1.0
@@ -15167,6 +15167,13 @@ packages:
     dependencies:
       unique-string: 2.0.0
 
+  /path-temp@2.1.0:
+    resolution: {integrity: sha512-cMMJTAZlion/RWRRC48UbrDymEIt+/YSD/l8NqjneyDw2rDOBQcP5yRkMB4CYGn47KMhZvbblBP7Z79OsMw72w==}
+    engines: {node: '>=8.15'}
+    dependencies:
+      unique-string: 2.0.0
+    dev: false
+
   /path-to-regexp@0.1.7:
     resolution: {integrity: sha512-5DFkuoqlv1uYQKxy8omFBeJPQcdoE07Kv2sferDCrAq1ohOU+MSDswDIbnx3YAM60qIOnYa53wBhXW0EbMonrQ==}
 
@@ -17979,7 +17986,6 @@ time:
   /path-absolute@1.0.1: '2018-11-28T20:25:53.253Z'
   /path-exists@4.0.0: '2019-04-04T03:29:16.887Z'
   /path-name@1.0.0: '2016-10-20T18:43:50.780Z'
-  /path-temp@2.0.0: '2019-05-04T14:35:52.401Z'
   /pidtree@0.6.0: '2022-06-05T18:35:44.206Z'
   /preferred-pm@3.0.3: '2021-02-09T01:16:52.150Z'
   /pretty-bytes@5.6.0: '2021-02-21T14:04:35.036Z'

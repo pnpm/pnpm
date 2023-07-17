@@ -9,7 +9,7 @@ import { type PackageManifest } from '@pnpm/types'
 import getRegistryName from 'encode-registry'
 import loadJsonFile from 'load-json-file'
 import pLimit from 'p-limit'
-import pathTemp from 'path-temp'
+import { fastPathTemp as pathTemp } from 'path-temp'
 import pick from 'ramda/src/pick'
 import renameOverwrite from 'rename-overwrite'
 import { toRaw } from './toRaw'
@@ -272,7 +272,7 @@ async function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<void> {
     await fs.mkdir(dir, { recursive: true })
     createdDirs.add(dir)
   }
-  const temp = pathTemp(dir)
+  const temp = pathTemp(pkgMirror)
   await gfs.writeFile(temp, JSON.stringify(meta))
   await renameOverwrite(temp, pkgMirror)
 }
