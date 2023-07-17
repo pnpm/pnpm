@@ -1474,6 +1474,9 @@ importers:
         specifier: 10.0.1
         version: 10.0.1
     devDependencies:
+      '@pnpm/cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/cafs-types':
         specifier: workspace:*
         version: link:../../store/cafs-types
@@ -1489,6 +1492,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -1501,6 +1507,9 @@ importers:
       nock:
         specifier: 13.2.9
         version: 13.2.9
+      safe-promise-defer:
+        specifier: ^1.0.1
+        version: 1.0.1
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -5345,6 +5354,9 @@ importers:
       rename-overwrite:
         specifier: ^4.0.3
         version: 4.0.3
+      safe-promise-defer:
+        specifier: ^1.0.1
+        version: 1.0.1
       ssri:
         specifier: 10.0.1
         version: 10.0.1
@@ -8164,7 +8176,7 @@ packages:
       '@pnpm/find-workspace-dir': 5.0.1
       '@pnpm/find-workspace-packages': 5.0.45(@pnpm/logger@5.0.0)(@yarnpkg/core@4.0.0-rc.45)(typanion@3.12.1)
       '@pnpm/logger': 5.0.0
-      '@pnpm/types': 8.10.0
+      '@pnpm/types': 8.9.0
       '@yarnpkg/core': 4.0.0-rc.45(typanion@3.12.1)
       load-json-file: 7.0.1
       meow: 10.1.5
@@ -8753,7 +8765,6 @@ packages:
   /@pnpm/types@8.9.0:
     resolution: {integrity: sha512-3MYHYm8epnciApn6w5Fzx6sepawmsNU7l6lvIq+ER22/DPSrr83YMhU/EQWnf4lORn2YyiXFj0FJSyJzEtIGmw==}
     engines: {node: '>=14.6'}
-    dev: false
 
   /@pnpm/util.lex-comparator@1.0.0:
     resolution: {integrity: sha512-3aBQPHntVgk5AweBWZn+1I/fqZ9krK/w01197aYVkAJQGftb+BVWgEepxY5GChjSW12j52XX+CmfynYZ/p0DFQ==}
@@ -9434,8 +9445,8 @@ packages:
       '@types/lodash': 4.14.181
       '@types/semver': 7.3.13
       '@types/treeify': 1.0.0
-      '@yarnpkg/fslib': 3.0.0-rc.45
-      '@yarnpkg/libzip': 3.0.0-rc.45(@yarnpkg/fslib@3.0.0-rc.45)
+      '@yarnpkg/fslib': 3.0.0-rc.25
+      '@yarnpkg/libzip': 3.0.0-rc.25(@yarnpkg/fslib@3.0.0-rc.25)
       '@yarnpkg/parsers': 3.0.0-rc.45
       '@yarnpkg/shell': 4.0.0-rc.45(typanion@3.12.1)
       camelcase: 5.3.1
@@ -9479,15 +9490,15 @@ packages:
     dependencies:
       tslib: 2.5.0
 
-  /@yarnpkg/libzip@3.0.0-rc.45(@yarnpkg/fslib@3.0.0-rc.45):
-    resolution: {integrity: sha512-ZsYi6Y01yMJOLnJ5ISZgOFvCEXzp4EScrM91D7bvCx0lIfH3DZ40H4M5nGNeVFk7jXUHOXuJkNYlNoXixSconA==}
+  /@yarnpkg/libzip@3.0.0-rc.25(@yarnpkg/fslib@3.0.0-rc.25):
+    resolution: {integrity: sha512-YmG+oTBCyrAoMIx5g2I9CfyurSpHyoan+9SCj7laaFKseOe3lFEyIVKvwRBQMmSt8uzh+eY5RWeQnoyyOs6AbA==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
-      '@yarnpkg/fslib': ^3.0.0-rc.45
+      '@yarnpkg/fslib': ^3.0.0-rc.25
     dependencies:
       '@types/emscripten': 1.39.6
-      '@yarnpkg/fslib': 3.0.0-rc.45
-      tslib: 2.5.0
+      '@yarnpkg/fslib': 3.0.0-rc.25
+      tslib: 2.6.0
 
   /@yarnpkg/lockfile@1.1.0:
     resolution: {integrity: sha512-GpSwvyXOcOOlV70vbnzjj4fW5xW/FdUF6nQEt1ENy7m4ZCczi1+/buVUPAqmGfqznsORNFzUMjctTIp8a9tuCQ==}
@@ -9561,7 +9572,7 @@ packages:
     engines: {node: '>=14.15.0'}
     hasBin: true
     dependencies:
-      '@yarnpkg/fslib': 3.0.0-rc.45
+      '@yarnpkg/fslib': 3.0.0-rc.25
       '@yarnpkg/parsers': 3.0.0-rc.45
       chalk: 3.0.0
       clipanion: 3.2.0-rc.6(typanion@3.12.1)
@@ -17595,8 +17606,7 @@ time:
   /@types/table@6.0.0: '2020-09-17T17:56:44.787Z'
   /@zkochan/hosted-git-info@4.0.2: '2021-09-05T21:33:51.709Z'
   /@zkochan/js-yaml@0.0.6: '2022-05-10T14:42:39.813Z'
-  /eslint-config-standard-with-typescript@36.0.0: '2023-06-30T05:47:46.455Z'
-  /eslint@8.43.0: '2023-06-16T21:53:46.357Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
+  /nock@13.2.9: '2022-07-19T18:34:55.582Z'
   /node-gyp@9.3.1: '2022-12-19T22:43:10.187Z'
   /safe-execa@0.1.2: '2022-07-18T01:09:17.517Z'
