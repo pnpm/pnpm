@@ -7,7 +7,7 @@ import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import * as retry from '@zkochan/retry'
 import throttle from 'lodash.throttle'
 import ssri from 'ssri'
-import { BadTarballError } from './errorTypes'
+import { Readable } from 'stream'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
@@ -158,27 +158,43 @@ export function createDownloader (
           ? throttle(opts.onProgress, 500)
           : undefined
         let downloaded = 0
+        const chunks: Buffer[] = []
         res.body!.on('data', (chunk: Buffer) => {
+          chunks.push(chunk)
           downloaded += chunk.length
           if (onProgress != null) onProgress(downloaded)
         })
 
         // eslint-disable-next-line no-async-promise-executor
         return await new Promise<FetchResult>(async (resolve, reject) => {
-          const stream = res.body!
+          res.body!
             .on('error', reject)
+          await new Promise<void>((resolve) => res.body!.on('end', () => {
+            resolve()
+          }))
+          const data: Buffer = Buffer.from(new ArrayBuffer(downloaded))
+          let offset: number = 0
+          for (const chunk of chunks) {
+            chunk.copy(data, offset)
+            offset += chunk.length
+          }
 
           try {
-            const [integrityCheckResult, filesIndex] = await Promise.all([
-              opts.integrity ? safeCheckStream(res.body, opts.integrity, url) : true,
-              opts.cafs.addFilesFromTarball(res.body!, opts.manifest),
-              waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
-            ])
-            if (integrityCheckResult !== true) {
-              // eslint-disable-next-line
-              throw integrityCheckResult
+            if (opts.integrity) {
+              const integrityCheckResult = safeCheckStream(data, opts.integrity)
+              if (integrityCheckResult !== true) {
+                throw integrityCheckResult
+              }
             }
 
+            const streamForTarball = new Readable({
+              read () {
+                this.push(data)
+                this.push(null)
+              },
+            })
+
+            const filesIndex = await opts.cafs.addFilesFromTarball(streamForTarball, opts.manifest)
             resolve({ filesIndex })
           } catch (err: any) { // eslint-disable-line
             // If the error is not an integrity check error, then it happened during extracting the tarball
@@ -202,42 +218,9 @@ export function createDownloader (
   }
 }
 
-async function safeCheckStream (stream: any, integrity: string, url: string): Promise<true | Error> { // eslint-disable-line @typescript-eslint/no-explicit-any
-  try {
-    await ssri.checkStream(stream, integrity)
-    return true
-  } catch (err: any) { // eslint-disable-line
-    return new TarballIntegrityError({
-      algorithm: err['algorithm'],
-      expected: err['expected'],
-      found: err['found'],
-      sri: err['sri'],
-      url,
-    })
+function safeCheckStream (data: Buffer, integrity: string): true | Error {
+  if (!ssri.checkData(data, integrity)) {
+    return new Error()
   }
-}
-
-async function waitTillClosed (
-  opts: {
-    stream: NodeJS.EventEmitter
-    size: null | number
-    getDownloaded: () => number
-    url: string
-  }
-) {
-  return new Promise<void>((resolve, reject) => {
-    opts.stream.on('end', () => {
-      const downloaded = opts.getDownloaded()
-      if (opts.size !== null && opts.size !== downloaded) {
-        const err = new BadTarballError({
-          expectedSize: opts.size,
-          receivedSize: downloaded,
-          tarballUrl: opts.url,
-        })
-        reject(err)
-        return
-      }
-      resolve()
-    })
-  })
+  return true
 }
