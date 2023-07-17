@@ -4,6 +4,7 @@ import path from 'path'
 import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/create-cafs-store'
+import { getFilePathInCafs } from '@pnpm/cafs'
 import { globalWarn } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
 import {
@@ -11,7 +12,9 @@ import {
   BadTarballError,
   TarballIntegrityError,
 } from '@pnpm/tarball-fetcher'
+import { type DependencyManifest } from '@pnpm/types'
 import nock from 'nock'
+import safePromiseDefer from 'safe-promise-defer'
 import ssri from 'ssri'
 import tempy from 'tempy'
 
@@ -428,4 +431,22 @@ test('do not build the package when scripts are ignored', async () => {
   expect(filesIndex).toHaveProperty(['package.json'])
   expect(filesIndex).not.toHaveProperty(['prepare.txt'])
   expect(globalWarn).toHaveBeenCalledWith(`The git-hosted package fetched from "${tarball}" has to be built but the build scripts were ignored.`)
+})
+
+test('when extracting files with the same name, pick the last ones', async () => {
+  const tar = f.find('tarball-with-duplicate-files/archive.tar')
+  const resolution = {
+    tarball: `file:${tar}`,
+  }
+
+  const manifest = safePromiseDefer<DependencyManifest | undefined>()
+  const { filesIndex } = await fetch.localTarball(cafs, resolution, {
+    lockfileDir: process.cwd(),
+    manifest,
+  })
+  const { integrity } = await (filesIndex['package.json'] as any).writeResult // eslint-disable-line
+  const filePath = getFilePathInCafs(path.join(cafsDir, 'files'), integrity, 'nonexec')
+  const pkgJson = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+  expect(pkgJson.name).toBe('pkg2')
+  expect((await manifest())?.name).toBe('pkg2')
 })

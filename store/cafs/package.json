@@ -26,6 +26,7 @@
     "p-limit": "^3.1.0",
     "path-temp": "^2.0.0",
     "rename-overwrite": "^4.0.3",
+    "safe-promise-defer": "^1.0.1",
     "ssri": "10.0.4",
     "strip-bom": "^4.0.0",
     "tar-stream": "^2.2.0"

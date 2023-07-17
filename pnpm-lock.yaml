@@ -1586,6 +1586,9 @@ importers:
         specifier: 10.0.4
         version: 10.0.4
     devDependencies:
+      '@pnpm/cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/cafs-types':
         specifier: workspace:*
         version: link:../../store/cafs-types
@@ -1601,6 +1604,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -1613,6 +1619,9 @@ importers:
       nock:
         specifier: 13.3.1
         version: 13.3.1
+      safe-promise-defer:
+        specifier: ^1.0.1
+        version: 1.0.1
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -5491,6 +5500,9 @@ importers:
       rename-overwrite:
         specifier: ^4.0.3
         version: 4.0.3
+      safe-promise-defer:
+        specifier: ^1.0.1
+        version: 1.0.1
       ssri:
         specifier: 10.0.4
         version: 10.0.4
