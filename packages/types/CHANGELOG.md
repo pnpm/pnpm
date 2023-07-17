@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 9.2.0
+
+### Minor Changes
+
+- aa2ae8fe2: Support `publishConfig.registry` in `package.json` for publishing [#6775](https://github.com/pnpm/pnpm/issues/6775).
+
 ## 9.1.0
 
 ### Minor Changes

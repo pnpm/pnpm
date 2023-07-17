@@ -1,5 +1,46 @@
 # @pnpm/core
 
+## 10.2.9
+
+### Patch Changes
+
+- b8cb91cf4: Treat the linked dependency which version type is tag as update-to-date [#6592](https://github.com/pnpm/pnpm/issues/6592)
+- Updated dependencies [aa2ae8fe2]
+- Updated dependencies [e26d15c6d]
+- Updated dependencies [e958707b2]
+  - @pnpm/types@9.2.0
+  - @pnpm/link-bins@9.0.5
+  - @pnpm/package-requester@21.0.8
+  - @pnpm/normalize-registries@5.0.2
+  - @pnpm/build-modules@11.0.10
+  - @pnpm/lifecycle@15.0.5
+  - @pnpm/symlink-dependency@7.0.2
+  - @pnpm/hooks.read-package-hook@3.0.4
+  - @pnpm/hooks.types@1.0.2
+  - @pnpm/filter-lockfile@8.0.7
+  - @pnpm/lockfile-file@8.1.2
+  - @pnpm/lockfile-to-pnp@3.0.7
+  - @pnpm/lockfile-utils@8.0.3
+  - @pnpm/lockfile-walker@7.0.4
+  - @pnpm/prune-lockfile@5.0.5
+  - @pnpm/core-loggers@9.0.2
+  - @pnpm/dependency-path@2.1.3
+  - @pnpm/get-context@10.0.3
+  - @pnpm/headless@21.0.7
+  - @pnpm/hoist@8.0.9
+  - @pnpm/modules-cleaner@14.0.9
+  - @pnpm/modules-yaml@12.1.2
+  - @pnpm/remove-bins@5.0.3
+  - @pnpm/resolve-dependencies@31.1.12
+  - @pnpm/manifest-utils@5.0.3
+  - @pnpm/read-package-json@8.0.3
+  - @pnpm/read-project-manifest@5.0.4
+  - @pnpm/resolver-base@10.0.2
+  - @pnpm/store-controller-types@15.0.2
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.3
+  - @pnpm/calc-dep-state@4.1.1
+
 ## 10.2.8
 
 ### Patch Changes

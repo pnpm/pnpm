@@ -1,5 +1,13 @@
 # @pnpm/git-resolver
 
+## 8.0.4
+
+### Patch Changes
+
+- 6fe0b60e6: Fixed a bug in which pnpm passed the wrong scheme to `git ls-remote`, causing a fallback to `git+ssh` and resulting in a 'host key verification failed' issue [#6805](https://github.com/pnpm/pnpm/issues/6805)
+  - @pnpm/resolver-base@10.0.2
+  - @pnpm/fetch@7.0.3
+
 ## 8.0.3
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/find-workspace-packages
 
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+  - @pnpm/cli-utils@2.0.13
+  - @pnpm/fs.find-packages@2.0.4
+
 ## 1.0.2
 
 ### Patch Changes

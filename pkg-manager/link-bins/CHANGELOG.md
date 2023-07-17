@@ -1,5 +1,17 @@
 # @pnpm/link-bins
 
+## 9.0.5
+
+### Patch Changes
+
+- e26d15c6d: When a command cannot be created in `.bin`, print the exact error message that happened.
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+  - @pnpm/package-bins@8.0.2
+  - @pnpm/manifest-utils@5.0.3
+  - @pnpm/read-package-json@8.0.3
+  - @pnpm/read-project-manifest@5.0.4
+
 ## 9.0.4
 
 ### Patch Changes

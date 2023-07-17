@@ -1,5 +1,16 @@
 # pnpm
 
+## 8.6.8
+
+### Patch Changes
+
+- When the same file is appended multiple times into a tarball, the last occurrence is selected when unpacking the tarball.
+- Added support for `publishConfig.registry` in `package.json` for publishing [#6775](https://github.com/pnpm/pnpm/issues/6775).
+- `pnpm rebuild` now uploads the built artifacts to the content-addressable store.
+- If a command cannot be created in `.bin`, the exact error message is now displayed.
+- Treat linked dependencies with a tag version type as up-to-date [#6592](https://github.com/pnpm/pnpm/issues/6592).
+- `pnpm setup` now prints more details when it cannot detect the active shell.
+
 ## 8.6.7
 
 ### Patch Changes

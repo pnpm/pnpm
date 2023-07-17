@@ -1,5 +1,24 @@
 # @pnpm/package-requester
 
+## 21.0.8
+
+### Patch Changes
+
+- e958707b2: Improve performance by removing cryptographically generated id from temporary file names.
+- Updated dependencies [aa2ae8fe2]
+- Updated dependencies [250f7e9fe]
+- Updated dependencies [e958707b2]
+  - @pnpm/types@9.2.0
+  - @pnpm/cafs@7.0.5
+  - @pnpm/package-is-installable@8.0.4
+  - @pnpm/fetcher-base@14.0.2
+  - @pnpm/core-loggers@9.0.2
+  - @pnpm/dependency-path@2.1.3
+  - @pnpm/read-package-json@8.0.3
+  - @pnpm/resolver-base@10.0.2
+  - @pnpm/store-controller-types@15.0.2
+  - @pnpm/pick-fetcher@2.0.0
+
 ## 21.0.7
 
 ### Patch Changes

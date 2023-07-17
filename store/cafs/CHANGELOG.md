@@ -1,5 +1,14 @@
 # @pnpm/cafs
 
+## 7.0.5
+
+### Patch Changes
+
+- 250f7e9fe: When the same file is appended multiple times into a tarball, pick the last occurence, when unpacking the tarball.
+- e958707b2: Improve performance by removing cryptographically generated id from temporary file names.
+  - @pnpm/fetcher-base@14.0.2
+  - @pnpm/store-controller-types@15.0.2
+
 ## 7.0.4
 
 ### Patch Changes

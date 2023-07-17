@@ -1,5 +1,12 @@
 # @pnpm/read-package-json
 
+## 8.0.3
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+
 ## 8.0.2
 
 ### Patch Changes

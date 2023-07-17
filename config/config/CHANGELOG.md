@@ -1,5 +1,14 @@
 # @pnpm/config
 
+## 18.4.4
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+  - @pnpm/pnpmfile@5.0.9
+  - @pnpm/read-project-manifest@5.0.4
+
 ## 18.4.3
 
 ### Patch Changes

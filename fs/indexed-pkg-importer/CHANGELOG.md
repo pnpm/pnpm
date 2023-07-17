@@ -1,5 +1,13 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 3.0.2
+
+### Patch Changes
+
+- e958707b2: Improve performance by removing cryptographically generated id from temporary file names.
+  - @pnpm/core-loggers@9.0.2
+  - @pnpm/store-controller-types@15.0.2
+
 ## 3.0.1
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/npm-resolver
 
+## 16.0.8
+
+### Patch Changes
+
+- e958707b2: Improve performance by removing cryptographically generated id from temporary file names.
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+  - @pnpm/core-loggers@9.0.2
+  - @pnpm/resolver-base@10.0.2
+
 ## 16.0.7
 
 ### Patch Changes

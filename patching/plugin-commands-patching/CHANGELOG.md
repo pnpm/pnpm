@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-patching
 
+## 3.1.13
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.13
+- @pnpm/config@18.4.4
+- @pnpm/pick-registry-for-package@5.0.2
+- @pnpm/lockfile-file@8.1.2
+- @pnpm/lockfile-utils@8.0.3
+- @pnpm/modules-yaml@12.1.2
+- @pnpm/plugin-commands-installation@13.0.18
+- @pnpm/read-package-json@8.0.3
+- @pnpm/read-project-manifest@5.0.4
+- @pnpm/patching.apply-patch@2.0.4
+- @pnpm/store-connection-manager@6.0.18
+
 ## 3.1.12
 
 ### Patch Changes

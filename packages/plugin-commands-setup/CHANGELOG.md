@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-setup
 
+## 4.0.13
+
+### Patch Changes
+
+- 5b49c92e9: `pnpm setup` prints more details when it cannot detect the active shell.
+  - @pnpm/cli-utils@2.0.13
+
 ## 4.0.12
 
 ### Patch Changes

@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.3.0
+
+### Minor Changes
+
+- aa2ae8fe2: Support `publishConfig.registry` in `package.json` for publishing [#6775](https://github.com/pnpm/pnpm/issues/6775).
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+  - @pnpm/cli-utils@2.0.13
+  - @pnpm/config@18.4.4
+  - @pnpm/pick-registry-for-package@5.0.2
+  - @pnpm/lifecycle@15.0.5
+  - @pnpm/package-bins@8.0.2
+  - @pnpm/exportable-manifest@5.0.5
+  - @pnpm/resolver-base@10.0.2
+  - @pnpm/sort-packages@5.0.4
+  - @pnpm/client@10.0.13
+
 ## 7.2.10
 
 ### Patch Changes
