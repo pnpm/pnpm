@@ -72,7 +72,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/assert-store": "workspace:*",
-    "@pnpm/cafs": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/core": "workspace:*",
     "@pnpm/git-utils": "workspace:*",

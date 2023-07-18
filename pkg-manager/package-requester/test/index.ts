@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import { promises as fs, statSync } from 'fs'
 import path from 'path'
-import { getFilePathInCafs, type PackageFilesIndex, type PackageFileInfo } from '@pnpm/cafs'
+import { getFilePathInCafs, type PackageFilesIndex, type PackageFileInfo } from '@pnpm/store.cafs'
 import { createClient } from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
 import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'

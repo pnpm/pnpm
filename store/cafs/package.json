@@ -1,6 +1,6 @@
 {
-  "name": "@pnpm/cafs",
-  "version": "7.0.5",
+  "name": "@pnpm/store.cafs",
+  "version": "0.0.0",
   "description": "A content-addressable filesystem for the packages storage",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,7 +32,7 @@
     "tar-stream": "^2.2.0"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/concat-stream": "^2.0.0",

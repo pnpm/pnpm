@@ -15,7 +15,7 @@
     "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",

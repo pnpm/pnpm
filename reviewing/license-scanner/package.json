@@ -33,7 +33,7 @@
     "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",

@@ -4,7 +4,7 @@ import {
   type CafsLocker,
   createCafs,
   getFilePathByModeInCafs,
-} from '@pnpm/cafs'
+} from '@pnpm/store.cafs'
 import type { Cafs, PackageFilesResponse } from '@pnpm/cafs-types'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {

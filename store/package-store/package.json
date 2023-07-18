@@ -15,7 +15,7 @@
     "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/package-requester": "workspace:*",

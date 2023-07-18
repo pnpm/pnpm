@@ -4,7 +4,7 @@ import path from 'path'
 import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/create-cafs-store'
-import { getFilePathInCafs } from '@pnpm/cafs'
+import { getFilePathInCafs } from '@pnpm/store.cafs'
 import { globalWarn } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
 import {

@@ -419,7 +419,7 @@ Note that in CI environments, this setting is enabled by default.`,
                   hint: 'Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"',
                 })
             }
-            /* eslint-disable @typescript-eslint/restrict-template-expressions */
+
             throw new PnpmError('OUTDATED_LOCKFILE',
               `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up to date with ` +
               path.relative(opts.lockfileDir, path.join(rootDir, 'package.json')), {

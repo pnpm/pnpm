@@ -1,6 +1,6 @@
 import {
   type PackageFilesIndex,
-} from '@pnpm/cafs'
+} from '@pnpm/store.cafs'
 import { createCafsStore, type CafsLocker } from '@pnpm/create-cafs-store'
 import { type Fetchers } from '@pnpm/fetcher-base'
 import { createPackageRequester } from '@pnpm/package-requester'

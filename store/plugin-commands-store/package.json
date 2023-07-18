@@ -45,7 +45,7 @@
     "tempy": "^1.0.1"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",

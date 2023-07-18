@@ -1,5 +1,5 @@
 import path from 'path'
-import { getFilePathInCafs } from '@pnpm/cafs'
+import { getFilePathInCafs } from '@pnpm/store.cafs'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import exists from 'path-exists'
 

@@ -45,7 +45,7 @@
     "write-yaml-file": "^5.0.0"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
