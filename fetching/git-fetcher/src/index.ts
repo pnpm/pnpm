@@ -29,7 +29,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
         await execGit(['init'], { cwd: tempLocation })
         await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation })
         await execGit(['fetch', '--depth', '1', 'origin', resolution.commit], { cwd: tempLocation })
-      } catch (_err: any) {
+      } catch (_err: any) { // eslint-disable-line
         await rimraf(tempLocation)
         await execGit(['clone', resolution.repo, tempLocation])
       }
