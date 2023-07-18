@@ -37,17 +37,17 @@ export {
 export type CafsLocker = Map<string, number>
 
 export interface CreateCafsOpts {
-  ignore?: (filename: string) => boolean
+  ignoreFile?: (filename: string) => boolean
   cafsLocker?: CafsLocker
 }
 
-export function createCafs (cafsDir: string, { ignore, cafsLocker }: CreateCafsOpts = {}) {
+export function createCafs (cafsDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}) {
   const _writeBufferToCafs = writeBufferToCafs.bind(null, cafsLocker ?? new Map(), cafsDir)
   const addStream = addStreamToCafs.bind(null, _writeBufferToCafs)
   const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
   return {
     addFilesFromDir: addFilesFromDir.bind(null, { addBuffer, addStream }),
-    addFilesFromTarball: addFilesFromTarball.bind(null, addStream, ignore ?? null),
+    addFilesFromTarball: addFilesFromTarball.bind(null, addStream, ignoreFile ?? null),
     getFilePathInCafs: getFilePathInCafs.bind(null, cafsDir),
     getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, cafsDir),
   }
