@@ -11,7 +11,6 @@ export interface HostedPackageSpec {
     user: string
     project: string
     committish: string
-    tarball: () => string | undefined
   }
   normalizedPref: string
   gitCommittish: string | null
@@ -78,7 +77,6 @@ async function fromHostedGit (hosted: HostedGit): Promise<HostedPackageSpec> {
           hosted: {
             ...hosted,
             _fill: (hosted as any)._fill, // eslint-disable-line @typescript-eslint/no-explicit-any
-            tarball: undefined,
           } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
           normalizedPref: `git+${httpsUrl}`,
           ...setGitCommittish(hosted.committish!),
@@ -112,7 +110,6 @@ async function fromHostedGit (hosted: HostedGit): Promise<HostedPackageSpec> {
     hosted: {
       ...hosted,
       _fill: (hosted as any)._fill, // eslint-disable-line @typescript-eslint/no-explicit-any
-      tarball: hosted.tarball,
     } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     normalizedPref: hosted.auth ? fetchSpec! : hosted.shortcut(),
     ...setGitCommittish(hosted.committish!),
