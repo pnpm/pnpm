@@ -1,5 +1,11 @@
 # pnpm
 
+## 7.33.5
+
+### Patch Changes
+
+- Temporarily revert the fix to [#6805](https://github.com/pnpm/pnpm/issues/6805) to fix the regression it caused [#6827](https://github.com/pnpm/pnpm/issues/6827).
+
 ## 7.33.4
 
 ### Patch Changes
