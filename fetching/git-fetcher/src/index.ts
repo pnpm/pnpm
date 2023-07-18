@@ -1,10 +1,12 @@
 import path from 'path'
 import type { GitFetcher } from '@pnpm/fetcher-base'
+import type { GitResolution } from '@pnpm/resolver-base'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { URL } from 'url'
+import { spawnSync } from 'child_process'
 
 export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[]
@@ -25,9 +27,14 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
   const gitFetcher: GitFetcher = async (cafs, resolution, opts) => {
     const tempLocation = await cafs.tempDir()
     if (allowedHosts.size > 0 && shouldUseShallow(resolution.repo, allowedHosts)) {
-      await execGit(['init'], { cwd: tempLocation })
-      await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation })
-      await execGit(['fetch', '--depth', '1', 'origin', resolution.commit], { cwd: tempLocation })
+      try {
+        await execGit(['init'], { cwd: tempLocation })
+        await execGit(['remote', 'add', 'origin', resolution.repo], { cwd: tempLocation })
+        await execGit(['fetch', '--depth', '1', 'origin', resolution.commit], { cwd: tempLocation })
+      } catch (_err: any) {
+        await rimraf(tempLocation)
+        await execGit(['clone', resolution.repo, tempLocation])
+      }
     } else {
       await execGit(['clone', resolution.repo, tempLocation])
     }
