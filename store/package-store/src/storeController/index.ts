@@ -1,7 +1,7 @@
 import {
   type PackageFilesIndex,
 } from '@pnpm/cafs'
-import { createCafsStore } from '@pnpm/create-cafs-store'
+import { createCafsStore, type CafsLocker } from '@pnpm/create-cafs-store'
 import { type Fetchers } from '@pnpm/fetcher-base'
 import { createPackageRequester } from '@pnpm/package-requester'
 import { type ResolveFunction } from '@pnpm/resolver-base'
@@ -14,10 +14,13 @@ import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import { prune } from './prune'
 
+export { type CafsLocker }
+
 export async function createPackageStore (
   resolve: ResolveFunction,
   fetchers: Fetchers,
   initOpts: {
+    cafsLocker?: CafsLocker
     engineStrict?: boolean
     force?: boolean
     nodeVersion?: string
