@@ -96,7 +96,7 @@ async function fromHostedGit (hosted: HostedGit): Promise<HostedPackageSpec> {
           // npm instead tries git ls-remote directly which prompts user for login credentials.
 
           // HTTP HEAD on https://domain/user/repo, strip out ".git"
-          const response = await fetch(httpsUrl.slice(0, -4), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
+          const response = await fetch(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
           if (response.ok) {
             fetchSpec = httpsUrl
           }
