@@ -64,9 +64,14 @@ function urlToFetchSpec (urlparse: URL) {
 async function fromHostedGit (hosted: HostedGit): Promise<HostedPackageSpec> {
   let fetchSpec: string | null = null
   // try git/https url before fallback to ssh url
-  const gitUrl = hosted.https({ noCommittish: true, noGitPlus: true }) ?? hosted.ssh({ noCommittish: true })
-  if (gitUrl && await accessRepository(gitUrl)) {
-    fetchSpec = gitUrl
+  const gitHttpsUrl = hosted.https({ noCommittish: true, noGitPlus: true })
+  if (gitHttpsUrl && await isRepoPublic(gitHttpsUrl) && await accessRepository(gitHttpsUrl)) {
+    fetchSpec = gitHttpsUrl
+  } else {
+    const gitSshUrl = hosted.ssh({ noCommittish: true })
+    if (gitSshUrl && await accessRepository(gitSshUrl)) {
+      fetchSpec = gitSshUrl
+    }
   }
 
   if (!fetchSpec) {
@@ -116,6 +121,15 @@ async function fromHostedGit (hosted: HostedGit): Promise<HostedPackageSpec> {
     } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     normalizedPref: hosted.auth ? fetchSpec! : hosted.shortcut(),
     ...setGitCommittish(hosted.committish!),
+  }
+}
+
+async function isRepoPublic(httpsUrl: string) {
+  try {
+    const response = await fetch(httpsUrl, { method: 'HEAD', follow: 0, retry: { retries: 0 } })
+    return response.ok
+  } catch (_err) {
+    return false
   }
 }
 
