@@ -9,6 +9,7 @@ import * as retry from '@zkochan/retry'
 import throttle from 'lodash.throttle'
 import ssri from 'ssri'
 import { Readable } from 'stream'
+import { BadTarballError } from './errorTypes'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
@@ -172,6 +173,15 @@ export function createDownloader (
             await once(res.body!, 'end')
           } catch (err) {
             reject(err)
+          }
+          if (size !== null && size !== downloaded) {
+            const err = new BadTarballError({
+              expectedSize: size,
+              receivedSize: downloaded,
+              tarballUrl: url,
+            })
+            reject(err)
+            return
           }
           const data: Buffer = Buffer.from(new ArrayBuffer(downloaded))
           let offset: number = 0
