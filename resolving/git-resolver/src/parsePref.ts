@@ -126,7 +126,7 @@ async function fromHostedGit (hosted: HostedGit): Promise<HostedPackageSpec> {
 
 async function isRepoPublic(httpsUrl: string) {
   try {
-    const response = await fetch(httpsUrl, { method: 'HEAD', follow: 0, retry: { retries: 0 } })
+    const response = await fetch(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
     return response.ok
   } catch (_err) {
     return false
