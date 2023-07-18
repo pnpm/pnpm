@@ -1512,9 +1512,6 @@ importers:
       '@pnpm/prepare-package':
         specifier: workspace:*
         version: link:../../exec/prepare-package
-      '@pnpm/resolver-base':
-        specifier: workspace:*
-        version: link:../../resolving/resolver-base
       '@zkochan/rimraf':
         specifier: ^2.1.2
         version: 2.1.2

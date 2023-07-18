@@ -1,12 +1,10 @@
 import path from 'path'
 import type { GitFetcher } from '@pnpm/fetcher-base'
-import type { GitResolution } from '@pnpm/resolver-base'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { URL } from 'url'
-import { spawnSync } from 'child_process'
 
 export interface CreateGitFetcherOptions {
   gitShallowHosts?: string[]
