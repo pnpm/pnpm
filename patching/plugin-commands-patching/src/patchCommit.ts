@@ -5,7 +5,6 @@ import { type Config, types as allTypes } from '@pnpm/config'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
-import { logger } from '@pnpm/logger'
 import glob from 'fast-glob'
 import normalizePath from 'normalize-path'
 import pick from 'ramda/src/pick'
@@ -58,11 +57,7 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
   const patchContent = await diffFolders(srcDir, patchedPkgDir)
 
   if (!patchContent.length) {
-    logger.warn({
-      message: `No changes were found to the following folder: ${userDir}`,
-      prefix: lockfileDir,
-    })
-    return
+    return `No changes were found to the following folder: ${userDir}`
   }
 
   const patchFileName = pkgNameAndVersion.replace('/', '__')
