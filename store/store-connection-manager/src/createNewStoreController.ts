@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import { createClient, type ClientOptions } from '@pnpm/client'
 import { type Config } from '@pnpm/config'
-import { createPackageStore } from '@pnpm/package-store'
+import { createPackageStore, type CafsLocker } from '@pnpm/package-store'
 import { packageManager } from '@pnpm/cli-meta'
 
 type CreateResolverOptions = Pick<Config,
@@ -42,6 +42,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'userAgent'
 | 'verifyStoreIntegrity'
 > & {
+  cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean
 } & Partial<Pick<Config, 'userConfig' | 'deployAllFiles'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
 
@@ -89,6 +90,7 @@ export async function createNewStoreController (
   await fs.mkdir(opts.storeDir, { recursive: true })
   return {
     ctrl: await createPackageStore(resolve, fetchers, {
+      cafsLocker: opts.cafsLocker,
       engineStrict: opts.engineStrict,
       force: opts.force,
       nodeVersion: opts.nodeVersion,

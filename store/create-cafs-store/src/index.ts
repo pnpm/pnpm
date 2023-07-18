@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import {
+  type CafsLocker,
   createCafs,
   getFilePathByModeInCafs,
 } from '@pnpm/cafs'
@@ -14,6 +15,8 @@ import {
 import memoize from 'mem'
 import pathTemp from 'path-temp'
 import mapValues from 'ramda/src/map'
+
+export { type CafsLocker }
 
 function createPackageImporter (
   opts: {
@@ -73,6 +76,7 @@ export function createCafsStore (
     ignoreFile?: (filename: string) => boolean
     importPackage?: ImportIndexedPackage
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+    cafsLocker?: CafsLocker
   }
 ): Cafs {
   const cafsDir = path.join(storeDir, 'files')
@@ -83,7 +87,7 @@ export function createCafsStore (
     cafsDir,
   })
   return {
-    ...createCafs(cafsDir, opts?.ignoreFile),
+    ...createCafs(cafsDir, opts),
     cafsDir,
     importPackage,
     tempDir: async () => {
