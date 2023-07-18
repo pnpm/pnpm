@@ -192,19 +192,24 @@ export function createDownloader (
 
           try {
             if (opts.integrity) {
-              const integrityCheckResult = safeCheckStream(data, opts.integrity)
-              if (integrityCheckResult !== true) {
-                throw integrityCheckResult
+              try {
+                ssri.checkData(data, opts.integrity, { error: true })
+              } catch (err: any) { // eslint-disable-line
+                throw new TarballIntegrityError({
+                  algorithm: err.algorithm,
+                  expected: err.expected,
+                  found: err.found,
+                  sri: err.sri,
+                  url,
+                })
               }
             }
-
             const streamForTarball = new Readable({
               read () {
                 this.push(data)
                 this.push(null)
               },
             })
-
             const filesIndex = await opts.cafs.addFilesFromTarball(streamForTarball, opts.manifest)
             resolve({ filesIndex })
           } catch (err: any) { // eslint-disable-line
@@ -227,11 +232,4 @@ export function createDownloader (
       }
     }
   }
-}
-
-function safeCheckStream (data: Buffer, integrity: string): true | Error {
-  if (!ssri.checkData(data, integrity)) {
-    return new Error()
-  }
-  return true
 }
