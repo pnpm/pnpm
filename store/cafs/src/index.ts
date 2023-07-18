@@ -24,6 +24,8 @@ import { writeFile } from './writeFile'
 
 export type { IntegrityLike } from 'ssri'
 
+const locker = new Map()
+
 export {
   checkPkgFilesIntegrity,
   readManifestFromStore,
@@ -35,7 +37,6 @@ export {
 }
 
 export function createCafs (cafsDir: string, ignore?: ((filename: string) => boolean)) {
-  const locker = new Map()
   const _writeBufferToCafs = writeBufferToCafs.bind(null, locker, cafsDir)
   const addStream = addStreamToCafs.bind(null, _writeBufferToCafs)
   const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
