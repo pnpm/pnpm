@@ -1,3 +1,4 @@
+import { once } from 'events'
 import { type IncomingMessage } from 'http'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError, PnpmError } from '@pnpm/error'
@@ -167,11 +168,11 @@ export function createDownloader (
 
         // eslint-disable-next-line no-async-promise-executor
         return await new Promise<FetchResult>(async (resolve, reject) => {
-          res.body!
-            .on('error', reject)
-          await new Promise<void>((resolve) => res.body!.on('end', () => {
-            resolve()
-          }))
+          try {
+            await once(res.body!, 'end')
+          } catch (err) {
+            reject(err)
+          }
           const data: Buffer = Buffer.from(new ArrayBuffer(downloaded))
           let offset: number = 0
           for (const chunk of chunks) {
