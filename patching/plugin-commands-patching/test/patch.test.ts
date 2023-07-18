@@ -12,6 +12,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { DEFAULT_OPTS } from './utils/index'
 import { fixtures } from '@pnpm/test-fixtures'
 import * as enquirer from 'enquirer'
+import { logger } from '@pnpm/logger'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
@@ -308,6 +309,23 @@ describe('patch and commit', () => {
     expect(patchDir).toContain(tempDir)
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('1.0.0')
+  })
+
+  test('should skip empty patch content', async () => {
+    jest.spyOn(logger, 'warn')
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+    expect(logger.warn).toHaveBeenNthCalledWith(1, { prefix: process.cwd(), message: `No changes were found to the following folder: ${patchDir}` })
+    expect(fs.existsSync('patches/is-positive@1.0.0.patch')).toBe(false)
+    ;(logger.warn as jest.Mock).mockRestore()
   })
 })
 
