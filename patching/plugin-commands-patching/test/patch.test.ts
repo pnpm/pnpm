@@ -309,6 +309,21 @@ describe('patch and commit', () => {
     expect(fs.existsSync(patchDir)).toBe(true)
     expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('1.0.0')
   })
+
+  test('should skip empty patch content', async () => {
+    const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+    const result = await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      dir: process.cwd(),
+      frozenLockfile: false,
+      fixLockfile: true,
+      storeDir,
+    }, [patchDir])
+    expect(result).toBe(`No changes were found to the following directory: ${patchDir}`)
+    expect(fs.existsSync('patches/is-positive@1.0.0.patch')).toBe(false)
+  })
 })
 
 describe('prompt to choose version', () => {

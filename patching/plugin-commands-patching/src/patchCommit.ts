@@ -56,6 +56,10 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
   const patchedPkgDir = await preparePkgFilesForDiff(userDir)
   const patchContent = await diffFolders(srcDir, patchedPkgDir)
 
+  if (!patchContent.length) {
+    return `No changes were found to the following directory: ${userDir}`
+  }
+
   const patchFileName = pkgNameAndVersion.replace('/', '__')
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')
   const { writeProjectManifest, manifest } = await tryReadProjectManifest(lockfileDir)
