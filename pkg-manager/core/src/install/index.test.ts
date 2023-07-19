@@ -1,4 +1,4 @@
-import { sortObjectKeys, createObjectChecksum } from './index'
+import { createObjectChecksum } from './index'
 
 function assets () {
   const sorted = {
@@ -51,25 +51,6 @@ function assets () {
 
   return { sorted, unsorted1, unsorted2, unsorted3 } as const
 }
-
-test('sortObjectKeys', () => {
-  const { sorted, unsorted1, unsorted2, unsorted3 } = assets()
-
-  function assert (unsorted: unknown): void {
-    console.log(sortObjectKeys(unsorted))
-    console.log(sorted)
-    expect(
-      JSON.stringify(sortObjectKeys(unsorted), undefined, 2)
-    ).toBe(
-      JSON.stringify(sorted, undefined, 2)
-    )
-  }
-
-  assert(sorted)
-  assert(unsorted1)
-  assert(unsorted2)
-  assert(unsorted3)
-})
 
 test('createObjectChecksum', () => {
   const { sorted, unsorted1, unsorted2, unsorted3 } = assets()
