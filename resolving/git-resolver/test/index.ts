@@ -7,6 +7,16 @@ import { fetch } from '@pnpm/fetch'
 
 const resolveFromGit = createGitResolver({})
 
+function mockFetchAsPrivate (expectedUrl?: string, expectedOpts?: unknown): void {
+  type Fetch = typeof fetch
+  type MockedFetch = jest.MockedFunction<Fetch>
+  (fetch as MockedFetch).mockImplementation(async (url, opts) => {
+    if (expectedUrl) expect(url).toBe(expectedUrl)
+    if (expectedOpts) expect(opts).toStrictEqual(expectedOpts)
+    return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+  })
+}
+
 test('resolveFromGit() with commit', async () => {
   const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99' })
   expect(resolveResult).toStrictEqual({
@@ -387,6 +397,7 @@ test('resolveFromGit() normalizes full url (alternative form 2)', async () => {
 // This test relies on implementation detail.
 // current implementation does not try git ls-remote --refs on pref with full commit hash, this fake repo url will pass.
 test('resolveFromGit() private repo with commit hash', async () => {
+  mockFetchAsPrivate()
   const resolveResult = await resolveFromGit({ pref: 'fake/private-repo#2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5' })
   expect(resolveResult).toStrictEqual({
     id: 'github.com/fake/private-repo/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
@@ -443,6 +454,7 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/master\
     }
     return { stdout: '0000000000000000000000000000000000000000\tHEAD' }
   })
+  mockFetchAsPrivate()
   const resolveResult = await resolveFromGit({ pref: 'git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git' })
   expect(resolveResult).toStrictEqual({
     id: '0000000000000000000000000000000000000000+x-oauth-basic@github.com/foo/bar/0000000000000000000000000000000000000000',
