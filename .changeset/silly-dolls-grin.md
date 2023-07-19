@@ -1,5 +1,6 @@
 ---
+"pnpm": patch
 "@pnpm/git-resolver": patch
 ---
 
-Fix a regression in which pnpm attempted to fetch tarball from codeload.github.com for even private git repo, causing failures [#6827](https://github.com/pnpm/pnpm/issues/6827)
+Pass the right scheme to `git ls-remote` in order to prevent a fallback to `git+ssh` that would result in a 'host key verification failed' issue [#6806](https://github.com/pnpm/pnpm/issues/6806)
