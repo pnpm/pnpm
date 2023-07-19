@@ -64,9 +64,14 @@ function urlToFetchSpec (urlparse: URL) {
 async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // eslint-disable-line
   let fetchSpec: string | null = null
   // try git/https url before fallback to ssh url
-  const gitUrl = hosted.https({ noCommittish: true }) ?? hosted.ssh({ noCommittish: true })
-  if (gitUrl && await accessRepository(gitUrl)) {
-    fetchSpec = gitUrl
+  const gitHttpsUrl = hosted.https({ noCommittish: true, noGitPlus: true })
+  if (gitHttpsUrl && await isRepoPublic(gitHttpsUrl) && await accessRepository(gitHttpsUrl)) {
+    fetchSpec = gitHttpsUrl
+  } else {
+    const gitSshUrl = hosted.ssh({ noCommittish: true })
+    if (gitSshUrl && await accessRepository(gitSshUrl)) {
+      fetchSpec = gitSshUrl
+    }
   }
 
   if (!fetchSpec) {
@@ -91,7 +96,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
           // npm instead tries git ls-remote directly which prompts user for login credentials.
 
           // HTTP HEAD on https://domain/user/repo, strip out ".git"
-          const response = await fetch(httpsUrl.slice(0, -4), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
+          const response = await fetch(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
           if (response.ok) {
             fetchSpec = httpsUrl
           }
@@ -116,6 +121,15 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
     },
     normalizedPref: hosted.shortcut(),
     ...setGitCommittish(hosted.committish),
+  }
+}
+
+async function isRepoPublic (httpsUrl: string) {
+  try {
+    const response = await fetch(httpsUrl.replace(/\.git$/, ''), { method: 'HEAD', follow: 0, retry: { retries: 0 } })
+    return response.ok
+  } catch (_err) {
+    return false
   }
 }
 

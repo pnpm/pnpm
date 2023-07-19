@@ -3,8 +3,17 @@ import path from 'path'
 import { createGitResolver } from '@pnpm/git-resolver'
 import git from 'graceful-git'
 import isWindows from 'is-windows'
+import { fetch } from '@pnpm/fetch'
 
 const resolveFromGit = createGitResolver({})
+
+function mockFetchAsPrivate (): void {
+  type Fetch = typeof fetch
+  type MockedFetch = jest.MockedFunction<Fetch>
+  (fetch as MockedFetch).mockImplementation(async (_url, _opts) => {
+    return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+  })
+}
 
 test('resolveFromGit() with commit', async () => {
   const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99' })
@@ -386,6 +395,7 @@ test('resolveFromGit() normalizes full url (alternative form 2)', async () => {
 // This test relies on implementation detail.
 // current implementation does not try git ls-remote --refs on pref with full commit hash, this fake repo url will pass.
 test('resolveFromGit() private repo with commit hash', async () => {
+  mockFetchAsPrivate()
   const resolveResult = await resolveFromGit({ pref: 'fake/private-repo#2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5' })
   expect(resolveResult).toStrictEqual({
     id: 'github.com/fake/private-repo/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
@@ -393,6 +403,32 @@ test('resolveFromGit() private repo with commit hash', async () => {
     resolution: {
       commit: '2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
       repo: 'git+ssh://git@github.com/fake/private-repo.git',
+      type: 'git',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
+test('resolve a private repository using the HTTPS protocol without auth token', async () => {
+  git.mockImplementation(async (args: string[]) => {
+    expect(args).toContain('git+ssh://git@github.com/foo/bar.git')
+    if (args.includes('--refs')) {
+      return {
+        stdout: `\n${'a'.repeat(40)}\trefs/heads/master\n`,
+      }
+    }
+    return {
+      stdout: '0'.repeat(40) + '\tHEAD',
+    }
+  })
+  mockFetchAsPrivate()
+  const resolveResult = await resolveFromGit({ pref: 'git+https://github.com/foo/bar.git' })
+  expect(resolveResult).toStrictEqual({
+    id: 'github.com/foo/bar/0000000000000000000000000000000000000000',
+    normalizedPref: 'github:foo/bar',
+    resolution: {
+      commit: '0000000000000000000000000000000000000000',
+      repo: 'git+ssh://git@github.com/foo/bar.git',
       type: 'git',
     },
     resolvedVia: 'git-repository',
@@ -411,6 +447,7 @@ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/master\
     }
     return { stdout: '0000000000000000000000000000000000000000\tHEAD' }
   })
+  mockFetchAsPrivate()
   const resolveResult = await resolveFromGit({ pref: 'git+https://0000000000000000000000000000000000000000:x-oauth-basic@github.com/foo/bar.git' })
   expect(resolveResult).toStrictEqual({
     id: '0000000000000000000000000000000000000000+x-oauth-basic@github.com/foo/bar/0000000000000000000000000000000000000000',
