@@ -46,7 +46,7 @@
     "ssri": "10.0.4"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/fetch": "workspace:*",

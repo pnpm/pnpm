@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import fs from 'fs'
 import path from 'path'
-import { getFilePathInCafs } from '@pnpm/cafs'
+import { getFilePathInCafs } from '@pnpm/store.cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { prepare } from '@pnpm/prepare'

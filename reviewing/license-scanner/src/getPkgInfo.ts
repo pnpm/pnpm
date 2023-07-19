@@ -10,7 +10,7 @@ import {
   getFilePathInCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
-} from '@pnpm/cafs'
+} from '@pnpm/store.cafs'
 import loadJsonFile from 'load-json-file'
 import { PnpmError } from '@pnpm/error'
 import { type LicensePackage } from './licenses'

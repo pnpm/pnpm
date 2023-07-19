@@ -2,7 +2,7 @@
 import { promises as fs, existsSync, realpathSync, writeFileSync } from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
-import { getFilePathInCafs } from '@pnpm/cafs'
+import { getFilePathInCafs } from '@pnpm/store.cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   type PackageManifestLog,

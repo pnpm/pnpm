@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "16.0.8",
+  "version": "16.0.9",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -15,7 +15,7 @@
     "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/package-requester": "workspace:*",

@@ -39,7 +39,7 @@
     "execa": "npm:safe-execa@0.1.2"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/git-fetcher": "workspace:*",
     "@pnpm/types": "workspace:*",

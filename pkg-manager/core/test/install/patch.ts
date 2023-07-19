@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { type PackageFilesIndex } from '@pnpm/cafs'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { ENGINE_NAME } from '@pnpm/constants'
 import { install } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'

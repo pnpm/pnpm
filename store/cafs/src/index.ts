@@ -34,14 +34,20 @@ export {
   type PackageFilesIndex,
 }
 
-export function createCafs (cafsDir: string, ignore?: ((filename: string) => boolean)) {
-  const locker = new Map()
-  const _writeBufferToCafs = writeBufferToCafs.bind(null, locker, cafsDir)
+export type CafsLocker = Map<string, number>
+
+export interface CreateCafsOpts {
+  ignoreFile?: (filename: string) => boolean
+  cafsLocker?: CafsLocker
+}
+
+export function createCafs (cafsDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}) {
+  const _writeBufferToCafs = writeBufferToCafs.bind(null, cafsLocker ?? new Map(), cafsDir)
   const addStream = addStreamToCafs.bind(null, _writeBufferToCafs)
   const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
   return {
     addFilesFromDir: addFilesFromDir.bind(null, { addBuffer, addStream }),
-    addFilesFromTarball: addFilesFromTarball.bind(null, addStream, ignore ?? null),
+    addFilesFromTarball: addFilesFromTarball.bind(null, addStream, ignoreFile ?? null),
     getFilePathInCafs: getFilePathInCafs.bind(null, cafsDir),
     getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, cafsDir),
   }

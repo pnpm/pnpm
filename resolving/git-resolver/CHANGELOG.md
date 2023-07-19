@@ -1,5 +1,11 @@
 # @pnpm/git-resolver
 
+## 8.0.5
+
+### Patch Changes
+
+- de9b6c20d: Temporarily revert the fix to [#6805](https://github.com/pnpm/pnpm/issues/6805) to fix the regression it caused [#6827](https://github.com/pnpm/pnpm/issues/6827).
+
 ## 8.0.4
 
 ### Patch Changes

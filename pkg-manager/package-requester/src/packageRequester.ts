@@ -8,7 +8,7 @@ import {
   getFilePathInCafs as _getFilePathInCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
-} from '@pnpm/cafs'
+} from '@pnpm/store.cafs'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { PnpmError } from '@pnpm/error'

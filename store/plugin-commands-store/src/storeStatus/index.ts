@@ -1,5 +1,5 @@
 import path from 'path'
-import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/cafs'
+import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import {
   nameVerFromPkgSnapshot,

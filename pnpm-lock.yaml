@@ -257,12 +257,12 @@ importers:
 
   __utils__/assert-store:
     dependencies:
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
       '@pnpm/registry-mock':
         specifier: 3.10.2
         version: 3.10.2(typanion@3.13.0)
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -1149,9 +1149,6 @@ importers:
 
   exec/plugin-commands-rebuild:
     dependencies:
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
@@ -1221,6 +1218,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1519,15 +1519,15 @@ importers:
         specifier: npm:safe-execa@0.1.2
         version: /safe-execa@0.1.2
     devDependencies:
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
       '@pnpm/git-fetcher':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -1586,9 +1586,6 @@ importers:
         specifier: 10.0.4
         version: 10.0.4
     devDependencies:
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
       '@pnpm/cafs-types':
         specifier: workspace:*
         version: link:../../store/cafs-types
@@ -1598,6 +1595,9 @@ importers:
       '@pnpm/fetch':
         specifier: workspace:*
         version: link:../../network/fetch
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/tarball-fetcher':
         specifier: workspace:*
         version: 'link:'
@@ -2289,9 +2289,6 @@ importers:
 
   modules-mounter/daemon:
     dependencies:
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
@@ -2310,6 +2307,9 @@ importers:
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -3010,9 +3010,6 @@ importers:
       '@pnpm/assert-store':
         specifier: workspace:*
         version: link:../../__utils__/assert-store
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
       '@pnpm/client':
         specifier: workspace:*
         version: link:../client
@@ -3037,6 +3034,9 @@ importers:
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -3283,9 +3283,6 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
       '@pnpm/client':
         specifier: workspace:*
         version: link:../client
@@ -3307,6 +3304,9 @@ importers:
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -3576,9 +3576,6 @@ importers:
 
   pkg-manager/package-requester:
     dependencies:
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
@@ -3612,6 +3609,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5065,9 +5065,6 @@ importers:
 
   reviewing/license-scanner:
     dependencies:
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: link:../../store/cafs
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
@@ -5098,6 +5095,9 @@ importers:
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../../store/cafs
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5513,12 +5513,12 @@ importers:
         specifier: ^2.2.0
         version: 2.2.0
     devDependencies:
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: 'link:'
       '@pnpm/cafs-types':
         specifier: workspace:*
         version: link:../cafs-types
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: 'link:'
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5558,9 +5558,6 @@ importers:
 
   store/create-cafs-store:
     dependencies:
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: link:../cafs
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -5573,6 +5570,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../cafs
       mem:
         specifier: ^8.1.1
         version: 8.1.1
@@ -5598,9 +5598,6 @@ importers:
 
   store/package-store:
     dependencies:
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: link:../cafs
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../create-cafs-store
@@ -5619,6 +5616,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../store-controller-types
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../cafs
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -5729,9 +5729,6 @@ importers:
 
   store/plugin-commands-store:
     dependencies:
-      '@pnpm/cafs':
-        specifier: workspace:*
-        version: link:../cafs
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
@@ -5771,6 +5768,9 @@ importers:
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
+      '@pnpm/store.cafs':
+        specifier: workspace:*
+        version: link:../cafs
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
