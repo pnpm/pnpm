@@ -78,6 +78,9 @@ function getChangelogEntry (changelog: string, version: string) {
   <tbody>
     <tr>
       <td align="center" valign="middle">
+        <a href="https://bit.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80"></a>
+      </td>
+      <td align="center" valign="middle">
         <a href="https://novu.co/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/novu.svg" />
@@ -86,6 +89,8 @@ function getChangelogEntry (changelog: string, version: string) {
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://prisma.io/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
