@@ -1,7 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
-import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/core'
-import { type PackageExtension } from '@pnpm/types'
+import { addDependenciesToPackage, mutateModulesInSingleProject, install } from '@pnpm/core'
+import { type PackageExtension, type ProjectManifest } from '@pnpm/types'
 import { createObjectChecksum } from '../../lib/install/index'
 import {
   testDefaults,
@@ -92,6 +92,58 @@ test('manifests are extended with fields specified by packageExtensions', async 
       'Cannot proceed with the frozen installation. The current "packageExtensionsChecksum" configuration doesn\'t match the value found in the lockfile'
     )
   )
+})
+
+test('packageExtensionsChecksum does not change regardless of keys order', async () => {
+  const project = prepareEmpty()
+
+  const packageExtensions1: Record<string, PackageExtension> = {
+    'is-odd': {
+      peerDependencies: {
+        'is-number': '*',
+      },
+    },
+    'is-even': {
+      peerDependencies: {
+        'is-number': '*',
+      },
+    },
+  }
+
+  const packageExtensions2: Record<string, PackageExtension> = {
+    'is-even': {
+      peerDependencies: {
+        'is-number': '*',
+      },
+    },
+    'is-odd': {
+      peerDependencies: {
+        'is-number': '*',
+      },
+    },
+  }
+
+  const manifest = (): ProjectManifest => ({
+    dependencies: {
+      'is-even': '*',
+      'is-odd': '*',
+    },
+  })
+
+  await install(manifest(), await testDefaults({
+    packageExtensions: packageExtensions1,
+  }))
+  const lockfile1 = await project.readLockfile()
+  const checksum1 = lockfile1.packageExtensionsChecksum
+
+  await install(manifest(), await testDefaults({
+    packageExtensions: packageExtensions2,
+  }))
+  const lockfile2 = await project.readLockfile()
+  const checksum2 = lockfile2.packageExtensionsChecksum
+
+  expect(checksum1).toBe(checksum2)
+  expect(checksum1).not.toBeFalsy()
 })
 
 test('manifests are patched by extensions from the compatibility database', async () => {

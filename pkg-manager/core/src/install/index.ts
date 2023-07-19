@@ -72,6 +72,7 @@ import pickBy from 'ramda/src/pickBy'
 import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
 import unnest from 'ramda/src/unnest'
+import sortKeys from 'sort-keys'
 import { parseWantedDependencies } from '../parseWantedDependencies'
 import { removeDeps } from '../uninstall/removeDeps'
 import { allProjectsAreUpToDate } from './allProjectsAreUpToDate'
@@ -749,8 +750,8 @@ function getOutdatedLockfileSetting (
   return null
 }
 
-export function createObjectChecksum (obj: unknown) {
-  const s = JSON.stringify(obj)
+export function createObjectChecksum (obj: Record<string, unknown>) {
+  const s = JSON.stringify(sortKeys(obj, { deep: true }))
   return crypto.createHash('md5').update(s).digest('hex')
 }
 
