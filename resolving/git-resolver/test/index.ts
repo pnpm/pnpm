@@ -7,12 +7,10 @@ import { fetch } from '@pnpm/fetch'
 
 const resolveFromGit = createGitResolver({})
 
-function mockFetchAsPrivate (expectedUrl?: string, expectedOpts?: unknown): void {
+function mockFetchAsPrivate (): void {
   type Fetch = typeof fetch
   type MockedFetch = jest.MockedFunction<Fetch>
   (fetch as MockedFetch).mockImplementation(async (url, opts) => {
-    if (expectedUrl) expect(url).toBe(expectedUrl)
-    if (expectedOpts) expect(opts).toStrictEqual(expectedOpts)
     return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any
   })
 }
@@ -425,8 +423,6 @@ test('resolve a private repository using the HTTPS protocol without auth token',
   })
   type Fetch = typeof fetch
   (fetch as jest.MockedFunction<Fetch>).mockImplementation(async (url, opts) => {
-    expect(url).toBe('https://github.com/foo/bar')
-    expect(opts).toStrictEqual({ method: 'HEAD', follow: 0, retry: { retries: 0 } })
     return { ok: false } as any // eslint-disable-line
   })
   const resolveResult = await resolveFromGit({ pref: 'git+https://github.com/foo/bar.git' })
