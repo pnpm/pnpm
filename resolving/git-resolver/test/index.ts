@@ -10,7 +10,7 @@ const resolveFromGit = createGitResolver({})
 function mockFetchAsPrivate (): void {
   type Fetch = typeof fetch
   type MockedFetch = jest.MockedFunction<Fetch>
-  (fetch as MockedFetch).mockImplementation(async (url, opts) => {
+  (fetch as MockedFetch).mockImplementation(async (_url, _opts) => {
     return { ok: false } as any // eslint-disable-line @typescript-eslint/no-explicit-any
   })
 }
