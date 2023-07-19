@@ -321,7 +321,7 @@ describe('patch and commit', () => {
       fixLockfile: true,
       storeDir,
     }, [patchDir])
-    expect(result).toBe(`No changes were found to the following folder: ${patchDir}`)
+    expect(result).toBe(`No changes were found to the following directory: ${patchDir}`)
     expect(fs.existsSync('patches/is-positive@1.0.0.patch')).toBe(false)
   })
 })

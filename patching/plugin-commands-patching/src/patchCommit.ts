@@ -57,7 +57,7 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
   const patchContent = await diffFolders(srcDir, patchedPkgDir)
 
   if (!patchContent.length) {
-    return `No changes were found to the following folder: ${userDir}`
+    return `No changes were found to the following directory: ${userDir}`
   }
 
   const patchFileName = pkgNameAndVersion.replace('/', '__')
