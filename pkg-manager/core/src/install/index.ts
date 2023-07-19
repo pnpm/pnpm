@@ -318,7 +318,14 @@ export async function mutateModules (
         }
       )
     }
-    const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : createObjectChecksum(opts.packageExtensions!)
+    const packageExtensions = opts.packageExtensions ?? {}
+    let packageExtensionsChecksum: string | undefined
+    if (!isEmpty(packageExtensions)) {
+      const entries = Object.entries(packageExtensions)
+      entries.sort(([k1, _v1], [k2, _v2]) => k1.localeCompare(k2, 'en'))
+      const reorderedPackageExtensions = Object.fromEntries(entries)
+      packageExtensionsChecksum = createObjectChecksum(reorderedPackageExtensions)
+    }
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
       : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies, opts.lockfileDir) : {})
