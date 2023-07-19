@@ -3,6 +3,7 @@ import path from 'path'
 import { createGitResolver } from '@pnpm/git-resolver'
 import git from 'graceful-git'
 import isWindows from 'is-windows'
+import { fetch } from '@pnpm/fetch'
 
 const resolveFromGit = createGitResolver({})
 
@@ -393,6 +394,37 @@ test('resolveFromGit() private repo with commit hash', async () => {
     resolution: {
       commit: '2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
       repo: 'git+ssh://git@github.com/fake/private-repo.git',
+      type: 'git',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
+test('resolve a private repository using the HTTPS protocol without auth token', async () => {
+  git.mockImplementation(async (args: string[]) => {
+    expect(args).toContain('git+ssh://git@github.com/foo/bar.git')
+    if (args.includes('--refs')) {
+      return {
+        stdout: `\n${'a'.repeat(40)}\trefs/heads/master\n`,
+      }
+    }
+    return {
+      stdout: '0'.repeat(40) + '\tHEAD',
+    }
+  })
+  type Fetch = typeof fetch
+  (fetch as jest.MockedFunction<Fetch>).mockImplementation(async (url, opts) => {
+    expect(url).toBe('https://github.com/foo/bar')
+    expect(opts).toStrictEqual({ method: 'HEAD', follow: 0, retry: { retries: 0 } })
+    return { ok: false } as any // eslint-disable-line
+  })
+  const resolveResult = await resolveFromGit({ pref: 'git+https://github.com/foo/bar.git' })
+  expect(resolveResult).toStrictEqual({
+    id: 'github.com/foo/bar/0000000000000000000000000000000000000000',
+    normalizedPref: 'github:foo/bar',
+    resolution: {
+      commit: '0000000000000000000000000000000000000000',
+      repo: 'git+ssh://git@github.com/foo/bar.git',
       type: 'git',
     },
     resolvedVia: 'git-repository',
