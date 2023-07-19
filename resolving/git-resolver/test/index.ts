@@ -421,10 +421,7 @@ test('resolve a private repository using the HTTPS protocol without auth token',
       stdout: '0'.repeat(40) + '\tHEAD',
     }
   })
-  type Fetch = typeof fetch
-  (fetch as jest.MockedFunction<Fetch>).mockImplementation(async (url, opts) => {
-    return { ok: false } as any // eslint-disable-line
-  })
+  mockFetchAsPrivate()
   const resolveResult = await resolveFromGit({ pref: 'git+https://github.com/foo/bar.git' })
   expect(resolveResult).toStrictEqual({
     id: 'github.com/foo/bar/0000000000000000000000000000000000000000',
