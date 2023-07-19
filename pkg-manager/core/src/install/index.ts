@@ -318,14 +318,7 @@ export async function mutateModules (
         }
       )
     }
-    const packageExtensions = opts.packageExtensions ?? {}
-    let packageExtensionsChecksum: string | undefined
-    if (!isEmpty(packageExtensions)) {
-      const entries = Object.entries(packageExtensions)
-      entries.sort(([k1, _v1], [k2, _v2]) => k1.localeCompare(k2, 'en'))
-      const reorderedPackageExtensions = Object.fromEntries(entries)
-      packageExtensionsChecksum = createObjectChecksum(reorderedPackageExtensions)
-    }
+    const packageExtensionsChecksum = isEmpty(opts.packageExtensions ?? {}) ? undefined : createObjectChecksum(opts.packageExtensions!)
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
       : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies, opts.lockfileDir) : {})
@@ -756,8 +749,17 @@ function getOutdatedLockfileSetting (
   return null
 }
 
+export function sortObjectKeys<Obj> (obj: Obj): Obj {
+  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) return obj
+  const entries = Object
+    .entries(obj)
+    .sort(([k1, _v1], [k2, _v2]) => k1.localeCompare(k2, 'en'))
+    .map(([k, v]) => [k, sortObjectKeys(v)])
+  return Object.fromEntries(entries) as Obj
+}
+
 export function createObjectChecksum (obj: unknown) {
-  const s = JSON.stringify(obj)
+  const s = JSON.stringify(sortObjectKeys(obj))
   return crypto.createHash('md5').update(s).digest('hex')
 }
 
