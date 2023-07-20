@@ -114,7 +114,7 @@ async function writeBufferToCafs (
     //
     // If we don't allow --no-verify-store-integrity then we probably can write
     // to the final file directly.
-    const temp = pathTemp(fileDest)
+    const temp = pathTemp(removeSuffix(fileDest))
     await writeFile(temp, buffer, mode)
     // Unfortunately, "birth time" (time of file creation) is available not on all filesystems.
     // We log the creation time ourselves and save it in the package index file.
@@ -125,6 +125,12 @@ async function writeBufferToCafs (
   })()
   locker.set(fileDest, p)
   return p
+}
+
+function removeSuffix (filePath: string): string {
+  const dashPosition = filePath.indexOf('-')
+  if (dashPosition === -1) return filePath
+  return filePath.substring(0, dashPosition)
 }
 
 async function existsSame (filename: string, integrity: ssri.IntegrityLike) {
