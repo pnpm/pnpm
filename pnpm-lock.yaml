@@ -5497,9 +5497,6 @@ importers:
       p-limit:
         specifier: ^3.1.0
         version: 3.1.0
-      path-temp:
-        specifier: ^2.1.0
-        version: 2.1.0
       rename-overwrite:
         specifier: ^4.0.3
         version: 4.0.3
