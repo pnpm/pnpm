@@ -1314,3 +1314,10 @@ test('a package should be able to be a dependency of itself', async () => {
     expect(pkg.version).toBe('1.0.0')
   }
 })
+
+test('install should fail on package which references itself', async () => {
+  prepareEmpty()
+  await expect(
+    addDependenciesToPackage({}, ['@pnpm.e2e/self-file-reference@1.0.0'], await testDefaults())
+  ).rejects.toThrow('Dependency should not reference itself with a link')
+})
