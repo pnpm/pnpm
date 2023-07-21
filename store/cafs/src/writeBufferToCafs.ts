@@ -61,7 +61,11 @@ export function pathTemp (file: string): string {
 function removeSuffix (filePath: string): string {
   const dashPosition = filePath.indexOf('-')
   if (dashPosition === -1) return filePath
-  return filePath.substring(0, dashPosition)
+  const withoutSuffix = filePath.substring(0, dashPosition)
+  if (filePath.substring(dashPosition) === '-exec') {
+    return `${withoutSuffix}x`
+  }
+  return withoutSuffix
 }
 
 async function existsSame (filename: string, integrity: ssri.IntegrityLike) {
