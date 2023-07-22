@@ -191,6 +191,7 @@ export type PkgAddress = {
   missingPeers: MissingPeers
   missingPeersOfChildren?: MissingPeersOfChildren
   publishedAt?: string
+  optional: boolean
 } & ({
   isLinkedDependency: true
   version: string
@@ -234,7 +235,7 @@ export interface ResolvedPackage {
   parentImporterIds: Set<string>
 }
 
-type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath' | 'rootDir'>
+type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'depPath' | 'rootDir' | 'optional'>
 
 export type ParentPkgAliases = Record<string, PkgAddress | true>
 
@@ -1288,6 +1289,7 @@ async function resolveDependency (
       prepare,
       wantedDependency,
       parentImporterId,
+      optional: wantedDependency.optional || options.parentPkg.optional,
     })
   } else {
     ctx.resolvedPackagesByDepPath[depPath].prod = ctx.resolvedPackagesByDepPath[depPath].prod || !wantedDependency.dev && !wantedDependency.optional
@@ -1351,6 +1353,7 @@ async function resolveDependency (
     pkgId: pkgResponse.body.id,
     rootDir,
     missingPeers: getMissingPeers(pkg),
+    optional: wantedDependency.optional || options.parentPkg.optional,
 
     // Next fields are actually only needed when isNew = true
     installable,
@@ -1404,6 +1407,7 @@ function getResolvedPackage (
     pkg: PackageManifest
     pkgResponse: PackageResponse
     prepare: boolean
+    optional: boolean
     wantedDependency: WantedDependency
   }
 ): ResolvedPackage {
@@ -1434,7 +1438,7 @@ function getResolvedPackage (
     hasBundledDependencies: !((options.pkg.bundledDependencies ?? options.pkg.bundleDependencies) == null),
     id: options.pkgResponse.body.id,
     name: options.pkg.name,
-    optional: options.wantedDependency.optional,
+    optional: options.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
     patchFile: options.patchFile,
     peerDependencies: peerDependencies ?? {},
