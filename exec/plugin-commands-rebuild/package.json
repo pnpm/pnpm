@@ -34,7 +34,7 @@
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.10.2",
+    "@pnpm/registry-mock": "3.11.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",
@@ -45,7 +45,6 @@
     "write-yaml-file": "^5.0.0"
   },
   "dependencies": {
-    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",
@@ -68,6 +67,7 @@
     "@pnpm/sort-packages": "workspace:*",
     "@pnpm/store-connection-manager": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
     "load-json-file": "^6.2.0",
