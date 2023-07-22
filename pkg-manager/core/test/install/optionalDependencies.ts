@@ -547,3 +547,31 @@ test('fail on unsupported dependency of optional dependency', async () => {
     )
   ).rejects.toThrow()
 })
+
+test('do not fail on an optional dependency that has a non-optional dependency with a failing postinstall script', async () => {
+  prepareEmpty()
+  await expect(
+    addDependenciesToPackage(
+      {},
+      ['@pnpm.e2e/has-failing-postinstall-dep@1.0.0'],
+      await testDefaults({ targetDependenciesField: 'optionalDependencies' })
+    )
+  ).resolves.toBeTruthy()
+})
+
+test('fail on a package with failing postinstall if the package is both an optional and non-optional dependency', async () => {
+  prepareEmpty()
+  await expect(
+    install(
+      {
+        dependencies: {
+          '@pnpm.e2e/failing-postinstall': '1.0.0',
+        },
+        optionalDependencies: {
+          '@pnpm.e2e/has-failing-postinstall-dep': '1.0.0',
+        },
+      },
+      await testDefaults({})
+    )
+  ).rejects.toThrow()
+})

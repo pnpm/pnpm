@@ -35,7 +35,6 @@
     "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
-    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
@@ -46,6 +45,7 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "load-json-file": "^6.2.0",
     "p-defer": "^3.0.0",
@@ -65,7 +65,7 @@
     "@pnpm/client": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
-    "@pnpm/registry-mock": "3.10.2",
+    "@pnpm/registry-mock": "3.11.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.20",

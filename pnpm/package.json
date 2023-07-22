@@ -59,7 +59,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/registry-mock": "3.10.2",
+    "@pnpm/registry-mock": "3.11.0",
     "@pnpm/run-npm": "workspace:*",
     "@pnpm/tabtab": "^0.1.2",
     "@pnpm/test-fixtures": "workspace:*",
