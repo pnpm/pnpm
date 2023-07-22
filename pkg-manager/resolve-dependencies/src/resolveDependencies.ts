@@ -1250,6 +1250,7 @@ async function resolveDependency (
   const isNew = !ctx.resolvedPackagesByDepPath[depPath]
   const parentImporterId = options.parentPkg.nodeId.substring(0, options.parentPkg.nodeId.indexOf('>', 1) + 1)
   let resolveChildren = false
+  const currentIsOptional = wantedDependency.optional || options.parentPkg.optional
 
   if (isNew) {
     if (
@@ -1289,12 +1290,12 @@ async function resolveDependency (
       prepare,
       wantedDependency,
       parentImporterId,
-      optional: wantedDependency.optional || options.parentPkg.optional,
+      optional: currentIsOptional,
     })
   } else {
     ctx.resolvedPackagesByDepPath[depPath].prod = ctx.resolvedPackagesByDepPath[depPath].prod || !wantedDependency.dev && !wantedDependency.optional
     ctx.resolvedPackagesByDepPath[depPath].dev = ctx.resolvedPackagesByDepPath[depPath].dev || wantedDependency.dev
-    ctx.resolvedPackagesByDepPath[depPath].optional = ctx.resolvedPackagesByDepPath[depPath].optional && wantedDependency.optional
+    ctx.resolvedPackagesByDepPath[depPath].optional = ctx.resolvedPackagesByDepPath[depPath].optional && currentIsOptional
     if (ctx.autoInstallPeers) {
       resolveChildren = !ctx.missingPeersOfChildrenByPkgId[pkgResponse.body.id].missingPeersOfChildren.resolved &&
         !ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.has(parentImporterId)
@@ -1353,7 +1354,7 @@ async function resolveDependency (
     pkgId: pkgResponse.body.id,
     rootDir,
     missingPeers: getMissingPeers(pkg),
-    optional: wantedDependency.optional || options.parentPkg.optional,
+    optional: ctx.resolvedPackagesByDepPath[depPath].optional,
 
     // Next fields are actually only needed when isNew = true
     installable,
