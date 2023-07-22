@@ -12,7 +12,6 @@ const PREPUBLISH_SCRIPTS = [
   'prepublishOnly',
   'prepack',
   'publish',
-  'postpublish',
 ]
 
 export interface PreparePackageOptions {
