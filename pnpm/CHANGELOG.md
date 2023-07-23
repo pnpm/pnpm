@@ -1,5 +1,16 @@
 # pnpm
 
+## 8.6.10
+
+### Patch Changes
+
+- Installation succeeds if a non-optional dependency of an optional dependency has failing installation scripts [#6822](https://github.com/pnpm/pnpm/issues/6822).
+- The length of the temporary file names in the content-addressable store reduced in order to prevent `ENAMETOOLONG` errors from happening [#6842](https://github.com/pnpm/pnpm/issues/6842).
+- Ignore empty patch content when patch-commit.
+- Sort keys in `packageExtensions` before calculating `packageExtensionsChecksum` [#6824](https://github.com/pnpm/pnpm/issues/6824).
+- Pass the right scheme to `git ls-remote` in order to prevent a fallback to `git+ssh` that would result in a 'host key verification failed' issue [#6806](https://github.com/pnpm/pnpm/issues/6806)
+- The "postpublish" script of a git-hosted dependency is not executed, while building the dependency [#6822](https://github.com/pnpm/pnpm/issues/6846).
+
 ## 8.6.9
 
 ### Patch Changes

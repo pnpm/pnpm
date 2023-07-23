@@ -1,5 +1,19 @@
 # @pnpm/core
 
+## 10.2.11
+
+### Patch Changes
+
+- 388a13b56: Sort keys in `packageExtensions` before calculating `packageExtensionsChecksum`. Fix [#6824](https://github.com/pnpm/pnpm/issues/6824).
+- Updated dependencies [a13a0e8f5]
+  - @pnpm/resolve-dependencies@31.1.13
+  - @pnpm/headless@21.0.9
+  - @pnpm/package-requester@21.0.10
+  - @pnpm/symlink-dependency@7.0.2
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/lifecycle@15.0.5
+  - @pnpm/link-bins@9.0.5
+
 ## 10.2.10
 
 ### Patch Changes

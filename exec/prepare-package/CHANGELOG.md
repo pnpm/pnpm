@@ -1,5 +1,12 @@
 # @pnpm/prepare-package
 
+## 5.0.6
+
+### Patch Changes
+
+- 8452bb2d5: The "postpublish" script of a git-hosted dependency is not executed, while building the dependency [#6822](https://github.com/pnpm/pnpm/issues/6846).
+  - @pnpm/lifecycle@15.0.5
+
 ## 5.0.5
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.13
+
+### Patch Changes
+
+- a13a0e8f5: Installation succeeds if a non-optional dependency of an optional dependency has failing installation scripts [#6822](https://github.com/pnpm/pnpm/issues/6822).
+  - @pnpm/npm-resolver@16.0.8
+
 ## 31.1.12
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-patching
 
+## 3.1.16
+
+### Patch Changes
+
+- 653e9104c: Ignore empty patch content when patch-commit.
+  - @pnpm/plugin-commands-installation@13.0.21
+  - @pnpm/store-connection-manager@6.0.21
+  - @pnpm/config@18.4.4
+  - @pnpm/patching.apply-patch@2.0.4
+
 ## 3.1.15
 
 ### Patch Changes

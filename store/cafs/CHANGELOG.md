@@ -1,5 +1,11 @@
 # @pnpm/store.cafs
 
+## 1.0.1
+
+### Patch Changes
+
+- fe1c5f48d: The length of the temporary file names in the content-addressable store reduced in order to prevent `ENAMETOOLONG` errors from happening [#6842](https://github.com/pnpm/pnpm/issues/6842).
+
 ## 1.0.0
 
 ### Major Changes
