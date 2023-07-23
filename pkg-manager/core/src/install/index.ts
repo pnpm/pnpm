@@ -416,7 +416,7 @@ Note that in CI environments, this setting is enabled by default.`,
           if (!satisfies) {
             if (!ctx.existsWantedLockfile) {
               throw new PnpmError('NO_LOCKFILE',
-                `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is present`, {
+                `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`, {
                   hint: 'Note that in CI environments this setting is true by default. If you still need to run install in such cases, use "pnpm install --no-frozen-lockfile"',
                 })
             }
