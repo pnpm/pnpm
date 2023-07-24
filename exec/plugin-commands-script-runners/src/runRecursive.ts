@@ -169,6 +169,9 @@ export async function runRecursive (
       })
     }
   }
+  if (Object.values(result).every(x => x.status === 'skipped')) {
+    throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
+  }
   opts.reportSummary && await writeRecursiveSummary({
     dir: opts.workspaceDir ?? opts.dir,
     summary: result,
