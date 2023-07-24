@@ -3642,9 +3642,6 @@ importers:
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
-      rename-overwrite:
-        specifier: ^4.0.3
-        version: 4.0.3
       safe-promise-defer:
         specifier: ^1.0.1
         version: 1.0.1
@@ -9109,7 +9106,7 @@ packages:
     resolution: {integrity: sha512-IO+MJPVhoqz+28h1qLAcBEH2+xHMK6MTyHJc7MTnnYb6wsoLR29POVGJ7LycmVXIqyy/4/2ShP5sUwTXuOwb/w==}
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 20.4.2
+      '@types/node': 14.18.53
     dev: true
 
   /@types/graceful-fs@4.1.6:
