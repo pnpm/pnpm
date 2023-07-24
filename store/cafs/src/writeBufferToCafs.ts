@@ -1,4 +1,4 @@
-import { promises as fs, type Stats } from 'fs'
+import { existsSync, promises as fs, type Stats } from 'fs'
 import path from 'path'
 import renameOverwrite from 'rename-overwrite'
 import type ssri from 'ssri'
@@ -41,11 +41,30 @@ export async function writeBufferToCafs (
     // We log the creation time ourselves and save it in the package index file.
     // Having this information allows us to skip content checks for files that were not modified since "birth time".
     const birthtimeMs = Date.now()
-    await renameOverwrite(temp, fileDest)
+    await optimisticRenameOverwrite(temp, fileDest)
     return birthtimeMs
   })()
   locker.set(fileDest, p)
   return p
+}
+
+export async function optimisticRenameOverwrite (temp: string, fileDest: string) {
+  try {
+    await renameOverwrite(temp, fileDest)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code !== 'ENOENT' || !existsSync(fileDest)) throw err
+    // The temporary file path is created by appending the process ID to the target file name.
+    // This is done to avoid lots of random crypto number generations.
+    //   PR with related performance optimization: https://github.com/pnpm/pnpm/pull/6817
+    //
+    // Probably the only scenario in which the temp directory will dissappear
+    // before being renamed is when two containers use the same mounted directory
+    // for their content-addressable store. In this case there's a chance that the process ID
+    // will be the same in both containers.
+    //
+    // As a workaround, if the temp file doesn't exist but the target file does,
+    // we just ignore the issue and assume that the target file is correct.
+  }
 }
 
 /**

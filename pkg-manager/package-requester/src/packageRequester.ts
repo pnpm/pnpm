@@ -8,6 +8,7 @@ import {
   getFilePathInCafs as _getFilePathInCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
+  optimisticRenameOverwrite,
 } from '@pnpm/store.cafs'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
@@ -51,7 +52,6 @@ import pDefer from 'p-defer'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import pShare from 'promise-share'
 import pick from 'ramda/src/pick'
-import renameOverwrite from 'rename-overwrite'
 import semver from 'semver'
 import ssri from 'ssri'
 import { equalOrSemverEqual } from './equalOrSemverEqual'
@@ -658,7 +658,7 @@ async function writeJsonFile (filePath: string, data: unknown) {
   await fs.mkdir(targetDir, { recursive: true })
   const temp = pathTemp(filePath)
   await gfs.writeFile(temp, JSON.stringify(data))
-  await renameOverwrite(temp, filePath)
+  await optimisticRenameOverwrite(temp, filePath)
 }
 
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {

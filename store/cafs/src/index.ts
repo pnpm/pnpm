@@ -15,7 +15,7 @@ import {
   getFilePathByModeInCafs,
   modeIsExecutable,
 } from './getFilePathInCafs'
-import { writeBufferToCafs } from './writeBufferToCafs'
+import { optimisticRenameOverwrite, writeBufferToCafs } from './writeBufferToCafs'
 
 export type { IntegrityLike } from 'ssri'
 
@@ -27,6 +27,7 @@ export {
   getFilePathInCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
+  optimisticRenameOverwrite,
 }
 
 export type CafsLocker = Map<string, number>
