@@ -59,6 +59,40 @@ test('local file', async () => {
   })
 })
 
+test('a symlink to a symlink to a local dependency is preserved', async () => {
+  const project = prepareEmpty()
+  const localPkgDir = path.resolve('..', 'local-pkg')
+  f.copy('local-pkg', localPkgDir)
+  await symlinkDir(localPkgDir, path.resolve('../symlink'))
+
+  const manifest = await addDependenciesToPackage({}, ['link:../symlink'], await testDefaults())
+
+  expect(await fs.readlink(path.resolve('node_modules/local-pkg'))).toBe('../../symlink')
+
+  const expectedSpecs = { 'local-pkg': `link:..${path.sep}symlink` }
+  expect(manifest.dependencies).toStrictEqual(expectedSpecs)
+
+  const m = project.requireModule('local-pkg')
+
+  expect(m).toBeTruthy()
+
+  const lockfile = await project.readLockfile()
+
+  expect(lockfile).toStrictEqual({
+    settings: {
+      autoInstallPeers: true,
+      excludeLinksFromLockfile: false,
+    },
+    dependencies: {
+      'local-pkg': {
+        specifier: expectedSpecs['local-pkg'],
+        version: 'link:../symlink',
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+  })
+})
+
 test('local directory with no package.json', async () => {
   const project = prepareEmpty()
   await fs.mkdir('pkg')
