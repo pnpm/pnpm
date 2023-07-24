@@ -162,15 +162,14 @@ export async function runRecursive (
     const allPackagesAreSelected = Object.keys(opts.selectedProjectsGraph).length === opts.allProjects.length
     if (allPackagesAreSelected) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
+    } else if (Object.values(result).every(x => x.status === 'skipped')) {
+      throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
     } else {
       logger.info({
         message: `None of the selected packages has a "${scriptName}" script`,
         prefix: opts.workspaceDir,
       })
     }
-  }
-  if (Object.values(result).every(x => x.status === 'skipped')) {
-    throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
   }
   opts.reportSummary && await writeRecursiveSummary({
     dir: opts.workspaceDir ?? opts.dir,
