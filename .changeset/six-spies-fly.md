@@ -1,6 +1,4 @@
 ---
-"@pnpm/package-requester": patch
-"@pnpm/store.cafs": patch
 "pnpm": patch
 ---
 

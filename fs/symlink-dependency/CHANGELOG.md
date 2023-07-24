@@ -1,5 +1,11 @@
 # @pnpm/symlink-dependency
 
+## 7.0.3
+
+### Patch Changes
+
+- 3d9503461: When dealing with a local dependency that is a path to a symlink, a new symlink should be created to the original symlink, not to the actual directory location.
+
 ## 7.0.2
 
 ### Patch Changes
