@@ -74,3 +74,54 @@ test('deploy', async () => {
   expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-3/node_modules/project-3/test.js')).toBeFalsy()
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
+
+test('deploy with dedupePeerDependents true', async () => {
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      location: './sub-dir/project-2',
+      package: {
+        name: 'project-2',
+        version: '2.0.0',
+        dependencies: {
+          'is-odd': '1.0.0',
+        },
+      },
+    },
+    {
+      name: 'project-3',
+      version: '2.0.0',
+      dependencies: {
+        'is-number': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph, allProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+    dedupePeerDependents: true,
+  }, ['deploy'])
+  const project = assertProject(path.resolve('deploy'))
+  await project.has('is-positive')
+  await project.has('is-odd')
+  await project.has('is-number')
+  expect(fs.existsSync('sub-dir/deploy')).toBe(false)
+})
