@@ -1,5 +1,12 @@
 # @pnpm/default-reporter
 
+## 12.2.8
+
+### Patch Changes
+
+- 25396e3c5: When progress is throttled, the last stats should be printed, when importing is done.
+- 751c157cd: Don't print "added" stats, when installing with `--lockfile-only`.
+
 ## 12.2.7
 
 ### Patch Changes

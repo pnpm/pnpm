@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 21.0.11
+
+### Patch Changes
+
+- Updated dependencies [dac59e632]
+  - @pnpm/package-requester@21.0.12
+
 ## 21.0.10
 
 ### Patch Changes

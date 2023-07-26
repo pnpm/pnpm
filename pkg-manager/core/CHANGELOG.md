@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 10.2.13
+
+### Patch Changes
+
+- Updated dependencies [dac59e632]
+  - @pnpm/package-requester@21.0.12
+  - @pnpm/headless@21.0.11
+
 ## 10.2.12
 
 ### Patch Changes

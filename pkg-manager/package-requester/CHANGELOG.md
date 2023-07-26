@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 21.0.12
+
+### Patch Changes
+
+- dac59e632: The length of the temporary file names in the content-addressable store reduced in order to prevent `ENAMETOOLONG` errors from happening [#6842](https://github.com/pnpm/pnpm/issues/6842).
+
 ## 21.0.11
 
 ### Patch Changes

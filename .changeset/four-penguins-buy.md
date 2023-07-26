@@ -1,5 +1,4 @@
 ---
-"@pnpm/package-requester": patch
 "pnpm": patch
 ---
 
