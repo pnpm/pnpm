@@ -53,16 +53,16 @@ function throttledProgressOutput (
   importingDone$: Rx.Observable<boolean>,
   progress$: Rx.Observable<ProgressStats>
 ) {
-  let combinedProgress = Rx.combineLatest(
+  if (throttle != null) {
+    progress$ = progress$.pipe(throttle)
+  }
+  const combinedProgress = Rx.combineLatest(
     progress$,
     importingDone$
   )
     // Avoid logs after all resolved packages were downloaded.
     // Fixing issue: https://github.com/pnpm/pnpm/issues/1028#issuecomment-364782901
     .pipe(takeWhile(([, importingDone]) => !importingDone, true))
-  if (throttle != null) {
-    combinedProgress = combinedProgress.pipe(throttle)
-  }
   return combinedProgress.pipe(map(createStatusMessage))
 }
 
