@@ -24,6 +24,7 @@ export function initDefaultReporter (
       aggregateOutput?: boolean
       throttleProgress?: number
       outputMaxWidth?: number
+      hideAddedPkgsProgress?: boolean
     }
     context: {
       argv: string[]
@@ -103,6 +104,7 @@ export function toOutput$ (
       streamLifecycleOutput?: boolean
       aggregateOutput?: boolean
       throttleProgress?: number
+      hideAddedPkgsProgress?: boolean
     }
     context: {
       argv: string[]
@@ -259,6 +261,7 @@ export function toOutput$ (
       aggregateOutput: opts.reportingOptions?.aggregateOutput,
       throttleProgress: opts.reportingOptions?.throttleProgress,
       width: opts.reportingOptions?.outputMaxWidth,
+      hideAddedPkgsProgress: opts.reportingOptions?.hideAddedPkgsProgress,
     }
   )
 

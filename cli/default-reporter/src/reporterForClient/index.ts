@@ -66,6 +66,7 @@ export function reporterForClient (
     aggregateOutput?: boolean
     throttleProgress?: number
     width?: number
+    hideAddedPkgsProgress?: boolean
   }
 ): Array<Rx.Observable<Rx.Observable<{ msg: string }>>> {
   const width = opts.width ?? process.stdout.columns ?? 80
@@ -122,6 +123,7 @@ export function reporterForClient (
       reportProgress(log$, {
         cwd,
         throttle,
+        hideAddedPkgsProgress: opts.hideAddedPkgsProgress,
       }),
       ...reportStats(log$, {
         cmd: opts.cmd,

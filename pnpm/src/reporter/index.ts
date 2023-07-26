@@ -25,6 +25,7 @@ export function initReporter (
         logLevel: opts.config.loglevel as LogLevel,
         streamLifecycleOutput: opts.config.stream,
         throttleProgress: 200,
+        hideAddedPkgsProgress: opts.config.lockfileOnly,
       },
       streamParser,
     })
