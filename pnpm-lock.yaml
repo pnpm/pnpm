@@ -3633,9 +3633,6 @@ importers:
       p-queue:
         specifier: ^6.6.2
         version: 6.6.2
-      path-temp:
-        specifier: ^2.1.0
-        version: 2.1.0
       promise-share:
         specifier: ^1.0.0
         version: 1.0.0
