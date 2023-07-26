@@ -155,7 +155,15 @@ function getProgressStatsPushStreamByRequirer (progress$: Rx.Observable<Progress
 }
 
 function createStatusMessage ([progress, importingDone]: [ProgressStats, boolean]) {
-  const msg = `Progress: resolved ${hlValue(progress.resolved.toString())}, reused ${hlValue(progress.reused.toString())}, downloaded ${hlValue(progress.fetched.toString())}, added ${hlValue(progress.imported.toString())}`
+  const msg = `Progress: resolved ${
+    hlValue(progress.resolved.toString())
+  }, reused ${
+    hlValue(progress.reused.toString())
+  }, downloaded ${
+    hlValue(progress.fetched.toString())
+  }, added ${
+    hlValue(progress.imported.toString())
+  }`
   if (importingDone) {
     return {
       done: true,
@@ -170,7 +178,13 @@ function createStatusMessage ([progress, importingDone]: [ProgressStats, boolean
 }
 
 function createStatusMessageWithoutAdded ([progress, importingDone]: [ProgressStats, boolean]) {
-  const msg = `Progress: resolved ${hlValue(progress.resolved.toString())}, reused ${hlValue(progress.reused.toString())}, downloaded ${hlValue(progress.fetched.toString())}`
+  const msg = `Progress: resolved ${
+    hlValue(progress.resolved.toString())
+  }, reused ${
+    hlValue(progress.reused.toString())
+  }, downloaded ${
+    hlValue(progress.fetched.toString())
+  }`
   if (importingDone) {
     return {
       done: true,
