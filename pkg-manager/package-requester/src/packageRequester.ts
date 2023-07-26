@@ -657,7 +657,7 @@ async function writeJsonFile (filePath: string, data: unknown) {
   await fs.mkdir(targetDir, { recursive: true })
   // We remove the "-index.json" from the end of the temp file name
   // in order to avoid ENAMETOOLONG errors
-  const temp = `${filePath.substring(0, filePath.length - 11)}${process.pid}`
+  const temp = `${filePath.slice(0, -11)}${process.pid}`
   await gfs.writeFile(temp, JSON.stringify(data))
   await optimisticRenameOverwrite(temp, filePath)
 }
