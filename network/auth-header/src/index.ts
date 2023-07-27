@@ -38,17 +38,9 @@ function getAuthHeaderByURI (authHeaders: Record<string, string>, maxParts: numb
 }
 
 function removePort (originalUrl: string) {
-  const hasHTTPS = originalUrl.match(':443')
   const urlObj = new URL(originalUrl)
 
-  /**
-   * @artifactory adds a https port in the middle of their urls and URL.parse will not return ports in that range
-   */
-  if (hasHTTPS && urlObj.port === '') {
-    return urlObj.href
-  }
-
-  if (urlObj.port === '') return originalUrl
+  if (urlObj.port === '') return urlObj.href
 
   urlObj.port = ''
   return urlObj.toString()
