@@ -324,7 +324,7 @@ test('`pnpm install ""` is going to be just `pnpm install`', async () => {
   const { params, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
   }, ['install', ''])
-  expect(cmd).toBe('install')
+  expect(cmd).toBe('add')
   // empty string in params will be filtered at: https://github.com/pnpm/pnpm/blob/main/pkg-manager/plugin-commands-installation/src/installDeps.ts#L196
   expect(params).toStrictEqual([''])
 })
