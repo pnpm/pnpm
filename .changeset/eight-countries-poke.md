@@ -1,5 +1,4 @@
 ---
-"@pnpm/symlink-dependency": patch
 "pnpm": patch
 ---
 

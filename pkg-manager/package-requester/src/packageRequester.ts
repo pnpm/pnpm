@@ -49,7 +49,6 @@ import pMapValues from 'p-map-values'
 import PQueue from 'p-queue'
 import loadJsonFile from 'load-json-file'
 import pDefer from 'p-defer'
-import { fastPathTemp as pathTemp } from 'path-temp'
 import pShare from 'promise-share'
 import pick from 'ramda/src/pick'
 import semver from 'semver'
@@ -656,7 +655,9 @@ async function writeJsonFile (filePath: string, data: unknown) {
   // There is actually no need to create the directory in 99% of cases.
   // So by using cafs API, we'll improve performance.
   await fs.mkdir(targetDir, { recursive: true })
-  const temp = pathTemp(filePath)
+  // We remove the "-index.json" from the end of the temp file name
+  // in order to avoid ENAMETOOLONG errors
+  const temp = `${filePath.slice(0, -11)}${process.pid}`
   await gfs.writeFile(temp, JSON.stringify(data))
   await optimisticRenameOverwrite(temp, filePath)
 }

@@ -1,5 +1,24 @@
 # @pnpm/headless
 
+## 21.0.11
+
+### Patch Changes
+
+- Updated dependencies [dac59e632]
+  - @pnpm/package-requester@21.0.12
+
+## 21.0.10
+
+### Patch Changes
+
+- Updated dependencies [3d9503461]
+- Updated dependencies [73f2b6826]
+  - @pnpm/symlink-dependency@7.0.3
+  - @pnpm/package-requester@21.0.11
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.4
+  - @pnpm/lifecycle@15.0.5
+  - @pnpm/link-bins@9.0.5
+
 ## 21.0.9
 
 ### Patch Changes

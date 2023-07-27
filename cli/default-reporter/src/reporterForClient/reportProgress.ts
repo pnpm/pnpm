@@ -26,9 +26,10 @@ export function reportProgress (
     cwd: string
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     throttle?: Rx.OperatorFunction<any, any>
+    hideAddedPkgsProgress?: boolean
   }
 ) {
-  const progressOutput = throttledProgressOutput.bind(null, opts.throttle)
+  const progressOutput = throttledProgressOutput.bind(null, opts)
 
   return getModulesInstallProgress$(log$.stage, log$.progress).pipe(
     map(({ importingDone$, progress$, requirer }) => {
@@ -48,22 +49,25 @@ export function reportProgress (
 }
 
 function throttledProgressOutput (
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  throttle: Rx.OperatorFunction<any, any> | undefined,
+  opts: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    throttle?: Rx.OperatorFunction<any, any>
+    hideAddedPkgsProgress?: boolean
+  },
   importingDone$: Rx.Observable<boolean>,
   progress$: Rx.Observable<ProgressStats>
 ) {
-  let combinedProgress = Rx.combineLatest(
+  if (opts.throttle != null) {
+    progress$ = progress$.pipe(opts.throttle)
+  }
+  const combinedProgress = Rx.combineLatest(
     progress$,
     importingDone$
   )
     // Avoid logs after all resolved packages were downloaded.
     // Fixing issue: https://github.com/pnpm/pnpm/issues/1028#issuecomment-364782901
     .pipe(takeWhile(([, importingDone]) => !importingDone, true))
-  if (throttle != null) {
-    combinedProgress = combinedProgress.pipe(throttle)
-  }
-  return combinedProgress.pipe(map(createStatusMessage))
+  return combinedProgress.pipe(map(opts.hideAddedPkgsProgress ? createStatusMessageWithoutAdded : createStatusMessage))
 }
 
 function getModulesInstallProgress$ (
@@ -151,7 +155,36 @@ function getProgressStatsPushStreamByRequirer (progress$: Rx.Observable<Progress
 }
 
 function createStatusMessage ([progress, importingDone]: [ProgressStats, boolean]) {
-  const msg = `Progress: resolved ${hlValue(progress.resolved.toString())}, reused ${hlValue(progress.reused.toString())}, downloaded ${hlValue(progress.fetched.toString())}, added ${hlValue(progress.imported.toString())}`
+  const msg = `Progress: resolved ${
+    hlValue(progress.resolved.toString())
+  }, reused ${
+    hlValue(progress.reused.toString())
+  }, downloaded ${
+    hlValue(progress.fetched.toString())
+  }, added ${
+    hlValue(progress.imported.toString())
+  }`
+  if (importingDone) {
+    return {
+      done: true,
+      fixed: false,
+      msg: `${msg}, done`,
+    }
+  }
+  return {
+    fixed: true,
+    msg,
+  }
+}
+
+function createStatusMessageWithoutAdded ([progress, importingDone]: [ProgressStats, boolean]) {
+  const msg = `Progress: resolved ${
+    hlValue(progress.resolved.toString())
+  }, reused ${
+    hlValue(progress.reused.toString())
+  }, downloaded ${
+    hlValue(progress.fetched.toString())
+  }`
   if (importingDone) {
     return {
       done: true,

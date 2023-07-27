@@ -50,6 +50,39 @@ test('prints progress beginning', (done) => {
   })
 })
 
+test('prints progress without added packges stats', (done) => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: '/src/project' } as Config,
+    },
+    reportingOptions: {
+      hideAddedPkgsProgress: true,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  stageLogger.debug({
+    prefix: '/src/project',
+    stage: 'resolution_started',
+  })
+  progressLogger.debug({
+    packageId: 'registry.npmjs.org/foo/1.0.0',
+    requester: '/src/project',
+    status: 'resolved',
+  })
+
+  expect.assertions(1)
+
+  output$.pipe(take(1)).subscribe({
+    complete: () => done(),
+    error: done,
+    next: output => {
+      expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`)
+    },
+  })
+})
+
 test('prints all progress stats', (done) => {
   const output$ = toOutput$({
     context: {
