@@ -84,7 +84,7 @@ export async function parseCliArgs (
     if (recursiveCommandUsed) {
       args = args.slice(1)
     }
-    if (opts.getCommandLongName(args[0]) !== 'install' || args.length === 1) {
+    if (opts.getCommandLongName(args[0]) !== 'install' || args.filter(Boolean).length === 1) {
       return args[0]
     }
     return 'add'
@@ -139,8 +139,7 @@ export async function parseCliArgs (
     }
   }
 
-  // `pnpm install ""` is going to be just `pnpm install`
-  const params = argv.remain.slice(1).filter(Boolean)
+  const params = argv.remain.slice(1)
 
   if (options['recursive'] !== true && (options['filter'] || options['filter-prod'] || recursiveCommandUsed)) {
     options['recursive'] = true
@@ -163,10 +162,6 @@ export async function parseCliArgs (
       throw new PnpmError('NOT_IN_WORKSPACE', '--workspace-root may only be used inside a workspace')
     }
     options['dir'] = workspaceDir
-  }
-
-  if (cmd === 'install' && params.length > 0) {
-    cmd = 'add'
   }
   if (!cmd && options['recursive']) {
     cmd = 'recursive'
