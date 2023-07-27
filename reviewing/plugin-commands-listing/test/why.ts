@@ -1,9 +1,12 @@
+import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { why } from '@pnpm/plugin-commands-listing'
 import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import execa from 'execa'
 import stripAnsi from 'strip-ansi'
+
+const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
 test('`pnpm why` should fail if no package name was provided', async () => {
   prepare()
@@ -29,7 +32,7 @@ test('"why" should find non-direct dependency', async () => {
     },
   })
 
-  await execa('pnpm', ['install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+  await execa('node', [pnpmBin, 'install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
 
   const output = await why.handler({
     dev: false,
