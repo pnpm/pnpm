@@ -42,13 +42,13 @@ pnpm test
 Alternatively, you can run it from anywhere by specifying the name of the project using the `--filter` option:
 
 ```shell
-pnpm --filter=core test
+pnpm --filter core test
 ```
 
 If you want to pass options to Jest, use the `pnpm run test` command and append any needed options. For instance, if you want to run a single test in a single file, run:
 
 ```shell
-pnpm --filter=core run test --testPathPattern="test/lockfile.ts" --testNamePattern="lockfile has dev deps even when installing for prod only"
+pnpm --filter core run test test/lockfile.ts -t "lockfile has dev deps even when installing for prod only"
 ```
 
 ## Submitting a Pull Request (PR)
