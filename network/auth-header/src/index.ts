@@ -1,6 +1,6 @@
 import nerfDart from 'nerf-dart'
-import { URL } from 'url'
 import { getAuthHeadersFromConfig } from './getAuthHeadersFromConfig'
+import { removePort } from './helpers/removePort'
 
 export function createGetAuthHeaderByURI (
   opts: {
@@ -35,11 +35,4 @@ function getAuthHeaderByURI (authHeaders: Record<string, string>, maxParts: numb
     return getAuthHeaderByURI(authHeaders, maxParts, urlWithoutPort)
   }
   return undefined
-}
-
-function removePort (originalUrl: string) {
-  const urlObj = new URL(originalUrl)
-  if (urlObj.port === '') return urlObj.href
-  urlObj.port = ''
-  return urlObj.toString()
 }
