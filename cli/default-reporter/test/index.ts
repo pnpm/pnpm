@@ -298,6 +298,11 @@ test('prints summary without the filtered out entries', (done) => {
       expect(output).toBe(EOL + `\
 ${h1('dependencies:')}
 ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
+
+${h1('devDependencies:')}
+${ADD} qar ${versionColor('2.0.0')}
+
+Run \`pnpm update\` to update to the latest versions
 `)
     },
   })
