@@ -1,5 +1,6 @@
 ---
 "@pnpm/parse-cli-args": patch
+"pnpm": patch
 ---
 
-Should not swallows empty string in params [#6594](https://github.com/pnpm/pnpm/issues/6594)
+Don't ignore empty strings in params [#6594](https://github.com/pnpm/pnpm/issues/6594).
