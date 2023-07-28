@@ -27,6 +27,8 @@ const CONFIG_BY_DEP_TYPE = {
   optional: 'optional',
 }
 
+const PKG_DIFF_DEP_TYPES = ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly'] as const
+
 export function reportSummary (
   log$: {
     deprecation: Rx.Observable<DeprecationLog>
@@ -54,7 +56,7 @@ export function reportSummary (
       take(1),
       map(([pkgsDiff]) => {
         let msg = ''
-        for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly'] as const) {
+        for (const depType of PKG_DIFF_DEP_TYPES) {
           let diffs: PackageDiff[] = Object.values(pkgsDiff[depType as keyof typeof pkgsDiff])
           if (opts.filterPkgsDiff) {
             // This filtering is only used by Bit CLI currently.
@@ -79,6 +81,9 @@ export function reportSummary (
             }
             msg += EOL
           }
+        }
+        if (PKG_DIFF_DEP_TYPES.some(depType => hasOutdatedPackages(Object.values(pkgsDiff[depType])))) {
+          msg += EOL + 'Run `pnpm update` to update to the latest versions' + EOL
         }
         return Rx.of({ msg })
       })
@@ -122,4 +127,8 @@ function printDiffs (
     return result
   }).join(EOL)
   return msg
+}
+
+function hasOutdatedPackages(pkgsDiff: readonly PackageDiff[]) {
+  return pkgsDiff.some(({ version, latest }) => version && latest && semver.lt(version, latest))
 }
