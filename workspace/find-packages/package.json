@@ -32,6 +32,7 @@
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/fs.find-packages": "workspace:*",
+    "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "1.0.0",
     "read-yaml-file": "^2.1.0"

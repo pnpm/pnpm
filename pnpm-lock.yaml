@@ -6072,6 +6072,9 @@ importers:
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
+      '@pnpm/read-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/read-project-manifest
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types

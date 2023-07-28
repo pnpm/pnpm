@@ -1,6 +1,6 @@
 import path from 'path'
 import fs from 'fs'
-import { LAYOUT_VERSION } from '@pnpm/constants'
+import { LAYOUT_VERSION, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import loadNpmConf from '@pnpm/npm-conf'
 import npmTypes from '@pnpm/npm-conf/lib/types'
@@ -15,6 +15,8 @@ import normalizeRegistryUrl from 'normalize-registry-url'
 import realpathMissing from 'realpath-missing'
 import pathAbsolute from 'path-absolute'
 import which from 'which'
+import writeYamlFile from 'write-yaml-file'
+
 import { checkGlobalBinDir } from './checkGlobalBinDir'
 import { getScopeRegistries } from './getScopeRegistries'
 import { getCacheDir, getConfigDir, getDataDir, getStateDir } from './dirs'
@@ -547,7 +549,10 @@ export async function getConfig (
   }
   pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir) ?? undefined
   if (pnpmConfig.rootProjectManifest?.workspaces?.length && !pnpmConfig.workspaceDir) {
-    warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
+    warnings.push('Find the "workspaces" field in your package.json, a "pnpm-workspace.yaml" file will be automatically created.')
+
+    /** @see {@link https://github.com/pnpm/pnpm/issues/2255#issuecomment-576866891} */
+    await writeYamlFile(WORKSPACE_MANIFEST_FILENAME, { useNpmConfig: true })
   }
 
   pnpmConfig.failedToLoadBuiltInConfig = failedToLoadBuiltInConfig

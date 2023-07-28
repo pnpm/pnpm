@@ -5,6 +5,7 @@ import { type ProjectManifest, type Project } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { findPackages } from '@pnpm/fs.find-packages'
 import { logger } from '@pnpm/logger'
+import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import readYamlFile from 'read-yaml-file'
 
 export type { Project }
@@ -46,9 +47,25 @@ export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?
   return pkgs
 }
 
-async function requirePackagesManifest (dir: string): Promise<{ packages?: string[] } | null> {
+interface WorkspaceManifest {
+  useNpmConfig?: boolean
+  packages?: string[]
+}
+
+async function requirePackagesManifest (dir: string): Promise<Pick<WorkspaceManifest, 'packages'> | null> {
   try {
-    return await readYamlFile<{ packages?: string[] }>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
+    const workspaceManifest = await readYamlFile<WorkspaceManifest | null>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
+    if (!workspaceManifest) return null
+
+    // when the `useNpmConfig` field is present, it will prioritize the `workspaces` field in the `package.json`
+    if (workspaceManifest?.useNpmConfig) {
+      const projectManifest = await safeReadProjectManifestOnly(dir)
+      if (!projectManifest) return null
+
+      return { packages: projectManifest.workspaces ?? [] }
+    }
+
+    return { packages: workspaceManifest?.packages ?? [] }
   } catch (err: any) { // eslint-disable-line
     if (err['code'] === 'ENOENT') {
       return null
