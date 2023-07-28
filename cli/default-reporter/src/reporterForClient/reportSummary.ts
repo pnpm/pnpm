@@ -129,6 +129,6 @@ function printDiffs (
   return msg
 }
 
-function hasOutdatedPackages(pkgsDiff: readonly PackageDiff[]) {
+function hasOutdatedPackages (pkgsDiff: readonly PackageDiff[]) {
   return pkgsDiff.some(({ version, latest }) => version && latest && semver.lt(version, latest))
 }
