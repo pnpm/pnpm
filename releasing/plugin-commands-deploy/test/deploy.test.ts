@@ -75,7 +75,7 @@ test('deploy', async () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
 
-test('deploy with dedupePeerDependents true', async () => {
+test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDependents', async () => {
   preparePackages([
     {
       name: 'project-1',
@@ -117,7 +117,7 @@ test('deploy with dedupePeerDependents true', async () => {
     sharedWorkspaceLockfile: true,
     lockfileDir: process.cwd(),
     workspaceDir: process.cwd(),
-    dedupePeerDependents: true,
+    dedupePeerDependents: true, // This is ignored by deploy
   }, ['deploy'])
   const project = assertProject(path.resolve('deploy'))
   await project.has('is-positive')
