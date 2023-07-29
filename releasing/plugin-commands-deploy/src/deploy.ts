@@ -76,7 +76,6 @@ export async function handler (
   await fs.promises.mkdir(deployDir, { recursive: true })
   const includeOnlyPackageFiles = !opts.deployAllFiles
   await copyProject(deployedDir, deployDir, { includeOnlyPackageFiles })
-
   await install.handler({
     ...opts,
     confirmModulesPurge: false,
