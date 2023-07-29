@@ -61,7 +61,10 @@ export async function runLifecycleHook (
     ? 'silent'
     : undefined
   await lifecycle(m, stage, opts.pkgRoot, {
-    config: opts.rawConfig,
+    config: {
+      ...opts.rawConfig,
+      'frozen-lockfile': false,
+    },
     dir: opts.rootModulesDir,
     extraBinPaths: opts.extraBinPaths ?? [],
     extraEnv: {

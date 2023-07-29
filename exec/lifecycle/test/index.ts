@@ -39,6 +39,22 @@ test('runLifecycleHook() escapes the args passed to the script', async () => {
   expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['Revert "feature (#1)"'])
 })
 
+test('runLifecycleHook() sets frozen-lockfile to false', async () => {
+  const pkgRoot = f.find('inspect-frozen-lockfile')
+  const pkg = await import(path.join(pkgRoot, 'package.json'))
+  await runLifecycleHook('postinstall', pkg, {
+    depPath: '/inspect-frozen-lockfile/1.0.0',
+    pkgRoot,
+    rawConfig: {
+      'frozen-lockfile': true,
+    },
+    rootModulesDir,
+    unsafePerm: true,
+  })
+
+  expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['empty string'])
+})
+
 test('runPostinstallHooks()', async () => {
   const pkgRoot = f.find('with-many-scripts')
   await rimraf(path.join(pkgRoot, 'output.json'))

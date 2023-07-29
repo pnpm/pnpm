@@ -1,0 +1,7 @@
+{
+  "name": "inspect-frozen-lockfile",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "rimraf output.json && node postinstall.js | json-append output.json"
+  }
+}
