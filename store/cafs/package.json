@@ -31,12 +31,12 @@
     "tar-stream": "^2.2.0"
   },
   "devDependencies": {
-    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/cafs-types": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/concat-stream": "^2.0.0",
     "@types/gunzip-maybe": "1.4.0",
-    "@types/node": "^14.18.53",
+    "@types/node": "^14.18.54",
     "@types/ssri": "^7.1.1",
     "@types/tar-stream": "^2.2.2",
     "p-defer": "^3.0.0",

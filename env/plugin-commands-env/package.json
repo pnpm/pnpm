@@ -57,7 +57,7 @@
     "@types/semver": "7.3.13",
     "adm-zip": "^0.5.10",
     "execa": "npm:safe-execa@0.1.2",
-    "nock": "13.3.1",
+    "nock": "13.3.2",
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0",
     "path-name": "^1.0.0"
   },

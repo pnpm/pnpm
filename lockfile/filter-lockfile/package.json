@@ -36,7 +36,7 @@
   "devDependencies": {
     "@pnpm/filter-lockfile": "workspace:*",
     "@types/ramda": "0.28.20",
-    "detect-libc": "^2.0.1",
+    "detect-libc": "^2.0.2",
     "tempy": "^1.0.1",
     "write-yaml-file": "^5.0.0",
     "yaml-tag": "1.1.0"

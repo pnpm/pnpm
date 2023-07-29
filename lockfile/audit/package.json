@@ -38,7 +38,7 @@
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.20",
-    "nock": "13.3.1"
+    "nock": "13.3.2"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
