@@ -79,6 +79,11 @@ export async function handler (
   await install.handler({
     ...opts,
     confirmModulesPurge: false,
+    // Deploy doesn't work with dedupePeerDependents=true currently as for deploy
+    // we need to select a single project for install, while dedupePeerDependents
+    // doesn't work with filters right now.
+    // Related issue: https://github.com/pnpm/pnpm/issues/6858
+    dedupePeerDependents: false,
     depth: Infinity,
     hooks: {
       ...opts.hooks,
