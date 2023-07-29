@@ -520,7 +520,6 @@ function getAllProjects (manifestsByPath: ManifestsByPath, allProjectsGraph: Pro
     buildIndex,
     manifest: manifestsByPath[rootDir].manifest,
     rootDir,
-    modulesDir: allProjectsGraph[rootDir].package.modulesDir,
   }))).flat()
 }
 

@@ -121,7 +121,5 @@ test('deploy with dedupePeerDependents true', async () => {
   }, ['deploy'])
   const project = assertProject(path.resolve('deploy'))
   await project.has('is-positive')
-  await project.has('is-odd')
-  await project.has('is-number')
   expect(fs.existsSync('sub-dir/deploy')).toBe(false)
 })

@@ -9,7 +9,6 @@ import { PnpmError } from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 import { deployHook } from './deployHook'
-import { type ProjectsGraph } from '@pnpm/types'
 
 export const shorthands = install.shorthands
 
@@ -77,12 +76,15 @@ export async function handler (
   await fs.promises.mkdir(deployDir, { recursive: true })
   const includeOnlyPackageFiles = !opts.deployAllFiles
   await copyProject(deployedDir, deployDir, { includeOnlyPackageFiles })
-  const absoluteModulesDir = path.join(deployDir, 'node_modules')
-  extendProjectModulesDir(opts.allProjectsGraph, absoluteModulesDir)
 
   await install.handler({
     ...opts,
     confirmModulesPurge: false,
+    // Deploy doesn't work with dedupePeerDependents=true currently as for deploy
+    // we need to select a single project for install, while dedupePeerDependents
+    // doesn't work with filters right now.
+    // Related issue: https://github.com/pnpm/pnpm/issues/6858
+    dedupePeerDependents: false,
     depth: Infinity,
     hooks: {
       ...opts.hooks,
@@ -95,7 +97,7 @@ export async function handler (
     preferFrozenLockfile: false,
     saveLockfile: false,
     virtualStoreDir: path.join(deployDir, 'node_modules/.pnpm'),
-    modulesDir: path.relative(deployedDir, absoluteModulesDir),
+    modulesDir: path.relative(deployedDir, path.join(deployDir, 'node_modules')),
     rawLocalConfig: {
       ...opts.rawLocalConfig,
       // This is a workaround to prevent frozen install in CI envs.
@@ -109,12 +111,4 @@ async function copyProject (src: string, dest: string, opts: { includeOnlyPackag
   const { filesIndex } = await fetchFromDir(src, opts)
   const importPkg = createIndexedPkgImporter('clone-or-copy')
   await importPkg(dest, { filesMap: filesIndex, force: true, fromStore: true })
-}
-
-function extendProjectModulesDir (allProjectsGraph: ProjectsGraph | undefined, absoluteModulesDir: string) {
-  if (allProjectsGraph) {
-    Object.keys(allProjectsGraph).forEach(prefix => {
-      allProjectsGraph[prefix].package.modulesDir = path.relative(allProjectsGraph[prefix].package.dir, absoluteModulesDir)
-    })
-  }
 }
