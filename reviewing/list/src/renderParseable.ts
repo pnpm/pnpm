@@ -59,7 +59,11 @@ function renderParseableForPackage (
   ].join('\n')
 }
 
-interface PackageInfo {name: string, version: string, path: string}
+interface PackageInfo {
+  name: string
+  version: string
+  path: string
+}
 
 function flatten (
   nodes: PackageNode[]
