@@ -96,12 +96,22 @@ export async function handler (
   const binName = opts.package
     ? command
     : await getBinName(modulesDir, await getPkgName(prefix))
-  await execa(binName, args, {
-    cwd: process.cwd(),
-    env,
-    stdio: 'inherit',
-    shell: opts.shellMode ?? false,
-  })
+  try {
+    await execa(binName, args, {
+      cwd: process.cwd(),
+      env,
+      stdio: 'inherit',
+      shell: opts.shellMode ?? false,
+    })
+  } catch (err: any) { // eslint-disable-line
+    if (err.exitCode != null) {
+      return {
+        exitCode: err.exitCode,
+      }
+    }
+    throw err
+  }
+  return { exitCode: 0 }
 }
 
 async function getPkgName (pkgDir: string) {
