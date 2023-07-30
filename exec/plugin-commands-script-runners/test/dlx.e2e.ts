@@ -106,3 +106,18 @@ test('dlx should work in shell mode', async () => {
 
   expect(fs.existsSync('foo')).toBeTruthy()
 })
+
+test('dlx should return a non-zero exit code when the underying script fails', async () => {
+  prepareEmpty()
+
+  const { exitCode } = await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: path.resolve('project'),
+    storeDir: path.resolve('store'),
+    package: [
+      'touch@3.1.0',
+    ],
+  }, ['nodetouch', '--bad-option'])
+
+  expect(exitCode).toBe(1)
+})
