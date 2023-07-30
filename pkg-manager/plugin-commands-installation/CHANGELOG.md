@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-installation
 
+## 13.0.24
+
+### Patch Changes
+
+- 78d43a862: Always set `dedupe-peer-dependents` to `false`, when running installation during deploy [#6858](https://github.com/pnpm/pnpm/issues/6858).
+- Updated dependencies [5e7ee2473]
+  - @pnpm/core@10.2.14
+  - @pnpm/plugin-commands-rebuild@9.1.7
+  - @pnpm/outdated@13.0.10
+  - @pnpm/package-store@16.0.12
+  - @pnpm/store-connection-manager@6.0.24
+
 ## 13.0.23
 
 ### Patch Changes

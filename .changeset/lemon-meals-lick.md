@@ -1,5 +1,4 @@
 ---
-"@pnpm/parse-cli-args": patch
 "pnpm": patch
 ---
 

@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 15.0.6
+
+### Patch Changes
+
+- 692197df3: Installation of a git-hosted dependency should not fail if the `pnpm-lock.yaml` file of the installed dependency is not up-to-date [#6865](https://github.com/pnpm/pnpm/issues/6865).
+
 ## 15.0.5
 
 ### Patch Changes

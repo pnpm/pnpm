@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-rebuild
 
+## 9.1.7
+
+### Patch Changes
+
+- Updated dependencies [692197df3]
+  - @pnpm/lifecycle@15.0.6
+  - @pnpm/store-connection-manager@6.0.24
+
 ## 9.1.6
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/network.auth-header
 
+## 2.0.5
+
+### Patch Changes
+
+- aa20818a0: Authorization token should be found in the configuration, when the requested URL is explicitly specified with a default port (443 on HTTPS or 80 on HTTP) [#6863](https://github.com/pnpm/pnpm/pull/6864).
+
 ## 2.0.4
 
 ### Patch Changes

@@ -1,6 +1,4 @@
 ---
-"@pnpm/plugin-commands-installation": patch
-"@pnpm/plugin-commands-deploy": patch
 "pnpm": patch
 ---
 

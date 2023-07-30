@@ -1,5 +1,14 @@
 # @pnpm/client
 
+## 10.0.16
+
+### Patch Changes
+
+- Updated dependencies [aa20818a0]
+  - @pnpm/network.auth-header@2.0.5
+  - @pnpm/git-fetcher@9.0.7
+  - @pnpm/tarball-fetcher@15.0.8
+
 ## 10.0.15
 
 ### Patch Changes

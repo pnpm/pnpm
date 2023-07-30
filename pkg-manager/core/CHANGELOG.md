@@ -1,5 +1,16 @@
 # @pnpm/core
 
+## 10.2.14
+
+### Patch Changes
+
+- 5e7ee2473: Change the install error message when a lockfile is wanted but absent to indicate the wanted lockfile is absent, not present. This now reflects the actual error [#6851](https://github.com/pnpm/pnpm/pull/6851).
+- Updated dependencies [692197df3]
+  - @pnpm/lifecycle@15.0.6
+  - @pnpm/build-modules@11.0.11
+  - @pnpm/headless@21.0.12
+  - @pnpm/package-requester@21.0.12
+
 ## 10.2.13
 
 ### Patch Changes

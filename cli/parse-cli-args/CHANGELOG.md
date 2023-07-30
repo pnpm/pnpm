@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 7.0.3
+
+### Patch Changes
+
+- 32679f0ad: Don't ignore empty strings in params [#6594](https://github.com/pnpm/pnpm/issues/6594).
+
 ## 7.0.2
 
 ### Patch Changes

@@ -1,5 +1,4 @@
 ---
-"@pnpm/network.auth-header": patch
 "pnpm": patch
 ---
 

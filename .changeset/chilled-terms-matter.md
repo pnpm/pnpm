@@ -1,5 +1,4 @@
 ---
-"@pnpm/core": patch
 "pnpm": patch
 ---
 

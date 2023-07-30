@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-audit
 
+## 8.0.19
+
+### Patch Changes
+
+- Updated dependencies [aa20818a0]
+  - @pnpm/network.auth-header@2.0.5
+
 ## 8.0.18
 
 ### Patch Changes
