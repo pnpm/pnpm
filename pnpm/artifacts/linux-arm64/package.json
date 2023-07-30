@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/linux-arm64",
-  "version": "7.33.5",
+  "version": "7.33.6",
   "license": "MIT",
   "publishConfig": {
     "bin": {
