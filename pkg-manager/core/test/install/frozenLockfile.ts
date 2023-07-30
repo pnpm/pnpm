@@ -124,7 +124,7 @@ test(`frozen-lockfile: should fail if no ${WANTED_LOCKFILE} is present`, async (
         'is-positive': '^3.0.0',
       },
     }, await testDefaults({ frozenLockfile: true }))
-  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is present`)
+  ).rejects.toThrow(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is absent`)
 })
 
 test(`prefer-frozen-lockfile: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async () => {
