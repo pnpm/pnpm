@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs'
+import gfs from 'graceful-fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
@@ -31,8 +32,10 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]) {
   const dest = getNodeExecPathInBinDir(opts.bin)
   await symlinkDir(nodeDir, path.join(opts.pnpmHomeDir, CURRENT_NODE_DIRNAME))
   try {
-    await fs.unlink(dest)
-  } catch (err) {}
+    gfs.unlinkSync(dest)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code !== 'ENOENT') throw err
+  }
   await symlinkOrHardLink(src, dest)
   try {
     let npmDir = nodeDir
