@@ -990,6 +990,9 @@ importers:
       '@zkochan/rimraf':
         specifier: ^2.1.2
         version: 2.1.2
+      graceful-fs:
+        specifier: ^4.2.11
+        version: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
       is-windows:
         specifier: ^1.0.2
         version: 1.0.2
@@ -1018,6 +1021,9 @@ importers:
       '@types/adm-zip':
         specifier: ^0.5.0
         version: 0.5.0
+      '@types/graceful-fs':
+        specifier: ^4.1.6
+        version: 4.1.6
       '@types/is-windows':
         specifier: ^1.0.0
         version: 1.0.0
@@ -9104,7 +9110,7 @@ packages:
     resolution: {integrity: sha512-IO+MJPVhoqz+28h1qLAcBEH2+xHMK6MTyHJc7MTnnYb6wsoLR29POVGJ7LycmVXIqyy/4/2ShP5sUwTXuOwb/w==}
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 20.4.5
+      '@types/node': 14.18.54
     dev: true
 
   /@types/graceful-fs@4.1.6:

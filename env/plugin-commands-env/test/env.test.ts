@@ -280,3 +280,41 @@ test('fail if there is no global bin directory', async () => {
     }, ['use', 'lts'])
   ).rejects.toEqual(new PnpmError('CANNOT_MANAGE_NODE', 'Unable to manage Node.js because pnpm was not installed using the standalone installation script'))
 })
+
+test('use overrides the previous Node.js version', async () => {
+  tempDir()
+  const configDir = path.resolve('config')
+
+  await env.handler({
+    bin: process.cwd(),
+    configDir,
+    global: true,
+    pnpmHomeDir: process.cwd(),
+    rawConfig: {},
+  }, ['use', '16.4.0'])
+
+  const opts = {
+    env: {
+      [PATH]: `${process.cwd()}${path.delimiter}${process.env[PATH] as string}`,
+    },
+    extendEnv: false,
+  }
+
+  {
+    const { stdout } = execa.sync('node', ['-v'], opts)
+    expect(stdout.toString()).toBe('v16.4.0')
+  }
+
+  await env.handler({
+    bin: process.cwd(),
+    configDir,
+    global: true,
+    pnpmHomeDir: process.cwd(),
+    rawConfig: {},
+  }, ['use', '16.5.0'])
+
+  {
+    const { stdout } = execa.sync('node', ['-v'], opts)
+    expect(stdout.toString()).toBe('v16.5.0')
+  }
+})
