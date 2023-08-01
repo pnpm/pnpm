@@ -1,5 +1,5 @@
 import path from 'path'
-import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifestOnly } from '@pnpm/cli-utils'
+import { docsUrl, type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { type Config, types } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
