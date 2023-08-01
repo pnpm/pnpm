@@ -21,7 +21,7 @@ import {
 import { PnpmError } from '@pnpm/error'
 import which from 'which'
 import writeJsonFile from 'write-json-file'
-import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
+import { getNearestCommand } from './buildCommandNotFoundHint'
 
 export const shorthands = {
   parallel: runShorthands.parallel,
@@ -212,7 +212,12 @@ export async function handler (
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
           if (await isErrorCommandNotFound(params[0], err)) {
-            err.hint = buildCommandNotFoundHint(params[0], (await readProjectManifestOnly(opts.dir)).scripts)
+            err.message = `Command "${params[0]}" not found`
+
+            const nearestCommand = getNearestCommand(params[0], (await readProjectManifestOnly(opts.dir)).scripts)
+            if (nearestCommand) {
+              err.hint = `Did you mean "pnpm exec ${nearestCommand}"?`
+            }
           } else if (!opts.recursive && typeof err.exitCode === 'number') {
             exitCode = err.exitCode
             return
