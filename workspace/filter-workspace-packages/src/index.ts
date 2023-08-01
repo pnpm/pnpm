@@ -64,6 +64,7 @@ export interface FilterPackagesOptions {
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
   useGlobDirFiltering?: boolean
+  sharedWorkspaceLockfile?: boolean
 }
 
 export async function filterPackagesFromDir (
@@ -71,7 +72,7 @@ export async function filterPackagesFromDir (
   filter: WorkspaceFilter[],
   opts: FilterPackagesOptions & { engineStrict?: boolean, patterns: string[] }
 ) {
-  const allProjects = await findWorkspacePackages(workspaceDir, { engineStrict: opts?.engineStrict, patterns: opts.patterns })
+  const allProjects = await findWorkspacePackages(workspaceDir, { engineStrict: opts?.engineStrict, patterns: opts.patterns, sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile })
   return {
     allProjects,
     ...(await filterPackages(allProjects, filter, opts)),

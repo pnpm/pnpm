@@ -64,7 +64,7 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')
   const { writeProjectManifest, manifest } = await tryReadProjectManifest(lockfileDir)
 
-  const rootProjectManifest = opts.rootProjectManifest ?? manifest ?? {}
+  const rootProjectManifest = (!opts.sharedWorkspaceLockfile ? manifest : (opts.rootProjectManifest ?? manifest)) ?? {}
 
   if (!rootProjectManifest.pnpm) {
     rootProjectManifest.pnpm = {

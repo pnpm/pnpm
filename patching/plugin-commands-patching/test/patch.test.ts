@@ -482,7 +482,7 @@ describe('patch and commit in workspaces', () => {
   let cacheDir: string
   let storeDir: string
 
-  beforeEach(() => {
+  beforeEach(async () => {
     preparePackages([
       {
         location: '.',
@@ -516,10 +516,10 @@ describe('patch and commit in workspaces', () => {
       dir: process.cwd(),
       storeDir,
     }
+    await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
   })
 
   test('patch commit should work in workspaces', async () => {
-    await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
     const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
     await install.handler({
       ...DEFAULT_OPTS,
@@ -571,6 +571,65 @@ describe('patch and commit in workspaces', () => {
     expect(fs.existsSync('project-1/node_modules/is-positive/license')).toBe(false)
     expect(fs.readFileSync('project-2/node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
     expect(fs.existsSync('project-2/node_modules/is-positive/license')).toBe(false)
+  })
+
+  test('patch and patch-commit should work with shared-workspace-lockfile=false', async () => {
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      allProjects,
+      allProjectsGraph,
+      dir: process.cwd(),
+      lockfileDir: undefined,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      saveLockfile: true,
+      sharedWorkspaceLockfile: false,
+    })
+    process.chdir('./project-1')
+    const output = await patch.handler({
+      ...defaultPatchOption,
+      dir: process.cwd(),
+    }, ['is-positive@1.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+    const tempDir = os.tmpdir()
+
+    expect(patchDir).toContain(tempDir)
+    expect(fs.existsSync(patchDir)).toBe(true)
+
+    expect(fs.readFileSync(path.join(patchDir, 'license'), 'utf8')).toContain('The MIT License (MIT)')
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+    fs.unlinkSync(path.join(patchDir, 'license'))
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      dir: process.cwd(),
+      cacheDir,
+      storeDir,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+      saveLockfile: true,
+      frozenLockfile: false,
+      fixLockfile: true,
+      sharedWorkspaceLockfile: false,
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+    })
+    const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
+    expect(patchContent).toContain('diff --git')
+    expect(patchContent).toContain('// test patching')
+    expect(fs.readFileSync('./node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
+    expect(fs.existsSync('./node_modules/is-positive/license')).toBe(false)
+    expect(fs.readFileSync('../project-2/node_modules/is-positive/index.js', 'utf8')).not.toContain('// test patching')
+    expect(fs.existsSync('../project-2/node_modules/is-positive/license')).toBe(true)
   })
 })
 

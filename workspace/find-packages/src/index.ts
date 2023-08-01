@@ -15,12 +15,14 @@ export async function findWorkspacePackages (
     engineStrict?: boolean
     nodeVersion?: string
     patterns?: string[]
+    sharedWorkspaceLockfile?: boolean
   }
 ): Promise<Project[]> {
   const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
   for (const pkg of pkgs) {
     packageIsInstallable(pkg.dir, pkg.manifest, opts ?? {})
-    if (pkg.dir !== workspaceRoot) {
+    // When setting shared-workspace-lockfile=false, `pnpm` can be set in sub-project's package.json.
+    if (opts?.sharedWorkspaceLockfile && pkg.dir !== workspaceRoot) {
       checkNonRootProjectManifest(pkg)
     }
   }

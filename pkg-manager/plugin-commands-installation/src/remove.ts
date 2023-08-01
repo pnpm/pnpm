@@ -148,6 +148,7 @@ export async function handler (
   | 'saveProd'
   | 'selectedProjectsGraph'
   | 'workspaceDir'
+  | 'sharedWorkspaceLockfile'
   > & {
     recursive?: boolean
   },
