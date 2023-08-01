@@ -10,9 +10,13 @@ export function getNearest (name: string, list?: readonly string[]) {
 }
 
 export async function getNearestProgram (programName: string) {
-  const binDir = path.join(process.cwd(), 'node_modules', '.bin')
-  const programList = await readdir(binDir)
-  return getNearest(programName, programList)
+  try {
+    const binDir = path.join(process.cwd(), 'node_modules', '.bin')
+    const programList = await readdir(binDir)
+    return getNearest(programName, programList)
+  } catch (_err) {
+    return null
+  }
 }
 
 export function buildCommandNotFoundHint (scriptName: string, scripts?: PackageScripts | undefined) {
