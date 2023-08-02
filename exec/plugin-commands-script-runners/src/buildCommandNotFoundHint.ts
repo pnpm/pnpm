@@ -19,10 +19,14 @@ export async function getNearestProgram (programName: string) {
   }
 }
 
+export function getNearestScript (scriptName: string, scripts?: PackageScripts | undefined) {
+  return getNearest(scriptName, scripts && Object.keys(scripts))
+}
+
 export function buildCommandNotFoundHint (scriptName: string, scripts?: PackageScripts | undefined) {
   let hint = `Command "${scriptName}" not found.`
 
-  const nearestCommand = getNearest(scriptName, scripts && Object.keys(scripts))
+  const nearestCommand = getNearestScript(scriptName, scripts)
 
   if (nearestCommand) {
     hint += ` Did you mean "pnpm run ${nearestCommand}"?`

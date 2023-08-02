@@ -1,5 +1,5 @@
 import path from 'path'
-import { docsUrl, type RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
+import { docsUrl, type RecursiveSummary, throwOnCommandFail, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { type Config, types } from '@pnpm/config'
 import { makeNodeRequireOption } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
@@ -21,7 +21,7 @@ import {
 import { PnpmError } from '@pnpm/error'
 import which from 'which'
 import writeJsonFile from 'write-json-file'
-import { getNearestProgram } from './buildCommandNotFoundHint'
+import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint'
 
 export const shorthands = {
   parallel: runShorthands.parallel,
@@ -133,6 +133,7 @@ export async function handler (
     shellMode?: boolean
     resumeFrom?: string
     reportSummary?: boolean
+    implicitlyFellbackFromRun?: boolean
   } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
   params: string[]
 ) {
@@ -213,10 +214,23 @@ export async function handler (
         } catch (err: any) { // eslint-disable-line
           if (await isErrorCommandNotFound(params[0], err)) {
             err.message = `Command "${params[0]}" not found`
-
-            const nearestCommand = await getNearestProgram(params[0])
-            if (nearestCommand) {
-              err.hint = `Did you mean "pnpm exec ${nearestCommand}"?`
+            if (opts.implicitlyFellbackFromRun) {
+              try {
+                const nearestScript = getNearestScript(params[0], (await readProjectManifestOnly(opts.dir)).scripts)
+                if (nearestScript) {
+                  err.hint = `Did you mean "pnpm ${nearestScript}"?`
+                } else {
+                  const nearestProgram = await getNearestProgram(params[0])
+                  if (nearestProgram) {
+                    err.hint = `Did you mean "pnpm ${nearestProgram}"?`
+                  }
+                }
+              } catch (_err) {}
+            } else {
+              const nearestProgram = await getNearestProgram(params[0])
+              if (nearestProgram) {
+                err.hint = `Did you mean "pnpm exec ${nearestProgram}"?`
+              }
             }
           } else if (!opts.recursive && typeof err.exitCode === 'number') {
             exitCode = err.exitCode

@@ -186,6 +186,7 @@ export async function handler (
       if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
       return exec({
         selectedProjectsGraph: {},
+        implicitlyFellbackFromRun: true,
         ...opts,
       }, opts.argv.original.slice(1))
     }
