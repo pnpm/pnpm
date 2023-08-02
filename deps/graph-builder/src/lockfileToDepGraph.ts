@@ -129,7 +129,7 @@ export async function lockfileToDepGraph (
         }
         const dir = path.join(modules, pkgName)
         if (
-          !refIsLocalDirectory(depPath) &&
+          !refIsLocalDirectory(depPath) && // comment this out to prevent relinking of local deps on headless install
           currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies) &&
           equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)
         ) {

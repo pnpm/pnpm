@@ -261,6 +261,7 @@ async function resolveAndFetch (
         updated,
         publishedAt,
       },
+      bundledManifest: async () => manifest,
     }
   }
 

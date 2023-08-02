@@ -328,18 +328,20 @@ async function finishLockfileUpdates (
       // Optional dependencies are not always downloaded, so there is no way to know whether they need to be built or not.
       requiresBuild = true
     } else if (depNode.fetchingBundledManifest != null) {
-      const filesResponse = await depNode.fetchingFiles()
-      // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-      const pkgJson = await depNode.fetchingBundledManifest()
-      requiresBuild = Boolean(
-        pkgJson?.scripts != null && (
-          Boolean(pkgJson.scripts.preinstall) ||
-          Boolean(pkgJson.scripts.install) ||
-          Boolean(pkgJson.scripts.postinstall)
-        ) ||
-        filesResponse.filesIndex['binding.gyp'] ||
-          Object.keys(filesResponse.filesIndex).some((filename) => !(filename.match(/^[.]hooks[\\/]/) == null)) // TODO: optimize this
-      )
+      if (depNode.fetchingFiles) {
+        const filesResponse = await depNode.fetchingFiles()
+        // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
+        const pkgJson = await depNode.fetchingBundledManifest()
+        requiresBuild = Boolean(
+          pkgJson?.scripts != null && (
+            Boolean(pkgJson.scripts.preinstall) ||
+            Boolean(pkgJson.scripts.install) ||
+            Boolean(pkgJson.scripts.postinstall)
+          ) ||
+          filesResponse.filesIndex['binding.gyp'] ||
+            Object.keys(filesResponse.filesIndex).some((filename) => !(filename.match(/^[.]hooks[\\/]/) == null)) // TODO: optimize this
+        )
+      }
     } else {
       // This should never ever happen
       throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${depPath}"`)
