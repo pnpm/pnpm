@@ -91,6 +91,7 @@ export async function handler (
   | 'saveOptional'
   | 'saveProd'
   | 'workspaceDir'
+  | 'sharedWorkspaceLockfile'
   > & Partial<Pick<Config, 'linkWorkspacePackages'>>,
   params?: string[]
 ) {

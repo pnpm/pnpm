@@ -205,6 +205,7 @@ export async function main (inputArgv: string[]) {
       testPattern: config.testPattern,
       changedFilesIgnorePattern: config.changedFilesIgnorePattern,
       useGlobDirFiltering: !config.legacyDirFiltering,
+      sharedWorkspaceLockfile: config.sharedWorkspaceLockfile,
     })
 
     if (filterResults.allProjects.length === 0) {

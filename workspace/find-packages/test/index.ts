@@ -38,7 +38,9 @@ test('findWorkspacePackagesNoCheck() skips engine checks', async () => {
 test('findWorkspacePackages() output warnings for non-root workspace project', async () => {
   const fixturePath = path.join(__dirname, '__fixtures__/warning-for-non-root-project')
 
-  const pkgs = await findWorkspacePackages(fixturePath)
+  const pkgs = await findWorkspacePackages(fixturePath, {
+    sharedWorkspaceLockfile: true,
+  })
   expect(pkgs.length).toBe(3)
   expect(logger.warn).toBeCalledTimes(3)
   const fooPath = path.join(fixturePath, 'packages/foo')

@@ -89,6 +89,7 @@ export type ImportCommandOptions = Pick<Config,
 | 'selectedProjectsGraph'
 | 'workspaceDir'
 | 'ignoreWorkspaceCycles'
+| 'sharedWorkspaceLockfile'
 > & CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>
 
 export async function handler (
