@@ -9,6 +9,16 @@ export function getNearest (name: string, list?: readonly string[]) {
   })
 }
 
+function readProgramsFromDir(binDir: string): string[] {
+  const list = readdirSync(binDir)
+  if (process.platform !== 'win32') return list
+  const executableExtensions = ['.cmd', '.bat', '.ps1', '.exe', '.com']
+  return list.map((fullName) => {
+    const { name, ext } = path.parse(fullName)
+    return executableExtensions.includes(ext) ? name : fullName
+  })
+}
+
 export function getNearestProgram (opts: {
   programName: string,
   dir: string,
@@ -17,10 +27,10 @@ export function getNearestProgram (opts: {
   try {
     const { programName, dir, workspaceDir } = opts
     const binDir = path.join(dir, 'node_modules', '.bin')
-    const programList = readdirSync(binDir)
+    const programList = readProgramsFromDir(binDir)
     if (workspaceDir && workspaceDir !== dir) {
       const workspaceBinDir = path.join(workspaceDir, 'node_modules', '.bin')
-      programList.push(...readdirSync(workspaceBinDir))
+      programList.push(...readProgramsFromDir(workspaceBinDir))
     }
     return getNearest(programName, programList)
   } catch (_err) {
