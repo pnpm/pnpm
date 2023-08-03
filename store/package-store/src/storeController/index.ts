@@ -31,6 +31,7 @@ export async function createPackageStore (
     storeDir: string
     networkConcurrency?: number
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+    relinkLocalDirDeps?: boolean
     verifyStoreIntegrity: boolean
   }
 ): Promise<StoreController> {
@@ -48,6 +49,7 @@ export async function createPackageStore (
     networkConcurrency: initOpts.networkConcurrency,
     storeDir: initOpts.storeDir,
     verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
+    relinkLocalDirDeps: initOpts.relinkLocalDirDeps,
   })
 
   return {
