@@ -222,13 +222,21 @@ export async function handler (
               if (nearestScript) {
                 err.hint = `Did you mean "pnpm ${nearestScript}"?`
               } else {
-                const nearestProgram = await getNearestProgram(params[0])
+                const nearestProgram = await getNearestProgram({
+                  programName: params[0],
+                  dir: opts.dir,
+                  workspaceDir: opts.workspaceDir,
+                })
                 if (nearestProgram) {
                   err.hint = `Did you mean "pnpm ${nearestProgram}"?`
                 }
               }
             } else {
-              const nearestProgram = await getNearestProgram(params[0])
+              const nearestProgram = await getNearestProgram({
+                programName: params[0],
+                dir: opts.dir,
+                workspaceDir: opts.workspaceDir,
+              })
               if (nearestProgram) {
                 err.hint = `Did you mean "pnpm exec ${nearestProgram}"?`
               }
