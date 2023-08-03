@@ -215,7 +215,7 @@ export async function handler (
           if (await isErrorCommandNotFound(params[0], err)) {
             err.message = `Command "${params[0]}" not found`
             if (opts.implicitlyFellbackFromRun) {
-              let nearestScript: string | null | undefined = undefined
+              let nearestScript: string | null | undefined
               try {
                 nearestScript = getNearestScript(params[0], (await readProjectManifestOnly(opts.dir)).scripts)
               } catch (_err) {}
