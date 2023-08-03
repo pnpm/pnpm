@@ -836,3 +836,28 @@ test('pnpm exec command not found (implicit fallback)', async () => {
   expect(error?.message).toBe('Command "buil" not found')
   expect(error?.hint).toBe('Did you mean "pnpm build"?')
 })
+
+test('pnpm exec command not found (explicit call, without near name packages)', async () => {
+  prepare({
+    scripts: {
+      cwsay: 'echo hello',
+    },
+  })
+
+  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  let error!: Error & { hint?: string }
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: false,
+      bail: true,
+      selectedProjectsGraph,
+      implicitlyFellbackFromRun: false,
+    }, ['cwsay'])
+  } catch (err: any) { // eslint-disable-line
+    error = err
+  }
+  expect(error?.message).toBe('Command "cwsay" not found')
+  expect(error?.hint).toBeFalsy()
+})
