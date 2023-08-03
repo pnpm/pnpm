@@ -4,7 +4,7 @@ import { readdir } from 'fs/promises'
 import path from 'path'
 
 export function getNearest (name: string, list?: readonly string[]) {
-  return list && didYouMean(name, list || [], {
+  return list && didYouMean(name, list ?? [], {
     returnType: ReturnTypeEnums.FIRST_CLOSEST_MATCH,
   })
 }
