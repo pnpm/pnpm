@@ -3,43 +3,38 @@ import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
 import { readdirSync } from 'fs'
 import path from 'path'
 
-export function getNearest (name: string, list?: readonly string[]) {
-  return list && didYouMean(name, list ?? [], {
-    returnType: ReturnTypeEnums.FIRST_CLOSEST_MATCH,
-  })
-}
-
-function readProgramsFromDir (binDir: string): string[] {
-  const list = readdirSync(binDir)
-  if (process.platform !== 'win32') return list
-  const executableExtensions = ['.cmd', '.bat', '.ps1', '.exe', '.com']
-  return list.map((fullName) => {
-    const { name, ext } = path.parse(fullName)
-    return executableExtensions.includes(ext) ? name : fullName
-  })
-}
-
-export function getNearestProgram (opts: {
-  programName: string
+export function getNearestProgram ({
+  dir,
+  modulesDir,
+  programName,
+  workspaceDir,
+}: {
   dir: string
+  modulesDir: string
+  programName: string
   workspaceDir: string | undefined
 }) {
   try {
-    const { programName, dir, workspaceDir } = opts
-    const binDir = path.join(dir, 'node_modules', '.bin')
+    const binDir = path.join(dir, modulesDir, '.bin')
     const programList = readProgramsFromDir(binDir)
     if (workspaceDir && workspaceDir !== dir) {
-      const workspaceBinDir = path.join(workspaceDir, 'node_modules', '.bin')
+      const workspaceBinDir = path.join(workspaceDir, modulesDir, '.bin')
       programList.push(...readProgramsFromDir(workspaceBinDir))
     }
     return getNearest(programName, programList)
-  } catch (_err) {
+  } catch {
     return null
   }
 }
 
-export function getNearestScript (scriptName: string, scripts?: PackageScripts | undefined) {
-  return getNearest(scriptName, scripts && Object.keys(scripts))
+function readProgramsFromDir (binDir: string): string[] {
+  const files = readdirSync(binDir)
+  if (process.platform !== 'win32') return files
+  const executableExtensions = ['.cmd', '.bat', '.ps1', '.exe', '.com']
+  return files.map((fullName) => {
+    const { name, ext } = path.parse(fullName)
+    return executableExtensions.includes(ext.toLowerCase()) ? name : fullName
+  })
 }
 
 export function buildCommandNotFoundHint (scriptName: string, scripts?: PackageScripts | undefined) {
@@ -52,4 +47,15 @@ export function buildCommandNotFoundHint (scriptName: string, scripts?: PackageS
   }
 
   return hint
+}
+
+export function getNearestScript (scriptName: string, scripts?: PackageScripts | undefined) {
+  return getNearest(scriptName, Object.keys(scripts ?? []))
+}
+
+export function getNearest (name: string, list: readonly string[]): string | null {
+  if (list == null || list.length === 0) return null
+  return didYouMean(name, list, {
+    returnType: ReturnTypeEnums.FIRST_CLOSEST_MATCH,
+  })
 }

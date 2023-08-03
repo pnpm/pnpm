@@ -134,7 +134,7 @@ export async function handler (
     resumeFrom?: string
     reportSummary?: boolean
     implicitlyFellbackFromRun?: boolean
-  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
+  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'modulesDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
   params: string[]
 ) {
   // For backward compatibility
@@ -214,33 +214,12 @@ export async function handler (
         } catch (err: any) { // eslint-disable-line
           if (await isErrorCommandNotFound(params[0], err)) {
             err.message = `Command "${params[0]}" not found`
-            if (opts.implicitlyFellbackFromRun) {
-              let nearestScript: string | null | undefined
-              try {
-                nearestScript = getNearestScript(params[0], (await readProjectManifestOnly(opts.dir)).scripts)
-              } catch (_err) {}
-              if (nearestScript) {
-                err.hint = `Did you mean "pnpm ${nearestScript}"?`
-              } else {
-                const nearestProgram = getNearestProgram({
-                  programName: params[0],
-                  dir: opts.dir,
-                  workspaceDir: opts.workspaceDir,
-                })
-                if (nearestProgram) {
-                  err.hint = `Did you mean "pnpm ${nearestProgram}"?`
-                }
-              }
-            } else {
-              const nearestProgram = getNearestProgram({
-                programName: params[0],
-                dir: opts.dir,
-                workspaceDir: opts.workspaceDir,
-              })
-              if (nearestProgram) {
-                err.hint = `Did you mean "pnpm exec ${nearestProgram}"?`
-              }
-            }
+            err.hint = await createExecCommandNotFoundHint(params[0], {
+              implicitlyFellbackFromRun: opts.implicitlyFellbackFromRun ?? false,
+              dir: opts.dir,
+              workspaceDir: opts.workspaceDir,
+              modulesDir: opts.modulesDir ?? 'node_modules',
+            })
           } else if (!opts.recursive && typeof err.exitCode === 'number') {
             exitCode = err.exitCode
             return
@@ -280,6 +259,46 @@ export async function handler (
   })
   throwOnCommandFail('pnpm recursive exec', result)
   return { exitCode }
+}
+
+async function createExecCommandNotFoundHint (
+  programName: string,
+  opts: {
+    dir: string
+    implicitlyFellbackFromRun: boolean
+    workspaceDir?: string
+    modulesDir: string
+  }
+): Promise<string | undefined> {
+  if (opts.implicitlyFellbackFromRun) {
+    let nearestScript: string | null | undefined
+    try {
+      nearestScript = getNearestScript(programName, (await readProjectManifestOnly(opts.dir)).scripts)
+    } catch (_err) {}
+    if (nearestScript) {
+      return `Did you mean "pnpm ${nearestScript}"?`
+    }
+    const nearestProgram = getNearestProgram({
+      programName,
+      dir: opts.dir,
+      workspaceDir: opts.workspaceDir,
+      modulesDir: opts.modulesDir,
+    })
+    if (nearestProgram) {
+      return `Did you mean "pnpm ${nearestProgram}"?`
+    }
+    return undefined
+  }
+  const nearestProgram = getNearestProgram({
+    programName,
+    dir: opts.dir,
+    workspaceDir: opts.workspaceDir,
+    modulesDir: opts.modulesDir,
+  })
+  if (nearestProgram) {
+    return `Did you mean "pnpm exec ${nearestProgram}"?`
+  }
+  return undefined
 }
 
 interface CommandError extends Error {
