@@ -425,7 +425,6 @@ async function linkAllPkgs (
 ) {
   return Promise.all(
     depNodes.map(async (depNode) => {
-      if (!depNode.fetchingFiles) return
       const filesResponse = await depNode.fetchingFiles()
 
       if (typeof depNode.requiresBuild === 'function') {

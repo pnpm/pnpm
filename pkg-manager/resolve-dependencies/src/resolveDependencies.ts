@@ -858,7 +858,7 @@ function getDepsToResolve (
       const satisfiesWanted = satisfiesWanted2Args.bind(null, wantedDependency)
       if (
         resolvedDependencies[wantedDependency.alias] &&
-        (satisfiesWanted(resolvedDependencies[wantedDependency.alias]) || resolvedDependencies[wantedDependency.alias].startsWith('file:'))
+        satisfiesWanted(resolvedDependencies[wantedDependency.alias])
       ) {
         reference = resolvedDependencies[wantedDependency.alias]
       } else if (
@@ -1080,7 +1080,7 @@ async function resolveDependency (
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.pref) || ctx.registries.default,
       // Unfortunately, even when run with --lockfile-only, we need the *real* package.json
       // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
-      skipFetch: depIsLinked,
+      skipFetch: false,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
     })
