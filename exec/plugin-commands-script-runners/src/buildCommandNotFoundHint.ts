@@ -1,6 +1,6 @@
 import { type PackageScripts } from '@pnpm/types'
 import didYouMean, { ReturnTypeEnums } from 'didyoumean2'
-import { readdir } from 'fs/promises'
+import { readdirSync } from 'fs'
 import path from 'path'
 
 export function getNearest (name: string, list?: readonly string[]) {
@@ -9,7 +9,7 @@ export function getNearest (name: string, list?: readonly string[]) {
   })
 }
 
-export async function getNearestProgram (opts: {
+export function getNearestProgram (opts: {
   programName: string,
   dir: string,
   workspaceDir: string | undefined,
@@ -17,17 +17,12 @@ export async function getNearestProgram (opts: {
   try {
     const { programName, dir, workspaceDir } = opts
     const binDir = path.join(dir, 'node_modules', '.bin')
-    const programListPromise = readdir(binDir) // await is omitted to take advantage of concurrency
-    let programList!: string[]
+    const programList = readdirSync(binDir)
     if (workspaceDir && workspaceDir !== dir) {
       const workspaceBinDir = path.join(workspaceDir, 'node_modules', '.bin')
-      const programListExtension = await readdir(workspaceBinDir)
-      programList = await programListPromise
-      programList.push(...programListExtension)
-    } else {
-      programList = await programListPromise
+      programList.push(...readdirSync(workspaceBinDir))
     }
-    return getNearest(programName, await programListPromise)
+    return getNearest(programName, programList)
   } catch (_err) {
     return null
   }
