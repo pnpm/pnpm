@@ -9,7 +9,7 @@ export function getNearest (name: string, list?: readonly string[]) {
   })
 }
 
-function readProgramsFromDir(binDir: string): string[] {
+function readProgramsFromDir (binDir: string): string[] {
   const list = readdirSync(binDir)
   if (process.platform !== 'win32') return list
   const executableExtensions = ['.cmd', '.bat', '.ps1', '.exe', '.com']
