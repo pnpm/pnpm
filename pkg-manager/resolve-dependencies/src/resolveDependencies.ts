@@ -858,7 +858,7 @@ function getDepsToResolve (
       const satisfiesWanted = satisfiesWanted2Args.bind(null, wantedDependency)
       if (
         resolvedDependencies[wantedDependency.alias] &&
-        satisfiesWanted(resolvedDependencies[wantedDependency.alias])
+        (satisfiesWanted(resolvedDependencies[wantedDependency.alias]) || resolvedDependencies[wantedDependency.alias].startsWith('file:'))
       ) {
         reference = resolvedDependencies[wantedDependency.alias]
       } else if (
