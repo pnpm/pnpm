@@ -113,6 +113,7 @@ async function diffFolders (folderA: string, folderB: string) {
         USERPROFILE: '',
         // #endregion
       },
+      stripFinalNewline: false,
     })
     stdout = result.stdout
     stderr = result.stderr
@@ -130,7 +131,7 @@ async function diffFolders (folderA: string, folderB: string) {
     .replace(new RegExp(`(a|b)${escapeStringRegexp(`/${removeTrailingAndLeadingSlash(folderBN)}/`)}`, 'g'), '$1/')
     .replace(new RegExp(escapeStringRegexp(`${folderAN}/`), 'g'), '')
     .replace(new RegExp(escapeStringRegexp(`${folderBN}/`), 'g'), '')
-    .replace(/\n\\ No newline at end of file$/, '')
+    .replace(/\n\\ No newline at end of file\n$/, '\n')
 }
 
 function removeTrailingAndLeadingSlash (p: string) {
