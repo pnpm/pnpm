@@ -861,3 +861,37 @@ test('pnpm exec command not found (explicit call, without near name packages)', 
   expect(error?.message).toBe('Command "cwsay" not found')
   expect(error?.hint).toBeFalsy()
 })
+
+test('pnpm exec command not found (explicit call, with a near name package)', async () => {
+  prepare({
+    dependencies: {
+      cowsay: '1.5.0',
+    },
+  })
+
+  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+
+  await execa(pnpmBin, [
+    'install',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  let error!: Error & { hint?: string }
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: false,
+      bail: true,
+      selectedProjectsGraph,
+      implicitlyFellbackFromRun: false,
+    }, ['cwsay'])
+  } catch (err: any) { // eslint-disable-line
+    error = err
+  }
+  expect(error?.message).toBe('Command "cwsay" not found')
+  expect(error?.hint).toBe('Did you mean "pnpm exec cowsay"?')
+})
