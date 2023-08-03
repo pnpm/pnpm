@@ -20,9 +20,9 @@ function readProgramsFromDir (binDir: string): string[] {
 }
 
 export function getNearestProgram (opts: {
-  programName: string,
-  dir: string,
-  workspaceDir: string | undefined,
+  programName: string
+  dir: string
+  workspaceDir: string | undefined
 }) {
   try {
     const { programName, dir, workspaceDir } = opts
