@@ -363,29 +363,29 @@ test('prints progress of big files download', (done) => {
       case 1:
         expect(output).toBe(`\
 Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('0 B')}/${hlValue('10.5 MB')}`)
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('0.00 B')}/${hlValue('10.49 MB')}`)
         return
       case 2:
         expect(output).toBe(`\
 Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.5 MB')}`)
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.49 MB')}`)
         return
       case 4:
         expect(output).toBe(`\
 Progress: resolved ${hlValue('2')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}`)
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.49 MB')}`)
         return
       case 7:
         expect(output).toBe(`\
 Progress: resolved ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
-Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`)
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.49 MB')}
+Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.92 MB')}/${hlValue('20.97 MB')}`)
         return
       case 8:
         expect(output).toBe(`\
-Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.5 MB')}/${hlValue('10.5 MB')}, done
+Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.49 MB')}/${hlValue('10.49 MB')}, done
 Progress: resolved ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}
-Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}`)
+Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.92 MB')}/${hlValue('20.97 MB')}`)
         return // eslint-disable-line
       }
     })
