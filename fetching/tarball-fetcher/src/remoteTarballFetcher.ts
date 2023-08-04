@@ -5,6 +5,7 @@ import { type FetchResult } from '@pnpm/fetcher-base'
 import type { Cafs, DeferredManifestPromise } from '@pnpm/cafs-types'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import * as retry from '@zkochan/retry'
+import throttle from 'lodash.throttle'
 import ssri from 'ssri'
 import { BadTarballError } from './errorTypes'
 
@@ -153,8 +154,8 @@ export function createDownloader (
           opts.onStart(size, currentAttempt)
         }
         // In order to reduce the amount of logs, we only report the download progress of big tarballs
-        const onProgress = size != null && size >= BIG_TARBALL_SIZE
-          ? opts.onProgress
+        const onProgress = (size != null && size >= BIG_TARBALL_SIZE && opts.onProgress)
+          ? throttle(opts.onProgress, 500)
           : undefined
         let downloaded = 0
         res.body!.on('data', (chunk: Buffer) => {

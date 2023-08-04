@@ -1582,6 +1582,9 @@ importers:
       '@zkochan/retry':
         specifier: ^0.2.0
         version: 0.2.0
+      lodash.throttle:
+        specifier: 4.1.1
+        version: 4.1.1
       p-map-values:
         specifier: ^1.0.0
         version: 1.0.0
@@ -1613,6 +1616,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@types/lodash.throttle':
+        specifier: 4.1.7
+        version: 4.1.7
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -8505,6 +8511,12 @@ packages:
       '@types/lodash': 4.14.196
     dev: true
 
+  /@types/lodash.throttle@4.1.7:
+    resolution: {integrity: sha512-znwGDpjCHQ4FpLLx19w4OXDqq8+OvREa05H89obtSyXyOFKL3dDjCslsmfBz0T2FU8dmf5Wx1QvogbINiGIu9g==}
+    dependencies:
+      '@types/lodash': 4.14.196
+    dev: true
+
   /@types/lodash@4.14.181:
     resolution: {integrity: sha512-n3tyKthHJbkiWhDZs3DkhkCzt2MexYHXlX0td5iMplyfwketaOeKboEVBqzceH7juqvEg3q5oUoBFxSLu7zFag==}
 
@@ -13322,6 +13334,10 @@ packages:
   /lodash.startcase@4.4.0:
     resolution: {integrity: sha512-+WKqsK294HMSc2jEbNgpHpd0JfIBhp7rEV4aqXWqFr6AlXov+SlcgB1Fv01y2kGe3Gc8nMW7VA0SrGuSkRfIEg==}
     dev: true
+
+  /lodash.throttle@4.1.1:
+    resolution: {integrity: sha512-wIkUCfVKpVsWo3JSZlc+8MB5it+2AN5W8J7YVMST30UrvcQNZ1Okbj+rbVniijTWE6FGYy4XJq/rHkas8qJMLQ==}
+    dev: false
 
   /lodash.truncate@4.4.2:
     resolution: {integrity: sha512-jttmRe7bRse52OsWIMDLaXxWqRAmtIUccAQ3garviCqJjafXOfNMO0yMfNpdD6zbGaTU0P5Nz7e7gAT6cKmJRw==}
