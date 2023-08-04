@@ -5,7 +5,7 @@ import { type Dependencies, type PackageManifest, type ReadPackageHook } from '@
 import { PnpmError } from '@pnpm/error'
 import { parseOverrides } from '@pnpm/parse-overrides'
 import normalizePath from 'normalize-path'
-import { isSubRange } from './isSubRange'
+import { isIntersectingRange } from './isIntersectingRange'
 
 export function createVersionsOverrider (
   overrides: Record<string, string>,
@@ -94,13 +94,13 @@ function overrideDeps (
     pickMostSpecificVersionOverride(
       versionOverrides.filter(
         ({ targetPkg }) =>
-          targetPkg.name === name && isSubRange(targetPkg.pref, pref)
+          targetPkg.name === name && isIntersectingRange(targetPkg.pref, pref)
       )
     ) ??
     pickMostSpecificVersionOverride(
       genericVersionOverrides.filter(
         ({ targetPkg }) =>
-          targetPkg.name === name && isSubRange(targetPkg.pref, pref)
+          targetPkg.name === name && isIntersectingRange(targetPkg.pref, pref)
       )
     )
     if (!versionOverride) continue
@@ -122,5 +122,5 @@ function overrideDeps (
 }
 
 function pickMostSpecificVersionOverride (versionOverrides: VersionOverride[]): VersionOverride | undefined {
-  return versionOverrides.sort((a, b) => isSubRange(b.targetPkg.pref ?? '', a.targetPkg.pref ?? '') ? -1 : 1)[0]
+  return versionOverrides.sort((a, b) => isIntersectingRange(b.targetPkg.pref ?? '', a.targetPkg.pref ?? '') ? -1 : 1)[0]
 }

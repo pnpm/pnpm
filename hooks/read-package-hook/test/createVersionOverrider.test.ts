@@ -370,3 +370,16 @@ test('createVersionOverrider() throws error when supplied an invalid selector', 
     'foo > bar': '2',
   }, process.cwd())).toThrowError('Cannot parse the "foo > bar" selector in pnpm.overrides')
 })
+
+test('createVersionsOverrider() matches intersections', () => {
+  const overrider = createVersionsOverrider({
+    'foo@<1.2.4': '>=1.2.4',
+  }, process.cwd())
+  expect(
+    overrider({
+      dependencies: { foo: '^1.2.3' },
+    })
+  ).toStrictEqual({
+    dependencies: { foo: '>=1.2.4' },
+  })
+})
