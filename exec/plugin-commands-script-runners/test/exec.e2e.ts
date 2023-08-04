@@ -812,7 +812,7 @@ test('pnpm recursive exec report summary with --bail', async () => {
   expect(executionStatus[path.resolve('project-4')].status).toBe('queued')
 })
 
-test('pnpm exec command not found', async () => {
+test('pnpm exec command not found (implicit fallback)', async () => {
   prepare({
     scripts: {
       build: 'echo hello',
@@ -820,7 +820,7 @@ test('pnpm exec command not found', async () => {
   })
 
   const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  let error!: Error & { hint: string }
+  let error!: Error & { hint?: string }
   try {
     await exec.handler({
       ...DEFAULT_OPTS,
@@ -828,9 +828,70 @@ test('pnpm exec command not found', async () => {
       recursive: false,
       bail: true,
       selectedProjectsGraph,
+      implicitlyFellbackFromRun: true,
     }, ['buil'])
   } catch (err: any) { // eslint-disable-line
     error = err
   }
-  expect(error?.hint).toBe('Command "buil" not found. Did you mean "pnpm run build"?')
+  expect(error?.message).toBe('Command "buil" not found')
+  expect(error?.hint).toBe('Did you mean "pnpm build"?')
+})
+
+test('pnpm exec command not found (explicit call, without near name packages)', async () => {
+  prepare({
+    scripts: {
+      cwsay: 'echo hello',
+    },
+  })
+
+  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  let error!: Error & { hint?: string }
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: false,
+      bail: true,
+      selectedProjectsGraph,
+      implicitlyFellbackFromRun: false,
+    }, ['cwsay'])
+  } catch (err: any) { // eslint-disable-line
+    error = err
+  }
+  expect(error?.message).toBe('Command "cwsay" not found')
+  expect(error?.hint).toBeFalsy()
+})
+
+test('pnpm exec command not found (explicit call, with a near name package)', async () => {
+  prepare({
+    dependencies: {
+      cowsay: '1.5.0',
+    },
+  })
+
+  const { selectedProjectsGraph } = await readProjects(process.cwd(), [])
+
+  await execa(pnpmBin, [
+    'install',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  let error!: Error & { hint?: string }
+  try {
+    await exec.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      recursive: false,
+      bail: true,
+      selectedProjectsGraph,
+      implicitlyFellbackFromRun: false,
+    }, ['cwsay'])
+  } catch (err: any) { // eslint-disable-line
+    error = err
+  }
+  expect(error?.message).toBe('Command "cwsay" not found')
+  expect(error?.hint).toBe('Did you mean "pnpm exec cowsay"?')
 })

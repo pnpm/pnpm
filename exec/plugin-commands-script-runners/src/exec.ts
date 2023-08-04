@@ -21,7 +21,7 @@ import {
 import { PnpmError } from '@pnpm/error'
 import which from 'which'
 import writeJsonFile from 'write-json-file'
-import { buildCommandNotFoundHint } from './buildCommandNotFoundHint'
+import { getNearestProgram, getNearestScript } from './buildCommandNotFoundHint'
 
 export const shorthands = {
   parallel: runShorthands.parallel,
@@ -133,7 +133,8 @@ export async function handler (
     shellMode?: boolean
     resumeFrom?: string
     reportSummary?: boolean
-  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
+    implicitlyFellbackFromRun?: boolean
+  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'modulesDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
   params: string[]
 ) {
   // For backward compatibility
@@ -212,7 +213,13 @@ export async function handler (
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
           if (await isErrorCommandNotFound(params[0], err)) {
-            err.hint = buildCommandNotFoundHint(params[0], (await readProjectManifestOnly(opts.dir)).scripts)
+            err.message = `Command "${params[0]}" not found`
+            err.hint = await createExecCommandNotFoundHint(params[0], {
+              implicitlyFellbackFromRun: opts.implicitlyFellbackFromRun ?? false,
+              dir: opts.dir,
+              workspaceDir: opts.workspaceDir,
+              modulesDir: opts.modulesDir ?? 'node_modules',
+            })
           } else if (!opts.recursive && typeof err.exitCode === 'number') {
             exitCode = err.exitCode
             return
@@ -252,6 +259,46 @@ export async function handler (
   })
   throwOnCommandFail('pnpm recursive exec', result)
   return { exitCode }
+}
+
+async function createExecCommandNotFoundHint (
+  programName: string,
+  opts: {
+    dir: string
+    implicitlyFellbackFromRun: boolean
+    workspaceDir?: string
+    modulesDir: string
+  }
+): Promise<string | undefined> {
+  if (opts.implicitlyFellbackFromRun) {
+    let nearestScript: string | null | undefined
+    try {
+      nearestScript = getNearestScript(programName, (await readProjectManifestOnly(opts.dir)).scripts)
+    } catch (_err) {}
+    if (nearestScript) {
+      return `Did you mean "pnpm ${nearestScript}"?`
+    }
+    const nearestProgram = getNearestProgram({
+      programName,
+      dir: opts.dir,
+      workspaceDir: opts.workspaceDir,
+      modulesDir: opts.modulesDir,
+    })
+    if (nearestProgram) {
+      return `Did you mean "pnpm ${nearestProgram}"?`
+    }
+    return undefined
+  }
+  const nearestProgram = getNearestProgram({
+    programName,
+    dir: opts.dir,
+    workspaceDir: opts.workspaceDir,
+    modulesDir: opts.modulesDir,
+  })
+  if (nearestProgram) {
+    return `Did you mean "pnpm exec ${nearestProgram}"?`
+  }
+  return undefined
 }
 
 interface CommandError extends Error {
