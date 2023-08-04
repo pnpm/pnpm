@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fss, { promises as fs } from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
 import { type Lockfile } from '@pnpm/lockfile-file'
@@ -479,4 +479,27 @@ test('re-install should update local file dependency', async () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
   })
+})
+
+test('local directory is not relinked if relinkLocalDirDeps is set to false', async () => {
+  prepareEmpty()
+  fss.mkdirSync('pkg')
+  fss.writeFileSync('pkg/index.js', 'hello', 'utf8')
+  fss.writeFileSync('pkg/package.json', '{"name": "pkg"}', 'utf8')
+
+  const manifest = await addDependenciesToPackage({}, ['file:./pkg'], await testDefaults())
+
+  fss.writeFileSync('pkg/new.js', 'hello', 'utf8')
+
+  await addDependenciesToPackage(manifest, ['is-odd@1.0.0'], await testDefaults({}, {}, {}, {
+    relinkLocalDirDeps: false,
+  }))
+
+  expect(fss.readdirSync('node_modules/pkg').sort()).toStrictEqual(['index.js', 'package.json'])
+
+  await install(manifest, await testDefaults({ frozenLockfile: true }, {}, {}, {
+    relinkLocalDirDeps: false,
+  }))
+
+  expect(fss.readdirSync('node_modules/pkg').sort()).toStrictEqual(['index.js', 'package.json'])
 })
