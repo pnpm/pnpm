@@ -29,7 +29,10 @@ export function reportBigTarballProgress (
         startWith(0),
         map((downloadedRaw: number) => {
           const done = startedLog['size'] === downloadedRaw
-          const downloaded = prettyBytes(downloadedRaw, {minimumFractionDigits: 2, maximumFractionDigits: 2})
+          const downloaded = prettyBytes(downloadedRaw, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
           return {
             fixed: !done,
             msg: `Downloading ${hlPkgId(startedLog['packageId'])}: ${hlValue(downloaded)}/${hlValue(size)}${done ? ', done' : ''}`,
