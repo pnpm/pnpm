@@ -373,7 +373,7 @@ export async function mutateModules (
       !opts.dedupe &&
       installsOnly &&
       (
-        frozenLockfile && !opts.lockfileOnly ||
+        frozenLockfile ||
         opts.ignorePackageManifest ||
         !needsFullResolution &&
         opts.preferFrozenLockfile &&
