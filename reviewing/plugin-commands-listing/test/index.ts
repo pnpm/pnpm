@@ -154,3 +154,37 @@ pkg-with-optional 1.0.0
 └── not-compatible-with-any-os 1.0.0 skipped`)
   }
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/6873
+test('listing packages should not fail on package that has local file directory in dependencies', async () => {
+  preparePackages([
+    {
+      name: 'dep',
+      version: '1.0.0',
+    },
+    {
+      name: 'pkg',
+      version: '1.0.0',
+
+      dependencies: {
+        dep: 'file:../dep',
+      },
+    },
+  ])
+
+  const pkgDir = path.resolve('pkg')
+  await execa('node', [pnpmBin, 'install'], { cwd: pkgDir })
+
+  const output = await list.handler({
+    dev: false,
+    dir: pkgDir,
+    optional: false,
+  }, [])
+
+  expect(stripAnsi(output)).toBe(`Legend: production dependency, optional only, dev only
+
+pkg@1.0.0 ${pkgDir}
+
+dependencies:
+dep file:../dep`)
+})
