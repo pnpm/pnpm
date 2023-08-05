@@ -39,7 +39,7 @@ export interface GetPkgInfoOpts {
 
 export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
   let name!: string
-  let version!: string
+  let version: string
   let resolved: string | undefined
   let dev: boolean | undefined
   let optional: true | undefined
@@ -71,6 +71,9 @@ export function getPkgInfo (opts: GetPkgInfoOpts): PackageInfo {
     optional = pkgSnapshot.optional
   } else {
     name = opts.alias
+    version = opts.ref
+  }
+  if (!version) {
     version = opts.ref
   }
   const fullPackagePath = depPath
