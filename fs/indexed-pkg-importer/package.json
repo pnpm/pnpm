@@ -23,7 +23,7 @@
     "make-empty-dir": "^2.0.0",
     "p-limit": "^3.1.0",
     "path-exists": "^4.0.0",
-    "path-temp": "^2.0.0",
+    "path-temp": "^2.1.0",
     "rename-overwrite": "^4.0.3",
     "sanitize-filename": "^1.6.3"
   },
