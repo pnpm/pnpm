@@ -1,5 +1,12 @@
 # @pnpm/client
 
+## 10.0.17
+
+### Patch Changes
+
+- Updated dependencies [840b65bda]
+  - @pnpm/tarball-fetcher@15.0.9
+
 ## 10.0.16
 
 ### Patch Changes

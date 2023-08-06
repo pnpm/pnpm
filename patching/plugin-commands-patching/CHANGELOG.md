@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-patching
 
+## 3.1.20
+
+### Patch Changes
+
+- 12b0f0976: `pnpm patch` should works correctly when shared-workspace-file is false [#6885](https://github.com/pnpm/pnpm/issues/6885)
+- Updated dependencies [12b0f0976]
+- Updated dependencies [92f42224c]
+  - @pnpm/plugin-commands-installation@13.0.25
+  - @pnpm/store-connection-manager@6.1.0
+  - @pnpm/cli-utils@2.0.15
+
 ## 3.1.19
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/core
 
+## 10.2.15
+
+### Patch Changes
+
+- ecad8a724: `pnpm install --frozen-lockfile --lockfile-only` should fail if the lockfile is not up to date with the `package.json` files [#6913](https://github.com/pnpm/pnpm/issues/6913).
+- Updated dependencies [92f42224c]
+- Updated dependencies [ec50dc98c]
+  - @pnpm/package-requester@21.1.0
+  - @pnpm/hooks.read-package-hook@3.0.5
+  - @pnpm/headless@21.0.13
+
 ## 10.2.14
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # pnpm
 
+## 8.6.12
+
+### Patch Changes
+
+- Make the error message friendlier when a user attempts to run a command that does not exist [#6887](https://github.com/pnpm/pnpm/pull/6887).
+- `pnpm patch` should work correctly when `shared-workspace-file` is set to `false` [#6885](https://github.com/pnpm/pnpm/issues/6885).
+- `pnpm env use` should retry deleting the previous Node.js executable [#6587](https://github.com/pnpm/pnpm/issues/6587).
+- `pnpm dlx` should not print an error stack when the underlying script execution fails [#6698](https://github.com/pnpm/pnpm/issues/6698).
+- When showing the download progress of large tarball files, always display the same number of digits after the decimal point [#6901](https://github.com/pnpm/pnpm/issues/6901).
+- Report download progress less frequently to improve performance [#6906](https://github.com/pnpm/pnpm/pull/6906).
+- `pnpm install --frozen-lockfile --lockfile-only` should fail if the lockfile is not up to date with the `package.json` files [#6913](https://github.com/pnpm/pnpm/issues/6913).
+
 ## 8.6.11
 
 ### Patch Changes

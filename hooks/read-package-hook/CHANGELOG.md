@@ -1,5 +1,11 @@
 # @pnpm/hooks.read-package-hook
 
+## 3.0.5
+
+### Patch Changes
+
+- ec50dc98c: Compare overriding ranges with intersection instead of subset to fix override range bug [#6878](https://github.com/pnpm/pnpm/issues/6878).
+
 ## 3.0.4
 
 ### Patch Changes

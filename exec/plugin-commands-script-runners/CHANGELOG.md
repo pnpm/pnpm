@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-script-runners
 
+## 7.1.19
+
+### Patch Changes
+
+- c5fbdb55c: Make the error message when user attempting to run a command that does not exist friendlier
+- b454bb07b: `pnpm dlx` should not print an error stack when the underlying script execution fails [#6698](https://github.com/pnpm/pnpm/issues/6698).
+- Updated dependencies [12b0f0976]
+  - @pnpm/plugin-commands-installation@13.0.25
+  - @pnpm/cli-utils@2.0.15
+
 ## 7.1.18
 
 ### Patch Changes

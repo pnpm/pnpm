@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 21.1.0
+
+### Minor Changes
+
+- 92f42224c: New option added: `relinkLocalDirDeps`. It is `true` by default. When `false`, local directory dependencies are not relinked on repeat install.
+
 ## 21.0.12
 
 ### Patch Changes

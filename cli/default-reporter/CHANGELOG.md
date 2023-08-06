@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 12.2.9
+
+### Patch Changes
+
+- 8a4dac63c: When showing the download progress of big tarball files, always display the same number of digits after the dot [#6902](https://github.com/pnpm/pnpm/issues/6901).
+
 ## 12.2.8
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 15.0.9
+
+### Patch Changes
+
+- 840b65bda: Report download progress less often to improve performance.
+
 ## 15.0.8
 
 ### Patch Changes

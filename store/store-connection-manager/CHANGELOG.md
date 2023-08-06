@@ -1,5 +1,18 @@
 # @pnpm/store-connection-manager
 
+## 6.1.0
+
+### Minor Changes
+
+- 92f42224c: New option added: `relinkLocalDirDeps`. It is `true` by default. When `false`, local directory dependencies are not relinked on repeat install.
+
+### Patch Changes
+
+- Updated dependencies [92f42224c]
+  - @pnpm/package-store@16.1.0
+  - @pnpm/client@10.0.17
+  - @pnpm/server@15.0.3
+
 ## 6.0.24
 
 ### Patch Changes

@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-installation
 
+## 13.0.25
+
+### Patch Changes
+
+- 12b0f0976: `pnpm patch` should works correctly when shared-workspace-file is false [#6885](https://github.com/pnpm/pnpm/issues/6885)
+- Updated dependencies [12b0f0976]
+- Updated dependencies [ecad8a724]
+- Updated dependencies [92f42224c]
+  - @pnpm/filter-workspace-packages@7.0.15
+  - @pnpm/workspace.find-packages@1.0.5
+  - @pnpm/core@10.2.15
+  - @pnpm/store-connection-manager@6.1.0
+  - @pnpm/package-store@16.1.0
+  - @pnpm/plugin-commands-rebuild@9.1.8
+  - @pnpm/cli-utils@2.0.15
+  - @pnpm/outdated@13.0.11
+
 ## 13.0.24
 
 ### Patch Changes

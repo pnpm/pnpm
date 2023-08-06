@@ -1,5 +1,12 @@
 # @pnpm/find-workspace-packages
 
+## 1.0.5
+
+### Patch Changes
+
+- 12b0f0976: `pnpm patch` should works correctly when shared-workspace-file is false [#6885](https://github.com/pnpm/pnpm/issues/6885)
+  - @pnpm/cli-utils@2.0.15
+
 ## 1.0.4
 
 ### Patch Changes

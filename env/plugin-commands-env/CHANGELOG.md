@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-env
 
+## 4.0.22
+
+### Patch Changes
+
+- 34724dd0f: `pnpm env use` should retry deleting the previous node.js executable [#6587](https://github.com/pnpm/pnpm/issues/6587).
+  - @pnpm/cli-utils@2.0.15
+  - @pnpm/node.fetcher@3.0.13
+  - @pnpm/node.resolver@2.0.14
+
 ## 4.0.21
 
 ### Patch Changes
