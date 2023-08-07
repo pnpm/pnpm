@@ -26,13 +26,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
   // all node versions up until now (Aug 7 2023) strictly follow `vX.Y.Z` format
   // this code should be changed if the above condition ever ceases to apply
   if (!opts.nodeMirrorBaseUrl && !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
-    let hint: string | undefined
-    if (/^[0-9]+\.[0-9]+$/.test(version)) {
-      hint = `Try "${version}.0"`
-    } else if (/^[0-9]+$/.test(version)) {
-      hint = `Try "${version}.0.0"`
-    }
-    throw new PnpmError('INVALID_NODE_VERSION', `"${version}" is not an exact version. The correct syntax is strictly X.Y.Z`, { hint })
+    throw new PnpmError('INVALID_NODE_VERSION', `"${version}" is not an exact version. The correct syntax is strictly X.Y.Z`)
   }
   if (await isNonGlibcLinux()) {
     throw new PnpmError('MUSL', 'The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')

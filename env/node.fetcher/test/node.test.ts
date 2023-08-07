@@ -76,7 +76,7 @@ test('install Node using a custom node mirror', async () => {
   ).rejects.toThrow('The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
 })
 
-test('invalid node version X.Y', async () => {
+test('invalid node version', async () => {
   tempDir()
 
   const opts: FetchNodeOptions = {
@@ -85,29 +85,4 @@ test('invalid node version X.Y', async () => {
 
   const promise = fetchNode(fetchError, '16.4', path.resolve('node'), opts)
   await expect(promise).rejects.toThrow('"16.4" is not an exact version. The correct syntax is strictly X.Y.Z')
-  await expect(promise).rejects.toHaveProperty('hint', 'Try "16.4.0"')
-})
-
-test('invalid node version X', async () => {
-  tempDir()
-
-  const opts: FetchNodeOptions = {
-    cafsDir: path.resolve('files'),
-  }
-
-  const promise = fetchNode(fetchError, '16', path.resolve('node'), opts)
-  await expect(promise).rejects.toThrow('"16" is not an exact version. The correct syntax is strictly X.Y.Z')
-  await expect(promise).rejects.toHaveProperty('hint', 'Try "16.0.0"')
-})
-
-test('invalid node version non-number', async () => {
-  tempDir()
-
-  const opts: FetchNodeOptions = {
-    cafsDir: path.resolve('files'),
-  }
-
-  const promise = fetchNode(fetchError, 'latest', path.resolve('node'), opts)
-  await expect(promise).rejects.toThrow('"latest" is not an exact version. The correct syntax is strictly X.Y.Z')
-  await expect(promise).rejects.toHaveProperty('hint', undefined)
 })
