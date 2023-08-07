@@ -23,11 +23,6 @@ export interface FetchNodeOptions {
 }
 
 export async function fetchNode (fetch: FetchFromRegistry, version: string, targetDir: string, opts: FetchNodeOptions) {
-  // all node versions up until now (Aug 7 2023) strictly follow `vX.Y.Z` format
-  // this code should be changed if the above condition ever ceases to apply
-  if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
-    throw new PnpmError('INVALID_NODE_VERSION', `"${version}" is not an exact version. The correct syntax is strictly X.Y.Z`)
-  }
   if (await isNonGlibcLinux()) {
     throw new PnpmError('MUSL', 'The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
   }
