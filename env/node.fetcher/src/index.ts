@@ -32,7 +32,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     } else if (/^[0-9]+$/.test(version)) {
       hint = `Try "${version}.0.0"`
     }
-    throw new PnpmError('INVALID_NODE_VERSION', 'Downloadable node version must strictly satisfy the X.Y.Z syntax', { hint })
+    throw new PnpmError('INVALID_NODE_VERSION', `"${version}" is not an exact version. The correct syntax is strictly X.Y.Z`, { hint })
   }
   if (await isNonGlibcLinux()) {
     throw new PnpmError('MUSL', 'The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')

@@ -84,7 +84,7 @@ test('invalid node version X.Y', async () => {
   }
 
   const promise = fetchNode(fetchError, '16.4', path.resolve('node'), opts)
-  await expect(promise).rejects.toThrow('Downloadable node version must strictly satisfy the X.Y.Z syntax')
+  await expect(promise).rejects.toThrow('"16.4" is not an exact version. The correct syntax is strictly X.Y.Z')
   await expect(promise).rejects.toHaveProperty('hint', 'Try "16.4.0"')
 })
 
@@ -96,7 +96,7 @@ test('invalid node version X', async () => {
   }
 
   const promise = fetchNode(fetchError, '16', path.resolve('node'), opts)
-  await expect(promise).rejects.toThrow('Downloadable node version must strictly satisfy the X.Y.Z syntax')
+  await expect(promise).rejects.toThrow('"16" is not an exact version. The correct syntax is strictly X.Y.Z')
   await expect(promise).rejects.toHaveProperty('hint', 'Try "16.0.0"')
 })
 
@@ -108,6 +108,6 @@ test('invalid node version non-number', async () => {
   }
 
   const promise = fetchNode(fetchError, 'latest', path.resolve('node'), opts)
-  await expect(promise).rejects.toThrow('Downloadable node version must strictly satisfy the X.Y.Z syntax')
+  await expect(promise).rejects.toThrow('"latest" is not an exact version. The correct syntax is strictly X.Y.Z')
   await expect(promise).rejects.toHaveProperty('hint', undefined)
 })
