@@ -230,7 +230,7 @@ export async function mutateModules (
     streamParser.on('data', reporter)
   }
 
-  const opts = await extendOptions(maybeOpts)
+  const opts = extendOptions(maybeOpts)
 
   if (!opts.include.dependencies && opts.include.optionalDependencies) {
     throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
