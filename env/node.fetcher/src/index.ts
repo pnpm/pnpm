@@ -25,7 +25,7 @@ export interface FetchNodeOptions {
 export async function fetchNode (fetch: FetchFromRegistry, version: string, targetDir: string, opts: FetchNodeOptions) {
   // all node versions up until now (Aug 7 2023) strictly follow `vX.Y.Z` format
   // this code should be changed if the above condition ever ceases to apply
-  if (!opts.nodeMirrorBaseUrl && !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
+  if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
     throw new PnpmError('INVALID_NODE_VERSION', `"${version}" is not an exact version. The correct syntax is strictly X.Y.Z`)
   }
   if (await isNonGlibcLinux()) {
