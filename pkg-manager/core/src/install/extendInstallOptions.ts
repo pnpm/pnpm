@@ -130,7 +130,7 @@ export type InstallOptions =
   & Partial<StrictInstallOptions>
   & Pick<StrictInstallOptions, 'storeDir' | 'storeController'>
 
-const defaults = async (opts: InstallOptions) => {
+const defaults = (opts: InstallOptions) => {
   const packageManager = opts.packageManager ?? {
     name: pnpmPkgJson.name,
     version: pnpmPkgJson.version,
@@ -221,9 +221,9 @@ export type ProcessedInstallOptions = StrictInstallOptions & {
   readPackageHook?: ReadPackageHook
 }
 
-export async function extendOptions (
+export function extendOptions (
   opts: InstallOptions
-): Promise<ProcessedInstallOptions> {
+): ProcessedInstallOptions {
   if (opts) {
     for (const key in opts) {
       if (opts[key as keyof InstallOptions] === undefined) {
@@ -234,7 +234,7 @@ export async function extendOptions (
   if (opts.onlyBuiltDependencies && opts.neverBuiltDependencies) {
     throw new PnpmError('CONFIG_CONFLICT_BUILT_DEPENDENCIES', 'Cannot have both neverBuiltDependencies and onlyBuiltDependencies')
   }
-  const defaultOpts = await defaults(opts)
+  const defaultOpts = defaults(opts)
   const extendedOpts: ProcessedInstallOptions = {
     ...defaultOpts,
     ...opts,
