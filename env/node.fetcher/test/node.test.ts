@@ -24,6 +24,10 @@ const fetchMock = jest.fn(async (url: string) => {
   return new Response(Readable.from(Buffer.alloc(0)))
 })
 
+const fetchError = jest.fn(() => {
+  throw new Error('fetch is not supposed to be called')
+})
+
 beforeEach(() => {
   (isNonGlibcLinux as jest.Mock).mockReturnValue(Promise.resolve(false))
   fetchMock.mockClear()
@@ -70,4 +74,40 @@ test('install Node using a custom node mirror', async () => {
   await expect(
     fetchNode(fetchMock, '16.4.0', path.resolve('node'), opts)
   ).rejects.toThrow('The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
+})
+
+test('invalid node version X.Y', async () => {
+  tempDir()
+
+  const opts: FetchNodeOptions = {
+    cafsDir: path.resolve('files'),
+  }
+
+  const promise = fetchNode(fetchError, '16.4', path.resolve('node'), opts)
+  await expect(promise).rejects.toThrow('Downloadable node version must strictly satisfy the X.Y.Z syntax')
+  await expect(promise).rejects.toHaveProperty('hint', 'Try "16.4.0"')
+})
+
+test('invalid node version X', async () => {
+  tempDir()
+
+  const opts: FetchNodeOptions = {
+    cafsDir: path.resolve('files'),
+  }
+
+  const promise = fetchNode(fetchError, '16', path.resolve('node'), opts)
+  await expect(promise).rejects.toThrow('Downloadable node version must strictly satisfy the X.Y.Z syntax')
+  await expect(promise).rejects.toHaveProperty('hint', 'Try "16.0.0"')
+})
+
+test('invalid node version non-number', async () => {
+  tempDir()
+
+  const opts: FetchNodeOptions = {
+    cafsDir: path.resolve('files'),
+  }
+
+  const promise = fetchNode(fetchError, 'latest', path.resolve('node'), opts)
+  await expect(promise).rejects.toThrow('Downloadable node version must strictly satisfy the X.Y.Z syntax')
+  await expect(promise).rejects.toHaveProperty('hint', undefined)
 })
