@@ -130,7 +130,7 @@ test('fail when integrity check fails two times in a row', async () => {
     new TarballIntegrityError({
       algorithm: 'sha512',
       expected: 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY=',
-      found: 'sha512-VuFL1iPaIxJK/k3gTxStIkc6+wSiDwlLdnCWNZyapsVLobu/0onvGOZolASZpfBFiDJYrOIGiDzgLIULTW61Vg== sha1-ACjKMFA7S6uRFXSDFfH4aT+4B4Y=',
+      found: 'sha1-ACjKMFA7S6uRFXSDFfH4aT+4B4Y=',
       sri: '',
       url: resolution.tarball,
     })
