@@ -9,7 +9,7 @@ import isWindows from 'is-windows'
 import symlinkDir from 'symlink-dir'
 import { getNodeDir, type NvmNodeCommandOptions } from './node'
 import { getNodeMirror } from './getNodeMirror'
-import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
+import { parseEnvSpecifier } from './parseEnvSpecifier'
 import { CURRENT_NODE_DIRNAME, getNodeExecPathInBinDir, getNodeExecPathInNodeDir } from './utils'
 
 export async function envUse (opts: NvmNodeCommandOptions, params: string[]) {
@@ -17,7 +17,7 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]) {
     throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
   }
   const fetch = createFetchFromRegistry(opts)
-  const { releaseChannel, versionSpecifier } = parseNodeEditionSpecifier(params[0])
+  const { releaseChannel, versionSpecifier } = parseEnvSpecifier(params[0])
   const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
   const nodeVersion = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
   if (!nodeVersion) {

@@ -1,13 +1,13 @@
-import { parseNodeEditionSpecifier } from '../lib/parseNodeEditionSpecifier'
+import { parseNodeSpecifier } from '../lib/parseNodeSpecifier'
 
 test.each([
   ['rc/16.0.0-rc.0', '16.0.0-rc.0', 'rc'],
   ['16.0.0-rc.0', '16.0.0-rc.0', 'rc'],
   ['release/16.0.0', '16.0.0', 'release'],
   ['16.0.0', '16.0.0', 'release'],
-])('Node.js version selector is parsed', (editionSpecifier, versionSpecifier, releaseChannel) => {
-  const node = parseNodeEditionSpecifier(editionSpecifier)
-  expect(node.versionSpecifier).toMatch(versionSpecifier)
+])('Node.js version selector is parsed', (editionSpecifier, useNodeVersion, releaseChannel) => {
+  const node = parseNodeSpecifier(editionSpecifier)
+  expect(node.useNodeVersion).toBe(useNodeVersion)
   expect(node.releaseChannel).toBe(releaseChannel)
 })
 
@@ -16,8 +16,8 @@ test.each([
   ['rc/10.0', '10.0', 'rc'],
   ['rc/10.0.0', '10.0.0', 'rc'],
   ['rc/10.0.0.test.0', '10.0.0.test.0', 'rc'],
-])('invalid Node.js specifier', (editionSpecifier, versionSpecifier, releaseChannel) => {
-  expect(() => parseNodeEditionSpecifier(editionSpecifier)).toThrow(`The node version (${versionSpecifier}) must contain the release channel (${releaseChannel})`)
+])('invalid Node.js specifier', (editionSpecifier, useNodeVersion, releaseChannel) => {
+  expect(() => parseNodeSpecifier(editionSpecifier)).toThrow(`The node version (${useNodeVersion}) must contain the release channel (${releaseChannel})`)
 })
 
 test.each([
@@ -26,7 +26,7 @@ test.each([
   ['test'],
   ['v8-canary'],
 ])('invalid Node.js specifier', async (specifier) => {
-  const promise = Promise.resolve().then(() => parseNodeEditionSpecifier(specifier))
+  const promise = Promise.resolve().then(() => parseNodeSpecifier(specifier))
   await expect(promise).rejects.toThrow(`"${specifier}" is not a valid node version`)
   await expect(promise).rejects.toHaveProperty('hint', `The correct syntax for ${specifier} release is strictly X.Y.Z-${specifier}.W`)
 })
@@ -39,7 +39,7 @@ test.each([
   ['16'],
   ['16.0'],
 ])('invalid Node.js specifier', async (specifier) => {
-  const promise = Promise.resolve().then(() => parseNodeEditionSpecifier(specifier))
+  const promise = Promise.resolve().then(() => parseNodeSpecifier(specifier))
   await expect(promise).rejects.toThrow(`"${specifier}" is not a valid node version`)
   await expect(promise).rejects.toHaveProperty('hint', 'The correct syntax for stable release is strictly X.Y.Z or release/X.Y.Z')
 })

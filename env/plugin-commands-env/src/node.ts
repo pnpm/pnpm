@@ -8,7 +8,7 @@ import { getStorePath } from '@pnpm/store-path'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import { getNodeMirror } from './getNodeMirror'
-import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
+import { parseNodeSpecifier } from './parseNodeSpecifier'
 
 export type NvmNodeCommandOptions = Pick<Config,
 | 'bin'
@@ -49,11 +49,11 @@ export async function getNodeBinDir (opts: NvmNodeCommandOptions) {
       default: wantedNodeVersion,
     })
   }
-  const { versionSpecifier, releaseChannel } = parseNodeEditionSpecifier(wantedNodeVersion)
+  const { useNodeVersion, releaseChannel } = parseNodeSpecifier(wantedNodeVersion)
   const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
   const nodeDir = await getNodeDir(fetch, {
     ...opts,
-    useNodeVersion: versionSpecifier,
+    useNodeVersion,
     nodeMirrorBaseUrl,
   })
   return process.platform === 'win32' ? nodeDir : path.join(nodeDir, 'bin')
