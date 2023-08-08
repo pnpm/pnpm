@@ -42,7 +42,7 @@
     "@pnpm/registry-mock": "3.11.0",
     "@pnpm/tsconfig": "workspace:*",
     "@types/jest": "^29.5.3",
-    "@types/node": "^14.18.54",
+    "@types/node": "^16.18.39",
     "c8": "^7.14.0",
     "concurrently": "8.2.0",
     "cross-env": "^7.0.3",
