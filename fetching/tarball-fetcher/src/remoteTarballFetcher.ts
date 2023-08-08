@@ -1,4 +1,3 @@
-import { once } from 'events'
 import { type IncomingMessage } from 'http'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError, PnpmError } from '@pnpm/error'
@@ -161,28 +160,22 @@ export function createDownloader (
           : undefined
         let downloaded = 0
         const chunks: Buffer[] = []
-        res.body!.on('data', (chunk: Buffer) => {
-          chunks.push(chunk)
+        // This will handle the 'data', 'error', and 'end' events.
+        for await (const chunk of res.body!) {
+          chunks.push(chunk as Buffer)
           downloaded += chunk.length
-          if (onProgress != null) onProgress(downloaded)
-        })
+          onProgress?.(downloaded)
+        }
+        if (size !== null && size !== downloaded) {
+          throw new BadTarballError({
+            expectedSize: size,
+            receivedSize: downloaded,
+            tarballUrl: url,
+          })
+        }
 
         // eslint-disable-next-line no-async-promise-executor
         return await new Promise<FetchResult>(async (resolve, reject) => {
-          try {
-            await once(res.body!, 'end')
-          } catch (err) {
-            reject(err)
-          }
-          if (size !== null && size !== downloaded) {
-            const err = new BadTarballError({
-              expectedSize: size,
-              receivedSize: downloaded,
-              tarballUrl: url,
-            })
-            reject(err)
-            return
-          }
           const data: Buffer = Buffer.from(new ArrayBuffer(downloaded))
           let offset: number = 0
           for (const chunk of chunks) {
