@@ -146,7 +146,7 @@ test('stopping server fails when the server disallows stopping via remote call',
 
   expect(execPnpmSync(['server', 'stop']).status).toBe(1)
 
-  await kill(server.pid, 'SIGINT')
+  await kill(server.pid!, 'SIGINT')
 })
 
 skipOnWindows('uploading cache can be disabled without breaking install', async () => {
@@ -283,7 +283,7 @@ async function testParallelServerStart (
       // Windows does not support signals: the server process will be killed without
       // it having a chance to perform cleanup, but the 'server stop' will make sure
       // server.json etc. are removed.
-      await kill(item.childProcess.pid, 'SIGINT')
+      await kill(item.childProcess.pid!, 'SIGINT')
       await item.running.promise
     }))
   }
