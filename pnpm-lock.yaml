@@ -6116,6 +6116,9 @@ importers:
       '@pnpm/npm-package-arg':
         specifier: ^1.0.0
         version: 1.0.0
+      '@pnpm/npm-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/npm-resolver
       '@pnpm/resolve-workspace-range':
         specifier: workspace:*
         version: link:../resolve-workspace-range
@@ -8387,7 +8390,7 @@ packages:
   /@types/byline@4.2.33:
     resolution: {integrity: sha512-LJYez7wrWcJQQDknqZtrZuExMGP0IXmPl1rOOGDqLbu+H7UNNRfKNuSxCBcQMLH1EfjeWidLedC/hCc5dDfBog==}
     dependencies:
-      '@types/node': 20.4.8
+      '@types/node': 16.18.39
     dev: true
 
   /@types/cacheable-request@6.0.3:

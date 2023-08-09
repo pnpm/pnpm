@@ -717,3 +717,49 @@ test('successfully create a package graph even when a workspace package has no v
     },
   })
 })
+
+test('create package graph respects workspace alias syntax', async () => {
+  const result = createPkgGraph([
+    {
+      dir: BAR1_PATH,
+      manifest: {
+        dependencies: {
+          'foo-alias': 'workspace:foo@*',
+        },
+        name: 'bar',
+        version: '1.0.0',
+      },
+    },
+    {
+      dir: FOO1_PATH,
+      manifest: {
+        name: 'foo',
+      },
+    },
+  ])
+  expect(result.unmatched).toStrictEqual([])
+  expect(result.graph).toStrictEqual({
+    [BAR1_PATH]: {
+      dependencies: [FOO1_PATH],
+      package: {
+        dir: BAR1_PATH,
+        manifest: {
+          dependencies: {
+            'foo-alias': 'workspace:foo@*',
+          },
+          name: 'bar',
+          version: '1.0.0',
+        },
+      },
+    },
+    [FOO1_PATH]: {
+      dependencies: [],
+      package: {
+        dir: FOO1_PATH,
+        manifest: {
+          name: 'foo',
+        },
+      },
+    },
+  })
+})
