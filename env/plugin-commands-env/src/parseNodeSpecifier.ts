@@ -12,13 +12,13 @@ export function parseNodeSpecifier (specifier: string): NodeSpecifier {
   if (specifier.includes('/')) {
     const [releaseChannel, useNodeVersion] = specifier.split('/')
 
-    if (releaseChannel === 'release' && !isStableVersion(useNodeVersion)) {
-      throw new PnpmError('INVALID_NODE_VERSION', `"${specifier}" is not a valid node version`, {
-        hint: STABLE_RELEASE_ERROR_HINT,
-      })
-    }
-
-    if (releaseChannel !== 'release' && !useNodeVersion.includes(releaseChannel)) {
+    if (releaseChannel === 'release') {
+      if (!isStableVersion(useNodeVersion)) {
+        throw new PnpmError('INVALID_NODE_VERSION', `"${specifier}" is not a valid node version`, {
+          hint: STABLE_RELEASE_ERROR_HINT,
+        })
+      }
+    } else if (!useNodeVersion.includes(releaseChannel)) {
       throw new PnpmError('MISMATCHED_RELEASE_CHANNEL', `The node version (${useNodeVersion}) must contain the release channel (${releaseChannel})`)
     }
 
