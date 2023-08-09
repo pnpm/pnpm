@@ -54,7 +54,7 @@ test('install Node uses node-mirror:release option', async () => {
   }
 })
 
-test('install and rc version of Node.js', async () => {
+test('install an rc version of Node.js', async () => {
   tempDir()
   const configDir = path.resolve('config')
 

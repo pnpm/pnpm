@@ -1,9 +1,9 @@
-export interface NodeEditionSpecifier {
+export interface EnvSpecifier {
   releaseChannel: string
   versionSpecifier: string
 }
 
-export function parseNodeEditionSpecifier (specifier: string): NodeEditionSpecifier {
+export function parseEnvSpecifier (specifier: string): EnvSpecifier {
   if (specifier.includes('/')) {
     const [releaseChannel, versionSpecifier] = specifier.split('/')
     return { releaseChannel, versionSpecifier }

@@ -6,7 +6,7 @@ import { PnpmError } from '@pnpm/error'
 import semver from 'semver'
 import { getNodeMirror } from './getNodeMirror'
 import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
-import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
+import { parseEnvSpecifier } from './parseEnvSpecifier'
 import { getNodeExecPathAndTargetDir, getNodeExecPathInNodeDir } from './utils'
 
 export async function envList (opts: NvmNodeCommandOptions, params: string[]) {
@@ -43,7 +43,7 @@ async function listLocalVersions (opts: NvmNodeCommandOptions) {
 
 async function listRemoteVersions (opts: NvmNodeCommandOptions, versionSpec?: string) {
   const fetch = createFetchFromRegistry(opts)
-  const { releaseChannel, versionSpecifier } = parseNodeEditionSpecifier(versionSpec ?? '')
+  const { releaseChannel, versionSpecifier } = parseEnvSpecifier(versionSpec ?? '')
   const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
   const nodeVersionList = await resolveNodeVersions(fetch, versionSpecifier, nodeMirrorBaseUrl)
   return nodeVersionList

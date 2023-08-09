@@ -1,4 +1,4 @@
-import { parseNodeEditionSpecifier } from '../lib/parseNodeEditionSpecifier'
+import { parseEnvSpecifier } from '../lib/parseEnvSpecifier'
 
 test.each([
   ['6', '6', 'release'],
@@ -9,7 +9,7 @@ test.each([
   ['argon', 'argon', 'release'],
   ['latest', 'latest', 'release'],
 ])('Node.js version selector is parsed', (editionSpecifier, versionSpecifier, releaseChannel) => {
-  const node = parseNodeEditionSpecifier(editionSpecifier)
+  const node = parseEnvSpecifier(editionSpecifier)
   expect(node.versionSpecifier).toMatch(versionSpecifier)
   expect(node.releaseChannel).toBe(releaseChannel)
 })

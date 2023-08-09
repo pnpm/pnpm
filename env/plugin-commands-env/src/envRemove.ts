@@ -6,7 +6,7 @@ import { globalInfo } from '@pnpm/logger'
 import { resolveNodeVersion } from '@pnpm/node.resolver'
 import { removeBin } from '@pnpm/remove-bins'
 import rimraf from '@zkochan/rimraf'
-import { parseNodeEditionSpecifier } from './parseNodeEditionSpecifier'
+import { parseEnvSpecifier } from './parseEnvSpecifier'
 import { getNodeExecPathAndTargetDir } from './utils'
 import { getNodeMirror } from './getNodeMirror'
 import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
@@ -17,7 +17,7 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]) 
   }
 
   const fetch = createFetchFromRegistry(opts)
-  const { releaseChannel, versionSpecifier } = parseNodeEditionSpecifier(params[0])
+  const { releaseChannel, versionSpecifier } = parseEnvSpecifier(params[0])
   const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
   const nodeVersion = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
   const nodeDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
