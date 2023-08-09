@@ -1,6 +1,7 @@
 import path from 'path'
 import npa from '@pnpm/npm-package-arg'
 import { resolveWorkspaceRange } from '@pnpm/resolve-workspace-range'
+import { parsePref, workspacePrefToNpm } from '@pnpm/npm-resolver'
 import mapValues from 'ramda/src/map'
 
 export interface Manifest {
@@ -58,10 +59,9 @@ export function createPkgGraph<T> (pkgs: Array<Package & T>, opts?: {
         const isWorkspaceSpec = rawSpec.startsWith('workspace:')
         try {
           if (isWorkspaceSpec) {
-            rawSpec = rawSpec.slice(10)
-            if (rawSpec === '^' || rawSpec === '~') {
-              rawSpec = '*'
-            }
+            const { fetchSpec, name } = parsePref(workspacePrefToNpm(rawSpec), depName, 'latest', '')!
+            rawSpec = fetchSpec
+            depName = name
           }
           spec = npa.resolve(depName, rawSpec, pkg.dir)
         } catch (err: any) { // eslint-disable-line

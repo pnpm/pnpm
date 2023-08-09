@@ -47,6 +47,7 @@ export class NoMatchingVersionError extends PnpmError {
 
 export {
   parsePref,
+  workspacePrefToNpm,
   type PackageMeta,
   type PackageMetaCache,
   type RegistryPackageSpec,
