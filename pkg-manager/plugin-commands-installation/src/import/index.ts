@@ -29,9 +29,7 @@ import { yarnLockFileKeyNormalizer } from './yarnUtil'
 interface NpmPackageLock {
   dependencies: LockedPackagesMap
   packages: LockedPackagesMap
-  lockfileVersion: number
   name?: string
-
 }
 
 interface LockedPackage {
