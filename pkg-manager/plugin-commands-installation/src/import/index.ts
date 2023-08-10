@@ -114,8 +114,7 @@ export async function handler (
     await exists(path.join(opts.dir, 'npm-shrinkwrap.json'))
   ) {
     const npmPackageLock = await readNpmLockfile(opts.dir)
-    const lockVersion = npmPackageLock.lockfileVersion
-    getAllVersionsByPackageNames(npmPackageLock, versionsByPackageNames, lockVersion)
+    getAllVersionsByPackageNames(npmPackageLock, versionsByPackageNames)
   } else {
     throw new PnpmError('LOCKFILE_NOT_FOUND', 'No lockfile found')
   }
@@ -238,57 +237,31 @@ function getPreferredVersions (versionsByPackageNames: Record<string, Set<string
   return preferredVersions
 }
 
-function getAllVersionsByPackageNames (
-  npmPackageLock: NpmPackageLock | LockedPackage,
-  versionsByPackageNames: {
-    [packageName: string]: Set<string>
-  },
-  lockVersion: number
-) {
-  const dependencies = lockVersion === 3
-    ? npmPackageLock.packages
-    : npmPackageLock.dependencies
+function getAllVersionsByPackageNames (pkg: NpmPackageLock | LockedPackage, versionsByPackageNames: { [packageName: string]: Set<string> }): void {
+  function extractDependencies (dependencies: LockedPackagesMap): void {
+    for (const [pkgName, pkgDetails] of Object.entries(dependencies)) {
+      if (!versionsByPackageNames[pkgName]) {
+        versionsByPackageNames[pkgName] = new Set<string>()
+      }
+      versionsByPackageNames[pkgName].add(pkgDetails.version)
 
-  if (!dependencies) return
+      if (pkgDetails.lockfileVersion !== 3 && pkgDetails.dependencies) {
+        extractDependencies(pkgDetails.dependencies)
+      }
 
-  for (const [packageName, { version, name }] of Object.entries(dependencies)) {
-    const depName = extractPackageName(packageName, name)
-
-    if (!versionsByPackageNames[depName]) {
-      versionsByPackageNames[depName] = new Set()
-    }
-    versionsByPackageNames[depName].add(version)
-  }
-  // if the package-lock is not v3, recursively get the dependencies
-  if (lockVersion !== 3) {
-    for (const dep of Object.values(dependencies)) {
-      getAllVersionsByPackageNames(dep, versionsByPackageNames, lockVersion)
-    }
-  }
-}
-/**
- * utility to get the package name from a node_modules path
- */
-function extractPackageName (dirPath: string, name?: string): string {
-  if (name) {
-    return name
-  }
-
-  const parts = dirPath.split('node_modules/')
-  if (parts.length <= 1) {
-    return dirPath
-  }
-
-  const subPath = parts[parts.length - 1]
-
-  if (subPath.startsWith('@')) {
-    const subParts = subPath.split('/')
-    if (subParts.length >= 2) {
-      return subParts[0] + '/' + subParts[1]
+      if (pkgDetails.lockfileVersion === 3 && pkgDetails.packages) {
+        extractDependencies(pkgDetails.packages)
+      }
     }
   }
 
-  return subPath.split('/')[0]
+  if (pkg.dependencies) {
+    extractDependencies(pkg.dependencies)
+  }
+
+  if ('packages' in pkg && pkg.packages) {
+    extractDependencies(pkg.packages)
+  }
 }
 
 function getAllVersionsFromYarnLockFile (
