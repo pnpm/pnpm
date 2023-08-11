@@ -41,7 +41,7 @@ async function _retrieveFileIntegrities (
 ) {
   try {
     const files = await fs.readdir(currDir)
-    await Promise.all(files.map(async (file) => {
+    await Promise.allSettled(files.map(async (file) => {
       const fullPath = path.join(currDir, file)
       const stat = await fs.stat(fullPath)
       if (stat.isDirectory()) {
