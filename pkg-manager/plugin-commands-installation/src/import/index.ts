@@ -114,7 +114,11 @@ export async function handler (
     await exists(path.join(opts.dir, 'npm-shrinkwrap.json'))
   ) {
     const npmPackageLock = await readNpmLockfile(opts.dir)
-    getAllVersionsByPackageNames(npmPackageLock, versionsByPackageNames)
+    if (npmPackageLock.lockfileVersion < 3) {
+      getAllVersionsByPackageNamesPreV3(npmPackageLock, versionsByPackageNames)
+    } else {
+      getAllVersionsByPackageNames(npmPackageLock, versionsByPackageNames)
+    }
   } else {
     throw new PnpmError('LOCKFILE_NOT_FOUND', 'No lockfile found')
   }
@@ -229,7 +233,7 @@ async function readNpmLockfile (dir: string) {
   throw new PnpmError('NPM_LOCKFILE_NOT_FOUND', 'No package-lock.json or npm-shrinkwrap.json found')
 }
 
-function getPreferredVersions (versionsByPackageNames: Record<string, Set<string>>) {
+function getPreferredVersions (versionsByPackageNames: VersionsByPackageNames) {
   const preferredVersions = mapValues(
     (versions) => Object.fromEntries(Array.from(versions).map((version) => [version, 'version'])),
     versionsByPackageNames
@@ -237,30 +241,63 @@ function getPreferredVersions (versionsByPackageNames: Record<string, Set<string
   return preferredVersions
 }
 
-function getAllVersionsByPackageNames (pkg: NpmPackageLock | LockedPackage, versionsByPackageNames: { [packageName: string]: Set<string> }): void {
-  function extractDependencies (dependencies: LockedPackagesMap): void {
-    for (const [pkgName, pkgDetails] of Object.entries(dependencies)) {
-      if (!versionsByPackageNames[pkgName]) {
-        versionsByPackageNames[pkgName] = new Set<string>()
-      }
+type VersionsByPackageNames = Record<string, Set<string>>
+
+function getAllVersionsByPackageNamesPreV3 (
+  npmPackageLock: NpmPackageLock | LockedPackage,
+  versionsByPackageNames: VersionsByPackageNames
+) {
+  if (npmPackageLock.dependencies == null) return
+  for (const [packageName, { version }] of Object.entries(npmPackageLock.dependencies)) {
+    if (!versionsByPackageNames[packageName]) {
+      versionsByPackageNames[packageName] = new Set()
+    }
+    versionsByPackageNames[packageName].add(version)
+  }
+  for (const dep of Object.values(npmPackageLock.dependencies)) {
+    getAllVersionsByPackageNamesPreV3(dep, versionsByPackageNames)
+  }
+}
+
+function getAllVersionsByPackageNames (
+  pkg: NpmPackageLock | LockedPackage,
+  versionsByPackageNames: VersionsByPackageNames
+): void {
+  if (pkg.dependencies) {
+    extractDependencies(versionsByPackageNames, pkg.dependencies)
+  }
+  if ('packages' in pkg && pkg.packages) {
+    extractDependencies(versionsByPackageNames, pkg.packages)
+  }
+}
+
+function extractDependencies (
+  versionsByPackageNames: VersionsByPackageNames,
+  dependencies: LockedPackagesMap
+): void {
+  for (let [pkgName, pkgDetails] of Object.entries(dependencies)) {
+    if (pkgName.includes('node_modules')) {
+      pkgName = pkgName.substring(pkgName.lastIndexOf('node_modules/') + 13)
+    }
+    if (!versionsByPackageNames[pkgName]) {
+      versionsByPackageNames[pkgName] = new Set<string>()
+    }
+    if (pkgDetails.version) {
       versionsByPackageNames[pkgName].add(pkgDetails.version)
+    }
 
-      if (pkgDetails.lockfileVersion !== 3 && pkgDetails.dependencies) {
-        extractDependencies(pkgDetails.dependencies)
-      }
-
-      if (pkgDetails.lockfileVersion === 3 && pkgDetails.packages) {
-        extractDependencies(pkgDetails.packages)
+    if (pkgDetails.packages) {
+      extractDependencies(versionsByPackageNames, pkgDetails.packages)
+    }
+    if (pkgDetails.dependencies) {
+      for (const [pkgName1, version] of Object.entries(pkgDetails.dependencies)) {
+        if (!versionsByPackageNames[pkgName1]) {
+          versionsByPackageNames[pkgName1] = new Set<string>()
+        }
+        // @ts-expect-error
+        versionsByPackageNames[pkgName1].add(version)
       }
     }
-  }
-
-  if (pkg.dependencies) {
-    extractDependencies(pkg.dependencies)
-  }
-
-  if ('packages' in pkg && pkg.packages) {
-    extractDependencies(pkg.packages)
   }
 }
 
