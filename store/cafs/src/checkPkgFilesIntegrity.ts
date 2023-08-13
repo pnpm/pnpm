@@ -149,6 +149,35 @@ export async function verifyFileIntegrity (
   }
 }
 
+export function verifyFileIntegritySync (
+  filename: string,
+  expectedFile: FileInfo,
+  deferredManifest?: DeferredManifestPromise
+): boolean {
+  // @ts-expect-error
+  global['verifiedFileIntegrity']++
+  try {
+    const data = gfs.readFileSync(filename)
+    const ok = Boolean(ssri.checkData(data, expectedFile.integrity))
+    if (!ok) {
+      gfs.unlinkSync(filename)
+    } else if (deferredManifest != null) {
+      parseJsonBuffer(data, deferredManifest)
+    }
+    return ok
+  } catch (err: any) { // eslint-disable-line
+    switch (err.code) {
+    case 'ENOENT': return false
+    case 'EINTEGRITY': {
+      // Broken files are removed from the store
+      gfs.unlinkSync(filename)
+      return false
+    }
+    }
+    throw err
+  }
+}
+
 async function checkFile (filename: string, checkedAt?: number) {
   try {
     const { mtimeMs, size } = await fs.stat(filename)

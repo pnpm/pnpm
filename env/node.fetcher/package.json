@@ -35,14 +35,16 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/env/node.fetcher#readme",
   "dependencies": {
-    "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/create-cafs-store": "4.0.8",
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
-    "@pnpm/tarball-fetcher": "workspace:*",
+    "@pnpm/tarball-fetcher": "15.0.9",
     "adm-zip": "^0.5.10",
     "detect-libc": "^2.0.2",
+    "p-map-values": "^1.0.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
     "rename-overwrite": "^4.0.3",
     "tempy": "^1.0.1"
   },
@@ -51,6 +53,7 @@
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/adm-zip": "^0.5.0",
+    "@types/ramda": "0.28.20",
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0"
   }
 }

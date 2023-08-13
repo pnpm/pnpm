@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.cafs",
-  "version": "1.0.2",
+  "version": "1.0.3-0",
   "description": "A content-addressable filesystem for the packages storage",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -23,6 +23,7 @@
     "concat-stream": "^2.0.0",
     "get-stream": "^6.0.1",
     "gunzip-maybe": "1.4.2",
+    "is-gzip": "2.0.0",
     "p-limit": "^3.1.0",
     "rename-overwrite": "^4.0.3",
     "safe-promise-defer": "^1.0.1",
@@ -36,9 +37,11 @@
     "@pnpm/types": "workspace:*",
     "@types/concat-stream": "^2.0.0",
     "@types/gunzip-maybe": "1.4.0",
+    "@types/is-gzip": "2.0.0",
     "@types/node": "^16.18.39",
     "@types/ssri": "^7.1.1",
     "@types/tar-stream": "^2.2.2",
+    "is-deflate": "1.0.0",
     "p-defer": "^3.0.0",
     "tempy": "^1.0.1"
   },

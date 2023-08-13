@@ -1,9 +1,7 @@
 import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
-import type { Cafs, FilesIndex, PackageFileInfo } from '@pnpm/cafs-types'
+import type { Cafs } from '@pnpm/cafs-types'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
-import pMapValues from 'p-map-values'
-import omit from 'ramda/src/omit'
 
 interface Resolution {
   integrity?: string
@@ -21,11 +19,11 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const { filesIndex } = await fetchRemoteTarball(cafs, resolution, opts)
     try {
-      const prepareResult = await prepareGitHostedPkg(filesIndex as FilesIndex, cafs, fetcherOpts)
+      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, fetcherOpts)
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
-      return { filesIndex: prepareResult.filesIndex }
+      return { unprocessed: true, filesIndex: prepareResult.filesIndex }
     } catch (err: any) { // eslint-disable-line
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}` // eslint-disable-line
       throw err
@@ -35,11 +33,11 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
   return fetch as FetchFunction
 }
 
-async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs, opts: CreateGitHostedTarballFetcher) {
+async function prepareGitHostedPkg (filesIndex: Record<string, string>, cafs: Cafs, opts: CreateGitHostedTarballFetcher) {
   const tempLocation = await cafs.tempDir()
   await cafs.importPackage(tempLocation, {
     filesResponse: {
-      filesIndex: await waitForFilesIndex(filesIndex),
+      filesIndex,
       fromStore: false,
     },
     force: true,
@@ -53,15 +51,4 @@ async function prepareGitHostedPkg (filesIndex: FilesIndex, cafs: Cafs, opts: Cr
     filesIndex: newFilesIndex,
     ignoredBuild: opts.ignoreScripts && shouldBeBuilt,
   }
-}
-
-export async function waitForFilesIndex (filesIndex: FilesIndex): Promise<Record<string, PackageFileInfo>> {
-  return pMapValues(async (fileInfo) => {
-    const { integrity, checkedAt } = await fileInfo.writeResult
-    return {
-      ...omit(['writeResult'], fileInfo),
-      checkedAt,
-      integrity: integrity.toString(),
-    }
-  }, filesIndex)
 }

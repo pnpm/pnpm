@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-fetcher",
-  "version": "15.0.9",
+  "version": "15.0.10-0",
   "description": "Fetcher for packages hosted as tarballs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -40,6 +40,8 @@
     "@pnpm/fetching-types": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
+    "@rushstack/worker-pool": "0.3.34",
     "@zkochan/retry": "^0.2.0",
     "lodash.throttle": "4.1.1",
     "p-map-values": "^1.0.0",

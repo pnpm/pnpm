@@ -1,3 +1,5 @@
+import path from 'path'
+import os from 'os'
 import { PnpmError } from '@pnpm/error'
 import {
   type FetchFunction,
@@ -9,17 +11,18 @@ import {
   type GetAuthHeader,
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
+import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
 import {
   createDownloader,
   type DownloadFunction,
   TarballIntegrityError,
 } from './remoteTarballFetcher'
 import { createLocalTarballFetcher } from './localTarballFetcher'
-import { createGitHostedTarballFetcher, waitForFilesIndex } from './gitHostedTarballFetcher'
+import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher'
 
 export { BadTarballError } from './errorTypes'
 
-export { TarballIntegrityError, waitForFilesIndex }
+export { TarballIntegrityError }
 
 export interface TarballFetchers {
   localTarball: FetchFunction
@@ -39,7 +42,25 @@ export function createTarballFetcher (
     offline?: boolean
   }
 ): TarballFetchers {
-  const download = createDownloader(fetchFromRegistry, {
+  const workerPool = new WorkerPool({
+    id: 'tarball',
+    maxWorkers: os.cpus().length - 1,
+    workerScriptPath: path.join(__dirname, 'worker/tarballWorker.js'),
+  })
+  // @ts-expect-error
+  if (global.finishWorkers) {
+    // @ts-expect-error
+    const previous = global.finishWorkers
+    // @ts-expect-error
+    global.finishWorkers = async () => {
+      await previous()
+      await workerPool.finishAsync()
+    }
+  } else {
+    // @ts-expect-error
+    global.finishWorkers = () => workerPool.finishAsync()
+  }
+  const download = createDownloader(workerPool, fetchFromRegistry, {
     retry: opts.retry,
     timeout: opts.timeout,
   })
@@ -83,5 +104,6 @@ async function fetchFromTarball (
     onProgress: opts.onProgress,
     onStart: opts.onStart,
     registry: resolution.registry,
+    filesIndexFile: opts.filesIndexFile,
   })
 }

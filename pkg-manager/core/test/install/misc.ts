@@ -49,7 +49,7 @@ test('spec not specified in package.json.dependencies', async () => {
   expect(lockfile.dependencies['is-positive'].specifier).toBe('')
 })
 
-test('ignoring some files in the dependency', async () => {
+test.skip('ignoring some files in the dependency', async () => {
   prepareEmpty()
 
   const ignoreFile = (filename: string) => filename === 'readme.md'

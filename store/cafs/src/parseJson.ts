@@ -3,6 +3,10 @@ import type { DeferredManifestPromise } from '@pnpm/cafs-types'
 import concatStream from 'concat-stream'
 import stripBom from 'strip-bom'
 
+export function parseJsonBufferSync (buffer: Buffer) {
+  return JSON.parse(stripBom(buffer.toString()))
+}
+
 export function parseJsonBuffer (
   buffer: Buffer,
   deferred: DeferredManifestPromise

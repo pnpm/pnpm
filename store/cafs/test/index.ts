@@ -1,4 +1,4 @@
-import { createReadStream, promises as fs } from 'fs'
+import fs from 'fs'
 import { type DependencyManifest } from '@pnpm/types'
 import pDefer from 'p-defer'
 import path from 'path'
@@ -13,8 +13,8 @@ describe('cafs', () => {
   it('unpack', async () => {
     const dest = tempy.directory()
     const cafs = createCafs(dest)
-    const filesIndex = await cafs.addFilesFromTarball(
-      createReadStream(path.join(__dirname, '../__fixtures__/node-gyp-6.1.0.tgz'))
+    const filesIndex = cafs.addFilesFromTarball(
+      fs.readFileSync(path.join(__dirname, '../__fixtures__/node-gyp-6.1.0.tgz'))
     )
     expect(Object.keys(filesIndex)).toHaveLength(121)
     const pkgFile = filesIndex['package.json']
@@ -36,11 +36,11 @@ describe('cafs', () => {
 
     // Modifying the file in the store
     const filePath = getFilePathInCafs(storeDir, integrity, 'nonexec')
-    await fs.appendFile(filePath, 'bar')
+    fs.appendFileSync(filePath, 'bar')
 
     filesIndex = await addFiles()
     await filesIndex['foo.txt'].writeResult
-    expect(await fs.readFile(filePath, 'utf8')).toBe('foo\n')
+    expect(fs.readFileSync(filePath, 'utf8')).toBe('foo\n')
     expect(await manifest.promise).toEqual(undefined)
   })
 })
@@ -63,8 +63,8 @@ describe('checkPkgFilesIntegrity()', () => {
 test('file names are normalized when unpacking a tarball', async () => {
   const dest = tempy.directory()
   const cafs = createCafs(dest)
-  const filesIndex = await cafs.addFilesFromTarball(
-    createReadStream(path.join(__dirname, 'fixtures/colorize-semver-diff.tgz'))
+  const filesIndex = cafs.addFilesFromTarball(
+    fs.readFileSync(path.join(__dirname, 'fixtures/colorize-semver-diff.tgz'))
   )
   expect(Object.keys(filesIndex).sort()).toStrictEqual([
     'LICENSE',
@@ -78,7 +78,7 @@ test('file names are normalized when unpacking a tarball', async () => {
 test('broken magic in tarball headers is handled gracefully', async () => {
   const dest = tempy.directory()
   const cafs = createCafs(dest)
-  await cafs.addFilesFromTarball(
-    createReadStream(path.join(__dirname, 'fixtures/jquery.dirtyforms-2.0.0.tgz'))
+  cafs.addFilesFromTarball(
+    fs.readFileSync(path.join(__dirname, 'fixtures/jquery.dirtyforms-2.0.0.tgz'))
   )
 })

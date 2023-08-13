@@ -53,7 +53,10 @@ export async function createPackageStore (
   })
 
   return {
-    close: async () => {}, // eslint-disable-line:no-empty
+    close: async () => {
+      // @ts-expect-error
+      global.finishWorkers?.()
+    },
     fetchPackage: packageRequester.fetchPackageToStore,
     getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,
     importPackage: cafs.importPackage,

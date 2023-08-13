@@ -7,6 +7,11 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 
 const STORE_VERSION = 'v3'
 
+afterEach(async () => {
+  // @ts-expect-error
+  await global.finishWorkers?.()
+})
+
 test('pnpm store add express@4.16.3', async () => {
   tempDir()
 

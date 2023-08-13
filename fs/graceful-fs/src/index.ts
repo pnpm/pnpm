@@ -8,4 +8,7 @@ export default { // eslint-disable-line
   readFile: promisify(gfs.readFile),
   stat: promisify(gfs.stat),
   writeFile: promisify(gfs.writeFile),
+  writeFileSync: gfs.writeFileSync,
+  readFileSync: gfs.readFileSync,
+  unlinkSync: gfs.unlinkSync,
 }

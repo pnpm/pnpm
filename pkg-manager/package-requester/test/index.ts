@@ -1,7 +1,7 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import { promises as fs, statSync } from 'fs'
 import path from 'path'
-import { getFilePathInCafs, type PackageFilesIndex, type PackageFileInfo } from '@pnpm/store.cafs'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createClient } from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
 import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
@@ -27,6 +27,11 @@ const { resolve, fetchers } = createClient({
   authConfig,
   cacheDir: '.store',
   rawConfig: {},
+})
+
+afterEach(async () => {
+  // @ts-expect-error
+  await global.finishWorkers?.()
 })
 
 test('request package', async () => {
@@ -437,7 +442,6 @@ test('fetchPackageToStore()', async () => {
 
 test('fetchPackageToStore() concurrency check', async () => {
   const storeDir = tempy.directory()
-  const cafsDir = path.join(storeDir, 'files')
   const cafs = createCafsStore(storeDir)
   const packageRequester = createPackageRequester({
     resolve,
@@ -489,7 +493,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[0]
     const files = await fetchResult.files()
 
-    ino1 = statSync(getFilePathInCafs(cafsDir, (files.filesIndex['package.json'] as PackageFileInfo).integrity, 'nonexec')).ino
+    ino1 = statSync(files.filesIndex['package.json'] as string).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.fromStore).toBeFalsy()
@@ -501,7 +505,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     const fetchResult = fetchResults[1]
     const files = await fetchResult.files()
 
-    ino2 = statSync(getFilePathInCafs(cafsDir, (files.filesIndex['package.json'] as PackageFileInfo).integrity, 'nonexec')).ino
+    ino2 = statSync(files.filesIndex['package.json'] as string).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.fromStore).toBeFalsy()
@@ -628,7 +632,7 @@ test('always return a package manifest in the response', async () => {
     expect(pkgResponse.body).toBeTruthy()
     expect(
       await pkgResponse.bundledManifest()
-    ).toStrictEqual(
+    ).toEqual(
       {
         engines: { node: '>=0.10.0' },
         name: 'is-positive',
@@ -692,7 +696,6 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
 test('refetch package to store if it has been modified', async () => {
   nock.cleanAll()
   const storeDir = tempy.directory()
-  const cafsDir = path.join(storeDir, 'files')
   const lockfileDir = tempy.directory()
 
   const pkgId = `localhost+${REGISTRY_MOCK_PORT}/magic-hook/2.0.0`
@@ -726,7 +729,7 @@ test('refetch package to store if it has been modified', async () => {
     })
 
     const { filesIndex } = await fetchResult.files()
-    indexJsFile = getFilePathInCafs(cafsDir, (filesIndex['index.js'] as PackageFileInfo).integrity, 'nonexec')
+    indexJsFile = filesIndex['index.js'] as string
   }
 
   await delay(200)

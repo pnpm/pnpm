@@ -9,6 +9,11 @@ import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import { testDefaults } from '../utils'
 
+afterEach(async () => {
+  // @ts-expect-error
+  await global.finishWorkers?.()
+})
+
 const f = fixtures(__dirname)
 
 test('patch package', async () => {

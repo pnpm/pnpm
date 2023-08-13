@@ -5,7 +5,7 @@ import {
   type FetchFromRegistry,
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
-import type { FilesIndex } from '@pnpm/cafs-types'
+import { type FilesIndex } from '@pnpm/cafs-types'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { createTarballFetcher, waitForFilesIndex } from '@pnpm/tarball-fetcher'
@@ -42,6 +42,8 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
   })
   const cafs = createCafsStore(opts.cafsDir)
   const fetchTarball = pickFetcher(fetchers, { tarball })
+  // eslint-disable-next-line @typescript-eslint/prefer-ts-expect-error
+  // @ts-ignore
   const { filesIndex } = await fetchTarball(cafs, { tarball } as any, { // eslint-disable-line @typescript-eslint/no-explicit-any
     lockfileDir: process.cwd(),
   })

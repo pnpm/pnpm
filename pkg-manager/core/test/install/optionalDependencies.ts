@@ -16,6 +16,11 @@ import sinon from 'sinon'
 import deepRequireCwd from 'deep-require-cwd'
 import { testDefaults } from '../utils'
 
+afterEach(async () => {
+  // @ts-expect-error
+  await global.finishWorkers?.()
+})
+
 test('successfully install optional dependency with subdependencies', async () => {
   prepareEmpty()
 
