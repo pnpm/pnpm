@@ -1,0 +1,23 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../fs/graceful-fs"
+    },
+    {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../store/cafs"
+    }
+  ],
+  "composite": true
+}

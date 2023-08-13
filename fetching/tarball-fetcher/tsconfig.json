@@ -44,6 +44,9 @@
     },
     {
       "path": "../fetcher-base"
+    },
+    {
+      "path": "../tarball-worker"
     }
   ],
   "composite": true
