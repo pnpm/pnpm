@@ -39,26 +39,24 @@ async function fetchFromLocalTarball (
     manifest?: DeferredManifestPromise
   }
 ): Promise<FetchResult> {
-  try {
-    const tarballStream = gfs.createReadStream(tarball)
-    const [fetchResult] = (
-      await Promise.all([
-        cafs.addFilesFromTarball(tarballStream, opts.manifest),
-        opts.integrity && (ssri.checkStream(tarballStream, opts.integrity) as any), // eslint-disable-line
-      ])
-    )
-    return { filesIndex: fetchResult }
-  } catch (err: any) { // eslint-disable-line
-    const error = new TarballIntegrityError({
-      attempts: 1,
-      algorithm: err['algorithm'],
-      expected: err['expected'],
-      found: err['found'],
-      sri: err['sri'],
-      url: tarball,
-    })
-    // @ts-expect-error
-    error['resource'] = tarball
-    throw error
+  const tarballBuffer = gfs.readFileSync(tarball)
+  if (opts.integrity) {
+    try {
+      ssri.checkData(tarballBuffer, opts.integrity, { error: true })
+    } catch (err: any) { // eslint-disable-line
+      const error = new TarballIntegrityError({
+        attempts: 1,
+        algorithm: err['algorithm'],
+        expected: err['expected'],
+        found: err['found'],
+        sri: err['sri'],
+        url: tarball,
+      })
+      // @ts-expect-error
+      error['resource'] = tarball
+      throw error
+    }
   }
+  const filesIndex = cafs.addFilesFromTarball(tarballBuffer, opts.manifest)
+  return { unprocessed: true, filesIndex }
 }

@@ -1,4 +1,4 @@
-import { createReadStream, promises as fs } from 'fs'
+import { createReadStream, promises as fs, mkdirSync } from 'fs'
 import path from 'path'
 import {
   checkPkgFilesIntegrity as _checkFilesIntegrity,
@@ -425,7 +425,7 @@ function fetchToStore (
     result.bundledManifest = removeKeyOnFail(
       result.files.then(async (filesResult) => {
         if (!filesResult.filesIndex['package.json']) return undefined
-        if (!filesResult.local) {
+        if (filesResult.unprocessed) {
           const { integrity, mode } = filesResult.filesIndex['package.json']
           const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
           return readBundledManifest(manifestPath)
@@ -508,6 +508,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           const verified = await ctx.checkFilesIntegrity(pkgFilesIndex, manifest)
           if (verified) {
             files.resolve({
+              unprocessed: true,
               filesIndex: pkgFilesIndex.files,
               fromStore: true,
               sideEffects: pkgFilesIndex.sideEffects,
@@ -552,6 +553,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
         opts.pkg.id,
         opts.pkg.resolution,
         {
+          filesIndexFile,
           lockfileDir: opts.lockfileDir,
           manifest: fetchManifest,
           onProgress: (downloaded) => {
@@ -573,7 +575,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       ), { priority })
 
       let filesResult!: PackageFilesResponse
-      if (!fetchedPackage.local) {
+      if (fetchedPackage.unprocessed) {
         // Ideally, files wouldn't care about when integrity is calculated.
         // However, we can only rename the temp folder once we know the package name.
         // And we cannot rename the temp folder till we're calculating integrities.
@@ -587,7 +589,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           }
         }, fetchedPackage.filesIndex)
         if (opts.pkg.name && opts.pkg.version) {
-          await writeFilesIndexFile(filesIndexFile, {
+          writeFilesIndexFile(filesIndexFile, {
             pkg: opts.pkg,
             files: integrity,
           })
@@ -597,21 +599,24 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           // To be safe, we read the package name from the downloaded package's package.json instead.
           /* eslint-disable @typescript-eslint/no-floating-promises */
           bundledManifest.promise
-            .then((manifest) => writeFilesIndexFile(filesIndexFile, {
-              pkg: manifest ?? {},
-              files: integrity,
-            }))
+            .then((manifest) => {
+              writeFilesIndexFile(filesIndexFile, {
+                pkg: manifest ?? {},
+                files: integrity,
+              })
+            })
             .catch()
           /* eslint-enable @typescript-eslint/no-floating-promises */
         }
         filesResult = {
+          unprocessed: true,
           fromStore: false,
           filesIndex: integrity,
         }
       } else {
         filesResult = {
-          local: true,
-          fromStore: !ctx.relinkLocalDirDeps,
+          local: fetchedPackage.local,
+          fromStore: !fetchedPackage.local ? false : !ctx.relinkLocalDirDeps,
           filesIndex: fetchedPackage.filesIndex,
           packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
         }
@@ -638,31 +643,31 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
   }
 }
 
-async function writeFilesIndexFile (
+function writeFilesIndexFile (
   filesIndexFile: string,
   { pkg, files }: {
     pkg: PkgNameVersion
     files: Record<string, PackageFileInfo>
   }
 ) {
-  await writeJsonFile(filesIndexFile, {
+  writeJsonFile(filesIndexFile, {
     name: pkg.name,
     version: pkg.version,
     files,
   })
 }
 
-async function writeJsonFile (filePath: string, data: unknown) {
+function writeJsonFile (filePath: string, data: unknown) {
   const targetDir = path.dirname(filePath)
   // TODO: use the API of @pnpm/cafs to write this file
   // There is actually no need to create the directory in 99% of cases.
   // So by using cafs API, we'll improve performance.
-  await fs.mkdir(targetDir, { recursive: true })
+  mkdirSync(targetDir, { recursive: true })
   // We remove the "-index.json" from the end of the temp file name
   // in order to avoid ENAMETOOLONG errors
   const temp = `${filePath.slice(0, -11)}${process.pid}`
-  await gfs.writeFile(temp, JSON.stringify(data))
-  await optimisticRenameOverwrite(temp, filePath)
+  gfs.writeFileSync(temp, JSON.stringify(data))
+  optimisticRenameOverwrite(temp, filePath)
 }
 
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {

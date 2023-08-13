@@ -17,11 +17,12 @@ export type PackageFilesResponse = {
   fromStore: boolean
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   sideEffects?: Record<string, Record<string, PackageFileInfo>>
+  local?: boolean
 } & ({
-  local: true
+  unprocessed?: false
   filesIndex: Record<string, string>
 } | {
-  local?: false
+  unprocessed: true
   filesIndex: Record<string, PackageFileInfo>
 })
 
@@ -56,7 +57,7 @@ export interface FileWriteResult {
 export interface Cafs {
   cafsDir: string
   addFilesFromDir: (dir: string, manifest?: DeferredManifestPromise) => Promise<FilesIndex>
-  addFilesFromTarball: (stream: NodeJS.ReadableStream, manifest?: DeferredManifestPromise) => Promise<FilesIndex>
+  addFilesFromTarball: (buffer: Buffer, manifest?: DeferredManifestPromise) => FilesIndex
   getFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
   getFilePathByModeInCafs: (integrity: string | IntegrityLike, mode: number) => string
   importPackage: ImportPackageFunction

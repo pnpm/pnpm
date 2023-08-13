@@ -51,17 +51,16 @@ function getFlatMap (
   filesResponse: PackageFilesResponse,
   targetEngine?: string
 ): { filesMap: Record<string, string>, isBuilt: boolean } {
-  if (filesResponse.local) {
-    return {
-      filesMap: filesResponse.filesIndex,
-      isBuilt: false,
-    }
-  }
   let isBuilt!: boolean
   let filesIndex!: Record<string, PackageFileInfo>
   if (targetEngine && ((filesResponse.sideEffects?.[targetEngine]) != null)) {
     filesIndex = filesResponse.sideEffects?.[targetEngine]
     isBuilt = true
+  } else if (!filesResponse.unprocessed) {
+    return {
+      filesMap: filesResponse.filesIndex,
+      isBuilt: false,
+    }
   } else {
     filesIndex = filesResponse.filesIndex
     isBuilt = false

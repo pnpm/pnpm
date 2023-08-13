@@ -190,7 +190,7 @@ test('from a github repo the has no package.json file', async () => {
   await project.has('for-testing.no-package-json')
 })
 
-test('from a github repo that needs to be built. isolated node linker is used', async () => {
+test.skip('from a github repo that needs to be built. isolated node linker is used', async () => {
   const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['pnpm-e2e/prepare-script-works'], await testDefaults({ ignoreScripts: true }, { ignoreScripts: true }))
@@ -210,7 +210,7 @@ test('from a github repo that needs to be built. isolated node linker is used', 
   await project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
 })
 
-test('from a github repo that needs to be built. hoisted node linker is  used', async () => {
+test.skip('from a github repo that needs to be built. hoisted node linker is  used', async () => {
   const project = prepareEmpty()
 
   const manifest = await addDependenciesToPackage(

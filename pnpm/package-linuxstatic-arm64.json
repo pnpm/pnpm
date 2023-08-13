@@ -1,6 +1,6 @@
 {
   "pkg": {
-    "assets": ["dist/pnpmrc", "dist/scripts/*"],
+    "assets": ["dist/tarballWorker.js", "dist/pnpmrc", "dist/scripts/*"],
     "targets": ["node18-linuxstatic-arm64"],
     "outputPath": "../linuxstatic-arm64"
   }

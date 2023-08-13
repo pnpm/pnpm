@@ -9,17 +9,18 @@ import {
   type GetAuthHeader,
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
+import { createTarballWorkerPool } from '@pnpm/fetching.tarball-worker'
 import {
   createDownloader,
   type DownloadFunction,
   TarballIntegrityError,
 } from './remoteTarballFetcher'
 import { createLocalTarballFetcher } from './localTarballFetcher'
-import { createGitHostedTarballFetcher, waitForFilesIndex } from './gitHostedTarballFetcher'
+import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher'
 
 export { BadTarballError } from './errorTypes'
 
-export { TarballIntegrityError, waitForFilesIndex }
+export { TarballIntegrityError }
 
 export interface TarballFetchers {
   localTarball: FetchFunction
@@ -39,7 +40,8 @@ export function createTarballFetcher (
     offline?: boolean
   }
 ): TarballFetchers {
-  const download = createDownloader(fetchFromRegistry, {
+  const workerPool = createTarballWorkerPool()
+  const download = createDownloader(workerPool, fetchFromRegistry, {
     retry: opts.retry,
     timeout: opts.timeout,
   })
@@ -83,5 +85,6 @@ async function fetchFromTarball (
     onProgress: opts.onProgress,
     onStart: opts.onStart,
     registry: resolution.registry,
+    filesIndexFile: opts.filesIndexFile,
   })
 }

@@ -1,0 +1,48 @@
+{
+  "name": "@pnpm/fetching.tarball-worker",
+  "version": "0.0.0",
+  "description": "A worker for extracting package taralls to the store",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "prepublishOnly": "pnpm run compile",
+    "test": "pnpm run compile",
+    "compile": "tsc --build && pnpm run lint --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/main/fetching/tarball-worker",
+  "keywords": [
+    "pnpm8",
+    "pnpm",
+    "tarball"
+  ],
+  "engines": {
+    "node": ">=16.14"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/fetching/tarball-worker#readme",
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
+  "dependencies": {
+    "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
+    "@rushstack/worker-pool": "0.3.34",
+    "safe-promise-defer": "^1.0.1"
+  },
+  "devDependencies": {
+    "@pnpm/fetching.tarball-worker": "workspace:*",
+    "@pnpm/types": "workspace:*"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  }
+}

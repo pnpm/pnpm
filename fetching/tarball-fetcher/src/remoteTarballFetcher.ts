@@ -4,10 +4,9 @@ import { FetchError, PnpmError } from '@pnpm/error'
 import { type FetchResult } from '@pnpm/fetcher-base'
 import type { Cafs, DeferredManifestPromise } from '@pnpm/cafs-types'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
+import { type WorkerPool } from '@pnpm/fetching.tarball-worker'
 import * as retry from '@zkochan/retry'
 import throttle from 'lodash.throttle'
-import ssri from 'ssri'
-import { Readable } from 'stream'
 import { BadTarballError } from './errorTypes'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
@@ -58,6 +57,7 @@ export type DownloadFunction = (url: string, opts: {
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   integrity?: string
+  filesIndexFile: string
 }) => Promise<FetchResult>
 
 export interface NpmRegistryClient {
@@ -66,6 +66,7 @@ export interface NpmRegistryClient {
 }
 
 export function createDownloader (
+  pool: WorkerPool,
   fetchFromRegistry: FetchFromRegistry,
   gotOpts: {
     // retry
@@ -95,6 +96,7 @@ export function createDownloader (
     onStart?: (totalSize: number | null, attempt: number) => void
     onProgress?: (downloaded: number) => void
     integrity?: string
+    filesIndexFile: string
   }): Promise<FetchResult> {
     const authHeaderValue = opts.getAuthHeaderByURI(url)
 
@@ -176,47 +178,36 @@ export function createDownloader (
 
         // eslint-disable-next-line no-async-promise-executor
         return await new Promise<FetchResult>(async (resolve, reject) => {
-          const data: Buffer = Buffer.from(new ArrayBuffer(downloaded))
+          const data: Buffer = Buffer.from(new SharedArrayBuffer(downloaded))
           let offset: number = 0
           for (const chunk of chunks) {
             chunk.copy(data, offset)
             offset += chunk.length
           }
-
-          try {
-            if (opts.integrity) {
-              try {
-                ssri.checkData(data, opts.integrity, { error: true })
-              } catch (err: any) { // eslint-disable-line
-                throw new TarballIntegrityError({
-                  algorithm: err.algorithm,
-                  expected: err.expected,
-                  found: err.found,
-                  sri: err.sri,
+          const localWorker = await pool.checkoutWorkerAsync(true)
+          localWorker.once('message', ({ status, error, value }) => {
+            pool.checkinWorker(localWorker)
+            if (status === 'error') {
+              if (error.type === 'integrity_validation_failed') {
+                reject(new TarballIntegrityError({
+                  ...error,
                   url,
-                })
+                }))
+                return
               }
-            }
-            const streamForTarball = new Readable({
-              read () {
-                this.push(data)
-                this.push(null)
-              },
-            })
-            const filesIndex = await opts.cafs.addFilesFromTarball(streamForTarball, opts.manifest)
-            resolve({ filesIndex })
-          } catch (err: any) { // eslint-disable-line
-            // If the error is not an integrity check error, then it happened during extracting the tarball
-            if (
-              err['code'] !== 'ERR_PNPM_TARBALL_INTEGRITY' &&
-              err['code'] !== 'ERR_PNPM_BAD_TARBALL_SIZE'
-            ) {
-              const extractError = new PnpmError('TARBALL_EXTRACT', `Failed to unpack the tarball from "${url}": ${err.message as string}`)
-              reject(extractError)
+              reject(new PnpmError('TARBALL_EXTRACT', `Failed to unpack the tarball from "${url}": ${error as string}`))
               return
             }
-            reject(err)
-          }
+            opts.manifest?.resolve(value.manifest)
+            resolve({ filesIndex: value.filesIndex, local: true })
+          })
+          localWorker.postMessage({
+            type: 'extract',
+            buffer: data,
+            cafsDir: opts.cafs.cafsDir,
+            integrity: opts.integrity,
+            filesIndexFile: opts.filesIndexFile,
+          })
         })
       } catch (err: any) { // eslint-disable-line
         err.attempts = currentAttempt

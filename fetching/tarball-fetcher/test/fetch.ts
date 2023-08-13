@@ -30,7 +30,13 @@ beforeEach(() => {
   ;(globalWarn as jest.Mock).mockClear()
 })
 
+afterEach(async () => {
+  // @ts-expect-error
+  await global.finishWorkers?.()
+})
+
 const cafsDir = tempy.directory()
+const filesIndexFile = path.join(cafsDir, 'index.json')
 const cafs = createCafsStore(cafsDir)
 
 const f = fixtures(__dirname)
@@ -70,6 +76,7 @@ test('fail when tarball size does not match content-length', async () => {
 
   await expect(
     fetch.remoteTarball(cafs, resolution, {
+      filesIndexFile,
       lockfileDir: process.cwd(),
     })
   ).rejects.toThrow(
@@ -100,6 +107,7 @@ test('retry when tarball size does not match content-length', async () => {
   const resolution = { tarball: 'http://example.com/foo.tgz' }
 
   const result = await fetch.remoteTarball(cafs, resolution, {
+    filesIndexFile,
     lockfileDir: process.cwd(),
   })
 
@@ -124,6 +132,7 @@ test('fail when integrity check fails two times in a row', async () => {
 
   await expect(
     fetch.remoteTarball(cafs, resolution, {
+      filesIndexFile,
       lockfileDir: process.cwd(),
     })
   ).rejects.toThrow(
@@ -158,6 +167,7 @@ test('retry when integrity check fails', async () => {
 
   const params: Array<[number | null, number]> = []
   await fetch.remoteTarball(cafs, resolution, {
+    filesIndexFile,
     lockfileDir: process.cwd(),
     onStart (size, attempts) {
       params.push([size, attempts])
@@ -182,13 +192,14 @@ test('fail when integrity check of local file fails', async () => {
 
   await expect(
     fetch.localTarball(cafs, resolution, {
+      filesIndexFile,
       lockfileDir: process.cwd(),
     })
   ).rejects.toThrow(
     new TarballIntegrityError({
       algorithm: 'sha512',
       expected: 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY=',
-      found: 'sha512-VuFL1iPaIxJK/k3gTxStIkc6+wSiDwlLdnCWNZyapsVLobu/0onvGOZolASZpfBFiDJYrOIGiDzgLIULTW61Vg== sha1-ACjKMFA7S6uRFXSDFfH4aT+4B4Y=',
+      found: 'sha1-ACjKMFA7S6uRFXSDFfH4aT+4B4Y=',
       sri: '',
       url: path.join(storeDir, 'tar.tgz'),
     })
@@ -206,6 +217,7 @@ test("don't fail when integrity check of local file succeeds", async () => {
   }
 
   const { filesIndex } = await fetch.localTarball(cafs, resolution, {
+    filesIndexFile,
     lockfileDir: process.cwd(),
   })
 
@@ -231,6 +243,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
     },
   })
   const { filesIndex } = await fetch.localTarball(cafs, resolution, {
+    filesIndexFile,
     lockfileDir: process.cwd(),
   })
 
@@ -257,6 +270,7 @@ test('fail when trying to fetch a non-local tarball in offline mode', async () =
   })
   await expect(
     fetch.remoteTarball(cafs, resolution, {
+      filesIndexFile,
       lockfileDir: process.cwd(),
     })
   ).rejects.toThrow(
@@ -283,6 +297,7 @@ test('retry on server error', async () => {
   }
 
   const index = await fetch.remoteTarball(cafs, resolution, {
+    filesIndexFile,
     lockfileDir: process.cwd(),
   })
 
@@ -305,6 +320,7 @@ test('throw error when accessing private package w/o authorization', async () =>
 
   await expect(
     fetch.remoteTarball(cafs, resolution, {
+      filesIndexFile,
       lockfileDir: process.cwd(),
     })
   ).rejects.toThrow(
@@ -355,6 +371,7 @@ test('accessing private packages', async () => {
   }
 
   const index = await fetch.remoteTarball(cafs, resolution, {
+    filesIndexFile,
     lockfileDir: process.cwd(),
   })
 
@@ -374,6 +391,7 @@ test('fetch a big repository', async () => {
   const resolution = { tarball: 'https://codeload.github.com/sveltejs/action-deploy-docs/tar.gz/a65fbf5a90f53c9d72fed4daaca59da50f074355' }
 
   const result = await fetch.gitHostedTarball(cafs, resolution, {
+    filesIndexFile,
     lockfileDir: process.cwd(),
   })
 
@@ -386,7 +404,10 @@ test('fail when preparing a git-hosted package', async () => {
   const resolution = { tarball: 'https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7' }
 
   await expect(
-    fetch.gitHostedTarball(cafs, resolution, { lockfileDir: process.cwd() })
+    fetch.gitHostedTarball(cafs, resolution, {
+      filesIndexFile,
+      lockfileDir: process.cwd(),
+    })
   ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://codeload.github.com/pnpm-e2e/prepare-script-fails/tar.gz/ba58874aae1210a777eb309dd01a9fdacc7e54e7": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
 })
 
@@ -404,9 +425,10 @@ test('fail when extracting a broken tarball', async () => {
 
   await expect(
     fetch.remoteTarball(cafs, resolution, {
+      filesIndexFile,
       lockfileDir: process.cwd(),
     })
-  ).rejects.toThrow(`Failed to unpack the tarball from "${registry}foo.tgz": Unexpected end of data`
+  ).rejects.toThrow(`Failed to unpack the tarball from "${registry}foo.tgz": Error: Invalid checksum for TAR header at offset 0. Expected 0, got NaN`
   )
   expect(scope.isDone()).toBeTruthy()
 })
@@ -426,7 +448,10 @@ test('do not build the package when scripts are ignored', async () => {
       retries: 1,
     },
   })
-  const { filesIndex } = await fetch.gitHostedTarball(cafs, resolution, { lockfileDir: process.cwd() })
+  const { filesIndex } = await fetch.gitHostedTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+  })
 
   expect(filesIndex).toHaveProperty(['package.json'])
   expect(filesIndex).not.toHaveProperty(['prepare.txt'])
@@ -441,6 +466,7 @@ test('when extracting files with the same name, pick the last ones', async () =>
 
   const manifest = safePromiseDefer<DependencyManifest | undefined>()
   const { filesIndex } = await fetch.localTarball(cafs, resolution, {
+    filesIndexFile,
     lockfileDir: process.cwd(),
     manifest,
   })

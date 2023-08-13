@@ -16,7 +16,7 @@ const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
 export async function addFilesFromDir (
   cafs: {
     addStream: (stream: NodeJS.ReadableStream, mode: number) => Promise<FileWriteResult>
-    addBuffer: (buffer: Buffer, mode: number) => Promise<FileWriteResult>
+    addBuffer: (buffer: Buffer, mode: number) => FileWriteResult
   },
   dirname: string,
   manifest?: DeferredManifestPromise
@@ -32,7 +32,7 @@ export async function addFilesFromDir (
 async function _retrieveFileIntegrities (
   cafs: {
     addStream: (stream: NodeJS.ReadableStream, mode: number) => Promise<FileWriteResult>
-    addBuffer: (buffer: Buffer, mode: number) => Promise<FileWriteResult>
+    addBuffer: (buffer: Buffer, mode: number) => FileWriteResult
   },
   rootDir: string,
   currDir: string,
