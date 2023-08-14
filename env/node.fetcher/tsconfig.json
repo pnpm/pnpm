@@ -19,6 +19,9 @@
       "path": "../../fetching/pick-fetcher"
     },
     {
+      "path": "../../fetching/tarball-fetcher"
+    },
+    {
       "path": "../../network/fetching-types"
     },
     {
@@ -26,6 +29,9 @@
     },
     {
       "path": "../../store/cafs-types"
+    },
+    {
+      "path": "../../store/create-cafs-store"
     }
   ],
   "composite": true

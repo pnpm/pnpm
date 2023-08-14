@@ -148,33 +148,6 @@
         "dependencies": {
           "@yarnpkg/pnp": "^4.0.0-rc.25"
         }
-      },
-      "@pnpm/tarball-fetcher@15.0.9": {
-        "dependencies": {
-          "@pnpm/cafs-types": "2.0.0"
-        }
-      },
-      "@pnpm/store.cafs@1.0.2": {
-        "dependencies": {
-          "@pnpm/cafs-types": "2.0.0",
-          "@types/ssri": "^7.1.1"
-        }
-      },
-      "@pnpm/cafs-types@2.0.0": {
-        "dependencies": {
-          "@pnpm/types": "9.2.0",
-          "@types/ssri": "^7.1.1"
-        }
-      },
-      "@pnpm/store-controller-types@15.0.2": {
-        "dependencies": {
-          "@pnpm/cafs-types": "2.0.0"
-        }
-      },
-      "@pnpm/create-cafs-store@4.0.8": {
-        "dependencies": {
-          "@pnpm/cafs-types": "2.0.0"
-        }
       }
     },
     "neverBuiltDependencies": [

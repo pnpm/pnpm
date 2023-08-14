@@ -20,6 +20,7 @@ const SLASH: number = '/'.charCodeAt(0)
 const BACKSLASH: number = '\\'.charCodeAt(0)
 const FILE_TYPE_PAX_HEADER: number = 'x'.charCodeAt(0)
 const FILE_TYPE_PAX_GLOBAL_HEADER: number = 'g'.charCodeAt(0)
+const FILE_TYPE_LONGLINK: number = 'L'.charCodeAt(0)
 
 const USTAR_MAGIC: Buffer = Buffer.from('ustar', 'latin1')
 
@@ -42,6 +43,7 @@ export function parseTarball (buffer: Buffer): IParseResult {
 
   let prefix: string = ''
   let fileName: string = ''
+  let longLinkPath = ''
 
   // If a PAX extended header record is encountered and has a path field, it overrides the next entry's path.
   let paxHeaderPath: string = ''
@@ -95,7 +97,10 @@ export function parseTarball (buffer: Buffer): IParseResult {
     // Mark that the first path segment has not been removed.
     pathTrimmed = false
 
-    if (paxHeaderPath) {
+    if (longLinkPath) {
+      fileName = longLinkPath
+      longLinkPath = ''
+    } else if (paxHeaderPath) {
       fileName = paxHeaderPath
 
       // The PAX header only applies to the immediate next entry.
@@ -147,6 +152,16 @@ export function parseTarball (buffer: Buffer): IParseResult {
     case FILE_TYPE_PAX_GLOBAL_HEADER:
       parsePaxHeader(blockStart + 512, fileSize, true)
       break
+    case FILE_TYPE_LONGLINK: {
+      // Read the long filename
+      longLinkPath = buffer.toString('utf8', blockStart + 512, blockStart + 512 + fileSize).replace(/\0.*/, '')
+      // Remove the first path segment
+      const slashIndex = longLinkPath.indexOf('/')
+      if (slashIndex >= 0) {
+        longLinkPath = longLinkPath.slice(slashIndex + 1)
+      }
+      break
+    }
     default:
       throw new Error(`Unsupported file type ${fileType} for file ${fileName}.`)
     }

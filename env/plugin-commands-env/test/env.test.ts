@@ -8,6 +8,11 @@ import nock from 'nock'
 import PATH from 'path-name'
 import semver from 'semver'
 
+afterEach(async () => {
+  // @ts-expect-error
+  await global.finishWorkers?.()
+})
+
 test('install Node (and npm, npx) by exact version of Node.js', async () => {
   tempDir()
   const configDir = path.resolve('config')
