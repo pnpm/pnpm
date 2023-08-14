@@ -152,10 +152,16 @@ export function parseTarball (buffer: Buffer): IParseResult {
     case FILE_TYPE_PAX_GLOBAL_HEADER:
       parsePaxHeader(blockStart + 512, fileSize, true)
       break
-    case FILE_TYPE_LONGLINK:
+    case FILE_TYPE_LONGLINK: {
       // Read the long filename
       longLinkPath = buffer.toString('utf8', blockStart + 512, blockStart + 512 + fileSize).replace(/\0.*/, '')
+      // Remove the first path segment
+      const slashIndex = longLinkPath.indexOf('/')
+      if (slashIndex >= 0) {
+        longLinkPath = longLinkPath.slice(slashIndex + 1)
+      }
       break
+    }
     default:
       throw new Error(`Unsupported file type ${fileType} for file ${fileName}.`)
     }
