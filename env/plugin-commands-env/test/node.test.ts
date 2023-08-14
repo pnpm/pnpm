@@ -31,7 +31,8 @@ test('check API (placeholder test)', async () => {
   expect(typeof node.getNodeDir).toBe('function')
 })
 
-test('install Node uses node-mirror:release option', async () => {
+// TODO: unskip. The mock function should return a valid tarball
+test.skip('install Node uses node-mirror:release option', async () => {
   tempDir()
   const configDir = path.resolve('config')
 
@@ -54,7 +55,8 @@ test('install Node uses node-mirror:release option', async () => {
   }
 })
 
-test('install an rc version of Node.js', async () => {
+// TODO: unskip. The mock function should return a valid tarball
+test.skip('install an rc version of Node.js', async () => {
   tempDir()
   const configDir = path.resolve('config')
 

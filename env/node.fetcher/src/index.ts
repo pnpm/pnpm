@@ -5,10 +5,9 @@ import {
   type FetchFromRegistry,
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
-import { type FilesIndex } from '@pnpm/cafs-types'
 import { pickFetcher } from '@pnpm/pick-fetcher'
 import { createCafsStore } from '@pnpm/create-cafs-store'
-import { createTarballFetcher, waitForFilesIndex } from '@pnpm/tarball-fetcher'
+import { createTarballFetcher } from '@pnpm/tarball-fetcher'
 import AdmZip from 'adm-zip'
 import renameOverwrite from 'rename-overwrite'
 import tempy from 'tempy'
@@ -42,14 +41,13 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
   })
   const cafs = createCafsStore(opts.cafsDir)
   const fetchTarball = pickFetcher(fetchers, { tarball })
-  // eslint-disable-next-line @typescript-eslint/prefer-ts-expect-error
-  // @ts-ignore
   const { filesIndex } = await fetchTarball(cafs, { tarball } as any, { // eslint-disable-line @typescript-eslint/no-explicit-any
+    filesIndexFile: path.join(opts.cafsDir, encodeURIComponent(tarball)), // TODO: change the name or don't save an index file for node.js tarballs
     lockfileDir: process.cwd(),
   })
   await cafs.importPackage(targetDir, {
     filesResponse: {
-      filesIndex: await waitForFilesIndex(filesIndex as FilesIndex),
+      filesIndex: filesIndex as Record<string, string>,
       fromStore: false,
     },
     force: true,
