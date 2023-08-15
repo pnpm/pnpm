@@ -174,7 +174,7 @@ test.skip('the bundled CLI prints the correct version, when executed from stdin'
   expect((await nodeProcess).stdout).toBe(version)
 })
 
-test.skip('use the specified Node.js version for running scripts', async () => {
+test('use the specified Node.js version for running scripts', async () => {
   prepare({
     scripts: {
       test: "node -e \"require('fs').writeFileSync('version',process.version,'utf8')\"",
