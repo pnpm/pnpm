@@ -296,10 +296,8 @@ export async function main (inputArgv: string[]) {
   })()
   // When use-node-version is set and "pnpm run" is executed,
   // this will be the only place where the tarball worker pool is finished.
-  afterEach(async () => {
-    // @ts-expect-error
-    await global.finishWorkers?.()
-  })
+  // @ts-expect-error
+  await global.finishWorkers?.()
   if (output) {
     if (!output.endsWith('\n')) {
       output = `${output}\n`
