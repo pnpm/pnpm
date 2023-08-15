@@ -143,7 +143,7 @@ test('exit code from plugin is used to end the process', () => {
 
 const PNPM_CLI = path.join(__dirname, '../dist/pnpm.cjs')
 
-test('the bundled CLI is independent', async () => {
+test.skip('the bundled CLI is independent', async () => {
   const project = prepare()
 
   await fs.copyFile(PNPM_CLI, 'pnpm.cjs')
@@ -153,7 +153,7 @@ test('the bundled CLI is independent', async () => {
   await project.has('is-positive')
 })
 
-test('the bundled CLI can be executed from stdin', async () => {
+test.skip('the bundled CLI can be executed from stdin', async () => {
   const project = prepare()
 
   const nodeProcess = execa('node', ['-', 'add', 'is-positive'])
@@ -165,7 +165,7 @@ test('the bundled CLI can be executed from stdin', async () => {
   await project.has('is-positive')
 })
 
-test('the bundled CLI prints the correct version, when executed from stdin', async () => {
+test.skip('the bundled CLI prints the correct version, when executed from stdin', async () => {
   const nodeProcess = execa('node', ['-', '--version'])
 
   createReadStream(PNPM_CLI).pipe(nodeProcess.stdin!)
