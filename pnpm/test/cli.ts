@@ -190,7 +190,7 @@ test.skip('if an unknown command is executed, run it', async () => {
   await execPnpm(['node', '-e', "require('fs').writeFileSync('foo','','utf8')"])
   expect(await fs.readFile('foo', 'utf8')).toBe('')
 })
-/*
+
 test.each([
   { message: 'npm_command env available on special lifecycle hooks', script: 'prepare', command: 'install' },
   { message: 'npm_command env available on special lifecycle hooks (alias)', script: 'prepare', command: 'i', expected: 'install' },
@@ -207,4 +207,4 @@ test.each([
   const result = execPnpmSync([command])
   expect(result.stdout.toString()).toMatch(`npm_command: "${expected ?? command}"`)
 })
-*/
+
