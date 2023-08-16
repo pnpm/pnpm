@@ -16,7 +16,6 @@ import * as enquirer from 'enquirer'
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
 afterEach(async () => {
-  // @ts-expect-error
   await global.finishWorkers?.()
 })
 
@@ -318,6 +317,7 @@ describe('patch and commit', () => {
   test('should skip empty patch content', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
+    // eslint-disable-next-line @typescript-eslint/no-confusing-void-expression
     const result = await patchCommit.handler({
       ...DEFAULT_OPTS,
       cacheDir,
