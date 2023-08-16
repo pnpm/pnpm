@@ -1,0 +1,51 @@
+name: Feature Request 💡
+description: Suggest a new feature for pnpm
+labels: ['type: feature']
+body:
+  - type: markdown
+    attributes:
+      value: |
+              These issues are for **concrete and actionable proposals**. If you just have
+              a general problem that you would like to brainstorm, open a Discussion instead [here](https://github.com/pnpm/pnpm/discussions).
+  - type: markdown
+    attributes:
+      value: |
+              If this feature affects many people in a company/big team, create a post for your company in the following discussion:
+              [https://github.com/pnpm/pnpm/discussions/3787](https://github.com/pnpm/pnpm/discussions/3787)
+              and link the issue in your post.
+
+              This will help us prioritize issues that affect more people.
+  - type: checkboxes
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd be willing to implement this feature ([contributing guide](https://github.com/pnpm/pnpm/blob/main/CONTRIBUTING.md))
+  - type: textarea
+    id: user-story
+    attributes:
+      label: Describe the user story
+      description:  |
+                    A clear and concise description of what workflow is meant to be improved. Example: "As a developer, I often want to do <something>, but I often face <problem>".
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Describe the solution you'd like
+      description: A clear and concise description of what you want to happen. Consider that pnpm is used by many people, and your particular use case might not make sense to implement in the core.
+    validations:
+      required: true
+  - type: textarea
+    id: drawbacks
+    attributes:
+      label: Describe the drawbacks of your solution
+      description: This section is important not only to identify future issues, but also for us to see whether you thought through your request. Ask yourself, what are the problems we could have maintaining what you propose? How often will it break?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Describe alternatives you've considered
+      description: A clear and concise description of any alternative solutions or features you've considered, and why you think they wouldn't be good enough.
+    validations:
+      required: true
