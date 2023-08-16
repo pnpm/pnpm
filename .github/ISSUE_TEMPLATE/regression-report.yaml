@@ -1,0 +1,62 @@
+name: Regression Report 🚫
+description: Report a regression in pnpm
+labels: ['type: regression']
+body:
+  - type: input
+    id: last-working-version
+    attributes:
+      label: Last pnpm version that worked
+      placeholder: e.g. 6.5.0
+    validations:
+      required: true
+  - type: input
+    id: current-version
+    attributes:
+      label: pnpm version
+      placeholder: e.g. 7.0.0
+    validations:
+      required: true
+  - type: textarea
+    id: code-to-reproduce
+    attributes:
+      label: Code to reproduce the issue
+      description: Please provide a clear set of steps or a code snippet to reproduce the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: Describe what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual behavior
+      description: Describe what actually happened.
+    validations:
+      required: true
+  - type: textarea
+    id: additional-information
+    attributes:
+      label: Additional information
+      description: Provide any additional details or context that might be relevant.
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: 'Run `node -v` and provide the output.'
+      placeholder: e.g. 14.18.1
+    validations:
+      required: true
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating System
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
