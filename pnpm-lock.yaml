@@ -65,7 +65,7 @@ packageExtensionsChecksum: dbf1ae8871461637762294aa9aa79382
 
 patchedDependencies:
   graceful-fs@4.2.11:
-    hash: 66ismxrei24sd5iv7rpq4zc5hq
+    hash: ivtm2a2cfr5pomcfbedhmr5v2q
     path: __patches__/graceful-fs@4.2.11.patch
   pkg@5.8.1:
     hash: pp6fkuhwkrqq7cjcj7uqpf37e4
@@ -992,7 +992,7 @@ importers:
         version: 2.1.2
       graceful-fs:
         specifier: ^4.2.11
-        version: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+        version: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       is-windows:
         specifier: ^1.0.2
         version: 1.0.2
@@ -1692,7 +1692,7 @@ importers:
     dependencies:
       graceful-fs:
         specifier: ^4.2.11
-        version: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+        version: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
     devDependencies:
       '@pnpm/graceful-fs':
         specifier: workspace:*
@@ -1767,7 +1767,7 @@ importers:
     dependencies:
       graceful-fs:
         specifier: ^4.2.11
-        version: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+        version: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
     devDependencies:
       '@pnpm/read-modules-dir':
         specifier: workspace:*
@@ -7402,7 +7402,7 @@ packages:
       chalk: 4.1.2
       ci-info: 3.8.0
       exit: 0.1.2
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jest-changed-files: 29.5.0
       jest-config: 29.6.2(@babel/types@7.22.5)(@types/node@16.18.39)(ts-node@10.9.1)
       jest-haste-map: 29.6.2
@@ -7498,7 +7498,7 @@ packages:
       collect-v8-coverage: 1.0.2
       exit: 0.1.2
       glob: 7.2.3
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       istanbul-lib-coverage: 3.2.0
       istanbul-lib-instrument: 5.2.1(@babel/types@7.22.5)
       istanbul-lib-report: 3.0.1
@@ -7529,7 +7529,7 @@ packages:
     dependencies:
       '@jridgewell/trace-mapping': 0.3.18
       callsites: 3.1.0
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
     dev: true
 
   /@jest/test-result@29.6.2:
@@ -7547,7 +7547,7 @@ packages:
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     dependencies:
       '@jest/test-result': 29.6.2
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jest-haste-map: 29.6.2
       slash: 3.0.0
     dev: true
@@ -7563,7 +7563,7 @@ packages:
       chalk: 4.1.2
       convert-source-map: 2.0.0
       fast-json-stable-stringify: 2.1.0
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jest-haste-map: 29.6.2
       jest-regex-util: 29.4.3
       jest-util: 29.6.2
@@ -7927,7 +7927,7 @@ packages:
     resolution: {integrity: sha512-72kkqIL2sacOVr6Y6B6xDGjRC4QgTLeIGkw/5XYyeMgMeL9mDE0lonZEOL9JuLS0XPOXQoyDtRCSmUrzAA57LQ==}
     engines: {node: '>=16.14'}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
     dev: true
 
   /@pnpm/graph-sequencer@1.1.1:
@@ -9120,7 +9120,7 @@ packages:
     engines: {node: '>=14.6'}
     dependencies:
       cmd-extension: 1.0.2
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       is-windows: 1.0.2
     dev: false
 
@@ -9289,7 +9289,7 @@ packages:
     resolution: {integrity: sha512-ym3GCDQU8B6PZrswCvanRiWoSg2QrrlPwoRlMr4oCpGvyK2KlwTujdCZfxrGapqxrqEY3TpxEqLf+7PhFnyaLA==}
     dependencies:
       concat-stream: 1.6.2
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       normalize-package-data: 2.5.0
       npm-package-arg: 6.1.1
       once: 1.4.0
@@ -9584,7 +9584,7 @@ packages:
       babel-plugin-istanbul: 6.1.1(@babel/types@7.22.5)
       babel-preset-jest: 29.5.0(@babel/core@7.22.9)
       chalk: 4.1.2
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       slash: 3.0.0
     transitivePeerDependencies:
       - '@babel/types'
@@ -10579,7 +10579,7 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       globby: 11.1.0
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       is-glob: 4.0.3
       is-path-cwd: 2.2.0
       is-path-inside: 3.0.3
@@ -11553,7 +11553,7 @@ packages:
     resolution: {integrity: sha512-oRXApq54ETRj4eMiFzGnHWGy+zo5raudjuxN0b8H7s/RU2oW0Wvsx9O0ACRN/kRq9E8Vu/ReskGB5o3ji+FzHQ==}
     engines: {node: '>=12'}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jsonfile: 6.1.0
       universalify: 2.0.0
 
@@ -11561,7 +11561,7 @@ packages:
     resolution: {integrity: sha512-0rcTq621PD5jM/e0a3EJoGC/1TC5ZBCERW82LQuwfGnCa1V8w7dpYH1yNu+SLb6E5dkeCBzKEyLGlFrnr+dUyw==}
     engines: {node: '>=14.14'}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jsonfile: 6.1.0
       universalify: 2.0.0
     dev: true
@@ -11570,14 +11570,14 @@ packages:
     resolution: {integrity: sha512-MGIE4HOvQCeUCzmlHs0vXpih4ysz4wg9qiSAu6cd42lVwPbTM1TjV7RusoyQqMmk/95gdQZX72u+YW+c3eEpFQ==}
     engines: {node: '>=14.14'}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jsonfile: 6.1.0
       universalify: 2.0.0
 
   /fs-extra@4.0.3:
     resolution: {integrity: sha512-q6rbdDd1o2mAnQreO7YADIxf/Whx4AHBiRf6d+/cVT8h44ss+lHgxf1FemcqDnQt9X3ct4McHr+JMGlYSsK7Cg==}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jsonfile: 4.0.0
       universalify: 0.1.2
     dev: true
@@ -11586,7 +11586,7 @@ packages:
     resolution: {integrity: sha512-YJDaCJZEnBmcbw13fvdAM9AwNOJwOzrE4pqMqBq5nFiEqXUqHwlK4B+3pUw6JNvfSPtX05xFHtYy/1ni01eGCw==}
     engines: {node: '>=6 <7 || >=8'}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jsonfile: 4.0.0
       universalify: 0.1.2
     dev: true
@@ -11595,7 +11595,7 @@ packages:
     resolution: {integrity: sha512-yhlQgA6mnOJUKOsRUFsgJdQCvkKhcz8tlZG5HBQfReYZy46OwLcY+Zia0mtdHsOo9y/hP+CxMN0TU9QxoOtG4g==}
     engines: {node: '>=6 <7 || >=8'}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jsonfile: 4.0.0
       universalify: 0.1.2
     dev: true
@@ -11605,7 +11605,7 @@ packages:
     engines: {node: '>=10'}
     dependencies:
       at-least-node: 1.0.0
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jsonfile: 6.1.0
       universalify: 2.0.0
 
@@ -11628,7 +11628,7 @@ packages:
     resolution: {integrity: sha512-+vSd9frUnapVC2RZYfL3FCB2p3g4TBhaUmrsWlSudsGdnxIuUvBB2QM1VZeBtc49QFwrp+wQLrDs3+xxDgI5gQ==}
     engines: {node: '>= 0.10'}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       through2: 2.0.5
     dev: true
 
@@ -11955,7 +11955,7 @@ packages:
   /graceful-fs@4.2.10:
     resolution: {integrity: sha512-9ByhssR2fPVsNZj478qUUbKfmL0+t5BDVyjShtyZZLiK7ZDAArFFfopyOTj0M05wE2tJPisA4iTnnXl2YoPvOA==}
 
-  /graceful-fs@4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq):
+  /graceful-fs@4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q):
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
     patched: true
 
@@ -12722,7 +12722,7 @@ packages:
       '@jest/types': 29.6.1
       chalk: 4.1.2
       exit: 0.1.2
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       import-local: 3.1.0
       jest-config: 29.6.2(@babel/types@7.22.5)(@types/node@16.18.39)(ts-node@10.9.1)
       jest-util: 29.6.2
@@ -12758,7 +12758,7 @@ packages:
       ci-info: 3.8.0
       deepmerge: 4.3.1
       glob: 7.2.3
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jest-circus: 29.6.2(@babel/types@7.22.5)
       jest-environment-node: 29.6.2
       jest-get-type: 29.4.3
@@ -12833,7 +12833,7 @@ packages:
       '@types/node': 16.18.39
       anymatch: 3.1.3
       fb-watchman: 2.0.2
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jest-regex-util: 29.4.3
       jest-util: 29.6.2
       jest-worker: 29.6.2
@@ -12869,7 +12869,7 @@ packages:
       '@jest/types': 29.6.1
       '@types/stack-utils': 2.0.1
       chalk: 4.1.2
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       micromatch: 4.0.5
       pretty-format: 29.6.2
       slash: 3.0.0
@@ -12917,7 +12917,7 @@ packages:
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     dependencies:
       chalk: 4.1.2
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jest-haste-map: 29.6.2
       jest-pnp-resolver: 1.2.3(jest-resolve@29.6.2)
       jest-util: 29.6.2
@@ -12939,7 +12939,7 @@ packages:
       '@types/node': 16.18.39
       chalk: 4.1.2
       emittery: 0.13.1
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jest-docblock: 29.4.3
       jest-environment-node: 29.6.2
       jest-haste-map: 29.6.2
@@ -12973,7 +12973,7 @@ packages:
       cjs-module-lexer: 1.2.3
       collect-v8-coverage: 1.0.2
       glob: 7.2.3
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jest-haste-map: 29.6.2
       jest-message-util: 29.6.2
       jest-mock: 29.6.2
@@ -13003,7 +13003,7 @@ packages:
       babel-preset-current-node-syntax: 1.0.1(@babel/core@7.22.9)
       chalk: 4.1.2
       expect: 29.6.2
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jest-diff: 29.6.2
       jest-get-type: 29.4.3
       jest-matcher-utils: 29.6.2
@@ -13024,7 +13024,7 @@ packages:
       '@types/node': 16.18.39
       chalk: 4.1.2
       ci-info: 3.8.0
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       picomatch: 2.3.1
     dev: true
 
@@ -13141,7 +13141,7 @@ packages:
   /jsonfile@4.0.0:
     resolution: {integrity: sha512-m6F1R3z8jjlf2imQHS2Qez5sjKWQzbuuhuJ/FKYFRZvPE3PuHcSMVZzfsLhGVOkfd20obL5SWEBew5ShlquNxg==}
     optionalDependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
     dev: true
 
   /jsonfile@6.1.0:
@@ -13149,7 +13149,7 @@ packages:
     dependencies:
       universalify: 2.0.0
     optionalDependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
 
   /jsonparse@1.3.1:
     resolution: {integrity: sha512-POQXvpdL69+CluYsillJ7SUhKvytYjW9vG/GKpnf+xP8UWgYEM/RaMzHHofbALDiKbbP1W8UEYmgGl39WkPZsg==}
@@ -13209,7 +13209,7 @@ packages:
   /klaw-sync@6.0.0:
     resolution: {integrity: sha512-nIeuVSzdCCs6TDPTqI8w1Yre34sSq7AkZ4B3sfOBbI2CgVSB4Du4aLQijFU2+lhAFCwt9+42Hel6lQNIv6AntQ==}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
     dev: false
 
   /kleur@3.0.3:
@@ -13265,7 +13265,7 @@ packages:
     resolution: {integrity: sha512-gUD/epcRms75Cw8RT1pUdHugZYM5ce64ucs2GEISABwkRsOQr0q2wm/MV2TKThycIe5e0ytRweW2RZxclogCdQ==}
     engines: {node: '>=8'}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       parse-json: 5.2.0
       strip-bom: 4.0.0
       type-fest: 0.6.0
@@ -13279,7 +13279,7 @@ packages:
     resolution: {integrity: sha512-OfCBkGEw4nN6JLtgRidPX6QxjBQGQf72q3si2uvqyFEMbycSFFHwAZeXx6cJgFM9wmLrf9zBwCP3Ivqa+LLZPw==}
     engines: {node: '>=6'}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       js-yaml: 3.14.1
       pify: 4.0.1
       strip-bom: 3.0.0
@@ -13411,7 +13411,7 @@ packages:
     resolution: {integrity: sha512-2+x8esE/Wb9SQ1F9IHaYWfsC9FIecLOPrK4g17FGEayjUWH172H6nwicRovGvSE2CPZouc2MCIqCI7h9d+GftQ==}
     engines: {node: '>=4'}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       is-promise: 2.2.2
       lodash: 4.17.21
       pify: 3.0.0
@@ -14065,7 +14065,7 @@ packages:
     dependencies:
       env-paths: 2.2.1
       glob: 7.2.3
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       make-fetch-happen: 9.1.0
       nopt: /@pnpm/nopt@0.2.1
       npmlog: 6.0.2
@@ -14087,7 +14087,7 @@ packages:
       env-paths: 2.2.1
       exponential-backoff: 3.1.1
       glob: 7.2.3
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       make-fetch-happen: 11.1.1
       nopt: 6.0.0
       npmlog: 6.0.2
@@ -15065,7 +15065,7 @@ packages:
     resolution: {integrity: sha512-VIMnQi/Z4HT2Fxuwg5KrY174U1VdUIASQVWXXyqtNRtxSr9IYkn1rsI6Tb6HsrHCmB7gVpNwX6JxPTHcH6IoTA==}
     engines: {node: '>=6'}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       js-yaml: 3.14.1
       pify: 4.0.1
       strip-bom: 3.0.0
@@ -15879,7 +15879,7 @@ packages:
   /steno@0.4.4:
     resolution: {integrity: sha512-EEHMVYHNXFHfGtgjNITnka0aHhiAlo93F7z2/Pwd+g0teG9CnM3JIINM7hVVB5/rhw9voufD7Wukwgtw2uqh6w==}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
 
   /stream-buffers@3.0.2:
     resolution: {integrity: sha512-DQi1h8VEBA/lURbSwFtEHnSTb9s2/pwLEaFuNhXwy1Dx3Sa0lOuYT2yNUr4/j2fs8oCAMANtrZ5OrPZtyVs3MQ==}
@@ -16871,7 +16871,7 @@ packages:
     dependencies:
       fs-mkdirp-stream: 1.0.0
       glob-stream: 6.1.0
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       is-valid-glob: 1.0.0
       lazystream: 1.0.1
       lead: 1.0.0
@@ -16894,7 +16894,7 @@ packages:
     dependencies:
       append-buffer: 1.0.2
       convert-source-map: 1.9.0
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       normalize-path: 2.1.1
       now-and-later: 2.0.1
       remove-bom-buffer: 3.0.0
@@ -16917,7 +16917,7 @@ packages:
     resolution: {integrity: sha512-kFveRaZ4n8Qyg/HsE+WeZpf0LDfJrA/0t1sqLLnYtnl++VBsd/g7iI4CkQ4SIvrDI1nCjmiJhRnBORb7MIOLjQ==}
     dependencies:
       each-limit: 1.0.0
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       lodash.assign: 4.2.0
       lodash.isobject: 3.0.2
       lodash.isundefined: 3.0.1
@@ -17044,7 +17044,7 @@ packages:
   /write-file-atomic@2.4.3:
     resolution: {integrity: sha512-GaETH5wwsX+GcnzhPgKcKjJ6M2Cq3/iZp1WyY/X1CSqrW+jVNM9Y7D8EC2sM4ZG/V8wZlSniJnCKWPmBYAucRQ==}
     dependencies:
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       imurmurhash: 0.1.4
       signal-exit: 3.0.7
 
@@ -17085,7 +17085,7 @@ packages:
     engines: {node: '>=6'}
     dependencies:
       detect-indent: 5.0.0
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       make-dir: 2.1.0
       pify: 4.0.1
       sort-keys: 2.0.0
@@ -17096,7 +17096,7 @@ packages:
     engines: {node: '>=8.3'}
     dependencies:
       detect-indent: 6.1.0
-      graceful-fs: 4.2.11(patch_hash=66ismxrei24sd5iv7rpq4zc5hq)
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       is-plain-obj: 2.1.0
       make-dir: 3.1.0
       sort-keys: 4.2.0
