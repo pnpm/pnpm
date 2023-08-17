@@ -81,6 +81,7 @@ function overrideDepsOfPkg (
   if (manifest.dependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.dependencies, dir)
   if (manifest.optionalDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.optionalDependencies, dir)
   if (manifest.devDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.devDependencies, dir)
+  if (manifest.peerDependencies != null) overrideDeps(versionOverrides, genericVersionOverrides, manifest.peerDependencies, dir)
 }
 
 function overrideDeps (
