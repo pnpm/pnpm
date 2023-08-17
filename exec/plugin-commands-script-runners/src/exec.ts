@@ -8,6 +8,7 @@ import { sortPackages } from '@pnpm/sort-packages'
 import { type Project, type ProjectsGraph } from '@pnpm/types'
 import execa from 'execa'
 import pLimit from 'p-limit'
+import PATH from 'path-name'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { existsInDir } from './existsInDir'
@@ -180,6 +181,10 @@ export async function handler (
   const workspacePnpPath = opts.workspaceDir && await existsPnp(opts.workspaceDir)
 
   let exitCode = 0
+  const prependPaths = [
+    './node_modules/.bin',
+    ...opts.extraBinPaths,
+  ]
   for (const chunk of chunks) {
     // eslint-disable-next-line no-await-in-loop
     await Promise.all(chunk.map(async (prefix: string) =>
@@ -197,10 +202,7 @@ export async function handler (
               ...extraEnv,
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix]?.package.manifest.name,
             },
-            prependPaths: [
-              './node_modules/.bin',
-              ...opts.extraBinPaths,
-            ],
+            prependPaths,
             userAgent: opts.userAgent,
           })
           await execa(params[0], params.slice(1), {
@@ -212,7 +214,7 @@ export async function handler (
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
-          if (isErrorCommandNotFound(params[0], err)) {
+          if (isErrorCommandNotFound(params[0], err, prependPaths)) {
             err.message = `Command "${params[0]}" not found`
             err.hint = await createExecCommandNotFoundHint(params[0], {
               implicitlyFellbackFromRun: opts.implicitlyFellbackFromRun ?? false,
@@ -306,7 +308,7 @@ interface CommandError extends Error {
   shortMessage: string
 }
 
-function isErrorCommandNotFound (command: string, error: CommandError) {
+function isErrorCommandNotFound (command: string, error: CommandError, prependPaths: string[]) {
   // Mac/Linux
   if (process.platform === 'linux' || process.platform === 'darwin') {
     return error.originalMessage === `spawn ${command} ENOENT`
@@ -314,11 +316,11 @@ function isErrorCommandNotFound (command: string, error: CommandError) {
 
   // Windows
   if (process.platform === 'win32') {
-    const nodeModuleBin = path.join(process.cwd(), 'node_modules', '.bin')
-    const newPath = process.env.PATH ? process.env.PATH + path.delimiter + nodeModuleBin : nodeModuleBin
+    const prepend = prependPaths.join(path.delimiter)
+    const whichPath = process.env[PATH] ? `${prepend}${path.delimiter}${process.env[PATH] as string}` : prepend
     return !which.sync(command, {
       nothrow: true,
-      path: newPath,
+      path: whichPath,
     })
   }
 
