@@ -212,7 +212,7 @@ export async function handler (
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
-          if (await isErrorCommandNotFound(params[0], err)) {
+          if (isErrorCommandNotFound(params[0], err)) {
             err.message = `Command "${params[0]}" not found`
             err.hint = await createExecCommandNotFoundHint(params[0], {
               implicitlyFellbackFromRun: opts.implicitlyFellbackFromRun ?? false,
@@ -306,13 +306,21 @@ interface CommandError extends Error {
   shortMessage: string
 }
 
-async function isErrorCommandNotFound (command: string, error: CommandError) {
+function isErrorCommandNotFound (command: string, error: CommandError) {
   // Mac/Linux
-  if (error.originalMessage === `spawn ${command} ENOENT`) {
-    return true
+  if (process.platform === 'linux' || process.platform === 'darwin') {
+    return error.originalMessage === `spawn ${command} ENOENT`
   }
 
   // Windows
-  return error.shortMessage === `Command failed with exit code 1: ${command}` &&
-    !(await which(command, { nothrow: true }))
+  if (process.platform === 'win32') {
+    const nodeModuleBin = path.join(process.cwd(), 'node_modules', '.bin')
+    const newPath = process.env.PATH ? process.env.PATH + path.delimiter + nodeModuleBin : nodeModuleBin
+    return !which.sync(command, {
+      nothrow: true,
+      path: newPath,
+    })
+  }
+
+  return false
 }
