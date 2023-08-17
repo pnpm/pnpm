@@ -131,3 +131,22 @@ test('import fails when no lockfiles are found', async () => {
     new PnpmError('LOCKFILE_NOT_FOUND', 'No lockfile found')
   )
 })
+
+test('import from package-lock.json v3', async () => {
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  f.prepare('has-package-lock-v3-json')
+
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, [])
+
+  const project = assertProject(process.cwd())
+  const lockfile = await project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  // node_modules is not created
+  await project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
+})

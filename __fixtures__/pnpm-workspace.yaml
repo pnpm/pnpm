@@ -7,6 +7,7 @@ packages:
   - '!has-npm-shrinkwrap-json'
   - '!has-outdated-deps'
   - '!has-package-lock-json'
+  - '!has-package-lock-v3-json'
   - '!hello-world-js-bin'
   - '!has-yarn-lock'
   - '!has-yarn2-lock'
