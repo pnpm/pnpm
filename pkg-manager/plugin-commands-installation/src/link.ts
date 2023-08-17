@@ -21,6 +21,7 @@ import {
   type LinkFunctionOptions,
   type WorkspacePackages,
 } from '@pnpm/core'
+import { logger } from '@pnpm/logger'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import pick from 'ramda/src/pick'
@@ -122,6 +123,26 @@ export async function handler (
     if (path.relative(linkOpts.dir, cwd) === '') {
       throw new PnpmError('LINK_BAD_PARAMS', 'You must provide a parameter')
     }
+
+    const { manifest: sourceManifest } = await tryReadProjectManifest(linkCwdDir, opts)
+
+    if (sourceManifest?.peerDependencies) {
+      const packageName = sourceManifest.name ?? path.basename(linkCwdDir) // Assuming the name property exists in newManifest
+      const peerDeps = Object.entries(sourceManifest.peerDependencies)
+        .map(([key, value]) => `  - ${key}@${value}`)
+        .join(', ')
+
+      logger.warn({
+        message: `The package ${packageName}, which you have just pnpm linked, has the following peerDependencies specified in its package.json:
+      
+${peerDeps}
+
+The linked in dependency will not resolve the peer dependencies from the target node_modules. 
+This might cause issues in your project. To resolve this, you may use the "file:" protocol to reference the local dependency.`,
+        prefix: opts.dir,
+      })
+    }
+
     const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
     const newManifest = await addDependenciesToPackage(
       manifest ?? {},
@@ -184,6 +205,28 @@ export async function handler (
   }
 
   const { manifest, writeProjectManifest } = await readProjectManifest(linkCwdDir, opts)
+
+  await Promise.all(
+    pkgPaths.map(async (dir) => {
+      const { manifest: newManifest } = await readProjectManifest(dir, opts)
+      if (newManifest.peerDependencies) {
+        const packageName = newManifest.name ?? path.basename(dir) // Assuming the name property exists in newManifest
+        const peerDeps = Object.entries(newManifest.peerDependencies)
+          .map(([key, value]) => `  - ${key}@${value}`)
+          .join(', ')
+
+        logger.warn({
+          message: `The package ${packageName}, which you have just pnpm linked, has the following peerDependencies specified in its package.json:
+        
+${peerDeps}
+
+The linked in dependency will not resolve the peer dependencies from the target node_modules. 
+This might cause issues in your project. To resolve this, you may use the "file:" protocol to reference the local dependency.`,
+          prefix: opts.dir,
+        })
+      }
+    })
+  )
 
   const linkConfig = await getConfig(
     { ...opts.cliOptions, dir: cwd },
