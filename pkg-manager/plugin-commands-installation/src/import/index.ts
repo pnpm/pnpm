@@ -36,8 +36,12 @@ interface LockedPackage {
   version: string
   lockfileVersion: number
   name?: string
-  dependencies?: LockedPackagesMap
+  dependencies?: LockedPackagesMap | SimpleDependenciesMap
   packages?: LockedPackagesMap
+}
+
+interface SimpleDependenciesMap {
+  [name: string]: string
 }
 
 interface LockedPackagesMap {
@@ -264,7 +268,7 @@ function getAllVersionsByPackageNames (
   versionsByPackageNames: VersionsByPackageNames
 ): void {
   if (pkg.dependencies) {
-    extractDependencies(versionsByPackageNames, pkg.dependencies)
+    extractDependencies(versionsByPackageNames, pkg.dependencies as LockedPackagesMap)
   }
   if ('packages' in pkg && pkg.packages) {
     extractDependencies(versionsByPackageNames, pkg.packages)
@@ -294,7 +298,6 @@ function extractDependencies (
         if (!versionsByPackageNames[pkgName1]) {
           versionsByPackageNames[pkgName1] = new Set<string>()
         }
-        // @ts-expect-error
         versionsByPackageNames[pkgName1].add(version)
       }
     }
