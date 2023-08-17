@@ -383,3 +383,24 @@ test('createVersionsOverrider() matches intersections', () => {
     dependencies: { foo: '>=1.2.4' },
   })
 })
+
+test('createVersionsOverrider() overrides peerDependencies of another dependency', () => {
+  const overrider = createVersionsOverrider({
+    'react-dom>react': '18.1.0',
+  }, process.cwd())
+  expect(
+    overrider({
+      name: 'react-dom',
+      version: '18.2.0',
+      peerDependencies: {
+        react: '18.2.0',
+      },
+    })
+  ).toStrictEqual({
+    name: 'react-dom',
+    version: '18.2.0',
+    peerDependencies: {
+      react: '18.1.0',
+    },
+  })
+})
