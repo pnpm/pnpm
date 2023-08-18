@@ -1,5 +1,5 @@
 import path from 'path'
-import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
+import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { type DependenciesField, type Registries } from '@pnpm/types'
 import { type PackageNode, buildDependenciesHierarchy, type DependenciesHierarchy } from '@pnpm/reviewing.dependencies-hierarchy'
 import { createPackagesSearcher } from './createPackagesSearcher'
@@ -74,7 +74,7 @@ export async function searchForPackages (
       modulesDir: opts.modulesDir,
     }))
       .map(async ([projectPath, buildDependenciesHierarchy]) => {
-        const entryPkg = await readProjectManifestOnly(projectPath)
+        const entryPkg = await safeReadProjectManifestOnly(projectPath) ?? {}
         return {
           name: entryPkg.name,
           version: entryPkg.version,
@@ -149,7 +149,7 @@ export async function list (
         })
     )
       .map(async ([projectPath, dependenciesHierarchy]) => {
-        const entryPkg = await readProjectManifestOnly(projectPath)
+        const entryPkg = await safeReadProjectManifestOnly(projectPath) ?? {}
         return {
           name: entryPkg.name,
           version: entryPkg.version,
