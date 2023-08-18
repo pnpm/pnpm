@@ -17,9 +17,14 @@ import {
 type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
 
 export async function safeReadProjectManifestOnly (projectDir: string) {
+  const result = await safeReadProjectManifest(projectDir)
+  return result?.manifest ?? null
+}
+
+export async function safeReadProjectManifest (projectDir: string) {
   try {
-    return await readProjectManifestOnly(projectDir)
-  } catch (err: any) { // eslint-disable-line
+    return await readProjectManifest(projectDir)
+  } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') {
       return null
     }

@@ -1,8 +1,12 @@
 import { promises as fs, type Stats } from 'fs'
 import path from 'path'
+import { createExportableManifest } from '@pnpm/exportable-manifest'
 import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-base'
 import { logger } from '@pnpm/logger'
-import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
+import { safeReadProjectManifest } from '@pnpm/read-project-manifest'
+import type { ProjectManifest } from '@pnpm/types'
+import { writeProjectManifest } from '@pnpm/write-project-manifest'
+import equal from 'fast-deep-equal'
 import packlist from 'npm-packlist'
 
 const directoryFetcherLogger = logger('directory-fetcher')
@@ -48,10 +52,7 @@ async function fetchAllFilesFromDir (
 ) {
   const filesIndex = await _fetchAllFilesFromDir(readFileStat, dir)
   if (opts.manifest) {
-    // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
-    // Safe read was added to support the Bit workspace in which the components have no package.json files.
-    // Related PR in Bit: https://github.com/teambit/bit/pull/5251
-    const manifest = await safeReadProjectManifestOnly(dir) ?? {}
+    const manifest = await safeReadProjectManifestAndMakeExportable(dir, filesIndex) ?? {}
     opts.manifest.resolve(manifest as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   }
   return {
@@ -129,10 +130,7 @@ async function fetchPackageFilesFromDir (
   const files = await packlist({ path: dir })
   const filesIndex: Record<string, string> = Object.fromEntries(files.map((file) => [file, path.join(dir, file)]))
   if (opts.manifest) {
-    // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
-    // Safe read was added to support the Bit workspace in which the components have no package.json files.
-    // Related PR in Bit: https://github.com/teambit/bit/pull/5251
-    const manifest = await safeReadProjectManifestOnly(dir) ?? {}
+    const manifest = await safeReadProjectManifestAndMakeExportable(dir, filesIndex) ?? {}
     opts.manifest.resolve(manifest as any) // eslint-disable-line @typescript-eslint/no-explicit-any
   }
   return {
@@ -140,4 +138,26 @@ async function fetchPackageFilesFromDir (
     filesIndex,
     packageImportMethod: 'hardlink' as const,
   }
+}
+
+async function safeReadProjectManifestAndMakeExportable (
+  dir: string,
+  filesIndex: Record<string, string>
+): Promise<ProjectManifest | null> {
+  // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
+  // Safe read was added to support the Bit workspace in which the components have no package.json files.
+  // Related PR in Bit: https://github.com/teambit/bit/pull/5251
+  const result = await safeReadProjectManifest(dir)
+
+  if (result) {
+    const { fileName, manifest } = result
+    const exportableManifest = await createExportableManifest(dir, manifest)
+    if (!equal(manifest, exportableManifest)) {
+      const manifestPathOverride = path.join(dir, 'node_modules', '.pnpm', fileName)
+      await writeProjectManifest(manifestPathOverride, exportableManifest)
+      filesIndex[fileName] = manifestPathOverride
+    }
+    return manifest
+  }
+  return null
 }

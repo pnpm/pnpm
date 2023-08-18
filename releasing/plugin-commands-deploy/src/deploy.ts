@@ -7,6 +7,7 @@ import { install } from '@pnpm/plugin-commands-installation'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { PnpmError } from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
+import pDefer from 'p-defer'
 import renderHelp from 'render-help'
 import { deployHook } from './deployHook'
 
@@ -107,7 +108,7 @@ export async function handler (
 }
 
 async function copyProject (src: string, dest: string, opts: { includeOnlyPackageFiles: boolean }) {
-  const { filesIndex } = await fetchFromDir(src, opts)
+  const { filesIndex } = await fetchFromDir(src, { ...opts, manifest: pDefer() })
   const importPkg = createIndexedPkgImporter('clone-or-copy')
   await importPkg(dest, { filesMap: filesIndex, force: true, fromStore: true })
 }

@@ -13,7 +13,16 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
+      "path": "../../pkg-manifest/exportable-manifest"
+    },
+    {
       "path": "../../pkg-manifest/read-project-manifest"
+    },
+    {
+      "path": "../../pkg-manifest/write-project-manifest"
     },
     {
       "path": "../../resolving/resolver-base"
