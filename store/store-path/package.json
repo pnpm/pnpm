@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/store-path#readme",
   "dependencies": {
-    "@zkochan/rimraf": "^2.1.2",
+    "@zkochan/rimraf": "^2.1.3",
     "can-link": "^2.0.0",
     "path-absolute": "^1.0.1",
     "path-temp": "^2.1.0",
@@ -40,7 +40,7 @@
   "devDependencies": {
     "@pnpm/store-path": "workspace:*",
     "@types/is-windows": "^1.0.0",
-    "@types/node": "^16.18.39",
+    "@types/node": "^16.18.41",
     "@types/rimraf": "^3.0.2",
     "@types/touch": "^3.1.2",
     "is-windows": "^1.0.2",
