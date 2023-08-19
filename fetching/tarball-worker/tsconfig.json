@@ -13,9 +13,6 @@
       "path": "../../fs/graceful-fs"
     },
     {
-      "path": "../../packages/core-loggers"
-    },
-    {
       "path": "../../packages/types"
     },
     {

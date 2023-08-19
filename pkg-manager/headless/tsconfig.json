@@ -31,9 +31,6 @@
       "path": "../../exec/lifecycle"
     },
     {
-      "path": "../../fetching/tarball-worker"
-    },
-    {
       "path": "../../fs/symlink-dependency"
     },
     {

@@ -1646,9 +1646,6 @@ importers:
       '@pnpm/cafs-types':
         specifier: workspace:*
         version: link:../../store/cafs-types
-      '@pnpm/core-loggers':
-        specifier: workspace:*
-        version: link:../../packages/core-loggers
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
@@ -3256,9 +3253,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fetching.tarball-worker':
-        specifier: workspace:*
-        version: link:../../fetching/tarball-worker
       '@pnpm/filter-lockfile':
         specifier: workspace:*
         version: link:../../lockfile/filter-lockfile

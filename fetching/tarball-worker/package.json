@@ -33,7 +33,6 @@
   },
   "dependencies": {
     "@pnpm/cafs-types": "workspace:*",
-    "@pnpm/core-loggers": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
