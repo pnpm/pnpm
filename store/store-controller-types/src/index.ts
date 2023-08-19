@@ -7,6 +7,7 @@ import {
 } from '@pnpm/resolver-base'
 import type {
   ImportPackageFunction,
+  ImportPackageFunctionAsync,
   PackageFileInfo,
   PackageFilesResponse,
   ImportPackageOpts,
@@ -16,7 +17,7 @@ import {
   type PackageManifest,
 } from '@pnpm/types'
 
-export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction }
+export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync }
 
 export * from '@pnpm/resolver-base'
 export type BundledManifest = Pick<
@@ -160,3 +161,5 @@ export interface ImportOptions {
 }
 
 export type ImportIndexedPackage = (to: string, opts: ImportOptions) => string | undefined
+
+export type ImportIndexedPackageAsync = (to: string, opts: ImportOptions) => Promise<string | undefined>

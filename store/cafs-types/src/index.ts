@@ -39,6 +39,11 @@ export type ImportPackageFunction = (
   opts: ImportPackageOpts
 ) => { isBuilt: boolean, importMethod: undefined | string }
 
+export type ImportPackageFunctionAsync = (
+  to: string,
+  opts: ImportPackageOpts
+) => Promise<{ isBuilt: boolean, importMethod: undefined | string }>
+
 export type FileType = 'exec' | 'nonexec' | 'index'
 
 export interface FilesIndex {
