@@ -87,15 +87,18 @@ export async function handler (
   })
   const pkgs = opts.package ?? [command]
   const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
+  console.log(11111)
   await add.handler({
     ...omit(['workspaceDir'], opts),
     bin: binsDir,
     dir: prefix,
     lockfileDir: prefix,
   }, pkgs)
+  console.log(222222)
   const binName = opts.package
     ? command
     : await getBinName(modulesDir, await getPkgName(prefix))
+  console.log(2222220)
   try {
     await execa(binName, args, {
       cwd: process.cwd(),
@@ -103,6 +106,7 @@ export async function handler (
       stdio: 'inherit',
       shell: opts.shellMode ?? false,
     })
+    console.log(333333)
   } catch (err: any) { // eslint-disable-line
     if (err.exitCode != null) {
       return {
