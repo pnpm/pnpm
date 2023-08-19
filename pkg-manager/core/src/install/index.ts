@@ -1339,8 +1339,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
   summaryLogger.debug({ prefix: opts.lockfileDir })
 
-  await opts.storeController.close()
-
   reportPeerDependencyIssues(peerDependencyIssuesByProjects, {
     lockfileDir: opts.lockfileDir,
     strictPeerDependencies: opts.strictPeerDependencies,
@@ -1425,6 +1423,8 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     })
     logger.error(new PnpmError(error.code, 'The lockfile is broken! A full installation will be performed in an attempt to fix it.'))
     return _installInContext(projects, ctx, opts)
+  } finally {
+    await opts.storeController.close()
   }
 }
 
