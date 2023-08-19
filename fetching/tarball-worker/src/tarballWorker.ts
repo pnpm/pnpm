@@ -2,6 +2,7 @@ import path from 'path'
 import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
 import * as crypto from 'crypto'
+import { createCafsStore } from '@pnpm/create-cafs-store'
 import {
   createCafs,
   getFilePathByModeInCafs,
@@ -9,6 +10,7 @@ import {
   optimisticRenameOverwrite,
 } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'
+import { type PackageFilesResponse } from '@pnpm/cafs-types'
 import { parentPort } from 'worker_threads'
 import safePromiseDefer from 'safe-promise-defer'
 
@@ -24,9 +26,23 @@ interface TarballExtractMessage {
   filesIndexFile: string
 }
 
-let cafs: ReturnType<typeof createCafs>
+interface LinkPkgMessage {
+  type: 'link'
+  storeDir: string
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+  filesResponse: PackageFilesResponse
+  sideEffectsCacheKey?: string | undefined
+  targetDir: string
+  requiresBuild: boolean
+  force: boolean
+  keepModulesDir?: boolean
+}
 
-async function handleMessage (message: TarballExtractMessage | false): Promise<void> {
+let cafs: ReturnType<typeof createCafs>
+let cafsStore: ReturnType<typeof createCafsStore>
+const cafsLocker = new Map<string, number>()
+
+async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | false): Promise<void> {
   if (message === false) {
     parentPort!.off('message', handleMessage)
     process.exit(0)
@@ -74,6 +90,30 @@ async function handleMessage (message: TarballExtractMessage | false): Promise<v
       const manifest = await manifestP()
       writeFilesIndexFile(filesIndexFile, { pkg: manifest ?? {}, files: filesIndexIntegrity })
       parentPort!.postMessage({ status: 'success', value: { filesIndex: filesMap, manifest } })
+      break
+    }
+    case 'link': {
+      const {
+        storeDir,
+        packageImportMethod,
+        filesResponse,
+        sideEffectsCacheKey,
+        targetDir,
+        requiresBuild,
+        force,
+        keepModulesDir,
+      } = message
+      if (!cafsStore) {
+        cafsStore = createCafsStore(storeDir, { packageImportMethod, cafsLocker })
+      }
+      const { importMethod, isBuilt } = cafsStore.importPackage(targetDir, {
+        filesResponse,
+        force,
+        requiresBuild,
+        sideEffectsCacheKey,
+        keepModulesDir,
+      })
+      parentPort!.postMessage({ status: 'success', value: { isBuilt, importMethod } })
     }
     }
   } catch (e: any) { // eslint-disable-line

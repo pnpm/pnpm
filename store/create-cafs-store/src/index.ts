@@ -30,13 +30,13 @@ function createPackageImporter (
     : memoize(createIndexedPkgImporter)
   const packageImportMethod = opts.packageImportMethod
   const gfm = getFlatMap.bind(null, opts.cafsDir)
-  return async (to, opts) => {
+  return (to, opts) => {
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
     const pkgImportMethod = (opts.requiresBuild && !isBuilt)
       ? 'clone-or-copy'
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)
-    const importMethod = await impPkg(to, {
+    const importMethod = impPkg(to, {
       filesMap,
       fromStore: opts.filesResponse.fromStore,
       force: opts.force,

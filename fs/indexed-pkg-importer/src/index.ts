@@ -1,20 +1,16 @@
-import { constants, type Stats } from 'fs'
+import { constants, type Stats, existsSync } from 'fs'
 import fs from '@pnpm/graceful-fs'
 import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import { type FilesMap, type ImportOptions, type ImportIndexedPackage } from '@pnpm/store-controller-types'
-import pLimit from 'p-limit'
-import exists from 'path-exists'
 import { importIndexedDir, type ImportFile } from './importIndexedDir'
-
-const limitLinking = pLimit(16)
 
 export function createIndexedPkgImporter (
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
 ): ImportIndexedPackage {
   const importPackage = createImportPackage(packageImportMethod)
-  return async (to, opts) => limitLinking(async () => importPackage(to, opts))
+  return importPackage
 }
 
 function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy') {
@@ -46,14 +42,14 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
 function createAutoImporter (): ImportIndexedPackage {
   let auto = initialAuto
 
-  return async (to, opts) => auto(to, opts)
+  return (to, opts) => auto(to, opts)
 
-  async function initialAuto (
+  function initialAuto (
     to: string,
     opts: ImportOptions
-  ): Promise<string | undefined> {
+  ): string | undefined {
     try {
-      if (!await clonePkg(to, opts)) return undefined
+      if (!clonePkg(to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
       auto = clonePkg
       return 'clone'
@@ -61,7 +57,7 @@ function createAutoImporter (): ImportIndexedPackage {
       // ignore
     }
     try {
-      if (!await hardlinkPkg(fs.link, to, opts)) return undefined
+      if (!hardlinkPkg(fs.linkSync, to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'hardlink' })
       auto = hardlinkPkg.bind(null, linkOrCopy)
       return 'hardlink'
@@ -84,14 +80,14 @@ function createAutoImporter (): ImportIndexedPackage {
 function createCloneOrCopyImporter (): ImportIndexedPackage {
   let auto = initialAuto
 
-  return async (to, opts) => auto(to, opts)
+  return (to, opts) => auto(to, opts)
 
-  async function initialAuto (
+  function initialAuto (
     to: string,
     opts: ImportOptions
-  ): Promise<string | undefined> {
+  ): string | undefined {
     try {
-      if (!await clonePkg(to, opts)) return undefined
+      if (!clonePkg(to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
       auto = clonePkg
       return 'clone'
@@ -104,24 +100,24 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
   }
 }
 
-async function clonePkg (
+function clonePkg (
   to: string,
   opts: ImportOptions
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
-  if (!opts.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    await importIndexedDir(cloneFile, to, opts.filesMap, opts)
+  if (!opts.fromStore || opts.force || !existsSync(pkgJsonPath)) {
+    importIndexedDir(cloneFile, to, opts.filesMap, opts)
     return 'clone'
   }
   return undefined
 }
 
-async function cloneFile (from: string, to: string) {
-  await fs.copyFile(from, to, constants.COPYFILE_FICLONE_FORCE)
+function cloneFile (from: string, to: string) {
+  fs.copyFileSync(from, to, constants.COPYFILE_FICLONE_FORCE)
 }
 
-async function hardlinkPkg (
+function hardlinkPkg (
   importFile: ImportFile,
   to: string,
   opts: ImportOptions
@@ -129,17 +125,17 @@ async function hardlinkPkg (
   if (
     !opts.fromStore ||
     opts.force ||
-    !await pkgLinkedToStore(opts.filesMap, to)
+    !pkgLinkedToStore(opts.filesMap, to)
   ) {
-    await importIndexedDir(importFile, to, opts.filesMap, opts)
+    importIndexedDir(importFile, to, opts.filesMap, opts)
     return 'hardlink'
   }
   return undefined
 }
 
-async function linkOrCopy (existingPath: string, newPath: string) {
+function linkOrCopy (existingPath: string, newPath: string) {
   try {
-    await fs.link(existingPath, newPath)
+    fs.linkSync(existingPath, newPath)
   } catch (err: any) { // eslint-disable-line
     // If a hard link to the same file already exists
     // then trying to copy it will make an empty file from it.
@@ -147,49 +143,49 @@ async function linkOrCopy (existingPath: string, newPath: string) {
     // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
     // In that case, we just fall back to copying.
     // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
-    await fs.copyFile(existingPath, newPath)
+    fs.copyFileSync(existingPath, newPath)
   }
 }
 
-async function pkgLinkedToStore (
+function pkgLinkedToStore (
   filesMap: FilesMap,
   to: string
 ) {
   if (filesMap['package.json']) {
-    if (await isSameFile('package.json', to, filesMap)) {
+    if (isSameFile('package.json', to, filesMap)) {
       return true
     }
   } else {
     // An injected package might not have a package.json.
     // This will probably only even happen in a Bit workspace.
     const [anyFile] = Object.keys(filesMap)
-    if (await isSameFile(anyFile, to, filesMap)) return true
+    if (isSameFile(anyFile, to, filesMap)) return true
   }
   return false
 }
 
-async function isSameFile (filename: string, linkedPkgDir: string, filesMap: FilesMap) {
+function isSameFile (filename: string, linkedPkgDir: string, filesMap: FilesMap) {
   const linkedFile = path.join(linkedPkgDir, filename)
   let stats0!: Stats
   try {
-    stats0 = await fs.stat(linkedFile)
+    stats0 = fs.statSync(linkedFile)
   } catch (err: any) { // eslint-disable-line
     if (err.code === 'ENOENT') return false
   }
-  const stats1 = await fs.stat(filesMap[filename])
+  const stats1 = fs.statSync(filesMap[filename])
   if (stats0.ino === stats1.ino) return true
   globalInfo(`Relinking ${linkedPkgDir} from the store`)
   return false
 }
 
-export async function copyPkg (
+export function copyPkg (
   to: string,
   opts: ImportOptions
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
-  if (!opts.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    await importIndexedDir(fs.copyFile, to, opts.filesMap, opts)
+  if (!opts.fromStore || opts.force || !existsSync(pkgJsonPath)) {
+    importIndexedDir(fs.copyFileSync, to, opts.filesMap, opts)
     return 'copy'
   }
   return undefined

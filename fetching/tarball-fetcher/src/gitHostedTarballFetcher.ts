@@ -35,7 +35,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
 
 async function prepareGitHostedPkg (filesIndex: Record<string, string>, cafs: Cafs, opts: CreateGitHostedTarballFetcher) {
   const tempLocation = await cafs.tempDir()
-  await cafs.importPackage(tempLocation, {
+  cafs.importPackage(tempLocation, {
     filesResponse: {
       filesIndex,
       fromStore: false,

@@ -37,7 +37,7 @@ export interface ImportPackageOpts {
 export type ImportPackageFunction = (
   to: string,
   opts: ImportPackageOpts
-) => Promise<{ isBuilt: boolean, importMethod: undefined | string }>
+) => { isBuilt: boolean, importMethod: undefined | string }
 
 export type FileType = 'exec' | 'nonexec' | 'index'
 

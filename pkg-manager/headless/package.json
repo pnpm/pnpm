@@ -69,6 +69,7 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/deps.graph-builder": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/fetching.tarball-worker": "workspace:*",
     "@pnpm/filter-lockfile": "workspace:*",
     "@pnpm/hoist": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",

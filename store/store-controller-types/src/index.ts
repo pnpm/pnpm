@@ -9,6 +9,7 @@ import type {
   ImportPackageFunction,
   PackageFileInfo,
   PackageFilesResponse,
+  ImportPackageOpts,
 } from '@pnpm/cafs-types'
 import {
   type DependencyManifest,
@@ -46,7 +47,7 @@ export interface StoreController {
   requestPackage: RequestPackageFunction
   fetchPackage: FetchPackageToStoreFunction
   getFilesIndexFilePath: GetFilesIndexFilePath
-  importPackage: ImportPackageFunction
+  importPackage: (to: string, opts: ImportPackageOpts) => Promise<{ isBuilt: boolean, importMethod: undefined | string }>
   close: () => Promise<void>
   prune: () => Promise<void>
   upload: UploadPkgToStore
@@ -158,4 +159,4 @@ export interface ImportOptions {
   keepModulesDir?: boolean
 }
 
-export type ImportIndexedPackage = (to: string, opts: ImportOptions) => Promise<string | undefined>
+export type ImportIndexedPackage = (to: string, opts: ImportOptions) => string | undefined
