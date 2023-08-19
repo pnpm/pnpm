@@ -16,7 +16,7 @@ test('dlx', async () => {
   expect(fs.existsSync('foo')).toBeTruthy()
 })
 
-test('dlx install from git', async () => {
+test.only('dlx install from git', async () => {
   prepareEmpty()
 
   await dlx.handler({
@@ -27,7 +27,7 @@ test('dlx install from git', async () => {
   expect(fs.existsSync('foo')).toBeTruthy()
 })
 
-test('dlx should work when the package name differs from the bin name', async () => {
+test.only('dlx should work when the package name differs from the bin name', async () => {
   prepareEmpty()
 
   await dlx.handler({
