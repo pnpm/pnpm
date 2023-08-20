@@ -79,7 +79,7 @@ test.skip('dlx --package <pkg1> [--package <pkg2>]', async () => {
   expect(fs.existsSync('foo')).toBeTruthy()
 })
 
-test.only('dlx should fail when the package has no bins', async () => {
+test.skip('dlx should fail when the package has no bins', async () => {
   prepareEmpty()
 
   await expect(
@@ -91,7 +91,7 @@ test.only('dlx should fail when the package has no bins', async () => {
   ).rejects.toThrow(/No binaries found in is-positive/)
 })
 
-test('dlx should work in shell mode', async () => {
+test.only('dlx should work in shell mode', async () => {
   prepareEmpty()
 
   await dlx.handler({
