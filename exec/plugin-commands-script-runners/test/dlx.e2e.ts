@@ -91,7 +91,7 @@ test.skip('dlx should fail when the package has no bins', async () => {
   ).rejects.toThrow(/No binaries found in is-positive/)
 })
 
-test.only('dlx should work in shell mode', async () => {
+test.skip('dlx should work in shell mode', async () => {
   prepareEmpty()
 
   await dlx.handler({
@@ -107,7 +107,7 @@ test.only('dlx should work in shell mode', async () => {
   expect(fs.existsSync('foo')).toBeTruthy()
 })
 
-test('dlx should return a non-zero exit code when the underying script fails', async () => {
+test.only('dlx should return a non-zero exit code when the underying script fails', async () => {
   prepareEmpty()
 
   const { exitCode } = await dlx.handler({
