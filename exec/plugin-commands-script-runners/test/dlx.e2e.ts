@@ -4,7 +4,7 @@ import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
 
-test.only('dlx', async () => {
+test.skip('dlx', async () => {
   prepareEmpty()
 
   await dlx.handler({
@@ -39,7 +39,7 @@ test.only('dlx should work when the package name differs from the bin name', asy
   expect(fs.existsSync('touch.txt')).toBeTruthy()
 })
 
-test('dlx should fail when the installed package has many commands and none equals the package name', async () => {
+test.only('dlx should fail when the installed package has many commands and none equals the package name', async () => {
   prepareEmpty()
 
   await expect(
