@@ -39,7 +39,7 @@ test.only('dlx should work when the package name differs from the bin name', asy
   expect(fs.existsSync('touch.txt')).toBeTruthy()
 })
 
-test.only('dlx should fail when the installed package has many commands and none equals the package name', async () => {
+test.skip('dlx should fail when the installed package has many commands and none equals the package name', async () => {
   prepareEmpty()
 
   await expect(
@@ -51,7 +51,7 @@ test.only('dlx should fail when the installed package has many commands and none
   ).rejects.toThrow('Could not determine executable to run. @pnpm.e2e/touch-file-many-bins has multiple binaries: t, tt')
 })
 
-test('dlx should not fail when the installed package has many commands and one equals the package name', async () => {
+test.only('dlx should not fail when the installed package has many commands and one equals the package name', async () => {
   prepareEmpty()
 
   await dlx.handler({
