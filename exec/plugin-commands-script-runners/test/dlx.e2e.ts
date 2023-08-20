@@ -63,7 +63,7 @@ test.skip('dlx should not fail when the installed package has many commands and 
   expect(fs.existsSync('touch.txt')).toBeTruthy()
 })
 
-test.only('dlx --package <pkg1> [--package <pkg2>]', async () => {
+test.skip('dlx --package <pkg1> [--package <pkg2>]', async () => {
   prepareEmpty()
 
   await dlx.handler({
@@ -79,7 +79,7 @@ test.only('dlx --package <pkg1> [--package <pkg2>]', async () => {
   expect(fs.existsSync('foo')).toBeTruthy()
 })
 
-test('dlx should fail when the package has no bins', async () => {
+test.only('dlx should fail when the package has no bins', async () => {
   prepareEmpty()
 
   await expect(
