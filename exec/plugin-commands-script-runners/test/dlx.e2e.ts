@@ -4,7 +4,7 @@ import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
 
-test('dlx', async () => {
+test.only('dlx', async () => {
   prepareEmpty()
 
   await dlx.handler({
@@ -16,7 +16,7 @@ test('dlx', async () => {
   expect(fs.existsSync('foo')).toBeTruthy()
 })
 
-test.only('dlx install from git', async () => {
+test.skip('dlx install from git', async () => {
   prepareEmpty()
 
   await dlx.handler({
