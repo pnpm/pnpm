@@ -27,24 +27,27 @@ export function reportProgress (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     throttle?: Rx.OperatorFunction<any, any>
     hideAddedPkgsProgress?: boolean
+    hideProgressPrefix?: boolean
   }
 ) {
   const progressOutput = throttledProgressOutput.bind(null, opts)
 
   return getModulesInstallProgress$(log$.stage, log$.progress).pipe(
-    map(({ importingDone$, progress$, requirer }) => {
-      const output$ = progressOutput(importingDone$, progress$)
+    map(opts.hideProgressPrefix
+      ? ({ importingDone$, progress$ }) => progressOutput(importingDone$, progress$)
+      : ({ importingDone$, progress$, requirer }) => {
+        const output$ = progressOutput(importingDone$, progress$)
 
-      if (requirer === opts.cwd) {
-        return output$
-      }
-      return output$.pipe(
-        map((msg: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-          msg['msg'] = zoomOut(opts.cwd, requirer, msg['msg'])
-          return msg
-        })
-      )
-    })
+        if (requirer === opts.cwd) {
+          return output$
+        }
+        return output$.pipe(
+          map((msg: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+            msg['msg'] = zoomOut(opts.cwd, requirer, msg['msg'])
+            return msg
+          })
+        )
+      })
   )
 }
 

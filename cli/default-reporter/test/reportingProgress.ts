@@ -159,6 +159,39 @@ test('prints progress beginning of node_modules from not cwd', (done) => {
   })
 })
 
+test('prints progress beginning of node_modules from not cwd, when progress prefix is hidden', (done) => {
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: '/src/projects' } as Config,
+    },
+    streamParser: createStreamParser(),
+    reportingOptions: {
+      hideProgressPrefix: true,
+    },
+  })
+
+  stageLogger.debug({
+    prefix: '/src/projects/foo',
+    stage: 'resolution_started',
+  })
+  progressLogger.debug({
+    packageId: 'registry.npmjs.org/foo/1.0.0',
+    requester: '/src/projects/foo',
+    status: 'resolved',
+  })
+
+  expect.assertions(1)
+
+  output$.pipe(take(1)).subscribe({
+    complete: () => done(),
+    error: done,
+    next: output => {
+      expect(output).toBe(`Progress: resolved ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}, added ${hlValue('0')}`)
+    },
+  })
+})
+
 test('prints progress beginning when appendOnly is true', (done) => {
   const output$ = toOutput$({
     context: {
