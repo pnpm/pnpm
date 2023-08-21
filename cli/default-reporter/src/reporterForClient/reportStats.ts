@@ -20,8 +20,15 @@ export function reportStats (
     cwd: string
     isRecursive: boolean
     width: number
+    hideProgressPrefix?: boolean
   }
 ) {
+  if (opts.hideProgressPrefix) {
+    return [statsForCurrentPackage(log$.stats, {
+      cmd: opts.cmd,
+      width: opts.width,
+    })]
+  }
   const stats$ = opts.isRecursive
     ? log$.stats
     : log$.stats.pipe(filter((log) => log.prefix !== opts.cwd))
@@ -35,9 +42,10 @@ export function reportStats (
   ]
 
   if (!opts.isRecursive) {
-    outputs.push(statsForCurrentPackage(log$.stats, {
+    outputs.push(statsForCurrentPackage(log$.stats.pipe(
+      filter((log) => log.prefix === opts.cwd)
+    ), {
       cmd: opts.cmd,
-      currentPrefix: opts.cwd,
       width: opts.width,
     }))
   }
@@ -49,13 +57,11 @@ function statsForCurrentPackage (
   stats$: Rx.Observable<StatsLog>,
   opts: {
     cmd: string
-    currentPrefix: string
     width: number
   }
 ) {
   return stats$.pipe(
-    filter((log) => log.prefix === opts.currentPrefix),
-    take((opts.cmd === 'install' || opts.cmd === 'install-test' || opts.cmd === 'add' || opts.cmd === 'update') ? 2 : 1),
+    take((opts.cmd === 'install' || opts.cmd === 'install-test' || opts.cmd === 'add' || opts.cmd === 'update' || opts.cmd === 'dlx') ? 2 : 1),
     reduce((acc, log) => {
       if (typeof log['added'] === 'number') {
         acc['added'] = log['added']
