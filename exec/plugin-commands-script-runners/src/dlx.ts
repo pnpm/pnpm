@@ -94,6 +94,8 @@ export async function handler (
     dir: prefix,
     lockfileDir: prefix,
   }, pkgs)
+  // @ts-expect-error
+  global.finishWorkers?.()
   console.log(222222)
   const binName = opts.package
     ? command

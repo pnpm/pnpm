@@ -4,7 +4,7 @@ import { dlx } from '@pnpm/plugin-commands-script-runners'
 import { prepareEmpty } from '@pnpm/prepare'
 import { DLX_DEFAULT_OPTS as DEFAULT_OPTS } from './utils'
 
-test.skip('dlx', async () => {
+test('dlx', async () => {
   prepareEmpty()
 
   await dlx.handler({
@@ -16,7 +16,7 @@ test.skip('dlx', async () => {
   expect(fs.existsSync('foo')).toBeTruthy()
 })
 
-test.skip('dlx install from git', async () => {
+test('dlx install from git', async () => {
   prepareEmpty()
 
   await dlx.handler({
@@ -27,7 +27,7 @@ test.skip('dlx install from git', async () => {
   expect(fs.existsSync('foo')).toBeTruthy()
 })
 
-test.only('dlx should work when the package name differs from the bin name', async () => {
+test('dlx should work when the package name differs from the bin name', async () => {
   prepareEmpty()
 
   await dlx.handler({
@@ -39,7 +39,7 @@ test.only('dlx should work when the package name differs from the bin name', asy
   expect(fs.existsSync('touch.txt')).toBeTruthy()
 })
 
-test.skip('dlx should fail when the installed package has many commands and none equals the package name', async () => {
+test('dlx should fail when the installed package has many commands and none equals the package name', async () => {
   prepareEmpty()
 
   await expect(
@@ -51,7 +51,7 @@ test.skip('dlx should fail when the installed package has many commands and none
   ).rejects.toThrow('Could not determine executable to run. @pnpm.e2e/touch-file-many-bins has multiple binaries: t, tt')
 })
 
-test.skip('dlx should not fail when the installed package has many commands and one equals the package name', async () => {
+test('dlx should not fail when the installed package has many commands and one equals the package name', async () => {
   prepareEmpty()
 
   await dlx.handler({
@@ -63,7 +63,7 @@ test.skip('dlx should not fail when the installed package has many commands and 
   expect(fs.existsSync('touch.txt')).toBeTruthy()
 })
 
-test.skip('dlx --package <pkg1> [--package <pkg2>]', async () => {
+test('dlx --package <pkg1> [--package <pkg2>]', async () => {
   prepareEmpty()
 
   await dlx.handler({
@@ -79,7 +79,7 @@ test.skip('dlx --package <pkg1> [--package <pkg2>]', async () => {
   expect(fs.existsSync('foo')).toBeTruthy()
 })
 
-test.skip('dlx should fail when the package has no bins', async () => {
+test('dlx should fail when the package has no bins', async () => {
   prepareEmpty()
 
   await expect(
@@ -91,7 +91,7 @@ test.skip('dlx should fail when the package has no bins', async () => {
   ).rejects.toThrow(/No binaries found in is-positive/)
 })
 
-test.skip('dlx should work in shell mode', async () => {
+test('dlx should work in shell mode', async () => {
   prepareEmpty()
 
   await dlx.handler({
@@ -107,7 +107,7 @@ test.skip('dlx should work in shell mode', async () => {
   expect(fs.existsSync('foo')).toBeTruthy()
 })
 
-test.only('dlx should return a non-zero exit code when the underying script fails', async () => {
+test('dlx should return a non-zero exit code when the underying script fails', async () => {
   prepareEmpty()
 
   const { exitCode } = await dlx.handler({
