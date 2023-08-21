@@ -132,6 +132,7 @@ export function reporterForClient (
         cwd,
         isRecursive: opts.isRecursive,
         width,
+        hideProgressPrefix: opts.hideProgressPrefix,
       })
     )
   }
