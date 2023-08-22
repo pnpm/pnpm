@@ -86,6 +86,7 @@ export async function createPackageStore (
             targetDir,
             requiresBuild: opts.requiresBuild,
             force: opts.force,
+            keepModulesDir: opts.keepModulesDir,
           })
         })
       },
