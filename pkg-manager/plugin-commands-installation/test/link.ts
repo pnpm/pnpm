@@ -5,6 +5,7 @@ import { install, link } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { assertProject, isExecutable } from '@pnpm/assert-project'
 import { fixtures } from '@pnpm/test-fixtures'
+import { logger } from '@pnpm/logger'
 import { sync as loadJsonFile } from 'load-json-file'
 import PATH from 'path-name'
 import writePkg from 'write-pkg'
@@ -275,4 +276,84 @@ test('link fails if nothing is linked', async () => {
       dir: '',
     }, [])
   ).rejects.toThrow(/You must provide a parameter/)
+})
+
+test('logger warns about peer dependencies when linking', async () => {
+  prepare()
+
+  const warnMock = jest.spyOn(logger, 'warn')
+
+  process.chdir('..')
+  const globalDir = path.resolve('global')
+
+  await writePkg('linked-with-peer-deps', {
+    name: 'linked-with-peer-deps',
+    version: '1.0.0',
+    peerDependencies: {
+      'some-peer-dependency': '1.0.0',
+    },
+  })
+
+  process.chdir('linked-with-peer-deps')
+
+  const linkOpts = {
+    ...DEFAULT_OPTS,
+    bin: path.join(globalDir, 'bin'),
+    dir: globalDir,
+  }
+  await link.handler({
+    ...linkOpts,
+  })
+
+  process.chdir('..')
+  process.chdir('project')
+
+  await link.handler({
+    ...linkOpts,
+  }, ['linked-with-peer-deps'])
+
+  expect(warnMock).toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('has the following peerDependencies specified in its package.json'),
+  }))
+
+  warnMock.mockRestore()
+})
+
+test('logger should not warn about peer dependencies when it is an empty object', async () => {
+  prepare()
+
+  const warnMock = jest.spyOn(logger, 'warn')
+
+  process.chdir('..')
+  const globalDir = path.resolve('global')
+
+  await writePkg('linked-with-empty-peer-deps', {
+    name: 'linked-with-empty-peer-deps',
+    version: '1.0.0',
+    peerDependencies: {},
+  })
+
+  process.chdir('linked-with-empty-peer-deps')
+
+  const linkOpts = {
+    ...DEFAULT_OPTS,
+    bin: path.join(globalDir, 'bin'),
+    dir: globalDir,
+  }
+  await link.handler({
+    ...linkOpts,
+  })
+
+  process.chdir('..')
+  process.chdir('project')
+
+  await link.handler({
+    ...linkOpts,
+  }, ['linked-with-empty-peer-deps'])
+
+  expect(warnMock).not.toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('has the following peerDependencies specified in its package.json'),
+  }))
+
+  warnMock.mockRestore()
 })
