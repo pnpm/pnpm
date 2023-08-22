@@ -32,6 +32,7 @@ export interface OutdatedPackage {
   latestManifest?: PackageManifest
   packageName: string
   wanted: string
+  workspace?: string
 }
 
 export async function outdated (
@@ -118,6 +119,7 @@ export async function outdated (
                 latestManifest: undefined,
                 packageName,
                 wanted,
+                workspace: opts.manifest.name,
               })
             }
             return
@@ -137,6 +139,8 @@ export async function outdated (
               latestManifest,
               packageName,
               wanted,
+              workspace: opts.manifest.name,
+
             })
             return
           }
@@ -149,6 +153,8 @@ export async function outdated (
               latestManifest,
               packageName,
               wanted,
+              workspace: opts.manifest.name,
+
             })
           }
         })
