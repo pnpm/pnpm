@@ -2908,6 +2908,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/fetching.tarball-worker':
+        specifier: workspace:*
+        version: link:../../fetching/tarball-worker
       '@pnpm/filter-lockfile':
         specifier: workspace:*
         version: link:../../lockfile/filter-lockfile
