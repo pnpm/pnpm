@@ -26,6 +26,7 @@ export function initDefaultReporter (
       outputMaxWidth?: number
       hideAddedPkgsProgress?: boolean
       hideProgressPrefix?: boolean
+      hideLifecycleOutput?: boolean
     }
     context: {
       argv: string[]
@@ -107,6 +108,7 @@ export function toOutput$ (
       throttleProgress?: number
       hideAddedPkgsProgress?: boolean
       hideProgressPrefix?: boolean
+      hideLifecycleOutput?: boolean
     }
     context: {
       argv: string[]
@@ -266,6 +268,7 @@ export function toOutput$ (
       width: opts.reportingOptions?.outputMaxWidth,
       hideAddedPkgsProgress: opts.reportingOptions?.hideAddedPkgsProgress,
       hideProgressPrefix: opts.reportingOptions?.hideProgressPrefix ?? (cmd === 'dlx'),
+      hideLifecycleOutput: opts.reportingOptions?.hideLifecycleOutput,
     }
   )
 
