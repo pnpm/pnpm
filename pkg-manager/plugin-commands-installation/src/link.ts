@@ -21,6 +21,7 @@ import {
   type LinkFunctionOptions,
   type WorkspacePackages,
 } from '@pnpm/core'
+import { logger } from '@pnpm/logger'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import pick from 'ramda/src/pick'
@@ -34,6 +35,17 @@ import { getSaveType } from './getSaveType'
 const isWindows = process.platform === 'win32' || global['FAKE_WINDOWS']
 const isFilespec = isWindows ? /^(?:[.]|~[/]|[/\\]|[a-zA-Z]:)/ : /^(?:[.]|~[/]|[/]|[a-zA-Z]:)/
 const installLimit = pLimit(4)
+
+type LinkOpts = CreateStoreControllerOptions & Pick<Config,
+| 'bin'
+| 'cliOptions'
+| 'engineStrict'
+| 'saveDev'
+| 'saveOptional'
+| 'saveProd'
+| 'workspaceDir'
+| 'sharedWorkspaceLockfile'
+> & Partial<Pick<Config, 'linkWorkspacePackages'>>
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -82,17 +94,29 @@ export function help () {
   })
 }
 
+async function checkPeerDeps (linkCwdDir: string, opts: LinkOpts) {
+  const { manifest } = await tryReadProjectManifest(linkCwdDir, opts)
+
+  if (manifest?.peerDependencies && Object.keys(manifest.peerDependencies).length > 0) {
+    const packageName = manifest.name ?? path.basename(linkCwdDir) // Assuming the name property exists in newManifest
+    const peerDeps = Object.entries(manifest.peerDependencies)
+      .map(([key, value]) => `  - ${key}@${value}`)
+      .join(', ')
+
+    logger.warn({
+      message: `The package ${packageName}, which you have just pnpm linked, has the following peerDependencies specified in its package.json:
+      
+${peerDeps}
+
+The linked in dependency will not resolve the peer dependencies from the target node_modules. 
+This might cause issues in your project. To resolve this, you may use the "file:" protocol to reference the local dependency.`,
+      prefix: opts.dir,
+    })
+  }
+}
+
 export async function handler (
-  opts: CreateStoreControllerOptions & Pick<Config,
-  | 'bin'
-  | 'cliOptions'
-  | 'engineStrict'
-  | 'saveDev'
-  | 'saveOptional'
-  | 'saveProd'
-  | 'workspaceDir'
-  | 'sharedWorkspaceLockfile'
-  > & Partial<Pick<Config, 'linkWorkspacePackages'>>,
+  opts: LinkOpts,
   params?: string[]
 ) {
   const cwd = process.cwd()
@@ -122,6 +146,9 @@ export async function handler (
     if (path.relative(linkOpts.dir, cwd) === '') {
       throw new PnpmError('LINK_BAD_PARAMS', 'You must provide a parameter')
     }
+
+    await checkPeerDeps(linkCwdDir, opts)
+
     const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
     const newManifest = await addDependenciesToPackage(
       manifest ?? {},
@@ -184,6 +211,12 @@ export async function handler (
   }
 
   const { manifest, writeProjectManifest } = await readProjectManifest(linkCwdDir, opts)
+
+  await Promise.all(
+    pkgPaths.map(async (dir) => {
+      await checkPeerDeps(dir, opts)
+    })
+  )
 
   const linkConfig = await getConfig(
     { ...opts.cliOptions, dir: cwd },
