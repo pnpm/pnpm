@@ -37,6 +37,7 @@ export async function createPackageStore (
     verifyStoreIntegrity: boolean
   }
 ): Promise<StoreController> {
+  pool.reset()
   const storeDir = initOpts.storeDir
   const cafs = createCafsStore(storeDir, {
     cafsLocker: initOpts.cafsLocker,
