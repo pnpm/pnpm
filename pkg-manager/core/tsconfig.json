@@ -34,6 +34,9 @@
       "path": "../../exec/lifecycle"
     },
     {
+      "path": "../../fetching/tarball-worker"
+    },
+    {
       "path": "../../fs/read-modules-dir"
     },
     {
