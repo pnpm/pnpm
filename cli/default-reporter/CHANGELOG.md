@@ -1,5 +1,17 @@
 # @pnpm/default-reporter
 
+## 12.3.0
+
+### Minor Changes
+
+- bc5d3ceda: Add an option to hide the directory prefix in the progress output.
+- fe322b678: New option added: hideLifecycleOutput.
+
+### Patch Changes
+
+- f432cb11a: Don't prefix install output for the dlx command.
+  - @pnpm/config@18.4.5
+
 ## 12.2.9
 
 ### Patch Changes
