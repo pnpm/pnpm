@@ -593,7 +593,9 @@ describe('patch and commit in workspaces', () => {
       saveLockfile: true,
       sharedWorkspaceLockfile: false,
     })
-    process.chdir('./project-1')
+    if (path.basename(process.cwd()) !== 'project-1') {
+      process.chdir('./project-1')
+    }
     const output = await patch.handler({
       ...defaultPatchOption,
       dir: process.cwd(),
