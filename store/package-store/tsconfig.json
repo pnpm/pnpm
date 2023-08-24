@@ -16,6 +16,12 @@
       "path": "../../fetching/fetcher-base"
     },
     {
+      "path": "../../fetching/tarball-worker"
+    },
+    {
+      "path": "../../packages/error"
+    },
+    {
       "path": "../../packages/types"
     },
     {

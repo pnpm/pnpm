@@ -11,4 +11,7 @@ export default { // eslint-disable-line
   writeFileSync: gfs.writeFileSync,
   readFileSync: gfs.readFileSync,
   unlinkSync: gfs.unlinkSync,
+  linkSync: gfs.linkSync,
+  statSync: gfs.statSync,
+  copyFileSync: gfs.copyFileSync,
 }

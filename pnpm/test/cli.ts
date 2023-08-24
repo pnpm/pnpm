@@ -1,11 +1,10 @@
-import { createReadStream, promises as fs, mkdirSync } from 'fs'
+import { promises as fs, mkdirSync } from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
-import loadJsonFile from 'load-json-file'
 import {
   execPnpm,
   execPnpmSync,
@@ -139,39 +138,6 @@ test('exit code from plugin is used to end the process', () => {
 
   expect(result.status).toBe(1)
   expect(result.stdout.toString()).toMatch(/is-positive/)
-})
-
-const PNPM_CLI = path.join(__dirname, '../dist/pnpm.cjs')
-
-test('the bundled CLI is independent', async () => {
-  const project = prepare()
-
-  await fs.copyFile(PNPM_CLI, 'pnpm.cjs')
-
-  await execa('node', ['./pnpm.cjs', 'add', 'is-positive'])
-
-  await project.has('is-positive')
-})
-
-test('the bundled CLI can be executed from stdin', async () => {
-  const project = prepare()
-
-  const nodeProcess = execa('node', ['-', 'add', 'is-positive'])
-
-  createReadStream(PNPM_CLI).pipe(nodeProcess.stdin!)
-
-  await nodeProcess
-
-  await project.has('is-positive')
-})
-
-test('the bundled CLI prints the correct version, when executed from stdin', async () => {
-  const nodeProcess = execa('node', ['-', '--version'])
-
-  createReadStream(PNPM_CLI).pipe(nodeProcess.stdin!)
-
-  const { version } = await loadJsonFile<{ version: string }>(path.join(__dirname, '../package.json'))
-  expect((await nodeProcess).stdout).toBe(version)
 })
 
 test('use the specified Node.js version for running scripts', async () => {

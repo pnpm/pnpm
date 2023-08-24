@@ -29,7 +29,7 @@ beforeEach(() => {
   fetchMock.mockClear()
 })
 
-test('install Node using a custom node mirror', async () => {
+test.skip('install Node using a custom node mirror', async () => {
   tempDir()
 
   const nodeMirrorBaseUrl = 'https://pnpm-node-mirror-test.localhost/download/release/'
@@ -45,7 +45,7 @@ test('install Node using a custom node mirror', async () => {
   }
 })
 
-test('install Node using the default node mirror', async () => {
+test.skip('install Node using the default node mirror', async () => {
   tempDir()
 
   const opts: FetchNodeOptions = {

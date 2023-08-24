@@ -110,5 +110,5 @@ export async function handler (
 async function copyProject (src: string, dest: string, opts: { includeOnlyPackageFiles: boolean }) {
   const { filesIndex } = await fetchFromDir(src, { ...opts, manifest: pDefer() })
   const importPkg = createIndexedPkgImporter('clone-or-copy')
-  await importPkg(dest, { filesMap: filesIndex, force: true, fromStore: true })
+  importPkg(dest, { filesMap: filesIndex, force: true, fromStore: true })
 }

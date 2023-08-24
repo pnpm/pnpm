@@ -45,7 +45,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
     filesIndexFile: path.join(opts.cafsDir, encodeURIComponent(tarball)), // TODO: change the name or don't save an index file for node.js tarballs
     lockfileDir: process.cwd(),
   })
-  await cafs.importPackage(targetDir, {
+  cafs.importPackage(targetDir, {
     filesResponse: {
       filesIndex: filesIndex as Record<string, string>,
       fromStore: false,

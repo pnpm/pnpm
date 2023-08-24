@@ -25,6 +25,8 @@ export function initDefaultReporter (
       throttleProgress?: number
       outputMaxWidth?: number
       hideAddedPkgsProgress?: boolean
+      hideProgressPrefix?: boolean
+      hideLifecycleOutput?: boolean
     }
     context: {
       argv: string[]
@@ -105,6 +107,8 @@ export function toOutput$ (
       aggregateOutput?: boolean
       throttleProgress?: number
       hideAddedPkgsProgress?: boolean
+      hideProgressPrefix?: boolean
+      hideLifecycleOutput?: boolean
     }
     context: {
       argv: string[]
@@ -245,11 +249,12 @@ export function toOutput$ (
     summary: Rx.from(summaryPushStream),
     updateCheck: Rx.from(updateCheckPushStream),
   }
+  const cmd = opts.context.argv[0]
   const outputs: Array<Rx.Observable<Rx.Observable<{ msg: string }>>> = reporterForClient(
     log$,
     {
       appendOnly: opts.reportingOptions?.appendOnly,
-      cmd: opts.context.argv[0],
+      cmd,
       config: opts.context.config,
       env: opts.context.env ?? process.env,
       filterPkgsDiff: opts.filterPkgsDiff,
@@ -262,6 +267,8 @@ export function toOutput$ (
       throttleProgress: opts.reportingOptions?.throttleProgress,
       width: opts.reportingOptions?.outputMaxWidth,
       hideAddedPkgsProgress: opts.reportingOptions?.hideAddedPkgsProgress,
+      hideProgressPrefix: opts.reportingOptions?.hideProgressPrefix ?? (cmd === 'dlx'),
+      hideLifecycleOutput: opts.reportingOptions?.hideLifecycleOutput,
     }
   )
 

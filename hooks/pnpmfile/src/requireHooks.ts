@@ -5,7 +5,7 @@ import pathAbsolute from 'path-absolute'
 import type { Lockfile } from '@pnpm/lockfile-types'
 import type { Log } from '@pnpm/core-loggers'
 import type { CustomFetchers } from '@pnpm/fetcher-base'
-import { type ImportIndexedPackage } from '@pnpm/store-controller-types'
+import { type ImportIndexedPackageAsync } from '@pnpm/store-controller-types'
 import { requirePnpmfile } from './requirePnpmfile'
 
 interface HookContext {
@@ -18,7 +18,7 @@ interface Hooks {
   preResolution?: PreResolutionHook
   afterAllResolved?: (lockfile: Lockfile, context: HookContext) => Lockfile | Promise<Lockfile>
   filterLog?: (log: Log) => boolean
-  importPackage?: ImportIndexedPackage
+  importPackage?: ImportIndexedPackageAsync
   fetchers?: CustomFetchers
 }
 
@@ -34,7 +34,7 @@ export interface CookedHooks {
   preResolution?: Cook<Required<Hooks>['preResolution']>
   afterAllResolved?: Array<Cook<Required<Hooks>['afterAllResolved']>>
   filterLog?: Array<Cook<Required<Hooks>['filterLog']>>
-  importPackage?: ImportIndexedPackage
+  importPackage?: ImportIndexedPackageAsync
   fetchers?: CustomFetchers
 }
 

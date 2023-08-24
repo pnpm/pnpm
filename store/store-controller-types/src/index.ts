@@ -7,6 +7,7 @@ import {
 } from '@pnpm/resolver-base'
 import type {
   ImportPackageFunction,
+  ImportPackageFunctionAsync,
   PackageFileInfo,
   PackageFilesResponse,
 } from '@pnpm/cafs-types'
@@ -15,7 +16,7 @@ import {
   type PackageManifest,
 } from '@pnpm/types'
 
-export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction }
+export type { PackageFileInfo, PackageFilesResponse, ImportPackageFunction, ImportPackageFunctionAsync }
 
 export * from '@pnpm/resolver-base'
 export type BundledManifest = Pick<
@@ -46,7 +47,7 @@ export interface StoreController {
   requestPackage: RequestPackageFunction
   fetchPackage: FetchPackageToStoreFunction
   getFilesIndexFilePath: GetFilesIndexFilePath
-  importPackage: ImportPackageFunction
+  importPackage: ImportPackageFunctionAsync
   close: () => Promise<void>
   prune: () => Promise<void>
   upload: UploadPkgToStore
@@ -158,4 +159,6 @@ export interface ImportOptions {
   keepModulesDir?: boolean
 }
 
-export type ImportIndexedPackage = (to: string, opts: ImportOptions) => Promise<string | undefined>
+export type ImportIndexedPackage = (to: string, opts: ImportOptions) => string | undefined
+
+export type ImportIndexedPackageAsync = (to: string, opts: ImportOptions) => Promise<string | undefined>

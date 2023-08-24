@@ -32,6 +32,8 @@
     "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
+    "@pnpm/cafs-types": "workspace:*",
+    "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@rushstack/worker-pool": "0.3.34",
