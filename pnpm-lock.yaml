@@ -4716,6 +4716,9 @@ importers:
       cross-spawn:
         specifier: ^7.0.3
         version: 7.0.3
+      load-json-file:
+        specifier: ^6.2.0
+        version: 6.2.0
       write-yaml-file:
         specifier: ^5.0.0
         version: 5.0.0

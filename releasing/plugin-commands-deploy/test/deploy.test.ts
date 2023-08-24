@@ -6,6 +6,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import crossSpawn from 'cross-spawn'
+import { sync as loadJsonFile } from 'load-json-file'
 import writeYamlFile from 'write-yaml-file'
 import { DEFAULT_OPTS } from './utils'
 
@@ -90,14 +91,8 @@ test('deploy', async () => {
   expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-3/node_modules/project-3/index.js')).toBeTruthy()
   expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-3/node_modules/project-3/test.js')).toBeFalsy()
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
-  const [
-    project1Package,
-    project2Package,
-  ] = await Promise.all([
-    fs.promises.readFile('deploy/package.json', 'utf8').then(file => JSON.parse(file)),
-    fs.promises.readFile('deploy/node_modules/.pnpm/file+project-2/node_modules/project-2/package.json', 'utf8').then(file => JSON.parse(file)),
-  ])
-  expect(project1Package).toMatchObject({
+  const project1Manifest = loadJsonFile('deploy/package.json')
+  expect(project1Manifest).toMatchObject({
     name: 'project-1',
     main: 'publish-file-1.js',
     dependencies: {
@@ -105,8 +100,9 @@ test('deploy', async () => {
       'project-2': '2.0.0',
     },
   })
-  expect(project1Package).not.toHaveProperty('publishConfig')
-  expect(project2Package).toMatchObject({
+  expect(project1Manifest).not.toHaveProperty('publishConfig')
+  const project2Manifest = loadJsonFile('deploy/node_modules/.pnpm/file+project-2/node_modules/project-2/package.json')
+  expect(project2Manifest).toMatchObject({
     name: 'project-2',
     main: 'publish-file-2.js',
     dependencies: {
@@ -114,7 +110,7 @@ test('deploy', async () => {
       'is-odd': '1.0.0',
     },
   })
-  expect(project2Package).not.toHaveProperty('publishConfig')
+  expect(project2Manifest).not.toHaveProperty('publishConfig')
 })
 
 test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDependents', async () => {
