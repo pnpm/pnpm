@@ -15,7 +15,7 @@ import * as enquirer from 'enquirer'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
-afterEach(async () => {
+afterAll(async () => {
   // @ts-expect-error
   await global.finishWorkers?.()
 })
