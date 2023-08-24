@@ -38,8 +38,8 @@ interface LinkPkgMessage {
   keepModulesDir?: boolean
 }
 
-let cafs: ReturnType<typeof createCafs>
-let cafsStore: ReturnType<typeof createCafsStore>
+const cafsCache = new Map<string, ReturnType<typeof createCafs>>()
+const cafsStoreCache = new Map<string, ReturnType<typeof createCafsStore>>()
 const cafsLocker = new Map<string, number>()
 
 async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | false): Promise<void> {
@@ -71,9 +71,10 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
           return
         }
       }
-      if (!cafs) {
-        cafs = createCafs(cafsDir)
+      if (!cafsCache.has(cafsDir)) {
+        cafsCache.set(cafsDir, createCafs(cafsDir))
       }
+      const cafs = cafsCache.get(cafsDir)!
       const manifestP = safePromiseDefer<DependencyManifest | undefined>()
       const filesIndex = cafs.addFilesFromTarball(buffer, manifestP)
       const filesIndexIntegrity = {} as Record<string, PackageFileInfo>
@@ -103,9 +104,11 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
         force,
         keepModulesDir,
       } = message
-      if (!cafsStore) {
-        cafsStore = createCafsStore(storeDir, { packageImportMethod, cafsLocker })
+      const cacheKey = JSON.stringify({ storeDir, packageImportMethod })
+      if (!cafsStoreCache.has(cacheKey)) {
+        cafsStoreCache.set(cacheKey, createCafsStore(storeDir, { packageImportMethod, cafsLocker }))
       }
+      const cafsStore = cafsStoreCache.get(cacheKey)!
       const { importMethod, isBuilt } = cafsStore.importPackage(targetDir, {
         filesResponse,
         force,
@@ -114,6 +117,7 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
         keepModulesDir,
       })
       parentPort!.postMessage({ status: 'success', value: { isBuilt, importMethod } })
+      break
     }
     }
   } catch (e: any) { // eslint-disable-line
