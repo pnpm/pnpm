@@ -43,6 +43,16 @@ describe('cafs', () => {
     expect(fs.readFileSync(filePath, 'utf8')).toBe('foo\n')
     expect(await manifest.promise).toEqual(undefined)
   })
+
+  it('ignores broken symlinks when traversing subdirectories', async () => {
+    const storeDir = tempy.directory()
+    const srcDir = path.join(__dirname, 'fixtures/broken-symlink')
+    const manifest = pDefer<DependencyManifest>()
+    const addFiles = async () => createCafs(storeDir).addFilesFromDir(srcDir, manifest)
+
+    const filesIndex = await addFiles()
+    expect(filesIndex['subdir/should-exist.txt']).toBeDefined()
+  })
 })
 
 describe('checkPkgFilesIntegrity()', () => {
