@@ -39,7 +39,11 @@
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/plugin-commands-deploy": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.11.0"
+    "@pnpm/registry-mock": "3.11.0",
+    "@types/cross-spawn": "^6.0.2",
+    "cross-spawn": "^7.0.3",
+    "load-json-file": "^6.2.0",
+    "write-yaml-file": "^5.0.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",

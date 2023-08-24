@@ -1459,6 +1459,9 @@ importers:
 
   fetching/directory-fetcher:
     dependencies:
+      '@pnpm/exportable-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/exportable-manifest
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
@@ -1471,6 +1474,15 @@ importers:
       '@pnpm/resolver-base':
         specifier: workspace:*
         version: link:../../resolving/resolver-base
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@pnpm/write-project-manifest':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/write-project-manifest
+      fast-deep-equal:
+        specifier: ^3.1.3
+        version: 3.1.3
       npm-packlist:
         specifier: ^5.1.3
         version: 5.1.3
@@ -4698,6 +4710,18 @@ importers:
       '@pnpm/registry-mock':
         specifier: 3.11.0
         version: 3.11.0(typanion@3.14.0)
+      '@types/cross-spawn':
+        specifier: ^6.0.2
+        version: 6.0.2
+      cross-spawn:
+        specifier: ^7.0.3
+        version: 7.0.3
+      load-json-file:
+        specifier: ^6.2.0
+        version: 6.2.0
+      write-yaml-file:
+        specifier: ^5.0.0
+        version: 5.0.0
 
   releasing/plugin-commands-publishing:
     dependencies:
