@@ -157,3 +157,24 @@ describe('fetch resolves symlinked files to their real locations', () => {
     expect(fetchResult.filesIndex['src/index.js']).toBe(path.resolve('src/index.js'))
   })
 })
+
+test('fetch should return exportable manifest', async () => {
+  process.chdir(f.find('exportable-manifest'))
+  const fetcher = createDirectoryFetcher()
+
+  // eslint-disable-next-line
+  const fetchResult = await fetcher.directory({} as any, {
+    directory: '.',
+    type: 'directory',
+  }, {
+    lockfileDir: process.cwd(),
+  })
+
+  expect(fetchResult.filesIndex['package.json']).not.toBe(path.resolve('package.json'))
+
+  expect(JSON.parse(fs.readFileSync(fetchResult.filesIndex['package.json'], 'utf8'))).toStrictEqual({
+    name: 'exportable',
+    version: '1.0.0',
+    main: 'dist/index.js',
+  })
+})
