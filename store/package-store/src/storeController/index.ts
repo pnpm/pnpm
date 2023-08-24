@@ -11,7 +11,7 @@ import {
   type PackageFileInfo,
   type StoreController,
 } from '@pnpm/store-controller-types'
-import { workerPool as pool, resetWorkerPool } from '@pnpm/fetching.tarball-worker'
+import { workerPool as pool } from '@pnpm/fetching.tarball-worker'
 import loadJsonFile from 'load-json-file'
 import writeJsonFile from 'write-json-file'
 import { prune } from './prune'
@@ -37,7 +37,7 @@ export async function createPackageStore (
     verifyStoreIntegrity: boolean
   }
 ): Promise<StoreController> {
-  resetWorkerPool()
+  pool.reset()
   const storeDir = initOpts.storeDir
   const cafs = createCafsStore(storeDir, {
     cafsLocker: initOpts.cafsLocker,

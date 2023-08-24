@@ -4,13 +4,9 @@ import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
 
 export { type WorkerPool }
 
-let workerPool = createTarballWorkerPool()
+const workerPool = createTarballWorkerPool()
 
 export { workerPool }
-
-export function resetWorkerPool () {
-  workerPool = createTarballWorkerPool()
-}
 
 export function createTarballWorkerPool () {
   const workerPool = new WorkerPool({
