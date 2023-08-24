@@ -16,7 +16,9 @@
   },
   "dependencies": {
     "@pnpm/create-cafs-store": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
+    "@pnpm/fetching.tarball-worker": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",

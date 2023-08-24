@@ -199,7 +199,7 @@ export function createDownloader (
               return
             }
             opts.manifest?.resolve(value.manifest)
-            resolve({ filesIndex: value.filesIndex, local: true })
+            resolve({ filesIndex: value.filesIndex })
           })
           localWorker.postMessage({
             type: 'extract',

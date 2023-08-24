@@ -13,7 +13,7 @@
     "remove-temp-dir": "shx rm -rf ../pnpm_tmp",
     "test-pkgs-main": "pnpm remove-temp-dir && cross-env PNPM_REGISTRY_MOCK_UPLINK=http://localhost:7348 pnpm run --no-sort --workspace-concurrency=2 -r _test",
     "test-branch": "pnpm pretest && pnpm lint --quiet && git remote set-branches --add origin main && git fetch && concurrently --raw --success=first --kill-others \"pnpm run verdaccio\" \"pnpm run test-pkgs-branch\"",
-    "test-pkgs-branch": "pnpm remove-temp-dir && cross-env PNPM_REGISTRY_MOCK_UPLINK=http://localhost:7348 pnpm --filter=...[origin/main] run --no-sort _test",
+    "test-pkgs-branch": "pnpm remove-temp-dir && cross-env PNPM_REGISTRY_MOCK_UPLINK=http://localhost:7348 pnpm --workspace-concurrency=2 --filter=...[origin/main] run --no-sort _test",
     "verdaccio": "verdaccio --config=./verdaccio.yaml --listen=7348",
     "compile-only": "pnpm --workspace-concurrency=1 --filter=pnpm --filter=@pnpm/make-dedicated-lockfile --filter=@pnpm/mount-modules run compile",
     "compile": "pnpm compile-only && pnpm run update-manifests",

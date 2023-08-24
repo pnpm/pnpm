@@ -1,18 +1,18 @@
-import { promises as fs } from 'fs'
-import { copy } from 'fs-extra'
+import fs from 'fs'
+import { copySync } from 'fs-extra'
 import path from 'path'
 import { globalWarn, logger } from '@pnpm/logger'
-import rimraf from '@zkochan/rimraf'
+import { sync as rimraf } from '@zkochan/rimraf'
+import { sync as makeEmptyDir } from 'make-empty-dir'
 import sanitizeFilename from 'sanitize-filename'
-import makeEmptyDir from 'make-empty-dir'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import renameOverwrite from 'rename-overwrite'
 
 const filenameConflictsLogger = logger('_filename-conflicts')
 
-export type ImportFile = (src: string, dest: string) => Promise<void>
+export type ImportFile = (src: string, dest: string) => void
 
-export async function importIndexedDir (
+export function importIndexedDir (
   importFile: ImportFile,
   newDir: string,
   filenames: Record<string, string>,
@@ -22,15 +22,15 @@ export async function importIndexedDir (
 ) {
   const stage = pathTemp(newDir)
   try {
-    await tryImportIndexedDir(importFile, stage, filenames)
+    tryImportIndexedDir(importFile, stage, filenames)
     if (opts.keepModulesDir) {
       // Keeping node_modules is needed only when the hoisted node linker is used.
-      await moveOrMergeModulesDirs(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
+      moveOrMergeModulesDirs(path.join(newDir, 'node_modules'), path.join(stage, 'node_modules'))
     }
-    await renameOverwrite(stage, newDir)
+    renameOverwrite.sync(stage, newDir)
   } catch (err: any) { // eslint-disable-line
     try {
-      await rimraf(stage)
+      rimraf(stage)
     } catch (err) {} // eslint-disable-line:no-empty
     if (err['code'] === 'EEXIST') {
       const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
@@ -45,7 +45,7 @@ export async function importIndexedDir (
         'which is an issue on case-insensitive filesystems. ' +
         `The conflicting file names are: ${JSON.stringify(conflictingFileNames)}`
       )
-      await importIndexedDir(importFile, newDir, uniqueFileMap, opts)
+      importIndexedDir(importFile, newDir, uniqueFileMap, opts)
       return
     }
     if (err['code'] === 'ENOENT') {
@@ -55,7 +55,7 @@ export async function importIndexedDir (
 The package linked to "${path.relative(process.cwd(), newDir)}" had \
 files with invalid names: ${invalidFilenames.join(', ')}. \
 They were renamed.`)
-      await importIndexedDir(importFile, newDir, sanitizedFilenames, opts)
+      importIndexedDir(importFile, newDir, sanitizedFilenames, opts)
       return
     }
     throw err
@@ -75,8 +75,8 @@ function sanitizeFilenames (filenames: Record<string, string>) {
   return { sanitizedFilenames, invalidFilenames }
 }
 
-async function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Record<string, string>) {
-  await makeEmptyDir(newDir, { recursive: true })
+function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Record<string, string>) {
+  makeEmptyDir(newDir, { recursive: true })
   const alldirs = new Set<string>()
   Object.keys(filenames)
     .forEach((f) => {
@@ -84,18 +84,13 @@ async function tryImportIndexedDir (importFile: ImportFile, newDir: string, file
       if (dir === '.') return
       alldirs.add(dir)
     })
-  await Promise.all(
-    Array.from(alldirs)
-      .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
-      .map(async (dir) => fs.mkdir(path.join(newDir, dir), { recursive: true }))
-  )
-  await Promise.all(
-    Object.entries(filenames)
-      .map(async ([f, src]: [string, string]) => {
-        const dest = path.join(newDir, f)
-        await importFile(src, dest)
-      })
-  )
+  Array.from(alldirs)
+    .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
+    .forEach((dir) => fs.mkdirSync(path.join(newDir, dir), { recursive: true }))
+  for (const [f, src] of Object.entries(filenames)) {
+    const dest = path.join(newDir, f)
+    importFile(src, dest)
+  }
 }
 
 function getUniqueFileMap (fileMap: Record<string, string>) {
@@ -117,9 +112,9 @@ function getUniqueFileMap (fileMap: Record<string, string>) {
   }
 }
 
-async function moveOrMergeModulesDirs (src: string, dest: string) {
+function moveOrMergeModulesDirs (src: string, dest: string) {
   try {
-    await renameEvenAcrossDevices(src, dest)
+    renameEvenAcrossDevices(src, dest)
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
     case 'ENOENT':
@@ -128,7 +123,7 @@ async function moveOrMergeModulesDirs (src: string, dest: string) {
     case 'ENOTEMPTY':
     case 'EPERM': // This error code is thrown on Windows
       // The newly added dependency might have node_modules if it has bundled dependencies.
-      await mergeModulesDirs(src, dest)
+      mergeModulesDirs(src, dest)
       return
     default:
       throw err
@@ -136,18 +131,20 @@ async function moveOrMergeModulesDirs (src: string, dest: string) {
   }
 }
 
-async function renameEvenAcrossDevices (src: string, dest: string) {
+function renameEvenAcrossDevices (src: string, dest: string) {
   try {
-    await fs.rename(src, dest)
+    fs.renameSync(src, dest)
   } catch (err: any) { // eslint-disable-line
     if (err.code !== 'EXDEV') throw err
-    await copy(src, dest)
+    copySync(src, dest)
   }
 }
 
-async function mergeModulesDirs (src: string, dest: string) {
-  const srcFiles = await fs.readdir(src)
-  const destFiles = new Set(await fs.readdir(dest))
+function mergeModulesDirs (src: string, dest: string) {
+  const srcFiles = fs.readdirSync(src)
+  const destFiles = new Set(fs.readdirSync(dest))
   const filesToMove = srcFiles.filter((file) => !destFiles.has(file))
-  await Promise.all(filesToMove.map((file) => renameEvenAcrossDevices(path.join(src, file), path.join(dest, file))))
+  for (const file of filesToMove) {
+    renameEvenAcrossDevices(path.join(src, file), path.join(dest, file))
+  }
 }

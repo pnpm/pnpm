@@ -9,7 +9,9 @@ import type { Cafs, PackageFilesResponse } from '@pnpm/cafs-types'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import {
   type ImportIndexedPackage,
+  type ImportIndexedPackageAsync,
   type ImportPackageFunction,
+  type ImportPackageFunctionAsync,
   type PackageFileInfo,
 } from '@pnpm/store-controller-types'
 import memoize from 'mem'
@@ -17,6 +19,34 @@ import pathTemp from 'path-temp'
 import mapValues from 'ramda/src/map'
 
 export { type CafsLocker }
+
+export function createPackageImporterAsync (
+  opts: {
+    importIndexedPackage?: ImportIndexedPackageAsync
+    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
+    cafsDir: string
+  }
+): ImportPackageFunctionAsync {
+  const cachedImporterCreator = opts.importIndexedPackage
+    ? () => opts.importIndexedPackage!
+    : memoize(createIndexedPkgImporter)
+  const packageImportMethod = opts.packageImportMethod
+  const gfm = getFlatMap.bind(null, opts.cafsDir)
+  return async (to, opts) => {
+    const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
+    const pkgImportMethod = (opts.requiresBuild && !isBuilt)
+      ? 'clone-or-copy'
+      : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
+    const impPkg = cachedImporterCreator(pkgImportMethod)
+    const importMethod = await impPkg(to, {
+      filesMap,
+      fromStore: opts.filesResponse.fromStore,
+      force: opts.force,
+      keepModulesDir: Boolean(opts.keepModulesDir),
+    })
+    return { importMethod, isBuilt }
+  }
+}
 
 function createPackageImporter (
   opts: {
@@ -30,13 +60,13 @@ function createPackageImporter (
     : memoize(createIndexedPkgImporter)
   const packageImportMethod = opts.packageImportMethod
   const gfm = getFlatMap.bind(null, opts.cafsDir)
-  return async (to, opts) => {
+  return (to, opts) => {
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
     const pkgImportMethod = (opts.requiresBuild && !isBuilt)
       ? 'clone-or-copy'
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)
-    const importMethod = await impPkg(to, {
+    const importMethod = impPkg(to, {
       filesMap,
       fromStore: opts.filesResponse.fromStore,
       force: opts.force,

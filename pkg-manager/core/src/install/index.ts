@@ -14,6 +14,7 @@ import {
 import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
+import { workerPool } from '@pnpm/fetching.tarball-worker'
 import { headlessInstall, type InstallationResultStats } from '@pnpm/headless'
 import {
   makeNodeRequireOption,
@@ -225,6 +226,7 @@ export async function mutateModules (
   projects: MutatedProject[],
   maybeOpts: MutateModulesOptions
 ): Promise<MutateModulesResult> {
+  workerPool.reset()
   const reporter = maybeOpts?.reporter
   if ((reporter != null) && typeof reporter === 'function') {
     streamParser.on('data', reporter)
@@ -1339,8 +1341,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
   summaryLogger.debug({ prefix: opts.lockfileDir })
 
-  await opts.storeController.close()
-
   reportPeerDependencyIssues(peerDependencyIssuesByProjects, {
     lockfileDir: opts.lockfileDir,
     strictPeerDependencies: opts.strictPeerDependencies,
@@ -1425,6 +1425,8 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
     })
     logger.error(new PnpmError(error.code, 'The lockfile is broken! A full installation will be performed in an attempt to fix it.'))
     return _installInContext(projects, ctx, opts)
+  } finally {
+    await opts.storeController.close()
   }
 }
 

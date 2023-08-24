@@ -17,6 +17,12 @@
     },
     {
       "path": "../../store/cafs"
+    },
+    {
+      "path": "../../store/cafs-types"
+    },
+    {
+      "path": "../../store/create-cafs-store"
     }
   ],
   "composite": true
