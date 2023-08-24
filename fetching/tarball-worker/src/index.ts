@@ -9,9 +9,7 @@ let workerPool = createTarballWorkerPool()
 export { workerPool }
 
 export function resetWorkerPool () {
-  if (!workerPool.getActiveCount()) {
-    workerPool = createTarballWorkerPool()
-  }
+  workerPool = createTarballWorkerPool()
 }
 
 export function createTarballWorkerPool () {
