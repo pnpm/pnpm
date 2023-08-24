@@ -1,6 +1,6 @@
 # pnpm
 
-## 8.7.0-1
+## 8.7.0-2
 
 ### Minor Changes
 
@@ -8,8 +8,13 @@
 
 ### Patch Changes
 
+- Warn when linking a package with peerDependencies [615](https://github.com/pnpm/pnpm/issues/615).
+- Add support for npm lockfile v3 in `pnpm import` [#6233](https://github.com/pnpm/pnpm/issues/6233).
+- Override peerDependencies in `pnpm.overrides` [#6759](https://github.com/pnpm/pnpm/issues/6759).
 - Respect workspace alias syntax in pkg graph [#6922](https://github.com/pnpm/pnpm/issues/6922)
 - Emit a clear error message when users attempt to specify an undownloadable node version [#6916](https://github.com/pnpm/pnpm/pull/6916).
+- `pnpm patch` should write patch files with a trailing newline [#6905](https://github.com/pnpm/pnpm/pull/6905).
+- Don't prefix install output for the dlx command.
 - Performance optimizations. Package tarballs are now download directly to memory and built to an ArrayBuffer. Hashing and other operations are avoided until the stream has been fully received [#6819](https://github.com/pnpm/pnpm/pull/6819).
 
 ## 8.6.12
