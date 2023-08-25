@@ -51,7 +51,7 @@ describe('cafs', () => {
     const addFiles = async () => createCafs(storeDir).addFilesFromDir(srcDir, manifest)
 
     const filesIndex = await addFiles()
-    expect(filesIndex['subdir/should-exist.txt']).toBeDefined()
+    expect(filesIndex[path.join('subdir', 'should-exist.txt')]).toBeDefined()
   })
 })
 
