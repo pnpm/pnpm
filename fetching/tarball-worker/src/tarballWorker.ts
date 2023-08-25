@@ -38,11 +38,18 @@ interface LinkPkgMessage {
   keepModulesDir?: boolean
 }
 
+interface AddDirToStoreMessage {
+  type: 'add-dir'
+  cafsDir: string
+  dir: string
+  filesIndexFile: string
+}
+
 const cafsCache = new Map<string, ReturnType<typeof createCafs>>()
 const cafsStoreCache = new Map<string, ReturnType<typeof createCafsStore>>()
 const cafsLocker = new Map<string, number>()
 
-async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | false): Promise<void> {
+async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | AddDirToStoreMessage | false): Promise<void> {
   if (message === false) {
     parentPort!.off('message', handleMessage)
     process.exit(0)
@@ -117,6 +124,30 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
         keepModulesDir,
       })
       parentPort!.postMessage({ status: 'success', value: { isBuilt, importMethod } })
+      break
+    }
+    case 'add-dir': {
+      const { dir, cafsDir, filesIndexFile } = message
+      if (!cafsCache.has(cafsDir)) {
+        cafsCache.set(cafsDir, createCafs(cafsDir))
+      }
+      const cafs = cafsCache.get(cafsDir)!
+      const manifestP = safePromiseDefer<DependencyManifest | undefined>()
+      const filesIndex = await cafs.addFilesFromDir(dir, manifestP)
+      const filesIndexIntegrity = {} as Record<string, PackageFileInfo>
+      const filesMap = Object.fromEntries(await Promise.all(Object.entries(filesIndex).map(async ([k, v]) => {
+        const { checkedAt, integrity } = await v.writeResult
+        filesIndexIntegrity[k] = {
+          checkedAt,
+          integrity: integrity.toString(), // TODO: use the raw Integrity object
+          mode: v.mode,
+          size: v.size,
+        }
+        return [k, getFilePathByModeInCafs(cafsDir, integrity, v.mode)]
+      })))
+      const manifest = await manifestP()
+      writeFilesIndexFile(filesIndexFile, { pkg: manifest ?? {}, files: filesIndexIntegrity })
+      parentPort!.postMessage({ status: 'success', value: { filesIndex: filesMap, manifest } })
       break
     }
     }

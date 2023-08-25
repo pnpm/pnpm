@@ -13,6 +13,9 @@
       "path": "../../exec/prepare-package"
     },
     {
+      "path": "../../packages/error"
+    },
+    {
       "path": "../../packages/types"
     },
     {
@@ -23,6 +26,9 @@
     },
     {
       "path": "../fetcher-base"
+    },
+    {
+      "path": "../tarball-worker"
     }
   ],
   "composite": true

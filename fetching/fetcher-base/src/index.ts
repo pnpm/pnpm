@@ -27,9 +27,10 @@ export type FetchResult = {
 
 export interface GitFetcherOptions {
   manifest?: DeferredManifestPromise
+  filesIndexFile: string
 }
 
-export type GitFetcher = FetchFunction<GitResolution, GitFetcherOptions, { unprocessed: true, filesIndex: FilesIndex }>
+export type GitFetcher = FetchFunction<GitResolution, GitFetcherOptions, { filesIndex: Record<string, string> }>
 
 export interface DirectoryFetcherOptions {
   lockfileDir: string
