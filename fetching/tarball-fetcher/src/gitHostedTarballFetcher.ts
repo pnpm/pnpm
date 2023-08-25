@@ -24,7 +24,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
-      return { unprocessed: true, filesIndex: prepareResult.filesIndex }
+      return { filesIndex: prepareResult.filesIndex }
     } catch (err: any) { // eslint-disable-line
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}` // eslint-disable-line
       throw err
