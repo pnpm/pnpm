@@ -187,10 +187,9 @@ export async function resolveDependencyTree<T> (
     }
   }
 
-  for (const { id } of importers) {
-    const directDeps = directDepsByImporterId[id]
+  for (const { id, wantedDependencies } of importers) {
+    const directDeps = dedupeSameAliasDirectDeps(directDepsByImporterId[id], wantedDependencies)
     const [linkedDependencies, directNonLinkedDeps] = partition((dep) => dep.isLinkedDependency === true, directDeps) as [LinkedDependency[], PkgAddress[]]
-
     resolvedImporters[id] = {
       directDependencies: directDeps
         .map((dep) => {
@@ -268,4 +267,29 @@ function buildTree (
     })
   }
   return childrenNodeIds
+}
+
+/**
+  * There may be cases where multiple dependencies have the same alias in the directDeps array.
+  * E.g., when there is "is-negative: github:kevva/is-negative#1.0.0" in the package.json dependencies,
+  * and then re-execute `pnpm add github:kevva/is-negative#1.0.1`.
+  * In order to make sure that the latest 1.0.1 version is installed, we need to remove the duplicate dependency.
+  * fix https://github.com/pnpm/pnpm/issues/6966
+  */
+function dedupeSameAliasDirectDeps (directDeps: Array<PkgAddress | LinkedDependency>, wantedDependencies: Array<WantedDependency & { isNew?: boolean }>) {
+  const deps = new Map()
+  for (const directDep of directDeps) {
+    const { alias, normalizedPref } = directDep
+    if (!deps.has(alias)) {
+      deps.set(alias, directDep)
+    } else {
+      const wantedDep = wantedDependencies.find(dep =>
+        dep.alias ? dep.alias === alias : dep.pref === normalizedPref
+      )
+      if (wantedDep?.isNew) {
+        deps.set(alias, directDep)
+      }
+    }
+  }
+  return Array.from(deps.values())
 }
