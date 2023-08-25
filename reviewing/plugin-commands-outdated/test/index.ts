@@ -55,7 +55,8 @@ test('pnpm outdated: show details', async () => {
 ┌──────────────────────┬─────────┬────────────┬─────────────────────────────────────────────┐
 │ Package              │ Current │ Latest     │ Details                                     │
 ├──────────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
-│ @pnpm.e2e/deprecated │ 1.0.0   │ Deprecated │ This package is deprecated. Lorem ipsum     │
+│ @pnpm.e2e/deprecated │ 1.0.0   │ Deprecated │ Deprecation message:                        │
+│                      │         │            │ This package is deprecated. Lorem ipsum     │
 │                      │         │            │ dolor sit amet, consectetur adipiscing      │
 │                      │         │            │ elit.                                       │
 │                      │         │            │ https://foo.bar/qar                         │

@@ -1,6 +1,31 @@
 const path = require("path")
 
 const config = {
+  projects: [
+    'cli/*',
+    'config/*',
+    'dedupe/*',
+    'deps/*',
+    'env/*',
+    'exec/*',
+    'fetching/*',
+    'fs/*',
+    'hooks/*',
+    'lockfile/*',
+    'network/*',
+    'modules-mounter/*',
+    'packages/*',
+    'pkg-manager/*',
+    'pkg-manifest/*',
+    'patching/*',
+    'pnpm',
+    'releasing/*',
+    'resolving/*',
+    'reviewing/*',
+    'store/*',
+    'text/*',
+    'workspace/*',
+  ],
   preset: "ts-jest",
   testMatch: ["**/test/**/*.[jt]s?(x)", "**/src/**/*.test.ts"],
   testEnvironment: "node",
@@ -12,7 +37,7 @@ const config = {
   // Many tests change the dist tags of packages.
   // Unfortunately, this means that if two such tests will run at the same time,
   // they may break each other.
-  maxWorkers: 1,
+  // maxWorkers: '100%',
 }
 
 if (process.env.PNPM_SCRIPT_SRC_DIR) {

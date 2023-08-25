@@ -21,7 +21,7 @@ import pick from 'ramda/src/pick'
 import sortWith from 'ramda/src/sortWith'
 import renderHelp from 'render-help'
 import stripAnsi from 'strip-ansi'
-import wrapAnsi from 'wrap-ansi'
+import { wrapWord } from '@zkochan/table/dist/src/wrapWord'
 import {
   DEFAULT_COMPARATORS,
   type OutdatedWithVersionDiff,
@@ -354,10 +354,10 @@ export function renderDetails ({ latestManifest }: OutdatedPackage) {
   if (latestManifest == null) return ''
   const outputs = []
   if (latestManifest.deprecated) {
-    outputs.push(wrapAnsi(chalk.redBright(latestManifest.deprecated), 40))
+    outputs.push(chalk.redBright('Deprecation message:'), ...wrapWord(latestManifest.deprecated, 40))
   }
   if (latestManifest.homepage) {
-    outputs.push(chalk.underline(latestManifest.homepage))
+    outputs.push(latestManifest.homepage)
   }
   return outputs.join('\n')
 }
