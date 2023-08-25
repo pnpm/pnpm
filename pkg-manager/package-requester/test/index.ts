@@ -29,11 +29,6 @@ const { resolve, fetchers } = createClient({
   rawConfig: {},
 })
 
-afterEach(async () => {
-  // @ts-expect-error
-  await global.finishWorkers?.()
-})
-
 test('request package', async () => {
   const storeDir = tempy.directory()
   const cafs = createCafsStore(storeDir)
@@ -731,6 +726,11 @@ test('refetch package to store if it has been modified', async () => {
     const { filesIndex } = await fetchResult.files()
     indexJsFile = filesIndex['index.js'] as string
   }
+
+  // We should restart the workers otherwise the locker cache will still try to read the file
+  // that will be removed from the store due to integrity change
+  // @ts-expect-error
+  await global.finishWorkers?.()
 
   await delay(200)
   // Adding some content to the file to change its integrity
