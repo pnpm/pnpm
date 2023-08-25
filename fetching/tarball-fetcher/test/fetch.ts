@@ -30,11 +30,6 @@ beforeEach(() => {
   ;(globalWarn as jest.Mock).mockClear()
 })
 
-afterEach(async () => {
-  // @ts-expect-error
-  await global.finishWorkers?.()
-})
-
 const cafsDir = tempy.directory()
 const filesIndexFile = path.join(cafsDir, 'index.json')
 const cafs = createCafsStore(cafsDir)

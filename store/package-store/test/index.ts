@@ -4,11 +4,6 @@ import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
 import tempy from 'tempy'
 
-afterEach(async () => {
-  // @ts-expect-error
-  await global.finishWorkers?.()
-})
-
 describe('store.importPackage()', () => {
   it('selects import method automatically', async () => {
     const tmp = tempy.directory()

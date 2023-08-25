@@ -2,11 +2,6 @@ import { getPeerDependencyIssues } from '@pnpm/core'
 import { prepareEmpty } from '@pnpm/prepare'
 import { testDefaults } from './utils'
 
-afterEach(async () => {
-  // @ts-expect-error
-  await global.finishWorkers?.()
-})
-
 test('cannot resolve peer dependency for top-level dependency', async () => {
   prepareEmpty()
 
