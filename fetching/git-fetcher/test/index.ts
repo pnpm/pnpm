@@ -30,11 +30,6 @@ beforeEach(() => {
   ;(globalWarn as jest.Mock).mockClear()
 })
 
-afterEach(async () => {
-  // @ts-expect-error
-  await global.finishWorkers?.()
-})
-
 test('fetch', async () => {
   const cafsDir = tempy.directory()
   const fetch = createGitFetcher({ rawConfig: {} }).git
