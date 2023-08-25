@@ -233,3 +233,48 @@ test.skip('from a github repo that needs to be built. hoisted node linker is  us
   await install(manifest, await testDefaults({ frozenLockfile: true, ignoreScripts: true, nodeLinker: 'hoisted' }, { ignoreScripts: true }))
   await project.hasNot('@pnpm.e2e/prepare-script-works/prepare.txt')
 })
+
+test('re-adding a git repo with a different tag', async () => {
+  const project = prepareEmpty()
+  let manifest = await addDependenciesToPackage({}, ['kevva/is-negative#1.0.0'], await testDefaults())
+  await project.has('is-negative')
+  expect(manifest.dependencies).toStrictEqual({
+    'is-negative': 'github:kevva/is-negative#1.0.0',
+  })
+  expect(JSON.parse(fs.readFileSync('./node_modules/is-negative/package.json', 'utf8')).version).toBe('1.0.0')
+  let lockfile = await project.readLockfile()
+  expect(lockfile.dependencies['is-negative']).toEqual({
+    specifier: 'github:kevva/is-negative#1.0.0',
+    version: 'github.com/kevva/is-negative/163360a8d3ae6bee9524541043197ff356f8ed99',
+  })
+  expect(lockfile.packages).toEqual(
+    {
+      'github.com/kevva/is-negative/163360a8d3ae6bee9524541043197ff356f8ed99': {
+        resolution: { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/163360a8d3ae6bee9524541043197ff356f8ed99' },
+        name: 'is-negative',
+        version: '1.0.0',
+        engines: { node: '>=0.10.0' },
+        dev: false,
+      },
+    }
+  )
+  manifest = await addDependenciesToPackage(manifest, ['kevva/is-negative#1.0.1'], await testDefaults())
+  await project.has('is-negative')
+  expect(JSON.parse(fs.readFileSync('./node_modules/is-negative/package.json', 'utf8')).version).toBe('1.0.1')
+  lockfile = await project.readLockfile()
+  expect(lockfile.dependencies['is-negative']).toEqual({
+    specifier: 'github:kevva/is-negative#1.0.1',
+    version: 'github.com/kevva/is-negative/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72',
+  })
+  expect(lockfile.packages).toEqual(
+    {
+      'github.com/kevva/is-negative/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72': {
+        resolution: { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72' },
+        name: 'is-negative',
+        version: '1.0.1',
+        engines: { node: '>=0.10.0' },
+        dev: false,
+      },
+    }
+  )
+})
