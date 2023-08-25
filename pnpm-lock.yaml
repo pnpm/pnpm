@@ -1667,6 +1667,9 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../../store/create-cafs-store
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
@@ -1679,6 +1682,9 @@ importers:
       '@rushstack/worker-pool':
         specifier: 0.3.34
         version: 0.3.34(@types/node@16.18.41)
+      load-json-file:
+        specifier: ^6.2.0
+        version: 6.2.0
       safe-promise-defer:
         specifier: ^1.0.1
         version: 1.0.1
@@ -8509,7 +8515,7 @@ packages:
     resolution: {integrity: sha512-IO+MJPVhoqz+28h1qLAcBEH2+xHMK6MTyHJc7MTnnYb6wsoLR29POVGJ7LycmVXIqyy/4/2ShP5sUwTXuOwb/w==}
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 20.5.1
+      '@types/node': 16.18.41
     dev: true
 
   /@types/graceful-fs@4.1.6:

@@ -7,43 +7,18 @@ import {
   createCafs,
   getFilePathByModeInCafs,
   type PackageFileInfo,
+  type PackageFilesIndex,
   optimisticRenameOverwrite,
 } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'
-import { type PackageFilesResponse } from '@pnpm/cafs-types'
+import { sync as loadJsonFile } from 'load-json-file'
 import { parentPort } from 'worker_threads'
 import safePromiseDefer from 'safe-promise-defer'
+import { type TarballExtractMessage, type LinkPkgMessage, type AddDirToStoreMessage } from './types'
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
 
 parentPort!.on('message', handleMessage)
-
-interface TarballExtractMessage {
-  type: 'extract'
-  buffer: Buffer
-  cafsDir: string
-  integrity?: string
-  filesIndexFile: string
-}
-
-interface LinkPkgMessage {
-  type: 'link'
-  storeDir: string
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
-  filesResponse: PackageFilesResponse
-  sideEffectsCacheKey?: string | undefined
-  targetDir: string
-  requiresBuild: boolean
-  force: boolean
-  keepModulesDir?: boolean
-}
-
-interface AddDirToStoreMessage {
-  type: 'add-dir'
-  cafsDir: string
-  dir: string
-  filesIndexFile: string
-}
 
 const cafsCache = new Map<string, ReturnType<typeof createCafs>>()
 const cafsStoreCache = new Map<string, ReturnType<typeof createCafsStore>>()
@@ -127,7 +102,7 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
       break
     }
     case 'add-dir': {
-      const { dir, cafsDir, filesIndexFile } = message
+      const { dir, cafsDir, filesIndexFile, sideEffectsCacheKey } = message
       if (!cafsCache.has(cafsDir)) {
         cafsCache.set(cafsDir, createCafs(cafsDir))
       }
@@ -146,7 +121,19 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
         return [k, getFilePathByModeInCafs(cafsDir, integrity, v.mode)]
       })))
       const manifest = await manifestP()
-      writeFilesIndexFile(filesIndexFile, { pkg: manifest ?? {}, files: filesIndexIntegrity })
+      if (sideEffectsCacheKey) {
+        let filesIndex!: PackageFilesIndex
+        try {
+          filesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
+        } catch { // eslint-disable-line
+          filesIndex = { files: filesIndexIntegrity }
+        }
+        filesIndex.sideEffects = filesIndex.sideEffects ?? {}
+        filesIndex.sideEffects[sideEffectsCacheKey] = filesIndexIntegrity
+        writeJsonFile(filesIndexFile, filesIndex)
+      } else {
+        writeFilesIndexFile(filesIndexFile, { pkg: manifest ?? {}, files: filesIndexIntegrity })
+      }
       parentPort!.postMessage({ status: 'success', value: { filesIndex: filesMap, manifest } })
       break
     }
