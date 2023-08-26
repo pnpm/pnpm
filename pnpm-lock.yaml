@@ -1646,6 +1646,9 @@ importers:
       safe-promise-defer:
         specifier: ^1.0.1
         version: 1.0.1
+      ssri:
+        specifier: 10.0.4
+        version: 10.0.4
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -9864,7 +9867,7 @@ packages:
       minipass-flush: 1.0.5
       minipass-pipeline: 1.2.4
       p-map: 4.0.0
-      ssri: 10.0.5
+      ssri: 10.0.4
       tar: 6.1.15
       unique-filename: 3.0.0
     dev: false
@@ -13479,7 +13482,7 @@ packages:
       negotiator: 0.6.3
       promise-retry: 2.0.1
       socks-proxy-agent: 7.0.0
-      ssri: 10.0.5
+      ssri: 10.0.4
     transitivePeerDependencies:
       - supports-color
     dev: false
@@ -15787,15 +15790,6 @@ packages:
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
     dependencies:
       minipass: 5.0.0
-
-  /ssri@10.0.5:
-    resolution: {integrity: sha512-bSf16tAFkGeRlUNDjXu8FzaMQt6g2HZJrun7mtMbIPOddxt3GLMSz5VWUWcqTJUPfLEaDIepGxv+bYQW49596A==}
-    engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
-    requiresBuild: true
-    dependencies:
-      minipass: 7.0.3
-    dev: false
-    optional: true
 
   /ssri@8.0.1:
     resolution: {integrity: sha512-97qShzy1AiyxvPNIkLWoGua7xoQzzPjQ0HAH4B0rWKo7SZ6USuPcrUiAFrws0UH8RrbWmgq3LMTObhPIHbbBeQ==}
