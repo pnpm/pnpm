@@ -59,10 +59,15 @@ export interface FileWriteResult {
   integrity: IntegrityLike
 }
 
+export interface AddToStoreResult {
+  filesIndex: FilesIndex
+  manifest?: DependencyManifest
+}
+
 export interface Cafs {
   cafsDir: string
-  addFilesFromDir: (dir: string, manifest?: DeferredManifestPromise) => FilesIndex
-  addFilesFromTarball: (buffer: Buffer, manifest?: DeferredManifestPromise) => FilesIndex
+  addFilesFromDir: (dir: string, readManifest?: boolean) => AddToStoreResult
+  addFilesFromTarball: (buffer: Buffer, readManifest?: boolean) => AddToStoreResult
   getFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
   getFilePathByModeInCafs: (integrity: string | IntegrityLike, mode: number) => string
   importPackage: ImportPackageFunction

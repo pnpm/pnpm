@@ -9,10 +9,8 @@ import {
   type PackageFilesIndex,
   optimisticRenameOverwrite,
 } from '@pnpm/store.cafs'
-import { type DependencyManifest } from '@pnpm/types'
 import { sync as loadJsonFile } from 'load-json-file'
 import { parentPort } from 'worker_threads'
-import safePromiseDefer from 'safe-promise-defer'
 import { type TarballExtractMessage, type LinkPkgMessage, type AddDirToStoreMessage } from './types'
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
@@ -56,8 +54,7 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
         cafsCache.set(cafsDir, createCafs(cafsDir))
       }
       const cafs = cafsCache.get(cafsDir)!
-      const manifestP = safePromiseDefer<DependencyManifest | undefined>()
-      const filesIndex = cafs.addFilesFromTarball(buffer, manifestP)
+      const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
       const filesIndexIntegrity: Record<string, PackageFileInfo> = {}
       const filesMap: Record<string, string> = {}
       for (const [k, v] of Object.entries(filesIndex)) {
@@ -69,7 +66,6 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
         }
         filesMap[k] = v.filePath
       }
-      const manifest = await manifestP()
       writeFilesIndexFile(filesIndexFile, { pkg: manifest ?? {}, files: filesIndexIntegrity })
       parentPort!.postMessage({ status: 'success', value: { filesIndex: filesMap, manifest } })
       break
@@ -106,8 +102,7 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
         cafsCache.set(cafsDir, createCafs(cafsDir))
       }
       const cafs = cafsCache.get(cafsDir)!
-      const manifestP = safePromiseDefer<DependencyManifest | undefined>()
-      const filesIndex = cafs.addFilesFromDir(dir, manifestP)
+      const { filesIndex, manifest } = cafs.addFilesFromDir(dir, true)
       const filesIndexIntegrity: Record<string, PackageFileInfo> = {}
       const filesMap: Record<string, string> = {}
       for (const [k, v] of Object.entries(filesIndex)) {
@@ -119,7 +114,6 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
         }
         filesMap[k] = v.filePath
       }
-      const manifest = await manifestP()
       if (sideEffectsCacheKey) {
         let filesIndex!: PackageFilesIndex
         try {

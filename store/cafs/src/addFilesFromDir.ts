@@ -1,24 +1,21 @@
 import fs, { type Stats } from 'fs'
 import path from 'path'
 import type {
-  DeferredManifestPromise,
   FilesIndex,
   FileWriteResult,
 } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
-import { parseJsonBuffer } from './parseJson'
+import { type DependencyManifest } from '@pnpm/types'
+import { parseJsonBufferSync } from './parseJson'
 
 export function addFilesFromDir (
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
   dirname: string,
-  manifest?: DeferredManifestPromise
-): FilesIndex {
-  const index: FilesIndex = {}
-  _retrieveFileIntegrities(addBuffer, dirname, dirname, index, manifest)
-  if (manifest && !index['package.json']) {
-    manifest.resolve(undefined)
-  }
-  return index
+  readManifest?: boolean
+): { filesIndex: FilesIndex, manifest?: DependencyManifest } {
+  const filesIndex: FilesIndex = {}
+  const manifest = _retrieveFileIntegrities(addBuffer, dirname, dirname, filesIndex, readManifest)
+  return { filesIndex, manifest }
 }
 
 function _retrieveFileIntegrities (
@@ -26,9 +23,10 @@ function _retrieveFileIntegrities (
   rootDir: string,
   currDir: string,
   index: FilesIndex,
-  deferredManifest?: DeferredManifestPromise
+  readManifest?: boolean
 ) {
   const files = fs.readdirSync(currDir, { withFileTypes: true })
+  let manifest: DependencyManifest | undefined
   for (const file of files) {
     const fullPath = path.join(currDir, file.name)
     if (file.isDirectory()) {
@@ -47,9 +45,9 @@ function _retrieveFileIntegrities (
         continue
       }
       const writeResult = (() => {
-        if ((deferredManifest != null) && rootDir === currDir && file.name === 'package.json') {
+        if (readManifest && rootDir === currDir && file.name === 'package.json') {
           const buffer = gfs.readFileSync(fullPath)
-          parseJsonBuffer(buffer, deferredManifest)
+          manifest = parseJsonBufferSync(buffer)
           return addBuffer(buffer, stat.mode)
         }
         const buffer = gfs.readFileSync(fullPath)
@@ -62,4 +60,5 @@ function _retrieveFileIntegrities (
       }
     }
   }
+  return manifest
 }
