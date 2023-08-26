@@ -7,6 +7,7 @@ import {
   createCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
+  type FilesIndex,
   optimisticRenameOverwrite,
 } from '@pnpm/store.cafs'
 import { sync as loadJsonFile } from 'load-json-file'
@@ -26,114 +27,116 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
     parentPort!.off('message', handleMessage)
     process.exit(0)
   }
-
   try {
     switch (message.type) {
     case 'extract': {
-      const { buffer, cafsDir, integrity, filesIndexFile } = message
-      if (integrity) {
-        const [, algo, integrityHash] = integrity.match(INTEGRITY_REGEX)!
-        // Compensate for the possibility of non-uniform Base64 padding
-        const normalizedRemoteHash: string = Buffer.from(integrityHash, 'base64').toString('hex')
-
-        const calculatedHash: string = crypto.createHash(algo).update(buffer).digest('hex')
-        if (calculatedHash !== normalizedRemoteHash) {
-          parentPort!.postMessage({
-            status: 'error',
-            error: {
-              type: 'integrity_validation_failed',
-              algorithm: algo,
-              expected: integrity,
-              found: `${algo}-${Buffer.from(calculatedHash, 'hex').toString('base64')}`,
-            },
-          })
-          return
-        }
-      }
-      if (!cafsCache.has(cafsDir)) {
-        cafsCache.set(cafsDir, createCafs(cafsDir))
-      }
-      const cafs = cafsCache.get(cafsDir)!
-      const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer)
-      const filesIndexIntegrity: Record<string, PackageFileInfo> = {}
-      const filesMap: Record<string, string> = {}
-      for (const [k, v] of Object.entries(filesIndex)) {
-        filesIndexIntegrity[k] = {
-          checkedAt: v.checkedAt,
-          integrity: v.integrity.toString(), // TODO: use the raw Integrity object
-          mode: v.mode,
-          size: v.size,
-        }
-        filesMap[k] = v.filePath
-      }
-      writeFilesIndexFile(filesIndexFile, { pkg: manifest ?? {}, files: filesIndexIntegrity })
-      parentPort!.postMessage({ status: 'success', value: { filesIndex: filesMap, manifest } })
+      parentPort!.postMessage(addTarballToStore(message))
       break
     }
     case 'link': {
-      const {
-        storeDir,
-        packageImportMethod,
-        filesResponse,
-        sideEffectsCacheKey,
-        targetDir,
-        requiresBuild,
-        force,
-        keepModulesDir,
-      } = message
-      const cacheKey = JSON.stringify({ storeDir, packageImportMethod })
-      if (!cafsStoreCache.has(cacheKey)) {
-        cafsStoreCache.set(cacheKey, createCafsStore(storeDir, { packageImportMethod, cafsLocker }))
-      }
-      const cafsStore = cafsStoreCache.get(cacheKey)!
-      const { importMethod, isBuilt } = cafsStore.importPackage(targetDir, {
-        filesResponse,
-        force,
-        requiresBuild,
-        sideEffectsCacheKey,
-        keepModulesDir,
-      })
-      parentPort!.postMessage({ status: 'success', value: { isBuilt, importMethod } })
+      parentPort!.postMessage(importPackage(message))
       break
     }
     case 'add-dir': {
-      const { dir, cafsDir, filesIndexFile, sideEffectsCacheKey } = message
-      if (!cafsCache.has(cafsDir)) {
-        cafsCache.set(cafsDir, createCafs(cafsDir))
-      }
-      const cafs = cafsCache.get(cafsDir)!
-      const { filesIndex, manifest } = cafs.addFilesFromDir(dir)
-      const filesIndexIntegrity: Record<string, PackageFileInfo> = {}
-      const filesMap: Record<string, string> = {}
-      for (const [k, v] of Object.entries(filesIndex)) {
-        filesIndexIntegrity[k] = {
-          checkedAt: v.checkedAt,
-          integrity: v.integrity.toString(), // TODO: use the raw Integrity object
-          mode: v.mode,
-          size: v.size,
-        }
-        filesMap[k] = v.filePath
-      }
-      if (sideEffectsCacheKey) {
-        let filesIndex!: PackageFilesIndex
-        try {
-          filesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
-        } catch { // eslint-disable-line
-          filesIndex = { files: filesIndexIntegrity }
-        }
-        filesIndex.sideEffects = filesIndex.sideEffects ?? {}
-        filesIndex.sideEffects[sideEffectsCacheKey] = filesIndexIntegrity
-        writeJsonFile(filesIndexFile, filesIndex)
-      } else {
-        writeFilesIndexFile(filesIndexFile, { pkg: manifest ?? {}, files: filesIndexIntegrity })
-      }
-      parentPort!.postMessage({ status: 'success', value: { filesIndex: filesMap, manifest } })
+      parentPort!.postMessage(addFilesFromDir(message))
       break
     }
     }
   } catch (e: any) { // eslint-disable-line
     parentPort!.postMessage({ status: 'error', error: e.toString() })
   }
+}
+
+function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile }: TarballExtractMessage) {
+  if (integrity) {
+    const [, algo, integrityHash] = integrity.match(INTEGRITY_REGEX)!
+    // Compensate for the possibility of non-uniform Base64 padding
+    const normalizedRemoteHash: string = Buffer.from(integrityHash, 'base64').toString('hex')
+
+    const calculatedHash: string = crypto.createHash(algo).update(buffer).digest('hex')
+    if (calculatedHash !== normalizedRemoteHash) {
+      return {
+        status: 'error',
+        error: {
+          type: 'integrity_validation_failed',
+          algorithm: algo,
+          expected: integrity,
+          found: `${algo}-${Buffer.from(calculatedHash, 'hex').toString('base64')}`,
+        },
+      }
+    }
+  }
+  if (!cafsCache.has(cafsDir)) {
+    cafsCache.set(cafsDir, createCafs(cafsDir))
+  }
+  const cafs = cafsCache.get(cafsDir)!
+  const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer)
+  const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
+  writeFilesIndexFile(filesIndexFile, { pkg: manifest ?? {}, files: filesIntegrity })
+  return { status: 'success', value: { filesIndex: filesMap, manifest } }
+}
+
+function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey }: AddDirToStoreMessage) {
+  if (!cafsCache.has(cafsDir)) {
+    cafsCache.set(cafsDir, createCafs(cafsDir))
+  }
+  const cafs = cafsCache.get(cafsDir)!
+  const { filesIndex, manifest } = cafs.addFilesFromDir(dir)
+  const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
+  if (sideEffectsCacheKey) {
+    let filesIndex!: PackageFilesIndex
+    try {
+      filesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
+    } catch {
+      filesIndex = { files: filesIntegrity }
+    }
+    filesIndex.sideEffects = filesIndex.sideEffects ?? {}
+    filesIndex.sideEffects[sideEffectsCacheKey] = filesIntegrity
+    writeJsonFile(filesIndexFile, filesIndex)
+  } else {
+    writeFilesIndexFile(filesIndexFile, { pkg: manifest ?? {}, files: filesIntegrity })
+  }
+  return { status: 'success', value: { filesIndex: filesMap, manifest } }
+}
+
+function processFilesIndex (filesIndex: FilesIndex) {
+  const filesIntegrity: Record<string, PackageFileInfo> = {}
+  const filesMap: Record<string, string> = {}
+  for (const [k, { checkedAt, filePath, integrity, mode, size }] of Object.entries(filesIndex)) {
+    filesIntegrity[k] = {
+      checkedAt,
+      integrity: integrity.toString(), // TODO: use the raw Integrity object
+      mode,
+      size,
+    }
+    filesMap[k] = filePath
+  }
+  return { filesIntegrity, filesMap }
+}
+
+function importPackage ({
+  storeDir,
+  packageImportMethod,
+  filesResponse,
+  sideEffectsCacheKey,
+  targetDir,
+  requiresBuild,
+  force,
+  keepModulesDir,
+}: LinkPkgMessage) {
+  const cacheKey = JSON.stringify({ storeDir, packageImportMethod })
+  if (!cafsStoreCache.has(cacheKey)) {
+    cafsStoreCache.set(cacheKey, createCafsStore(storeDir, { packageImportMethod, cafsLocker }))
+  }
+  const cafsStore = cafsStoreCache.get(cacheKey)!
+  const { importMethod, isBuilt } = cafsStore.importPackage(targetDir, {
+    filesResponse,
+    force,
+    requiresBuild,
+    sideEffectsCacheKey,
+    keepModulesDir,
+  })
+  return { status: 'success', value: { isBuilt, importMethod } }
 }
 
 function writeFilesIndexFile (

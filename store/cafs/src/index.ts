@@ -1,4 +1,4 @@
-import type { FileWriteResult, PackageFileInfo } from '@pnpm/cafs-types'
+import { type FileWriteResult, type PackageFileInfo, type FilesIndex } from '@pnpm/cafs-types'
 import ssri from 'ssri'
 import { addFilesFromDir } from './addFilesFromDir'
 import { addFilesFromTarball } from './addFilesFromTarball'
@@ -27,6 +27,7 @@ export {
   type PackageFileInfo,
   type PackageFilesIndex,
   optimisticRenameOverwrite,
+  type FilesIndex,
 }
 
 export type CafsLocker = Map<string, number>
