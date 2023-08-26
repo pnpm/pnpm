@@ -53,7 +53,7 @@
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
-    "@pnpm/fetching.tarball-worker": "workspace:*",
+    "@pnpm/worker": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
     "@zkochan/rimraf": "^2.1.3",

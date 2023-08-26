@@ -14,7 +14,7 @@ import {
 import { createBase32HashFromFile } from '@pnpm/crypto.base32-hash'
 import { PnpmError } from '@pnpm/error'
 import { getContext, type PnpmContext } from '@pnpm/get-context'
-import { workerPool } from '@pnpm/fetching.tarball-worker'
+import { workerPool } from '@pnpm/worker'
 import { headlessInstall, type InstallationResultStats } from '@pnpm/headless'
 import {
   makeNodeRequireOption,

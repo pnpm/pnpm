@@ -1,6 +1,6 @@
 {
   "pkg": {
-    "assets": ["dist/tarballWorker.js", "dist/pnpmrc", "dist/scripts/*"],
+    "assets": ["dist/worker.js", "dist/pnpmrc", "dist/scripts/*"],
     "targets": ["node18-macos-x64"],
     "outputPath": "../macos-x64"
   }

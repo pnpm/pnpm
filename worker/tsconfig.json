@@ -10,22 +10,22 @@
   ],
   "references": [
     {
-      "path": "../../fs/graceful-fs"
+      "path": "../fs/graceful-fs"
     },
     {
-      "path": "../../packages/error"
+      "path": "../packages/error"
     },
     {
-      "path": "../../packages/types"
+      "path": "../packages/types"
     },
     {
-      "path": "../../store/cafs"
+      "path": "../store/cafs"
     },
     {
-      "path": "../../store/cafs-types"
+      "path": "../store/cafs-types"
     },
     {
-      "path": "../../store/create-cafs-store"
+      "path": "../store/create-cafs-store"
     }
   ],
   "composite": true

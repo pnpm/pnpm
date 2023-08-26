@@ -40,10 +40,10 @@
       "path": "../../store/create-cafs-store"
     },
     {
-      "path": "../fetcher-base"
+      "path": "../../worker"
     },
     {
-      "path": "../tarball-worker"
+      "path": "../fetcher-base"
     }
   ],
   "composite": true

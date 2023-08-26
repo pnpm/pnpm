@@ -7,7 +7,7 @@ import {
   type ImportIndexedPackageAsync,
   type StoreController,
 } from '@pnpm/store-controller-types'
-import { addFilesFromDir, workerPool as pool } from '@pnpm/fetching.tarball-worker'
+import { addFilesFromDir, workerPool as pool } from '@pnpm/worker'
 import { prune } from './prune'
 
 export { type CafsLocker }

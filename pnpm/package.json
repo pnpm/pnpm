@@ -149,7 +149,7 @@
     "url": "git+https://github.com/pnpm/pnpm.git"
   },
   "scripts": {
-    "bundle": "cross-var esbuild lib/pnpm.js --bundle --platform=node --outfile=dist/pnpm.cjs --external:node-gyp --define:process.env.npm_package_name=\\\"$npm_package_name\\\" --define:process.env.npm_package_version=\\\"$npm_package_version\\\" && esbuild ../fetching/tarball-worker/lib/tarballWorker.js --bundle --platform=node --outfile=dist/tarballWorker.js",
+    "bundle": "cross-var esbuild lib/pnpm.js --bundle --platform=node --outfile=dist/pnpm.cjs --external:node-gyp --define:process.env.npm_package_name=\\\"$npm_package_name\\\" --define:process.env.npm_package_version=\\\"$npm_package_version\\\" && esbuild ../worker/lib/worker.js --bundle --platform=node --outfile=dist/worker.js",
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",

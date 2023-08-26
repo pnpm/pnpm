@@ -9,7 +9,7 @@ import {
   type GetAuthHeader,
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
-import { TarballIntegrityError } from '@pnpm/fetching.tarball-worker'
+import { TarballIntegrityError } from '@pnpm/worker'
 import {
   createDownloader,
   type DownloadFunction,

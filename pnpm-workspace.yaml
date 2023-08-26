@@ -20,6 +20,7 @@ packages:
   - pkg-manifest/*
   - patching/*
   - pnpm
+  - worker
   - pnpm/artifacts/*
   - releasing/*
   - resolving/*

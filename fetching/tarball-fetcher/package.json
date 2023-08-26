@@ -38,7 +38,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/fetching.tarball-worker": "workspace:*",
+    "@pnpm/worker": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
     "@zkochan/retry": "^0.2.0",

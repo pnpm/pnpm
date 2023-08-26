@@ -11,12 +11,12 @@ const workerPool = createTarballWorkerPool()
 
 export { workerPool }
 
-export function createTarballWorkerPool () {
+function createTarballWorkerPool () {
   const maxWorkers = Math.max(2, os.cpus().length - Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)) - 1
   const workerPool = new WorkerPool({
-    id: 'tarball',
+    id: 'pnpm',
     maxWorkers,
-    workerScriptPath: path.join(__dirname, 'tarballWorker.js'),
+    workerScriptPath: path.join(__dirname, 'worker.js'),
   })
   // @ts-expect-error
   if (global.finishWorkers) {

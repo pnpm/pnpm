@@ -34,9 +34,6 @@
       "path": "../../exec/lifecycle"
     },
     {
-      "path": "../../fetching/tarball-worker"
-    },
-    {
       "path": "../../fs/read-modules-dir"
     },
     {
@@ -122,6 +119,9 @@
     },
     {
       "path": "../../store/store-path"
+    },
+    {
+      "path": "../../worker"
     },
     {
       "path": "../client"

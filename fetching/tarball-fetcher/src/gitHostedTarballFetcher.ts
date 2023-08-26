@@ -2,7 +2,7 @@ import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
-import { addFilesFromDir } from '@pnpm/fetching.tarball-worker'
+import { addFilesFromDir } from '@pnpm/worker'
 
 interface Resolution {
   integrity?: string

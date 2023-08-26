@@ -1,5 +1,5 @@
 ---
-"@pnpm/fetching.tarball-worker": minor
+"@pnpm/worker": minor
 ---
 
 Initial release.
