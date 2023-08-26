@@ -50,8 +50,7 @@ export interface FilesIndex {
   [filename: string]: {
     mode: number
     size: number
-    writeResult: Promise<FileWriteResult>
-  }
+  } & FileWriteResult
 }
 
 export interface FileWriteResult {
@@ -61,7 +60,7 @@ export interface FileWriteResult {
 
 export interface Cafs {
   cafsDir: string
-  addFilesFromDir: (dir: string, manifest?: DeferredManifestPromise) => Promise<FilesIndex>
+  addFilesFromDir: (dir: string, manifest?: DeferredManifestPromise) => FilesIndex
   addFilesFromTarball: (buffer: Buffer, manifest?: DeferredManifestPromise) => FilesIndex
   getFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
   getFilePathByModeInCafs: (integrity: string | IntegrityLike, mode: number) => string

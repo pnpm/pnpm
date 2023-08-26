@@ -17,13 +17,8 @@ export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions
 
 export type FetchResult = {
   local?: boolean
-} & ({ // TODO: remove this one
-  unprocessed: true
-  filesIndex: FilesIndex
-} | {
-  unprocessed?: false
   filesIndex: Record<string, string>
-})
+}
 
 export interface GitFetcherOptions {
   manifest?: DeferredManifestPromise

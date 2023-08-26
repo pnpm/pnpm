@@ -1,4 +1,4 @@
-import { createReadStream, promises as fs, mkdirSync } from 'fs'
+import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
 import {
   checkPkgFilesIntegrity as _checkFilesIntegrity,
@@ -6,9 +6,7 @@ import {
   type FileType,
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
   getFilePathInCafs as _getFilePathInCafs,
-  type PackageFileInfo,
   type PackageFilesIndex,
-  optimisticRenameOverwrite,
 } from '@pnpm/store.cafs'
 import { fetchingProgressLogger, progressLogger } from '@pnpm/core-loggers'
 import { pickFetcher } from '@pnpm/pick-fetcher'
@@ -45,7 +43,6 @@ import {
 } from '@pnpm/store-controller-types'
 import { type DependencyManifest } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
-import pMapValues from 'p-map-values'
 import PQueue from 'p-queue'
 import loadJsonFile from 'load-json-file'
 import pDefer from 'p-defer'
@@ -574,57 +571,16 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
         }
       ), { priority })
 
-      let filesResult!: PackageFilesResponse
-      if (fetchedPackage.unprocessed) {
-        // Ideally, files wouldn't care about when integrity is calculated.
-        // However, we can only rename the temp folder once we know the package name.
-        // And we cannot rename the temp folder till we're calculating integrities.
-        const integrity = await pMapValues(async ({ writeResult, mode, size }) => {
-          const { checkedAt, integrity } = await writeResult
-          return {
-            checkedAt,
-            integrity: integrity.toString(), // TODO: use the raw Integrity object
-            mode,
-            size,
-          }
-        }, fetchedPackage.filesIndex)
-        if (opts.pkg.name && opts.pkg.version) {
-          writeFilesIndexFile(filesIndexFile, {
-            pkg: opts.pkg,
-            files: integrity,
-          })
-        } else {
-          // Even though we could take the package name from the lockfile,
-          // it is not safe because the lockfile may be broken or manually edited.
-          // To be safe, we read the package name from the downloaded package's package.json instead.
-          /* eslint-disable @typescript-eslint/no-floating-promises */
-          bundledManifest.promise
-            .then((manifest) => {
-              writeFilesIndexFile(filesIndexFile, {
-                pkg: manifest ?? {},
-                files: integrity,
-              })
-            })
-            .catch()
-          /* eslint-enable @typescript-eslint/no-floating-promises */
-        }
-        filesResult = {
-          unprocessed: true,
-          fromStore: false,
-          filesIndex: integrity,
-        }
-      } else {
-        filesResult = {
-          local: fetchedPackage.local,
-          fromStore: !fetchedPackage.local ? false : !ctx.relinkLocalDirDeps,
-          filesIndex: fetchedPackage.filesIndex,
-          packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
-        }
-        if (fetchedPackage.filesIndex['package.json'] != null) {
-          readBundledManifest(fetchedPackage.filesIndex['package.json'])
-            .then(bundledManifest.resolve)
-            .catch(bundledManifest.reject)
-        }
+      const filesResult: PackageFilesResponse = {
+        local: fetchedPackage.local,
+        fromStore: !fetchedPackage.local ? false : !ctx.relinkLocalDirDeps,
+        filesIndex: fetchedPackage.filesIndex,
+        packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
+      }
+      if (fetchedPackage.filesIndex['package.json'] != null) {
+        readBundledManifest(fetchedPackage.filesIndex['package.json'])
+          .then(bundledManifest.resolve)
+          .catch(bundledManifest.reject)
       }
 
       if (isLocalTarballDep && (opts.pkg.resolution as TarballResolution).integrity) {
@@ -641,33 +597,6 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       }
     }
   }
-}
-
-function writeFilesIndexFile (
-  filesIndexFile: string,
-  { pkg, files }: {
-    pkg: PkgNameVersion
-    files: Record<string, PackageFileInfo>
-  }
-) {
-  writeJsonFile(filesIndexFile, {
-    name: pkg.name,
-    version: pkg.version,
-    files,
-  })
-}
-
-function writeJsonFile (filePath: string, data: unknown) {
-  const targetDir = path.dirname(filePath)
-  // TODO: use the API of @pnpm/cafs to write this file
-  // There is actually no need to create the directory in 99% of cases.
-  // So by using cafs API, we'll improve performance.
-  mkdirSync(targetDir, { recursive: true })
-  // We remove the "-index.json" from the end of the temp file name
-  // in order to avoid ENAMETOOLONG errors
-  const temp = `${filePath.slice(0, -11)}${process.pid}`
-  gfs.writeFileSync(temp, JSON.stringify(data))
-  optimisticRenameOverwrite(temp, filePath)
 }
 
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {

@@ -11,7 +11,7 @@ export function addFilesFromTarball (
   manifest?: DeferredManifestPromise
 ): FilesIndex {
   const ignore = _ignore ?? (() => false)
-  const tarContent = isGzip(tarballBuffer) ? gunzipSync(tarballBuffer) : tarballBuffer
+  const tarContent = isGzip(tarballBuffer) ? gunzipSync(tarballBuffer) : (Buffer.isBuffer(tarballBuffer) ? tarballBuffer : Buffer.from(tarballBuffer))
   const { files } = parseTarball(tarContent)
   const filesIndex: FilesIndex = {}
   let manifestBuffer: Buffer | undefined
@@ -20,14 +20,13 @@ export function addFilesFromTarball (
     if (ignore(relativePath)) continue
 
     const fileBuffer = tarContent.slice(offset, offset + size)
-    const writeResult = addBufferToCafs(fileBuffer, mode)
     if (relativePath === 'package.json' && (manifest != null)) {
       manifestBuffer = fileBuffer
     }
     filesIndex[relativePath] = {
       mode,
       size,
-      writeResult: Promise.resolve(writeResult),
+      ...addBufferToCafs(fileBuffer, mode),
     }
   }
   if (!filesIndex['package.json'] && manifest != null) {

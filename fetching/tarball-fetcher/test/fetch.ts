@@ -4,7 +4,6 @@ import path from 'path'
 import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import { createCafsStore } from '@pnpm/create-cafs-store'
-import { getFilePathInCafs } from '@pnpm/store.cafs'
 import { globalWarn } from '@pnpm/logger'
 import { fixtures } from '@pnpm/test-fixtures'
 import {
@@ -216,7 +215,7 @@ test("don't fail when integrity check of local file succeeds", async () => {
     lockfileDir: process.cwd(),
   })
 
-  expect(typeof filesIndex['package.json']).toBe('object')
+  expect(typeof filesIndex['package.json']).toBe('string')
 })
 
 test("don't fail when fetching a local tarball in offline mode", async () => {
@@ -242,7 +241,7 @@ test("don't fail when fetching a local tarball in offline mode", async () => {
     lockfileDir: process.cwd(),
   })
 
-  expect(typeof filesIndex['package.json']).toBe('object')
+  expect(typeof filesIndex['package.json']).toBe('string')
 })
 
 test('fail when trying to fetch a non-local tarball in offline mode', async () => {
@@ -465,9 +464,7 @@ test('when extracting files with the same name, pick the last ones', async () =>
     lockfileDir: process.cwd(),
     manifest,
   })
-  const { integrity } = await (filesIndex['package.json'] as any).writeResult // eslint-disable-line
-  const filePath = getFilePathInCafs(path.join(cafsDir, 'files'), integrity, 'nonexec')
-  const pkgJson = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+  const pkgJson = JSON.parse(fs.readFileSync(filesIndex['package.json'], 'utf8'))
   expect(pkgJson.name).toBe('pkg2')
   expect((await manifest())?.name).toBe('pkg2')
 })

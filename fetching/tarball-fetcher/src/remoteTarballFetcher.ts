@@ -1,49 +1,15 @@
 import { type IncomingMessage } from 'http'
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { FetchError, PnpmError } from '@pnpm/error'
+import { FetchError } from '@pnpm/error'
 import { type FetchResult } from '@pnpm/fetcher-base'
 import type { Cafs, DeferredManifestPromise } from '@pnpm/cafs-types'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
-import { type WorkerPool } from '@pnpm/fetching.tarball-worker'
+import { addFilesFromTarball } from '@pnpm/fetching.tarball-worker'
 import * as retry from '@zkochan/retry'
 import throttle from 'lodash.throttle'
 import { BadTarballError } from './errorTypes'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
-
-export class TarballIntegrityError extends PnpmError {
-  public readonly found: string
-  public readonly expected: string
-  public readonly algorithm: string
-  public readonly sri: string
-  public readonly url: string
-
-  constructor (opts: {
-    attempts?: number
-    found: string
-    expected: string
-    algorithm: string
-    sri: string
-    url: string
-  }) {
-    super('TARBALL_INTEGRITY',
-      `Got unexpected checksum for "${opts.url}". Wanted "${opts.expected}". Got "${opts.found}".`,
-      {
-        attempts: opts.attempts,
-        hint: `This error may happen when a package is republished to the registry with the same version.
-In this case, the metadata in the local pnpm cache will contain the old integrity checksum.
-
-If you think that this is the case, then run "pnpm store prune" and rerun the command that failed.
-"pnpm store prune" will remove your local metadata cache.`,
-      }
-    )
-    this.found = opts.found
-    this.expected = opts.expected
-    this.algorithm = opts.algorithm
-    this.sri = opts.sri
-    this.url = opts.url
-  }
-}
 
 export interface HttpResponse {
   body: string
@@ -66,7 +32,6 @@ export interface NpmRegistryClient {
 }
 
 export function createDownloader (
-  pool: WorkerPool,
   fetchFromRegistry: FetchFromRegistry,
   gotOpts: {
     // retry
@@ -176,39 +141,22 @@ export function createDownloader (
           })
         }
 
-        // eslint-disable-next-line no-async-promise-executor
-        return await new Promise<FetchResult>(async (resolve, reject) => {
-          const data: Buffer = Buffer.from(new SharedArrayBuffer(downloaded))
-          let offset: number = 0
-          for (const chunk of chunks) {
-            chunk.copy(data, offset)
-            offset += chunk.length
-          }
-          const localWorker = await pool.checkoutWorkerAsync(true)
-          localWorker.once('message', ({ status, error, value }) => {
-            pool.checkinWorker(localWorker)
-            if (status === 'error') {
-              if (error.type === 'integrity_validation_failed') {
-                reject(new TarballIntegrityError({
-                  ...error,
-                  url,
-                }))
-                return
-              }
-              reject(new PnpmError('TARBALL_EXTRACT', `Failed to unpack the tarball from "${url}": ${error as string}`))
-              return
-            }
-            opts.manifest?.resolve(value.manifest)
-            resolve({ filesIndex: value.filesIndex })
-          })
-          localWorker.postMessage({
-            type: 'extract',
+        const data: Buffer = Buffer.from(new SharedArrayBuffer(downloaded))
+        let offset: number = 0
+        for (const chunk of chunks) {
+          chunk.copy(data, offset)
+          offset += chunk.length
+        }
+        return {
+          filesIndex: await addFilesFromTarball({
             buffer: data,
             cafsDir: opts.cafs.cafsDir,
+            manifest: opts.manifest,
             integrity: opts.integrity,
             filesIndexFile: opts.filesIndexFile,
-          })
-        })
+            url,
+          }),
+        }
       } catch (err: any) { // eslint-disable-line
         err.attempts = currentAttempt
         err.resource = url

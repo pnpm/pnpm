@@ -1,5 +1,4 @@
 import type { FileWriteResult, PackageFileInfo } from '@pnpm/cafs-types'
-import getStream from 'get-stream'
 import ssri from 'ssri'
 import { addFilesFromDir } from './addFilesFromDir'
 import { addFilesFromTarball } from './addFilesFromTarball'
@@ -39,23 +38,13 @@ export interface CreateCafsOpts {
 
 export function createCafs (cafsDir: string, { ignoreFile, cafsLocker }: CreateCafsOpts = {}) {
   const _writeBufferToCafs = writeBufferToCafs.bind(null, cafsLocker ?? new Map(), cafsDir)
-  const addStream = addStreamToCafs.bind(null, _writeBufferToCafs)
   const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
   return {
-    addFilesFromDir: addFilesFromDir.bind(null, { addBuffer, addStream }),
+    addFilesFromDir: addFilesFromDir.bind(null, { addBuffer }),
     addFilesFromTarball: addFilesFromTarball.bind(null, addBuffer, ignoreFile ?? null),
     getFilePathInCafs: getFilePathInCafs.bind(null, cafsDir),
     getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, cafsDir),
   }
-}
-
-async function addStreamToCafs (
-  writeBufferToCafs: WriteBufferToCafs,
-  fileStream: NodeJS.ReadableStream,
-  mode: number
-): Promise<FileWriteResult> {
-  const buffer = await getStream.buffer(fileStream)
-  return addBufferToCafs(writeBufferToCafs, buffer, mode)
 }
 
 type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, integrity: ssri.IntegrityLike) => number

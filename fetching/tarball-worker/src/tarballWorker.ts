@@ -60,16 +60,15 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
       const manifestP = safePromiseDefer<DependencyManifest | undefined>()
       const filesIndex = cafs.addFilesFromTarball(buffer, manifestP)
       const filesIndexIntegrity = {} as Record<string, PackageFileInfo>
-      const filesMap = Object.fromEntries(await Promise.all(Object.entries(filesIndex).map(async ([k, v]) => {
-        const { checkedAt, integrity } = await v.writeResult
+      const filesMap = Object.fromEntries(Object.entries(filesIndex).map(([k, v]) => {
         filesIndexIntegrity[k] = {
-          checkedAt,
-          integrity: integrity.toString(), // TODO: use the raw Integrity object
+          checkedAt: v.checkedAt,
+          integrity: v.integrity.toString(), // TODO: use the raw Integrity object
           mode: v.mode,
           size: v.size,
         }
-        return [k, getFilePathByModeInCafs(cafsDir, integrity, v.mode)]
-      })))
+        return [k, getFilePathByModeInCafs(cafsDir, v.integrity, v.mode)]
+      }))
       const manifest = await manifestP()
       writeFilesIndexFile(filesIndexFile, { pkg: manifest ?? {}, files: filesIndexIntegrity })
       parentPort!.postMessage({ status: 'success', value: { filesIndex: filesMap, manifest } })
@@ -108,18 +107,17 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
       }
       const cafs = cafsCache.get(cafsDir)!
       const manifestP = safePromiseDefer<DependencyManifest | undefined>()
-      const filesIndex = await cafs.addFilesFromDir(dir, manifestP)
+      const filesIndex = cafs.addFilesFromDir(dir, manifestP)
       const filesIndexIntegrity = {} as Record<string, PackageFileInfo>
-      const filesMap = Object.fromEntries(await Promise.all(Object.entries(filesIndex).map(async ([k, v]) => {
-        const { checkedAt, integrity } = await v.writeResult
+      const filesMap = Object.fromEntries(Object.entries(filesIndex).map(([k, v]) => {
         filesIndexIntegrity[k] = {
-          checkedAt,
-          integrity: integrity.toString(), // TODO: use the raw Integrity object
+          checkedAt: v.checkedAt,
+          integrity: v.integrity.toString(), // TODO: use the raw Integrity object
           mode: v.mode,
           size: v.size,
         }
-        return [k, getFilePathByModeInCafs(cafsDir, integrity, v.mode)]
-      })))
+        return [k, getFilePathByModeInCafs(cafsDir, v.integrity, v.mode)]
+      }))
       const manifest = await manifestP()
       if (sideEffectsCacheKey) {
         let filesIndex!: PackageFilesIndex
