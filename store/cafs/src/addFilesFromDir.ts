@@ -1,8 +1,9 @@
 import fs, { type Stats } from 'fs'
 import path from 'path'
-import type {
-  FilesIndex,
-  FileWriteResult,
+import {
+  type AddToStoreResult,
+  type FilesIndex,
+  type FileWriteResult,
 } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { type DependencyManifest } from '@pnpm/types'
@@ -10,11 +11,10 @@ import { parseJsonBufferSync } from './parseJson'
 
 export function addFilesFromDir (
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
-  dirname: string,
-  readManifest?: boolean
-): { filesIndex: FilesIndex, manifest?: DependencyManifest } {
+  dirname: string
+): AddToStoreResult {
   const filesIndex: FilesIndex = {}
-  const manifest = _retrieveFileIntegrities(addBuffer, dirname, dirname, filesIndex, readManifest)
+  const manifest = _retrieveFileIntegrities(addBuffer, dirname, dirname, filesIndex)
   return { filesIndex, manifest }
 }
 
@@ -22,8 +22,7 @@ function _retrieveFileIntegrities (
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
   rootDir: string,
   currDir: string,
-  index: FilesIndex,
-  readManifest?: boolean
+  index: FilesIndex
 ) {
   const files = fs.readdirSync(currDir, { withFileTypes: true })
   let manifest: DependencyManifest | undefined
@@ -44,19 +43,14 @@ function _retrieveFileIntegrities (
         }
         continue
       }
-      const writeResult = (() => {
-        if (readManifest && rootDir === currDir && file.name === 'package.json') {
-          const buffer = gfs.readFileSync(fullPath)
-          manifest = parseJsonBufferSync(buffer)
-          return addBuffer(buffer, stat.mode)
-        }
-        const buffer = gfs.readFileSync(fullPath)
-        return addBuffer(buffer, stat.mode)
-      })()
+      const buffer = gfs.readFileSync(fullPath)
+      if (rootDir === currDir && file.name === 'package.json') {
+        manifest = parseJsonBufferSync(buffer)
+      }
       index[relativePath] = {
         mode: stat.mode,
         size: stat.size,
-        ...writeResult,
+        ...addBuffer(buffer, stat.mode),
       }
     }
   }

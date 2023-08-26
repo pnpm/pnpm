@@ -54,7 +54,7 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
         cafsCache.set(cafsDir, createCafs(cafsDir))
       }
       const cafs = cafsCache.get(cafsDir)!
-      const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, true)
+      const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer)
       const filesIndexIntegrity: Record<string, PackageFileInfo> = {}
       const filesMap: Record<string, string> = {}
       for (const [k, v] of Object.entries(filesIndex)) {
@@ -102,7 +102,7 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
         cafsCache.set(cafsDir, createCafs(cafsDir))
       }
       const cafs = cafsCache.get(cafsDir)!
-      const { filesIndex, manifest } = cafs.addFilesFromDir(dir, true)
+      const { filesIndex, manifest } = cafs.addFilesFromDir(dir)
       const filesIndexIntegrity: Record<string, PackageFileInfo> = {}
       const filesMap: Record<string, string> = {}
       for (const [k, v] of Object.entries(filesIndex)) {

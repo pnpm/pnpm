@@ -66,8 +66,8 @@ export interface AddToStoreResult {
 
 export interface Cafs {
   cafsDir: string
-  addFilesFromDir: (dir: string, readManifest?: boolean) => AddToStoreResult
-  addFilesFromTarball: (buffer: Buffer, readManifest?: boolean) => AddToStoreResult
+  addFilesFromDir: (dir: string) => AddToStoreResult
+  addFilesFromTarball: (buffer: Buffer) => AddToStoreResult
   getFilePathInCafs: (integrity: string | IntegrityLike, fileType: FileType) => string
   getFilePathByModeInCafs: (integrity: string | IntegrityLike, mode: number) => string
   importPackage: ImportPackageFunction
