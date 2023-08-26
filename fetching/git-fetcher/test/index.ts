@@ -43,10 +43,10 @@ test('fetch', async () => {
     },
     {
       manifest,
+      filesIndexFile: path.join(cafsDir, 'index.json'),
     }
   )
   expect(filesIndex['package.json']).toBeTruthy()
-  expect(filesIndex['package.json'].writeResult).toBeTruthy()
   const name = (await manifest.promise).name
   expect(name).toEqual('is-positive')
 })
@@ -64,6 +64,7 @@ test('fetch a package from Git that has a prepare script', async () => {
     },
     {
       manifest,
+      filesIndexFile: path.join(cafsDir, 'index.json'),
     }
   )
   expect(filesIndex[`dist${path.sep}index.js`]).toBeTruthy()
@@ -84,6 +85,7 @@ test('fetch a package without a package.json', async () => {
     },
     {
       manifest,
+      filesIndexFile: path.join(cafsDir, 'index.json'),
     }
   )
   expect(filesIndex['denolib.json']).toBeTruthy()
@@ -99,8 +101,11 @@ test('fetch a big repository', async () => {
       commit: 'a65fbf5a90f53c9d72fed4daaca59da50f074355',
       repo: 'https://github.com/sveltejs/action-deploy-docs.git',
       type: 'git',
-    }, { manifest })
-  await Promise.all(Object.values(filesIndex).map(({ writeResult }) => writeResult))
+    }, {
+      manifest,
+      filesIndexFile: path.join(cafsDir, 'index.json'),
+    })
+  expect(filesIndex).toBeTruthy()
 })
 
 test('still able to shallow fetch for allowed hosts', async () => {
@@ -114,6 +119,7 @@ test('still able to shallow fetch for allowed hosts', async () => {
   }
   const { filesIndex } = await fetch(createCafsStore(cafsDir), resolution, {
     manifest,
+    filesIndexFile: path.join(cafsDir, 'index.json'),
   })
   const calls = (execa as jest.Mock).mock.calls
   const expectedCalls = [
@@ -129,7 +135,6 @@ test('still able to shallow fetch for allowed hosts', async () => {
     expect(calls[i].slice(0, -1)).toEqual(expectedCalls[i])
   }
   expect(filesIndex['package.json']).toBeTruthy()
-  expect(filesIndex['package.json'].writeResult).toBeTruthy()
   const name = (await manifest.promise).name
   expect(name).toEqual('is-positive')
 })
@@ -144,7 +149,10 @@ test('fail when preparing a git-hosted package', async () => {
         commit: 'ba58874aae1210a777eb309dd01a9fdacc7e54e7',
         repo: 'https://github.com/pnpm-e2e/prepare-script-fails.git',
         type: 'git',
-      }, { manifest })
+      }, {
+        manifest,
+        filesIndexFile: path.join(cafsDir, 'index.json'),
+      })
   ).rejects.toThrow('Failed to prepare git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-fails.git": @pnpm.e2e/prepare-script-fails@1.0.0 npm-install: `npm install`')
 })
 
@@ -157,7 +165,10 @@ test('do not build the package when scripts are ignored', async () => {
       commit: '55416a9c468806a935636c0ad0371a14a64df8c9',
       repo: 'https://github.com/pnpm-e2e/prepare-script-works.git',
       type: 'git',
-    }, { manifest })
+    }, {
+      manifest,
+      filesIndexFile: path.join(cafsDir, 'index.json'),
+    })
   expect(filesIndex['package.json']).toBeTruthy()
   expect(filesIndex['prepare.txt']).toBeFalsy()
   expect(globalWarn).toHaveBeenCalledWith('The git-hosted package fetched from "https://github.com/pnpm-e2e/prepare-script-works.git" has to be built but the build scripts were ignored.')

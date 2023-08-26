@@ -44,14 +44,12 @@
     "@zkochan/retry": "^0.2.0",
     "lodash.throttle": "4.1.1",
     "p-map-values": "^1.0.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "ssri": "10.0.4"
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/fetch": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/tarball-fetcher": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -61,6 +59,7 @@
     "@types/ssri": "^7.1.1",
     "nock": "13.3.2",
     "safe-promise-defer": "^1.0.1",
+    "ssri": "10.0.4",
     "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",

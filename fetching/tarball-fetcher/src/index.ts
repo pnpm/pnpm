@@ -9,11 +9,10 @@ import {
   type GetAuthHeader,
   type RetryTimeoutOptions,
 } from '@pnpm/fetching-types'
-import { workerPool } from '@pnpm/fetching.tarball-worker'
+import { TarballIntegrityError } from '@pnpm/fetching.tarball-worker'
 import {
   createDownloader,
   type DownloadFunction,
-  TarballIntegrityError,
 } from './remoteTarballFetcher'
 import { createLocalTarballFetcher } from './localTarballFetcher'
 import { createGitHostedTarballFetcher } from './gitHostedTarballFetcher'
@@ -40,7 +39,7 @@ export function createTarballFetcher (
     offline?: boolean
   }
 ): TarballFetchers {
-  const download = createDownloader(workerPool, fetchFromRegistry, {
+  const download = createDownloader(fetchFromRegistry, {
     retry: opts.retry,
     timeout: opts.timeout,
   })

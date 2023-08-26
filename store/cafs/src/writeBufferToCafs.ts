@@ -12,10 +12,13 @@ export function writeBufferToCafs (
   fileDest: string,
   mode: number | undefined,
   integrity: ssri.IntegrityLike
-): number {
+): { checkedAt: number, filePath: string } {
   fileDest = path.join(cafsDir, fileDest)
   if (locker.has(fileDest)) {
-    return locker.get(fileDest)!
+    return {
+      checkedAt: locker.get(fileDest)!,
+      filePath: fileDest,
+    }
   }
   // This part is a bit redundant.
   // When a file is already used by another package,
@@ -23,7 +26,10 @@ export function writeBufferToCafs (
   // However, there is no way to find which package index file references
   // the given file. So we should revalidate the content of the file again.
   if (existsSame(fileDest, integrity)) {
-    return Date.now()
+    return {
+      checkedAt: Date.now(),
+      filePath: fileDest,
+    }
   }
 
   // This might be too cautious.
@@ -42,7 +48,10 @@ export function writeBufferToCafs (
   const birthtimeMs = Date.now()
   optimisticRenameOverwrite(temp, fileDest)
   locker.set(fileDest, birthtimeMs)
-  return birthtimeMs
+  return {
+    checkedAt: birthtimeMs,
+    filePath: fileDest,
+  }
 }
 
 export function optimisticRenameOverwrite (temp: string, fileDest: string) {

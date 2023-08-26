@@ -34,9 +34,6 @@
       "path": "../../packages/types"
     },
     {
-      "path": "../../store/cafs"
-    },
-    {
       "path": "../../store/cafs-types"
     },
     {

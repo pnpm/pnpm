@@ -2,6 +2,7 @@ import path from 'path'
 import type { GitFetcher } from '@pnpm/fetcher-base'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
+import { addFilesFromDir } from '@pnpm/fetching.tarball-worker'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { URL } from 'url'
@@ -43,11 +44,16 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
     }
     // removing /.git to make directory integrity calculation faster
     await rimraf(path.join(tempLocation, '.git'))
-    const filesIndex = await cafs.addFilesFromDir(tempLocation, opts.manifest)
+    const filesIndex = await addFilesFromDir({
+      cafsDir: cafs.cafsDir,
+      dir: tempLocation,
+      filesIndexFile: opts.filesIndexFile,
+      manifest: opts.manifest,
+    })
     // Important! We cannot remove the temp location at this stage.
     // Even though we have the index of the package,
     // the linking of files to the store is in progress.
-    return { unprocessed: true, filesIndex }
+    return { filesIndex }
   }
 
   return {

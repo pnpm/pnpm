@@ -1,4 +1,8 @@
-import type { DeferredManifestPromise, FilesIndex, FileWriteResult } from '@pnpm/cafs-types'
+import {
+  type AddToStoreResult,
+  type FilesIndex,
+  type FileWriteResult,
+} from '@pnpm/cafs-types'
 import isGzip from 'is-gzip'
 import { gunzipSync } from 'zlib'
 import { parseJsonBufferSync } from './parseJson'
@@ -7,11 +11,10 @@ import { parseTarball } from './parseTarball'
 export function addFilesFromTarball (
   addBufferToCafs: (buffer: Buffer, mode: number) => FileWriteResult,
   _ignore: null | ((filename: string) => boolean),
-  tarballBuffer: Buffer,
-  manifest?: DeferredManifestPromise
-): FilesIndex {
+  tarballBuffer: Buffer
+): AddToStoreResult {
   const ignore = _ignore ?? (() => false)
-  const tarContent = isGzip(tarballBuffer) ? gunzipSync(tarballBuffer) : tarballBuffer
+  const tarContent = isGzip(tarballBuffer) ? gunzipSync(tarballBuffer) : (Buffer.isBuffer(tarballBuffer) ? tarballBuffer : Buffer.from(tarballBuffer))
   const { files } = parseTarball(tarContent)
   const filesIndex: FilesIndex = {}
   let manifestBuffer: Buffer | undefined
@@ -20,20 +23,17 @@ export function addFilesFromTarball (
     if (ignore(relativePath)) continue
 
     const fileBuffer = tarContent.slice(offset, offset + size)
-    const writeResult = addBufferToCafs(fileBuffer, mode)
-    if (relativePath === 'package.json' && (manifest != null)) {
+    if (relativePath === 'package.json') {
       manifestBuffer = fileBuffer
     }
     filesIndex[relativePath] = {
       mode,
       size,
-      writeResult: Promise.resolve(writeResult),
+      ...addBufferToCafs(fileBuffer, mode),
     }
   }
-  if (!filesIndex['package.json'] && manifest != null) {
-    manifest.resolve(undefined)
-  } else if (manifestBuffer && manifest) {
-    manifest.resolve(parseJsonBufferSync(manifestBuffer))
+  return {
+    filesIndex,
+    manifest: manifestBuffer ? parseJsonBufferSync(manifestBuffer) : undefined,
   }
-  return filesIndex
 }

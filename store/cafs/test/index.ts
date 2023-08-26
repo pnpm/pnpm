@@ -1,6 +1,4 @@
 import fs from 'fs'
-import { type DependencyManifest } from '@pnpm/types'
-import pDefer from 'p-defer'
 import path from 'path'
 import tempy from 'tempy'
 import {
@@ -10,47 +8,42 @@ import {
 } from '../src'
 
 describe('cafs', () => {
-  it('unpack', async () => {
+  it('unpack', () => {
     const dest = tempy.directory()
     const cafs = createCafs(dest)
-    const filesIndex = cafs.addFilesFromTarball(
+    const { filesIndex } = cafs.addFilesFromTarball(
       fs.readFileSync(path.join(__dirname, '../__fixtures__/node-gyp-6.1.0.tgz'))
     )
     expect(Object.keys(filesIndex)).toHaveLength(121)
     const pkgFile = filesIndex['package.json']
     expect(pkgFile.size).toBe(1121)
     expect(pkgFile.mode).toBe(420)
-    const { checkedAt, integrity } = await pkgFile.writeResult
-    expect(typeof checkedAt).toBe('number')
-    expect(integrity.toString()).toBe('sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==')
+    expect(typeof pkgFile.checkedAt).toBe('number')
+    expect(pkgFile.integrity.toString()).toBe('sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==')
   })
 
-  it('replaces an already existing file, if the integrity of it was broken', async () => {
+  it('replaces an already existing file, if the integrity of it was broken', () => {
     const storeDir = tempy.directory()
     const srcDir = path.join(__dirname, 'fixtures/one-file')
-    const manifest = pDefer<DependencyManifest>()
-    const addFiles = async () => createCafs(storeDir).addFilesFromDir(srcDir, manifest)
+    const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
 
-    let filesIndex = await addFiles()
-    const { integrity } = await filesIndex['foo.txt'].writeResult
+    let addFilesResult = addFiles()
 
     // Modifying the file in the store
-    const filePath = getFilePathInCafs(storeDir, integrity, 'nonexec')
+    const filePath = getFilePathInCafs(storeDir, addFilesResult.filesIndex['foo.txt'].integrity, 'nonexec')
     fs.appendFileSync(filePath, 'bar')
 
-    filesIndex = await addFiles()
-    await filesIndex['foo.txt'].writeResult
+    addFilesResult = addFiles()
     expect(fs.readFileSync(filePath, 'utf8')).toBe('foo\n')
-    expect(await manifest.promise).toEqual(undefined)
+    expect(addFilesResult.manifest).toEqual(undefined)
   })
 
-  it('ignores broken symlinks when traversing subdirectories', async () => {
+  it('ignores broken symlinks when traversing subdirectories', () => {
     const storeDir = tempy.directory()
     const srcDir = path.join(__dirname, 'fixtures/broken-symlink')
-    const manifest = pDefer<DependencyManifest>()
-    const addFiles = async () => createCafs(storeDir).addFilesFromDir(srcDir, manifest)
+    const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
 
-    const filesIndex = await addFiles()
+    const { filesIndex } = addFiles()
     expect(filesIndex[path.join('subdir', 'should-exist.txt')]).toBeDefined()
   })
 })
@@ -70,10 +63,10 @@ describe('checkPkgFilesIntegrity()', () => {
   })
 })
 
-test('file names are normalized when unpacking a tarball', async () => {
+test('file names are normalized when unpacking a tarball', () => {
   const dest = tempy.directory()
   const cafs = createCafs(dest)
-  const filesIndex = cafs.addFilesFromTarball(
+  const { filesIndex } = cafs.addFilesFromTarball(
     fs.readFileSync(path.join(__dirname, 'fixtures/colorize-semver-diff.tgz'))
   )
   expect(Object.keys(filesIndex).sort()).toStrictEqual([
@@ -85,7 +78,7 @@ test('file names are normalized when unpacking a tarball', async () => {
   ])
 })
 
-test('broken magic in tarball headers is handled gracefully', async () => {
+test('broken magic in tarball headers is handled gracefully', () => {
   const dest = tempy.directory()
   const cafs = createCafs(dest)
   cafs.addFilesFromTarball(
