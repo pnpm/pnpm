@@ -33,7 +33,6 @@
     "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fetching.tarball-worker": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
