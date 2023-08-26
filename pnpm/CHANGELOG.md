@@ -1,10 +1,11 @@
 # pnpm
 
-## 8.7.0-2
+## 8.7.0
 
 ### Minor Changes
 
 - Improve performance of installation by using a worker pool for extracting packages and writing them to the content-addressable store [#6850](https://github.com/pnpm/pnpm/pull/6850)
+- The default value of the `resolution-mode` setting is changed to `highest`. This setting was changed to `lowest-direct` in v8.0.0 and some users were [not happy with the change](https://github.com/pnpm/pnpm/issues/6463). A [twitter poll](https://twitter.com/pnpmjs/status/1693707270897517022) concluded that most of the users want the old behaviour (`resolution-mode` set to `highest` by default). This is a semi-breaking change but should not affect users that commit their lockfile [#6463](https://github.com/pnpm/pnpm/issues/6463).
 
 ### Patch Changes
 
@@ -14,6 +15,7 @@
 - Respect workspace alias syntax in pkg graph [#6922](https://github.com/pnpm/pnpm/issues/6922)
 - Emit a clear error message when users attempt to specify an undownloadable node version [#6916](https://github.com/pnpm/pnpm/pull/6916).
 - `pnpm patch` should write patch files with a trailing newline [#6905](https://github.com/pnpm/pnpm/pull/6905).
+- Dedupe deps with the same alias in direct dependencies [6966](https://github.com/pnpm/pnpm/issues/6966)
 - Don't prefix install output for the dlx command.
 - Performance optimizations. Package tarballs are now download directly to memory and built to an ArrayBuffer. Hashing and other operations are avoided until the stream has been fully received [#6819](https://github.com/pnpm/pnpm/pull/6819).
 
