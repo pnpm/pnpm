@@ -227,7 +227,7 @@ export async function getConfig (
     ],
     'recursive-install': true,
     registry: npmDefaults.registry,
-    'resolution-mode': 'lowest-direct',
+    'resolution-mode': 'highest',
     'resolve-peers-from-workspace-root': true,
     'save-peer': false,
     'save-workspace-protocol': 'rolling',
