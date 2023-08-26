@@ -5,7 +5,6 @@ import * as crypto from 'crypto'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import {
   createCafs,
-  getFilePathByModeInCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
   optimisticRenameOverwrite,
@@ -59,16 +58,17 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
       const cafs = cafsCache.get(cafsDir)!
       const manifestP = safePromiseDefer<DependencyManifest | undefined>()
       const filesIndex = cafs.addFilesFromTarball(buffer, manifestP)
-      const filesIndexIntegrity = {} as Record<string, PackageFileInfo>
-      const filesMap = Object.fromEntries(Object.entries(filesIndex).map(([k, v]) => {
+      const filesIndexIntegrity: Record<string, PackageFileInfo> = {}
+      const filesMap: Record<string, string> = {}
+      for (const [k, v] of Object.entries(filesIndex)) {
         filesIndexIntegrity[k] = {
           checkedAt: v.checkedAt,
           integrity: v.integrity.toString(), // TODO: use the raw Integrity object
           mode: v.mode,
           size: v.size,
         }
-        return [k, getFilePathByModeInCafs(cafsDir, v.integrity, v.mode)]
-      }))
+        filesMap[k] = v.filePath
+      }
       const manifest = await manifestP()
       writeFilesIndexFile(filesIndexFile, { pkg: manifest ?? {}, files: filesIndexIntegrity })
       parentPort!.postMessage({ status: 'success', value: { filesIndex: filesMap, manifest } })
@@ -108,16 +108,17 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
       const cafs = cafsCache.get(cafsDir)!
       const manifestP = safePromiseDefer<DependencyManifest | undefined>()
       const filesIndex = cafs.addFilesFromDir(dir, manifestP)
-      const filesIndexIntegrity = {} as Record<string, PackageFileInfo>
-      const filesMap = Object.fromEntries(Object.entries(filesIndex).map(([k, v]) => {
+      const filesIndexIntegrity: Record<string, PackageFileInfo> = {}
+      const filesMap: Record<string, string> = {}
+      for (const [k, v] of Object.entries(filesIndex)) {
         filesIndexIntegrity[k] = {
           checkedAt: v.checkedAt,
           integrity: v.integrity.toString(), // TODO: use the raw Integrity object
           mode: v.mode,
           size: v.size,
         }
-        return [k, getFilePathByModeInCafs(cafsDir, v.integrity, v.mode)]
-      }))
+        filesMap[k] = v.filePath
+      }
       const manifest = await manifestP()
       if (sideEffectsCacheKey) {
         let filesIndex!: PackageFilesIndex

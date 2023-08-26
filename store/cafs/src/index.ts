@@ -47,7 +47,7 @@ export function createCafs (cafsDir: string, { ignoreFile, cafsLocker }: CreateC
   }
 }
 
-type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, integrity: ssri.IntegrityLike) => number
+type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined, integrity: ssri.IntegrityLike) => { checkedAt: number, filePath: string }
 
 function addBufferToCafs (
   writeBufferToCafs: WriteBufferToCafs,
@@ -60,11 +60,11 @@ function addBufferToCafs (
   const integrity = ssri.fromData(buffer)
   const isExecutable = modeIsExecutable(mode)
   const fileDest = contentPathFromHex(isExecutable ? 'exec' : 'nonexec', integrity.hexDigest())
-  const checkedAt = writeBufferToCafs(
+  const { checkedAt, filePath } = writeBufferToCafs(
     buffer,
     fileDest,
     isExecutable ? 0o755 : undefined,
     integrity
   )
-  return { checkedAt, integrity }
+  return { checkedAt, integrity, filePath }
 }

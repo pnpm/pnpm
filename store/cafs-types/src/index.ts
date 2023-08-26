@@ -55,6 +55,7 @@ export interface FilesIndex {
 
 export interface FileWriteResult {
   checkedAt: number
+  filePath: string
   integrity: IntegrityLike
 }
 
