@@ -10,7 +10,7 @@ import {
 } from '../src'
 
 describe('cafs', () => {
-  it('unpack', async () => {
+  it('unpack', () => {
     const dest = tempy.directory()
     const cafs = createCafs(dest)
     const filesIndex = cafs.addFilesFromTarball(
@@ -20,26 +20,23 @@ describe('cafs', () => {
     const pkgFile = filesIndex['package.json']
     expect(pkgFile.size).toBe(1121)
     expect(pkgFile.mode).toBe(420)
-    const { checkedAt, integrity } = await pkgFile.writeResult
-    expect(typeof checkedAt).toBe('number')
-    expect(integrity.toString()).toBe('sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==')
+    expect(typeof pkgFile.checkedAt).toBe('number')
+    expect(pkgFile.integrity.toString()).toBe('sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==')
   })
 
   it('replaces an already existing file, if the integrity of it was broken', async () => {
     const storeDir = tempy.directory()
     const srcDir = path.join(__dirname, 'fixtures/one-file')
     const manifest = pDefer<DependencyManifest>()
-    const addFiles = async () => createCafs(storeDir).addFilesFromDir(srcDir, manifest)
+    const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir, manifest)
 
-    let filesIndex = await addFiles()
-    const { integrity } = await filesIndex['foo.txt'].writeResult
+    let filesIndex = addFiles()
 
     // Modifying the file in the store
-    const filePath = getFilePathInCafs(storeDir, integrity, 'nonexec')
+    const filePath = getFilePathInCafs(storeDir, filesIndex['foo.txt'].integrity, 'nonexec')
     fs.appendFileSync(filePath, 'bar')
 
-    filesIndex = await addFiles()
-    await filesIndex['foo.txt'].writeResult
+    filesIndex = addFiles()
     expect(fs.readFileSync(filePath, 'utf8')).toBe('foo\n')
     expect(await manifest.promise).toEqual(undefined)
   })

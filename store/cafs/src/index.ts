@@ -40,7 +40,7 @@ export function createCafs (cafsDir: string, { ignoreFile, cafsLocker }: CreateC
   const _writeBufferToCafs = writeBufferToCafs.bind(null, cafsLocker ?? new Map(), cafsDir)
   const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
   return {
-    addFilesFromDir: addFilesFromDir.bind(null, { addBuffer }),
+    addFilesFromDir: addFilesFromDir.bind(null, addBuffer),
     addFilesFromTarball: addFilesFromTarball.bind(null, addBuffer, ignoreFile ?? null),
     getFilePathInCafs: getFilePathInCafs.bind(null, cafsDir),
     getFilePathByModeInCafs: getFilePathByModeInCafs.bind(null, cafsDir),

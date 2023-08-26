@@ -9,14 +9,12 @@ import gfs from '@pnpm/graceful-fs'
 import { parseJsonBuffer } from './parseJson'
 
 export function addFilesFromDir (
-  cafs: {
-    addBuffer: (buffer: Buffer, mode: number) => FileWriteResult
-  },
+  addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
   dirname: string,
   manifest?: DeferredManifestPromise
 ): FilesIndex {
   const index: FilesIndex = {}
-  _retrieveFileIntegrities(cafs, dirname, dirname, index, manifest)
+  _retrieveFileIntegrities(addBuffer, dirname, dirname, index, manifest)
   if (manifest && !index['package.json']) {
     manifest.resolve(undefined)
   }
@@ -24,9 +22,7 @@ export function addFilesFromDir (
 }
 
 function _retrieveFileIntegrities (
-  cafs: {
-    addBuffer: (buffer: Buffer, mode: number) => FileWriteResult
-  },
+  addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
   rootDir: string,
   currDir: string,
   index: FilesIndex,
@@ -36,7 +32,7 @@ function _retrieveFileIntegrities (
   for (const file of files) {
     const fullPath = path.join(currDir, file.name)
     if (file.isDirectory()) {
-      _retrieveFileIntegrities(cafs, rootDir, fullPath, index)
+      _retrieveFileIntegrities(addBuffer, rootDir, fullPath, index)
       continue
     }
     if (file.isFile()) {
@@ -54,10 +50,10 @@ function _retrieveFileIntegrities (
         if ((deferredManifest != null) && rootDir === currDir && file.name === 'package.json') {
           const buffer = gfs.readFileSync(fullPath)
           parseJsonBuffer(buffer, deferredManifest)
-          return cafs.addBuffer(buffer, stat.mode)
+          return addBuffer(buffer, stat.mode)
         }
         const buffer = gfs.readFileSync(fullPath)
-        return cafs.addBuffer(buffer, stat.mode)
+        return addBuffer(buffer, stat.mode)
       })()
       index[relativePath] = {
         mode: stat.mode,

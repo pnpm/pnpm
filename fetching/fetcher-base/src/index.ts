@@ -1,5 +1,5 @@
 import { type Resolution, type GitResolution, type DirectoryResolution } from '@pnpm/resolver-base'
-import type { DeferredManifestPromise, Cafs, FilesIndex } from '@pnpm/cafs-types'
+import type { DeferredManifestPromise, Cafs } from '@pnpm/cafs-types'
 
 export interface FetchOptions {
   filesIndexFile: string
@@ -15,7 +15,7 @@ export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions
   opts: Options
 ) => Promise<Result>
 
-export type FetchResult = {
+export interface FetchResult {
   local?: boolean
   filesIndex: Record<string, string>
 }
