@@ -132,7 +132,8 @@ async function resolveNpm (
   opts: ResolveFromNpmOptions
 ): Promise<ResolveResult | null> {
   const defaultTag = opts.defaultTag ?? 'latest'
-  if (wantedDependency.pref?.startsWith('workspace:')) {
+  const forceNpm = wantedDependency.pref?.startsWith('npm:') ?? false
+  if (!forceNpm && wantedDependency.pref?.startsWith('workspace:')) {
     if (wantedDependency.pref.startsWith('workspace:.')) return null
     const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
       defaultTag,
@@ -163,7 +164,7 @@ async function resolveNpm (
       registry: opts.registry,
     })
   } catch (err: any) { // eslint-disable-line
-    if ((workspacePackages != null) && opts.projectDir) {
+    if (!forceNpm && (workspacePackages != null) && opts.projectDir) {
       try {
         return tryResolveFromWorkspacePackages(workspacePackages, spec, {
           wantedDependency,
@@ -180,7 +181,7 @@ async function resolveNpm (
   const pickedPackage = pickResult.pickedPackage
   const meta = pickResult.meta
   if (pickedPackage == null) {
-    if ((workspacePackages != null) && opts.projectDir) {
+    if (!forceNpm && (workspacePackages != null) && opts.projectDir) {
       try {
         return tryResolveFromWorkspacePackages(workspacePackages, spec, {
           wantedDependency,
@@ -195,7 +196,7 @@ async function resolveNpm (
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta })
   }
 
-  if (((workspacePackages?.[pickedPackage.name]) != null) && opts.projectDir) {
+  if (!forceNpm && ((workspacePackages?.[pickedPackage.name]) != null) && opts.projectDir) {
     if (workspacePackages[pickedPackage.name][pickedPackage.version]) {
       return {
         ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, {
