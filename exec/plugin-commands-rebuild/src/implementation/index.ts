@@ -307,7 +307,7 @@ async function _rebuild (
         }
         const resolution = (pkgSnapshot.resolution as TarballResolution)
         let sideEffectsCacheKey: string | undefined
-        if (opts.skipIfHasSideEffectsCache && resolution.integrity) {
+        if (resolution.integrity) {
           const filesIndexFile = getFilePathInCafs(cafsDir, resolution.integrity!.toString(), 'index')
           const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
           sideEffectsCacheKey = calcDepState(depGraph, depsStateCache, depPath, {

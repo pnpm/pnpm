@@ -120,7 +120,6 @@ test('skipIfHasSideEffectsCache', async () => {
     dir: process.cwd(),
     pending: true,
     registries: modulesManifest!.registries!,
-    skipIfHasSideEffectsCache: true,
     storeDir,
   }, [])
 
