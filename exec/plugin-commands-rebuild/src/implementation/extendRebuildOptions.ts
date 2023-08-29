@@ -20,6 +20,7 @@ export interface StrictRebuildOptions {
   sideEffectsCacheWrite: boolean
   scriptsPrependNodePath: boolean | 'warn-only'
   shellEmulator: boolean
+  skipIfHasSideEffectsCache?: boolean
   storeDir: string // TODO: remove this property
   storeController: StoreController
   force: boolean
