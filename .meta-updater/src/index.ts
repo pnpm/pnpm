@@ -183,11 +183,12 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       scripts._test += ' --detectOpenHandles'
     }
   }
-  scripts.compile = 'tsc --build && pnpm run lint --fix'
+  const isCLIPkg = manifest.name === CLI_PKG_NAME
+  scripts.compile = `tsc --${isCLIPkg ? 'noEmit' : 'emitDeclarationOnly'} && babel src -d lib --extensions '.ts,.tsx,.js' --root-mode=upward && pnpm run lint --fix`
   delete scripts.tsc
   let homepage: string
   let repository: string | { type: 'git', url: string }
-  if (manifest.name === CLI_PKG_NAME) {
+  if (isCLIPkg) {
     homepage = 'https://pnpm.io'
     repository = {
       type: 'git',

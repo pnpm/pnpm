@@ -15,10 +15,10 @@
     "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
-    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "mem": "^8.1.1",
     "path-temp": "^2.1.0",
     "ramda": "npm:@pnpm/ramda@0.28.1"
@@ -54,7 +54,7 @@
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsc --emitDeclarationOnly && babel src -d lib --extensions '.ts,.tsx,.js' --root-mode=upward && pnpm run lint --fix"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

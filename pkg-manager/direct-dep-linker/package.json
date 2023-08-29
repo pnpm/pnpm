@@ -32,7 +32,7 @@
     "lint": "eslint \"src/**/*.ts\"",
     "test": "pnpm run compile",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsc --emitDeclarationOnly && babel src -d lib --extensions '.ts,.tsx,.js' --root-mode=upward && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
