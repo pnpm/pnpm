@@ -327,6 +327,7 @@ when running add/update with the --workspace option')
         pending: true,
         storeController: store.ctrl,
         storeDir: store.dir,
+        skipIfHasSideEffectsCache: true,
       }
     )
   }
