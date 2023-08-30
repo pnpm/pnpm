@@ -5,12 +5,17 @@ import { getBorderCharacters, table } from '@zkochan/table'
 import { pipe, groupBy, pluck, uniqBy, pickBy, and } from 'ramda'
 import isEmpty from 'ramda/src/isEmpty'
 
-export interface ChoiceRow { value: string, name: string, disabled?: boolean }
+export interface ChoiceRow {
+  name: string
+  value: string
+  disabled?: boolean
+}
 
 type ChoiceGroup = Array<{
   name: string
   choices: ChoiceRow[]
 }>
+
 export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], workspacesEnabled: boolean) {
   if (isEmpty(outdatedPkgsOfProjects)) {
     return []

@@ -1,21 +1,17 @@
 import path from 'path'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { type Lockfile } from '@pnpm/lockfile-types'
+import { add, install, update } from '@pnpm/plugin-commands-installation'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'
 import chalk from 'chalk'
+import * as enquirer from 'enquirer'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
 // eslint-disable-next-line
-import * as enquirer from "enquirer";
-
-// eslint-disable-next-line
-const prompt = enquirer.prompt as any;
-
-// eslint-disable-next-line
-import { add, install, update } from "@pnpm/plugin-commands-installation";
+const prompt = enquirer.prompt as any
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 

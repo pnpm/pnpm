@@ -210,7 +210,6 @@ async function interactiveUpdate (
     }
     return 'All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json'
   }
-
   const { updateDependencies } = await prompt({
     choices,
     footer: '\nEnter to start updating. Ctrl-c to cancel.',
