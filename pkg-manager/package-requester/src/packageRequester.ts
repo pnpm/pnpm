@@ -495,12 +495,10 @@ function fetchToStore (
               !equalOrSemverEqual(pkgFilesIndex.version, opts.expectedPkg.version)
             )
           ) {
-            /* eslint-disable @typescript-eslint/restrict-template-expressions */
             throw new PnpmError('UNEXPECTED_PKG_CONTENT_IN_STORE', `\
 Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)} from the store. \
 This means that the lockfile is broken. Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
 Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`)
-            /* eslint-enable @typescript-eslint/restrict-template-expressions */
           }
           const verified = await ctx.checkFilesIntegrity(pkgFilesIndex, manifest)
           if (verified) {

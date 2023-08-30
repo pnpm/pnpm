@@ -361,7 +361,6 @@ function reportAuthError (
   const foundSettings = [] as string[]
   for (const [key, value] of Object.entries(config?.rawConfig ?? {})) {
     if (key.startsWith('@')) {
-      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
       foundSettings.push(`${key}=${value}`)
       continue
     }
