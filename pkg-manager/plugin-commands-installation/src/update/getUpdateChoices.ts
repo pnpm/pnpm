@@ -15,6 +15,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[]) {
     .map(([pkgName, outdatedPkgs]) => ({
       pkgName,
       rows: outdatedPkgsRows(Object.values(outdatedPkgs)),
+      hint: outdatedPkgsHint(Object.values(outdatedPkgs)),
     }))
   const renderedTable = alignColumns(
     unnest(rowsGroupedByPkgs.map(({ rows }) => rows))
@@ -22,12 +23,13 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[]) {
 
   const choices = []
   let i = 0
-  for (const { pkgName, rows } of rowsGroupedByPkgs) {
+  for (const { pkgName, rows, hint } of rowsGroupedByPkgs) {
     choices.push({
       message: renderedTable
         .slice(i, i + rows.length)
         .join('\n    '),
       name: pkgName,
+      hint,
     })
     i += rows.length
   }
@@ -93,4 +95,13 @@ function alignColumns (rows: string[][]) {
       drawHorizontalLine: () => false,
     }
   ).split('\n')
+}
+
+function outdatedPkgsHint (outdatedPkgs: OutdatedPackage[]) {
+  if (outdatedPkgs.length === 0) {
+    return null
+  }
+  const prefixes = outdatedPkgs.map((pkg) => pkg.prefix)
+  const uniquePrefixes = [...new Set(prefixes)]
+  return `declared in ${uniquePrefixes.join(', ')}`
 }

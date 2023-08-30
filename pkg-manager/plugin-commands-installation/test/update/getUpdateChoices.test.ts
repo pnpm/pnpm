@@ -7,6 +7,7 @@ test('getUpdateChoices()', () => {
       {
         alias: 'foo',
         belongsTo: 'dependencies' as const,
+        prefix: '/home/username/programming/project',
         current: '1.0.0',
         latestManifest: {
           name: 'foo',
@@ -18,6 +19,7 @@ test('getUpdateChoices()', () => {
       {
         alias: 'foo',
         belongsTo: 'devDependencies' as const,
+        prefix: '/home/username/programming/project',
         current: '1.0.0',
         latestManifest: {
           name: 'foo',
@@ -29,6 +31,7 @@ test('getUpdateChoices()', () => {
       {
         alias: 'qar',
         belongsTo: 'devDependencies' as const,
+        prefix: '/home/username/programming/project/packages/a',
         current: '1.0.0',
         latestManifest: {
           name: 'qar',
@@ -40,6 +43,7 @@ test('getUpdateChoices()', () => {
       {
         alias: 'zoo',
         belongsTo: 'devDependencies' as const,
+        prefix: '/home/username/programming/project/packages/a',
         current: '1.1.0',
         latestManifest: {
           name: 'zoo',
@@ -51,6 +55,7 @@ test('getUpdateChoices()', () => {
       {
         alias: 'qaz',
         belongsTo: 'optionalDependencies' as const,
+        prefix: '/home/username/programming/project/packages/b',
         current: '1.0.1',
         latestManifest: {
           name: 'qaz',
@@ -62,6 +67,7 @@ test('getUpdateChoices()', () => {
       {
         alias: 'qaz',
         belongsTo: 'devDependencies' as const,
+        prefix: '/home/username/programming/project/packages/b',
         current: '1.0.1',
         latestManifest: {
           name: 'qaz',
@@ -75,18 +81,22 @@ test('getUpdateChoices()', () => {
       {
         message: chalk`foo            1.0.0 ❯ {redBright.bold 2.0.0} \n    foo (dev)      1.0.1 ❯ 1.{yellowBright.bold 2.0} `,
         name: 'foo',
+        hint: 'declared in /home/username/programming/project, /home/username/programming/project/packages/b',
       },
       {
         message: chalk`qar (dev)      1.0.0 ❯ 1.{yellowBright.bold 2.0} `,
         name: 'qar',
+        hint: 'declared in /home/username/programming/project/packages/a',
       },
       {
         message: chalk`qaz (optional) 1.0.1 ❯ 1.{yellowBright.bold 2.0} `,
         name: 'qaz',
+        hint: 'declared in /home/username/programming/project/packages/b',
       },
       {
         message: chalk`zoo (dev)      1.1.0 ❯ 1.{yellowBright.bold 2.0} `,
         name: 'zoo',
+        hint: 'declared in /home/username/programming/project/packages/a',
       },
     ])
 })

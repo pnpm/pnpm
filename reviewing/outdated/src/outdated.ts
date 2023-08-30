@@ -28,6 +28,7 @@ export type GetLatestManifestFunction = (packageName: string, rangeOrTag: string
 export interface OutdatedPackage {
   alias: string
   belongsTo: DependenciesField
+  prefix: string,
   current?: string // not defined means the package is not installed
   latestManifest?: PackageManifest
   packageName: string
@@ -114,6 +115,7 @@ export async function outdated (
               outdated.push({
                 alias,
                 belongsTo: depType,
+                prefix: opts.prefix,
                 current,
                 latestManifest: undefined,
                 packageName,
@@ -134,6 +136,7 @@ export async function outdated (
             outdated.push({
               alias,
               belongsTo: depType,
+              prefix: opts.prefix,
               latestManifest,
               packageName,
               wanted,
@@ -145,6 +148,7 @@ export async function outdated (
             outdated.push({
               alias,
               belongsTo: depType,
+              prefix: opts.prefix,
               current,
               latestManifest,
               packageName,
