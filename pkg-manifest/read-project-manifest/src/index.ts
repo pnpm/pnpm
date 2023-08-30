@@ -214,7 +214,7 @@ const dependencyKeys = new Set([
 ])
 
 function normalize (manifest: ProjectManifest) {
-  const result: Record<string, unknown> = {} // eslint-disable-line @typescript-eslint/no-explicit-any
+  const result: Record<string, unknown> = {}
   for (const key in manifest) {
     if (Object.prototype.hasOwnProperty.call(manifest, key)) {
       const value = manifest[key as keyof ProjectManifest]
