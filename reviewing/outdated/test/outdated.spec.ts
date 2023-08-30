@@ -150,6 +150,7 @@ test('outdated()', async () => {
       latestManifest: undefined,
       packageName: 'from-github',
       wanted: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+      workspace: 'wanted-shrinkwrap',
     },
     {
       alias: 'from-github-2',
@@ -158,6 +159,7 @@ test('outdated()', async () => {
       latestManifest: undefined,
       packageName: 'from-github-2',
       wanted: 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+      workspace: 'wanted-shrinkwrap',
     },
     {
       alias: 'is-negative',
@@ -169,6 +171,7 @@ test('outdated()', async () => {
       },
       packageName: 'is-negative',
       wanted: '1.1.0',
+      workspace: 'wanted-shrinkwrap',
     },
     {
       alias: 'is-positive',
@@ -180,6 +183,7 @@ test('outdated()', async () => {
       },
       packageName: 'is-positive',
       wanted: '3.1.0',
+      workspace: 'wanted-shrinkwrap',
     },
   ])
 })
@@ -236,6 +240,7 @@ test('outdated() should return deprecated package even if its current version is
       },
       packageName: 'deprecated-pkg',
       wanted: '1.0.0',
+      workspace: 'wanted-shrinkwrap',
     },
   ])
 })
@@ -355,6 +360,7 @@ test('using a matcher', async () => {
       },
       packageName: 'is-negative',
       wanted: '1.1.0',
+      workspace: 'wanted-shrinkwrap',
     },
   ])
 })
@@ -427,6 +433,7 @@ test('outdated() aliased dependency', async () => {
       },
       packageName: 'is-positive',
       wanted: '3.1.0',
+      workspace: 'wanted-shrinkwrap',
     },
   ])
 })
@@ -666,6 +673,7 @@ test('should ignore dependencies as expected', async () => {
       },
       packageName: 'is-positive',
       wanted: '3.1.0',
+      workspace: 'wanted-shrinkwrap',
     },
   ])
 })

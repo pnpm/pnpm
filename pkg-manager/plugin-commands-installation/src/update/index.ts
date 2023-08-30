@@ -12,12 +12,12 @@ import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
+import pluck from 'ramda/src/pluck'
 import unnest from 'ramda/src/unnest'
 import renderHelp from 'render-help'
 import { type InstallCommandOptions } from '../install'
 import { installDeps } from '../installDeps'
-import { getUpdateChoices } from './getUpdateChoices'
-
+import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices'
 export function rcOptionsTypes () {
   return pick([
     'cache-dir',
@@ -202,7 +202,8 @@ async function interactiveUpdate (
     },
     timeout: opts.fetchTimeout,
   })
-  const choices = getUpdateChoices(unnest(outdatedPkgsOfProjects))
+  const workspacesEnabled = !!opts.workspaceDir
+  const choices = getUpdateChoices(unnest(outdatedPkgsOfProjects), workspacesEnabled)
   if (choices.length === 0) {
     if (opts.latest) {
       return 'All of your dependencies are already up to date'
@@ -221,6 +222,9 @@ async function interactiveUpdate (
       `${chalk.cyan('<i>')} to invert selection)`,
     name: 'updateDependencies',
     pointer: '❯',
+    result () {
+      return this.selected
+    },
     styles: {
       dark: chalk.white,
       em: chalk.bgBlack.whiteBright,
@@ -247,9 +251,12 @@ async function interactiveUpdate (
       // Otherwise, pnpm CLI would print an error and confuse users.
       // See related issue: https://github.com/enquirer/enquirer/issues/225
       globalInfo('Update canceled')
+      process.exit(0)
     },
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
-  return update(updateDependencies, opts)
+
+  const updatePkgNames = pluck('value', updateDependencies as ChoiceRow[])
+  return update(updatePkgNames, opts)
 }
 
 async function update (

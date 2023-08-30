@@ -11,6 +11,7 @@ test('getUpdateChoices()', () => {
         latestManifest: {
           name: 'foo',
           version: '2.0.0',
+          homepage: 'https://pnpm.io/',
         },
         packageName: 'foo',
         wanted: '1.0.0',
@@ -22,6 +23,9 @@ test('getUpdateChoices()', () => {
         latestManifest: {
           name: 'foo',
           version: '2.0.0',
+          repository: {
+            url: 'git://github.com/pnpm/pnpm.git',
+          },
         },
         packageName: 'foo',
         wanted: '1.0.0',
@@ -70,23 +74,60 @@ test('getUpdateChoices()', () => {
         packageName: 'foo',
         wanted: '1.0.1',
       },
-    ]))
+    ], false))
     .toStrictEqual([
       {
-        message: chalk`foo            1.0.0 ❯ {redBright.bold 2.0.0} \n    foo (dev)      1.0.1 ❯ 1.{yellowBright.bold 2.0} `,
-        name: 'foo',
+        name: 'dependencies',
+        choices: [
+          {
+            name: 'Package                                                    Current   Target            URL              ',
+            disabled: true,
+            hint: '',
+            value: '',
+          },
+          {
+            name: chalk`foo                                                          1.0.0 ❯ {redBright.bold 2.0.0}             https://pnpm.io/ `,
+            value: 'foo',
+          },
+        ],
       },
       {
-        message: chalk`qar (dev)      1.0.0 ❯ 1.{yellowBright.bold 2.0} `,
-        name: 'qar',
+        name: 'devDependencies',
+        choices: [
+          {
+            name: 'Package                                                    Current   Target            URL ',
+            disabled: true,
+            hint: '',
+            value: '',
+          },
+          {
+            name: chalk`qar                                                          1.0.0 ❯ 1.{yellowBright.bold 2.0}                 `,
+            value: 'qar',
+          },
+          {
+            name: chalk`zoo                                                          1.1.0 ❯ 1.{yellowBright.bold 2.0}                 `,
+            value: 'zoo',
+          },
+          {
+            name: chalk`foo                                                          1.0.1 ❯ 1.{yellowBright.bold 2.0}                 `,
+            value: 'foo',
+          },
+        ],
       },
       {
-        message: chalk`qaz (optional) 1.0.1 ❯ 1.{yellowBright.bold 2.0} `,
-        name: 'qaz',
-      },
-      {
-        message: chalk`zoo (dev)      1.1.0 ❯ 1.{yellowBright.bold 2.0} `,
-        name: 'zoo',
+        name: 'optionalDependencies',
+        choices: [
+          {
+            name: 'Package                                                    Current   Target            URL ',
+            disabled: true,
+            hint: '',
+            value: '',
+          },
+          {
+            name: chalk`qaz                                                          1.0.1 ❯ 1.{yellowBright.bold 2.0}                 `,
+            value: 'qaz',
+          },
+        ],
       },
     ])
 })
