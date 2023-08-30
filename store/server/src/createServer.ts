@@ -52,7 +52,7 @@ export function createServer (
     const bodyPromise = new Promise<RequestBody>((resolve, reject) => {
       let body: any = '' // eslint-disable-line
       req.on('data', (data) => {
-        body += data // eslint-disable-line
+        body += data
       })
       req.on('end', async () => {
         try {
