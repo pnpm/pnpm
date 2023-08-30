@@ -85,3 +85,18 @@ test('broken magic in tarball headers is handled gracefully', () => {
     fs.readFileSync(path.join(__dirname, 'fixtures/jquery.dirtyforms-2.0.0.tgz'))
   )
 })
+
+test('unpack a tarball that parseTarball fails to unpack', () => {
+  const dest = tempy.directory()
+  const cafs = createCafs(dest)
+  const { filesIndex } = cafs.addFilesFromTarball(
+    fs.readFileSync(path.join(__dirname, 'fixtures/parsers-3.0.0-rc.48.1.tgz'))
+  )
+  expect(Object.keys(filesIndex).sort()).toStrictEqual([
+    'LICENSE',
+    'README.md',
+    'lib/index.d.ts',
+    'lib/index.js',
+    'package.json',
+  ])
+})
