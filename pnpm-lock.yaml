@@ -61,7 +61,7 @@ overrides:
   '@yarnpkg/shell@^4.0.0-rc.45': 4.0.0-rc.45
   tough-cookie@<4.1.3: '>=4.1.3'
 
-packageExtensionsChecksum: dbf1ae8871461637762294aa9aa79382
+packageExtensionsChecksum: 0d307d8212befbee1586c7f8acd8fba8
 
 patchedDependencies:
   graceful-fs@4.2.11:
@@ -8562,9 +8562,6 @@ packages:
       '@types/lodash': 4.14.197
     dev: true
 
-  /@types/lodash@4.14.181:
-    resolution: {integrity: sha512-n3tyKthHJbkiWhDZs3DkhkCzt2MexYHXlX0td5iMplyfwketaOeKboEVBqzceH7juqvEg3q5oUoBFxSLu7zFag==}
-
   /@types/lodash@4.14.197:
     resolution: {integrity: sha512-BMVOiWs0uNxHVlHBgzTIqJYmj+PgCo4euloGF+5m4okL3rEYzM2EEv78mw8zWSMM57dM7kVIgJ2QDvwHSoCI5g==}
 
@@ -8984,7 +8981,7 @@ packages:
     engines: {node: '>=14.15.0'}
     dependencies:
       '@arcanis/slice-ansi': 1.1.1
-      '@types/lodash': 4.14.181
+      '@types/lodash': 4.14.197
       '@types/semver': 7.3.13
       '@types/treeify': 1.0.0
       '@yarnpkg/fslib': 3.0.0-rc.25
