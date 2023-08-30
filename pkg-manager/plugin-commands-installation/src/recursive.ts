@@ -413,6 +413,7 @@ export async function recursive (
     await rebuild.handler({
       ...opts,
       pending: opts.pending === true,
+      skipIfHasSideEffectsCache: true,
     }, [])
   }
 
