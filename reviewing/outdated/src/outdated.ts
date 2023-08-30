@@ -28,7 +28,7 @@ export type GetLatestManifestFunction = (packageName: string, rangeOrTag: string
 export interface OutdatedPackage {
   alias: string
   belongsTo: DependenciesField
-  prefix: string,
+  prefix: string
   current?: string // not defined means the package is not installed
   latestManifest?: PackageManifest
   packageName: string
