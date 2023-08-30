@@ -13,7 +13,7 @@ export function silentReporter (
 
     console.log(obj['err']?.message ?? obj['message'])
     if (obj['err']?.stack) {
-      console.log(`\n${obj['err'].stack}`) // eslint-disable-line
+      console.log(`\n${obj['err'].stack}`)
     }
   })
 }

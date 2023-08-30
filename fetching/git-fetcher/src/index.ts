@@ -39,7 +39,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
         globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
       }
     } catch (err: any) { // eslint-disable-line
-      err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}` // eslint-disable-line
+      err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}`
       throw err
     }
     // removing /.git to make directory integrity calculation faster
