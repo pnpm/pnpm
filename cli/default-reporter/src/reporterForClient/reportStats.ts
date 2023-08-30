@@ -112,10 +112,10 @@ function statsForNotCurrentPackage (
             stats[log.prefix] = log
             return { seed: stats, value: null }
           } else if (typeof stats[log.prefix].added === 'number' && typeof log['added'] === 'number') {
-            stats[log.prefix].added += log['added'] // eslint-disable-line
+            stats[log.prefix].added += log['added']
             return { seed: stats, value: null }
           } else if (typeof stats[log.prefix].removed === 'number' && typeof log['removed'] === 'number') {
-            stats[log.prefix].removed += log['removed'] // eslint-disable-line
+            stats[log.prefix].removed += log['removed']
             return { seed: stats, value: null }
           } else {
             const value = { ...stats[log.prefix], ...log }
