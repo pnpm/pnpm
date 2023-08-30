@@ -95,7 +95,7 @@ export async function rebuildSelectedPkgs (
   const opts = await extendRebuildOptions(maybeOpts)
   const ctx = await getContext({ ...opts, allProjects: projects })
 
-  if (!ctx.currentLockfile || (ctx.currentLockfile.packages == null)) return
+  if (ctx.currentLockfile?.packages == null) return
   const packages = ctx.currentLockfile.packages
 
   const searched: PackageSelector[] = pkgSpecs.map((arg) => {

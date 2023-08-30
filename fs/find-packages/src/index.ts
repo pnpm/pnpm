@@ -29,7 +29,7 @@ export async function findPackages (root: string, opts?: Options): Promise<Proje
   opts = opts ?? {}
   const globOpts = { ...opts, cwd: root, includeRoot: undefined }
   globOpts.ignore = opts.ignore ?? DEFAULT_IGNORE
-  const patterns = normalizePatterns((opts.patterns != null) ? opts.patterns : ['.', '**'])
+  const patterns = normalizePatterns(opts.patterns ?? ['.', '**'])
   const paths: string[] = await fastGlob(patterns, globOpts)
 
   if (opts.includeRoot) {

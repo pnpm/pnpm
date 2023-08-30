@@ -68,14 +68,11 @@ export function satisfiesPackageManifest (
       break
     case 'devDependencies':
       pkgDepNames = Object.keys(pkgDeps)
-        .filter((depName) =>
-          ((pkg.optionalDependencies == null) || !pkg.optionalDependencies[depName]) &&
-            ((pkg.dependencies == null) || !pkg.dependencies[depName])
-        )
+        .filter((depName) => !pkg.optionalDependencies?.[depName] && !pkg.dependencies?.[depName])
       break
     case 'dependencies':
       pkgDepNames = Object.keys(pkgDeps)
-        .filter((depName) => (pkg.optionalDependencies == null) || !pkg.optionalDependencies[depName])
+        .filter((depName) => !pkg.optionalDependencies?.[depName])
       break
     default:
       throw new Error(`Unknown dependency type "${depField as string}"`)

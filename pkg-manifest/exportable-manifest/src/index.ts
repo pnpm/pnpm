@@ -68,7 +68,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
   if (versionAliasSpecParts != null) {
     modulesDir = modulesDir ?? path.join(dir, 'node_modules')
     const { manifest } = await tryReadProjectManifest(path.join(modulesDir, depName))
-    if ((manifest == null) || !manifest.version) {
+    if (!manifest?.version) {
       throw new PnpmError(
         'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
         `Cannot resolve workspace protocol of dependency "${depName}" ` +
@@ -84,7 +84,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
   }
   if (depSpec.startsWith('workspace:./') || depSpec.startsWith('workspace:../')) {
     const { manifest } = await tryReadProjectManifest(path.join(dir, depSpec.slice(10)))
-    if ((manifest == null) || !manifest.name || !manifest.version) {
+    if (!manifest?.name || !manifest?.version) {
       throw new PnpmError(
         'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
         `Cannot resolve workspace protocol of dependency "${depName}" ` +
