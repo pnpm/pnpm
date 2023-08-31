@@ -57,7 +57,7 @@
     "syncpack": "^8.5.14",
     "ts-jest": "29.1.0",
     "ts-node": "^10.9.1",
-    "typescript": "5.1.6",
+    "typescript": "5.2.2",
     "verdaccio": "5.20.1"
   },
   "engines": {
@@ -126,7 +126,7 @@
       },
       "@yarnpkg/core": {
         "dependencies": {
-          "@types/lodash": "4.14.181"
+          "@types/lodash": "4.14.197"
         }
       },
       "jest-circus": {
@@ -157,7 +157,6 @@
     "peerDependencyRules": {
       "allowedVersions": {
         "eslint": "*",
-        "@typescript-eslint/eslint-plugin": "^5.6.0",
         "@yarnpkg/core": "*"
       },
       "ignoreMissing": [

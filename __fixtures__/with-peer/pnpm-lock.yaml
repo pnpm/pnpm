@@ -28,11 +28,11 @@ packages:
     dev: false
 
   /fast-deep-equal@2.0.1:
-    resolution: {integrity: sha1-ewUhjd+WZ79/Nwv3/bLLFf3Qqkk=}
+    resolution: {integrity: sha512-bCK/2Z4zLidyB4ReuIsvALH6w31YfAQDmXMqMx6FyfHqvBxtjC0eRumeSu4Bs3XtXwpyIywtSTrVT99BxY1f9w==}
     dev: false
 
   /fast-json-stable-stringify@2.0.0:
-    resolution: {integrity: sha1-1RQsDK7msRifh9OnYREGT4bIu/I=}
+    resolution: {integrity: sha512-eIgZvM9C3P05kg0qxfqaVU6Tma4QedCPIByQOcemV0vju8ot3cS2DpHi4m2G2JvbSMI152rjfLX0p1pkSdyPlQ==}
     dev: false
 
   /json-schema-traverse@0.4.1:

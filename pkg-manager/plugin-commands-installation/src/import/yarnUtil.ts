@@ -47,7 +47,6 @@ const keyNormalizer = (
       descriptors.push(range.source)
     } else {
       descriptors.push(
-        // eslint-disable-next-line
         `${name}@${protocol}${range.source}${
           range.selector ? '#' + range.selector : ''
         }`

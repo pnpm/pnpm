@@ -121,7 +121,7 @@ test('pnpx works', () => {
   mkdirSync(global)
 
   const env = {
-    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`, // eslint-disable-line
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`,
     PNPM_HOME: pnpmHome,
     XDG_DATA_HOME: global,
   }

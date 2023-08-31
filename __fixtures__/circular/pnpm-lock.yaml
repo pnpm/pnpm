@@ -8,20 +8,20 @@ dependencies:
 packages:
 
   /d@1.0.0:
-    resolution: {integrity: sha1-dUu1v+VUUdpppYuU1F9MWwRi1Y8=}
+    resolution: {integrity: sha512-9x1NruMD5YQ7xccKbGEy/bjitRfn5LEIhJIXIOAXC8I1laA5gfezUMVES1/vjLxfGzZjirLLBzEqxMO2/LzGxQ==}
     dependencies:
       es5-ext: 0.10.24
     dev: false
 
   /es5-ext@0.10.24:
-    resolution: {integrity: sha1-pVh3yZJLwMjZvTwsvhdJWsFwmxQ=}
+    resolution: {integrity: sha512-qHKgM1mKhstIAZ1cxefVIOmWREJ2rgQv7aGg9BuCLq9G1vRjkV1K8M4LcSklsYPJwo2dqnOfb3IuNGOp3DxgUw==}
     dependencies:
       es6-iterator: 2.0.1
       es6-symbol: 3.1.1
     dev: false
 
   /es6-iterator@2.0.1:
-    resolution: {integrity: sha1-jjGcnwRTv1ddN0lAplWSDlnKVRI=}
+    resolution: {integrity: sha512-6QdxKjEfkAutL86ORbUgbZjfmssn3hfrFZDz5utw2BH9EJWYCVVqn9dN/WvsWSzsZ7Ox/fMrHXexX96fF5vEsw==}
     dependencies:
       d: 1.0.0
       es5-ext: 0.10.24
@@ -29,7 +29,7 @@ packages:
     dev: false
 
   /es6-symbol@3.1.1:
-    resolution: {integrity: sha1-vwDvT9q2uhtG7Le2KbTH7VcVzHc=}
+    resolution: {integrity: sha512-exfuQY8UGtn/N+gL1iKkH8fpNd5sJ760nJq6mmZAHldfxMD5kX07lbQuYlspoXsuknXNv9Fb7y2GsPOnQIbxHg==}
     dependencies:
       d: 1.0.0
       es5-ext: 0.10.24

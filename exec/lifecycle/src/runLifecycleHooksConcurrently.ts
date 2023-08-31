@@ -65,7 +65,7 @@ export async function runLifecycleHooksConcurrently (
         }
         let isBuilt = false
         for (const stage of (importerStages ?? stages)) {
-          if ((manifest.scripts == null) || !manifest.scripts[stage]) continue
+          if (!manifest.scripts?.[stage]) continue
           await runLifecycleHook(stage, manifest, runLifecycleHookOpts) // eslint-disable-line no-await-in-loop
           isBuilt = true
         }

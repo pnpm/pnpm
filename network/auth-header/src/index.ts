@@ -27,7 +27,7 @@ function getAuthHeaderByURI (authHeaders: Record<string, string>, maxParts: numb
   const nerfed = nerfDart(uri)
   const parts = nerfed.split('/')
   for (let i = Math.min(parts.length, maxParts) - 1; i >= 3; i--) {
-    const key = `${parts.slice(0, i).join('/')}/` // eslint-disable-line
+    const key = `${parts.slice(0, i).join('/')}/`
     if (authHeaders[key]) return authHeaders[key]
   }
   const urlWithoutPort = removePort(uri)
