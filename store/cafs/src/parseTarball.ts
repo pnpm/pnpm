@@ -52,11 +52,6 @@ export function parseTarball (buffer: Buffer): IParseResult {
 
   let blockStart: number = 0
   while (buffer[blockStart] !== 0) {
-    const expectedCheckSum: number = parseOctal(blockStart + CHECKSUM_OFFSET, 8)
-    if (expectedCheckSum === 0) {
-      blockStart += 512
-      continue
-    }
     // Parse out a TAR header. header size is 512 bytes.
     // The file type is a single byte at offset 156 in the header
     fileType = buffer[blockStart + FILE_TYPE_OFFSET]
@@ -72,6 +67,7 @@ export function parseTarball (buffer: Buffer): IParseResult {
     // Also include 1 block for the header itself.
     blockBytes = (fileSize & ~0x1ff) + (fileSize & 0x1ff ? 1024 : 512)
 
+    const expectedCheckSum: number = parseOctal(blockStart + CHECKSUM_OFFSET, 8)
     const actualCheckSum: number = checkSum(blockStart)
     if (expectedCheckSum !== actualCheckSum) {
       throw new Error(
