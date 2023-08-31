@@ -131,8 +131,6 @@ export async function runRecursive (
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
-          logger.info(err)
-
           result[prefix] = {
             status: 'failure',
             duration: getExecutionDuration(startTime),
