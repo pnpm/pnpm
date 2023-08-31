@@ -14,7 +14,6 @@ export interface IFile {
 const ZERO: number = '0'.charCodeAt(0)
 const FILE_TYPE_SYMLINK: number = '2'.charCodeAt(0)
 const FILE_TYPE_DIRECTORY: number = '5'.charCodeAt(0)
-const SEVEN: number = '7'.charCodeAt(0)
 const SPACE: number = ' '.charCodeAt(0)
 const SLASH: number = '/'.charCodeAt(0)
 const BACKSLASH: number = '\\'.charCodeAt(0)
@@ -274,24 +273,33 @@ export function parseTarball (buffer: Buffer): IParseResult {
    * Parses an octal number at the specified `offset`, up to `length` characters. If it ends early, it will be terminated by either
    * a NUL or a space.
    */
-  function parseOctal (offset: number, length: number): number {
-    let position: number = offset
-    const max: number = length + offset
-    let value: number = 0
-    for (
-      let char: number = buffer[position];
-      char !== 0 && char !== SPACE && position !== max;
-      char = buffer[++position]
-    ) {
-      if (char < ZERO || char > SEVEN) {
-        throw new Error(`Invalid character in octal string: ${String.fromCharCode(char)}`)
-      }
+  function parseOctal (offset: number, length: number) {
+    const val = buffer.subarray(offset, offset + length)
+    offset = 0
 
-      value <<= 3
-
-      value |= char - ZERO
-    }
-    return value
+    // Older versions of tar can prefix with spaces
+    while (offset < val.length && val[offset] === SPACE) offset++
+    const end = clamp(indexOf(val, SPACE, offset, val.length), val.length, val.length)
+    while (offset < end && val[offset] === 0) offset++
+    if (end === offset) return 0
+    return parseInt(val.slice(offset, end).toString(), 8)
   }
   // eslint-enable no-var
+}
+
+function indexOf (block: Buffer, num: number, offset: number, end: number) {
+  for (; offset < end; offset++) {
+    if (block[offset] === num) return offset
+  }
+  return end
+}
+
+function clamp (index: number, len: number, defaultValue: number) {
+  if (typeof index !== 'number') return defaultValue
+  index = ~~index // Coerce to integer.
+  if (index >= len) return len
+  if (index >= 0) return index
+  index += len
+  if (index >= 0) return index
+  return 0
 }
