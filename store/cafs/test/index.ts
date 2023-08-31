@@ -86,7 +86,7 @@ test('broken magic in tarball headers is handled gracefully', () => {
   )
 })
 
-test('unpack a tarball that parseTarball fails to unpack', () => {
+test('unpack an older version of tar that prefixes with spaces', () => {
   const dest = tempy.directory()
   const cafs = createCafs(dest)
   const { filesIndex } = cafs.addFilesFromTarball(

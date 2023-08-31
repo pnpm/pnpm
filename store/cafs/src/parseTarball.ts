@@ -277,44 +277,16 @@ export function parseTarball (buffer: Buffer): IParseResult {
    * Parses an octal number at the specified `offset`, up to `length` characters. If it ends early, it will be terminated by either
    * a NUL or a space.
    */
-  // function parseOctal (offset: number, length: number): number {
-  // let position: number = offset
-  // const max: number = length + offset
-  // let value: number = 0
-  // for (
-  // let char: number = buffer[position];
-  // char !== 0 && char !== SPACE && position !== max;
-  // char = buffer[++position]
-  // ) {
-  // if (char < ZERO || char > SEVEN) {
-  // throw new Error(`Invalid character in octal string: ${String.fromCharCode(char)}`)
-  // }
-
-  // value <<= 3
-
-  // value |= char - ZERO
-  // }
-  // return value
-  // }
   function parseOctal (offset: number, length: number) {
-    const val = buffer.slice(offset, offset + length)
+    const val = buffer.subarray(offset, offset + length)
     offset = 0
 
-    // If prefixed with 0x80 then parse as a base-256 integer
-    if (val[offset] & 0x80) {
-      const res = parse256(val)
-      if (res == null) {
-        throw new Error('xxxx')
-      }
-      return res
-    } else {
-      // Older versions of tar can prefix with spaces
-      while (offset < val.length && val[offset] === 32) offset++
-      const end = clamp(indexOf(val, 32, offset, val.length), val.length, val.length)
-      while (offset < end && val[offset] === 0) offset++
-      if (end === offset) return 0
-      return parseInt(val.slice(offset, end).toString(), 8)
-    }
+    // Older versions of tar can prefix with spaces
+    while (offset < val.length && val[offset] === SPACE) offset++
+    const end = clamp(indexOf(val, SPACE, offset, val.length), val.length, val.length)
+    while (offset < end && val[offset] === 0) offset++
+    if (end === offset) return 0
+    return parseInt(val.slice(offset, end).toString(), 8)
   }
   // eslint-enable no-var
 }
@@ -334,34 +306,4 @@ function clamp (index: number, len: number, defaultValue: number) {
   index += len
   if (index >= 0) return index
   return 0
-}
-
-/* Copied from the node-tar repo and modified to meet
- * tar-stream coding standard.
- *
- * Source: https://github.com/npm/node-tar/blob/51b6627a1f357d2eb433e7378e5f05e83b7aa6cd/lib/header.js#L349
- */
-function parse256 (buf: Buffer) {
-  // first byte MUST be either 80 or FF
-  // 80 for positive, FF for 2's comp
-  let positive
-  if (buf[0] === 0x80) positive = true
-  else if (buf[0] === 0xFF) positive = false
-  else return null
-
-  // build up a base-256 tuple from the least sig to the highest
-  const tuple = []
-  for (let i = buf.length - 1; i > 0; i--) {
-    const byte = buf[i]
-    if (positive) tuple.push(byte)
-    else tuple.push(0xFF - byte)
-  }
-
-  let sum = 0
-  const l = tuple.length
-  for (let i = 0; i < l; i++) {
-    sum += tuple[i] * Math.pow(256, i)
-  }
-
-  return positive ? sum : -1 * sum
 }
