@@ -147,7 +147,11 @@ test('use the specified Node.js version for running scripts', async () => {
     },
   })
   await fs.writeFile('.npmrc', 'use-node-version=14.0.0', 'utf8')
-  await execPnpm(['run', 'test'])
+  await execPnpm(['run', 'test'], {
+    env: {
+      PNPM_HOME: path.resolve('pnpm_home'),
+    },
+  })
   expect(await fs.readFile('version', 'utf8')).toBe('v14.0.0')
 })
 
