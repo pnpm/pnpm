@@ -101,11 +101,14 @@ export async function recursivePublish (
     const chunks = sortPackages(opts.selectedProjectsGraph)
     const tag = opts.tag ?? 'latest'
     for (const chunk of chunks) {
-      // eslint-disable-next-line no-await-in-loop
-      const publishResults = await Promise.all(chunk.map(async (pkgDir) => {
-        if (!publishedPkgDirs.has(pkgDir)) return null
+      // NOTE: It should be possible to publish these packages concurrently.
+      // However, looks like that requires too much resources for some CI envs.
+      // See related issue: https://github.com/pnpm/pnpm/issues/6968
+      for (const pkgDir of chunk) {
+        if (!publishedPkgDirs.has(pkgDir)) continue
         const pkg = opts.selectedProjectsGraph[pkgDir].package
         const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registries, pkg.manifest.name!)
+        // eslint-disable-next-line no-await-in-loop
         const publishResult = await publish({
           ...opts,
           dir: pkg.dir,
@@ -124,12 +127,9 @@ export async function recursivePublish (
         }, [pkg.dir])
         if (publishResult?.manifest != null) {
           publishedPackages.push(pick(['name', 'version'], publishResult.manifest))
+        } else if (publishResult?.exitCode) {
+          return { exitCode: publishResult.exitCode }
         }
-        return publishResult
-      }))
-      const failedPublish = publishResults.find((result) => result?.exitCode)
-      if (failedPublish) {
-        return { exitCode: failedPublish.exitCode! }
       }
     }
   }
