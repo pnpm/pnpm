@@ -93,10 +93,23 @@ test('unpack a tarball that parseTarball fails to unpack', () => {
     fs.readFileSync(path.join(__dirname, 'fixtures/parsers-3.0.0-rc.48.1.tgz'))
   )
   expect(Object.keys(filesIndex).sort()).toStrictEqual([
-    'LICENSE',
-    'README.md',
+    'lib/grammars/resolution.d.ts',
+    'lib/grammars/resolution.js',
+    'lib/grammars/resolution.pegjs',
+    'lib/grammars/shell.d.ts',
+    'lib/grammars/shell.js',
+    'lib/grammars/shell.pegjs',
+    'lib/grammars/syml.d.ts',
+    'lib/grammars/syml.js',
+    'lib/grammars/syml.pegjs',
     'lib/index.d.ts',
     'lib/index.js',
+    'lib/resolution.d.ts',
+    'lib/resolution.js',
+    'lib/shell.d.ts',
+    'lib/shell.js',
+    'lib/syml.d.ts',
+    'lib/syml.js',
     'package.json',
   ])
 })
