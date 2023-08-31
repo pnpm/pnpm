@@ -4,7 +4,6 @@
 "@pnpm/lockfile-utils": patch
 "@pnpm/fs.find-packages": patch
 "@pnpm/lifecycle": patch
-"pnpm": patch
 ---
 
 Apply fixes from @typescript-eslint v6 for nullish coalescing and optional chains. No behavior changes are expected with this change.

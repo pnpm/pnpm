@@ -1,5 +1,14 @@
 # pnpm
 
+## 8.7.1
+
+### Patch Changes
+
+- Fixed an issue with extracting some old versions of tarballs [#6991](https://github.com/pnpm/pnpm/issues/6991).
+- Side-effects cache will now be leveraged when running install in a workspace that uses dedicated lockfiles for each project [#6890](https://github.com/pnpm/pnpm/issues/6890).
+- Reduce concurrency in the `pnpm -r publish` command [#6968](https://github.com/pnpm/pnpm/issues/6968).
+- Improved the `pnpm update --interactive` output by grouping dependencies by type. Additionally, a new column has been added with links to the documentation for outdated packages [#6978](https://github.com/pnpm/pnpm/pull/6978).
+
 ## 8.7.0
 
 ### Minor Changes
