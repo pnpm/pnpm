@@ -49,7 +49,7 @@ packages:
     dev: false
 
   /fast-json-stable-stringify@2.0.0:
-    resolution: {integrity: sha1-1RQsDK7msRifh9OnYREGT4bIu/I=}
+    resolution: {integrity: sha512-eIgZvM9C3P05kg0qxfqaVU6Tma4QedCPIByQOcemV0vju8ot3cS2DpHi4m2G2JvbSMI152rjfLX0p1pkSdyPlQ==}
     dev: false
 
   /fast-json-stable-stringify@2.1.0:
