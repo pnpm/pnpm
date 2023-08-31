@@ -4,7 +4,6 @@
     "composite": false,
     "declaration": false,
     "outDir": "lib",
-    "sourceMap": false,
     "rootDir": "src",
     "suppressImplicitAnyIndexErrors": true,
     "ignoreDeprecations": "5.0"
