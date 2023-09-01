@@ -128,3 +128,6 @@ export async function addFilesFromTarball (
     })
   })
 }
+
+export async function checkPkgFilesIntegrity () {
+}
