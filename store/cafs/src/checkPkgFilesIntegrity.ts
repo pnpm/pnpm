@@ -106,35 +106,6 @@ export function verifyFileIntegrity (
   filename: string,
   expectedFile: FileInfo,
   deferredManifest?: DeferredManifestPromise
-) {
-  // @ts-expect-error
-  global['verifiedFileIntegrity']++
-  try {
-    const data = gfs.readFileSync(filename)
-    const ok = Boolean(ssri.checkData(data, expectedFile.integrity))
-    if (!ok) {
-      rimraf.sync(filename)
-    } else if (deferredManifest != null) {
-      parseJsonBuffer(data, deferredManifest)
-    }
-    return ok
-  } catch (err: any) { // eslint-disable-line
-    switch (err.code) {
-    case 'ENOENT': return false
-    case 'EINTEGRITY': {
-      // Broken files are removed from the store
-      rimraf.sync(filename)
-      return false
-    }
-    }
-    throw err
-  }
-}
-
-export function verifyFileIntegritySync (
-  filename: string,
-  expectedFile: FileInfo,
-  deferredManifest?: DeferredManifestPromise
 ): boolean {
   // @ts-expect-error
   global['verifiedFileIntegrity']++
