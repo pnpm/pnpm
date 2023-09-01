@@ -130,22 +130,29 @@ export async function addFilesFromTarball (
   })
 }
 
-export async function checkPkgFilesIntegrity (cafsDir: string, pkgIndex: PackageFilesIndex, manifest?: DeferredManifestPromise): Promise<boolean> {
+export async function readPkgFromCafs (
+  cafsDir: string,
+  filesIndexFile: string,
+  manifest?: DeferredManifestPromise
+): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }> {
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<boolean>((resolve, reject) => {
+  return new Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool.checkinWorker(localWorker)
       if (status === 'error') {
-        reject(new PnpmError('GIT_FETCH_FAILED', error as string))
+        reject(new PnpmError('READ_FROM_STORE', error as string))
         return
       }
       manifest?.resolve(value.manifest)
-      resolve(value.verified)
+      resolve({
+        verified: value.verified,
+        pkgFilesIndex: value.pkgFilesIndex,
+      })
     })
     localWorker.postMessage({
-      type: 'checkPkgFilesIntegrity',
+      type: 'readPkgFromCafs',
       cafsDir,
-      pkgIndex,
+      filesIndexFile,
     })
   })
 }

@@ -16,7 +16,7 @@ import safePromiseDefer from 'safe-promise-defer'
 import { parentPort } from 'worker_threads'
 import {
   type AddDirToStoreMessage,
-  type CheckPkgFilesIntegrityMessage,
+  type ReadPkgFromCafsMessage,
   type LinkPkgMessage,
   type TarballExtractMessage,
 } from './types'
@@ -29,7 +29,7 @@ const cafsCache = new Map<string, ReturnType<typeof createCafs>>()
 const cafsStoreCache = new Map<string, ReturnType<typeof createCafsStore>>()
 const cafsLocker = new Map<string, number>()
 
-async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | AddDirToStoreMessage | CheckPkgFilesIntegrityMessage | false): Promise<void> {
+async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | AddDirToStoreMessage | ReadPkgFromCafsMessage | false): Promise<void> {
   if (message === false) {
     parentPort!.off('message', handleMessage)
     process.exit(0)
@@ -48,13 +48,29 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
       parentPort!.postMessage(addFilesFromDir(message))
       break
     }
-    case 'checkPkgFilesIntegrity': {
-      const { cafsDir, pkgIndex } = message
+    case 'readPkgFromCafs': {
+      const { cafsDir, filesIndexFile } = message
+      let pkgFilesIndex: PackageFilesIndex | undefined
+      try {
+        pkgFilesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
+      } catch {
+        // ignoring. It is fine if the integrity file is not present. Just refetch the package
+      }
+      if (!pkgFilesIndex) {
+        parentPort!.postMessage({
+          status: 'success',
+          value: {
+            verified: false,
+            pkgFilesIndex: null,
+          },
+        })
+        return
+      }
       const manifestP = safePromiseDefer()
-      const verified = checkPkgFilesIntegrity(cafsDir, pkgIndex, manifestP)
+      const verified = checkPkgFilesIntegrity(cafsDir, pkgFilesIndex, manifestP)
       parentPort!.postMessage({
         status: 'success',
-        value: { verified, manifest: await manifestP() },
+        value: { verified, manifest: await manifestP(), pkgFilesIndex },
       })
       break
     }
