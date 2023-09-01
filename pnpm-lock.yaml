@@ -1736,6 +1736,9 @@ importers:
       path-temp:
         specifier: ^2.1.0
         version: 2.1.0
+      rclonefile:
+        specifier: 1.0.1
+        version: 1.0.1
       rename-overwrite:
         specifier: ^4.0.3
         version: 4.0.3
@@ -11142,7 +11145,6 @@ packages:
   /esm@3.2.25:
     resolution: {integrity: sha512-U1suiZ2oDVWv4zPO56S0NcR5QriEahGtdN2OR6FiOG4WJvcjBVFB0qI4+eKoWFH483PKGuLuu6V8Z4T5g63UVA==}
     engines: {node: '>=6'}
-    dev: true
 
   /espree@9.6.1:
     resolution: {integrity: sha512-oruZaFkjorTpF32kDSI5/75ViwGeZginGGy2NoOSg3Q9bnwlnmDm4HLnkl0RE3n+njDXR037aY1+x58Z/zFdwQ==}
@@ -14947,6 +14949,34 @@ packages:
       minimist: 1.2.8
       strip-json-comments: 2.0.1
     dev: true
+
+  /rclonefile-darwin-arm64@1.0.1:
+    resolution: {integrity: sha512-lGXyyLEvdFQQIfg9us8j6TqOG+lYYuOcucd2wmVnKukntDtEFtIQIcx2+w+wQ7ah4WBa29FRFQmK/21aqWXokA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /rclonefile-darwin-x64@1.0.1:
+    resolution: {integrity: sha512-ZmxgDLLBaSNaxo72D97g0J3gSEd/bICPD7oxAMObjPB3v6ipUt2IIX/v0S4IjxbnuVFCMRyaatnEGhi2G9F+Nw==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /rclonefile@1.0.1:
+    resolution: {integrity: sha512-+K3uczM2PwHGsPUszoIV79EzgvWmEJAtokgXCM6W42YktWeOvwUiWSlWgjCZTyh0pOlqGfXURmu9E8q8+DqyXQ==}
+    engines: {node: '>= 10'}
+    dependencies:
+      esm: 3.2.25
+    optionalDependencies:
+      rclonefile-darwin-arm64: 1.0.1
+      rclonefile-darwin-x64: 1.0.1
+    dev: false
 
   /react-is@18.2.0:
     resolution: {integrity: sha512-xWGDIW6x921xtzPkhiULtthJHoJvBbF3q26fzloPCK0hsvxtPVelvftw3zjbHWSkR2km9Z+4uxbDDK/6Zw9B8w==}

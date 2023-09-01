@@ -1,9 +1,10 @@
-import { constants, type Stats, existsSync } from 'fs'
+import { type Stats, existsSync } from 'fs'
 import fs from '@pnpm/graceful-fs'
 import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import { type FilesMap, type ImportOptions, type ImportIndexedPackage } from '@pnpm/store-controller-types'
+import { cloneFileSync } from 'rclonefile'
 import { importIndexedDir, type ImportFile } from './importIndexedDir'
 
 export function createIndexedPkgImporter (
@@ -107,14 +108,10 @@ function clonePkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.fromStore || opts.force || !existsSync(pkgJsonPath)) {
-    importIndexedDir(cloneFile, to, opts.filesMap, opts)
+    importIndexedDir(cloneFileSync, to, opts.filesMap, opts)
     return 'clone'
   }
   return undefined
-}
-
-function cloneFile (from: string, to: string) {
-  fs.copyFileSync(from, to, constants.COPYFILE_FICLONE_FORCE)
 }
 
 function hardlinkPkg (
