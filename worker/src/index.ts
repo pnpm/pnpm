@@ -132,6 +132,7 @@ export async function addFilesFromTarball (
 
 export async function readPkgFromCafs (
   cafsDir: string,
+  verifyStoreIntegrity: boolean,
   filesIndexFile: string,
   manifest?: DeferredManifestPromise
 ): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }> {
@@ -153,6 +154,8 @@ export async function readPkgFromCafs (
       type: 'readPkgFromCafs',
       cafsDir,
       filesIndexFile,
+      readManifest: manifest != null,
+      verifyStoreIntegrity,
     })
   })
 }

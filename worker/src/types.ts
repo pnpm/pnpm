@@ -32,4 +32,6 @@ export interface ReadPkgFromCafsMessage {
   type: 'readPkgFromCafs'
   cafsDir: string
   filesIndexFile: string
+  readManifest: boolean
+  verifyStoreIntegrity: boolean
 }

@@ -108,7 +108,7 @@ export function createPackageRequester (
   const getFilePathInCafs = _getFilePathInCafs.bind(null, cafsDir)
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs)
   const fetchPackageToStore = fetchToStore.bind(null, {
-    readPkgFromCafs: _readPkgFromCafs.bind(null, cafsDir),
+    readPkgFromCafs: _readPkgFromCafs.bind(null, cafsDir, opts.verifyStoreIntegrity),
     fetch,
     fetchingLocker: new Map(),
     getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, cafsDir),

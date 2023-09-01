@@ -10,6 +10,7 @@ import {
   type PackageFilesIndex,
   type FilesIndex,
   optimisticRenameOverwrite,
+  readManifestFromStore,
 } from '@pnpm/store.cafs'
 import { sync as loadJsonFile } from 'load-json-file'
 import safePromiseDefer from 'safe-promise-defer'
@@ -49,7 +50,7 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
       break
     }
     case 'readPkgFromCafs': {
-      const { cafsDir, filesIndexFile } = message
+      const { cafsDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
       let pkgFilesIndex: PackageFilesIndex | undefined
       try {
         pkgFilesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
@@ -66,11 +67,23 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
         })
         return
       }
-      const manifestP = safePromiseDefer()
-      const verified = checkPkgFilesIntegrity(cafsDir, pkgFilesIndex, manifestP)
+      const manifestP = readManifest ? safePromiseDefer() : undefined
+      let verified: boolean
+      if (verifyStoreIntegrity) {
+        verified = checkPkgFilesIntegrity(cafsDir, pkgFilesIndex, manifestP)
+      } else {
+        verified = true
+        if (manifestP) {
+          manifestP.resolve(readManifestFromStore(cafsDir, pkgFilesIndex))
+        }
+      }
       parentPort!.postMessage({
         status: 'success',
-        value: { verified, manifest: await manifestP(), pkgFilesIndex },
+        value: {
+          verified,
+          manifest: manifestP ? await manifestP() : undefined,
+          pkgFilesIndex,
+        },
       })
       break
     }
