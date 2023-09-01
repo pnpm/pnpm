@@ -47,6 +47,7 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/worker": "workspace:*",
     "load-json-file": "^6.2.0",
     "p-defer": "^3.0.0",
     "p-limit": "^3.1.0",

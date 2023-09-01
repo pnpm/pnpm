@@ -3,6 +3,7 @@ import os from 'os'
 import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
 import { type DeferredManifestPromise } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type TarballExtractMessage, type AddDirToStoreMessage } from './types'
 
 export { type WorkerPool }
@@ -129,5 +130,22 @@ export async function addFilesFromTarball (
   })
 }
 
-export async function checkPkgFilesIntegrity () {
+export async function checkPkgFilesIntegrity (cafsDir: string, pkgIndex: PackageFilesIndex, manifest?: DeferredManifestPromise): Promise<boolean> {
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<boolean>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, value }) => {
+      workerPool.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError('GIT_FETCH_FAILED', error as string))
+        return
+      }
+      manifest?.resolve(value.manifest)
+      resolve(value.verified)
+    })
+    localWorker.postMessage({
+      type: 'checkPkgFilesIntegrity',
+      cafsDir,
+      pkgIndex,
+    })
+  })
 }

@@ -4,6 +4,7 @@ import gfs from '@pnpm/graceful-fs'
 import * as crypto from 'crypto'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import {
+  checkPkgFilesIntegrity,
   createCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
@@ -11,8 +12,14 @@ import {
   optimisticRenameOverwrite,
 } from '@pnpm/store.cafs'
 import { sync as loadJsonFile } from 'load-json-file'
+import safePromiseDefer from 'safe-promise-defer'
 import { parentPort } from 'worker_threads'
-import { type TarballExtractMessage, type LinkPkgMessage, type AddDirToStoreMessage } from './types'
+import {
+  type AddDirToStoreMessage,
+  type CheckPkgFilesIntegrityMessage,
+  type LinkPkgMessage,
+  type TarballExtractMessage,
+} from './types'
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
 
@@ -22,7 +29,7 @@ const cafsCache = new Map<string, ReturnType<typeof createCafs>>()
 const cafsStoreCache = new Map<string, ReturnType<typeof createCafsStore>>()
 const cafsLocker = new Map<string, number>()
 
-async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | AddDirToStoreMessage | false): Promise<void> {
+async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | AddDirToStoreMessage | CheckPkgFilesIntegrityMessage | false): Promise<void> {
   if (message === false) {
     parentPort!.off('message', handleMessage)
     process.exit(0)
@@ -39,6 +46,16 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
     }
     case 'add-dir': {
       parentPort!.postMessage(addFilesFromDir(message))
+      break
+    }
+    case 'checkPkgFilesIntegrity': {
+      const { cafsDir, pkgIndex } = message
+      const manifestP = safePromiseDefer()
+      const verified = checkPkgFilesIntegrity(cafsDir, pkgIndex, manifestP)
+      parentPort!.postMessage({
+        status: 'success',
+        value: { verified, manifest: await manifestP() },
+      })
       break
     }
     }

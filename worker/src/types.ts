@@ -1,4 +1,5 @@
 import { type PackageFilesResponse } from '@pnpm/cafs-types'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
 
 export interface TarballExtractMessage {
   type: 'extract'
@@ -26,4 +27,10 @@ export interface AddDirToStoreMessage {
   dir: string
   filesIndexFile: string
   sideEffectsCacheKey?: string
+}
+
+export interface CheckPkgFilesIntegrityMessage {
+  type: 'checkPkgFilesIntegrity'
+  cafsDir: string
+  pkgIndex: PackageFilesIndex
 }

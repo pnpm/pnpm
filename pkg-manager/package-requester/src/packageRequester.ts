@@ -1,7 +1,6 @@
 import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
 import {
-  checkPkgFilesIntegrity as _checkFilesIntegrity,
   readManifestFromStore as _readManifestFromStore,
   type FileType,
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
@@ -43,6 +42,7 @@ import {
 } from '@pnpm/store-controller-types'
 import { type DependencyManifest } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
+import { checkPkgFilesIntegrity as _checkFilesIntegrity } from '@pnpm/worker'
 import PQueue from 'p-queue'
 import loadJsonFile from 'load-json-file'
 import pDefer from 'p-defer'
