@@ -1,4 +1,4 @@
-jest.retryTimes(1);
+jest.retryTimes(1, { logErrorsBeforeRetry: true });
 
 afterAll(() => {
   // @ts-expect-error

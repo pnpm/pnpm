@@ -37,16 +37,16 @@ skipOnWindows('installation using pnpm server', async () => {
   await using framework = new ServerTestingFramework()
 
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
-  const serverJson = await retryLoadJsonFile<{ connectionOptions: object, pnpmVersion: string }>(serverJsonPath)
+  const serverJson = await framework.startup(serverJsonPath)
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions).toBeTruthy()
   expect(typeof serverJson.pnpmVersion).toBe('string')
 
-  await expect(framework.exec(['install', 'is-positive@1.0.0'])).resolves.not.toThrow()
+  await expect(framework.exec(['install', 'is-positive@1.0.0'])).toBePassingServerTest()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
 
-  await expect(framework.exec(['uninstall', 'is-positive'])).resolves.not.toThrow()
+  await expect(framework.exec(['uninstall', 'is-positive'])).toBePassingServerTest()
 })
 
 skipOnWindows('store server: headless installation', async () => {
@@ -54,13 +54,13 @@ skipOnWindows('store server: headless installation', async () => {
   await using framework = new ServerTestingFramework()
 
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
-  const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
+  const serverJson = await framework.startup(serverJsonPath)
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions).toBeTruthy()
 
-  await expect(framework.exec(['install', 'is-positive@1.0.0', '--lockfile-only'])).resolves.not.toThrow()
+  await expect(framework.exec(['install', 'is-positive@1.0.0', '--lockfile-only'])).toBePassingServerTest()
 
-  await expect(framework.exec(['install', '--frozen-lockfile'])).resolves.not.toThrow()
+  await expect(framework.exec(['install', '--frozen-lockfile'])).toBePassingServerTest()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
 })
@@ -70,15 +70,15 @@ skipOnWindows('installation using pnpm server that runs in the background', asyn
   await using framework = new ServerTestingFramework(['--background'])
 
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
-  const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
+  const serverJson = await framework.startup(serverJsonPath)
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions).toBeTruthy()
 
-  await expect(framework.exec(['install', 'is-positive@1.0.0'])).resolves.not.toThrow()
+  await expect(framework.exec(['install', 'is-positive@1.0.0'])).toBePassingServerTest()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
 
-  await expect(framework.exec(['uninstall', 'is-positive'])).resolves.not.toThrow()
+  await expect(framework.exec(['uninstall', 'is-positive'])).toBePassingServerTest()
 })
 
 skipOnWindows('installation using pnpm server via TCP', async () => {
@@ -86,25 +86,24 @@ skipOnWindows('installation using pnpm server via TCP', async () => {
   await using framework = new ServerTestingFramework(['--protocol', 'tcp'])
 
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
-  const serverJson = await retryLoadJsonFile<{ connectionOptions: { remotePrefix: string } }>(serverJsonPath)
+  const serverJson = await framework.startup(serverJsonPath)
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions.remotePrefix.indexOf('http://localhost:')).toBe(0) // TCP is used for communication'
 
-  await expect(framework.exec(['install', 'is-positive@1.0.0'])).resolves.not.toThrow()
+  await expect(framework.exec(['install', 'is-positive@1.0.0'])).toBePassingServerTest()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
 
-  await expect(framework.exec(['uninstall', 'is-positive'])).resolves.not.toThrow()
+  await expect(framework.exec(['uninstall', 'is-positive'])).toBePassingServerTest()
 })
 
 skipOnWindows('pnpm server uses TCP when port specified', async () => {
   prepare()
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  await using _framework = new ServerTestingFramework(['--port', '7856'])
+  await using framework = new ServerTestingFramework(['--port', '7856'])
 
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
-  const serverJson = await retryLoadJsonFile<{ connectionOptions: { remotePrefix: string } }>(serverJsonPath)
+  const serverJson = await framework.startup(serverJsonPath)
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions.remotePrefix).toBe('http://localhost:7856') // TCP with specified port is used for communication
 })
@@ -137,7 +136,7 @@ skipOnWindows('uploading cache can be disabled without breaking install', async 
   await delay(2000)
 
   // install a package that has side effects
-  await expect(execPnpm(['add', '--side-effects-cache', 'diskusage@1.1.3'])).resolves.not.toThrow()
+  await expect(execPnpm(['add', '--side-effects-cache', 'diskusage@1.1.3'])).toBePassingServerTest()
 
   // make sure the installation is successful, but the cache has not been written
   await project.has('diskusage')
@@ -150,7 +149,7 @@ skipOnWindows('uploading cache can be disabled without breaking install', async 
 skipOnWindows('installation using store server started in the background', async () => {
   const project = prepare()
 
-  await expect(execPnpm(['install', 'is-positive@1.0.0', '--use-store-server'])).resolves.not.toThrow()
+  await expect(execPnpm(['install', 'is-positive@1.0.0', '--use-store-server'])).toBePassingServerTest()
 
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
 
@@ -161,9 +160,9 @@ skipOnWindows('installation using store server started in the background', async
 
     expect(project.requireModule('is-positive')).toBeTruthy()
 
-    await expect(execPnpm(['uninstall', 'is-positive'])).resolves.not.toThrow()
+    await expect(execPnpm(['uninstall', 'is-positive'])).toBePassingServerTest()
   } finally {
-    await expect(execPnpm(['server', 'stop'])).resolves.not.toThrow()
+    await expect(execPnpm(['server', 'stop'])).toBePassingServerTest()
     await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()
   }
 })
@@ -171,7 +170,7 @@ skipOnWindows('installation using store server started in the background', async
 skipOnWindows('store server started in the background should use store location wanted by install', async () => {
   const project = prepare()
 
-  await expect(execPnpm(['add', 'is-positive@1.0.0', '--use-store-server', '--store-dir', '../store2'])).resolves.not.toThrow()
+  await expect(execPnpm(['add', 'is-positive@1.0.0', '--use-store-server', '--store-dir', '../store2'])).toBePassingServerTest()
 
   const serverJsonPath = path.resolve('..', 'store2/v3/server/server.json')
 
@@ -182,9 +181,9 @@ skipOnWindows('store server started in the background should use store location 
 
     expect(project.requireModule('is-positive')).toBeTruthy()
 
-    await expect(execPnpm(['remove', 'is-positive', '--store-dir', '../store2'])).resolves.not.toThrow()
+    await expect(execPnpm(['remove', 'is-positive', '--store-dir', '../store2'])).toBePassingServerTest()
   } finally {
-    await expect(execPnpm(['server', 'stop', '--store-dir', '../store2'])).resolves.not.toThrow()
+    await expect(execPnpm(['server', 'stop', '--store-dir', '../store2'])).toBePassingServerTest()
     await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()
   }
 })
@@ -288,7 +287,7 @@ skipOnWindows('parallel server starts against the same store should result in on
       }
     },
     timeoutMillis: 60000,
-  })).resolves.not.toThrow()
+  })).toBePassingServerTest()
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()
 })
@@ -296,7 +295,7 @@ skipOnWindows('parallel server starts against the same store should result in on
 skipOnWindows('installation without store server running in the background', async () => {
   const project = prepare()
 
-  await expect(execPnpm(['install', 'is-positive@1.0.0', '--no-use-store-server'])).resolves.not.toThrow()
+  await expect(execPnpm(['install', 'is-positive@1.0.0', '--no-use-store-server'])).toBePassingServerTest()
 
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()

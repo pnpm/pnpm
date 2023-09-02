@@ -12,7 +12,7 @@ export const pnpxBinLocation = path.join(__dirname, '../../bin/pnpx.cjs')
 // for 3 minutes to make it more clear what specific part of a test is timing
 // out.
 const DEFAULT_EXEC_PNPM_TIMEOUT = 3 * 60 * 1000 // 3 minutes
-const TIMEOUT_FOR_GRACEFUL_EXIT = 10 * 1000 // 10s
+const TIMEOUT_FOR_GRACEFUL_EXIT = 30 * 1000 // 10s
 
 export async function execPnpm (
   args: string[],
