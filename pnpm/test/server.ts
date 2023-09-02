@@ -3,7 +3,7 @@ import { type Readable } from 'stream'
 import { promisify } from 'util'
 import path from 'path'
 import byline from '@pnpm/byline'
-import { type Project, prepare } from '@pnpm/prepare'
+import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import delay, { type ClearablePromise } from 'delay'
 import pDefer, { type DeferredPromise } from 'p-defer'
@@ -19,6 +19,7 @@ import {
   retryLoadJsonFile,
   spawnPnpm,
 } from './utils'
+import { ServerTestingFramework } from './utils/ServerTestingFramework'
 
 const skipOnWindows = isWindows() ? test.skip : test
 
@@ -31,101 +32,78 @@ interface ServerProcess {
 
 const kill = promisify(killcb) as (pid: number, signal: string) => Promise<void>
 
-// Polyfilling Symbol.asyncDispose for Jest.
-//
-// Copied with a few changes from https://devblogs.microsoft.com/typescript/announcing-typescript-5-2/#using-declarations-and-explicit-resource-management
-if (Symbol.asyncDispose === undefined) {
-  (Symbol as { asyncDispose?: symbol }).asyncDispose = Symbol('Symbol.asyncDispose')
-}
-
-interface TestSetup extends AsyncDisposable {
-  readonly project: Project
-  readonly serverJsonPath: string
-}
-
-function prepareServerTest (serverStartArgs?: readonly string[]): TestSetup {
-  const project = prepare()
-
-  spawnPnpm(['server', 'start', ...(serverStartArgs ?? [])])
-  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
-
-  async function onTestEnd () {
-    await expect(execPnpm(['server', 'stop'])).resolves.not.toThrow()
-    await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()
-  }
-
-  return {
-    project,
-    serverJsonPath,
-    [Symbol.asyncDispose]: onTestEnd,
-  }
-}
-
 skipOnWindows('installation using pnpm server', async () => {
-  await using setup = prepareServerTest()
-  const { project, serverJsonPath } = setup
+  const project = prepare()
+  await using framework = new ServerTestingFramework()
 
+  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object, pnpmVersion: string }>(serverJsonPath)
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions).toBeTruthy()
   expect(typeof serverJson.pnpmVersion).toBe('string')
 
-  await expect(execPnpm(['install', 'is-positive@1.0.0'])).resolves.not.toThrow()
+  await expect(framework.exec(['install', 'is-positive@1.0.0'])).resolves.not.toThrow()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
 
-  await expect(execPnpm(['uninstall', 'is-positive'])).resolves.not.toThrow()
+  await expect(framework.exec(['uninstall', 'is-positive'])).resolves.not.toThrow()
 })
 
 skipOnWindows('store server: headless installation', async () => {
-  await using setup = prepareServerTest()
-  const { project, serverJsonPath } = setup
+  const project = prepare()
+  await using framework = new ServerTestingFramework()
 
+  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions).toBeTruthy()
 
-  await expect(execPnpm(['install', 'is-positive@1.0.0', '--lockfile-only'])).resolves.not.toThrow()
+  await expect(framework.exec(['install', 'is-positive@1.0.0', '--lockfile-only'])).resolves.not.toThrow()
 
-  await expect(execPnpm(['install', '--frozen-lockfile'])).resolves.not.toThrow()
+  await expect(framework.exec(['install', '--frozen-lockfile'])).resolves.not.toThrow()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
 })
 
 skipOnWindows('installation using pnpm server that runs in the background', async () => {
-  await using setup = prepareServerTest(['--background'])
-  const { project, serverJsonPath } = setup
+  const project = prepare()
+  await using framework = new ServerTestingFramework(['--background'])
 
+  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions).toBeTruthy()
 
-  await expect(execPnpm(['install', 'is-positive@1.0.0'])).resolves.not.toThrow()
+  await expect(framework.exec(['install', 'is-positive@1.0.0'])).resolves.not.toThrow()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
 
-  await expect(execPnpm(['uninstall', 'is-positive'])).resolves.not.toThrow()
+  await expect(framework.exec(['uninstall', 'is-positive'])).resolves.not.toThrow()
 })
 
 skipOnWindows('installation using pnpm server via TCP', async () => {
-  await using setup = prepareServerTest(['--protocol', 'tcp'])
-  const { project, serverJsonPath } = setup
+  const project = prepare()
+  await using framework = new ServerTestingFramework(['--protocol', 'tcp'])
 
+  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: { remotePrefix: string } }>(serverJsonPath)
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions.remotePrefix.indexOf('http://localhost:')).toBe(0) // TCP is used for communication'
 
-  await expect(execPnpm(['install', 'is-positive@1.0.0'])).resolves.not.toThrow()
+  await expect(framework.exec(['install', 'is-positive@1.0.0'])).resolves.not.toThrow()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
 
-  await expect(execPnpm(['uninstall', 'is-positive'])).resolves.not.toThrow()
+  await expect(framework.exec(['uninstall', 'is-positive'])).resolves.not.toThrow()
 })
 
 skipOnWindows('pnpm server uses TCP when port specified', async () => {
-  await using setup = prepareServerTest(['--port', '7856'])
-  const { serverJsonPath } = setup
+  prepare()
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  await using _framework = new ServerTestingFramework(['--port', '7856'])
+
+  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: { remotePrefix: string } }>(serverJsonPath)
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions.remotePrefix).toBe('http://localhost:7856') // TCP with specified port is used for communication
@@ -150,8 +128,9 @@ test('stopping server fails when the server disallows stopping via remote call',
 })
 
 skipOnWindows('uploading cache can be disabled without breaking install', async () => {
-  await using setup = prepareServerTest(['--ignore-upload-requests'])
-  const { project } = setup
+  const project = prepare()
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  await using _framework = new ServerTestingFramework(['--ignore-upload-requests'])
 
   // TODO: remove the delay and run install by connecting it to the store server
   // Can be done once this gets implemented: https://github.com/pnpm/pnpm/issues/1018
@@ -342,8 +321,9 @@ test.skip('fail if the store server is run by a different version of pnpm', asyn
 })
 
 skipOnWindows('print server status', async () => {
+  prepare()
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  await using _setup = prepareServerTest()
+  await using _framework = new ServerTestingFramework()
 
   await delay(2000)
 

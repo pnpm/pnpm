@@ -5,8 +5,8 @@ import isWindows from 'is-windows'
 import crossSpawn from 'cross-spawn'
 
 const binDir = path.join(__dirname, '../..', isWindows() ? 'dist' : 'bin')
-const pnpmBinLocation = path.join(binDir, 'pnpm.cjs')
-const pnpxBinLocation = path.join(__dirname, '../../bin/pnpx.cjs')
+export const pnpmBinLocation = path.join(binDir, 'pnpm.cjs')
+export const pnpxBinLocation = path.join(__dirname, '../../bin/pnpx.cjs')
 
 // The default timeout for tests is 4 minutes. Set a timeout for execPnpm calls
 // for 3 minutes to make it more clear what specific part of a test is timing
@@ -109,7 +109,7 @@ export function execPnpxSync (args: string[], opts?: { env: Record<string, strin
   }) as ChildProcess
 }
 
-function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
+export function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
   const env = {
     npm_config_fetch_retries: '4',
     npm_config_hoist: 'true',
