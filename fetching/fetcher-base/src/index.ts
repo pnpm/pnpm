@@ -31,7 +31,7 @@ export interface FetchResult {
 export interface GitFetcherOptions {
   readManifest?: boolean
   filesIndexFile: string
-  pkg: PkgNameVersion
+  pkg?: PkgNameVersion
 }
 
 export type GitFetcher = FetchFunction<GitResolution, GitFetcherOptions, { filesIndex: Record<string, string>, manifest?: DependencyManifest }>
