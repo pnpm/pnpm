@@ -34,6 +34,9 @@ export function createServer (
     ignoreUploadRequests?: boolean
   }
 ) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).isRunningInPnpmServer = true
+
   const rawManifestPromises: Record<string, BundledManifestFunction> = {}
   const filesPromises: Record<string, () => Promise<PackageFilesResponse>> = {}
 
@@ -49,6 +52,7 @@ export function createServer (
       return
     }
 
+    const requestId = performance.now()
     const bodyPromise = new Promise<RequestBody>((resolve, reject) => {
       let body: any = '' // eslint-disable-line
       req.on('data', (data) => {
@@ -61,6 +65,8 @@ export function createServer (
           } else {
             body = {}
           }
+          console.log(`Got request at ${requestId}: ${req.url}`)
+          console.log(body)
           resolve(body)
         } catch (e: any) { // eslint-disable-line
           reject(e)
@@ -175,6 +181,8 @@ export function createServer (
       jsonErr.message = e.message
       res.end(JSON.stringify(jsonErr))
     }
+
+    console.log(`Responded to request: ${requestId}`)
   })
 
   let listener: Server

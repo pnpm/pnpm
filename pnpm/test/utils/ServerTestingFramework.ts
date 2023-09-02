@@ -5,6 +5,14 @@ import { createEnv, pnpmBinLocation } from './execPnpm'
 import { retryLoadJsonFile2 } from './retryLoadJsonFile'
 import delay from 'delay'
 
+interface ServerInstanceInfo {
+  readonly connectionOptions: {
+    readonly remotePrefix: string
+  }
+  readonly pid: number
+  readonly pnpmVersion: string
+}
+
 // Polyfilling Symbol.asyncDispose for Jest.
 //
 // Copied with a few changes from https://devblogs.microsoft.com/typescript/announcing-typescript-5-2/#using-declarations-and-explicit-resource-management
@@ -34,7 +42,7 @@ export class ServerTestingFramework implements AsyncDisposable {
   }
 
   public async startup (serverJsonPath: string) {
-    const { value, abortController } = retryLoadJsonFile2<{ connectionOptions: { remotePrefix: string }, pnpmVersion: string }>(serverJsonPath)
+    const { value, abortController } = retryLoadJsonFile2<ServerInstanceInfo>(serverJsonPath)
 
     return this.performServerAction({
       // It shouldn't take longer than 10s for the server to start up.
@@ -165,15 +173,7 @@ export class ServerTestExecError extends Error {
   readonly clientOutput: string
 
   constructor (message: string, serverOutput: string, clientOutput: string) {
-    super(`\
-${message}
-
-${chalk.underline('Client log:')}
-${chalk.dim(clientOutput)}
-
-${chalk.underline('Server log:')}
-${chalk.dim(serverOutput)}
-`)
+    super(message)
     this.serverOutput = serverOutput
     this.clientOutput = clientOutput
   }
@@ -198,10 +198,10 @@ expect.extend({
 ${error.message}
 
 ${chalk.underline('Client log:')}
-${chalk.dim(error.clientOutput)}
+${error.clientOutput}
 
 ${chalk.underline('Server log:')}
-${chalk.dim(error.serverOutput)}
+${error.serverOutput}
 `
           } else if (error instanceof Error) {
             return error.toString()

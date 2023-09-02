@@ -149,7 +149,7 @@ skipOnWindows('uploading cache can be disabled without breaking install', async 
 skipOnWindows('installation using store server started in the background', async () => {
   const project = prepare()
 
-  await expect(execPnpm(['install', 'is-positive@1.0.0', '--use-store-server'])).toBePassingServerTest()
+  await expect(execPnpm(['install', 'is-positive@1.0.0', '--use-store-server'])).resolves.not.toThrow()
 
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
 
