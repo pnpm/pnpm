@@ -49,9 +49,9 @@ describe('cafs', () => {
 })
 
 describe('checkPkgFilesIntegrity()', () => {
-  it("doesn't fail if file was removed from the store", async () => {
+  it("doesn't fail if file was removed from the store", () => {
     const storeDir = tempy.directory()
-    expect(await checkPkgFilesIntegrity(storeDir, {
+    expect(checkPkgFilesIntegrity(storeDir, {
       files: {
         foo: {
           integrity: 'sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==',

@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import renameOverwrite from 'rename-overwrite'
 import type ssri from 'ssri'
-import { verifyFileIntegritySync } from './checkPkgFilesIntegrity'
+import { verifyFileIntegrity } from './checkPkgFilesIntegrity'
 import { writeFile } from './writeFile'
 
 export function writeBufferToCafs (
@@ -96,7 +96,7 @@ function removeSuffix (filePath: string): string {
 function existsSame (filename: string, integrity: ssri.IntegrityLike) {
   const existingFile = fs.statSync(filename, { throwIfNoEntry: false })
   if (!existingFile) return false
-  return verifyFileIntegritySync(filename, {
+  return verifyFileIntegrity(filename, {
     size: existingFile.size,
     integrity,
   })

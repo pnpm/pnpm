@@ -3651,9 +3651,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      load-json-file:
-        specifier: ^6.2.0
-        version: 6.2.0
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../../worker
       p-defer:
         specifier: ^3.0.0
         version: 3.0.0
@@ -3712,6 +3712,9 @@ importers:
       delay:
         specifier: ^5.0.0
         version: 5.0.0
+      load-json-file:
+        specifier: ^6.2.0
+        version: 6.2.0
       nock:
         specifier: 13.3.2
         version: 13.3.2

@@ -3,11 +3,18 @@ import os from 'os'
 import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
 import { type DeferredManifestPromise } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'
+import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type TarballExtractMessage, type AddDirToStoreMessage } from './types'
 
 export { type WorkerPool }
 
-const workerPool = createTarballWorkerPool()
+let workerPool = createTarballWorkerPool()
+
+export async function restartWorkerPool () {
+  // @ts-expect-error
+  await global.finishWorkers?.()
+  workerPool = createTarballWorkerPool()
+}
 
 export { workerPool }
 
@@ -125,6 +132,36 @@ export async function addFilesFromTarball (
       cafsDir: opts.cafsDir,
       integrity: opts.integrity,
       filesIndexFile: opts.filesIndexFile,
+    })
+  })
+}
+
+export async function readPkgFromCafs (
+  cafsDir: string,
+  verifyStoreIntegrity: boolean,
+  filesIndexFile: string,
+  manifest?: DeferredManifestPromise
+): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }> {
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, value }) => {
+      workerPool.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError('READ_FROM_STORE', error as string))
+        return
+      }
+      manifest?.resolve(value.manifest)
+      resolve({
+        verified: value.verified,
+        pkgFilesIndex: value.pkgFilesIndex,
+      })
+    })
+    localWorker.postMessage({
+      type: 'readPkgFromCafs',
+      cafsDir,
+      filesIndexFile,
+      readManifest: manifest != null,
+      verifyStoreIntegrity,
     })
   })
 }

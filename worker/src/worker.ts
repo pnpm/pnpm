@@ -4,15 +4,23 @@ import gfs from '@pnpm/graceful-fs'
 import * as crypto from 'crypto'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import {
+  checkPkgFilesIntegrity,
   createCafs,
   type PackageFileInfo,
   type PackageFilesIndex,
   type FilesIndex,
   optimisticRenameOverwrite,
+  readManifestFromStore,
 } from '@pnpm/store.cafs'
 import { sync as loadJsonFile } from 'load-json-file'
+import safePromiseDefer from 'safe-promise-defer'
 import { parentPort } from 'worker_threads'
-import { type TarballExtractMessage, type LinkPkgMessage, type AddDirToStoreMessage } from './types'
+import {
+  type AddDirToStoreMessage,
+  type ReadPkgFromCafsMessage,
+  type LinkPkgMessage,
+  type TarballExtractMessage,
+} from './types'
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
 
@@ -22,7 +30,7 @@ const cafsCache = new Map<string, ReturnType<typeof createCafs>>()
 const cafsStoreCache = new Map<string, ReturnType<typeof createCafsStore>>()
 const cafsLocker = new Map<string, number>()
 
-async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | AddDirToStoreMessage | false): Promise<void> {
+async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | AddDirToStoreMessage | ReadPkgFromCafsMessage | false): Promise<void> {
   if (message === false) {
     parentPort!.off('message', handleMessage)
     process.exit(0)
@@ -39,6 +47,44 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
     }
     case 'add-dir': {
       parentPort!.postMessage(addFilesFromDir(message))
+      break
+    }
+    case 'readPkgFromCafs': {
+      const { cafsDir, filesIndexFile, readManifest, verifyStoreIntegrity } = message
+      let pkgFilesIndex: PackageFilesIndex | undefined
+      try {
+        pkgFilesIndex = loadJsonFile<PackageFilesIndex>(filesIndexFile)
+      } catch {
+        // ignoring. It is fine if the integrity file is not present. Just refetch the package
+      }
+      if (!pkgFilesIndex) {
+        parentPort!.postMessage({
+          status: 'success',
+          value: {
+            verified: false,
+            pkgFilesIndex: null,
+          },
+        })
+        return
+      }
+      const manifestP = readManifest ? safePromiseDefer() : undefined
+      let verified: boolean
+      if (verifyStoreIntegrity) {
+        verified = checkPkgFilesIntegrity(cafsDir, pkgFilesIndex, manifestP)
+      } else {
+        verified = true
+        if (manifestP) {
+          manifestP.resolve(readManifestFromStore(cafsDir, pkgFilesIndex))
+        }
+      }
+      parentPort!.postMessage({
+        status: 'success',
+        value: {
+          verified,
+          manifest: manifestP ? await manifestP() : undefined,
+          pkgFilesIndex,
+        },
+      })
       break
     }
     }

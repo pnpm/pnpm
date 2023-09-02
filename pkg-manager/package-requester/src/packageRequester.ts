@@ -1,8 +1,6 @@
 import { createReadStream, promises as fs } from 'fs'
 import path from 'path'
 import {
-  checkPkgFilesIntegrity as _checkFilesIntegrity,
-  readManifestFromStore as _readManifestFromStore,
   type FileType,
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
   getFilePathInCafs as _getFilePathInCafs,
@@ -43,8 +41,8 @@ import {
 } from '@pnpm/store-controller-types'
 import { type DependencyManifest } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
+import { readPkgFromCafs as _readPkgFromCafs } from '@pnpm/worker'
 import PQueue from 'p-queue'
-import loadJsonFile from 'load-json-file'
 import pDefer from 'p-defer'
 import pShare from 'promise-share'
 import pick from 'ramda/src/pick'
@@ -110,12 +108,7 @@ export function createPackageRequester (
   const getFilePathInCafs = _getFilePathInCafs.bind(null, cafsDir)
   const fetch = fetcher.bind(null, opts.fetchers, opts.cafs)
   const fetchPackageToStore = fetchToStore.bind(null, {
-    // If verifyStoreIntegrity is false we skip the integrity checks of all files
-    // and only read the package manifest.
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-boolean-literal-compare
-    checkFilesIntegrity: opts.verifyStoreIntegrity === false
-      ? _readManifestFromStore.bind(null, cafsDir)
-      : _checkFilesIntegrity.bind(null, cafsDir),
+    readPkgFromCafs: _readPkgFromCafs.bind(null, cafsDir, opts.verifyStoreIntegrity),
     fetch,
     fetchingLocker: new Map(),
     getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, cafsDir),
@@ -323,10 +316,10 @@ function getFilesIndexFilePath (
 
 function fetchToStore (
   ctx: {
-    checkFilesIntegrity: (
-      pkgIndex: PackageFilesIndex,
+    readPkgFromCafs: (
+      filesIndexFile: string,
       manifest?: DeferredManifestPromise
-    ) => Promise<boolean>
+    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }>
     fetch: (
       packageId: string,
       resolution: Resolution,
@@ -467,18 +460,11 @@ function fetchToStore (
         ) &&
         !isLocalPkg
       ) {
-        let pkgFilesIndex
-        try {
-          pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
-        } catch (err: any) { // eslint-disable-line
-          // ignoring. It is fine if the integrity file is not present. Just refetch the package
-        }
-        // if target exists and it wasn't modified, then no need to refetch it
-
-        if ((pkgFilesIndex?.files) != null) {
-          const manifest = opts.fetchRawManifest
-            ? safePromiseDefer<DependencyManifest | undefined>()
-            : undefined
+        const manifest = opts.fetchRawManifest
+          ? safePromiseDefer<DependencyManifest | undefined>()
+          : undefined
+        const { verified, pkgFilesIndex } = await ctx.readPkgFromCafs(filesIndexFile, manifest)
+        if (verified) {
           if (
             (
               pkgFilesIndex.name != null &&
@@ -500,24 +486,23 @@ Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)}
 This means that the lockfile is broken. Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
 Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`)
           }
-          const verified = await ctx.checkFilesIntegrity(pkgFilesIndex, manifest)
-          if (verified) {
-            files.resolve({
-              unprocessed: true,
-              filesIndex: pkgFilesIndex.files,
-              fromStore: true,
-              sideEffects: pkgFilesIndex.sideEffects,
-            })
-            if (manifest != null) {
-              manifest()
-                .then((manifest) => {
-                  bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest))
-                })
-                .catch(bundledManifest.reject)
-            }
-            finishing.resolve(undefined)
-            return
+          files.resolve({
+            unprocessed: true,
+            filesIndex: pkgFilesIndex.files,
+            fromStore: true,
+            sideEffects: pkgFilesIndex.sideEffects,
+          })
+          if (manifest != null) {
+            manifest()
+              .then((manifest) => {
+                bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest))
+              })
+              .catch(bundledManifest.reject)
           }
+          finishing.resolve(undefined)
+          return
+        }
+        if ((pkgFilesIndex?.files) != null) {
           packageRequestLogger.warn({
             message: `Refetching ${target} to store. It was either modified or had no integrity checksums`,
             prefix: opts.lockfileDir,
