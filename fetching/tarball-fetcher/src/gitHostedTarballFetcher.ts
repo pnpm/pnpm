@@ -39,7 +39,7 @@ async function prepareGitHostedPkg (
   cafs: Cafs,
   filesIndexFile: string,
   opts: CreateGitHostedTarballFetcher,
-  fetcherOpts: FetchOptions,
+  fetcherOpts: FetchOptions
 ) {
   const tempLocation = await cafs.tempDir()
   cafs.importPackage(tempLocation, {
