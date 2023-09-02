@@ -90,22 +90,37 @@ export interface ChildProcess {
   stderr: { toString: () => string }
 }
 
-export function execPnpmSync (args: string[], opts?: { env: Record<string, string>, stdio?: StdioOptions }): ChildProcess {
+export function execPnpmSync (
+  args: string[],
+  opts?: {
+    env: Record<string, string>
+    stdio?: StdioOptions
+    timeout?: number
+  }
+): ChildProcess {
   return crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
     env: {
       ...createEnv(),
       ...opts?.env,
     } as NodeJS.ProcessEnv,
     stdio: opts?.stdio,
+    timeout: opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT,
   }) as ChildProcess
 }
 
-export function execPnpxSync (args: string[], opts?: { env: Record<string, string> }): ChildProcess {
+export function execPnpxSync (
+  args: string[],
+  opts?: {
+    env: Record<string, string>
+    timeout?: number
+  }
+): ChildProcess {
   return crossSpawn.sync(process.execPath, [pnpxBinLocation, ...args], {
     env: {
       ...createEnv(),
       ...opts?.env,
     } as NodeJS.ProcessEnv,
+    timeout: opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT,
   }) as ChildProcess
 }
 
