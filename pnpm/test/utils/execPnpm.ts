@@ -8,18 +8,30 @@ const binDir = path.join(__dirname, '../..', isWindows() ? 'dist' : 'bin')
 const pnpmBinLocation = path.join(binDir, 'pnpm.cjs')
 const pnpxBinLocation = path.join(__dirname, '../../bin/pnpx.cjs')
 
+// The default timeout for tests is 4 minutes. Set a timeout for execPnpm calls
+// for 3 minutes to make it more clear what specific part of a test is timing
+// out.
+const DEFAULT_EXEC_PNPM_TIMEOUT = 3 * 60 * 1000 // 3 minutes
+const TIMEOUT_FOR_GRACEFUL_EXIT = 10 * 1000 // 10s
+
 export async function execPnpm (
   args: string[],
   opts?: {
     env: Record<string, string>
+    timeout?: number // timeout in ms
   }
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const proc = spawnPnpm(args, opts)
 
+    const timeout = opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT
+    const timeoutId = registerProcessTimeout(proc, timeout, reject)
+
     proc.on('error', reject)
 
     proc.on('close', (code: number) => {
+      clearTimeout(timeoutId)
+
       if (code > 0) {
         reject(new Error(`Exit code ${code}`))
       } else {
@@ -49,9 +61,13 @@ export async function execPnpx (args: string[]): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const proc = spawnPnpx(args)
 
+    const timeoutId = registerProcessTimeout(proc, DEFAULT_EXEC_PNPM_TIMEOUT, reject)
+
     proc.on('error', reject)
 
     proc.on('close', (code: number) => {
+      clearTimeout(timeoutId)
+
       if (code > 0) {
         reject(new Error(`Exit code ${code}`))
       } else {
@@ -74,22 +90,37 @@ export interface ChildProcess {
   stderr: { toString: () => string }
 }
 
-export function execPnpmSync (args: string[], opts?: { env: Record<string, string>, stdio?: StdioOptions }): ChildProcess {
+export function execPnpmSync (
+  args: string[],
+  opts?: {
+    env: Record<string, string>
+    stdio?: StdioOptions
+    timeout?: number
+  }
+): ChildProcess {
   return crossSpawn.sync(process.execPath, [pnpmBinLocation, ...args], {
     env: {
       ...createEnv(),
       ...opts?.env,
     } as NodeJS.ProcessEnv,
     stdio: opts?.stdio,
+    timeout: opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT,
   }) as ChildProcess
 }
 
-export function execPnpxSync (args: string[], opts?: { env: Record<string, string> }): ChildProcess {
+export function execPnpxSync (
+  args: string[],
+  opts?: {
+    env: Record<string, string>
+    timeout?: number
+  }
+): ChildProcess {
   return crossSpawn.sync(process.execPath, [pnpxBinLocation, ...args], {
     env: {
       ...createEnv(),
       ...opts?.env,
     } as NodeJS.ProcessEnv,
+    timeout: opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT,
   }) as ChildProcess
 }
 
@@ -110,4 +141,21 @@ function createEnv (opts?: { storeDir?: string }): NodeJS.ProcessEnv {
     }
   }
   return env
+}
+
+function registerProcessTimeout (proc: NodeChildProcess, timeout: number, onTimeout: (reason: Error) => void) {
+  return setTimeout(() => {
+    onTimeout(new Error(`Command timed out after ${timeout}ms`))
+
+    // Ask the process to exit politely and clean up its resources. On Windows
+    // this will likely no-op since there is no SIGINT. The SIGTERM kill below
+    // will stop the process in that case.
+    proc.kill('SIGINT')
+
+    setTimeout(() => {
+      if (proc.exitCode != null) {
+        proc.kill()
+      }
+    }, TIMEOUT_FOR_GRACEFUL_EXIT)
+  }, timeout)
 }

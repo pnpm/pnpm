@@ -50,8 +50,8 @@ function prepareServerTest (serverStartArgs?: readonly string[]): TestSetup {
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
 
   async function onTestEnd () {
-    await execPnpm(['server', 'stop'])
-    expect(await pathExists(serverJsonPath)).toBeFalsy()
+    await expect(execPnpm(['server', 'stop'])).resolves.not.toThrow()
+    await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()
   }
 
   return {
@@ -70,11 +70,11 @@ skipOnWindows('installation using pnpm server', async () => {
   expect(serverJson.connectionOptions).toBeTruthy()
   expect(typeof serverJson.pnpmVersion).toBe('string')
 
-  await execPnpm(['install', 'is-positive@1.0.0'])
+  await expect(execPnpm(['install', 'is-positive@1.0.0'])).resolves.not.toThrow()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
 
-  await execPnpm(['uninstall', 'is-positive'])
+  await expect(execPnpm(['uninstall', 'is-positive'])).resolves.not.toThrow()
 })
 
 skipOnWindows('store server: headless installation', async () => {
@@ -85,9 +85,9 @@ skipOnWindows('store server: headless installation', async () => {
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions).toBeTruthy()
 
-  await execPnpm(['install', 'is-positive@1.0.0', '--lockfile-only'])
+  await expect(execPnpm(['install', 'is-positive@1.0.0', '--lockfile-only'])).resolves.not.toThrow()
 
-  await execPnpm(['install', '--frozen-lockfile'])
+  await expect(execPnpm(['install', '--frozen-lockfile'])).resolves.not.toThrow()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
 })
@@ -100,11 +100,11 @@ skipOnWindows('installation using pnpm server that runs in the background', asyn
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions).toBeTruthy()
 
-  await execPnpm(['install', 'is-positive@1.0.0'])
+  await expect(execPnpm(['install', 'is-positive@1.0.0'])).resolves.not.toThrow()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
 
-  await execPnpm(['uninstall', 'is-positive'])
+  await expect(execPnpm(['uninstall', 'is-positive'])).resolves.not.toThrow()
 })
 
 skipOnWindows('installation using pnpm server via TCP', async () => {
@@ -115,11 +115,11 @@ skipOnWindows('installation using pnpm server via TCP', async () => {
   expect(serverJson).toBeTruthy()
   expect(serverJson.connectionOptions.remotePrefix.indexOf('http://localhost:')).toBe(0) // TCP is used for communication'
 
-  await execPnpm(['install', 'is-positive@1.0.0'])
+  await expect(execPnpm(['install', 'is-positive@1.0.0'])).resolves.not.toThrow()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
 
-  await execPnpm(['uninstall', 'is-positive'])
+  await expect(execPnpm(['uninstall', 'is-positive'])).resolves.not.toThrow()
 })
 
 skipOnWindows('pnpm server uses TCP when port specified', async () => {
@@ -158,20 +158,20 @@ skipOnWindows('uploading cache can be disabled without breaking install', async 
   await delay(2000)
 
   // install a package that has side effects
-  await execPnpm(['add', '--side-effects-cache', 'diskusage@1.1.3'])
+  await expect(execPnpm(['add', '--side-effects-cache', 'diskusage@1.1.3'])).resolves.not.toThrow()
 
   // make sure the installation is successful, but the cache has not been written
   await project.has('diskusage')
   const storePath = await project.getStorePath()
   const engine = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
   const cacheDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${engine}/package`)
-  expect(await pathExists(cacheDir)).toBeFalsy()
+  await expect(pathExists(cacheDir)).resolves.toBeFalsy()
 })
 
 skipOnWindows('installation using store server started in the background', async () => {
   const project = prepare()
 
-  await execPnpm(['install', 'is-positive@1.0.0', '--use-store-server'])
+  await expect(execPnpm(['install', 'is-positive@1.0.0', '--use-store-server'])).resolves.not.toThrow()
 
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
 
@@ -182,17 +182,17 @@ skipOnWindows('installation using store server started in the background', async
 
     expect(project.requireModule('is-positive')).toBeTruthy()
 
-    await execPnpm(['uninstall', 'is-positive'])
+    await expect(execPnpm(['uninstall', 'is-positive'])).resolves.not.toThrow()
   } finally {
-    await execPnpm(['server', 'stop'])
-    expect(await pathExists(serverJsonPath)).toBeFalsy()
+    await expect(execPnpm(['server', 'stop'])).resolves.not.toThrow()
+    await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()
   }
 })
 
 skipOnWindows('store server started in the background should use store location wanted by install', async () => {
   const project = prepare()
 
-  await execPnpm(['add', 'is-positive@1.0.0', '--use-store-server', '--store-dir', '../store2'])
+  await expect(execPnpm(['add', 'is-positive@1.0.0', '--use-store-server', '--store-dir', '../store2'])).resolves.not.toThrow()
 
   const serverJsonPath = path.resolve('..', 'store2/v3/server/server.json')
 
@@ -203,10 +203,10 @@ skipOnWindows('store server started in the background should use store location 
 
     expect(project.requireModule('is-positive')).toBeTruthy()
 
-    await execPnpm(['remove', 'is-positive', '--store-dir', '../store2'])
+    await expect(execPnpm(['remove', 'is-positive', '--store-dir', '../store2'])).resolves.not.toThrow()
   } finally {
-    await execPnpm(['server', 'stop', '--store-dir', '../store2'])
-    expect(await pathExists(serverJsonPath)).toBeFalsy()
+    await expect(execPnpm(['server', 'stop', '--store-dir', '../store2'])).resolves.not.toThrow()
+    await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()
   }
 })
 
@@ -295,11 +295,12 @@ skipOnWindows('parallel server starts against the same store should result in on
   const n = 5
   // Plan that n - 1 of n server processes will close within 10 seconds.
   // +1 for the server.json check.
+  // +1 for the testParallelServerStart promise resolve
   // n + 1 total
-  expect.assertions(n)
+  expect.assertions(n + 1)
 
   prepare()
-  await testParallelServerStart({
+  await expect(testParallelServerStart({
     n,
     onProcessClosed: (serverProcess: ChildProcess, weAttemptedKill: boolean) => {
       if (!weAttemptedKill) {
@@ -308,18 +309,18 @@ skipOnWindows('parallel server starts against the same store should result in on
       }
     },
     timeoutMillis: 60000,
-  })
+  })).resolves.not.toThrow()
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
-  expect(await pathExists(serverJsonPath)).toBeFalsy()
+  await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()
 })
 
 skipOnWindows('installation without store server running in the background', async () => {
   const project = prepare()
 
-  await execPnpm(['install', 'is-positive@1.0.0', '--no-use-store-server'])
+  await expect(execPnpm(['install', 'is-positive@1.0.0', '--no-use-store-server'])).resolves.not.toThrow()
 
   const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
-  expect(await pathExists(serverJsonPath)).toBeFalsy()
+  await expect(pathExists(serverJsonPath)).resolves.toBeFalsy()
 
   expect(project.requireModule('is-positive')).toBeTruthy()
 })
