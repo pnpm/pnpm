@@ -12,7 +12,7 @@ export interface TarballExtractMessage {
   integrity?: string
   filesIndexFile: string
   readManifest?: boolean
-  pkg: PkgNameVersion
+  pkg?: PkgNameVersion
 }
 
 export interface LinkPkgMessage {
@@ -34,7 +34,7 @@ export interface AddDirToStoreMessage {
   filesIndexFile: string
   sideEffectsCacheKey?: string
   readManifest?: boolean
-  pkg: PkgNameVersion
+  pkg?: PkgNameVersion
 }
 
 export interface ReadPkgFromCafsMessage {

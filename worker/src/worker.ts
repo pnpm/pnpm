@@ -118,7 +118,7 @@ function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, pkg, r
   const cafs = cafsCache.get(cafsDir)!
   const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, readManifest)
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
-  writeFilesIndexFile(filesIndexFile, { pkg, files: filesIntegrity })
+  writeFilesIndexFile(filesIndexFile, { pkg: pkg ?? {}, files: filesIntegrity })
   return { status: 'success', value: { filesIndex: filesMap, manifest } }
 }
 
@@ -140,7 +140,7 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, p
     filesIndex.sideEffects[sideEffectsCacheKey] = filesIntegrity
     writeJsonFile(filesIndexFile, filesIndex)
   } else {
-    writeFilesIndexFile(filesIndexFile, { pkg, files: filesIntegrity })
+    writeFilesIndexFile(filesIndexFile, { pkg: pkg ?? {}, files: filesIntegrity })
   }
   return { status: 'success', value: { filesIndex: filesMap, manifest } }
 }
