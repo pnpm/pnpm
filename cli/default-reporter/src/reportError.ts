@@ -21,7 +21,7 @@ const colorPath = chalk.gray
 
 export function reportError (logObj: Log, config?: Config) {
   const errorInfo = getErrorInfo(logObj, config)
-  let output = formatErrorSummary(errorInfo.title, logObj['err']['code'])
+  let output = formatErrorSummary(errorInfo.title, (logObj as LogObjWithPossibleError).err?.code)
   if (logObj['pkgsStack'] != null) {
     if (logObj['pkgsStack'].length > 0) {
       output += `\n\n${formatPkgsStack(logObj['pkgsStack'])}`
@@ -33,6 +33,14 @@ export function reportError (logObj: Log, config?: Config) {
     output += `\n\n${errorInfo.body}`
   }
   return output
+
+  /**
+   * A type to assist with introspection of the logObj.
+   * These objects may or may not have an `err` field.
+   */
+  interface LogObjWithPossibleError {
+    readonly err?: { code?: string }
+  }
 }
 
 function getErrorInfo (logObj: Log, config?: Config): {
