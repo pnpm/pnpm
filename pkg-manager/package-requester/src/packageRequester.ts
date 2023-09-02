@@ -15,7 +15,7 @@ import {
   type FetchOptions,
   type FetchResult,
 } from '@pnpm/fetcher-base'
-import type { Cafs, DeferredManifestPromise, PackageFilesResponse } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFilesResponse } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
@@ -318,8 +318,8 @@ function fetchToStore (
   ctx: {
     readPkgFromCafs: (
       filesIndexFile: string,
-      manifest?: DeferredManifestPromise
-    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }>
+      readManifest?: boolean
+    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest }>
     fetch: (
       packageId: string,
       resolution: Resolution,
@@ -460,10 +460,7 @@ function fetchToStore (
         ) &&
         !isLocalPkg
       ) {
-        const manifest = opts.fetchRawManifest
-          ? safePromiseDefer<DependencyManifest | undefined>()
-          : undefined
-        const { verified, pkgFilesIndex } = await ctx.readPkgFromCafs(filesIndexFile, manifest)
+        const { verified, pkgFilesIndex, manifest } = await ctx.readPkgFromCafs(filesIndexFile, opts.fetchRawManifest)
         if (verified) {
           if (
             (
@@ -493,11 +490,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
             sideEffects: pkgFilesIndex.sideEffects,
           })
           if (manifest != null) {
-            manifest()
-              .then((manifest) => {
-                bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest))
-              })
-              .catch(bundledManifest.reject)
+            bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest))
           }
           finishing.resolve(undefined)
           return

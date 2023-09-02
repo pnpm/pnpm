@@ -4,6 +4,7 @@ import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
 import { type DeferredManifestPromise } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import { type DependencyManifest } from '@pnpm/types'
 import { type TarballExtractMessage, type AddDirToStoreMessage } from './types'
 
 export { type WorkerPool }
@@ -140,8 +141,8 @@ export async function readPkgFromCafs (
   cafsDir: string,
   verifyStoreIntegrity: boolean,
   filesIndexFile: string,
-  manifest?: DeferredManifestPromise
-): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }> {
+  readManifest?: boolean
+): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest }> {
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
@@ -150,17 +151,13 @@ export async function readPkgFromCafs (
         reject(new PnpmError('READ_FROM_STORE', error as string))
         return
       }
-      manifest?.resolve(value.manifest)
-      resolve({
-        verified: value.verified,
-        pkgFilesIndex: value.pkgFilesIndex,
-      })
+      resolve(value)
     })
     localWorker.postMessage({
       type: 'readPkgFromCafs',
       cafsDir,
       filesIndexFile,
-      readManifest: manifest != null,
+      readManifest: readManifest,
       verifyStoreIntegrity,
     })
   })
