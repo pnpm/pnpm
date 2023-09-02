@@ -1,12 +1,13 @@
 import { type Resolution, type GitResolution, type DirectoryResolution } from '@pnpm/resolver-base'
-import type { DeferredManifestPromise, Cafs } from '@pnpm/cafs-types'
+import { type DeferredManifestPromise, type Cafs } from '@pnpm/cafs-types'
+import { type DependencyManifest } from '@pnpm/types'
 
 export interface FetchOptions {
   filesIndexFile: string
-  manifest?: DeferredManifestPromise
   lockfileDir: string
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
+  readManifest?: boolean
 }
 
 export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions, Result = FetchResult> = (
@@ -17,15 +18,16 @@ export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions
 
 export interface FetchResult {
   local?: boolean
+  manifest?: DependencyManifest
   filesIndex: Record<string, string>
 }
 
 export interface GitFetcherOptions {
-  manifest?: DeferredManifestPromise
+  readManifest?: boolean
   filesIndexFile: string
 }
 
-export type GitFetcher = FetchFunction<GitResolution, GitFetcherOptions, { filesIndex: Record<string, string> }>
+export type GitFetcher = FetchFunction<GitResolution, GitFetcherOptions, { filesIndex: Record<string, string>, manifest?: DependencyManifest }>
 
 export interface DirectoryFetcherOptions {
   lockfileDir: string

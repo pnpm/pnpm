@@ -1555,9 +1555,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      p-defer:
-        specifier: ^3.0.0
-        version: 3.0.0
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -1646,9 +1643,6 @@ importers:
       nock:
         specifier: 13.3.2
         version: 13.3.2
-      safe-promise-defer:
-        specifier: ^1.0.1
-        version: 1.0.1
       ssri:
         specifier: 10.0.4
         version: 10.0.4
@@ -3669,9 +3663,6 @@ importers:
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
-      safe-promise-defer:
-        specifier: ^1.0.1
-        version: 1.0.1
       semver:
         specifier: ^7.5.4
         version: 7.5.4
@@ -14441,6 +14432,7 @@ packages:
   /p-reflect@2.1.0:
     resolution: {integrity: sha512-paHV8NUz8zDHu5lhr/ngGWQiW067DK/+IbJ+RfZ4k+s8y4EKyYCz8pGYWjxCg35eHztpJAt+NUgvN4L+GCbPlg==}
     engines: {node: '>=8'}
+    dev: false
 
   /p-settle@4.1.1:
     resolution: {integrity: sha512-6THGh13mt3gypcNMm0ADqVNCcYa3BK6DWsuJWFCuEKP1rpY+OKGp7gaZwVmLspmic01+fsg/fN57MfvDzZ/PuQ==}
@@ -14792,6 +14784,7 @@ packages:
     engines: {node: '>=8'}
     dependencies:
       p-reflect: 2.1.0
+    dev: false
 
   /prompts@2.4.2:
     resolution: {integrity: sha512-NxNv/kLguCA7p3jE8oL2aEBsrJWgAakBpgmgK6lpPWV+WuOmY6r2/zbAVnP+T8bQlA0nzHXSJSJW0Hq7ylaD2Q==}
@@ -15414,6 +15407,7 @@ packages:
     engines: {node: '>=12'}
     dependencies:
       promise-share: 1.0.0
+    dev: false
 
   /safe-regex-test@1.0.0:
     resolution: {integrity: sha512-JBUUzyOgEwXQY1NuPtvcj/qcBDbDmEvWufhlnXZIm75DEHp+afM1r1ujJpJsV/gSM4t59tpDyPi1sd6ZaPFfsA==}

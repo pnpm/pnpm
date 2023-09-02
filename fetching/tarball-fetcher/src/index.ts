@@ -79,7 +79,7 @@ async function fetchFromTarball (
     getAuthHeaderByURI: ctx.getAuthHeaderByURI,
     cafs,
     integrity: resolution.integrity,
-    manifest: opts.manifest,
+    readManifest: opts.readManifest,
     onProgress: opts.onProgress,
     onStart: opts.onStart,
     registry: resolution.registry,

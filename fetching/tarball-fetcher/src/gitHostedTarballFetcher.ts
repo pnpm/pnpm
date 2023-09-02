@@ -34,7 +34,12 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
   return fetch as FetchFunction
 }
 
-async function prepareGitHostedPkg (filesIndex: Record<string, string>, cafs: Cafs, filesIndexFile: string, opts: CreateGitHostedTarballFetcher) {
+async function prepareGitHostedPkg (
+  filesIndex: Record<string, string>,
+  cafs: Cafs,
+  filesIndexFile: string,
+  opts: CreateGitHostedTarballFetcher
+) {
   const tempLocation = await cafs.tempDir()
   cafs.importPackage(tempLocation, {
     filesResponse: {
@@ -44,16 +49,15 @@ async function prepareGitHostedPkg (filesIndex: Record<string, string>, cafs: Ca
     force: true,
   })
   const shouldBeBuilt = await preparePackage(opts, tempLocation)
-  const newFilesIndex = await addFilesFromDir({
-    cafsDir: cafs.cafsDir,
-    dir: tempLocation,
-    filesIndexFile,
-  })
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,
   // the linking of files to the store is in progress.
   return {
-    filesIndex: newFilesIndex,
+    ...await addFilesFromDir({
+      cafsDir: cafs.cafsDir,
+      dir: tempLocation,
+      filesIndexFile,
+    }),
     ignoredBuild: opts.ignoreScripts && shouldBeBuilt,
   }
 }

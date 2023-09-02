@@ -6,6 +6,7 @@ export interface TarballExtractMessage {
   cafsDir: string
   integrity?: string
   filesIndexFile: string
+  readManifest?: boolean
 }
 
 export interface LinkPkgMessage {
@@ -26,6 +27,7 @@ export interface AddDirToStoreMessage {
   dir: string
   filesIndexFile: string
   sideEffectsCacheKey?: string
+  readManifest?: boolean
 }
 
 export interface ReadPkgFromCafsMessage {

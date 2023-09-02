@@ -49,7 +49,6 @@ import pick from 'ramda/src/pick'
 import semver from 'semver'
 import ssri from 'ssri'
 import { equalOrSemverEqual } from './equalOrSemverEqual'
-import safePromiseDefer from 'safe-promise-defer'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
@@ -512,23 +511,13 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       // As many tarballs should be downloaded simultaneously as possible.
       const priority = (++ctx.requestsQueue.counter % ctx.requestsQueue.concurrency === 0 ? -1 : 1) * 1000
 
-      const fetchManifest = opts.fetchRawManifest
-        ? safePromiseDefer<DependencyManifest | undefined>()
-        : undefined
-      if (fetchManifest != null) {
-        fetchManifest()
-          .then((manifest) => {
-            bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest))
-          })
-          .catch(bundledManifest.reject)
-      }
       const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(
         opts.pkg.id,
         opts.pkg.resolution,
         {
           filesIndexFile,
           lockfileDir: opts.lockfileDir,
-          manifest: fetchManifest,
+          readManifest: opts.fetchRawManifest,
           onProgress: (downloaded) => {
             fetchingProgressLogger.debug({
               downloaded,
@@ -546,6 +535,9 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           },
         }
       ), { priority })
+      if (opts.fetchRawManifest) {
+        bundledManifest.resolve(fetchedPackage.manifest == null ? fetchedPackage.manifest : normalizeBundledManifest(fetchedPackage.manifest))
+      }
 
       const filesResult: PackageFilesResponse = {
         local: fetchedPackage.local,

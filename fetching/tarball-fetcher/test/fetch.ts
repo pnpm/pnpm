@@ -11,9 +11,7 @@ import {
   BadTarballError,
   TarballIntegrityError,
 } from '@pnpm/tarball-fetcher'
-import { type DependencyManifest } from '@pnpm/types'
 import nock from 'nock'
-import safePromiseDefer from 'safe-promise-defer'
 import ssri from 'ssri'
 import tempy from 'tempy'
 
@@ -458,13 +456,12 @@ test('when extracting files with the same name, pick the last ones', async () =>
     tarball: `file:${tar}`,
   }
 
-  const manifest = safePromiseDefer<DependencyManifest | undefined>()
-  const { filesIndex } = await fetch.localTarball(cafs, resolution, {
+  const { filesIndex, manifest } = await fetch.localTarball(cafs, resolution, {
     filesIndexFile,
     lockfileDir: process.cwd(),
-    manifest,
+    readManifest: true,
   })
   const pkgJson = JSON.parse(fs.readFileSync(filesIndex['package.json'], 'utf8'))
   expect(pkgJson.name).toBe('pkg2')
-  expect((await manifest())?.name).toBe('pkg2')
+  expect(manifest?.name).toBe('pkg2')
 })
