@@ -1,11 +1,18 @@
 import { type PackageFilesResponse } from '@pnpm/cafs-types'
 
+export interface PkgNameVersion {
+  name?: string
+  version?: string
+}
+
 export interface TarballExtractMessage {
   type: 'extract'
   buffer: Buffer
   cafsDir: string
   integrity?: string
   filesIndexFile: string
+  readManifest?: boolean
+  pkg?: PkgNameVersion
 }
 
 export interface LinkPkgMessage {
@@ -26,6 +33,8 @@ export interface AddDirToStoreMessage {
   dir: string
   filesIndexFile: string
   sideEffectsCacheKey?: string
+  readManifest?: boolean
+  pkg?: PkgNameVersion
 }
 
 export interface ReadPkgFromCafsMessage {

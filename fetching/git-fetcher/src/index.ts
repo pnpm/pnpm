@@ -44,16 +44,16 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
     }
     // removing /.git to make directory integrity calculation faster
     await rimraf(path.join(tempLocation, '.git'))
-    const filesIndex = await addFilesFromDir({
-      cafsDir: cafs.cafsDir,
-      dir: tempLocation,
-      filesIndexFile: opts.filesIndexFile,
-      manifest: opts.manifest,
-    })
     // Important! We cannot remove the temp location at this stage.
     // Even though we have the index of the package,
     // the linking of files to the store is in progress.
-    return { filesIndex }
+    return addFilesFromDir({
+      cafsDir: cafs.cafsDir,
+      dir: tempLocation,
+      filesIndexFile: opts.filesIndexFile,
+      readManifest: opts.readManifest,
+      pkg: opts.pkg,
+    })
   }
 
   return {

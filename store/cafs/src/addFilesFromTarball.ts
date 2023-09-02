@@ -11,7 +11,8 @@ import { parseTarball } from './parseTarball'
 export function addFilesFromTarball (
   addBufferToCafs: (buffer: Buffer, mode: number) => FileWriteResult,
   _ignore: null | ((filename: string) => boolean),
-  tarballBuffer: Buffer
+  tarballBuffer: Buffer,
+  readManifest?: boolean
 ): AddToStoreResult {
   const ignore = _ignore ?? (() => false)
   const tarContent = isGzip(tarballBuffer) ? gunzipSync(tarballBuffer) : (Buffer.isBuffer(tarballBuffer) ? tarballBuffer : Buffer.from(tarballBuffer))
@@ -23,7 +24,7 @@ export function addFilesFromTarball (
     if (ignore(relativePath)) continue
 
     const fileBuffer = tarContent.slice(offset, offset + size)
-    if (relativePath === 'package.json') {
+    if (readManifest && relativePath === 'package.json') {
       manifestBuffer = fileBuffer
     }
     filesIndex[relativePath] = {

@@ -53,7 +53,6 @@
     "p-queue": "^6.6.2",
     "promise-share": "^1.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "safe-promise-defer": "^1.0.1",
     "semver": "^7.5.4",
     "ssri": "10.0.4"
   },

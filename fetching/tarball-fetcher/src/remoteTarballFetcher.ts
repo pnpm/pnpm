@@ -1,8 +1,8 @@
 import { type IncomingMessage } from 'http'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError } from '@pnpm/error'
-import { type FetchResult } from '@pnpm/fetcher-base'
-import type { Cafs, DeferredManifestPromise } from '@pnpm/cafs-types'
+import { type FetchResult, type FetchOptions } from '@pnpm/fetcher-base'
+import { type Cafs } from '@pnpm/cafs-types'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import { addFilesFromTarball } from '@pnpm/worker'
 import * as retry from '@zkochan/retry'
@@ -18,13 +18,13 @@ export interface HttpResponse {
 export type DownloadFunction = (url: string, opts: {
   getAuthHeaderByURI: (registry: string) => string | undefined
   cafs: Cafs
-  manifest?: DeferredManifestPromise
+  readManifest?: boolean
   registry?: string
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   integrity?: string
   filesIndexFile: string
-}) => Promise<FetchResult>
+} & Pick<FetchOptions, 'pkg'>) => Promise<FetchResult>
 
 export interface NpmRegistryClient {
   get: (url: string, getOpts: object, cb: (err: Error, data: object, raw: object, res: HttpResponse) => void) => void
@@ -56,13 +56,13 @@ export function createDownloader (
   return async function download (url: string, opts: {
     getAuthHeaderByURI: (registry: string) => string | undefined
     cafs: Cafs
-    manifest?: DeferredManifestPromise
+    readManifest?: boolean
     registry?: string
     onStart?: (totalSize: number | null, attempt: number) => void
     onProgress?: (downloaded: number) => void
     integrity?: string
     filesIndexFile: string
-  }): Promise<FetchResult> {
+  } & Pick<FetchOptions, 'pkg'>): Promise<FetchResult> {
     const authHeaderValue = opts.getAuthHeaderByURI(url)
 
     const op = retry.operation(retryOpts)
@@ -147,16 +147,15 @@ export function createDownloader (
           chunk.copy(data, offset)
           offset += chunk.length
         }
-        return {
-          filesIndex: await addFilesFromTarball({
-            buffer: data,
-            cafsDir: opts.cafs.cafsDir,
-            manifest: opts.manifest,
-            integrity: opts.integrity,
-            filesIndexFile: opts.filesIndexFile,
-            url,
-          }),
-        }
+        return await addFilesFromTarball({
+          buffer: data,
+          cafsDir: opts.cafs.cafsDir,
+          readManifest: opts.readManifest,
+          integrity: opts.integrity,
+          filesIndexFile: opts.filesIndexFile,
+          url,
+          pkg: opts.pkg,
+        })
       } catch (err: any) { // eslint-disable-line
         err.attempts = currentAttempt
         err.resource = url

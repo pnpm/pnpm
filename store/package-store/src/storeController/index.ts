@@ -93,6 +93,7 @@ export async function createPackageStore (
       dir: builtPkgLocation,
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
       filesIndexFile: opts.filesIndexFile,
+      pkg: {},
     })
   }
 }

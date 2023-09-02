@@ -44,6 +44,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
   const { filesIndex } = await fetchTarball(cafs, { tarball } as any, { // eslint-disable-line @typescript-eslint/no-explicit-any
     filesIndexFile: path.join(opts.cafsDir, encodeURIComponent(tarball)), // TODO: change the name or don't save an index file for node.js tarballs
     lockfileDir: process.cwd(),
+    pkg: {},
   })
   cafs.importPackage(targetDir, {
     filesResponse: {

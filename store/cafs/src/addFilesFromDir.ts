@@ -11,10 +11,11 @@ import { parseJsonBufferSync } from './parseJson'
 
 export function addFilesFromDir (
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
-  dirname: string
+  dirname: string,
+  readManifest?: boolean
 ): AddToStoreResult {
   const filesIndex: FilesIndex = {}
-  const manifest = _retrieveFileIntegrities(addBuffer, dirname, dirname, filesIndex)
+  const manifest = _retrieveFileIntegrities(addBuffer, dirname, dirname, filesIndex, readManifest)
   return { filesIndex, manifest }
 }
 
@@ -22,7 +23,8 @@ function _retrieveFileIntegrities (
   addBuffer: (buffer: Buffer, mode: number) => FileWriteResult,
   rootDir: string,
   currDir: string,
-  index: FilesIndex
+  index: FilesIndex,
+  readManifest?: boolean
 ) {
   const files = fs.readdirSync(currDir, { withFileTypes: true })
   let manifest: DependencyManifest | undefined
@@ -44,7 +46,7 @@ function _retrieveFileIntegrities (
         continue
       }
       const buffer = gfs.readFileSync(fullPath)
-      if (rootDir === currDir && file.name === 'package.json') {
+      if (rootDir === currDir && readManifest && file.name === 'package.json') {
         manifest = parseJsonBufferSync(buffer)
       }
       index[relativePath] = {

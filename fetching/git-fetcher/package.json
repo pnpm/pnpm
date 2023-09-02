@@ -44,7 +44,6 @@
     "@pnpm/git-fetcher": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "p-defer": "^3.0.0",
     "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",

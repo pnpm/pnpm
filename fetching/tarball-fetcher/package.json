@@ -58,7 +58,6 @@
     "@types/retry": "^0.12.2",
     "@types/ssri": "^7.1.1",
     "nock": "13.3.2",
-    "safe-promise-defer": "^1.0.1",
     "ssri": "10.0.4",
     "tempy": "^1.0.1"
   },

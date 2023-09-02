@@ -1,9 +1,9 @@
 import path from 'path'
 import os from 'os'
 import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
-import { type DeferredManifestPromise } from '@pnpm/cafs-types'
 import { PnpmError } from '@pnpm/error'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
+import { type DependencyManifest } from '@pnpm/types'
 import { type TarballExtractMessage, type AddDirToStoreMessage } from './types'
 
 export { type WorkerPool }
@@ -42,12 +42,10 @@ function createTarballWorkerPool () {
 }
 
 export async function addFilesFromDir (
-  opts: Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey'> & {
-    manifest?: DeferredManifestPromise
-  }
+  opts: Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg'>
 ) {
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<Record<string, string>>((resolve, reject) => {
+  return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest }>((resolve, reject) => {
     // eslint-disalbe-next-line
     localWorker.once('message', ({ status, error, value }) => {
       workerPool.checkinWorker(localWorker)
@@ -55,8 +53,7 @@ export async function addFilesFromDir (
         reject(new PnpmError('GIT_FETCH_FAILED', error as string))
         return
       }
-      opts.manifest?.resolve(value.manifest)
-      resolve(value.filesIndex)
+      resolve(value)
     })
     localWorker.postMessage({
       type: 'add-dir',
@@ -64,6 +61,8 @@ export async function addFilesFromDir (
       dir: opts.dir,
       filesIndexFile: opts.filesIndexFile,
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
+      readManifest: opts.readManifest,
+      pkg: opts.pkg,
     })
   })
 }
@@ -103,13 +102,12 @@ If you think that this is the case, then run "pnpm store prune" and rerun the co
 }
 
 export async function addFilesFromTarball (
-  opts: Pick<TarballExtractMessage, 'buffer' | 'cafsDir' | 'filesIndexFile' | 'integrity'> & {
+  opts: Pick<TarballExtractMessage, 'buffer' | 'cafsDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg'> & {
     url: string
-    manifest?: DeferredManifestPromise
   }
 ) {
   const localWorker = await workerPool.checkoutWorkerAsync(true)
-  return new Promise<Record<string, string>>((resolve, reject) => {
+  return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
       workerPool.checkinWorker(localWorker)
       if (status === 'error') {
@@ -123,8 +121,7 @@ export async function addFilesFromTarball (
         reject(new PnpmError('TARBALL_EXTRACT', `Failed to unpack the tarball from "${opts.url}": ${error as string}`))
         return
       }
-      opts.manifest?.resolve(value.manifest)
-      resolve(value.filesIndex)
+      resolve(value)
     })
     localWorker.postMessage({
       type: 'extract',
@@ -132,6 +129,8 @@ export async function addFilesFromTarball (
       cafsDir: opts.cafsDir,
       integrity: opts.integrity,
       filesIndexFile: opts.filesIndexFile,
+      readManifest: opts.readManifest,
+      pkg: opts.pkg,
     })
   })
 }
@@ -140,8 +139,8 @@ export async function readPkgFromCafs (
   cafsDir: string,
   verifyStoreIntegrity: boolean,
   filesIndexFile: string,
-  manifest?: DeferredManifestPromise
-): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }> {
+  readManifest?: boolean
+): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest }> {
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
@@ -150,17 +149,13 @@ export async function readPkgFromCafs (
         reject(new PnpmError('READ_FROM_STORE', error as string))
         return
       }
-      manifest?.resolve(value.manifest)
-      resolve({
-        verified: value.verified,
-        pkgFilesIndex: value.pkgFilesIndex,
-      })
+      resolve(value)
     })
     localWorker.postMessage({
       type: 'readPkgFromCafs',
       cafsDir,
       filesIndexFile,
-      readManifest: manifest != null,
+      readManifest,
       verifyStoreIntegrity,
     })
   })

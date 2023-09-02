@@ -15,7 +15,7 @@ import {
   type FetchOptions,
   type FetchResult,
 } from '@pnpm/fetcher-base'
-import type { Cafs, DeferredManifestPromise, PackageFilesResponse } from '@pnpm/cafs-types'
+import { type Cafs, type PackageFilesResponse } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
@@ -49,7 +49,6 @@ import pick from 'ramda/src/pick'
 import semver from 'semver'
 import ssri from 'ssri'
 import { equalOrSemverEqual } from './equalOrSemverEqual'
-import safePromiseDefer from 'safe-promise-defer'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
@@ -318,8 +317,8 @@ function fetchToStore (
   ctx: {
     readPkgFromCafs: (
       filesIndexFile: string,
-      manifest?: DeferredManifestPromise
-    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }>
+      readManifest?: boolean
+    ) => Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest }>
     fetch: (
       packageId: string,
       resolution: Resolution,
@@ -460,10 +459,7 @@ function fetchToStore (
         ) &&
         !isLocalPkg
       ) {
-        const manifest = opts.fetchRawManifest
-          ? safePromiseDefer<DependencyManifest | undefined>()
-          : undefined
-        const { verified, pkgFilesIndex } = await ctx.readPkgFromCafs(filesIndexFile, manifest)
+        const { verified, pkgFilesIndex, manifest } = await ctx.readPkgFromCafs(filesIndexFile, opts.fetchRawManifest)
         if (verified) {
           if (
             (
@@ -492,12 +488,8 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
             fromStore: true,
             sideEffects: pkgFilesIndex.sideEffects,
           })
-          if (manifest != null) {
-            manifest()
-              .then((manifest) => {
-                bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest))
-              })
-              .catch(bundledManifest.reject)
+          if (opts.fetchRawManifest) {
+            bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest))
           }
           finishing.resolve(undefined)
           return
@@ -519,23 +511,13 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
       // As many tarballs should be downloaded simultaneously as possible.
       const priority = (++ctx.requestsQueue.counter % ctx.requestsQueue.concurrency === 0 ? -1 : 1) * 1000
 
-      const fetchManifest = opts.fetchRawManifest
-        ? safePromiseDefer<DependencyManifest | undefined>()
-        : undefined
-      if (fetchManifest != null) {
-        fetchManifest()
-          .then((manifest) => {
-            bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest))
-          })
-          .catch(bundledManifest.reject)
-      }
       const fetchedPackage = await ctx.requestsQueue.add(async () => ctx.fetch(
         opts.pkg.id,
         opts.pkg.resolution,
         {
           filesIndexFile,
           lockfileDir: opts.lockfileDir,
-          manifest: fetchManifest,
+          readManifest: opts.fetchRawManifest,
           onProgress: (downloaded) => {
             fetchingProgressLogger.debug({
               downloaded,
@@ -551,8 +533,15 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
               status: 'started',
             })
           },
+          pkg: {
+            name: opts.pkg.name,
+            version: opts.pkg.version,
+          },
         }
       ), { priority })
+      if (opts.fetchRawManifest) {
+        bundledManifest.resolve(fetchedPackage.manifest == null ? fetchedPackage.manifest : normalizeBundledManifest(fetchedPackage.manifest))
+      }
 
       const filesResult: PackageFilesResponse = {
         local: fetchedPackage.local,
