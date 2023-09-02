@@ -52,6 +52,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
       dir: tempLocation,
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
+      pkg: opts.pkg,
     })
   }
 

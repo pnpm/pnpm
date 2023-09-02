@@ -42,7 +42,7 @@ function createTarballWorkerPool () {
 }
 
 export async function addFilesFromDir (
-  opts: Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest'>
+  opts: Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg'>
 ) {
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest }>((resolve, reject) => {
@@ -62,6 +62,7 @@ export async function addFilesFromDir (
       filesIndexFile: opts.filesIndexFile,
       sideEffectsCacheKey: opts.sideEffectsCacheKey,
       readManifest: opts.readManifest,
+      pkg: opts.pkg,
     })
   })
 }
@@ -101,7 +102,7 @@ If you think that this is the case, then run "pnpm store prune" and rerun the co
 }
 
 export async function addFilesFromTarball (
-  opts: Pick<TarballExtractMessage, 'buffer' | 'cafsDir' | 'filesIndexFile' | 'integrity' | 'readManifest'> & {
+  opts: Pick<TarballExtractMessage, 'buffer' | 'cafsDir' | 'filesIndexFile' | 'integrity' | 'readManifest' | 'pkg'> & {
     url: string
   }
 ) {
@@ -129,6 +130,7 @@ export async function addFilesFromTarball (
       integrity: opts.integrity,
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
+      pkg: opts.pkg,
     })
   })
 }

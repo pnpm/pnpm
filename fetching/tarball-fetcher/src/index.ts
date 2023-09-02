@@ -84,5 +84,6 @@ async function fetchFromTarball (
     onStart: opts.onStart,
     registry: resolution.registry,
     filesIndexFile: opts.filesIndexFile,
+    pkg: opts.pkg,
   })
 }

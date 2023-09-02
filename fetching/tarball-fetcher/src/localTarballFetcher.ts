@@ -23,6 +23,7 @@ export function createLocalTarballFetcher (): FetchFunction {
       integrity: resolution.integrity,
       readManifest: opts.readManifest,
       url: tarball,
+      pkg: opts.pkg,
     })
   }
 

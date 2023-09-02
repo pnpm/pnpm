@@ -20,7 +20,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const { filesIndex, manifest } = await fetchRemoteTarball(cafs, resolution, opts)
     try {
-      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, opts.filesIndexFile, fetcherOpts)
+      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, opts.filesIndexFile, fetcherOpts, opts)
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
@@ -38,7 +38,8 @@ async function prepareGitHostedPkg (
   filesIndex: Record<string, string>,
   cafs: Cafs,
   filesIndexFile: string,
-  opts: CreateGitHostedTarballFetcher
+  opts: CreateGitHostedTarballFetcher,
+  fetcherOpts: FetchOptions,
 ) {
   const tempLocation = await cafs.tempDir()
   cafs.importPackage(tempLocation, {
@@ -57,6 +58,7 @@ async function prepareGitHostedPkg (
       cafsDir: cafs.cafsDir,
       dir: tempLocation,
       filesIndexFile,
+      pkg: fetcherOpts.pkg,
     }),
     ignoredBuild: opts.ignoreScripts && shouldBeBuilt,
   }

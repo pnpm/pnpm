@@ -93,7 +93,7 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
   }
 }
 
-function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile }: TarballExtractMessage) {
+function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, pkg }: TarballExtractMessage) {
   if (integrity) {
     const [, algo, integrityHash] = integrity.match(INTEGRITY_REGEX)!
     // Compensate for the possibility of non-uniform Base64 padding
@@ -118,11 +118,11 @@ function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile }: Tarb
   const cafs = cafsCache.get(cafsDir)!
   const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer)
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
-  writeFilesIndexFile(filesIndexFile, { pkg: manifest ?? {}, files: filesIntegrity })
+  writeFilesIndexFile(filesIndexFile, { pkg, files: filesIntegrity })
   return { status: 'success', value: { filesIndex: filesMap, manifest } }
 }
 
-function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey }: AddDirToStoreMessage) {
+function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, pkg }: AddDirToStoreMessage) {
   if (!cafsCache.has(cafsDir)) {
     cafsCache.set(cafsDir, createCafs(cafsDir))
   }
@@ -140,7 +140,7 @@ function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey }:
     filesIndex.sideEffects[sideEffectsCacheKey] = filesIntegrity
     writeJsonFile(filesIndexFile, filesIndex)
   } else {
-    writeFilesIndexFile(filesIndexFile, { pkg: manifest ?? {}, files: filesIntegrity })
+    writeFilesIndexFile(filesIndexFile, { pkg, files: filesIntegrity })
   }
   return { status: 'success', value: { filesIndex: filesMap, manifest } }
 }

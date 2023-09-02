@@ -533,6 +533,10 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
               status: 'started',
             })
           },
+          pkg: {
+            name: opts.pkg.name,
+            version: opts.pkg.version,
+          },
         }
       ), { priority })
       if (opts.fetchRawManifest) {

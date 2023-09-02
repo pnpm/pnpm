@@ -1,7 +1,7 @@
 import { type IncomingMessage } from 'http'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError } from '@pnpm/error'
-import { type FetchResult } from '@pnpm/fetcher-base'
+import { type FetchResult, type FetchOptions } from '@pnpm/fetcher-base'
 import { type Cafs } from '@pnpm/cafs-types'
 import { type FetchFromRegistry } from '@pnpm/fetching-types'
 import { addFilesFromTarball } from '@pnpm/worker'
@@ -24,7 +24,7 @@ export type DownloadFunction = (url: string, opts: {
   onProgress?: (downloaded: number) => void
   integrity?: string
   filesIndexFile: string
-}) => Promise<FetchResult>
+} & Pick<FetchOptions, 'pkg'>) => Promise<FetchResult>
 
 export interface NpmRegistryClient {
   get: (url: string, getOpts: object, cb: (err: Error, data: object, raw: object, res: HttpResponse) => void) => void
@@ -62,7 +62,7 @@ export function createDownloader (
     onProgress?: (downloaded: number) => void
     integrity?: string
     filesIndexFile: string
-  }): Promise<FetchResult> {
+  } & Pick<FetchOptions, 'pkg'>): Promise<FetchResult> {
     const authHeaderValue = opts.getAuthHeaderByURI(url)
 
     const op = retry.operation(retryOpts)
@@ -154,6 +154,7 @@ export function createDownloader (
           integrity: opts.integrity,
           filesIndexFile: opts.filesIndexFile,
           url,
+          pkg: opts.pkg,
         })
       } catch (err: any) { // eslint-disable-line
         err.attempts = currentAttempt
