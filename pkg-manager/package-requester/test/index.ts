@@ -12,6 +12,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { type DependencyManifest } from '@pnpm/types'
 import delay from 'delay'
 import { depPathToFilename } from '@pnpm/dependency-path'
+import { restartWorkerPool } from '@pnpm/worker'
 import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import normalize from 'normalize-path'
@@ -729,8 +730,7 @@ test('refetch package to store if it has been modified', async () => {
 
   // We should restart the workers otherwise the locker cache will still try to read the file
   // that will be removed from the store due to integrity change
-  // @ts-expect-error
-  await global.finishWorkers?.()
+  await restartWorkerPool()
 
   await delay(200)
   // Adding some content to the file to change its integrity

@@ -8,7 +8,13 @@ import { type TarballExtractMessage, type AddDirToStoreMessage } from './types'
 
 export { type WorkerPool }
 
-const workerPool = createTarballWorkerPool()
+let workerPool = createTarballWorkerPool()
+
+export async function restartWorkerPool () {
+  // @ts-expect-error
+  await global.finishWorkers?.()
+  workerPool = createTarballWorkerPool()
+}
 
 export { workerPool }
 
