@@ -157,7 +157,7 @@ export async function readPkgFromCafs (
       type: 'readPkgFromCafs',
       cafsDir,
       filesIndexFile,
-      readManifest: readManifest,
+      readManifest,
       verifyStoreIntegrity,
     })
   })

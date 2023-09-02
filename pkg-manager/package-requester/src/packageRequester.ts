@@ -489,7 +489,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
             fromStore: true,
             sideEffects: pkgFilesIndex.sideEffects,
           })
-          if (manifest != null) {
+          if (opts.fetchRawManifest) {
             bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest))
           }
           finishing.resolve(undefined)
