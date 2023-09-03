@@ -583,7 +583,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }
 
   // waiting till package requests are finished
-  await Promise.all(depNodes.map(({ finishing }) => finishing))
+  await Promise.all(depNodes.map(({ fetching }) => fetching?.()))
 
   summaryLogger.debug({ prefix: lockfileDir })
 
@@ -776,7 +776,7 @@ async function linkAllPkgs (
     depNodes.map(async (depNode) => {
       let filesResponse!: PackageFilesResponse
       try {
-        filesResponse = await depNode.fetchingFiles()
+        filesResponse = (await depNode.fetching()).files
       } catch (err: any) { // eslint-disable-line
         if (depNode.optional) return
         throw err

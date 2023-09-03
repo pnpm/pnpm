@@ -5,11 +5,9 @@ import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { createClient } from '@pnpm/client'
 import { streamParser } from '@pnpm/logger'
 import { createPackageRequester, type PackageResponse } from '@pnpm/package-requester'
-import type { PackageFilesResponse } from '@pnpm/cafs-types'
 import { createCafsStore } from '@pnpm/create-cafs-store'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
-import { type DependencyManifest } from '@pnpm/types'
 import delay from 'delay'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import { restartWorkerPool } from '@pnpm/worker'
@@ -17,6 +15,7 @@ import loadJsonFile from 'load-json-file'
 import nock from 'nock'
 import normalize from 'normalize-path'
 import tempy from 'tempy'
+import { type PkgRequestFetchResult } from '@pnpm/store-controller-types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(__dirname)
@@ -67,11 +66,9 @@ test('request package', async () => {
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
-  const files = await pkgResponse.files!()
+  const { files } = await pkgResponse.fetching!()
   expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.fromStore).toBeFalsy()
-
-  expect(pkgResponse.finishing!()).toBeTruthy()
 })
 
 test('request package but skip fetching', async () => {
@@ -111,8 +108,7 @@ test('request package but skip fetching', async () => {
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
-  expect(pkgResponse.files).toBeFalsy()
-  expect(pkgResponse.finishing).toBeFalsy()
+  expect(pkgResponse.fetching).toBeFalsy()
 })
 
 test('request package but skip fetching, when resolution is already available', async () => {
@@ -150,8 +146,6 @@ test('request package but skip fetching, when resolution is already available', 
       latest: string
       manifest: { name: string }
     }
-    files: () => Promise<object>
-    finishing: () => Promise<void>
   }
 
   expect(pkgResponse).toBeTruthy()
@@ -168,8 +162,7 @@ test('request package but skip fetching, when resolution is already available', 
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
-  expect(pkgResponse.files).toBeFalsy()
-  expect(pkgResponse.finishing).toBeFalsy()
+  expect(pkgResponse.fetching).toBeFalsy()
 })
 
 test('refetch local tarball if its integrity has changed', async () => {
@@ -211,15 +204,13 @@ test('refetch local tarball if its integrity has changed', async () => {
         },
       },
     }) as PackageResponse & {
-      files: () => Promise<PackageFilesResponse>
-      finishing: () => Promise<void>
+      fetching: () => Promise<PkgRequestFetchResult>
     }
-    await response.files()
-    await response.finishing()
+    const { files, bundledManifest } = await response.fetching()
 
     expect(response.body.updated).toBeFalsy()
-    expect((await response.files()).fromStore).toBeFalsy()
-    expect(await response.bundledManifest!()).toBeTruthy()
+    expect(files.fromStore).toBeFalsy()
+    expect(bundledManifest).toBeTruthy()
   }
 
   f.copy('pnpm-package-requester-4.1.2.tgz', tarballPath)
@@ -244,12 +235,11 @@ test('refetch local tarball if its integrity has changed', async () => {
         },
       },
     })
-    await response.files!()
-    await response.finishing!()
+    const { files, bundledManifest } = await response.fetching!()
 
     expect(response.body.updated).toBeTruthy()
-    expect((await response.files!()).fromStore).toBeFalsy()
-    expect(await response.bundledManifest!()).toBeTruthy()
+    expect(files.fromStore).toBeFalsy()
+    expect(bundledManifest).toBeTruthy()
   }
 
   {
@@ -271,15 +261,13 @@ test('refetch local tarball if its integrity has changed', async () => {
         },
       },
     }) as PackageResponse & {
-      files: () => Promise<PackageFilesResponse>
-      finishing: () => Promise<void>
+      fetching: () => Promise<PkgRequestFetchResult>
     }
-    await response.files()
-    await response.finishing()
+    const { files, bundledManifest } = await response.fetching()
 
     expect(response.body.updated).toBeFalsy()
-    expect((await response.files()).fromStore).toBeTruthy()
-    expect(await response.bundledManifest!()).toBeTruthy()
+    expect(files.fromStore).toBeTruthy()
+    expect(bundledManifest).toBeTruthy()
   }
 })
 
@@ -289,7 +277,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   f.copy('pnpm-package-requester-0.8.1.tgz', tarballPath)
   const tarball = `file:${tarballPath}`
   const wantedPackage = { pref: tarball }
-  const storeDir = path.join(__dirname, '..', '.store')
+  const storeDir = path.join(projectDir, 'store')
   const cafs = createCafsStore(storeDir)
   const requestPackageOpts = {
     downloadPriority: 0,
@@ -310,15 +298,13 @@ test('refetch local tarball if its integrity has changed. The requester does not
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
-      files: () => Promise<PackageFilesResponse>
-      finishing: () => Promise<void>
+      fetching: () => Promise<PkgRequestFetchResult>
     }
-    await response.files()
-    await response.finishing()
+    const { files, bundledManifest } = await response.fetching()
 
     expect(response.body.updated).toBeTruthy()
-    expect((await response.files()).fromStore).toBeFalsy()
-    expect(await response.bundledManifest!()).toBeTruthy()
+    expect(files.fromStore).toBeFalsy()
+    expect(bundledManifest).toBeTruthy()
   }
 
   f.copy('pnpm-package-requester-4.1.2.tgz', tarballPath)
@@ -334,15 +320,13 @@ test('refetch local tarball if its integrity has changed. The requester does not
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
-      files: () => Promise<PackageFilesResponse>
-      finishing: () => Promise<void>
+      fetching: () => Promise<PkgRequestFetchResult>
     }
-    await response.files()
-    await response.finishing()
+    const { files, bundledManifest } = await response.fetching()
 
     expect(response.body.updated).toBeTruthy()
-    expect((await response.files()).fromStore).toBeFalsy()
-    expect(await response.bundledManifest!()).toBeTruthy()
+    expect(files.fromStore).toBeFalsy()
+    expect(bundledManifest).toBeTruthy()
   }
 
   {
@@ -355,14 +339,12 @@ test('refetch local tarball if its integrity has changed. The requester does not
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
-      files: () => Promise<PackageFilesResponse>
-      finishing: () => Promise<void>
+      fetching: () => Promise<PkgRequestFetchResult>
     }
-    await response.files()
-    await response.finishing()
+    const { files, bundledManifest } = await response.fetching()
 
-    expect((await response.files()).fromStore).toBeTruthy()
-    expect(await response.bundledManifest!()).toBeTruthy()
+    expect(files.fromStore).toBeTruthy()
+    expect(bundledManifest).toBeTruthy()
   }
 })
 
@@ -394,17 +376,14 @@ test('fetchPackageToStore()', async () => {
     },
   })
 
-  expect(fetchResult.bundledManifest).toBeFalsy()
-
-  const files = await fetchResult.files()
+  const { files, bundledManifest } = await fetchResult.fetching()
+  expect(bundledManifest).toBeFalsy()
   expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.fromStore).toBeFalsy()
 
   const indexFile = await loadJsonFile<PackageFilesIndex>(fetchResult.filesIndexFile)
   expect(indexFile).toBeTruthy()
   expect(typeof indexFile.files['package.json'].checkedAt).toBeTruthy()
-
-  expect(fetchResult.finishing()).toBeTruthy()
 
   const fetchResult2 = packageRequester.fetchPackageToStore({
     fetchRawManifest: true,
@@ -425,7 +404,7 @@ test('fetchPackageToStore()', async () => {
   // This verifies that when a package has been cached with no full manifest
   // the full manifest is requested and added to the cache
   expect(
-    await fetchResult2.bundledManifest!()
+    (await fetchResult2.fetching()).bundledManifest
   ).toStrictEqual(
     {
       engines: { node: '>=0.10.0' },
@@ -487,26 +466,22 @@ test('fetchPackageToStore() concurrency check', async () => {
 
   {
     const fetchResult = fetchResults[0]
-    const files = await fetchResult.files()
+    const { files } = await fetchResult.fetching()
 
     ino1 = statSync(files.filesIndex['package.json'] as string).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.fromStore).toBeFalsy()
-
-    expect(fetchResult.finishing).toBeTruthy()
   }
 
   {
     const fetchResult = fetchResults[1]
-    const files = await fetchResult.files()
+    const { files } = await fetchResult.fetching()
 
     ino2 = statSync(files.filesIndex['package.json'] as string).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
     expect(files.fromStore).toBeFalsy()
-
-    expect(fetchResult.finishing()).toBeTruthy()
   }
 
   expect(ino1).toBe(ino2)
@@ -555,7 +530,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
       },
     },
   })
-  await expect(badRequest.files()).rejects.toThrow()
+  await expect(badRequest.fetching()).rejects.toThrow()
 
   const fetchResult = packageRequester.fetchPackageToStore({
     force: false,
@@ -571,11 +546,10 @@ test('fetchPackageToStore() does not cache errors', async () => {
       },
     },
   })
-  const files = await fetchResult.files()
+  const { files } = await fetchResult.fetching()
   expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
   expect(files.fromStore).toBeFalsy()
 
-  expect(fetchResult.finishing()).toBeTruthy()
   expect(nock.isDone()).toBeTruthy()
 })
 
@@ -623,11 +597,11 @@ test('always return a package manifest in the response', async () => {
       preferredVersions: {},
       projectDir,
       registry,
-    }) as PackageResponse & { bundledManifest: () => Promise<DependencyManifest> }
+    }) as PackageResponse & { fetching: () => Promise<PkgRequestFetchResult> }
 
     expect(pkgResponse.body).toBeTruthy()
     expect(
-      await pkgResponse.bundledManifest()
+      (await pkgResponse.fetching()).bundledManifest
     ).toEqual(
       {
         engines: { node: '>=0.10.0' },
@@ -686,7 +660,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
     }),
   ])
 
-  expect(await fetchResults[1].bundledManifest!()).toBeTruthy()
+  expect((await fetchResults[1].fetching()).bundledManifest).toBeTruthy()
 })
 
 test('refetch package to store if it has been modified', async () => {
@@ -724,7 +698,7 @@ test('refetch package to store if it has been modified', async () => {
       },
     })
 
-    const { filesIndex } = await fetchResult.files()
+    const { filesIndex } = (await fetchResult.fetching()).files
     indexJsFile = filesIndex['index.js'] as string
   }
 
@@ -762,7 +736,7 @@ test('refetch package to store if it has been modified', async () => {
       },
     })
 
-    await fetchResult.files()
+    await fetchResult.fetching()
   }
 
   streamParser.removeListener('data', reporter)
@@ -805,8 +779,7 @@ test('do not fetch an optional package that is not installable', async () => {
   expect(pkgResponse.body.isInstallable).toBe(false)
   expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/not-compatible-with-any-os/1.0.0`)
 
-  expect(pkgResponse.files).toBeFalsy()
-  expect(pkgResponse.finishing).toBeFalsy()
+  expect(pkgResponse.fetching).toBeFalsy()
 })
 
 // Test case for https://github.com/pnpm/pnpm/issues/1866
@@ -868,7 +841,7 @@ test('throw exception if the package data in the store differs from the expected
       projectDir,
       registry,
     })
-    await pkgResponse.finishing!()
+    await pkgResponse.fetching!()
   }
 
   // Fail when the name of the package is different in the store
@@ -881,7 +854,7 @@ test('throw exception if the package data in the store differs from the expected
       storeDir,
       verifyStoreIntegrity: true,
     })
-    const { files } = requestPackage.fetchPackageToStore({
+    const { fetching } = requestPackage.fetchPackageToStore({
       force: false,
       lockfileDir: tempy.directory(),
       pkg: {
@@ -895,7 +868,7 @@ test('throw exception if the package data in the store differs from the expected
         version: '1.0.0',
       },
     })
-    await expect(files()).rejects.toThrow(/Package name mismatch found while reading/)
+    await expect(fetching()).rejects.toThrow(/Package name mismatch found while reading/)
   }
 
   // Fail when the version of the package is different in the store
@@ -908,7 +881,7 @@ test('throw exception if the package data in the store differs from the expected
       storeDir,
       verifyStoreIntegrity: true,
     })
-    const { files } = requestPackage.fetchPackageToStore({
+    const { fetching } = requestPackage.fetchPackageToStore({
       force: false,
       lockfileDir: tempy.directory(),
       pkg: {
@@ -922,7 +895,7 @@ test('throw exception if the package data in the store differs from the expected
         version: '2.0.0',
       },
     })
-    await expect(files()).rejects.toThrow(/Package name mismatch found while reading/)
+    await expect(fetching()).rejects.toThrow(/Package name mismatch found while reading/)
   }
 
   // Do not fail when the versions are the same but written in a differnt format (1.0.0 is the same as v1.0.0)
@@ -935,7 +908,7 @@ test('throw exception if the package data in the store differs from the expected
       storeDir,
       verifyStoreIntegrity: true,
     })
-    const { files } = requestPackage.fetchPackageToStore({
+    const { fetching } = requestPackage.fetchPackageToStore({
       force: false,
       lockfileDir: tempy.directory(),
       pkg: {
@@ -949,7 +922,7 @@ test('throw exception if the package data in the store differs from the expected
         version: 'v1.0.0',
       },
     })
-    await expect(files()).resolves.toStrictEqual(expect.anything())
+    await expect(fetching()).resolves.toStrictEqual(expect.anything())
   }
 
   {
@@ -961,7 +934,7 @@ test('throw exception if the package data in the store differs from the expected
       storeDir,
       verifyStoreIntegrity: true,
     })
-    const { files } = requestPackage.fetchPackageToStore({
+    const { fetching } = requestPackage.fetchPackageToStore({
       force: false,
       lockfileDir: tempy.directory(),
       pkg: {
@@ -975,7 +948,7 @@ test('throw exception if the package data in the store differs from the expected
         version: 'v1.0.0',
       },
     })
-    await expect(files()).resolves.toStrictEqual(expect.anything())
+    await expect(fetching()).resolves.toStrictEqual(expect.anything())
   }
 })
 
@@ -1000,7 +973,7 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
       projectDir,
       registry,
     })
-    await pkgResponse.finishing!()
+    await pkgResponse.fetching!()
   }
   const requestPackage = createPackageRequester({
     resolve,
@@ -1022,7 +995,7 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
       version: '3.0.0',
     },
   })
-  await expect(pkgResponse.files!()).resolves.toStrictEqual(expect.anything())
+  await expect(pkgResponse.fetching!()).resolves.toStrictEqual(expect.anything())
 })
 
 test('the version in the bundled manifest should be normalized', async () => {
@@ -1045,10 +1018,9 @@ test('the version in the bundled manifest should be normalized', async () => {
     projectDir: tempy.directory(),
     registry,
   })
-  await expect(pkgResponse.bundledManifest!()).resolves.toStrictEqual(expect.objectContaining({
+  expect((await pkgResponse.fetching!()).bundledManifest).toStrictEqual(expect.objectContaining({
     version: '1.2.1',
   }))
-  await pkgResponse.finishing!()
 })
 
 test('should skip store integrity check and resolve manifest if fetchRawManifest is true', async () => {
@@ -1077,7 +1049,7 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
       registry,
     })
 
-    await pkgResponse.finishing!()
+    await pkgResponse.fetching!()
   }
 
   {
@@ -1106,9 +1078,9 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
       },
     })
 
-    await fetchResult.finishing()
+    await fetchResult.fetching()
 
-    await expect(fetchResult.bundledManifest!()).resolves.toStrictEqual(expect.objectContaining({
+    expect((await fetchResult.fetching!()).bundledManifest).toStrictEqual(expect.objectContaining({
       name: 'is-positive',
       version: '1.0.0',
     }))

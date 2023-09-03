@@ -1,5 +1,6 @@
 import { fetch } from '@pnpm/fetch'
 import {
+  type PkgRequestFetchResult,
   type FetchPackageToStoreOptions,
   type PackageFilesResponse,
   type PackageResponse,
@@ -7,7 +8,6 @@ import {
   type StoreController,
   type WantedDependency,
 } from '@pnpm/store-controller-types'
-import { type DependencyManifest } from '@pnpm/types'
 
 import pLimit from 'p-limit'
 import pShare from 'promise-share'
@@ -128,10 +128,8 @@ function fetchPackage (
   limitedFetch: (url: string, body: object) => any, // eslint-disable-line
   options: FetchPackageToStoreOptions
 ): {
-    bundledManifest?: () => Promise<DependencyManifest>
-    files: () => Promise<PackageFilesResponse>
+    fetching: () => Promise<PkgRequestFetchResult>
     filesIndexFile: string
-    finishing: () => Promise<void>
     inStoreLocation: string
   } {
   const msgId = uuidv4()

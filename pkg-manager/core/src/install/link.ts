@@ -425,20 +425,20 @@ async function linkAllPkgs (
 ) {
   return Promise.all(
     depNodes.map(async (depNode) => {
-      const filesResponse = await depNode.fetchingFiles()
+      const { files } = await depNode.fetching()
 
       if (typeof depNode.requiresBuild === 'function') {
         depNode.requiresBuild = await depNode.requiresBuild()
       }
       let sideEffectsCacheKey: string | undefined
-      if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
+      if (opts.sideEffectsCacheRead && files.sideEffects && !isEmpty(files.sideEffects)) {
         sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
           isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
           patchFileHash: depNode.patchFile?.hash,
         })
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
-        filesResponse,
+        filesResponse: files,
         force: opts.force,
         sideEffectsCacheKey,
         requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
