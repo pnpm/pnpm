@@ -2,6 +2,7 @@
 import path from 'path'
 import { createClient } from '@pnpm/client'
 import { createPackageStore } from '@pnpm/package-store'
+import { type FetchPackageToStoreFunction } from '@pnpm/store-controller-types'
 import tempy from 'tempy'
 
 describe('store.importPackage()', () => {
@@ -22,7 +23,7 @@ describe('store.importPackage()', () => {
       verifyStoreIntegrity: true,
     })
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
-    const fetchResponse = storeController.fetchPackage({
+    const fetchResponse = (storeController.fetchPackage as FetchPackageToStoreFunction)({
       force: false,
       lockfileDir: tempy.directory(),
       pkg: {
@@ -36,7 +37,7 @@ describe('store.importPackage()', () => {
     })
     const importTo = tempy.directory()
     const { importMethod } = await storeController.importPackage(importTo, {
-      filesResponse: await fetchResponse.files(),
+      filesResponse: (await fetchResponse.fetching()).files,
       force: false,
     })
     expect(typeof importMethod).toBe('string')
@@ -61,7 +62,7 @@ describe('store.importPackage()', () => {
       verifyStoreIntegrity: true,
     })
     const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
-    const fetchResponse = storeController.fetchPackage({
+    const fetchResponse = (storeController.fetchPackage as FetchPackageToStoreFunction)({
       force: false,
       lockfileDir: tempy.directory(),
       pkg: {
@@ -75,7 +76,7 @@ describe('store.importPackage()', () => {
     })
     const importTo = tempy.directory()
     const { importMethod } = await storeController.importPackage(importTo, {
-      filesResponse: await fetchResponse.files(),
+      filesResponse: (await fetchResponse.fetching()).files,
       force: false,
     })
     expect(importMethod).toBe('copy')
