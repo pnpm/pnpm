@@ -34,15 +34,32 @@ function createTarballWorkerPool () {
   return workerPool
 }
 
+function logIfServer<T> (log: T) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((globalThis as any).isRunningInPnpmServer) {
+    console.log(log)
+  }
+}
+
 export async function addFilesFromDir (
   opts: Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey'> & {
     manifest?: DeferredManifestPromise
   }
 ) {
+  const beforeCheckingOutWorker = performance.now()
+  logIfServer('Checking out worker for "add-dir"')
+  logIfServer({
+    max: workerPool.maxWorkers,
+    active: workerPool.getActiveCount(),
+    idle: workerPool.getIdleCount(),
+    live: workerPool.getLiveCount(),
+  })
   const localWorker = await workerPool.checkoutWorkerAsync(true)
+  logIfServer(`Finished checking out worker for "add-dir": ${performance.now() - beforeCheckingOutWorker}`)
   return new Promise<Record<string, string>>((resolve, reject) => {
     // eslint-disalbe-next-line
     localWorker.once('message', ({ status, error, value }) => {
+      logIfServer('Worker responded with message for "add-dir"')
       workerPool.checkinWorker(localWorker)
       if (status === 'error') {
         reject(new PnpmError('GIT_FETCH_FAILED', error as string))
@@ -101,9 +118,19 @@ export async function addFilesFromTarball (
     manifest?: DeferredManifestPromise
   }
 ) {
+  const beforeCheckingOutWorker = performance.now()
+  logIfServer('Checking out worker for "extract"')
+  logIfServer({
+    max: workerPool.maxWorkers,
+    active: workerPool.getActiveCount(),
+    idle: workerPool.getIdleCount(),
+    live: workerPool.getLiveCount(),
+  })
   const localWorker = await workerPool.checkoutWorkerAsync(true)
+  logIfServer(`Finished checking out worker for "extract": ${performance.now() - beforeCheckingOutWorker}`)
   return new Promise<Record<string, string>>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
+      logIfServer('Worker responded with message for extract')
       workerPool.checkinWorker(localWorker)
       if (status === 'error') {
         if (error.type === 'integrity_validation_failed') {

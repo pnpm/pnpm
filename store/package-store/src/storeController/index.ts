@@ -52,7 +52,7 @@ export async function createPackageStore (
     relinkLocalDirDeps: initOpts.relinkLocalDirDeps,
   })
 
-  function logIfServer (log: string) {
+  function logIfServer<T> (log: T) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((globalThis as any).isRunningInPnpmServer) {
       console.log(log)
@@ -67,12 +67,18 @@ export async function createPackageStore (
       ? createPackageImporterAsync({ importIndexedPackage: initOpts.importPackage, cafsDir: cafs.cafsDir })
       : async (targetDir, opts) => {
         const beforeCheckingOutWorker = performance.now()
-        logIfServer('Checking out worker')
+        logIfServer('Checking out worker for "link"')
+        logIfServer({
+          max: pool.maxWorkers,
+          active: pool.getActiveCount(),
+          idle: pool.getIdleCount(),
+          live: pool.getLiveCount(),
+        })
         const localWorker = await pool.checkoutWorkerAsync(true)
-        logIfServer(`Finished checking out worker: ${performance.now() - beforeCheckingOutWorker}`)
+        logIfServer(`Finished checking out worker for "link": ${performance.now() - beforeCheckingOutWorker}`)
         return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
           localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-            logIfServer('Worker responded with message')
+            logIfServer('Worker responded with message for link')
             pool.checkinWorker(localWorker)
             if (status === 'error') {
               reject(new PnpmError('LINKING_FAILED', error as string))
