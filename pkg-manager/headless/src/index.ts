@@ -583,7 +583,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }
 
   // waiting till package requests are finished
-  await Promise.all(depNodes.map(({ fetching }) => fetching?.()))
+  await Promise.all(depNodes.map(async ({ fetching }) => {
+    try {
+      await fetching?.()
+    } catch {}
+  }))
 
   summaryLogger.debug({ prefix: lockfileDir })
 

@@ -276,7 +276,11 @@ export async function resolveDependencies (
   }
 
   // waiting till package requests are finished
-  const waitTillAllFetchingsFinish = async () => Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ fetching }) => fetching?.()))
+  const waitTillAllFetchingsFinish = async () => Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ fetching }) => {
+    try {
+      await fetching?.()
+    } catch {}
+  }))
 
   return {
     dependenciesByProjectId,
