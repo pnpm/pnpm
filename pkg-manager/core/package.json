@@ -12,7 +12,8 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.0.0",
+    "@pnpm/worker": "workspace:^"
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:*",
@@ -53,7 +54,6 @@
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
-    "@pnpm/worker": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
     "@zkochan/rimraf": "^2.1.3",

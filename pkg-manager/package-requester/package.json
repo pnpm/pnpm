@@ -32,7 +32,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-requester#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.0.0",
+    "@pnpm/worker": "workspace:^"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
@@ -47,7 +48,6 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@pnpm/worker": "workspace:*",
     "p-defer": "^3.0.0",
     "p-limit": "^3.1.0",
     "p-queue": "^6.6.2",

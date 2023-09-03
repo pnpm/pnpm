@@ -30,11 +30,11 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fetching/git-fetcher#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.0.0",
+    "@pnpm/worker": "workspace:^"
   },
   "dependencies": {
     "@pnpm/fetcher-base": "workspace:*",
-    "@pnpm/worker": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
     "@zkochan/rimraf": "^2.1.3",
     "execa": "npm:safe-execa@0.1.2"

@@ -114,9 +114,6 @@ importers:
       '@pnpm/tsconfig':
         specifier: workspace:*
         version: link:__utils__/tsconfig
-      '@pnpm/worker':
-        specifier: workspace:*
-        version: link:worker
       '@types/jest':
         specifier: ^29.5.3
         version: 29.5.3
@@ -1534,7 +1531,7 @@ importers:
         specifier: workspace:*
         version: link:../../exec/prepare-package
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       '@zkochan/rimraf':
         specifier: ^2.1.3
@@ -1595,7 +1592,7 @@ importers:
         specifier: workspace:*
         version: link:../../exec/prepare-package
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       '@zkochan/retry':
         specifier: ^0.2.0
@@ -2989,7 +2986,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/which-version-is-pinned
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       '@zkochan/rimraf':
         specifier: ^2.1.3
@@ -3646,7 +3643,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       p-defer:
         specifier: ^3.0.0
@@ -5635,7 +5632,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       '@zkochan/rimraf':
         specifier: ^2.1.3
