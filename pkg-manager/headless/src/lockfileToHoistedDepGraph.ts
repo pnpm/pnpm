@@ -216,7 +216,7 @@ async function fetchDeps (
             name: pkgName,
             version: pkgVersion,
           },
-        })
+        }) as any // eslint-disable-line
         if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
       } catch (err: any) { // eslint-disable-line
         if (pkgSnapshot.optional) return

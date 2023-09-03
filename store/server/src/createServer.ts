@@ -1,11 +1,11 @@
 import http, { type IncomingMessage, type Server, type ServerResponse } from 'http'
 import { globalInfo } from '@pnpm/logger'
 import {
-  type BundledManifestFunction,
-  type PackageFilesResponse,
+  type PkgRequestFetchResult,
   type RequestPackageOptions,
   type StoreController,
   type WantedDependency,
+  type FetchPackageToStoreFunction,
 } from '@pnpm/store-controller-types'
 import { locking } from './lock'
 
@@ -34,8 +34,7 @@ export function createServer (
     ignoreUploadRequests?: boolean
   }
 ) {
-  const rawManifestPromises: Record<string, BundledManifestFunction> = {}
-  const filesPromises: Record<string, () => Promise<PackageFilesResponse>> = {}
+  const filesPromises: Record<string, () => Promise<PkgRequestFetchResult>> = {}
 
   // eslint-disable-next-line @typescript-eslint/no-invalid-void-type
   const lock = locking<void>()
@@ -75,13 +74,8 @@ export function createServer (
         try {
           body = await bodyPromise
           const pkgResponse = await store.requestPackage(body.wantedDependency, body.options)
-          if (pkgResponse['bundledManifest']) {
-            rawManifestPromises[body.msgId] = pkgResponse['bundledManifest']
-            // @ts-expect-error
-            pkgResponse.body['fetchingBundledManifestInProgress'] = true
-          }
-          if (pkgResponse['files']) {
-            filesPromises[body.msgId] = pkgResponse['files']
+          if (pkgResponse.fetching) {
+            filesPromises[body.msgId] = pkgResponse.fetching
           }
           res.end(JSON.stringify(pkgResponse.body))
         } catch (err: any) { // eslint-disable-line
@@ -97,13 +91,8 @@ export function createServer (
       case '/fetchPackage': {
         try {
           body = await bodyPromise
-          const pkgResponse = store.fetchPackage(body.options as any) // eslint-disable-line
-            if (pkgResponse['bundledManifest']) { // eslint-disable-line
-              rawManifestPromises[body.msgId] = pkgResponse['bundledManifest'] // eslint-disable-line
-          }
-            if (pkgResponse['files']) { // eslint-disable-line
-              filesPromises[body.msgId] = pkgResponse['files'] // eslint-disable-line
-          }
+          const pkgResponse = (store.fetchPackage as FetchPackageToStoreFunction)(body.options as any) // eslint-disable-line
+          filesPromises[body.msgId] = pkgResponse.fetching
           res.end(JSON.stringify({ filesIndexFile: pkgResponse.filesIndexFile }))
         } catch (err: any) { // eslint-disable-line
           res.end(JSON.stringify({
@@ -120,13 +109,6 @@ export function createServer (
         const filesResponse = await filesPromises[body.msgId]()
         delete filesPromises[body.msgId]
         res.end(JSON.stringify(filesResponse))
-        break
-      }
-      case '/rawManifestResponse': {
-        body = await bodyPromise
-        const manifestResponse = await rawManifestPromises[body.msgId]()
-        delete rawManifestPromises[body.msgId]
-        res.end(JSON.stringify(manifestResponse))
         break
       }
       case '/prune':

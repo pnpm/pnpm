@@ -56,18 +56,15 @@ test('server', async () => {
     }
   )
 
-  expect((await response.bundledManifest!())?.name).toBe('is-positive')
+  const { bundledManifest, files } = await response.fetching!()
+  expect(bundledManifest?.name).toBe('is-positive')
   expect(response.body.id).toBe('registry.npmjs.org/is-positive/1.0.0')
 
   expect(response.body.manifest!.name).toBe('is-positive')
   expect(response.body.manifest!.version).toBe('1.0.0')
 
-  const files = await response.files!()
   expect(files.fromStore).toBeFalsy()
   expect(files.filesIndex).toHaveProperty(['package.json'])
-  expect(response.finishing).toBeTruthy()
-
-  await response.finishing!()
 
   await server.close()
   await storeCtrl.close()
@@ -86,7 +83,7 @@ test('fetchPackage', async () => {
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
   // This should be fixed
-  // eslint-disable-next-line
+
   const response = await storeCtrl.fetchPackage({
     fetchRawManifest: true,
     force: false,
@@ -103,14 +100,11 @@ test('fetchPackage', async () => {
 
   expect(typeof response.filesIndexFile).toBe('string')
 
-  expect(await response.bundledManifest!()).toBeTruthy()
+  const { bundledManifest, files } = await response.fetching!()
+  expect(bundledManifest).toBeTruthy()
 
-  const files = await response['files']()
   expect(files.fromStore).toBeFalsy()
   expect(files.filesIndex).toHaveProperty(['package.json'])
-  expect(response).toHaveProperty(['finishing'])
-
-  await response['finishing']()
 
   await server.close()
   await storeCtrl.close()

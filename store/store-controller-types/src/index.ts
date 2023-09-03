@@ -45,7 +45,7 @@ export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStore
 
 export interface StoreController {
   requestPackage: RequestPackageFunction
-  fetchPackage: FetchPackageToStoreFunction
+  fetchPackage: FetchPackageToStoreFunction | FetchPackageToStoreFunctionAsync
   getFilesIndexFilePath: GetFilesIndexFilePath
   importPackage: ImportPackageFunctionAsync
   close: () => Promise<void>
@@ -54,8 +54,8 @@ export interface StoreController {
 }
 
 export interface PkgRequestFetchResult {
-  bundledManifest?: BundledManifest,
-  files: PackageFilesResponse,
+  bundledManifest?: BundledManifest
+  files: PackageFilesResponse
 }
 
 export type FetchPackageToStoreFunction = (
@@ -64,6 +64,13 @@ export type FetchPackageToStoreFunction = (
   filesIndexFile: string
   fetching: () => Promise<PkgRequestFetchResult>
 }
+
+export type FetchPackageToStoreFunctionAsync = (
+  opts: FetchPackageToStoreOptions
+) => Promise<{
+  filesIndexFile: string
+  fetching: () => Promise<PkgRequestFetchResult>
+}>
 
 export type GetFilesIndexFilePath = (opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>) => {
   filesIndexFile: string
