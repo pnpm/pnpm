@@ -20,9 +20,9 @@ export async function writePackage (dep: ParseWantedDependencyResult, dest: stri
     projectDir: opts.dir,
     registry: (dep.alias && pickRegistryForPackage(opts.registries, dep.alias)) ?? opts.registries.default,
   })
-  const filesResponse = await pkgResponse.files!()
+  const { files } = await pkgResponse.fetching!()
   await store.ctrl.importPackage(dest, {
-    filesResponse,
+    filesResponse: files,
     force: true,
   })
 }

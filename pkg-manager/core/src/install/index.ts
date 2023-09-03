@@ -1226,14 +1226,14 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           ),
           ...linkedDependenciesByProjectId[project.id].map(({ pkgId }) => ({
             dir: path.join(project.rootDir, pkgId.substring(5)),
-            fetchingBundledManifest: undefined,
+            fetching: undefined,
           })),
         ]
         linkedPackages = await linkBinsOfPackages(
           (
             await Promise.all(
               directPkgs.map(async (dep) => {
-                const manifest = await dep.fetchingBundledManifest?.() ?? await safeReadProjectManifestOnly(dep.dir)
+                const manifest = (await dep.fetching?.())?.bundledManifest ?? await safeReadProjectManifestOnly(dep.dir)
                 let nodeExecPath: string | undefined
                 if (manifest?.name) {
                   nodeExecPath = project.manifest.dependenciesMeta?.[manifest.name]?.node

@@ -25,14 +25,13 @@ import {
   type WorkspacePackages,
 } from '@pnpm/resolver-base'
 import {
-  type PackageFilesResponse,
+  type PkgRequestFetchResult,
   type PackageResponse,
   type StoreController,
 } from '@pnpm/store-controller-types'
 import {
   type AllowedDeprecatedVersions,
   type Dependencies,
-  type DependencyManifest,
   type PackageManifest,
   type PatchFile,
   type PeerDependenciesMeta,
@@ -205,10 +204,8 @@ export interface ResolvedPackage {
   prod: boolean
   dev: boolean
   optional: boolean
-  fetchingFiles: () => Promise<PackageFilesResponse>
-  fetchingBundledManifest?: () => Promise<DependencyManifest | undefined>
+  fetching: () => Promise<PkgRequestFetchResult>
   filesIndexFile: string
-  finishing: () => Promise<void>
   name: string
   version: string
   peerDependencies: Dependencies
@@ -1124,7 +1121,7 @@ async function resolveDependency (
   }
 
   if (pkgResponse.body.isLocal) {
-    const manifest = pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
+    const manifest = pkgResponse.body.manifest ?? (await pkgResponse.fetching!()).bundledManifest
     if (!manifest) {
       // This should actually never happen because the local-resolver returns a manifest
       // even if no real manifest exists in the filesystem.
@@ -1301,11 +1298,9 @@ async function resolveDependency (
         !ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.has(parentImporterId)
       ctx.resolvedPackagesByDepPath[depPath].parentImporterIds.add(parentImporterId)
     }
-    if (ctx.resolvedPackagesByDepPath[depPath].fetchingFiles == null && pkgResponse.files != null) {
-      ctx.resolvedPackagesByDepPath[depPath].fetchingFiles = pkgResponse.files
+    if (ctx.resolvedPackagesByDepPath[depPath].fetching == null && pkgResponse.fetching != null) {
+      ctx.resolvedPackagesByDepPath[depPath].fetching = pkgResponse.fetching
       ctx.resolvedPackagesByDepPath[depPath].filesIndexFile = pkgResponse.filesIndexFile!
-      ctx.resolvedPackagesByDepPath[depPath].finishing = pkgResponse.finishing!
-      ctx.resolvedPackagesByDepPath[depPath].fetchingBundledManifest = pkgResponse.bundledManifest!
     }
 
     if (ctx.dependenciesTree.has(nodeId)) {
@@ -1369,7 +1364,7 @@ async function getManifestFromResponse (
   pkgResponse: PackageResponse,
   wantedDependency: WantedDependency
 ): Promise<PackageManifest> {
-  const pkg = pkgResponse.body.manifest ?? await pkgResponse.bundledManifest!()
+  const pkg = pkgResponse.body.manifest ?? (await pkgResponse.fetching!()).bundledManifest
   if (pkg) return pkg
   return {
     name: wantedDependency.pref.split('/').pop()!,
@@ -1431,10 +1426,8 @@ function getResolvedPackage (
     parentImporterIds: new Set([options.parentImporterId]),
     depPath: options.depPath,
     dev: options.wantedDependency.dev,
-    fetchingBundledManifest: options.pkgResponse.bundledManifest,
-    fetchingFiles: options.pkgResponse.files!,
+    fetching: options.pkgResponse.fetching!,
     filesIndexFile: options.pkgResponse.filesIndexFile!,
-    finishing: options.pkgResponse.finishing!,
     hasBin: options.hasBin,
     hasBundledDependencies: !((options.pkg.bundledDependencies ?? options.pkg.bundleDependencies) == null),
     id: options.pkgResponse.body.id,

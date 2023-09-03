@@ -216,7 +216,7 @@ async function fetchDeps (
             name: pkgName,
             version: pkgVersion,
           },
-        })
+        }) as any // eslint-disable-line
         if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
       } catch (err: any) { // eslint-disable-line
         if (pkgSnapshot.optional) return
@@ -228,9 +228,8 @@ async function fetchDeps (
       children: {},
       depPath,
       dir,
-      fetchingFiles: fetchResponse.files,
+      fetching: fetchResponse.fetching,
       filesIndexFile: fetchResponse.filesIndexFile,
-      finishing: fetchResponse.finishing,
       hasBin: pkgSnapshot.hasBin === true,
       hasBundledDependencies: pkgSnapshot.bundledDependencies != null,
       modules,

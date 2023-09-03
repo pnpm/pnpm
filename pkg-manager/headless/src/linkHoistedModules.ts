@@ -98,10 +98,10 @@ async function linkAllPkgsInOrder (
   await Promise.all(
     Object.entries(hierarchy).map(async ([dir, deps]) => {
       const depNode = graph[dir]
-      if (depNode.fetchingFiles) {
+      if (depNode.fetching) {
         let filesResponse!: PackageFilesResponse
         try {
-          filesResponse = await depNode.fetchingFiles()
+          filesResponse = (await depNode.fetching()).files
         } catch (err: any) { // eslint-disable-line
           if (depNode.optional) return
           throw err

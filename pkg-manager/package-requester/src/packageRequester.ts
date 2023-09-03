@@ -15,7 +15,7 @@ import {
   type FetchOptions,
   type FetchResult,
 } from '@pnpm/fetcher-base'
-import { type Cafs, type PackageFilesResponse } from '@pnpm/cafs-types'
+import { type Cafs } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
@@ -29,7 +29,7 @@ import {
 } from '@pnpm/resolver-base'
 import {
   type BundledManifest,
-  type BundledManifestFunction,
+  type PkgRequestFetchResult,
   type FetchPackageToStoreFunction,
   type FetchPackageToStoreOptions,
   type GetFilesIndexFilePath,
@@ -284,18 +284,15 @@ async function resolveAndFetch (
       updated,
       publishedAt,
     },
-    bundledManifest: fetchResult.bundledManifest,
-    files: fetchResult.files,
+    fetching: fetchResult.fetching,
     filesIndexFile: fetchResult.filesIndexFile,
-    finishing: fetchResult.finishing,
   }
 }
 
 interface FetchLock {
-  bundledManifest?: Promise<BundledManifest | undefined>
-  files: Promise<PackageFilesResponse>
+  fetching: Promise<PkgRequestFetchResult>
   filesIndexFile: string
-  finishing: Promise<void>
+  fetchRawManifest?: boolean
 }
 
 function getFilesIndexFilePath (
@@ -337,37 +334,24 @@ function fetchToStore (
   },
   opts: FetchPackageToStoreOptions
 ): {
-    bundledManifest?: BundledManifestFunction
     filesIndexFile: string
-    files: () => Promise<PackageFilesResponse>
-    finishing: () => Promise<void>
+    fetching: () => Promise<PkgRequestFetchResult>
   } {
   if (!opts.pkg.name) {
     opts.fetchRawManifest = true
   }
 
   if (!ctx.fetchingLocker.has(opts.pkg.id)) {
-    const bundledManifest = pDefer<BundledManifest>()
-    const files = pDefer<PackageFilesResponse>()
-    const finishing = pDefer<undefined>()
+    const fetching = pDefer<PkgRequestFetchResult>()
     const { filesIndexFile, target } = getFilesIndexFilePath(ctx, opts)
 
-    doFetchToStore(filesIndexFile, bundledManifest, files, finishing, target) // eslint-disable-line
+    doFetchToStore(filesIndexFile, fetching, target) // eslint-disable-line
 
-    if (opts.fetchRawManifest) {
-      ctx.fetchingLocker.set(opts.pkg.id, {
-        bundledManifest: removeKeyOnFail(bundledManifest.promise),
-        files: removeKeyOnFail(files.promise),
-        filesIndexFile,
-        finishing: removeKeyOnFail(finishing.promise),
-      })
-    } else {
-      ctx.fetchingLocker.set(opts.pkg.id, {
-        files: removeKeyOnFail(files.promise),
-        filesIndexFile,
-        finishing: removeKeyOnFail(finishing.promise),
-      })
-    }
+    ctx.fetchingLocker.set(opts.pkg.id, {
+      fetching: removeKeyOnFail(fetching.promise),
+      filesIndexFile,
+      fetchRawManifest: opts.fetchRawManifest,
+    })
 
     // When files resolves, the cached result has to set fromStore to true, without
     // affecting previous invocations: so we need to replace the cache.
@@ -375,17 +359,17 @@ function fetchToStore (
     // Changing the value of fromStore is needed for correct reporting of `pnpm server`.
     // Otherwise, if a package was not in store when the server started, it will always be
     // reported as "downloaded" instead of "reused".
-    files.promise.then((cache) => {
+    fetching.promise.then((cache) => {
       progressLogger.debug({
         packageId: opts.pkg.id,
         requester: opts.lockfileDir,
-        status: cache.fromStore
+        status: cache.files.fromStore
           ? 'found_in_store'
           : 'fetched',
       })
 
       // If it's already in the store, we don't need to update the cache
-      if (cache.fromStore) {
+      if (cache.files.fromStore) {
         return
       }
 
@@ -397,9 +381,12 @@ function fetchToStore (
 
       ctx.fetchingLocker.set(opts.pkg.id, {
         ...tmp,
-        files: Promise.resolve({
+        fetching: Promise.resolve({
           ...cache,
-          fromStore: true,
+          files: {
+            ...cache.files,
+            fromStore: true,
+          },
         }),
       })
     })
@@ -410,25 +397,33 @@ function fetchToStore (
 
   const result = ctx.fetchingLocker.get(opts.pkg.id)!
 
-  if (opts.fetchRawManifest && (result.bundledManifest == null)) {
-    result.bundledManifest = removeKeyOnFail(
-      result.files.then(async (filesResult) => {
-        if (!filesResult.filesIndex['package.json']) return undefined
-        if (filesResult.unprocessed) {
-          const { integrity, mode } = filesResult.filesIndex['package.json']
-          const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
-          return readBundledManifest(manifestPath)
+  if (opts.fetchRawManifest && !result.fetchRawManifest) {
+    result.fetching = removeKeyOnFail(
+      result.fetching.then(async ({ files }) => {
+        if (!files.filesIndex['package.json']) return {
+          files,
+          bundledManifest: undefined,
         }
-        return readBundledManifest(filesResult.filesIndex['package.json'])
+        if (files.unprocessed) {
+          const { integrity, mode } = files.filesIndex['package.json']
+          const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
+          return {
+            files,
+            bundledManifest: await readBundledManifest(manifestPath),
+          }
+        }
+        return {
+          files,
+          bundledManifest: await readBundledManifest(files.filesIndex['package.json']),
+        }
       })
     )
+    result.fetchRawManifest = true
   }
 
   return {
-    bundledManifest: (result.bundledManifest != null) ? pShare(result.bundledManifest) : undefined,
-    files: pShare(result.files),
+    fetching: pShare(result.fetching),
     filesIndexFile: result.filesIndexFile,
-    finishing: pShare(result.finishing),
   }
 
   async function removeKeyOnFail<T> (p: Promise<T>): Promise<T> {
@@ -442,9 +437,7 @@ function fetchToStore (
 
   async function doFetchToStore (
     filesIndexFile: string,
-    bundledManifest: pDefer.DeferredPromise<BundledManifest>,
-    files: pDefer.DeferredPromise<PackageFilesResponse>,
-    finishing: pDefer.DeferredPromise<void>,
+    fetching: pDefer.DeferredPromise<PkgRequestFetchResult>,
     target: string
   ) {
     try {
@@ -482,16 +475,15 @@ Package name mismatch found while reading ${JSON.stringify(opts.pkg.resolution)}
 This means that the lockfile is broken. Expected package: ${opts.expectedPkg.name}@${opts.expectedPkg.version}. \
 Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgFilesIndex.version}.`)
           }
-          files.resolve({
-            unprocessed: true,
-            filesIndex: pkgFilesIndex.files,
-            fromStore: true,
-            sideEffects: pkgFilesIndex.sideEffects,
+          fetching.resolve({
+            files: {
+              unprocessed: true,
+              filesIndex: pkgFilesIndex.files,
+              fromStore: true,
+              sideEffects: pkgFilesIndex.sideEffects,
+            },
+            bundledManifest: manifest == null ? manifest : normalizeBundledManifest(manifest),
           })
-          if (opts.fetchRawManifest) {
-            bundledManifest.resolve(manifest == null ? manifest : normalizeBundledManifest(manifest))
-          }
-          finishing.resolve(undefined)
           return
         }
         if ((pkgFilesIndex?.files) != null) {
@@ -539,34 +531,23 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
           },
         }
       ), { priority })
-      if (opts.fetchRawManifest) {
-        bundledManifest.resolve(fetchedPackage.manifest == null ? fetchedPackage.manifest : normalizeBundledManifest(fetchedPackage.manifest))
-      }
-
-      const filesResult: PackageFilesResponse = {
-        local: fetchedPackage.local,
-        fromStore: !fetchedPackage.local ? false : !ctx.relinkLocalDirDeps,
-        filesIndex: fetchedPackage.filesIndex,
-        packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
-      }
-      if (fetchedPackage.filesIndex['package.json'] != null) {
-        readBundledManifest(fetchedPackage.filesIndex['package.json'])
-          .then(bundledManifest.resolve)
-          .catch(bundledManifest.reject)
-      }
 
       if (isLocalTarballDep && (opts.pkg.resolution as TarballResolution).integrity) {
         await fs.mkdir(target, { recursive: true })
         await gfs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), (opts.pkg.resolution as TarballResolution).integrity!, 'utf8')
       }
 
-      files.resolve(filesResult)
-      finishing.resolve(undefined)
+      fetching.resolve({
+        files: {
+          local: fetchedPackage.local,
+          fromStore: !fetchedPackage.local ? false : !ctx.relinkLocalDirDeps,
+          filesIndex: fetchedPackage.filesIndex,
+          packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
+        },
+        bundledManifest: fetchedPackage.manifest == null ? fetchedPackage.manifest : normalizeBundledManifest(fetchedPackage.manifest),
+      })
     } catch (err: any) { // eslint-disable-line
-      files.reject(err)
-      if (opts.fetchRawManifest) {
-        bundledManifest.reject(err)
-      }
+      fetching.reject(err)
     }
   }
 }
