@@ -11,8 +11,7 @@ export { type WorkerPool }
 let workerPool = createTarballWorkerPool()
 
 export async function restartWorkerPool () {
-  // @ts-expect-error
-  await global.finishWorkers?.()
+  await workerPool.finishAsync()
   workerPool = createTarballWorkerPool()
 }
 
@@ -25,19 +24,6 @@ function createTarballWorkerPool () {
     maxWorkers,
     workerScriptPath: path.join(__dirname, 'worker.js'),
   })
-  // @ts-expect-error
-  if (global.finishWorkers) {
-    // @ts-expect-error
-    const previous = global.finishWorkers
-    // @ts-expect-error
-    global.finishWorkers = async () => {
-      await previous()
-      await workerPool.finishAsync()
-    }
-  } else {
-    // @ts-expect-error
-    global.finishWorkers = () => workerPool.finishAsync()
-  }
   return workerPool
 }
 
