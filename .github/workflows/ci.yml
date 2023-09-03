@@ -15,9 +15,9 @@ jobs:
       fail-fast: false
       matrix:
         node:
-          - '16.14'
-          - '18'
-          - '20'
+          - '20.4.0'
+          - '20.5.0'
+          - '20.5.1'
         platform:
           - ubuntu-latest
           # - windows-latest
