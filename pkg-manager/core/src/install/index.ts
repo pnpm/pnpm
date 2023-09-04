@@ -1097,6 +1097,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         dependenciesByProjectId,
         depsStateCache,
         extraNodePaths: ctx.extraNodePaths,
+        finishLockfileUpdates,
         force: opts.force,
         hoistedDependencies: ctx.hoistedDependencies,
         hoistedModulesDir: ctx.hoistedModulesDir,
@@ -1122,7 +1123,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       }
     )
     stats = result.stats
-    await finishLockfileUpdates()
     if (opts.enablePnp) {
       const importerNames = Object.fromEntries(
         projects.map(({ manifest, id }) => [id, manifest.name ?? id])
