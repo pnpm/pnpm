@@ -165,7 +165,8 @@
     },
     "patchedDependencies": {
       "pkg@5.8.1": "__patches__/pkg.patch",
-      "graceful-fs@4.2.11": "__patches__/graceful-fs@4.2.11.patch"
+      "graceful-fs@4.2.11": "__patches__/graceful-fs@4.2.11.patch",
+      "@rushstack/worker-pool@0.3.34": "__patches__/@rushstack__worker-pool@0.3.34.patch"
     },
     "updateConfig": {
       "ignoreDependencies": [

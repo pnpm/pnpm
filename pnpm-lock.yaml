@@ -64,6 +64,9 @@ overrides:
 packageExtensionsChecksum: 0d307d8212befbee1586c7f8acd8fba8
 
 patchedDependencies:
+  '@rushstack/worker-pool@0.3.34':
+    hash: pqiyad4puerpr667nv7y5ssmpy
+    path: __patches__/@rushstack__worker-pool@0.3.34.patch
   graceful-fs@4.2.11:
     hash: ivtm2a2cfr5pomcfbedhmr5v2q
     path: __patches__/graceful-fs@4.2.11.patch
@@ -6046,7 +6049,7 @@ importers:
         version: link:../store/cafs
       '@rushstack/worker-pool':
         specifier: 0.3.34
-        version: 0.3.34(@types/node@16.18.41)
+        version: 0.3.34(patch_hash=pqiyad4puerpr667nv7y5ssmpy)(@types/node@16.18.41)
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -8312,7 +8315,7 @@ packages:
       write-yaml-file: 5.0.0
     dev: true
 
-  /@rushstack/worker-pool@0.3.34(@types/node@16.18.41):
+  /@rushstack/worker-pool@0.3.34(patch_hash=pqiyad4puerpr667nv7y5ssmpy)(@types/node@16.18.41):
     resolution: {integrity: sha512-ZpIrJUk539uQrsmbcnoMxhrM6/Lq0qCEL1QL9l8cj2RSq1qHwZ9lGIvd+pRmN8uEQSxL9k5fSnE6LasIzcKC3Q==}
     peerDependencies:
       '@types/node': '*'
@@ -8322,6 +8325,7 @@ packages:
     dependencies:
       '@types/node': 16.18.41
     dev: false
+    patched: true
 
   /@sinclair/typebox@0.27.8:
     resolution: {integrity: sha512-+Fj43pSMwJs4KRrH/938Uf+uAELIgVBmQzg/q1YG10djyfA3TnrU8N8XzqCh/okZdszqBQTZf96idMfE5lnwTA==}

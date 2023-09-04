@@ -1,0 +1,40 @@
+diff --git a/lib/WorkerPool.js b/lib/WorkerPool.js
+index 02ce90261cfdec15c3231f5feec1a9f191ae44af..e825d3c46e863d8069454ccb9fdff3586750adfa 100644
+--- a/lib/WorkerPool.js
++++ b/lib/WorkerPool.js
+@@ -81,22 +81,27 @@ class WorkerPool {
+      * @param worker - The worker to free
+      */
+     checkinWorker(worker) {
++        console.log('WorkerPool: Checking in worker')
+         if (this._error) {
+             // Shut down the worker (failure)
++            console.log('WorkerPool: There was an error. Shutting worker down.')
+             worker.postMessage(false);
+             return;
+         }
+         const next = this._pending.shift();
+         if (next) {
+             // Perform the next unit of work;
++            console.log('WorkerPool: There is more work to do.')
+             next[0](worker);
+         }
+         else if (this._finishing) {
+             // Shut down the worker (success)
++            console.log('WorkerPool: The worker pool is finishing.')
+             worker.postMessage(false);
+         }
+         else {
+             // No pending work, idle the workers
++            console.log('WorkerPool: No more pending work!')
+             this._idle.push(worker);
+         }
+     }
+@@ -105,6 +110,7 @@ class WorkerPool {
+      * @param allowCreate - If creating new workers is allowed (subject to maxSize)
+      */
+     async checkoutWorkerAsync(allowCreate) {
++        console.log('WorkerPool: Checking out a new worker')
+         if (this._error) {
+             throw this._error;
+         }
