@@ -114,6 +114,9 @@ importers:
       '@pnpm/tsconfig':
         specifier: workspace:*
         version: link:__utils__/tsconfig
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:worker
       '@types/jest':
         specifier: ^29.5.3
         version: 29.5.3
@@ -4428,6 +4431,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../worker
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: link:../workspace/find-packages

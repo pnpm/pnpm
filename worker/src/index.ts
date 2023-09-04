@@ -11,9 +11,13 @@ export { type WorkerPool }
 let workerPool = createTarballWorkerPool()
 
 export async function restartWorkerPool () {
+  await finishWorkers()
+  workerPool = createTarballWorkerPool()
+}
+
+export async function finishWorkers () {
   // @ts-expect-error
   await global.finishWorkers?.()
-  workerPool = createTarballWorkerPool()
 }
 
 export { workerPool }

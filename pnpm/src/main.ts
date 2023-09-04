@@ -13,6 +13,7 @@ import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
 import { logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { node } from '@pnpm/plugin-commands-env'
+import { finishWorkers } from '@pnpm/worker'
 import chalk from 'chalk'
 import { checkForUpdates } from './checkForUpdates'
 import { pnpmCmds, rcOptionsTypes } from './cmd'
@@ -296,8 +297,7 @@ export async function main (inputArgv: string[]) {
   })()
   // When use-node-version is set and "pnpm run" is executed,
   // this will be the only place where the tarball worker pool is finished.
-  // @ts-expect-error
-  await global.finishWorkers?.()
+  await finishWorkers()
   if (output) {
     if (!output.endsWith('\n')) {
       output = `${output}\n`
