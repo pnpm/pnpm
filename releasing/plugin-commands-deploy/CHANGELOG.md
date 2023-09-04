@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-deploy
 
+## 3.1.0
+
+### Minor Changes
+
+- d57e4de6d: Apply `publishConfig` for workspace packages on directory fetch. Enables a publishable ("exportable") `package.json` on deployment [#6693](https://github.com/pnpm/pnpm/issues/6693).
+
+### Patch Changes
+
+- Updated dependencies [ef3609049]
+- Updated dependencies [e0474bc4c]
+- Updated dependencies [d57e4de6d]
+- Updated dependencies [f2009d175]
+- Updated dependencies [bf21c9bf3]
+- Updated dependencies [81e5ada3a]
+  - @pnpm/plugin-commands-installation@13.1.0
+  - @pnpm/directory-fetcher@6.1.0
+  - @pnpm/fs.indexed-pkg-importer@4.0.0
+  - @pnpm/cli-utils@2.0.16
+
 ## 3.0.31
 
 ### Patch Changes

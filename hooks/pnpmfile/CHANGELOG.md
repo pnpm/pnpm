@@ -1,5 +1,12 @@
 # @pnpm/pnpmfile
 
+## 5.0.10
+
+### Patch Changes
+
+- Updated dependencies [494f87544]
+  - @pnpm/store-controller-types@16.0.0
+
 ## 5.0.9
 
 ### Patch Changes

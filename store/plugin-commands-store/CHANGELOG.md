@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-store
 
+## 8.0.16
+
+### Patch Changes
+
+- Updated dependencies [0fd9e6a6c]
+- Updated dependencies [cb8bcc8df]
+- Updated dependencies [494f87544]
+- Updated dependencies [083bbf590]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/store.cafs@2.0.0
+  - @pnpm/config@19.0.0
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/lockfile-utils@8.0.4
+  - @pnpm/cli-utils@2.0.16
+  - @pnpm/store-connection-manager@6.1.1
+
 ## 8.0.15
 
 ### Patch Changes

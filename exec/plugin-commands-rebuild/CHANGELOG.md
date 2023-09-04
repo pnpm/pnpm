@@ -1,5 +1,26 @@
 # @pnpm/plugin-commands-rebuild
 
+## 9.1.9
+
+### Patch Changes
+
+- e9aa6f682: Apply fixes from @typescript-eslint v6 for nullish coalescing and optional chains. No behavior changes are expected with this change.
+- Updated dependencies [0fd9e6a6c]
+- Updated dependencies [cb8bcc8df]
+- Updated dependencies [494f87544]
+- Updated dependencies [083bbf590]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/store.cafs@2.0.0
+  - @pnpm/config@19.0.0
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/lockfile-utils@8.0.4
+  - @pnpm/lifecycle@15.0.7
+  - @pnpm/cli-utils@2.0.16
+  - @pnpm/store-connection-manager@6.1.1
+  - @pnpm/workspace.find-packages@1.0.6
+  - @pnpm/link-bins@9.0.6
+  - @pnpm/fs.hard-link-dir@2.0.1
+
 ## 9.1.8
 
 ### Patch Changes

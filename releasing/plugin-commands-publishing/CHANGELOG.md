@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.3.6
+
+### Patch Changes
+
+- a33503208: Reduce concurrency in the `pnpm -r publish` command [#6968](https://github.com/pnpm/pnpm/issues/6968).
+- Updated dependencies [cb8bcc8df]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/config@19.0.0
+  - @pnpm/exportable-manifest@5.0.6
+  - @pnpm/lifecycle@15.0.7
+  - @pnpm/client@10.0.18
+  - @pnpm/cli-utils@2.0.16
+
 ## 7.3.5
 
 ### Patch Changes

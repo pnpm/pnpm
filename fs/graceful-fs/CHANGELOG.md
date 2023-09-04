@@ -1,5 +1,11 @@
 # @pnpm/graceful-fs
 
+## 3.1.0
+
+### Minor Changes
+
+- 083bbf590: Exporting new functions.
+
 ## 3.0.0
 
 ### Major Changes

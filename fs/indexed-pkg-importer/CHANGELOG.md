@@ -1,5 +1,18 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 4.0.0
+
+### Major Changes
+
+- f2009d175: Import packages synchronously.
+
+### Patch Changes
+
+- Updated dependencies [494f87544]
+- Updated dependencies [083bbf590]
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/graceful-fs@3.1.0
+
 ## 3.0.2
 
 ### Patch Changes

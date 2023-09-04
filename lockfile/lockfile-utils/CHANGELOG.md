@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 8.0.4
+
+### Patch Changes
+
+- e9aa6f682: Apply fixes from @typescript-eslint v6 for nullish coalescing and optional chains. No behavior changes are expected with this change.
+
 ## 8.0.3
 
 ### Patch Changes

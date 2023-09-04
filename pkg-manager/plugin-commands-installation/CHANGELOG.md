@@ -1,5 +1,35 @@
 # @pnpm/plugin-commands-installation
 
+## 13.1.0
+
+### Minor Changes
+
+- 81e5ada3a: Improve the `pnpm update --interactive` output. Dependencies are grouped by dependency types and a new column is added with links to the outdated package's docs [#6978](https://github.com/pnpm/pnpm/pull/6978).
+
+### Patch Changes
+
+- ef3609049: Set `skipIfHasSideEffectsCache` to `true` when calling rebuild, fixing side effect caching issue when lockfile isn't shared [#6890](https://github.com/pnpm/pnpm/issues/6890).
+- e0474bc4c: Warn when linking a package with peerDependencies [615](https://github.com/pnpm/pnpm/issues/615).
+- bf21c9bf3: Add support for npm lockfile v3 in `pnpm import` [#6233](https://github.com/pnpm/pnpm/issues/6233).
+- Updated dependencies [41c2b65cf]
+- Updated dependencies [cb8bcc8df]
+- Updated dependencies [494f87544]
+- Updated dependencies [083bbf590]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/workspace.pkgs-graph@2.0.5
+  - @pnpm/config@19.0.0
+  - @pnpm/package-store@17.0.0
+  - @pnpm/graceful-fs@3.1.0
+  - @pnpm/plugin-commands-rebuild@9.1.9
+  - @pnpm/core@11.0.0
+  - @pnpm/outdated@13.0.12
+  - @pnpm/filter-workspace-packages@7.0.16
+  - @pnpm/cli-utils@2.0.16
+  - @pnpm/store-connection-manager@6.1.1
+  - @pnpm/pnpmfile@5.0.10
+  - @pnpm/read-project-manifest@5.0.5
+  - @pnpm/workspace.find-packages@1.0.6
+
 ## 13.0.25
 
 ### Patch Changes

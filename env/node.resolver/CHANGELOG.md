@@ -1,5 +1,12 @@
 # @pnpm/node.resolver
 
+## 2.0.15
+
+### Patch Changes
+
+- Updated dependencies [66423df83]
+  - @pnpm/node.fetcher@3.0.14
+
 ## 2.0.14
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 12.3.1
+
+### Patch Changes
+
+- cc785f7e1: Fix a bug causing errors to be printed as `Cannot read properties of undefined (reading 'code')` instead of the underlying reason when using the pnpm store server.
+- Updated dependencies [cb8bcc8df]
+  - @pnpm/config@19.0.0
+
 ## 12.3.0
 
 ### Minor Changes

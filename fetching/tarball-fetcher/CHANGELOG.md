@@ -1,5 +1,24 @@
 # @pnpm/tarball-fetcher
 
+## 16.0.0
+
+### Major Changes
+
+- 083bbf590: Breaking changes to the API.
+- 70b2830ac: Breaking changes to the API.
+
+### Patch Changes
+
+- 96e165c7f: Performance optimizations. Package tarballs are now download directly to memory and built to an ArrayBuffer. Hashing and other operations are avoided until the stream has been fully received [#6819](https://github.com/pnpm/pnpm/pull/6819).
+- Updated dependencies [70b2830ac]
+- Updated dependencies [083bbf590]
+- Updated dependencies [083bbf590]
+- Updated dependencies [083bbf590]
+  - @pnpm/fetcher-base@15.0.0
+  - @pnpm/worker@0.1.0
+  - @pnpm/graceful-fs@3.1.0
+  - @pnpm/prepare-package@5.0.8
+
 ## 15.0.9
 
 ### Patch Changes

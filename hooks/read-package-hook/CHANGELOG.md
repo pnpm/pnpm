@@ -1,5 +1,11 @@
 # @pnpm/hooks.read-package-hook
 
+## 3.0.6
+
+### Patch Changes
+
+- 64bf3c860: Override peerDependencies in `pnpm.overrides` [#6759](https://github.com/pnpm/pnpm/issues/6759).
+
 ## 3.0.5
 
 ### Patch Changes

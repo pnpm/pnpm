@@ -1,5 +1,11 @@
 # pnpm
 
+## 8.7.2
+
+### Patch Changes
+
+- Fix a bug causing errors to be printed as "Cannot read properties of undefined (reading 'code')" instead of the underlying reason when using the pnpm store server [#7032](https://github.com/pnpm/pnpm/pull/7032)
+
 ## 8.7.1
 
 ### Patch Changes

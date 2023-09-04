@@ -1,5 +1,22 @@
 # @pnpm/store.cafs
 
+## 2.0.0
+
+### Major Changes
+
+- 083bbf590: Breaking changes to the API.
+
+### Patch Changes
+
+- 0fd9e6a6c: Don't prematurely bail out of adding source files if ENOENT is thrown [#6932](https://github.com/pnpm/pnpm/pull/6932).
+- Updated dependencies [494f87544]
+- Updated dependencies [70b2830ac]
+- Updated dependencies [083bbf590]
+- Updated dependencies [083bbf590]
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/fetcher-base@15.0.0
+  - @pnpm/graceful-fs@3.1.0
+
 ## 1.0.2
 
 ### Patch Changes

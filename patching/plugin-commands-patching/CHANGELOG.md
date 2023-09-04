@@ -1,5 +1,24 @@
 # @pnpm/plugin-commands-patching
 
+## 3.1.21
+
+### Patch Changes
+
+- Updated dependencies [ef3609049]
+- Updated dependencies [e0474bc4c]
+- Updated dependencies [bf21c9bf3]
+- Updated dependencies [cb8bcc8df]
+- Updated dependencies [512d71254]
+- Updated dependencies [e9aa6f682]
+- Updated dependencies [81e5ada3a]
+  - @pnpm/plugin-commands-installation@13.1.0
+  - @pnpm/config@19.0.0
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/lockfile-utils@8.0.4
+  - @pnpm/cli-utils@2.0.16
+  - @pnpm/store-connection-manager@6.1.1
+  - @pnpm/read-project-manifest@5.0.5
+
 ## 3.1.20
 
 ### Patch Changes
