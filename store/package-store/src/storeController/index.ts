@@ -1,13 +1,12 @@
 import { createCafsStore, createPackageImporterAsync, type CafsLocker } from '@pnpm/create-cafs-store'
 import { type Fetchers } from '@pnpm/fetcher-base'
-import { PnpmError } from '@pnpm/error'
 import { createPackageRequester } from '@pnpm/package-requester'
 import { type ResolveFunction } from '@pnpm/resolver-base'
 import {
   type ImportIndexedPackageAsync,
   type StoreController,
 } from '@pnpm/store-controller-types'
-import { addFilesFromDir, workerPool as pool } from '@pnpm/worker'
+import { addFilesFromDir, importPackage } from '@pnpm/worker'
 import { prune } from './prune'
 
 export { type CafsLocker }
@@ -31,7 +30,6 @@ export async function createPackageStore (
     verifyStoreIntegrity: boolean
   }
 ): Promise<StoreController> {
-  pool.reset()
   const storeDir = initOpts.storeDir
   const cafs = createCafsStore(storeDir, {
     cafsLocker: initOpts.cafsLocker,
@@ -58,30 +56,12 @@ export async function createPackageStore (
     getFilesIndexFilePath: packageRequester.getFilesIndexFilePath,
     importPackage: initOpts.importPackage
       ? createPackageImporterAsync({ importIndexedPackage: initOpts.importPackage, cafsDir: cafs.cafsDir })
-      : async (targetDir, opts) => {
-        const localWorker = await pool.checkoutWorkerAsync(true)
-        return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
-          localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-            pool.checkinWorker(localWorker)
-            if (status === 'error') {
-              reject(new PnpmError('LINKING_FAILED', error as string))
-              return
-            }
-            resolve(value)
-          })
-          localWorker.postMessage({
-            type: 'link',
-            filesResponse: opts.filesResponse,
-            packageImportMethod: initOpts.packageImportMethod,
-            sideEffectsCacheKey: opts.sideEffectsCacheKey,
-            storeDir: initOpts.storeDir,
-            targetDir,
-            requiresBuild: opts.requiresBuild,
-            force: opts.force,
-            keepModulesDir: opts.keepModulesDir,
-          })
-        })
-      },
+      : (targetDir, opts) => importPackage({
+        ...opts,
+        packageImportMethod: initOpts.packageImportMethod,
+        storeDir: initOpts.storeDir,
+        targetDir,
+      }),
     prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir }),
     requestPackage: packageRequester.requestPackage,
     upload,

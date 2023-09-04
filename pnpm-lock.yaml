@@ -1534,7 +1534,7 @@ importers:
         specifier: workspace:*
         version: link:../../exec/prepare-package
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       '@zkochan/rimraf':
         specifier: ^2.1.3
@@ -1595,7 +1595,7 @@ importers:
         specifier: workspace:*
         version: link:../../exec/prepare-package
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       '@zkochan/retry':
         specifier: ^0.2.0
@@ -2989,7 +2989,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/which-version-is-pinned
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       '@zkochan/rimraf':
         specifier: ^2.1.3
@@ -3646,7 +3646,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       p-defer:
         specifier: ^3.0.0
@@ -4431,6 +4431,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../worker
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: link:../workspace/find-packages
@@ -5610,9 +5613,6 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../create-cafs-store
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base
@@ -5635,7 +5635,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@pnpm/worker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../worker
       '@zkochan/rimraf':
         specifier: ^2.1.3

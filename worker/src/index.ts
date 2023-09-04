@@ -4,21 +4,25 @@ import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
 import { PnpmError } from '@pnpm/error'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'
-import { type TarballExtractMessage, type AddDirToStoreMessage } from './types'
+import {
+  type TarballExtractMessage,
+  type AddDirToStoreMessage,
+  type LinkPkgMessage,
+} from './types'
 
-export { type WorkerPool }
-
-let workerPool = createTarballWorkerPool()
+let workerPool: WorkerPool | undefined
 
 export async function restartWorkerPool () {
-  // @ts-expect-error
-  await global.finishWorkers?.()
+  await finishWorkers()
   workerPool = createTarballWorkerPool()
 }
 
-export { workerPool }
+export async function finishWorkers () {
+  // @ts-expect-error
+  await global.finishWorkers?.()
+}
 
-function createTarballWorkerPool () {
+function createTarballWorkerPool (): WorkerPool {
   const maxWorkers = Math.max(2, os.cpus().length - Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)) - 1
   const workerPool = new WorkerPool({
     id: 'pnpm',
@@ -44,11 +48,14 @@ function createTarballWorkerPool () {
 export async function addFilesFromDir (
   opts: Pick<AddDirToStoreMessage, 'cafsDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg'>
 ) {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest }>((resolve, reject) => {
     // eslint-disalbe-next-line
     localWorker.once('message', ({ status, error, value }) => {
-      workerPool.checkinWorker(localWorker)
+      workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         reject(new PnpmError('GIT_FETCH_FAILED', error as string))
         return
@@ -106,10 +113,13 @@ export async function addFilesFromTarball (
     url: string
   }
 ) {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
-      workerPool.checkinWorker(localWorker)
+      workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         if (error.type === 'integrity_validation_failed') {
           reject(new TarballIntegrityError({
@@ -141,10 +151,13 @@ export async function readPkgFromCafs (
   filesIndexFile: string,
   readManifest?: boolean
 ): Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex, manifest?: DependencyManifest }> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<{ verified: boolean, pkgFilesIndex: PackageFilesIndex }>((resolve, reject) => {
     localWorker.once('message', ({ status, error, value }) => {
-      workerPool.checkinWorker(localWorker)
+      workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
         reject(new PnpmError('READ_FROM_STORE', error as string))
         return
@@ -157,6 +170,29 @@ export async function readPkgFromCafs (
       filesIndexFile,
       readManifest,
       verifyStoreIntegrity,
+    })
+  })
+}
+
+export async function importPackage (
+  opts: Omit<LinkPkgMessage, 'type'>
+): Promise<{ isBuilt: boolean, importMethod: string | undefined }> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError('LINKING_FAILED', error as string))
+        return
+      }
+      resolve(value)
+    })
+    localWorker.postMessage({
+      type: 'link',
+      ...opts,
     })
   })
 }
