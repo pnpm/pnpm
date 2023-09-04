@@ -1,5 +1,18 @@
 # @pnpm/deps.graph-builder
 
+## 0.1.0
+
+### Minor Changes
+
+- 494f87544: Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [494f87544]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/lockfile-utils@8.0.4
+
 ## 0.0.1
 
 ### Patch Changes

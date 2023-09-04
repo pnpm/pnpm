@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/worker",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "A worker for extracting package taralls to the store",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -1,5 +1,13 @@
 # @pnpm/hoist
 
+## 8.0.10
+
+### Patch Changes
+
+- Updated dependencies [e9aa6f682]
+  - @pnpm/lockfile-utils@8.0.4
+  - @pnpm/link-bins@9.0.6
+
 ## 8.0.9
 
 ### Patch Changes

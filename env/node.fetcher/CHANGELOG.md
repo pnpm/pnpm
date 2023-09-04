@@ -1,5 +1,21 @@
 # @pnpm/node.fetcher
 
+## 3.0.14
+
+### Patch Changes
+
+- 66423df83: Emit a clear error message when users attempt to specify an undownloadable node version [#6916](https://github.com/pnpm/pnpm/pull/6916).
+- Updated dependencies [f2009d175]
+- Updated dependencies [083bbf590]
+- Updated dependencies [70b2830ac]
+- Updated dependencies [083bbf590]
+- Updated dependencies [96e165c7f]
+- Updated dependencies [083bbf590]
+  - @pnpm/create-cafs-store@5.0.0
+  - @pnpm/tarball-fetcher@16.0.0
+  - @pnpm/fetcher-base@15.0.0
+  - @pnpm/pick-fetcher@2.0.0
+
 ## 3.0.13
 
 ### Patch Changes

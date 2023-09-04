@@ -1,5 +1,12 @@
 # @pnpm/cafs-types
 
+## 3.0.0
+
+### Major Changes
+
+- f2009d175: Import packages synchronously.
+- 083bbf590: Breaking changes to the API.
+
 ## 2.0.0
 
 ### Major Changes

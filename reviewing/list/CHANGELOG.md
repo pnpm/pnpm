@@ -1,5 +1,13 @@
 # @pnpm/list
 
+## 9.0.11
+
+### Patch Changes
+
+- f73eeac06: Don't fail when no `package.json` is found.
+  - @pnpm/read-project-manifest@5.0.5
+  - @pnpm/reviewing.dependencies-hierarchy@2.0.11
+
 ## 9.0.10
 
 ### Patch Changes

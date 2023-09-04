@@ -1,5 +1,28 @@
 # @pnpm/package-requester
 
+## 22.0.0
+
+### Major Changes
+
+- 494f87544: Breaking changes to the API.
+- 083bbf590: Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [0fd9e6a6c]
+- Updated dependencies [494f87544]
+- Updated dependencies [70b2830ac]
+- Updated dependencies [083bbf590]
+- Updated dependencies [083bbf590]
+- Updated dependencies [083bbf590]
+- Updated dependencies [083bbf590]
+  - @pnpm/store.cafs@2.0.0
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/fetcher-base@15.0.0
+  - @pnpm/worker@0.1.0
+  - @pnpm/graceful-fs@3.1.0
+  - @pnpm/pick-fetcher@2.0.0
+
 ## 21.1.0
 
 ### Minor Changes

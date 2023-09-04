@@ -1,5 +1,16 @@
 # @pnpm/lifecycle
 
+## 15.0.7
+
+### Patch Changes
+
+- e9aa6f682: Apply fixes from @typescript-eslint v6 for nullish coalescing and optional chains. No behavior changes are expected with this change.
+- Updated dependencies [d57e4de6d]
+- Updated dependencies [494f87544]
+  - @pnpm/directory-fetcher@6.1.0
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/link-bins@9.0.6
+
 ## 15.0.6
 
 ### Patch Changes

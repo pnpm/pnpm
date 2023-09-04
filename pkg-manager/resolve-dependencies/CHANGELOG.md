@@ -1,5 +1,17 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.14
+
+### Patch Changes
+
+- 77e24d341: Dedupe deps with the same alias in direct dependencies [6966](https://github.com/pnpm/pnpm/issues/6966)
+- Updated dependencies [41c2b65cf]
+- Updated dependencies [494f87544]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/npm-resolver@16.0.9
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/lockfile-utils@8.0.4
+
 ## 31.1.13
 
 ### Patch Changes

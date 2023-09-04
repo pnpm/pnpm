@@ -1,5 +1,17 @@
 # @pnpm/license-scanner
 
+## 2.0.15
+
+### Patch Changes
+
+- Updated dependencies [0fd9e6a6c]
+- Updated dependencies [d57e4de6d]
+- Updated dependencies [083bbf590]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/store.cafs@2.0.0
+  - @pnpm/directory-fetcher@6.1.0
+  - @pnpm/lockfile-utils@8.0.4
+
 ## 2.0.14
 
 ### Patch Changes

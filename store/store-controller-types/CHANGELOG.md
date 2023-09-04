@@ -1,5 +1,17 @@
 # @pnpm/store-controller-types
 
+## 16.0.0
+
+### Major Changes
+
+- 494f87544: Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [70b2830ac]
+- Updated dependencies [083bbf590]
+  - @pnpm/fetcher-base@15.0.0
+
 ## 15.0.2
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @pnpm/audit
 
+## 7.0.13
+
+### Patch Changes
+
+- Updated dependencies [f73eeac06]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/list@9.0.11
+  - @pnpm/lockfile-utils@8.0.4
+  - @pnpm/read-project-manifest@5.0.5
+
 ## 7.0.12
 
 ### Patch Changes

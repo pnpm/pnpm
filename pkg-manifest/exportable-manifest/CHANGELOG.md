@@ -1,5 +1,12 @@
 # @pnpm/exportable-manifest
 
+## 5.0.6
+
+### Patch Changes
+
+- e9aa6f682: Apply fixes from @typescript-eslint v6 for nullish coalescing and optional chains. No behavior changes are expected with this change.
+  - @pnpm/read-project-manifest@5.0.5
+
 ## 5.0.5
 
 ### Patch Changes

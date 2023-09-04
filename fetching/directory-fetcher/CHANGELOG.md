@@ -1,5 +1,20 @@
 # @pnpm/directory-fetcher
 
+## 6.1.0
+
+### Minor Changes
+
+- d57e4de6d: Apply `publishConfig` for workspace packages on directory fetch. Enables a publishable ("exportable") `package.json` on deployment [#6693](https://github.com/pnpm/pnpm/issues/6693).
+
+### Patch Changes
+
+- Updated dependencies [70b2830ac]
+- Updated dependencies [e9aa6f682]
+- Updated dependencies [083bbf590]
+  - @pnpm/fetcher-base@15.0.0
+  - @pnpm/exportable-manifest@5.0.6
+  - @pnpm/read-project-manifest@5.0.5
+
 ## 6.0.4
 
 ### Patch Changes

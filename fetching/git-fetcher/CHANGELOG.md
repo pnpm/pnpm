@@ -1,5 +1,21 @@
 # @pnpm/git-fetcher
 
+## 10.0.0
+
+### Major Changes
+
+- 083bbf590: Breaking changes to the API.
+- 70b2830ac: Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [70b2830ac]
+- Updated dependencies [083bbf590]
+- Updated dependencies [083bbf590]
+  - @pnpm/fetcher-base@15.0.0
+  - @pnpm/worker@0.1.0
+  - @pnpm/prepare-package@5.0.8
+
 ## 9.0.7
 
 ### Patch Changes

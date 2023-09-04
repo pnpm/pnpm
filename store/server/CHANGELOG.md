@@ -1,5 +1,16 @@
 # @pnpm/server
 
+## 16.0.0
+
+### Major Changes
+
+- 494f87544: Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [494f87544]
+  - @pnpm/store-controller-types@16.0.0
+
 ## 15.0.3
 
 ### Patch Changes
