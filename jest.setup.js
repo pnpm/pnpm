@@ -1,5 +1,3 @@
-const { workerPool } = require('@pnpm/worker')
-
 jest.retryTimes(1, {
   // Some tests don't clean up their resources completely and cause the retried
   // run fail. Set logErrorsBeforeRetry to make it more clear that the retried
@@ -9,6 +7,7 @@ jest.retryTimes(1, {
   logErrorsBeforeRetry: true
 })
 
-afterAll(async () => {
-  await workerPool.finishAsync()
+afterAll(() => {
+  // @ts-expect-error
+  global.finishWorkers?.()
 })
