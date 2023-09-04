@@ -5613,9 +5613,6 @@ importers:
       '@pnpm/create-cafs-store':
         specifier: workspace:*
         version: link:../create-cafs-store
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base

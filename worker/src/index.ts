@@ -4,7 +4,11 @@ import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
 import { PnpmError } from '@pnpm/error'
 import { type PackageFilesIndex } from '@pnpm/store.cafs'
 import { type DependencyManifest } from '@pnpm/types'
-import { type TarballExtractMessage, type AddDirToStoreMessage } from './types'
+import {
+  type TarballExtractMessage,
+  type AddDirToStoreMessage,
+  type LinkPkgMessage,
+} from './types'
 
 export { type WorkerPool }
 
@@ -19,8 +23,6 @@ export async function finishWorkers () {
   // @ts-expect-error
   await global.finishWorkers?.()
 }
-
-export { workerPool }
 
 function createTarballWorkerPool () {
   const maxWorkers = Math.max(2, os.cpus().length - Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)) - 1
@@ -161,6 +163,33 @@ export async function readPkgFromCafs (
       filesIndexFile,
       readManifest,
       verifyStoreIntegrity,
+    })
+  })
+}
+
+export async function importPackage (
+  opts: Omit<LinkPkgMessage, 'type'>
+): Promise<{ isBuilt: boolean, importMethod: string | undefined }> {
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      workerPool.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError('LINKING_FAILED', error as string))
+        return
+      }
+      resolve(value)
+    })
+    localWorker.postMessage({
+      type: 'link',
+      filesResponse: opts.filesResponse,
+      packageImportMethod: opts.packageImportMethod,
+      sideEffectsCacheKey: opts.sideEffectsCacheKey,
+      storeDir: opts.storeDir,
+      targetDir: opts.targetDir,
+      requiresBuild: opts.requiresBuild,
+      force: opts.force,
+      keepModulesDir: opts.keepModulesDir,
     })
   })
 }

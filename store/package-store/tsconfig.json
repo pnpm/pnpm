@@ -16,9 +16,6 @@
       "path": "../../fetching/fetcher-base"
     },
     {
-      "path": "../../packages/error"
-    },
-    {
       "path": "../../packages/types"
     },
     {

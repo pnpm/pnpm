@@ -22,7 +22,7 @@ export interface LinkPkgMessage {
   filesResponse: PackageFilesResponse
   sideEffectsCacheKey?: string | undefined
   targetDir: string
-  requiresBuild: boolean
+  requiresBuild?: boolean
   force: boolean
   keepModulesDir?: boolean
 }
