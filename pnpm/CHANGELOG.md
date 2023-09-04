@@ -1,6 +1,6 @@
 # pnpm
 
-## 8.7.2
+## 8.7.3
 
 ### Patch Changes
 
