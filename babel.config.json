@@ -1,0 +1,10 @@
+{
+  "presets": [
+    "@babel/preset-typescript"
+  ],
+  "plugins": [
+    ["@babel/plugin-transform-modules-commonjs", {
+      "lazy": true
+    }]
+  ]
+}

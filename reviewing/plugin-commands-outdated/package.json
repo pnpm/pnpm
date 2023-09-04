@@ -16,7 +16,7 @@
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7781 jest",
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsc --emitDeclarationOnly && babel src -d lib --extensions '.ts,.tsx,.js' --root-mode=upward && pnpm run lint --fix"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/reviewing/plugin-commands-outdated",
   "keywords": [

@@ -59,7 +59,7 @@
     "prepublishOnly": "pnpm run compile",
     "runPrepareFixtures": "node ../../pnpm/bin/pnpm.cjs i -r -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force --no-strict-peer-dependencies",
     "prepareFixtures": "registry-mock prepare && concurrently --success=first --kill-others registry-mock \"pnpm run runPrepareFixtures\"",
-    "compile": "tsc --build && pnpm run lint --fix"
+    "compile": "tsc --emitDeclarationOnly && babel src -d lib --extensions '.ts,.tsx,.js' --root-mode=upward && pnpm run lint --fix"
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:*",
