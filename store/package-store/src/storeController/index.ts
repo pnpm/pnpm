@@ -57,14 +57,10 @@ export async function createPackageStore (
     importPackage: initOpts.importPackage
       ? createPackageImporterAsync({ importIndexedPackage: initOpts.importPackage, cafsDir: cafs.cafsDir })
       : (targetDir, opts) => importPackage({
-        filesResponse: opts.filesResponse,
+        ...opts,
         packageImportMethod: initOpts.packageImportMethod,
-        sideEffectsCacheKey: opts.sideEffectsCacheKey,
         storeDir: initOpts.storeDir,
         targetDir,
-        requiresBuild: opts.requiresBuild,
-        force: opts.force,
-        keepModulesDir: opts.keepModulesDir,
       }),
     prune: prune.bind(null, { storeDir, cacheDir: initOpts.cacheDir }),
     requestPackage: packageRequester.requestPackage,
