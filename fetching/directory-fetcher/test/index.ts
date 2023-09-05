@@ -63,10 +63,6 @@ test('fetch including all files', async () => {
 test('fetch a directory that has no package.json', async () => {
   process.chdir(f.find('no-manifest'))
   const fetcher = createDirectoryFetcher()
-  const manifest = {
-    resolve: jest.fn(),
-    reject: jest.fn(),
-  }
 
   // eslint-disable-next-line
   const fetchResult = await fetcher.directory({} as any, {
@@ -74,10 +70,10 @@ test('fetch a directory that has no package.json', async () => {
     type: 'directory',
   }, {
     lockfileDir: process.cwd(),
-    manifest,
+    readManifest: true,
   })
 
-  expect(manifest.resolve).toBeCalledWith({})
+  expect(fetchResult.manifest).toEqual(undefined)
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.packageImportMethod).toBe('hardlink')
   expect(fetchResult.filesIndex['index.js']).toBe(path.resolve('index.js'))
