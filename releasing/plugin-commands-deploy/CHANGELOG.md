@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-deploy
 
+## 3.1.1
+
+### Patch Changes
+
+- d92070876: Reverting a change shipped in v8.7 that caused issues with the `pnpm deploy` command and "injected dependencies" [#6943](https://github.com/pnpm/pnpm/pull/6943).
+- Updated dependencies [4a1a9431d]
+- Updated dependencies [d92070876]
+  - @pnpm/directory-fetcher@7.0.0
+  - @pnpm/plugin-commands-installation@13.1.1
+  - @pnpm/fs.indexed-pkg-importer@4.0.1
+  - @pnpm/cli-utils@2.0.17
+
 ## 3.1.0
 
 ### Minor Changes

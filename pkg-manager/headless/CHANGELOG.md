@@ -1,5 +1,18 @@
 # @pnpm/headless
 
+## 21.0.15
+
+### Patch Changes
+
+- @pnpm/package-requester@22.0.1
+- @pnpm/lifecycle@15.0.8
+- @pnpm/store-controller-types@16.0.1
+- @pnpm/build-modules@11.0.13
+- @pnpm/deps.graph-builder@0.1.1
+- @pnpm/modules-cleaner@14.0.11
+- @pnpm/symlink-dependency@7.0.3
+- @pnpm/link-bins@9.0.6
+
 ## 21.0.14
 
 ### Patch Changes

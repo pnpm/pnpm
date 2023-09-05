@@ -1,5 +1,17 @@
 # @pnpm/directory-fetcher
 
+## 7.0.0
+
+### Major Changes
+
+- 4a1a9431d: Breaking change to the `directory-fetcher` API.
+
+### Patch Changes
+
+- d92070876: Reverting a change shipped in v8.7 that caused issues with the `pnpm deploy` command and "injected dependencies" [#6943](https://github.com/pnpm/pnpm/pull/6943).
+- Updated dependencies [4a1a9431d]
+  - @pnpm/fetcher-base@15.0.1
+
 ## 6.1.0
 
 ### Minor Changes

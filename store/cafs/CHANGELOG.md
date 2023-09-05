@@ -1,5 +1,14 @@
 # @pnpm/store.cafs
 
+## 2.0.1
+
+### Patch Changes
+
+- b548f2f43: Fixes a regression published with pnpm v8.7.3. Don't hang while reading `package.json` from the content-addressable store [#7051](https://github.com/pnpm/pnpm/pull/7051).
+- Updated dependencies [4a1a9431d]
+  - @pnpm/fetcher-base@15.0.1
+  - @pnpm/store-controller-types@16.0.1
+
 ## 2.0.0
 
 ### Major Changes

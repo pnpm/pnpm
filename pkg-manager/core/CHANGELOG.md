@@ -1,5 +1,21 @@
 # @pnpm/core
 
+## 11.0.1
+
+### Patch Changes
+
+- @pnpm/headless@21.0.15
+- @pnpm/package-requester@22.0.1
+- @pnpm/worker@0.1.1
+- @pnpm/lifecycle@15.0.8
+- @pnpm/store-controller-types@16.0.1
+- @pnpm/build-modules@11.0.13
+- @pnpm/modules-cleaner@14.0.11
+- @pnpm/resolve-dependencies@31.1.15
+- @pnpm/symlink-dependency@7.0.3
+- @pnpm/crypto.base32-hash@2.0.0
+- @pnpm/link-bins@9.0.6
+
 ## 11.0.0
 
 ### Patch Changes

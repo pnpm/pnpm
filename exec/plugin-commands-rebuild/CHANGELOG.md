@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-rebuild
 
+## 9.1.10
+
+### Patch Changes
+
+- Updated dependencies [b548f2f43]
+  - @pnpm/store.cafs@2.0.1
+  - @pnpm/store-connection-manager@6.1.2
+  - @pnpm/lifecycle@15.0.8
+  - @pnpm/store-controller-types@16.0.1
+  - @pnpm/config@19.0.1
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/cli-utils@2.0.17
+  - @pnpm/link-bins@9.0.6
+  - @pnpm/workspace.find-packages@1.0.7
+
 ## 9.1.9
 
 ### Patch Changes

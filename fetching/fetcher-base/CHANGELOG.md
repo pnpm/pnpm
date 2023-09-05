@@ -1,5 +1,11 @@
 # @pnpm/fetcher-base
 
+## 15.0.1
+
+### Patch Changes
+
+- 4a1a9431d: Breaking change to the `directory-fetcher` API.
+
 ## 15.0.0
 
 ### Major Changes

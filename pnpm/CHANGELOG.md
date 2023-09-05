@@ -1,5 +1,14 @@
 # pnpm
 
+## 8.7.4
+
+### Patch Changes
+
+- Fix a bug causing the pnpm server to hang if a tarball worker was requested while another worker was exiting [#7041](https://github.com/pnpm/pnpm/pull/7041).
+- Fixes a regression published with pnpm v8.7.3. Don't hang while reading `package.json` from the content-addressable store [#7051](https://github.com/pnpm/pnpm/pull/7051).
+- Allow create scoped package with preferred version. [#7053](https://github.com/pnpm/pnpm/issues/7053)
+- Reverting a change shipped in v8.7 that caused issues with the `pnpm deploy` command and "injected dependencies" [#6943](https://github.com/pnpm/pnpm/pull/6943).
+
 ## 8.7.3
 
 ### Patch Changes

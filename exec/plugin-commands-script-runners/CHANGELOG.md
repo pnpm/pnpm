@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-script-runners
 
+## 7.1.21
+
+### Patch Changes
+
+- b962c27ae: Allow create scoped package with preferred version. [#7053](https://github.com/pnpm/pnpm/issues/7053)
+  - @pnpm/lifecycle@15.0.8
+  - @pnpm/plugin-commands-installation@13.1.1
+  - @pnpm/config@19.0.1
+  - @pnpm/cli-utils@2.0.17
+
 ## 7.1.20
 
 ### Patch Changes

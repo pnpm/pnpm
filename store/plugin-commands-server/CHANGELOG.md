@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-server
 
+## 6.0.27
+
+### Patch Changes
+
+- 548768e09: Fix a bug causing the pnpm server to hang if a tarball worker was requested while another worker was exiting [#7041](https://github.com/pnpm/pnpm/pull/7041).
+- Updated dependencies [548768e09]
+  - @pnpm/server@16.0.1
+  - @pnpm/store-connection-manager@6.1.2
+  - @pnpm/config@19.0.1
+  - @pnpm/cli-utils@2.0.17
+
 ## 6.0.26
 
 ### Patch Changes

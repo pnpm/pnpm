@@ -1,5 +1,12 @@
 # @pnpm/server
 
+## 16.0.1
+
+### Patch Changes
+
+- 548768e09: Fix a bug causing the pnpm server to hang if a tarball worker was requested while another worker was exiting [#7041](https://github.com/pnpm/pnpm/pull/7041).
+  - @pnpm/store-controller-types@16.0.1
+
 ## 16.0.0
 
 ### Major Changes

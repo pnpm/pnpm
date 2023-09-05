@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-store
 
+## 8.0.17
+
+### Patch Changes
+
+- Updated dependencies [b548f2f43]
+  - @pnpm/store.cafs@2.0.1
+  - @pnpm/store-connection-manager@6.1.2
+  - @pnpm/store-controller-types@16.0.1
+  - @pnpm/config@19.0.1
+  - @pnpm/cli-utils@2.0.17
+
 ## 8.0.16
 
 ### Patch Changes

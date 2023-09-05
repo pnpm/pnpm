@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 19.0.1
+
+### Patch Changes
+
+- @pnpm/pnpmfile@5.0.11
+
 ## 19.0.0
 
 ### Major Changes

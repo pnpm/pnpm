@@ -1,5 +1,11 @@
 # @pnpm/pnpmfile
 
+## 5.0.11
+
+### Patch Changes
+
+- @pnpm/store-controller-types@16.0.1
+
 ## 5.0.10
 
 ### Patch Changes
