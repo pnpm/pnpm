@@ -71,7 +71,11 @@ function checkFilesIntegrity (
     const filename = getFilePathByModeInCafs(cafsDir, fstat.integrity, fstat.mode)
     const readFile = readManifest && f === 'package.json'
     if (!readFile && verifiedFilesCache.has(filename)) continue
-    if (verifyFile(filename, fstat, readFile)) {
+    const verifyResult = verifyFile(filename, fstat, readFile)
+    if (readFile) {
+      manifest = verifyResult.manifest
+    }
+    if (verifyResult.passed) {
       verifiedFilesCache.add(filename)
     } else {
       allVerified = false
