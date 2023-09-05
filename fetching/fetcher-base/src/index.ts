@@ -1,5 +1,5 @@
 import { type Resolution, type GitResolution, type DirectoryResolution } from '@pnpm/resolver-base'
-import { type DeferredManifestPromise, type Cafs } from '@pnpm/cafs-types'
+import { type Cafs } from '@pnpm/cafs-types'
 import { type DependencyManifest } from '@pnpm/types'
 
 export interface PkgNameVersion {
@@ -38,13 +38,14 @@ export type GitFetcher = FetchFunction<GitResolution, GitFetcherOptions, { files
 
 export interface DirectoryFetcherOptions {
   lockfileDir: string
-  manifest?: DeferredManifestPromise
+  readManifest?: boolean
 }
 
 export interface DirectoryFetcherResult {
   local: true
   filesIndex: Record<string, string>
   packageImportMethod: 'hardlink'
+  manifest?: DependencyManifest
 }
 
 export type DirectoryFetcher = FetchFunction<DirectoryResolution, DirectoryFetcherOptions, DirectoryFetcherResult>
