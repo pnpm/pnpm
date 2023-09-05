@@ -42,6 +42,7 @@
   "devDependencies": {
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@types/npm-packlist": "^3.0.0",
     "@zkochan/rimraf": "^2.1.3"
   },
