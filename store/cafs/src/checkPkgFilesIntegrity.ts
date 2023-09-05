@@ -48,7 +48,8 @@ export function checkPkgFilesIntegrity (
     // that satisfies the current os/arch/platform.
     // However, it likely won't make a big difference.
     for (const [sideEffectName, files] of Object.entries(pkgIndex.sideEffects)) {
-      if (!_checkFilesIntegrity(files)) {
+      const { passed } = _checkFilesIntegrity(files)
+      if (!passed) {
         delete pkgIndex.sideEffects![sideEffectName]
       }
     }
