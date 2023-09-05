@@ -99,5 +99,5 @@ function existsSame (filename: string, integrity: ssri.IntegrityLike) {
   return verifyFileIntegrity(filename, {
     size: existingFile.size,
     integrity,
-  })
+  }).passed
 }

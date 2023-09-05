@@ -1,11 +1,6 @@
 import type { IntegrityLike } from 'ssri'
 import type { DependencyManifest } from '@pnpm/types'
 
-export interface DeferredManifestPromise {
-  resolve: (manifest: DependencyManifest | undefined) => void
-  reject: (err: Error) => void
-}
-
 export interface PackageFileInfo {
   checkedAt?: number // Nullable for backward compatibility
   integrity: string
