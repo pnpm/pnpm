@@ -97,3 +97,43 @@ it('passes the remaining arguments to `dlx`', async () => {
   }, ['some-app', 'directory/', '--silent'])
   expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-some-app', 'directory/', '--silent'])
 })
+
+it(
+  'appends `create` to package with preferred version`',
+  async () => {
+    await create.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, ['foo@2.0.0'])
+    expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-foo@2.0.0'])
+    await create.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, ['foo@latest'])
+    expect(dlx.handler).toBeCalledWith(expect.anything(), ['create-foo@latest'])
+
+    await create.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, ['@scope@2.0.0'])
+    expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create@2.0.0'])
+
+    await create.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, ['@scope@next'])
+    expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create@next'])
+
+    await create.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, ['@scope/foo@2.0.0'])
+    expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create-foo@2.0.0'])
+
+    await create.handler({
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    }, ['@scope/create-a@2.0.0'])
+    expect(dlx.handler).toBeCalledWith(expect.anything(), ['@scope/create-a@2.0.0'])
+  }
+)
