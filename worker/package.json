@@ -38,8 +38,7 @@
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@rushstack/worker-pool": "0.3.34",
-    "load-json-file": "^6.2.0",
-    "safe-promise-defer": "^1.0.1"
+    "load-json-file": "^6.2.0"
   },
   "devDependencies": {
     "@pnpm/types": "workspace:*",
