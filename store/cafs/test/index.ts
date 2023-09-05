@@ -59,7 +59,7 @@ describe('checkPkgFilesIntegrity()', () => {
           size: 10,
         },
       },
-    })).toBeFalsy()
+    }).passed).toBeFalsy()
   })
 })
 
