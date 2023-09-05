@@ -64,7 +64,7 @@ export async function start (
     }
     throw new PnpmError('SERVER_MANIFEST_LOCKED', `Canceling startup of server (pid ${process.pid}) because another process got exclusive access to server.json`)
   }
-  let server: null | { close: () => Promise<void> } = null
+  let server: null | ReturnType<typeof createServer> = null
   onExit(() => {
     if (server !== null) {
       // Note that server.close returns a Promise, but we cannot wait for it because we may be
@@ -118,6 +118,11 @@ export async function start (
   // Set fd to null so we only attempt to close it once.
   fd = null
   await close(fdForClose)
+
+  // Intentionally avoid returning control back to the caller until the server
+  // exits. This defers cleanup operations that should not run before the server
+  // finishes.
+  await server.waitForClose
 }
 
 async function getServerOptions (
