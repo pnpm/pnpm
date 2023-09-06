@@ -1,5 +1,14 @@
 # @pnpm/headless
 
+## 21.0.16
+
+### Patch Changes
+
+- @pnpm/package-requester@22.0.2
+- @pnpm/symlink-dependency@7.0.3
+- @pnpm/lifecycle@15.0.8
+- @pnpm/link-bins@9.0.6
+
 ## 21.0.15
 
 ### Patch Changes

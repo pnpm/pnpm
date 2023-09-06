@@ -1,5 +1,15 @@
 # @pnpm/package-store
 
+## 17.0.2
+
+### Patch Changes
+
+- Updated dependencies [b3947185c]
+  - @pnpm/store.cafs@2.0.2
+  - @pnpm/package-requester@22.0.2
+  - @pnpm/create-cafs-store@5.0.2
+  - @pnpm/worker@0.1.2
+
 ## 17.0.1
 
 ### Patch Changes

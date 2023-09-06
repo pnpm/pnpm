@@ -1,5 +1,13 @@
 # @pnpm/worker
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [b3947185c]
+  - @pnpm/store.cafs@2.0.2
+  - @pnpm/create-cafs-store@5.0.2
+
 ## 0.1.1
 
 ### Patch Changes

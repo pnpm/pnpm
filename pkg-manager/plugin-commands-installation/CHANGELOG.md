@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-installation
 
+## 13.1.2
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@9.1.11
+- @pnpm/core@11.0.2
+- @pnpm/package-store@17.0.2
+- @pnpm/store-connection-manager@6.1.3
+- @pnpm/config@19.0.1
+- @pnpm/outdated@13.0.14
+
 ## 13.1.1
 
 ### Patch Changes

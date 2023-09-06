@@ -1,5 +1,11 @@
 # @pnpm/store.cafs
 
+## 2.0.2
+
+### Patch Changes
+
+- b3947185c: Tarballs that have hard links are now unpacked successfully. This fixes a regression introduced in v8.7.0, which was shipped with our new in-house tarball parser [#7062](https://github.com/pnpm/pnpm/pull/7062).
+
 ## 2.0.1
 
 ### Patch Changes

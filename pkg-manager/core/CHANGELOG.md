@@ -1,5 +1,17 @@
 # @pnpm/core
 
+## 11.0.2
+
+### Patch Changes
+
+- @pnpm/headless@21.0.16
+- @pnpm/package-requester@22.0.2
+- @pnpm/worker@0.1.2
+- @pnpm/symlink-dependency@7.0.3
+- @pnpm/crypto.base32-hash@2.0.0
+- @pnpm/lifecycle@15.0.8
+- @pnpm/link-bins@9.0.6
+
 ## 11.0.1
 
 ### Patch Changes

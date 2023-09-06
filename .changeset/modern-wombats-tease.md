@@ -1,5 +1,4 @@
 ---
-"@pnpm/store.cafs": patch
 "pnpm": patch
 ---
 
