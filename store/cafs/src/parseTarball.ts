@@ -12,6 +12,7 @@ export interface IFile {
 }
 
 const ZERO: number = '0'.charCodeAt(0)
+const FILE_TYPE_HARD_LINK: number = '1'.charCodeAt(0)
 const FILE_TYPE_SYMLINK: number = '2'.charCodeAt(0)
 const FILE_TYPE_DIRECTORY: number = '5'.charCodeAt(0)
 const SPACE: number = ' '.charCodeAt(0)
@@ -135,6 +136,7 @@ export function parseTarball (buffer: Buffer): IParseResult {
     switch (fileType) {
     case 0:
     case ZERO:
+    case FILE_TYPE_HARD_LINK:
       // The file mode is an octal number encoded as UTF-8. It is terminated by a NUL or space. Maximum length 8 characters.
       mode = parseOctal(blockStart + MODE_OFFSET, 8)
 
