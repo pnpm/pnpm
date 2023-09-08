@@ -13,3 +13,13 @@ export async function symlinkDependency (
   linkLogger.debug({ target: dependencyRealLocation, link })
   return symlinkDir(dependencyRealLocation, link)
 }
+
+export async function symlinkDependencySync (
+  dependencyRealLocation: string,
+  destModulesDir: string,
+  importAs: string
+) {
+  const link = path.join(destModulesDir, importAs)
+  linkLogger.debug({ target: dependencyRealLocation, link })
+  return symlinkDir.sync(dependencyRealLocation, link)
+}

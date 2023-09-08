@@ -56,6 +56,7 @@ import {
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import { type DependencyManifest, type HoistedDependencies, type ProjectManifest, type Registries, DEPENDENCIES_FIELDS } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
+import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import equals from 'ramda/src/equals'
@@ -875,29 +876,19 @@ async function linkAllBins (
 }
 
 async function linkAllModules (
-  depNodes: DependenciesGraphNode[],
+  depNodes: Array<Pick<DependenciesGraphNode, 'children' | 'optionalDependencies' | 'modules' | 'name'>>,
   opts: {
     optional: boolean
     lockfileDir: string
   }
 ) {
-  await Promise.all(
-    depNodes
-      .map(async (depNode) => {
-        const childrenToLink: Record<string, string> = opts.optional
-          ? depNode.children
-          : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
-
-        await Promise.all(
-          Object.entries(childrenToLink)
-            .map(async ([alias, pkgDir]) => {
-              // if (!pkg.installable && pkg.optional) return
-              if (alias === depNode.name) {
-                return
-              }
-              await limitLinking(() => symlinkDependency(pkgDir, depNode.modules, alias))
-            })
-        )
-      })
-  )
+  await symlinkAllModules({
+    deps: depNodes.map((depNode) => ({
+      children: opts.optional
+        ? depNode.children
+        : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children),
+      modules: depNode.modules,
+      name: depNode.name,
+    })),
+  })
 }
