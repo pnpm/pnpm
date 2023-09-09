@@ -27,6 +27,15 @@ export interface LinkPkgMessage {
   keepModulesDir?: boolean
 }
 
+export interface SymlinkAllModulesMessage {
+  type: 'symlinkAllModules'
+  deps: Array<{
+    children: Record<string, string>
+    modules: string
+    name: string
+  }>
+}
+
 export interface AddDirToStoreMessage {
   type: 'add-dir'
   cafsDir: string

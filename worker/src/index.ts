@@ -8,6 +8,7 @@ import {
   type TarballExtractMessage,
   type AddDirToStoreMessage,
   type LinkPkgMessage,
+  type SymlinkAllModulesMessage,
 } from './types'
 
 let workerPool: WorkerPool | undefined
@@ -194,5 +195,28 @@ export async function importPackage (
       type: 'link',
       ...opts,
     })
+  })
+}
+
+export async function symlinkAllModules (
+  opts: Omit<SymlinkAllModulesMessage, 'type'>
+): Promise<{ isBuilt: boolean, importMethod: string | undefined }> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  return new Promise<{ isBuilt: boolean, importMethod: string | undefined }>((resolve, reject) => {
+    localWorker.once('message', ({ status, error, value }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError('SYMLINK_FAILED', error as string))
+        return
+      }
+      resolve(value)
+    })
+    localWorker.postMessage({
+      type: 'symlinkAllModules',
+      ...opts,
+    } as SymlinkAllModulesMessage)
   })
 }

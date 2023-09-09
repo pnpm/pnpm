@@ -36,6 +36,7 @@
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/symlink-dependency": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@rushstack/worker-pool": "0.3.34",
     "load-json-file": "^6.2.0"
