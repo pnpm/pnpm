@@ -82,6 +82,9 @@
       "path": "../../store/store-path"
     },
     {
+      "path": "../../worker"
+    },
+    {
       "path": "../client"
     },
     {

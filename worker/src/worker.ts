@@ -188,19 +188,17 @@ function importPackage ({
     requiresBuild,
     sideEffectsCacheKey,
     keepModulesDir,
-  } as any)
+  })
   return { status: 'success', value: { isBuilt, importMethod } }
 }
 
 function symlinkAllModules (opts: SymlinkAllModulesMessage) {
   for (const dep of opts.deps) {
-    Object.entries(dep.children)
-      .map(([alias, pkgDir]) => {
-        if (alias === dep.name) {
-          return
-        }
+    for (const [alias, pkgDir] of Object.entries(dep.children)) {
+      if (alias !== dep.name) {
         symlinkDependencySync(pkgDir, dep.modules, alias)
-      })
+      }
+    }
   }
   return { status: 'success' }
 }

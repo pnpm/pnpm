@@ -3282,6 +3282,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/worker':
+        specifier: workspace:^
+        version: link:../../worker
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3

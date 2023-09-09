@@ -12,7 +12,8 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.0.0",
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
