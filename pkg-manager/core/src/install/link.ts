@@ -27,6 +27,7 @@ import {
   type HoistedDependencies,
   type Registries,
 } from '@pnpm/types'
+import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
 import pathExists from 'path-exists'
 import equals from 'ramda/src/equals'
@@ -472,25 +473,26 @@ async function linkAllModules (
     optional: boolean
   }
 ) {
-  await Promise.all(
-    depNodes
-      .map(async ({ children, optionalDependencies, name, modules }) => {
-        const childrenToLink: Record<string, string> = opts.optional
-          ? children
-          : pickBy((_, childAlias) => !optionalDependencies.has(childAlias), children)
-
-        await Promise.all(
-          Object.entries(childrenToLink)
-            .map(async ([childAlias, childDepPath]) => {
-              if (childDepPath.startsWith('link:')) {
-                await limitLinking(() => symlinkDependency(path.resolve(opts.lockfileDir, childDepPath.slice(5)), modules, childAlias))
-                return
-              }
-              const pkg = depGraph[childDepPath]
-              if (!pkg || !pkg.installable && pkg.optional || childAlias === name) return
-              await limitLinking(() => symlinkDependency(pkg.dir, modules, childAlias))
-            })
-        )
-      })
-  )
+  await symlinkAllModules({
+    deps: depNodes.map((depNode) => {
+      const children = opts.optional
+        ? depNode.children
+        : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
+      const childrenPaths: Record<string, string> = {}
+      for (const [alias, childDepPath] of Object.entries(children ?? {})) {
+        if (childDepPath.startsWith('link:')) {
+          childrenPaths[alias] = path.resolve(opts.lockfileDir, childDepPath.slice(5))
+        } else {
+          const pkg = depGraph[childDepPath]
+          if (!pkg || !pkg.installable && pkg.optional || alias === depNode.name) continue
+          childrenPaths[alias] = pkg.dir
+        }
+      }
+      return {
+        children: childrenPaths,
+        modules: depNode.modules,
+        name: depNode.name,
+      }
+    }),
+  })
 }
