@@ -379,7 +379,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       opts.symlink === false
         ? Promise.resolve()
         : linkAllModules(depNodes, {
-          lockfileDir,
           optional: opts.include.optionalDependencies,
         }),
       linkAllPkgs(opts.storeController, depNodes, {
@@ -879,7 +878,6 @@ async function linkAllModules (
   depNodes: Array<Pick<DependenciesGraphNode, 'children' | 'optionalDependencies' | 'modules' | 'name'>>,
   opts: {
     optional: boolean
-    lockfileDir: string
   }
 ) {
   await symlinkAllModules({
