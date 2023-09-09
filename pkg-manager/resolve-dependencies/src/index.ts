@@ -21,7 +21,6 @@ import {
   type ProjectManifest,
   type Registries,
 } from '@pnpm/types'
-import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
 import zipWith from 'ramda/src/zipWith'
 import isSubdir from 'is-subdir'
@@ -282,10 +281,15 @@ export async function resolveDependencies (
     } catch {}
   }))
 
+  let finishLockfileUpdatesPromise: Promise<unknown> | undefined
+
   return {
     dependenciesByProjectId,
     dependenciesGraph,
-    finishLockfileUpdates: promiseShare(finishLockfileUpdates(dependenciesGraph, pendingRequiresBuilds, newLockfile)),
+    finishLockfileUpdates: () => {
+      finishLockfileUpdatesPromise ??= finishLockfileUpdates(dependenciesGraph, pendingRequiresBuilds, newLockfile)
+      return finishLockfileUpdatesPromise
+    },
     outdatedDependencies,
     linkedDependenciesByProjectId,
     newLockfile,

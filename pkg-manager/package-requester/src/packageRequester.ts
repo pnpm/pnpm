@@ -341,11 +341,33 @@ function fetchToStore (
     opts.fetchRawManifest = true
   }
 
+  let promiseSharer = pShare
+
   if (!ctx.fetchingLocker.has(opts.pkg.id)) {
     const fetching = pDefer<PkgRequestFetchResult>()
     const { filesIndexFile, target } = getFilesIndexFilePath(ctx, opts)
 
-    doFetchToStore(filesIndexFile, fetching, target) // eslint-disable-line
+    // Most fetchers (e.g. tarball downloader) are kicked off immediately
+    // so the data is fully ready once requested.
+    // However, directory fetcher should defer loading until actually requested,
+    // in case local files are necessary (e.g. symlinked local packages)
+    let blocker: Promise<void>
+
+    if (opts.pkg.resolution.type === 'directory') {
+      const blocked: pDefer.DeferredPromise<void> = pDefer()
+      blocker = blocked.promise
+      promiseSharer = (promise) => {
+        const shared = pShare(promise)
+        return () => {
+          blocked.resolve()
+          return shared()
+        }
+      }
+    } else {
+      blocker = Promise.resolve()
+    }
+
+    void doFetchToStore(filesIndexFile, fetching, target, blocker)
 
     ctx.fetchingLocker.set(opts.pkg.id, {
       fetching: removeKeyOnFail(fetching.promise),
@@ -422,7 +444,7 @@ function fetchToStore (
   }
 
   return {
-    fetching: pShare(result.fetching),
+    fetching: promiseSharer(result.fetching),
     filesIndexFile: result.filesIndexFile,
   }
 
@@ -438,8 +460,10 @@ function fetchToStore (
   async function doFetchToStore (
     filesIndexFile: string,
     fetching: pDefer.DeferredPromise<PkgRequestFetchResult>,
-    target: string
+    target: string,
+    blocker: Promise<void>
   ) {
+    await blocker
     try {
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
       const isLocalPkg = opts.pkg.resolution.type === 'directory'
