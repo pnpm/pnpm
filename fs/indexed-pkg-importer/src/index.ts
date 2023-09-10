@@ -125,7 +125,7 @@ function hardlinkPkg (
   if (
     !opts.fromStore ||
     opts.force ||
-    !pkgLinkedToStore(opts.filesMap, to)
+    !opts.disableRelinkFromStore && !pkgLinkedToStore(opts.filesMap, to)
   ) {
     importIndexedDir(importFile, to, opts.filesMap, opts)
     return 'hardlink'

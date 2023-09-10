@@ -1094,6 +1094,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         dedupeDirectDeps: opts.dedupeDirectDeps,
         dependenciesByProjectId,
         depsStateCache,
+        disableRelinkFromStore: opts.disableRelinkFromStore,
         extraNodePaths: ctx.extraNodePaths,
         force: opts.force,
         hoistedDependencies: ctx.hoistedDependencies,

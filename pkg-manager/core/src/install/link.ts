@@ -49,6 +49,7 @@ export async function linkPackages (
     currentLockfile: Lockfile
     dedupeDirectDeps: boolean
     dependenciesByProjectId: Record<string, Record<string, string>>
+    disableRelinkFromStore?: boolean
     force: boolean
     depsStateCache: DepsStateCache
     extraNodePaths: string[]
@@ -143,6 +144,7 @@ export async function linkPackages (
     newCurrentLockfile,
     depGraph,
     {
+      disableRelinkFromStore: opts.disableRelinkFromStore,
       force: opts.force,
       depsStateCache: opts.depsStateCache,
       ignoreScripts: opts.ignoreScripts,
@@ -301,6 +303,7 @@ async function linkNewPackages (
   depGraph: DependenciesGraph,
   opts: {
     depsStateCache: DepsStateCache
+    disableRelinkFromStore?: boolean
     force: boolean
     optional: boolean
     ignoreScripts: boolean
@@ -366,6 +369,7 @@ async function linkNewPackages (
     linkAllPkgs(opts.storeController, newPkgs, {
       depGraph,
       depsStateCache: opts.depsStateCache,
+      disableRelinkFromStore: opts.disableRelinkFromStore,
       force: opts.force,
       ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
@@ -418,6 +422,7 @@ async function linkAllPkgs (
   opts: {
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
+    disableRelinkFromStore?: boolean
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
@@ -439,6 +444,7 @@ async function linkAllPkgs (
         })
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
+        disableRelinkFromStore: opts.disableRelinkFromStore,
         filesResponse: files,
         force: opts.force,
         sideEffectsCacheKey,

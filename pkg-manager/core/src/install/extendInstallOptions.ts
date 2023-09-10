@@ -124,6 +124,7 @@ export interface StrictInstallOptions {
   extendNodePath: boolean
   excludeLinksFromLockfile: boolean
   confirmModulesPurge: boolean
+  disableRelinkFromStore: boolean
 }
 
 export type InstallOptions =
