@@ -44,6 +44,14 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 > & {
   cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean
+  /**
+   * By default, injected (also known as local) dependencies are relinked on every install
+   * to ensure that the links are always up-to-date.
+   * If another tool persists modifications to the injected dependencies,
+   * this option can be set to `false`.
+   * For example, 'bit compile' writes the compiled code directly to the node_modules directory,
+   * eliminating the need to relink the package.
+   */
   relinkLocalDirDeps?: boolean
 } & Partial<Pick<Config, 'userConfig' | 'deployAllFiles'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
 
