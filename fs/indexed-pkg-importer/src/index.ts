@@ -125,12 +125,17 @@ function hardlinkPkg (
   if (
     !opts.fromStore ||
     opts.force ||
-    !opts.disableRelinkFromStore && !pkgLinkedToStore(opts.filesMap, to)
+    !(opts.disableRelinkFromStore ? pkgExists : pkgLinkedToStore)(opts.filesMap, to)
   ) {
     importIndexedDir(importFile, to, opts.filesMap, opts)
     return 'hardlink'
   }
   return undefined
+}
+
+function pkgExists (filesMap: Record<string, string>, to: string): boolean {
+  const [anyFile] = Object.keys(filesMap)
+  return existsSync(path.join(to, anyFile))
 }
 
 function linkOrCopy (existingPath: string, newPath: string) {
