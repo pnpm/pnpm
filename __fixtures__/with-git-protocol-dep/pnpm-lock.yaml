@@ -17,7 +17,7 @@ packages:
     dev: false
 
   github.com/kevva/is-negative/219c424611ff4a2af15f7deeff4f93c62558c43d:
-    resolution: {registry: http://localhost:4873/, tarball: https://codeload.github.com/kevva/is-negative/tar.gz/219c424611ff4a2af15f7deeff4f93c62558c43d}
+    resolution: {tarball: https://codeload.github.com/kevva/is-negative/tar.gz/219c424611ff4a2af15f7deeff4f93c62558c43d}
     name: is-negative
     version: 2.0.0
     engines: {node: '>=0.10.0'}
