@@ -1,5 +1,11 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 4.1.1
+
+### Patch Changes
+
+- cb6e4212c: Verify the existence of the package in node_modules, when disableRelinkFromStore is set to true.
+
 ## 4.1.0
 
 ### Minor Changes

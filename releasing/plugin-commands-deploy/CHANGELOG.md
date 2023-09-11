@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-deploy
 
+## 3.1.4
+
+### Patch Changes
+
+- Updated dependencies [cb6e4212c]
+  - @pnpm/fs.indexed-pkg-importer@4.1.1
+  - @pnpm/plugin-commands-installation@13.1.4
+
 ## 3.1.3
 
 ### Patch Changes

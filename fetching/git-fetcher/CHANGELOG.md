@@ -1,5 +1,11 @@
 # @pnpm/git-fetcher
 
+## 11.0.1
+
+### Patch Changes
+
+- @pnpm/worker@0.2.1
+
 ## 11.0.0
 
 ### Patch Changes
