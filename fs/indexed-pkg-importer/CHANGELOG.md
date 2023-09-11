@@ -1,5 +1,16 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 4.1.0
+
+### Minor Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+
 ## 4.0.1
 
 ### Patch Changes

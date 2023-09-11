@@ -1,5 +1,19 @@
 # @pnpm/create-cafs-store
 
+## 5.1.0
+
+### Minor Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+  - @pnpm/fs.indexed-pkg-importer@4.1.0
+  - @pnpm/store.cafs@2.0.3
+  - @pnpm/fetcher-base@15.0.1
+
 ## 5.0.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/deps.graph-builder
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+
 ## 0.1.1
 
 ### Patch Changes

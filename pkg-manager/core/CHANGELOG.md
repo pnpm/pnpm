@@ -1,5 +1,30 @@
 # @pnpm/core
 
+## 12.0.0
+
+### Minor Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+- 48dcd108c: Improve performance of installation by using a worker for creating the symlinks inside `node_modules/.pnpm` [#7069](https://github.com/pnpm/pnpm/pull/7069).
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+- Updated dependencies [48dcd108c]
+- Updated dependencies [48dcd108c]
+  - @pnpm/store-controller-types@16.1.0
+  - @pnpm/headless@22.0.0
+  - @pnpm/worker@0.2.0
+  - @pnpm/symlink-dependency@7.1.0
+  - @pnpm/build-modules@11.0.14
+  - @pnpm/lifecycle@15.0.9
+  - @pnpm/modules-cleaner@14.0.12
+  - @pnpm/package-requester@23.0.0
+  - @pnpm/resolve-dependencies@31.1.16
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.5
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/link-bins@9.0.6
+
 ## 11.0.2
 
 ### Patch Changes

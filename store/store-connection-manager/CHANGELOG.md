@@ -1,5 +1,18 @@
 # @pnpm/store-connection-manager
 
+## 6.2.0
+
+### Minor Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+
+### Patch Changes
+
+- @pnpm/package-store@18.0.0
+- @pnpm/server@16.0.2
+- @pnpm/config@19.0.2
+- @pnpm/client@10.0.21
+
 ## 6.1.3
 
 ### Patch Changes

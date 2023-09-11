@@ -1,5 +1,15 @@
 # @pnpm/store-controller-types
 
+## 16.1.0
+
+### Minor Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.1
+
 ## 16.0.1
 
 ### Patch Changes

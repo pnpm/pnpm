@@ -1,5 +1,13 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.16
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+  - @pnpm/npm-resolver@16.0.9
+
 ## 31.1.15
 
 ### Patch Changes

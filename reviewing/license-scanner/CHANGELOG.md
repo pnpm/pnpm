@@ -1,5 +1,12 @@
 # @pnpm/license-scanner
 
+## 2.0.18
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.3
+- @pnpm/directory-fetcher@7.0.0
+
 ## 2.0.17
 
 ### Patch Changes

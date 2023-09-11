@@ -1,5 +1,11 @@
 # @pnpm/cafs-types
 
+## 3.1.0
+
+### Minor Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+
 ## 3.0.1
 
 ### Patch Changes
