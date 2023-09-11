@@ -1606,3 +1606,179 @@ test('injected package is kept up-to-date when it is hoisted to multiple places'
   expect(modulesState?.injectedDeps?.['project-3'][0]).toEqual(path.join('project-1', 'node_modules', 'is-positive'))
   expect(modulesState?.injectedDeps?.['project-3'][1]).toEqual(path.join('project-2', 'node_modules', 'is-positive'))
 })
+
+test('relink injected dependency on install by default', async () => {
+  const depManifest = {
+    name: 'dep',
+    version: '1.0.0',
+  }
+  const mainManifest = {
+    name: 'main',
+    version: '1.0.0',
+    dependencies: {
+      dep: 'workspace:1.0.0',
+    },
+    dependenciesMeta: {
+      dep: {
+        injected: true,
+      },
+    },
+  }
+  preparePackages([
+    {
+      location: 'dep',
+      package: depManifest,
+    },
+    {
+      location: 'main',
+      package: mainManifest,
+    },
+  ])
+  fs.writeFileSync('dep/index.js', 'console.log("dep")')
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('dep'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('main'),
+    },
+  ]
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: depManifest,
+      rootDir: path.resolve('dep'),
+    },
+    {
+      buildIndex: 0,
+      manifest: mainManifest,
+      rootDir: path.resolve('main'),
+    },
+  ]
+  const workspacePackages = {
+    dep: {
+      '1.0.0': {
+        dir: path.resolve('dep'),
+        manifest: depManifest,
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({
+    allProjects,
+    workspacePackages,
+    packageImportMethod: 'hardlink',
+    fastUnpack: false,
+  }))
+
+  const indexJsPath = path.resolve('main/node_modules/dep/index.js')
+  const getInode = () => fs.statSync(indexJsPath).ino
+  const storeInode = getInode()
+
+  // rewriting index.js, to destroy the link
+  fs.unlinkSync(indexJsPath)
+  fs.writeFileSync(indexJsPath, 'console.log("dep updated")')
+
+  expect(storeInode).not.toEqual(getInode())
+
+  await mutateModules(importers, await testDefaults({
+    allProjects,
+    workspacePackages,
+    packageImportMethod: 'hardlink',
+    fastUnpack: false,
+  }))
+
+  expect(storeInode).toEqual(getInode())
+})
+
+test('do not relink injected dependency on install when disableRelinkFromStore is set to true', async () => {
+  const depManifest = {
+    name: 'dep',
+    version: '1.0.0',
+  }
+  const mainManifest = {
+    name: 'main',
+    version: '1.0.0',
+    dependencies: {
+      dep: 'workspace:1.0.0',
+    },
+    dependenciesMeta: {
+      dep: {
+        injected: true,
+      },
+    },
+  }
+  preparePackages([
+    {
+      location: 'dep',
+      package: depManifest,
+    },
+    {
+      location: 'main',
+      package: mainManifest,
+    },
+  ])
+  fs.writeFileSync('dep/index.js', 'console.log("dep")')
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('dep'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('main'),
+    },
+  ]
+  const allProjects: ProjectOptions[] = [
+    {
+      buildIndex: 0,
+      manifest: depManifest,
+      rootDir: path.resolve('dep'),
+    },
+    {
+      buildIndex: 0,
+      manifest: mainManifest,
+      rootDir: path.resolve('main'),
+    },
+  ]
+  const workspacePackages = {
+    dep: {
+      '1.0.0': {
+        dir: path.resolve('dep'),
+        manifest: depManifest,
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({
+    allProjects,
+    workspacePackages,
+    packageImportMethod: 'hardlink',
+    fastUnpack: false,
+  }))
+
+  const pkgJsonPath = path.resolve('main/node_modules/dep/package.json')
+  const getInode = () => fs.statSync(pkgJsonPath).ino
+  const storeInode = getInode()
+
+  // rewriting index.js, to destroy the link
+  const pkgJsonContent = fs.readFileSync(pkgJsonPath, 'utf8')
+  fs.unlinkSync(pkgJsonPath)
+  fs.writeFileSync(pkgJsonPath, pkgJsonContent)
+
+  const newInode = getInode()
+
+  expect(storeInode).not.toEqual(newInode)
+
+  await mutateModules(importers, await testDefaults({
+    allProjects,
+    workspacePackages,
+    packageImportMethod: 'hardlink',
+    fastUnpack: false,
+    disableRelinkFromStore: true,
+  }, {}, {}, {
+    relinkLocalDirDeps: false,
+  }))
+
+  expect(newInode).toEqual(getInode())
+})

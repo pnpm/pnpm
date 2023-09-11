@@ -124,6 +124,17 @@ export interface StrictInstallOptions {
   extendNodePath: boolean
   excludeLinksFromLockfile: boolean
   confirmModulesPurge: boolean
+  /**
+   * Don't relink packages if they are not hard linked from the store.
+   * This also applies to injected dependencies, which are linked from the local package's location.
+   *
+   * This option was added to fix an issue with Bit CLI.
+   * Bit compile adds dist directories to the injected dependencies, so if pnpm were to relink them,
+   * the dist directories would be deleted.
+   *
+   * The option might be used in the future to improve performance.
+   */
+  disableRelinkFromStore: boolean
 }
 
 export type InstallOptions =
