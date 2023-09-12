@@ -14,7 +14,7 @@
 
 ### Patch Changes
 
-- 03cdccc6e: New option added: disableRelinkLocalDirDeps.
+- 03cdccc6e: New option added: disableRelinkFromStore.
 - Updated dependencies [03cdccc6e]
 - Updated dependencies [48dcd108c]
   - @pnpm/create-cafs-store@5.1.0

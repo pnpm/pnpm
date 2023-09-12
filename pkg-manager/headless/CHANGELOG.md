@@ -11,7 +11,7 @@
 
 ### Minor Changes
 
-- 03cdccc6e: New option added: disableRelinkLocalDirDeps.
+- 03cdccc6e: New option added: disableRelinkFromStore.
 - 48dcd108c: Improve performance of installation by using a worker for creating the symlinks inside `node_modules/.pnpm` [#7069](https://github.com/pnpm/pnpm/pull/7069).
 
 ### Patch Changes

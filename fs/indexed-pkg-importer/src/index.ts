@@ -134,14 +134,14 @@ function shouldRelinkPkg (
   opts: ImportOptions
 ) {
   if (opts.disableRelinkLocalDirDeps && opts.resolvedFrom === 'local-dir') {
-    return !pkgExists(opts.filesMap, to)
+    try {
+      const dirEnts = fs.readdirSync(to)
+      return dirEnts.length === 0 || dirEnts.length === 1 && dirEnts[0] === 'node_modules'
+    } catch {
+      return true
+    }
   }
   return opts.resolvedFrom !== 'store' || !pkgLinkedToStore(opts.filesMap, to)
-}
-
-function pkgExists (filesMap: Record<string, string>, to: string): boolean {
-  const [anyFile] = Object.keys(filesMap)
-  return existsSync(path.join(to, anyFile))
 }
 
 function linkOrCopy (existingPath: string, newPath: string) {
