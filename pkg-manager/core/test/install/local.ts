@@ -491,15 +491,11 @@ test('local directory is not relinked if relinkLocalDirDeps is set to false', as
 
   fss.writeFileSync('pkg/new.js', 'hello', 'utf8')
 
-  await addDependenciesToPackage(manifest, ['is-odd@1.0.0'], await testDefaults({}, {}, {}, {
-    relinkLocalDirDeps: false,
-  }))
+  await addDependenciesToPackage(manifest, ['is-odd@1.0.0'], await testDefaults({ disableRelinkFromStore: true }))
 
   expect(fss.readdirSync('node_modules/pkg').sort()).toStrictEqual(['index.js', 'package.json'])
 
-  await install(manifest, await testDefaults({ frozenLockfile: true }, {}, {}, {
-    relinkLocalDirDeps: false,
-  }))
+  await install(manifest, await testDefaults({ frozenLockfile: true, disableRelinkFromStore: true }))
 
   expect(fss.readdirSync('node_modules/pkg').sort()).toStrictEqual(['index.js', 'package.json'])
 })

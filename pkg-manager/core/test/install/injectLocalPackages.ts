@@ -1776,8 +1776,6 @@ test('do not relink injected dependency on install when disableRelinkFromStore i
     packageImportMethod: 'hardlink',
     fastUnpack: false,
     disableRelinkFromStore: true,
-  }, {}, {}, {
-    relinkLocalDirDeps: false,
   }))
 
   expect(newInode).toEqual(getInode())

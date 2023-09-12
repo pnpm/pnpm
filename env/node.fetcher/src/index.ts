@@ -49,7 +49,7 @@ export async function fetchNode (fetch: FetchFromRegistry, version: string, targ
   cafs.importPackage(targetDir, {
     filesResponse: {
       filesIndex: filesIndex as Record<string, string>,
-      fromStore: false,
+      resolvedFrom: 'remote',
     },
     force: true,
   })

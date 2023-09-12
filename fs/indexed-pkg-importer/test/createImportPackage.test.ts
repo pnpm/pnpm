@@ -44,7 +44,7 @@ test('packageImportMethod=auto: clone files by default', () => {
       'package.json': 'hash1',
     },
     force: false,
-    fromStore: false,
+    resolvedFrom: 'remote',
   })).toBe('clone')
   expect(gfs.copyFileSync).toBeCalledWith(
     path.join('hash1'),
@@ -69,7 +69,7 @@ test('packageImportMethod=auto: link files if cloning fails', () => {
       'package.json': 'hash1',
     },
     force: false,
-    fromStore: false,
+    resolvedFrom: 'remote',
   })).toBe('hardlink')
   expect(gfs.linkSync).toBeCalledWith(path.join('hash1'), path.join('project', 'package_tmp', 'package.json'))
   expect(gfs.linkSync).toBeCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
@@ -83,7 +83,7 @@ test('packageImportMethod=auto: link files if cloning fails', () => {
       'package.json': 'hash1',
     },
     force: false,
-    fromStore: false,
+    resolvedFrom: 'remote',
   })).toBe('hardlink')
   expect(gfs.copyFileSync).not.toBeCalled()
   expect(gfs.linkSync).toBeCalledWith(path.join('hash1'), path.join('project2', 'package_tmp', 'package.json'))
@@ -107,7 +107,7 @@ test('packageImportMethod=auto: link files if cloning fails and even hard linkin
       'index.js': 'hash2',
     },
     force: false,
-    fromStore: false,
+    resolvedFrom: 'remote',
   })).toBe('hardlink')
   expect(gfs.linkSync).toBeCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
   expect(gfs.linkSync).toBeCalledTimes(2)
@@ -129,7 +129,7 @@ test('packageImportMethod=auto: chooses copying if cloning and hard linking is n
       'index.js': 'hash2',
     },
     force: false,
-    fromStore: false,
+    resolvedFrom: 'remote',
   })).toBe('copy')
   expect(gfs.copyFileSync).toBeCalledWith(path.join('hash2'), path.join('project', 'package_tmp', 'index.js'))
   expect(gfs.copyFileSync).toBeCalledTimes(2)
@@ -150,7 +150,7 @@ test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', 
       license: 'hash3',
     },
     force: false,
-    fromStore: false,
+    resolvedFrom: 'remote',
   })).toBe('hardlink')
   expect(gfs.linkSync).toBeCalledTimes(3)
   expect(gfs.copyFileSync).toBeCalledTimes(2) // One time the target already exists, so it won't be copied
@@ -167,7 +167,7 @@ test('packageImportMethod=hardlink does not relink package from store if package
       'package.json': 'hash1',
     },
     force: false,
-    fromStore: true,
+    resolvedFrom: 'store',
   })).toBe(undefined)
 })
 
@@ -181,7 +181,7 @@ test('packageImportMethod=hardlink relinks package from store if package.json is
       'package.json': 'hash1',
     },
     force: false,
-    fromStore: true,
+    resolvedFrom: 'store',
   })).toBe('hardlink')
   expect(globalInfo).toBeCalledWith('Relinking project/package from the store')
 })
@@ -197,7 +197,7 @@ test('packageImportMethod=hardlink does not relink package from store if package
       'index.js': 'hash2',
     },
     force: false,
-    fromStore: true,
+    resolvedFrom: 'store',
   })).toBe(undefined)
 })
 
@@ -215,7 +215,7 @@ test('packageImportMethod=hardlink links packages when they are not found', () =
       'package.json': 'hash1',
     },
     force: false,
-    fromStore: true,
+    resolvedFrom: 'store',
   })).toBe('hardlink')
   expect(globalInfo).not.toBeCalledWith('Relinking project/package from the store')
 })

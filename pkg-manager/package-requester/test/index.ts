@@ -68,7 +68,7 @@ test('request package', async () => {
 
   const { files } = await pkgResponse.fetching!()
   expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
-  expect(files.fromStore).toBeFalsy()
+  expect(files.resolvedFrom).toBe('remote')
 })
 
 test('request package but skip fetching', async () => {
@@ -209,7 +209,7 @@ test('refetch local tarball if its integrity has changed', async () => {
     const { files, bundledManifest } = await response.fetching()
 
     expect(response.body.updated).toBeFalsy()
-    expect(files.fromStore).toBeFalsy()
+    expect(files.resolvedFrom).toBe('remote')
     expect(bundledManifest).toBeTruthy()
   }
 
@@ -238,7 +238,7 @@ test('refetch local tarball if its integrity has changed', async () => {
     const { files, bundledManifest } = await response.fetching!()
 
     expect(response.body.updated).toBeTruthy()
-    expect(files.fromStore).toBeFalsy()
+    expect(files.resolvedFrom).toBe('remote')
     expect(bundledManifest).toBeTruthy()
   }
 
@@ -266,7 +266,7 @@ test('refetch local tarball if its integrity has changed', async () => {
     const { files, bundledManifest } = await response.fetching()
 
     expect(response.body.updated).toBeFalsy()
-    expect(files.fromStore).toBeTruthy()
+    expect(files.resolvedFrom).toBe('store')
     expect(bundledManifest).toBeTruthy()
   }
 })
@@ -303,7 +303,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const { files, bundledManifest } = await response.fetching()
 
     expect(response.body.updated).toBeTruthy()
-    expect(files.fromStore).toBeFalsy()
+    expect(files.resolvedFrom).toBe('remote')
     expect(bundledManifest).toBeTruthy()
   }
 
@@ -325,7 +325,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const { files, bundledManifest } = await response.fetching()
 
     expect(response.body.updated).toBeTruthy()
-    expect(files.fromStore).toBeFalsy()
+    expect(files.resolvedFrom).toBe('remote')
     expect(bundledManifest).toBeTruthy()
   }
 
@@ -343,7 +343,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     }
     const { files, bundledManifest } = await response.fetching()
 
-    expect(files.fromStore).toBeTruthy()
+    expect(files.resolvedFrom).toBe('store')
     expect(bundledManifest).toBeTruthy()
   }
 })
@@ -379,7 +379,7 @@ test('fetchPackageToStore()', async () => {
   const { files, bundledManifest } = await fetchResult.fetching()
   expect(bundledManifest).toBeFalsy()
   expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
-  expect(files.fromStore).toBeFalsy()
+  expect(files.resolvedFrom).toBe('remote')
 
   const indexFile = await loadJsonFile<PackageFilesIndex>(fetchResult.filesIndexFile)
   expect(indexFile).toBeTruthy()
@@ -471,7 +471,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     ino1 = statSync(files.filesIndex['package.json'] as string).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
-    expect(files.fromStore).toBeFalsy()
+    expect(files.resolvedFrom).toBe('remote')
   }
 
   {
@@ -481,7 +481,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     ino2 = statSync(files.filesIndex['package.json'] as string).ino
 
     expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
-    expect(files.fromStore).toBeFalsy()
+    expect(files.resolvedFrom).toBe('remote')
   }
 
   expect(ino1).toBe(ino2)
@@ -548,7 +548,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
   })
   const { files } = await fetchResult.fetching()
   expect(Object.keys(files.filesIndex).sort()).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort())
-  expect(files.fromStore).toBeFalsy()
+  expect(files.resolvedFrom).toBe('remote')
 
   expect(nock.isDone()).toBeTruthy()
 })

@@ -41,7 +41,7 @@ export function createPackageImporterAsync (
     const importMethod = await impPkg(to, {
       disableRelinkFromStore: opts.disableRelinkFromStore,
       filesMap,
-      fromStore: opts.filesResponse.fromStore,
+      resolvedFrom: opts.filesResponse.resolvedFrom,
       force: opts.force,
       keepModulesDir: Boolean(opts.keepModulesDir),
     })
@@ -70,7 +70,7 @@ function createPackageImporter (
     const importMethod = impPkg(to, {
       disableRelinkFromStore: opts.disableRelinkFromStore,
       filesMap,
-      fromStore: opts.filesResponse.fromStore,
+      resolvedFrom: opts.filesResponse.resolvedFrom,
       force: opts.force,
       keepModulesDir: Boolean(opts.keepModulesDir),
     })

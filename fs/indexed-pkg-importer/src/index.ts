@@ -106,7 +106,7 @@ function clonePkg (
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
-  if (!opts.fromStore || opts.force || !existsSync(pkgJsonPath)) {
+  if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {
     importIndexedDir(cloneFile, to, opts.filesMap, opts)
     return 'clone'
   }
@@ -122,15 +122,21 @@ function hardlinkPkg (
   to: string,
   opts: ImportOptions
 ) {
-  if (
-    !opts.fromStore ||
-    opts.force ||
-    !(opts.disableRelinkFromStore ? pkgExists : pkgLinkedToStore)(opts.filesMap, to)
-  ) {
+  if (opts.force || shouldRelinkPkg(to, opts)) {
     importIndexedDir(importFile, to, opts.filesMap, opts)
     return 'hardlink'
   }
   return undefined
+}
+
+function shouldRelinkPkg (
+  to: string,
+  opts: ImportOptions
+) {
+  if (opts.disableRelinkFromStore) {
+    return !pkgExists(opts.filesMap, to)
+  }
+  return opts.resolvedFrom !== 'store' || !pkgLinkedToStore(opts.filesMap, to)
 }
 
 function pkgExists (filesMap: Record<string, string>, to: string): boolean {
@@ -189,7 +195,7 @@ export function copyPkg (
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
-  if (!opts.fromStore || opts.force || !existsSync(pkgJsonPath)) {
+  if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {
     importIndexedDir(fs.copyFileSync, to, opts.filesMap, opts)
     return 'copy'
   }
