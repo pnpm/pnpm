@@ -133,7 +133,7 @@ function shouldRelinkPkg (
   to: string,
   opts: ImportOptions
 ) {
-  if (opts.disableRelinkFromStore) {
+  if (opts.disableRelinkLocalDirDeps && opts.resolvedFrom === 'local-dir') {
     return !pkgExists(opts.filesMap, to)
   }
   return opts.resolvedFrom !== 'store' || !pkgLinkedToStore(opts.filesMap, to)

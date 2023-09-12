@@ -4,13 +4,13 @@
 
 ### Patch Changes
 
-- cb6e4212c: Verify the existence of the package in node_modules, when disableRelinkFromStore is set to true.
+- cb6e4212c: Verify the existence of the package in node_modules, when disableRelinkLocalDirDeps is set to true.
 
 ## 4.1.0
 
 ### Minor Changes
 
-- 03cdccc6e: New option added: disableRelinkFromStore.
+- 03cdccc6e: New option added: disableRelinkLocalDirDeps.
 
 ### Patch Changes
 

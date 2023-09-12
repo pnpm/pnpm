@@ -29,7 +29,7 @@ export async function linkHoistedModules (
   hierarchy: DepHierarchy,
   opts: {
     depsStateCache: DepsStateCache
-    disableRelinkFromStore?: boolean
+    disableRelinkLocalDirDeps?: boolean
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
@@ -87,7 +87,7 @@ async function linkAllPkgsInOrder (
   parentDir: string,
   opts: {
     depsStateCache: DepsStateCache
-    disableRelinkFromStore?: boolean
+    disableRelinkLocalDirDeps?: boolean
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
@@ -123,7 +123,7 @@ async function linkAllPkgsInOrder (
           const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
             filesResponse,
             force: opts.force || depNode.depPath !== prevGraph[dir]?.depPath,
-            disableRelinkFromStore: opts.disableRelinkFromStore,
+            disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
             keepModulesDir: true,
             requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
             sideEffectsCacheKey,

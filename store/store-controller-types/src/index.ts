@@ -162,7 +162,7 @@ export interface PackageResponse {
 export type FilesMap = Record<string, string>
 
 export interface ImportOptions {
-  disableRelinkFromStore?: boolean
+  disableRelinkLocalDirDeps?: boolean
   filesMap: FilesMap
   force: boolean
   resolvedFrom: ResolvedFrom

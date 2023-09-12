@@ -11,7 +11,7 @@
 
 ### Minor Changes
 
-- 03cdccc6e: New option added: disableRelinkFromStore.
+- 03cdccc6e: New option added: disableRelinkLocalDirDeps.
 
 ### Patch Changes
 

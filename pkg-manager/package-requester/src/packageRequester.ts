@@ -89,7 +89,6 @@ export function createPackageRequester (
     networkConcurrency?: number
     storeDir: string
     verifyStoreIntegrity: boolean
-    relinkLocalDirDeps?: boolean
   }
 ): RequestPackageFunction & {
     fetchPackageToStore: FetchPackageToStoreFunction
@@ -116,7 +115,6 @@ export function createPackageRequester (
       counter: 0,
       concurrency: networkConcurrency,
     }),
-    relinkLocalDirDeps: opts.relinkLocalDirDeps ?? true,
     storeDir: opts.storeDir,
   })
   const requestPackage = resolveAndFetch.bind(null, {
@@ -329,7 +327,6 @@ function fetchToStore (
       counter: number
       concurrency: number
     }
-    relinkLocalDirDeps: boolean
     storeDir: string
   },
   opts: FetchPackageToStoreOptions

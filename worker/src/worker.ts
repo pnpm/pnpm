@@ -176,7 +176,7 @@ function importPackage ({
   requiresBuild,
   force,
   keepModulesDir,
-  disableRelinkFromStore,
+  disableRelinkLocalDirDeps,
 }: LinkPkgMessage) {
   const cacheKey = JSON.stringify({ storeDir, packageImportMethod })
   if (!cafsStoreCache.has(cacheKey)) {
@@ -186,7 +186,7 @@ function importPackage ({
   const { importMethod, isBuilt } = cafsStore.importPackage(targetDir, {
     filesResponse,
     force,
-    disableRelinkFromStore,
+    disableRelinkLocalDirDeps,
     requiresBuild,
     sideEffectsCacheKey,
     keepModulesDir,

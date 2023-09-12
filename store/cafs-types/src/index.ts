@@ -23,7 +23,7 @@ export type PackageFilesResponse = {
 })
 
 export interface ImportPackageOpts {
-  disableRelinkFromStore?: boolean
+  disableRelinkLocalDirDeps?: boolean
   requiresBuild?: boolean
   sideEffectsCacheKey?: string
   filesResponse: PackageFilesResponse
