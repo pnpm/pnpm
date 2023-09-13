@@ -69,6 +69,7 @@ export function reporterForClient (
     hideAddedPkgsProgress?: boolean
     hideProgressPrefix?: boolean
     hideLifecycleOutput?: boolean
+    hideLifecyclePrefix?: boolean
   }
 ): Array<Rx.Observable<Rx.Observable<{ msg: string }>>> {
   const width = opts.width ?? process.stdout.columns ?? 80
@@ -81,6 +82,7 @@ export function reporterForClient (
     reportLifecycleScripts(log$, {
       appendOnly: (opts.appendOnly === true || opts.streamLifecycleOutput) && !opts.hideLifecycleOutput,
       aggregateOutput: opts.aggregateOutput,
+      hideLifecyclePrefix: opts.hideLifecyclePrefix,
       cwd,
       width,
     }),

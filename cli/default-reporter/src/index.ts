@@ -27,6 +27,7 @@ export function initDefaultReporter (
       hideAddedPkgsProgress?: boolean
       hideProgressPrefix?: boolean
       hideLifecycleOutput?: boolean
+      hideLifecyclePrefix?: boolean
     }
     context: {
       argv: string[]
@@ -59,7 +60,7 @@ export function initDefaultReporter (
       : console.log.bind(console)
     const subscription = output$
       .subscribe({
-        complete () {}, // eslint-disable-line:no-empty
+        complete () { }, // eslint-disable-line:no-empty
         error: (err) => {
           console.error(err.message)
         },
@@ -75,7 +76,7 @@ export function initDefaultReporter (
   })
   const subscription = output$
     .subscribe({
-      complete () {}, // eslint-disable-line:no-empty
+      complete () { }, // eslint-disable-line:no-empty
       error: (err) => {
         logUpdate(err.message)
       },
@@ -109,6 +110,7 @@ export function toOutput$ (
       hideAddedPkgsProgress?: boolean
       hideProgressPrefix?: boolean
       hideLifecycleOutput?: boolean
+      hideLifecyclePrefix?: boolean
     }
     context: {
       argv: string[]
@@ -208,10 +210,10 @@ export function toOutput$ (
       case 'pnpm:update-check':
         updateCheckPushStream.next(log)
         break
-      case 'pnpm' as any: // eslint-disable-line
-      case 'pnpm:global' as any: // eslint-disable-line
-      case 'pnpm:store' as any: // eslint-disable-line
-      case 'pnpm:lockfile' as any: // eslint-disable-line
+        case 'pnpm' as any: // eslint-disable-line
+        case 'pnpm:global' as any: // eslint-disable-line
+        case 'pnpm:store' as any: // eslint-disable-line
+        case 'pnpm:lockfile' as any: // eslint-disable-line
         otherPushStream.next(log)
         break
       }
@@ -269,6 +271,7 @@ export function toOutput$ (
       hideAddedPkgsProgress: opts.reportingOptions?.hideAddedPkgsProgress,
       hideProgressPrefix: opts.reportingOptions?.hideProgressPrefix ?? (cmd === 'dlx'),
       hideLifecycleOutput: opts.reportingOptions?.hideLifecycleOutput,
+      hideLifecyclePrefix: opts.reportingOptions?.hideLifecyclePrefix,
     }
   )
 

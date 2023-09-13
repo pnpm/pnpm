@@ -26,6 +26,7 @@ export function initReporter (
         streamLifecycleOutput: opts.config.stream,
         throttleProgress: 200,
         hideAddedPkgsProgress: opts.config.lockfileOnly,
+        hideLifecyclePrefix: opts.config.reporterHidePrefix,
       },
       streamParser,
     })
@@ -42,6 +43,7 @@ export function initReporter (
         aggregateOutput: opts.config.aggregateOutput,
         logLevel: opts.config.loglevel as LogLevel,
         throttleProgress: 1000,
+        hideLifecyclePrefix: opts.config.reporterHidePrefix,
       },
       streamParser,
     })

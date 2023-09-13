@@ -1739,6 +1739,92 @@ packages/alfa test: OK`
   )
 })
 
+test('run --reporter-hide-prefix should hide prefix', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+      },
+    },
+    {
+      location: 'packages/alfa',
+      package: {
+        name: 'alfa',
+        version: '1.0.0',
+        scripts: {
+          test: "node -e \"console.log('OK')\"",
+        },
+      },
+    },
+    {
+      location: 'packages/beta',
+      package: {
+        name: 'beta',
+        version: '1.0.0',
+        scripts: {
+          test: "node -e \"console.log('OK')\"",
+        },
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  const result = execPnpmSync([
+    '--stream',
+    '--reporter-hide-prefix',
+    '--filter',
+    'alfa',
+    '--filter',
+    'beta',
+    'run',
+    'test',
+  ])
+  expect(
+    result.stdout
+      .toString()
+      .trim()
+      .split('\n')
+      .sort()
+      .join('\n')
+  ).toBe(
+    `OK
+OK
+Scope: 2 of 3 workspace projects
+packages/alfa test$ node -e "console.log('OK')"
+packages/alfa test: Done
+packages/beta test$ node -e "console.log('OK')"
+packages/beta test: Done`
+  )
+  const singleResult = execPnpmSync([
+    '--stream',
+    '--reporter-hide-prefix',
+    '--filter',
+    'alfa',
+    'run',
+    'test',
+  ])
+
+  console.log(singleResult.stdout
+    .toString())
+
+  expect(
+    singleResult.stdout
+      .toString()
+      .trim()
+      .split('\n')
+      .sort()
+      .join('\n')
+  ).toBe(
+    `OK
+packages/alfa test$ node -e "console.log('OK')"
+packages/alfa test: Done`
+  )
+})
+
 test('peer dependencies are resolved from the root of the workspace when a new dependency is added to a workspace project', async () => {
   const projects = preparePackages([
     {
