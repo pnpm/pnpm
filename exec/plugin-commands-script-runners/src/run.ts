@@ -56,7 +56,7 @@ export const REPORT_SUMMARY_OPTION_HELP = {
 }
 
 export const REPORTER_HIDE_PREFIX_HELP = {
-  description: 'Hide prefix',
+  description: 'Hide project name prefix from output of running scripts. Useful when running in CI like GitHub Actions and the output from a script may create an annotation.',
   name: '--reporter-hide-prefix',
 }
 
