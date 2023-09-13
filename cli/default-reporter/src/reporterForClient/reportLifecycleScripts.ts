@@ -216,10 +216,10 @@ function highlightLastFolder (p: string) {
 
 const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
 
-function createStreamLifecycleOutput (cwd: string, reporterHidePrefix: boolean) {
+function createStreamLifecycleOutput (cwd: string, hideLifecyclePrefix: boolean) {
   currentColor = 0
   const colorByPrefix: ColorByPkg = new Map()
-  return streamLifecycleOutput.bind(null, colorByPrefix, cwd, reporterHidePrefix)
+  return streamLifecycleOutput.bind(null, colorByPrefix, cwd, hideLifecyclePrefix)
 }
 
 function streamLifecycleOutput (
