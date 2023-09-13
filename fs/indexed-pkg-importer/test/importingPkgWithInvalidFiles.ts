@@ -13,7 +13,7 @@ test('importing a package with invalid files', () => {
       '1*2.txt': __filename,
     },
     force: false,
-    fromStore: false,
+    resolvedFrom: 'remote',
   })
   expect((fs.readdirSync(target)).length).toBe(2)
 })

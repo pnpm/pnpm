@@ -39,9 +39,9 @@ export function createPackageImporterAsync (
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)
     const importMethod = await impPkg(to, {
-      disableRelinkFromStore: opts.disableRelinkFromStore,
+      disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       filesMap,
-      fromStore: opts.filesResponse.fromStore,
+      resolvedFrom: opts.filesResponse.resolvedFrom,
       force: opts.force,
       keepModulesDir: Boolean(opts.keepModulesDir),
     })
@@ -68,9 +68,9 @@ function createPackageImporter (
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)
     const importMethod = impPkg(to, {
-      disableRelinkFromStore: opts.disableRelinkFromStore,
+      disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       filesMap,
-      fromStore: opts.filesResponse.fromStore,
+      resolvedFrom: opts.filesResponse.resolvedFrom,
       force: opts.force,
       keepModulesDir: Boolean(opts.keepModulesDir),
     })

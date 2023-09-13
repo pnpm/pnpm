@@ -84,7 +84,7 @@ export async function runLifecycleHooksConcurrently (
             }
             return opts.storeController.importPackage(targetDir, {
               filesResponse: {
-                fromStore: false,
+                resolvedFrom: 'local-dir',
                 ...filesResponse,
                 filesIndex: {
                   ...filesResponse.filesIndex,

@@ -45,7 +45,7 @@ async function prepareGitHostedPkg (
   cafs.importPackage(tempLocation, {
     filesResponse: {
       filesIndex,
-      fromStore: false,
+      resolvedFrom: 'remote',
     },
     force: true,
   })

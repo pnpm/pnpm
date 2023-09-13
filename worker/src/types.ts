@@ -25,7 +25,7 @@ export interface LinkPkgMessage {
   requiresBuild?: boolean
   force: boolean
   keepModulesDir?: boolean
-  disableRelinkFromStore?: boolean
+  disableRelinkLocalDirDeps?: boolean
 }
 
 export interface SymlinkAllModulesMessage {

@@ -1692,7 +1692,7 @@ test('relink injected dependency on install by default', async () => {
   expect(storeInode).toEqual(getInode())
 })
 
-test('do not relink injected dependency on install when disableRelinkFromStore is set to true', async () => {
+test('do not relink injected dependency on install when disableRelinkLocalDirDeps is set to true', async () => {
   const depManifest = {
     name: 'dep',
     version: '1.0.0',
@@ -1775,9 +1775,7 @@ test('do not relink injected dependency on install when disableRelinkFromStore i
     workspacePackages,
     packageImportMethod: 'hardlink',
     fastUnpack: false,
-    disableRelinkFromStore: true,
-  }, {}, {}, {
-    relinkLocalDirDeps: false,
+    disableRelinkLocalDirDeps: true,
   }))
 
   expect(newInode).toEqual(getInode())
