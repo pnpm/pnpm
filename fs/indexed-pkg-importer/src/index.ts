@@ -135,8 +135,8 @@ function shouldRelinkPkg (
 ) {
   if (opts.disableRelinkLocalDirDeps && opts.resolvedFrom === 'local-dir') {
     try {
-      const dirEnts = fs.readdirSync(to)
-      return dirEnts.length === 0 || dirEnts.length === 1 && dirEnts[0] === 'node_modules'
+      const files = fs.readdirSync(to)
+      return files.length === 0 || files.length === 1 && files[0] === 'node_modules'
     } catch {
       return true
     }
