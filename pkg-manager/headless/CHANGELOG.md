@@ -1,5 +1,27 @@
 # @pnpm/headless
 
+## 22.1.0
+
+### Minor Changes
+
+- 9caa33d53: Remove `disableRelinkFromStore` and `relinkLocalDirDeps`. Replace them with `disableRelinkLocalDirDeps`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/worker@0.3.0
+  - @pnpm/package-requester@24.0.0
+  - @pnpm/lifecycle@16.0.0
+  - @pnpm/deps.graph-builder@0.1.3
+  - @pnpm/build-modules@11.0.15
+  - @pnpm/modules-cleaner@14.0.13
+  - @pnpm/read-project-manifest@5.0.6
+  - @pnpm/link-bins@9.0.7
+  - @pnpm/hoist@8.0.11
+  - @pnpm/symlink-dependency@7.1.0
+
 ## 22.0.1
 
 ### Patch Changes

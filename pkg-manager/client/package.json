@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/client",
-  "version": "10.0.22",
+  "version": "10.0.23",
   "description": "Creates the package resolve and fetch functions",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -1,5 +1,12 @@
 # @pnpm/directory-fetcher
 
+## 7.0.1
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.1
+- @pnpm/read-project-manifest@5.0.6
+
 ## 7.0.0
 
 ### Major Changes

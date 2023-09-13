@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 7.0.14
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@5.0.6
+- @pnpm/list@9.0.12
+
 ## 7.0.13
 
 ### Patch Changes

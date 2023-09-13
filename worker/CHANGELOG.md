@@ -1,5 +1,21 @@
 # @pnpm/worker
 
+## 0.3.0
+
+### Minor Changes
+
+- 9caa33d53: Remove `disableRelinkFromStore` and `relinkLocalDirDeps`. Replace them with `disableRelinkLocalDirDeps`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/create-cafs-store@6.0.0
+  - @pnpm/cafs-types@4.0.0
+  - @pnpm/graceful-fs@3.2.0
+  - @pnpm/store.cafs@2.0.4
+  - @pnpm/symlink-dependency@7.1.0
+
 ## 0.2.1
 
 ### Patch Changes

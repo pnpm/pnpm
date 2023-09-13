@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-audit
 
+## 8.0.24
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@5.0.6
+- @pnpm/config@19.0.3
+- @pnpm/cli-utils@2.0.19
+- @pnpm/audit@7.0.14
+
 ## 8.0.23
 
 ### Patch Changes

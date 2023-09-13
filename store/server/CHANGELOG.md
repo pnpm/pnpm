@@ -1,5 +1,17 @@
 # @pnpm/server
 
+## 17.0.0
+
+### Major Changes
+
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+
 ## 16.0.2
 
 ### Patch Changes

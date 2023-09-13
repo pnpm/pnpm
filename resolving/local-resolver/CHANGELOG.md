@@ -1,5 +1,13 @@
 # @pnpm/local-resolver
 
+## 10.0.7
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/graceful-fs@3.2.0
+  - @pnpm/read-project-manifest@5.0.6
+
 ## 10.0.6
 
 ### Patch Changes

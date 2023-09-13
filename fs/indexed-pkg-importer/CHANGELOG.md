@@ -1,5 +1,19 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 5.0.0
+
+### Major Changes
+
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/graceful-fs@3.2.0
+
 ## 4.1.1
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @pnpm/cli-utils
 
+## 2.0.19
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@5.0.6
+- @pnpm/config@19.0.3
+- @pnpm/default-reporter@12.3.4
+
 ## 2.0.18
 
 ### Patch Changes

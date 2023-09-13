@@ -1,5 +1,16 @@
 # @pnpm/store-controller-types
 
+## 17.0.0
+
+### Major Changes
+
+- 9caa33d53: Remove `disableRelinkFromStore` and `relinkLocalDirDeps`. Replace them with `disableRelinkLocalDirDeps`.
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.1
+
 ## 16.1.0
 
 ### Minor Changes
