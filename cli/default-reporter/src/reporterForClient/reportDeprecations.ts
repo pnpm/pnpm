@@ -37,7 +37,7 @@ export function reportDeprecations (
       switchMap(deprecatedSubdeps => {
         if (deprecatedSubdeps.length > 0) {
           return Rx.of(Rx.of({
-            msg: `${chalk.red('deprecated subdeps')}: ${deprecatedSubdeps.map(log => `${log.pkgName}@${log.pkgVersion}`).join(', ')}`,
+            msg: formatWarn(`${chalk.red(`${deprecatedSubdeps.length} deprecated subdependencies found:`)} ${deprecatedSubdeps.map(log => `${log.pkgName}@${log.pkgVersion}`).sort().join(', ')}`),
           }))
         }
         return Rx.EMPTY
