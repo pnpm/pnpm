@@ -490,6 +490,118 @@ ${chalk.cyan('packages/foo')} ${POSTINSTALL}: Done`)
   })
 })
 
+test('groups lifecycle output when hideLifecyclePrefix is used', (done) => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    reportingOptions: {
+      outputMaxWidth: 79,
+      hideLifecyclePrefix: true,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    optional: false,
+    script: 'node foo',
+    stage: 'preinstall',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30',
+    stage: 'preinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    optional: false,
+    script: 'node foo',
+    stage: 'postinstall',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo I',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/bar',
+    optional: false,
+    script: 'node bar',
+    stage: 'postinstall',
+    wd: 'packages/bar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/bar',
+    line: 'bar I',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/bar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo II',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo III',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/qar',
+    optional: false,
+    script: 'node qar',
+    stage: 'install',
+    wd: 'packages/qar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/qar',
+    exitCode: 0,
+    optional: false,
+    stage: 'install',
+    wd: 'packages/qar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    exitCode: 0,
+    optional: false,
+    stage: 'postinstall',
+    wd: 'packages/foo',
+  })
+
+  expect.assertions(1)
+
+  output$.pipe(skip(9), take(1), map(normalizeNewline)).subscribe({
+    complete: () => done(),
+    error: done,
+    next: (output: string) => {
+      expect(replaceTimeWith1Sec(output)).toBe(`\
+packages/foo ${PREINSTALL}$ node foo
+${OUTPUT_INDENTATION} foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
+${STATUS_INDENTATION} ${STATUS_RUNNING}
+packages/foo ${POSTINSTALL}$ node foo
+${OUTPUT_INDENTATION} foo I
+${OUTPUT_INDENTATION} foo II
+${OUTPUT_INDENTATION} foo III
+${STATUS_INDENTATION} ${STATUS_RUNNING}
+packages/bar ${POSTINSTALL}$ node bar
+${OUTPUT_INDENTATION} bar I
+${STATUS_INDENTATION} ${STATUS_RUNNING}
+packages/qar ${INSTALL}$ node qar
+${STATUS_INDENTATION} ${STATUS_DONE}`)
+    },
+  })
+})
+
 test('collapse lifecycle output when it has too many lines', (done) => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
@@ -851,7 +963,7 @@ test('do not fail if the debug log has no output', (done) => {
       expect(replaceTimeWith1Sec(output)).toBe(`\
 ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s
 .../foo/1.0.0/node_modules/foo ${INSTALL}$ node foo
-${OUTPUT_INDENTATION} 
+${OUTPUT_INDENTATION}
 ${STATUS_INDENTATION} ${failedAt(wd)}`)
     },
   })
