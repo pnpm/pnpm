@@ -33,7 +33,7 @@
     "concurrently": "8.2.0",
     "isexe": "2.0.0",
     "load-json-file": "^6.2.0",
-    "sinon": "^15.2.0",
+    "sinon": "^16.0.0",
     "tempy": "^1.0.1",
     "write-json-file": "^4.3.0"
   },

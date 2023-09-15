@@ -13,7 +13,7 @@
   },
   "devDependencies": {
     "@pnpm/prepare": "workspace:*",
-    "@types/node": "^16.18.41"
+    "@types/node": "^16.18.51"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts",
