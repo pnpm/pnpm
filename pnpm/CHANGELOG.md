@@ -1,5 +1,12 @@
 # pnpm
 
+## 8.7.5
+
+### Patch Changes
+
+- Improve performance of installation by using a worker for creating the symlinks inside `node_modules/.pnpm` [#7069](https://github.com/pnpm/pnpm/pull/7069).
+- Tarballs that have hard links are now unpacked successfully. This fixes a regression introduced in v8.7.0, which was shipped with our new in-house tarball parser [#7062](https://github.com/pnpm/pnpm/pull/7062).
+
 ## 8.7.4
 
 ### Patch Changes

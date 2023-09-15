@@ -63,7 +63,7 @@ test('server', async () => {
   expect(response.body.manifest!.name).toBe('is-positive')
   expect(response.body.manifest!.version).toBe('1.0.0')
 
-  expect(files.fromStore).toBeFalsy()
+  expect(files.resolvedFrom).toBe('remote')
   expect(files.filesIndex).toHaveProperty(['package.json'])
 
   await server.close()
@@ -103,7 +103,7 @@ test('fetchPackage', async () => {
   const { bundledManifest, files } = await response.fetching!()
   expect(bundledManifest).toBeTruthy()
 
-  expect(files.fromStore).toBeFalsy()
+  expect(files.resolvedFrom).toBe('remote')
   expect(files.filesIndex).toHaveProperty(['package.json'])
 
   await server.close()

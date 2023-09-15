@@ -1,5 +1,28 @@
 # @pnpm/lifecycle
 
+## 16.0.0
+
+### Major Changes
+
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/directory-fetcher@7.0.1
+  - @pnpm/link-bins@9.0.7
+
+## 15.0.9
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+  - @pnpm/directory-fetcher@7.0.0
+  - @pnpm/link-bins@9.0.6
+
 ## 15.0.8
 
 ### Patch Changes

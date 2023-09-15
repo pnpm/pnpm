@@ -8,11 +8,12 @@ export interface PackageFileInfo {
   size: number
 }
 
+export type ResolvedFrom = 'store' | 'local-dir' | 'remote'
+
 export type PackageFilesResponse = {
-  fromStore: boolean
+  resolvedFrom: ResolvedFrom
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   sideEffects?: Record<string, Record<string, PackageFileInfo>>
-  local?: boolean
 } & ({
   unprocessed?: false
   filesIndex: Record<string, string>
@@ -22,7 +23,7 @@ export type PackageFilesResponse = {
 })
 
 export interface ImportPackageOpts {
-  disableRelinkFromStore?: boolean
+  disableRelinkLocalDirDeps?: boolean
   requiresBuild?: boolean
   sideEffectsCacheKey?: string
   filesResponse: PackageFilesResponse

@@ -1,5 +1,11 @@
 # @pnpm/graceful-fs
 
+## 3.2.0
+
+### Minor Changes
+
+- 9caa33d53: Export readdirSync.
+
 ## 3.1.0
 
 ### Minor Changes

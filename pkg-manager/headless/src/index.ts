@@ -132,7 +132,7 @@ export interface HeadlessOptions {
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
   symlink?: boolean
-  disableRelinkFromStore?: boolean
+  disableRelinkLocalDirDeps?: boolean
   force: boolean
   storeDir: string
   rawConfig: object
@@ -354,7 +354,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   if (opts.nodeLinker === 'hoisted' && hierarchy && prevGraph) {
     await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
       depsStateCache,
-      disableRelinkFromStore: opts.disableRelinkFromStore,
+      disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       force: opts.force,
       ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
@@ -385,7 +385,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         }),
       linkAllPkgs(opts.storeController, depNodes, {
         force: opts.force,
-        disableRelinkFromStore: opts.disableRelinkFromStore,
+        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         depGraph: graph,
         depsStateCache,
         ignoreScripts: opts.ignoreScripts,
@@ -773,7 +773,7 @@ async function linkAllPkgs (
   opts: {
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
-    disableRelinkFromStore?: boolean
+    disableRelinkLocalDirDeps?: boolean
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
@@ -800,7 +800,7 @@ async function linkAllPkgs (
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
-        disableRelinkFromStore: opts.disableRelinkFromStore,
+        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
         sideEffectsCacheKey,
       })

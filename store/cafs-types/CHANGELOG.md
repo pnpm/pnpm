@@ -1,5 +1,17 @@
 # @pnpm/cafs-types
 
+## 4.0.0
+
+### Major Changes
+
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+## 3.1.0
+
+### Minor Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+
 ## 3.0.1
 
 ### Patch Changes

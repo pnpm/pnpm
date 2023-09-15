@@ -1,5 +1,52 @@
 # @pnpm/plugin-commands-installation
 
+## 13.1.5
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-connection-manager@7.0.0
+  - @pnpm/core@13.0.0
+  - @pnpm/graceful-fs@3.2.0
+  - @pnpm/plugin-commands-rebuild@9.1.14
+  - @pnpm/pnpmfile@5.0.13
+  - @pnpm/package-store@19.0.0
+  - @pnpm/read-project-manifest@5.0.6
+  - @pnpm/config@19.0.3
+  - @pnpm/outdated@13.0.17
+  - @pnpm/cli-utils@2.0.19
+  - @pnpm/workspace.pkgs-graph@2.0.6
+  - @pnpm/workspace.find-packages@1.0.9
+  - @pnpm/filter-workspace-packages@7.0.19
+
+## 13.1.4
+
+### Patch Changes
+
+- @pnpm/package-store@18.0.1
+- @pnpm/core@12.0.1
+- @pnpm/store-connection-manager@6.2.1
+- @pnpm/plugin-commands-rebuild@9.1.13
+- @pnpm/outdated@13.0.16
+
+## 13.1.3
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+- Updated dependencies [48dcd108c]
+  - @pnpm/store-connection-manager@6.2.0
+  - @pnpm/core@12.0.0
+  - @pnpm/plugin-commands-rebuild@9.1.12
+  - @pnpm/pnpmfile@5.0.12
+  - @pnpm/package-store@18.0.0
+  - @pnpm/config@19.0.2
+  - @pnpm/cli-utils@2.0.18
+  - @pnpm/outdated@13.0.15
+  - @pnpm/workspace.find-packages@1.0.8
+  - @pnpm/filter-workspace-packages@7.0.18
+
 ## 13.1.2
 
 ### Patch Changes

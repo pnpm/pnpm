@@ -1,5 +1,34 @@
 # @pnpm/node.fetcher
 
+## 3.0.19
+
+### Major Changes
+
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/create-cafs-store@6.0.0
+  - @pnpm/tarball-fetcher@18.0.0
+  - @pnpm/fetcher-base@15.0.1
+
+## 3.0.18
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@5.1.1
+- @pnpm/tarball-fetcher@17.0.1
+
+## 3.0.17
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/create-cafs-store@5.1.0
+  - @pnpm/tarball-fetcher@17.0.0
+  - @pnpm/fetcher-base@15.0.1
+
 ## 3.0.16
 
 ### Patch Changes

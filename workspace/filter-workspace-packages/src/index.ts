@@ -70,9 +70,18 @@ export interface FilterPackagesOptions {
 export async function filterPackagesFromDir (
   workspaceDir: string,
   filter: WorkspaceFilter[],
-  opts: FilterPackagesOptions & { engineStrict?: boolean, patterns: string[] }
+  opts: FilterPackagesOptions & {
+    engineStrict?: boolean
+    nodeVersion?: string
+    patterns: string[]
+  }
 ) {
-  const allProjects = await findWorkspacePackages(workspaceDir, { engineStrict: opts?.engineStrict, patterns: opts.patterns, sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile })
+  const allProjects = await findWorkspacePackages(workspaceDir, {
+    engineStrict: opts?.engineStrict,
+    patterns: opts.patterns,
+    sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+    nodeVersion: opts.nodeVersion,
+  })
   return {
     allProjects,
     ...(await filterPackages(allProjects, filter, opts)),

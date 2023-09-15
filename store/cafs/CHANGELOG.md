@@ -1,5 +1,24 @@
 # @pnpm/store.cafs
 
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/graceful-fs@3.2.0
+  - @pnpm/fetcher-base@15.0.1
+
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+  - @pnpm/fetcher-base@15.0.1
+
 ## 2.0.2
 
 ### Patch Changes
