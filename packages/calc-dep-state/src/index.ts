@@ -1,7 +1,11 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { refToRelative } from '@pnpm/dependency-path'
 import { type Lockfile } from '@pnpm/lockfile-types'
+import {
+  nameVerFromPkgSnapshot,
+} from '@pnpm/lockfile-utils'
 import sortKeys from 'sort-keys'
+import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 
 export interface DepsGraph {
   [depPath: string]: DepsGraphNode
@@ -62,6 +66,38 @@ function calcDepStateObj (
   }
   cache[depPath] = sortKeys(state)
   return cache[depPath]
+}
+
+export function lockfileToDepGraphWithHashes (lockfile: Lockfile): DepsGraph {
+  const graph: DepsGraph = {}
+  if (lockfile.packages != null) {
+    Object.entries(lockfile.packages).map(async ([depPath, pkgSnapshot]) => {
+      const children = lockfileDepsToGraphChildren({
+        ...pkgSnapshot.dependencies,
+        ...pkgSnapshot.optionalDependencies,
+      })
+      graph[depPath] = {
+        children,
+        depPath,
+      }
+    })
+  }
+  const newGraph: DepsGraph = {}
+  const cache: DepsStateCache = {}
+  for (const [depPath, gv] of Object.entries(graph)) {
+    const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, lockfile.packages![depPath])
+    const h = `${pkgName}@${pkgVersion}_${createBase32Hash(calcDepState(graph, cache, depPath, { isBuilt: true }))}`
+    const newChildren: Record<string, string> = {}
+    for (const [alias, depPathChild] of Object.entries(gv.children)) {
+      const { name: pkgNameC, version: pkgVersionC } = nameVerFromPkgSnapshot(depPathChild, lockfile.packages![depPathChild])
+      newChildren[alias] = `${pkgNameC}@${pkgVersionC}_${createBase32Hash(calcDepState(graph, cache, depPathChild, { isBuilt: true }))}`
+    }
+    newGraph[h] = {
+      depPath,
+      children: newChildren,
+    }
+  }
+  return newGraph
 }
 
 export function lockfileToDepGraph (lockfile: Lockfile): DepsGraph {

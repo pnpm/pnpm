@@ -32,6 +32,8 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/crypto.base32-hash": "workspace:*",
     "sort-keys": "^4.2.0"
   },
   "devDependencies": {
