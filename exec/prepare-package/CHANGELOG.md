@@ -1,5 +1,11 @@
 # @pnpm/prepare-package
 
+## 5.0.12
+
+### Patch Changes
+
+- 17d2ddb05: Don't run the `prepublishOnly` scripts of git-hosted dependencies [#7026](https://github.com/pnpm/pnpm/issues/7026).
+
 ## 5.0.11
 
 ### Patch Changes

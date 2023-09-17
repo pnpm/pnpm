@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 12.1.1
+
+### Patch Changes
+
+- Updated dependencies [78a97774d]
+  - @pnpm/headless@22.1.1
+  - @pnpm/package-requester@24.0.0
+
 ## 12.1.0
 
 ### Minor Changes

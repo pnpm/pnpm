@@ -1,5 +1,15 @@
 # @pnpm/filter-workspace-packages
 
+## 7.1.0
+
+### Minor Changes
+
+- a6f5e5c9c: Fix a bug in which `use-node-version` or `node-version` isn't passed down to `checkEngine` when using pnpm workspace, resulting in an error [#6981](https://github.com/pnpm/pnpm/issues/6981).
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.0.10
+
 ## 7.0.19
 
 ### Patch Changes
