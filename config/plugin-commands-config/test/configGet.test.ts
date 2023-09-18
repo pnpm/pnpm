@@ -27,3 +27,26 @@ test('config get a boolean should return string format', async () => {
 
   expect(configKey).toEqual('true')
 })
+
+test('config get without key show list all settings ', async () => {
+  const rawConfig = {
+    'store-dir': '~/store',
+    'fetch-retries': '2',
+  }
+  const getOutput = await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    rawConfig,
+  }, ['get'])
+
+  const listOutput = await config.handler({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    rawConfig,
+  }, ['list'])
+
+  expect(getOutput).toEqual(listOutput)
+})
