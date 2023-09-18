@@ -466,6 +466,52 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           .map(({ depPath }) => depPath)
       )
   }
+
+  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, wantedLockfile, {
+    pkgLocationsByDepPath,
+    virtualStoreDir,
+  })
+  if (opts.enableModulesDir !== false) {
+    const injectedDeps: Record<string, string[]> = {}
+    for (const project of projectsToBeBuilt) {
+      if (project.targetDirs.length > 0) {
+        injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))
+      }
+    }
+    await writeModulesManifest(rootModulesDir, {
+      hoistedDependencies: newHoistedDependencies,
+      hoistPattern: opts.hoistPattern,
+      included: opts.include,
+      injectedDeps,
+      layoutVersion: LAYOUT_VERSION,
+      hoistedLocations,
+      nodeLinker: opts.nodeLinker,
+      packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
+      pendingBuilds: opts.pendingBuilds,
+      publicHoistPattern: opts.publicHoistPattern,
+      prunedAt: opts.pruneVirtualStore === true || opts.prunedAt == null
+        ? new Date().toUTCString()
+        : opts.prunedAt,
+      registries: opts.registries,
+      skipped: Array.from(skipped),
+      storeDir: opts.storeDir,
+      virtualStoreDir,
+    }, {
+      makeModulesDir: Object.keys(filteredLockfile.packages ?? {}).length > 0,
+    })
+    if (opts.useLockfile) {
+      // We need to write the wanted lockfile as well.
+      // Even though it will only be changed if the workspace will have new projects with no dependencies.
+      await writeLockfiles({
+        wantedLockfileDir: opts.lockfileDir,
+        currentLockfileDir: virtualStoreDir,
+        wantedLockfile,
+        currentLockfile: filteredLockfile,
+      })
+    } else {
+      await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
+    }
+  }
   if (!opts.ignoreScripts || Object.keys(opts.patchedDependencies ?? {}).length > 0) {
     const directNodes = new Set<string>()
     for (const id of union(importerIds, ['.'])) {
@@ -509,11 +555,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     })
   }
 
-  const projectsToBeBuilt = extendProjectsWithTargetDirs(selectedProjects, wantedLockfile, {
-    pkgLocationsByDepPath,
-    virtualStoreDir,
-  })
-
   if (opts.enableModulesDir !== false) {
     /** Skip linking and due to no project manifest */
     if (!opts.ignorePackageManifest) {
@@ -543,45 +584,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           )
         }
       }))
-    }
-    const injectedDeps: Record<string, string[]> = {}
-    for (const project of projectsToBeBuilt) {
-      if (project.targetDirs.length > 0) {
-        injectedDeps[project.id] = project.targetDirs.map((targetDir) => path.relative(opts.lockfileDir, targetDir))
-      }
-    }
-    await writeModulesManifest(rootModulesDir, {
-      hoistedDependencies: newHoistedDependencies,
-      hoistPattern: opts.hoistPattern,
-      included: opts.include,
-      injectedDeps,
-      layoutVersion: LAYOUT_VERSION,
-      hoistedLocations,
-      nodeLinker: opts.nodeLinker,
-      packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
-      pendingBuilds: opts.pendingBuilds,
-      publicHoistPattern: opts.publicHoistPattern,
-      prunedAt: opts.pruneVirtualStore === true || opts.prunedAt == null
-        ? new Date().toUTCString()
-        : opts.prunedAt,
-      registries: opts.registries,
-      skipped: Array.from(skipped),
-      storeDir: opts.storeDir,
-      virtualStoreDir,
-    }, {
-      makeModulesDir: Object.keys(filteredLockfile.packages ?? {}).length > 0,
-    })
-    if (opts.useLockfile) {
-      // We need to write the wanted lockfile as well.
-      // Even though it will only be changed if the workspace will have new projects with no dependencies.
-      await writeLockfiles({
-        wantedLockfileDir: opts.lockfileDir,
-        currentLockfileDir: virtualStoreDir,
-        wantedLockfile,
-        currentLockfile: filteredLockfile,
-      })
-    } else {
-      await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
     }
   }
 
