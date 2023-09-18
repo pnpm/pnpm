@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { DedupeCheckIssuesError } from '@pnpm/dedupe.check'
 import { readProjects } from '@pnpm/filter-workspace-packages'
@@ -8,7 +9,6 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { diff } from 'jest-diff'
 import readYamlFile from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils'
-import exists from 'path-exists'
 
 const f = fixtures(__dirname)
 
@@ -105,8 +105,8 @@ describe('pnpm dedupe', () => {
 
     await dedupe.handler(opts)
 
-    expect(await exists('package.json')).toBeTruthy()
-    expect(await exists('output.json')).toBeFalsy()
+    expect(fs.existsSync('package.json')).toBeTruthy()
+    expect(fs.existsSync('output.json')).toBeFalsy()
   })
 })
 
