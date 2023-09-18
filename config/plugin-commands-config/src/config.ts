@@ -87,20 +87,29 @@ export async function handler (opts: ConfigCommandOptions, params: string[]) {
     opts.global = true
   }
   switch (params[0]) {
-  case 'set': {
-    let [key, value] = params.slice(1)
-    if (value == null) {
-      const parts = key.split('=')
-      key = parts.shift()!
-      value = parts.join('=')
+  case 'set':
+  case 'delete': {
+    if (!params[1]) {
+      throw new PnpmError('CONFIG_NO_PARAMS', `\`pnpm config ${params[0]}\` requires the config key`)
     }
-    return configSet(opts, key, value ?? '')
+    if (params[0] === 'set') {
+      let [key, value] = params.slice(1)
+      if (value == null) {
+        const parts = key.split('=')
+        key = parts.shift()!
+        value = parts.join('=')
+      }
+      return configSet(opts, key, value ?? '')
+    } else {
+      return configSet(opts, params[1], null)
+    }
   }
   case 'get': {
-    return configGet(opts, params[1])
-  }
-  case 'delete': {
-    return configSet(opts, params[1], null)
+    if (params[1]) {
+      return configGet(opts, params[1])
+    } else {
+      return configList(opts)
+    }
   }
   case 'list': {
     return configList(opts)
