@@ -15,6 +15,9 @@
     "dist",
     "bin"
   ],
+  "dependencies": {
+    "v8-compile-cache": "2.4.0"
+  },
   "optionalDependencies": {
     "node-gyp": "^9.4.0"
   },

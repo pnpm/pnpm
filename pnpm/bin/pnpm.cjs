@@ -12,6 +12,13 @@ ${COMPATIBILITY_PAGE}`)
   process.exit(1)
 }
 
+// We need to load v8-compile-cache.js separately in order to have effect
+try {
+  require('v8-compile-cache');
+} catch {
+  // We don't have/need to care about v8-compile-cache failed
+}
+
 global['pnpm__startedAt'] = Date.now()
 require('../dist/pnpm.cjs')
 
