@@ -4,9 +4,11 @@ import { dedupeDiffCheck } from '@pnpm/dedupe.check'
 import renderHelp from 'render-help'
 import { type InstallCommandOptions } from './install'
 import { installDeps } from './installDeps'
+import { types as allTypes } from '@pnpm/config'
+import pick from 'ramda/src/pick'
 
 export function rcOptionsTypes () {
-  return {}
+  return pick(['ignore-scripts'], allTypes)
 }
 
 export function cliOptionsTypes () {
@@ -30,6 +32,10 @@ export function help () {
             description: 'Check if running dedupe would result in changes without installing packages or editing the lockfile. Exits with a non-zero status code if changes are possible.',
             name: '--check',
           },
+          {
+            description: "Don't run lifecycle scripts",
+            name: '--ignore-scripts',
+          },
         ],
       },
     ],
@@ -51,6 +57,7 @@ export async function handler (opts: DedupeCommandOptions) {
   return installDeps({
     ...opts,
     dedupe: true,
+    ignoreScripts: opts.ignoreScripts ?? false,
     include,
     includeDirect: include,
     lockfileCheck: opts.check ? dedupeDiffCheck : undefined,

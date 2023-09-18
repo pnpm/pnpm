@@ -8,6 +8,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { diff } from 'jest-diff'
 import readYamlFile from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils'
+import exists from 'path-exists'
 
 const f = fixtures(__dirname)
 
@@ -71,6 +72,42 @@ describe('pnpm dedupe', () => {
         },
       },
     })
+  })
+
+  test('dedupe: ignores all the lifecycle scripts when --ignore-scripts is used', async () => {
+    const project = prepare({
+      name: 'test-dedupe-with-ignore-scripts',
+      version: '0.0.0',
+
+      dependencies: {
+        'json-append': '1.1.1',
+      },
+
+      scripts: {
+        // eslint-disable:object-literal-sort-keys
+        preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
+        prepare: 'node -e "process.stdout.write(\'prepare\')" | json-append output.json',
+        postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
+        // eslint-enable:object-literal-sort-keys
+      },
+    })
+
+    const opts = {
+      ...DEFAULT_OPTS,
+      recursive: true,
+      dir: project.dir(),
+      ignoreScripts: true,
+      lockfileDir: project.dir(),
+      workspaceDir: project.dir(),
+      resolutionMode: 'highest' as const, // TODO: this should work with the default resolution mode (TODOv8)
+    }
+
+    await install.handler(opts)
+
+    await dedupe.handler(opts)
+
+    expect(await exists('package.json')).toBeTruthy()
+    expect(await exists('output.json')).toBeFalsy()
   })
 })
 
