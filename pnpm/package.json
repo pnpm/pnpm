@@ -105,6 +105,7 @@
     "symlink-dir": "^5.2.0",
     "tempy": "^1.0.1",
     "tree-kill": "^1.2.2",
+    "v8-compile-cache": "2.4.0",
     "which": "^3.0.1",
     "write-json-file": "^4.3.0",
     "write-pkg": "4.0.0",
