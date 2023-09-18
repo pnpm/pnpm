@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { DedupeCheckIssuesError } from '@pnpm/dedupe.check'
 import { readProjects } from '@pnpm/filter-workspace-packages'
@@ -71,6 +72,41 @@ describe('pnpm dedupe', () => {
         },
       },
     })
+  })
+
+  test('dedupe: ignores all the lifecycle scripts when --ignore-scripts is used', async () => {
+    const project = prepare({
+      name: 'test-dedupe-with-ignore-scripts',
+      version: '0.0.0',
+
+      dependencies: {
+        'json-append': '1.1.1',
+      },
+
+      scripts: {
+        // eslint-disable:object-literal-sort-keys
+        preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
+        prepare: 'node -e "process.stdout.write(\'prepare\')" | json-append output.json',
+        postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
+        // eslint-enable:object-literal-sort-keys
+      },
+    })
+
+    const opts = {
+      ...DEFAULT_OPTS,
+      recursive: true,
+      dir: project.dir(),
+      ignoreScripts: true,
+      lockfileDir: project.dir(),
+      workspaceDir: project.dir(),
+    }
+
+    await install.handler(opts)
+
+    await dedupe.handler(opts)
+
+    expect(fs.existsSync('package.json')).toBeTruthy()
+    expect(fs.existsSync('output.json')).toBeFalsy()
   })
 })
 
