@@ -197,6 +197,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
 && shx cp -r node-gyp-bin dist/node-gyp-bin \
 && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts \
 && shx cp -r node_modules/ps-list/vendor dist/vendor \
+&& shx cp node_modules/v8-compile-cache/v8-compile-cache.js dist/v8-compile-cache.js \
 && shx cp pnpmrc dist/pnpmrc'
   } else {
     scripts.prepublishOnly = 'pnpm run compile'
