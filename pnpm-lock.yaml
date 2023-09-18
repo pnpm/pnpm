@@ -4285,6 +4285,10 @@ importers:
         version: 1.0.1
 
   pnpm:
+    dependencies:
+      v8-compile-cache:
+        specifier: 2.4.0
+        version: 2.4.0
     optionalDependencies:
       node-gyp:
         specifier: ^9.4.0
@@ -4548,9 +4552,6 @@ importers:
       tree-kill:
         specifier: ^1.2.2
         version: 1.2.2
-      v8-compile-cache:
-        specifier: 2.4.0
-        version: 2.4.0
       which:
         specifier: ^3.0.1
         version: 3.0.1
@@ -9008,7 +9009,7 @@ packages:
     resolution: {integrity: sha512-YmG+oTBCyrAoMIx5g2I9CfyurSpHyoan+9SCj7laaFKseOe3lFEyIVKvwRBQMmSt8uzh+eY5RWeQnoyyOs6AbA==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
-      '@yarnpkg/fslib': ^3.0.0-rc.25
+      '@yarnpkg/fslib': 3.0.0-rc.25
     dependencies:
       '@types/emscripten': 1.39.7
       '@yarnpkg/fslib': 3.0.0-rc.25
@@ -16742,7 +16743,7 @@ packages:
 
   /v8-compile-cache@2.4.0:
     resolution: {integrity: sha512-ocyWc3bAHBB/guyqJQVI5o4BZkPhznPYUG2ea80Gond/BgNWpap8TOmLSeeQG7bnh2KMISxskdADG59j7zruhw==}
-    dev: true
+    dev: false
 
   /v8-to-istanbul@9.1.0:
     resolution: {integrity: sha512-6z3GW9x8G1gd+JIIgQQQxXuiJtCXeAjp6RaPEPLv62mH3iPHPxV6W3robxtCzNErRo6ZwTmzWhsbNvjyEBKzKA==}

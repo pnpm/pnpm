@@ -14,7 +14,7 @@ ${COMPATIBILITY_PAGE}`)
 
 // We need to load v8-compile-cache.js separately in order to have effect
 try {
-  require('../dist/v8-compile-cache.js');
+  require('v8-compile-cache');
 } catch {
   // We don't have/need to care about v8-compile-cache failed
 }

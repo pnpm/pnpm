@@ -15,6 +15,9 @@
     "dist",
     "bin"
   ],
+  "dependencies": {
+    "v8-compile-cache": "2.4.0"
+  },
   "optionalDependencies": {
     "node-gyp": "^9.4.0"
   },
@@ -105,7 +108,6 @@
     "symlink-dir": "^5.2.0",
     "tempy": "^1.0.1",
     "tree-kill": "^1.2.2",
-    "v8-compile-cache": "2.4.0",
     "which": "^3.0.1",
     "write-json-file": "^4.3.0",
     "write-pkg": "4.0.0",
@@ -160,7 +162,7 @@
     "prepublishOnly": "pnpm compile && npm cache clear --force && publish-packed --prune --npm-client=pnpm --dest=dist",
     "postpublish": "publish-packed",
     "_compile": "tsc --build",
-    "compile": "tsc --build && pnpm run lint --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp node_modules/v8-compile-cache/v8-compile-cache.js dist/v8-compile-cache.js && shx cp pnpmrc dist/pnpmrc"
+    "compile": "tsc --build && pnpm run lint --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc"
   },
   "publishConfig": {
     "tag": "next-8",
