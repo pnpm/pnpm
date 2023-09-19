@@ -73,7 +73,7 @@
     "@pnpm/write-project-manifest": "workspace:*",
     "@types/cross-spawn": "^6.0.3",
     "@types/is-windows": "^1.0.0",
-    "@types/pnpm__byline": "npm:@types/byline@^4.2.33",
+    "@types/pnpm__byline": "npm:@types/byline@^4.2.34",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",
     "@types/which": "^2.0.2",

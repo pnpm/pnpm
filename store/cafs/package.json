@@ -31,7 +31,7 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/is-gzip": "2.0.0",
-    "@types/node": "^16.18.51",
+    "@types/node": "^16.18.52",
     "@types/ssri": "^7.1.1",
     "tempy": "^1.0.1"
   },

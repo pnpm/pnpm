@@ -42,7 +42,7 @@
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/retry": "^0.2.0",
-    "encode-registry": "^3.0.0",
+    "encode-registry": "^3.0.1",
     "load-json-file": "^6.2.0",
     "lru-cache": "^9.1.2",
     "normalize-path": "^3.0.0",
