@@ -14,6 +14,7 @@ import { type DependenciesField, DEPENDENCIES_FIELDS, type Registries } from '@p
 import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
+import { createHash } from 'crypto'
 import { type PackageNode } from './PackageNode'
 import { type SearchFunction } from './types'
 import { getTree } from './getTree'
@@ -212,7 +213,90 @@ async function dependenciesHierarchyForPackage (
     })
   )
 
-  return result
+  const prunedResult = pruneTreeToGetFirst10EndLeafs(result)
+
+  return prunedResult
+}
+
+function pruneTreeToGetFirst10EndLeafs (tree: DependenciesHierarchy | null): DependenciesHierarchy | null {
+  if (tree === null) {
+    return null
+  }
+
+  const endLeafPaths: PackageNode[][] = []
+
+  const visitedNodes = new Set<string>()
+
+  function dfs (node: PackageNode, path: PackageNode[]): void {
+    // Check for circular property here
+    if (node.circular) {
+      return
+    }
+
+    const nodeId = `${node.name}@${node.version}` // Create a unique identifier for the node
+    if (visitedNodes.has(nodeId)) {
+      return // Skip this node, we've visited it before
+    }
+
+    visitedNodes.add(nodeId) // Mark this node as visited
+    const newPath = [...path, node]
+
+    if (!node.dependencies || node.dependencies.length === 0) {
+      endLeafPaths.push(newPath)
+      if (endLeafPaths.length >= 10) {
+        return
+      }
+    }
+
+    for (const child of node.dependencies ?? []) {
+      dfs(child, newPath)
+      if (endLeafPaths.length >= 10) {
+        return
+      }
+    }
+
+    // Remove the visited mark to allow this node to be included in other end leaf paths.
+    visitedNodes.delete(nodeId)
+  }
+
+  if (tree.dependencies) {
+    for (const node of tree.dependencies) {
+      dfs(node, [])
+    }
+  }
+
+  // Trim paths to first 10 end leaves
+  const first10Paths = endLeafPaths.slice(0, 10)
+
+  // Map to quickly find parent nodes
+  const map = new Map<string, PackageNode>()
+
+  // Reconstruct the tree based on these paths
+  const newTree: DependenciesHierarchy = { dependencies: [] }
+
+  for (const path of first10Paths) {
+    let currentDependencies: PackageNode[] = newTree.dependencies!
+
+    let pathSoFar = ''
+
+    for (const node of path) {
+      pathSoFar += `${node.name}@${node.version},`
+      // Calculate the hash of the path string to use as the id, since the path is unique
+      const id = createHash('sha256').update(pathSoFar).digest('hex')
+
+      let existingNode = map.get(id)
+
+      if (!existingNode) {
+        existingNode = { ...node, dependencies: [] }
+        currentDependencies.push(existingNode)
+        map.set(id, existingNode)
+      }
+
+      currentDependencies = existingNode.dependencies!
+    }
+  }
+
+  return newTree
 }
 
 function getAllDirectDependencies (projectSnapshot: ProjectSnapshot) {
