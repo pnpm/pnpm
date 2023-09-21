@@ -67,7 +67,8 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
         }
       }
       return {
-        name: renderedTable[i],
+        name: outdatedPkg.name,
+        message: renderedTable[i],
         value: outdatedPkg.name,
       }
     })

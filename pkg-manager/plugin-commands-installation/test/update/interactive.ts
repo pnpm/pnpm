@@ -100,12 +100,14 @@ test('interactively update', async () => {
       choices: [
         headerChoice,
         {
-          name: chalk`is-negative                                                  1.0.0 ❯ 1.0.{greenBright.bold 1}                 `,
+          message: chalk`is-negative                                                  1.0.0 ❯ 1.0.{greenBright.bold 1}                 `,
           value: 'is-negative',
+          name: 'is-negative',
         },
         {
-          name: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
+          message: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
           value: 'micromatch',
+          name: 'micromatch',
         },
       ],
       name: 'dependencies',
@@ -149,16 +151,19 @@ test('interactively update', async () => {
       choices: [
         headerChoice,
         {
-          name: chalk`is-negative                                                  1.0.1 ❯ {redBright.bold 2.1.0}                 `,
+          message: chalk`is-negative                                                  1.0.1 ❯ {redBright.bold 2.1.0}                 `,
           value: 'is-negative',
+          name: 'is-negative',
         },
         {
-          name: chalk`is-positive                                                  2.0.0 ❯ {redBright.bold 3.1.0}                 `,
+          message: chalk`is-positive                                                  2.0.0 ❯ {redBright.bold 3.1.0}                 `,
           value: 'is-positive',
+          name: 'is-positive',
         },
         {
-          name: chalk`micromatch                                                   3.0.0 ❯ {redBright.bold 4.0.5}                 `,
+          message: chalk`micromatch                                                   3.0.0 ❯ {redBright.bold 4.0.5}                 `,
           value: 'micromatch',
+          name: 'micromatch',
         },
       ],
       name: 'dependencies',
@@ -314,8 +319,9 @@ test('interactively update should ignore dependencies from the ignoreDependencie
             value: '',
           },
           {
-            name: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
+            message: chalk`micromatch                                                   3.0.0 ❯ 3.{yellowBright.bold 1.10}                `,
             value: 'micromatch',
+            name: 'micromatch',
           },
         ],
         name: 'dependencies',
