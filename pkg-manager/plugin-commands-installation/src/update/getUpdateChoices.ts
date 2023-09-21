@@ -14,6 +14,7 @@ export interface ChoiceRow {
 type ChoiceGroup = Array<{
   name: string
   choices: ChoiceRow[]
+  disabled?: boolean
 }>
 
 export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], workspacesEnabled: boolean) {
@@ -73,7 +74,7 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
       }
     })
 
-    finalChoices.push({ name: depGroup, choices })
+    finalChoices.push({ name: depGroup, choices, disabled: true })
 
     return finalChoices
   }, [])
