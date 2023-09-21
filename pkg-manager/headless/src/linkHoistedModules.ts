@@ -124,7 +124,7 @@ async function linkAllPkgsInOrder (
         await limitLinking(async () => {
           const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
             filesResponse,
-            force: opts.force || depNode.depPath !== prevGraph[dir]?.depPath,
+            force: true,
             disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
             keepModulesDir: true,
             requiresBuild: depNode.requiresBuild || depNode.patchFile != null,

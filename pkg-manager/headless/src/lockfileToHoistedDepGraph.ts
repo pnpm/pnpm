@@ -12,6 +12,7 @@ import {
 } from '@pnpm/lockfile-utils'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
+import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type PatchFile, type Registries } from '@pnpm/types'
 import {
   type FetchPackageToStoreFunction,
@@ -193,8 +194,12 @@ async function fetchDeps (
     // It will only be missing if the user manually removed it.
     // That shouldn't normally happen but Bit CLI does remove node_modules in component directories:
     // https://github.com/teambit/bit/blob/5e1eed7cd122813ad5ea124df956ee89d661d770/scopes/dependencies/dependency-resolver/dependency-installer.ts#L169
+    //
+    // We also verify that the package that is present has the expected version.
+    // This check is required because there is no guarantee the modules manifest and current lockfile were
+    // successfully saved after node_modules was changed during installation.
     const skipFetch = opts.currentHoistedLocations?.[depPath]?.includes(depLocation) &&
-      await pathExists(path.join(opts.lockfileDir, depLocation))
+      await dirHasPackageJsonWithVersion(path.join(opts.lockfileDir, depLocation), pkgVersion)
     const pkgResolution = {
       id: packageId,
       resolution,
@@ -252,6 +257,19 @@ async function fetchDeps (
     opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationsByDepPath, opts)
   }))
   return depHierarchy
+}
+
+async function dirHasPackageJsonWithVersion (dir: string, expectedVersion?: string): Promise<boolean> {
+  if (!expectedVersion) return pathExists(dir)
+  try {
+    const manifest = await safeReadPackageJsonFromDir(dir)
+    return manifest?.version === expectedVersion
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'ENOENT') {
+      return pathExists(dir)
+    }
+    throw err
+  }
 }
 
 function getChildren (
