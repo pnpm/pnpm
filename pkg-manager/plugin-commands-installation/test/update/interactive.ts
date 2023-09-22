@@ -111,6 +111,7 @@ test('interactively update', async () => {
         },
       ],
       name: 'dependencies',
+      disabled: true,
     },
   ])
   expect(prompt).toBeCalledWith(
@@ -167,6 +168,7 @@ test('interactively update', async () => {
         },
       ],
       name: 'dependencies',
+      disabled: true,
     },
   ])
   expect(prompt).toBeCalledWith(
@@ -325,6 +327,7 @@ test('interactively update should ignore dependencies from the ignoreDependencie
           },
         ],
         name: 'dependencies',
+        disabled: true,
       },
     ]
   )
