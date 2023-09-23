@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-env",
-  "version": "4.0.23",
+  "version": "4.0.29",
   "description": "pnpm commands for managing Node.js",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -46,14 +46,14 @@
     "load-json-file": "^6.2.0",
     "render-help": "^1.0.3",
     "semver": "^7.5.4",
-    "symlink-dir": "^5.1.1",
+    "symlink-dir": "^5.2.0",
     "write-json-file": "^4.3.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/adm-zip": "^0.5.0",
+    "@types/adm-zip": "^0.5.1",
     "@types/graceful-fs": "^4.1.6",
     "@types/is-windows": "^1.0.0",
     "@types/semver": "7.3.13",

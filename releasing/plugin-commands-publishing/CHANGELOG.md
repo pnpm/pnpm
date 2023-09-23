@@ -1,5 +1,58 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.3.12
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+- @pnpm/client@10.0.24
+
+## 7.3.11
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/lifecycle@16.0.0
+  - @pnpm/client@10.0.23
+  - @pnpm/config@19.0.3
+  - @pnpm/cli-utils@2.0.19
+  - @pnpm/exportable-manifest@5.0.7
+
+## 7.3.10
+
+### Patch Changes
+
+- @pnpm/client@10.0.22
+
+## 7.3.9
+
+### Patch Changes
+
+- @pnpm/lifecycle@15.0.9
+- @pnpm/config@19.0.2
+- @pnpm/client@10.0.21
+- @pnpm/cli-utils@2.0.18
+- @pnpm/exportable-manifest@5.0.6
+
+## 7.3.8
+
+### Patch Changes
+
+- @pnpm/client@10.0.20
+- @pnpm/config@19.0.1
+- @pnpm/exportable-manifest@5.0.6
+- @pnpm/lifecycle@15.0.8
+
+## 7.3.7
+
+### Patch Changes
+
+- @pnpm/lifecycle@15.0.8
+- @pnpm/client@10.0.19
+- @pnpm/config@19.0.1
+- @pnpm/exportable-manifest@5.0.6
+- @pnpm/cli-utils@2.0.17
+
 ## 7.3.6
 
 ### Patch Changes

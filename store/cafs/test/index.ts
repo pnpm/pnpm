@@ -59,7 +59,7 @@ describe('checkPkgFilesIntegrity()', () => {
           size: 10,
         },
       },
-    })).toBeFalsy()
+    }).passed).toBeFalsy()
   })
 })
 
@@ -112,4 +112,13 @@ test('unpack an older version of tar that prefixes with spaces', () => {
     'lib/syml.js',
     'package.json',
   ])
+})
+
+test('unpack a tarball that contains hard links', () => {
+  const dest = tempy.directory()
+  const cafs = createCafs(dest)
+  const { filesIndex } = cafs.addFilesFromTarball(
+    fs.readFileSync(path.join(__dirname, 'fixtures/vue.examples.todomvc.todo-store-0.0.1.tgz'))
+  )
+  expect(Object.keys(filesIndex).length).toBeGreaterThan(0)
 })

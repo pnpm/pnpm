@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "21.0.14",
+  "version": "22.1.1",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -12,7 +12,8 @@
     "!*.map"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/logger": "^5.0.0",
+    "@pnpm/worker": "workspace:^"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
@@ -32,7 +33,7 @@
     "concurrently": "8.2.0",
     "isexe": "2.0.0",
     "load-json-file": "^6.2.0",
-    "sinon": "^15.2.0",
+    "sinon": "^16.0.0",
     "tempy": "^1.0.1",
     "write-json-file": "^4.3.0"
   },

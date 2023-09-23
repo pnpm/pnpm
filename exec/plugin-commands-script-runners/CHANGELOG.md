@@ -1,5 +1,56 @@
 # @pnpm/plugin-commands-script-runners
 
+## 7.1.26
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.6
+- @pnpm/cli-utils@2.0.20
+
+## 7.1.25
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/lifecycle@16.0.0
+  - @pnpm/plugin-commands-installation@13.1.5
+  - @pnpm/read-project-manifest@5.0.6
+  - @pnpm/config@19.0.3
+  - @pnpm/cli-utils@2.0.19
+
+## 7.1.24
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.4
+
+## 7.1.23
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.3
+- @pnpm/lifecycle@15.0.9
+- @pnpm/config@19.0.2
+- @pnpm/cli-utils@2.0.18
+
+## 7.1.22
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.2
+- @pnpm/config@19.0.1
+- @pnpm/lifecycle@15.0.8
+
+## 7.1.21
+
+### Patch Changes
+
+- b962c27ae: Allow create scoped package with preferred version. [#7053](https://github.com/pnpm/pnpm/issues/7053)
+  - @pnpm/lifecycle@15.0.8
+  - @pnpm/plugin-commands-installation@13.1.1
+  - @pnpm/config@19.0.1
+  - @pnpm/cli-utils@2.0.17
+
 ## 7.1.20
 
 ### Patch Changes

@@ -1,5 +1,62 @@
 # @pnpm/plugin-commands-patching
 
+## 3.1.27
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.6
+- @pnpm/cli-utils@2.0.20
+- @pnpm/store-connection-manager@7.0.1
+
+## 3.1.26
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-connection-manager@7.0.0
+  - @pnpm/plugin-commands-installation@13.1.5
+  - @pnpm/read-project-manifest@5.0.6
+  - @pnpm/config@19.0.3
+  - @pnpm/cli-utils@2.0.19
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 3.1.25
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.4
+- @pnpm/store-connection-manager@6.2.1
+
+## 3.1.24
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-connection-manager@6.2.0
+  - @pnpm/plugin-commands-installation@13.1.3
+  - @pnpm/config@19.0.2
+  - @pnpm/cli-utils@2.0.18
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 3.1.23
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.2
+- @pnpm/store-connection-manager@6.1.3
+- @pnpm/config@19.0.1
+- @pnpm/patching.apply-patch@2.0.5
+
+## 3.1.22
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@6.1.2
+- @pnpm/plugin-commands-installation@13.1.1
+- @pnpm/config@19.0.1
+- @pnpm/patching.apply-patch@2.0.5
+- @pnpm/cli-utils@2.0.17
+
 ## 3.1.21
 
 ### Patch Changes

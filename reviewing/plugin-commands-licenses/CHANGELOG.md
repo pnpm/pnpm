@@ -1,5 +1,42 @@
 # @pnpm/plugin-commands-licenses
 
+## 2.0.26
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+
+## 2.0.25
+
+### Patch Changes
+
+- @pnpm/config@19.0.3
+- @pnpm/license-scanner@2.0.19
+- @pnpm/cli-utils@2.0.19
+
+## 2.0.24
+
+### Patch Changes
+
+- @pnpm/config@19.0.2
+- @pnpm/license-scanner@2.0.18
+- @pnpm/cli-utils@2.0.18
+
+## 2.0.23
+
+### Patch Changes
+
+- @pnpm/license-scanner@2.0.17
+- @pnpm/config@19.0.1
+
+## 2.0.22
+
+### Patch Changes
+
+- @pnpm/license-scanner@2.0.16
+- @pnpm/config@19.0.1
+- @pnpm/cli-utils@2.0.17
+
 ## 2.0.21
 
 ### Patch Changes

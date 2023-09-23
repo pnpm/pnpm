@@ -25,6 +25,16 @@ export interface LinkPkgMessage {
   requiresBuild?: boolean
   force: boolean
   keepModulesDir?: boolean
+  disableRelinkLocalDirDeps?: boolean
+}
+
+export interface SymlinkAllModulesMessage {
+  type: 'symlinkAllModules'
+  deps: Array<{
+    children: Record<string, string>
+    modules: string
+    name: string
+  }>
 }
 
 export interface AddDirToStoreMessage {

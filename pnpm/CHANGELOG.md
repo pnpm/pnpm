@@ -1,5 +1,30 @@
 # pnpm
 
+## 8.7.6
+
+### Patch Changes
+
+- Don't run the `prepublishOnly` scripts of git-hosted dependencies [#7026](https://github.com/pnpm/pnpm/issues/7026).
+- Fix a bug in which `use-node-version` or `node-version` isn't passed down to `checkEngine` when using pnpm workspace, resulting in an error [#6981](https://github.com/pnpm/pnpm/issues/6981).
+- Don't print out each deprecated subdependency separately with its deprecation message. Just print out a summary of all the deprecated subdependencies [#6707](https://github.com/pnpm/pnpm/issues/6707).
+- Fixed an ENOENT error that was sometimes happening during install with "hoisted" `node_modules` [#6756](https://github.com/pnpm/pnpm/issues/6756).
+
+## 8.7.5
+
+### Patch Changes
+
+- Improve performance of installation by using a worker for creating the symlinks inside `node_modules/.pnpm` [#7069](https://github.com/pnpm/pnpm/pull/7069).
+- Tarballs that have hard links are now unpacked successfully. This fixes a regression introduced in v8.7.0, which was shipped with our new in-house tarball parser [#7062](https://github.com/pnpm/pnpm/pull/7062).
+
+## 8.7.4
+
+### Patch Changes
+
+- Fix a bug causing the pnpm server to hang if a tarball worker was requested while another worker was exiting [#7041](https://github.com/pnpm/pnpm/pull/7041).
+- Fixes a regression published with pnpm v8.7.3. Don't hang while reading `package.json` from the content-addressable store [#7051](https://github.com/pnpm/pnpm/pull/7051).
+- Allow create scoped package with preferred version. [#7053](https://github.com/pnpm/pnpm/issues/7053)
+- Reverting a change shipped in v8.7 that caused issues with the `pnpm deploy` command and "injected dependencies" [#6943](https://github.com/pnpm/pnpm/pull/6943).
+
 ## 8.7.3
 
 ### Patch Changes

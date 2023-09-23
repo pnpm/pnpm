@@ -1,5 +1,56 @@
 # @pnpm/plugin-commands-env
 
+## 4.0.29
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+- @pnpm/node.fetcher@3.0.20
+- @pnpm/node.resolver@2.0.21
+
+## 4.0.28
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/node.fetcher@4.0.0
+  - @pnpm/node.resolver@2.0.20
+  - @pnpm/config@19.0.3
+  - @pnpm/cli-utils@2.0.19
+
+## 4.0.27
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.18
+- @pnpm/node.resolver@2.0.19
+
+## 4.0.26
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.17
+- @pnpm/config@19.0.2
+- @pnpm/node.resolver@2.0.18
+- @pnpm/cli-utils@2.0.18
+
+## 4.0.25
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.16
+- @pnpm/node.resolver@2.0.17
+- @pnpm/config@19.0.1
+
+## 4.0.24
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.15
+- @pnpm/node.resolver@2.0.16
+- @pnpm/config@19.0.1
+- @pnpm/cli-utils@2.0.17
+
 ## 4.0.23
 
 ### Patch Changes

@@ -1,5 +1,39 @@
 # @pnpm/store.cafs
 
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/graceful-fs@3.2.0
+  - @pnpm/fetcher-base@15.0.1
+
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+  - @pnpm/fetcher-base@15.0.1
+
+## 2.0.2
+
+### Patch Changes
+
+- b3947185c: Tarballs that have hard links are now unpacked successfully. This fixes a regression introduced in v8.7.0, which was shipped with our new in-house tarball parser [#7062](https://github.com/pnpm/pnpm/pull/7062).
+
+## 2.0.1
+
+### Patch Changes
+
+- b548f2f43: Fixes a regression published with pnpm v8.7.3. Don't hang while reading `package.json` from the content-addressable store [#7051](https://github.com/pnpm/pnpm/pull/7051).
+- Updated dependencies [4a1a9431d]
+  - @pnpm/fetcher-base@15.0.1
+  - @pnpm/store-controller-types@16.0.1
+
 ## 2.0.0
 
 ### Major Changes

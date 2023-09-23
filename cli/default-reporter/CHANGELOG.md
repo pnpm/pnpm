@@ -1,5 +1,29 @@
 # @pnpm/default-reporter
 
+## 12.3.5
+
+### Patch Changes
+
+- 61b9ca189: Don't print out each deprecated subdependency separately with its deprecation message. Just print out a summary of all the deprecated subdependencies [#6707](https://github.com/pnpm/pnpm/issues/6707).
+
+## 12.3.4
+
+### Patch Changes
+
+- @pnpm/config@19.0.3
+
+## 12.3.3
+
+### Patch Changes
+
+- @pnpm/config@19.0.2
+
+## 12.3.2
+
+### Patch Changes
+
+- @pnpm/config@19.0.1
+
 ## 12.3.1
 
 ### Patch Changes

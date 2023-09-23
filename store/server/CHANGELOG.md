@@ -1,5 +1,31 @@
 # @pnpm/server
 
+## 17.0.0
+
+### Major Changes
+
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+
+## 16.0.2
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+
+## 16.0.1
+
+### Patch Changes
+
+- 548768e09: Fix a bug causing the pnpm server to hang if a tarball worker was requested while another worker was exiting [#7041](https://github.com/pnpm/pnpm/pull/7041).
+  - @pnpm/store-controller-types@16.0.1
+
 ## 16.0.0
 
 ### Major Changes

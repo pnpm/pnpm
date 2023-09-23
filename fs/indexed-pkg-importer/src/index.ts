@@ -106,7 +106,7 @@ function clonePkg (
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
-  if (!opts.fromStore || opts.force || !existsSync(pkgJsonPath)) {
+  if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {
     importIndexedDir(cloneFile, to, opts.filesMap, opts)
     return 'clone'
   }
@@ -122,15 +122,26 @@ function hardlinkPkg (
   to: string,
   opts: ImportOptions
 ) {
-  if (
-    !opts.fromStore ||
-    opts.force ||
-    !pkgLinkedToStore(opts.filesMap, to)
-  ) {
+  if (opts.force || shouldRelinkPkg(to, opts)) {
     importIndexedDir(importFile, to, opts.filesMap, opts)
     return 'hardlink'
   }
   return undefined
+}
+
+function shouldRelinkPkg (
+  to: string,
+  opts: ImportOptions
+) {
+  if (opts.disableRelinkLocalDirDeps && opts.resolvedFrom === 'local-dir') {
+    try {
+      const files = fs.readdirSync(to)
+      return files.length === 0 || files.length === 1 && files[0] === 'node_modules'
+    } catch {
+      return true
+    }
+  }
+  return opts.resolvedFrom !== 'store' || !pkgLinkedToStore(opts.filesMap, to)
 }
 
 function linkOrCopy (existingPath: string, newPath: string) {
@@ -184,7 +195,7 @@ export function copyPkg (
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
-  if (!opts.fromStore || opts.force || !existsSync(pkgJsonPath)) {
+  if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {
     importIndexedDir(fs.copyFileSync, to, opts.filesMap, opts)
     return 'copy'
   }

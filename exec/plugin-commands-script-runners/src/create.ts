@@ -55,20 +55,29 @@ const CREATE_PREFIX = 'create-'
  * for create-* packages.
  *
  * Example:
- *   - `foo`      -> `create-foo`
- *   - `@usr/foo` -> `@usr/create-foo`
- *   - `@usr`     -> `@usr/create`
+ *   - `foo`            -> `create-foo`
+ *   - `@usr/foo`       -> `@usr/create-foo`
+ *   - `@usr`           -> `@usr/create`
+ *   - `@usr@2.0.0`     -> `@usr/create@2.0.0`
+ *   - `@usr/foo@2.0.0` -> `@usr/create-foo@2.0.0`
+ *   - `@usr@latest`    -> `@user/create@latest`
  *
- * For more info, see https://docs.npmjs.com/cli/v7/commands/npm-init#description
+ * For more info, see https://docs.npmjs.com/cli/v9/commands/npm-init#description
  */
 function convertToCreateName (packageName: string) {
   if (packageName.startsWith('@')) {
+    const preferredVersionPosition = packageName.indexOf('@', 1)
+    let preferredVersion = ''
+    if (preferredVersionPosition > -1) {
+      preferredVersion = packageName.substring(preferredVersionPosition)
+      packageName = packageName.substring(0, preferredVersionPosition)
+    }
     const [scope, scopedPackage = ''] = packageName.split('/')
 
     if (scopedPackage === '') {
-      return `${scope}/create`
+      return `${scope}/create${preferredVersion}`
     } else {
-      return `${scope}/${ensureCreatePrefixed(scopedPackage)}`
+      return `${scope}/${ensureCreatePrefixed(scopedPackage)}${preferredVersion}`
     }
   } else {
     return ensureCreatePrefixed(packageName)

@@ -1,5 +1,24 @@
 # @pnpm/config
 
+## 19.0.3
+
+### Patch Changes
+
+- @pnpm/pnpmfile@5.0.13
+- @pnpm/read-project-manifest@5.0.6
+
+## 19.0.2
+
+### Patch Changes
+
+- @pnpm/pnpmfile@5.0.12
+
+## 19.0.1
+
+### Patch Changes
+
+- @pnpm/pnpmfile@5.0.11
+
 ## 19.0.0
 
 ### Major Changes

@@ -1,5 +1,60 @@
 # @pnpm/create-cafs-store
 
+## 6.0.0
+
+### Major Changes
+
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/fs.indexed-pkg-importer@5.0.0
+  - @pnpm/store.cafs@2.0.4
+  - @pnpm/fetcher-base@15.0.1
+
+## 5.1.1
+
+### Patch Changes
+
+- Updated dependencies [cb6e4212c]
+  - @pnpm/fs.indexed-pkg-importer@4.1.1
+
+## 5.1.0
+
+### Minor Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+  - @pnpm/fs.indexed-pkg-importer@4.1.0
+  - @pnpm/store.cafs@2.0.3
+  - @pnpm/fetcher-base@15.0.1
+
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [b3947185c]
+  - @pnpm/store.cafs@2.0.2
+  - @pnpm/fs.indexed-pkg-importer@4.0.1
+
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [b548f2f43]
+- Updated dependencies [4a1a9431d]
+  - @pnpm/store.cafs@2.0.1
+  - @pnpm/fetcher-base@15.0.1
+  - @pnpm/store-controller-types@16.0.1
+  - @pnpm/fs.indexed-pkg-importer@4.0.1
+
 ## 5.0.0
 
 ### Major Changes

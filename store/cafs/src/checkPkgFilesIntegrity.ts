@@ -1,10 +1,11 @@
 import fs from 'fs'
-import type { DeferredManifestPromise, PackageFileInfo } from '@pnpm/cafs-types'
+import type { PackageFileInfo } from '@pnpm/cafs-types'
 import gfs from '@pnpm/graceful-fs'
+import { type DependencyManifest } from '@pnpm/types'
 import rimraf from '@zkochan/rimraf'
 import ssri from 'ssri'
 import { getFilePathByModeInCafs } from './getFilePathInCafs'
-import { parseJsonBuffer } from './parseJson'
+import { parseJsonBufferSync } from './parseJson'
 
 // We track how many files were checked during installation.
 // It should be rare that a files content should be checked.
@@ -12,6 +13,11 @@ import { parseJsonBuffer } from './parseJson'
 // Checking a file's integrity is an expensive operation!
 // @ts-expect-error
 global['verifiedFileIntegrity'] = 0
+
+export interface VerifyResult {
+  passed: boolean
+  manifest?: DependencyManifest
+}
 
 export interface PackageFilesIndex {
   // name and version are nullable for backward compatibility
@@ -28,52 +34,58 @@ export interface PackageFilesIndex {
 export function checkPkgFilesIntegrity (
   cafsDir: string,
   pkgIndex: PackageFilesIndex,
-  manifest?: DeferredManifestPromise
-) {
+  readManifest?: boolean
+): VerifyResult {
   // It might make sense to use this cache for all files in the store
   // but there's a smaller chance that the same file will be checked twice
   // so it's probably not worth the memory (this assumption should be verified)
   const verifiedFilesCache = new Set<string>()
   const _checkFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, cafsDir)
-  const verified = _checkFilesIntegrity(pkgIndex.files, manifest)
-  if (!verified) return false
+  const verified = _checkFilesIntegrity(pkgIndex.files, readManifest)
+  if (!verified) return { passed: false }
   if (pkgIndex.sideEffects) {
     // We verify all side effects cache. We could optimize it to verify only the side effects cache
     // that satisfies the current os/arch/platform.
     // However, it likely won't make a big difference.
     for (const [sideEffectName, files] of Object.entries(pkgIndex.sideEffects)) {
-      if (!_checkFilesIntegrity(files)) {
+      const { passed } = _checkFilesIntegrity(files)
+      if (!passed) {
         delete pkgIndex.sideEffects![sideEffectName]
       }
     }
   }
-  return true
+  return verified
 }
 
 function checkFilesIntegrity (
   verifiedFilesCache: Set<string>,
   cafsDir: string,
   files: Record<string, PackageFileInfo>,
-  manifest?: DeferredManifestPromise
-): boolean {
+  readManifest?: boolean
+): VerifyResult {
   let allVerified = true
+  let manifest: DependencyManifest | undefined
   for (const [f, fstat] of Object.entries(files)) {
     if (!fstat.integrity) {
       throw new Error(`Integrity checksum is missing for ${f}`)
     }
     const filename = getFilePathByModeInCafs(cafsDir, fstat.integrity, fstat.mode)
-    const deferredManifest = manifest && f === 'package.json' ? manifest : undefined
-    if (!deferredManifest && verifiedFilesCache.has(filename)) continue
-    if (verifyFile(filename, fstat, deferredManifest)) {
+    const readFile = readManifest && f === 'package.json'
+    if (!readFile && verifiedFilesCache.has(filename)) continue
+    const verifyResult = verifyFile(filename, fstat, readFile)
+    if (readFile) {
+      manifest = verifyResult.manifest
+    }
+    if (verifyResult.passed) {
       verifiedFilesCache.add(filename)
     } else {
       allVerified = false
     }
   }
-  if (manifest && !files['package.json']) {
-    manifest.resolve(undefined)
+  return {
+    passed: allVerified,
+    manifest,
   }
-  return allVerified
 }
 
 type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt'> & {
@@ -83,48 +95,55 @@ type FileInfo = Pick<PackageFileInfo, 'size' | 'checkedAt'> & {
 function verifyFile (
   filename: string,
   fstat: FileInfo,
-  deferredManifest?: DeferredManifestPromise
-): boolean {
+  readManifest?: boolean
+): VerifyResult {
   const currentFile = checkFile(filename, fstat.checkedAt)
-  if (currentFile == null) return false
+  if (currentFile == null) return { passed: false }
   if (currentFile.isModified) {
     if (currentFile.size !== fstat.size) {
       rimraf.sync(filename)
-      return false
+      return { passed: false }
     }
-    return verifyFileIntegrity(filename, fstat, deferredManifest)
+    return verifyFileIntegrity(filename, fstat, readManifest)
   }
-  if (deferredManifest != null) {
-    parseJsonBuffer(gfs.readFileSync(filename), deferredManifest)
+  if (readManifest) {
+    return {
+      passed: true,
+      manifest: parseJsonBufferSync(gfs.readFileSync(filename)),
+    }
   }
   // If a file was not edited, we are skipping integrity check.
   // We assume that nobody will manually remove a file in the store and create a new one.
-  return true
+  return { passed: true }
 }
 
 export function verifyFileIntegrity (
   filename: string,
   expectedFile: FileInfo,
-  deferredManifest?: DeferredManifestPromise
-): boolean {
+  readManifest?: boolean
+): VerifyResult {
   // @ts-expect-error
   global['verifiedFileIntegrity']++
   try {
     const data = gfs.readFileSync(filename)
-    const ok = Boolean(ssri.checkData(data, expectedFile.integrity))
-    if (!ok) {
+    const passed = Boolean(ssri.checkData(data, expectedFile.integrity))
+    if (!passed) {
       gfs.unlinkSync(filename)
-    } else if (deferredManifest != null) {
-      parseJsonBuffer(data, deferredManifest)
+      return { passed }
+    } else if (readManifest) {
+      return {
+        passed,
+        manifest: parseJsonBufferSync(data),
+      }
     }
-    return ok
+    return { passed }
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
-    case 'ENOENT': return false
+    case 'ENOENT': return { passed: false }
     case 'EINTEGRITY': {
       // Broken files are removed from the store
       gfs.unlinkSync(filename)
-      return false
+      return { passed: false }
     }
     }
     throw err

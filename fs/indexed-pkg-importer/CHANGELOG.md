@@ -1,5 +1,42 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 5.0.0
+
+### Major Changes
+
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/graceful-fs@3.2.0
+
+## 4.1.1
+
+### Patch Changes
+
+- cb6e4212c: Verify the existence of the package in node_modules, when disableRelinkFromStore is set to true.
+
+## 4.1.0
+
+### Minor Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/store-controller-types@16.0.1
+
 ## 4.0.0
 
 ### Major Changes

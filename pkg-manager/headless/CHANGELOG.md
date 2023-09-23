@@ -1,5 +1,86 @@
 # @pnpm/headless
 
+## 22.1.1
+
+### Patch Changes
+
+- 78a97774d: Fixed an ENOENT error that was sometimes happening during install with "hoisted" `node_modules` [#6756](https://github.com/pnpm/pnpm/issues/6756).
+  - @pnpm/package-requester@24.0.0
+
+## 22.1.0
+
+### Minor Changes
+
+- 9caa33d53: Remove `disableRelinkFromStore` and `relinkLocalDirDeps`. Replace them with `disableRelinkLocalDirDeps`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/worker@0.3.0
+  - @pnpm/package-requester@24.0.0
+  - @pnpm/lifecycle@16.0.0
+  - @pnpm/deps.graph-builder@0.1.3
+  - @pnpm/build-modules@11.0.15
+  - @pnpm/modules-cleaner@14.0.13
+  - @pnpm/read-project-manifest@5.0.6
+  - @pnpm/link-bins@9.0.7
+  - @pnpm/hoist@8.0.11
+  - @pnpm/symlink-dependency@7.1.0
+
+## 22.0.1
+
+### Patch Changes
+
+- @pnpm/package-requester@23.0.1
+- @pnpm/worker@0.2.1
+
+## 22.0.0
+
+### Minor Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+- 48dcd108c: Improve performance of installation by using a worker for creating the symlinks inside `node_modules/.pnpm` [#7069](https://github.com/pnpm/pnpm/pull/7069).
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+- Updated dependencies [48dcd108c]
+- Updated dependencies [48dcd108c]
+  - @pnpm/store-controller-types@16.1.0
+  - @pnpm/worker@0.2.0
+  - @pnpm/symlink-dependency@7.1.0
+  - @pnpm/deps.graph-builder@0.1.2
+  - @pnpm/build-modules@11.0.14
+  - @pnpm/lifecycle@15.0.9
+  - @pnpm/modules-cleaner@14.0.12
+  - @pnpm/package-requester@23.0.0
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.5
+  - @pnpm/link-bins@9.0.6
+
+## 21.0.16
+
+### Patch Changes
+
+- @pnpm/package-requester@22.0.2
+- @pnpm/symlink-dependency@7.0.3
+- @pnpm/lifecycle@15.0.8
+- @pnpm/link-bins@9.0.6
+
+## 21.0.15
+
+### Patch Changes
+
+- @pnpm/package-requester@22.0.1
+- @pnpm/lifecycle@15.0.8
+- @pnpm/store-controller-types@16.0.1
+- @pnpm/build-modules@11.0.13
+- @pnpm/deps.graph-builder@0.1.1
+- @pnpm/modules-cleaner@14.0.11
+- @pnpm/symlink-dependency@7.0.3
+- @pnpm/link-bins@9.0.6
+
 ## 21.0.14
 
 ### Patch Changes

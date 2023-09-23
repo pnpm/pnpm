@@ -89,7 +89,6 @@ export function createPackageRequester (
     networkConcurrency?: number
     storeDir: string
     verifyStoreIntegrity: boolean
-    relinkLocalDirDeps?: boolean
   }
 ): RequestPackageFunction & {
     fetchPackageToStore: FetchPackageToStoreFunction
@@ -116,7 +115,6 @@ export function createPackageRequester (
       counter: 0,
       concurrency: networkConcurrency,
     }),
-    relinkLocalDirDeps: opts.relinkLocalDirDeps ?? true,
     storeDir: opts.storeDir,
   })
   const requestPackage = resolveAndFetch.bind(null, {
@@ -329,7 +327,6 @@ function fetchToStore (
       counter: number
       concurrency: number
     }
-    relinkLocalDirDeps: boolean
     storeDir: string
   },
   opts: FetchPackageToStoreOptions
@@ -363,13 +360,13 @@ function fetchToStore (
       progressLogger.debug({
         packageId: opts.pkg.id,
         requester: opts.lockfileDir,
-        status: cache.files.fromStore
-          ? 'found_in_store'
-          : 'fetched',
+        status: cache.files.resolvedFrom === 'remote'
+          ? 'fetched'
+          : 'found_in_store',
       })
 
       // If it's already in the store, we don't need to update the cache
-      if (cache.files.fromStore) {
+      if (cache.files.resolvedFrom !== 'remote') {
         return
       }
 
@@ -385,7 +382,7 @@ function fetchToStore (
           ...cache,
           files: {
             ...cache.files,
-            fromStore: true,
+            resolvedFrom: 'store',
           },
         }),
       })
@@ -479,7 +476,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
             files: {
               unprocessed: true,
               filesIndex: pkgFilesIndex.files,
-              fromStore: true,
+              resolvedFrom: 'store',
               sideEffects: pkgFilesIndex.sideEffects,
             },
             bundledManifest: manifest == null ? manifest : normalizeBundledManifest(manifest),
@@ -539,8 +536,7 @@ Actual package in the store by the given integrity: ${pkgFilesIndex.name}@${pkgF
 
       fetching.resolve({
         files: {
-          local: fetchedPackage.local,
-          fromStore: !fetchedPackage.local ? false : !ctx.relinkLocalDirDeps,
+          resolvedFrom: fetchedPackage.local ? 'local-dir' : 'remote',
           filesIndex: fetchedPackage.filesIndex,
           packageImportMethod: (fetchedPackage as DirectoryFetcherResult).packageImportMethod,
         },

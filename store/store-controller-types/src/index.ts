@@ -5,11 +5,12 @@ import {
   type WantedDependency,
   type WorkspacePackages,
 } from '@pnpm/resolver-base'
-import type {
-  ImportPackageFunction,
-  ImportPackageFunctionAsync,
-  PackageFileInfo,
-  PackageFilesResponse,
+import {
+  type ImportPackageFunction,
+  type ImportPackageFunctionAsync,
+  type PackageFileInfo,
+  type PackageFilesResponse,
+  type ResolvedFrom,
 } from '@pnpm/cafs-types'
 import {
   type DependencyManifest,
@@ -161,9 +162,10 @@ export interface PackageResponse {
 export type FilesMap = Record<string, string>
 
 export interface ImportOptions {
+  disableRelinkLocalDirDeps?: boolean
   filesMap: FilesMap
   force: boolean
-  fromStore: boolean
+  resolvedFrom: ResolvedFrom
   keepModulesDir?: boolean
 }
 

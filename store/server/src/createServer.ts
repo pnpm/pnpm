@@ -166,7 +166,11 @@ export function createServer (
     listener = server.listen(opts.port, opts.hostname)
   }
 
-  return { close }
+  const waitForClose = new Promise<void>((resolve) => listener.once('close', () => {
+    resolve()
+  }))
+
+  return { close, waitForClose }
 
   async function close () {
     listener.close()

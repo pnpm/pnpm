@@ -63,10 +63,6 @@ test('fetch including all files', async () => {
 test('fetch a directory that has no package.json', async () => {
   process.chdir(f.find('no-manifest'))
   const fetcher = createDirectoryFetcher()
-  const manifest = {
-    resolve: jest.fn(),
-    reject: jest.fn(),
-  }
 
   // eslint-disable-next-line
   const fetchResult = await fetcher.directory({} as any, {
@@ -74,10 +70,10 @@ test('fetch a directory that has no package.json', async () => {
     type: 'directory',
   }, {
     lockfileDir: process.cwd(),
-    manifest,
+    readManifest: true,
   })
 
-  expect(manifest.resolve).toBeCalledWith({})
+  expect(fetchResult.manifest).toEqual(undefined)
   expect(fetchResult.local).toBe(true)
   expect(fetchResult.packageImportMethod).toBe('hardlink')
   expect(fetchResult.filesIndex['index.js']).toBe(path.resolve('index.js'))
@@ -155,26 +151,5 @@ describe('fetch resolves symlinked files to their real locations', () => {
     expect(fetchResult.filesIndex['package.json']).toBe(path.resolve('package.json'))
     expect(fetchResult.filesIndex['index.js']).toBe(path.resolve('index.js'))
     expect(fetchResult.filesIndex['src/index.js']).toBe(path.resolve('src/index.js'))
-  })
-})
-
-test('fetch should return exportable manifest', async () => {
-  process.chdir(f.find('exportable-manifest'))
-  const fetcher = createDirectoryFetcher()
-
-  // eslint-disable-next-line
-  const fetchResult = await fetcher.directory({} as any, {
-    directory: '.',
-    type: 'directory',
-  }, {
-    lockfileDir: process.cwd(),
-  })
-
-  expect(fetchResult.filesIndex['package.json']).not.toBe(path.resolve('package.json'))
-
-  expect(JSON.parse(fs.readFileSync(fetchResult.filesIndex['package.json'], 'utf8'))).toStrictEqual({
-    name: 'exportable',
-    version: '1.0.0',
-    main: 'dist/index.js',
   })
 })

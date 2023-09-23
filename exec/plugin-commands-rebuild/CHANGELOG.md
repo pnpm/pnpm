@@ -1,5 +1,77 @@
 # @pnpm/plugin-commands-rebuild
 
+## 9.1.15
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+- @pnpm/workspace.find-packages@1.0.10
+- @pnpm/store-connection-manager@7.0.1
+
+## 9.1.14
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-connection-manager@7.0.0
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/lifecycle@16.0.0
+  - @pnpm/store.cafs@2.0.4
+  - @pnpm/config@19.0.3
+  - @pnpm/cli-utils@2.0.19
+  - @pnpm/link-bins@9.0.7
+  - @pnpm/workspace.find-packages@1.0.9
+  - @pnpm/fs.hard-link-dir@2.0.1
+
+## 9.1.13
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@6.2.1
+
+## 9.1.12
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-connection-manager@6.2.0
+  - @pnpm/store-controller-types@16.1.0
+  - @pnpm/lifecycle@15.0.9
+  - @pnpm/store.cafs@2.0.3
+  - @pnpm/config@19.0.2
+  - @pnpm/cli-utils@2.0.18
+  - @pnpm/workspace.find-packages@1.0.8
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/link-bins@9.0.6
+
+## 9.1.11
+
+### Patch Changes
+
+- Updated dependencies [b3947185c]
+  - @pnpm/store.cafs@2.0.2
+  - @pnpm/store-connection-manager@6.1.3
+  - @pnpm/config@19.0.1
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/lifecycle@15.0.8
+  - @pnpm/link-bins@9.0.6
+
+## 9.1.10
+
+### Patch Changes
+
+- Updated dependencies [b548f2f43]
+  - @pnpm/store.cafs@2.0.1
+  - @pnpm/store-connection-manager@6.1.2
+  - @pnpm/lifecycle@15.0.8
+  - @pnpm/store-controller-types@16.0.1
+  - @pnpm/config@19.0.1
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/cli-utils@2.0.17
+  - @pnpm/link-bins@9.0.6
+  - @pnpm/workspace.find-packages@1.0.7
+
 ## 9.1.9
 
 ### Patch Changes

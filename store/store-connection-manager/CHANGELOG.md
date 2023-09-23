@@ -1,5 +1,67 @@
 # @pnpm/store-connection-manager
 
+## 7.0.1
+
+### Patch Changes
+
+- @pnpm/client@10.0.24
+- @pnpm/package-store@19.0.0
+- @pnpm/server@17.0.0
+
+## 7.0.0
+
+### Major Changes
+
+- 9caa33d53: Remove `disableRelinkFromStore` and `relinkLocalDirDeps`. Replace them with `disableRelinkLocalDirDeps`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/server@17.0.0
+  - @pnpm/package-store@19.0.0
+  - @pnpm/client@10.0.23
+  - @pnpm/config@19.0.3
+
+## 6.2.1
+
+### Patch Changes
+
+- @pnpm/package-store@18.0.1
+- @pnpm/server@16.0.2
+- @pnpm/client@10.0.22
+
+## 6.2.0
+
+### Minor Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+
+### Patch Changes
+
+- @pnpm/package-store@18.0.0
+- @pnpm/server@16.0.2
+- @pnpm/config@19.0.2
+- @pnpm/client@10.0.21
+
+## 6.1.3
+
+### Patch Changes
+
+- @pnpm/package-store@17.0.2
+- @pnpm/server@16.0.1
+- @pnpm/client@10.0.20
+- @pnpm/config@19.0.1
+
+## 6.1.2
+
+### Patch Changes
+
+- Updated dependencies [548768e09]
+  - @pnpm/server@16.0.1
+  - @pnpm/package-store@17.0.1
+  - @pnpm/client@10.0.19
+  - @pnpm/config@19.0.1
+
 ## 6.1.1
 
 ### Patch Changes

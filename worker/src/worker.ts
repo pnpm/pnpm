@@ -11,14 +11,16 @@ import {
   type FilesIndex,
   optimisticRenameOverwrite,
   readManifestFromStore,
+  type VerifyResult,
 } from '@pnpm/store.cafs'
+import { symlinkDependencySync } from '@pnpm/symlink-dependency'
 import { sync as loadJsonFile } from 'load-json-file'
-import safePromiseDefer from 'safe-promise-defer'
 import { parentPort } from 'worker_threads'
 import {
   type AddDirToStoreMessage,
   type ReadPkgFromCafsMessage,
   type LinkPkgMessage,
+  type SymlinkAllModulesMessage,
   type TarballExtractMessage,
 } from './types'
 
@@ -30,7 +32,9 @@ const cafsCache = new Map<string, ReturnType<typeof createCafs>>()
 const cafsStoreCache = new Map<string, ReturnType<typeof createCafsStore>>()
 const cafsLocker = new Map<string, number>()
 
-async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | AddDirToStoreMessage | ReadPkgFromCafsMessage | false): Promise<void> {
+async function handleMessage (
+  message: TarballExtractMessage | LinkPkgMessage | AddDirToStoreMessage | ReadPkgFromCafsMessage | SymlinkAllModulesMessage | false
+): Promise<void> {
   if (message === false) {
     parentPort!.off('message', handleMessage)
     process.exit(0)
@@ -67,24 +71,27 @@ async function handleMessage (message: TarballExtractMessage | LinkPkgMessage | 
         })
         return
       }
-      const manifestP = readManifest ? safePromiseDefer() : undefined
-      let verified: boolean
+      let verifyResult: VerifyResult | undefined
       if (verifyStoreIntegrity) {
-        verified = checkPkgFilesIntegrity(cafsDir, pkgFilesIndex, manifestP)
+        verifyResult = checkPkgFilesIntegrity(cafsDir, pkgFilesIndex, readManifest)
       } else {
-        verified = true
-        if (manifestP) {
-          manifestP.resolve(readManifestFromStore(cafsDir, pkgFilesIndex))
+        verifyResult = {
+          passed: true,
+          manifest: readManifest ? readManifestFromStore(cafsDir, pkgFilesIndex) : undefined,
         }
       }
       parentPort!.postMessage({
         status: 'success',
         value: {
-          verified,
-          manifest: manifestP ? await manifestP() : undefined,
+          verified: verifyResult.passed,
+          manifest: verifyResult.manifest,
           pkgFilesIndex,
         },
       })
+      break
+    }
+    case 'symlinkAllModules': {
+      parentPort!.postMessage(symlinkAllModules(message))
       break
     }
     }
@@ -169,6 +176,7 @@ function importPackage ({
   requiresBuild,
   force,
   keepModulesDir,
+  disableRelinkLocalDirDeps,
 }: LinkPkgMessage) {
   const cacheKey = JSON.stringify({ storeDir, packageImportMethod })
   if (!cafsStoreCache.has(cacheKey)) {
@@ -178,11 +186,23 @@ function importPackage ({
   const { importMethod, isBuilt } = cafsStore.importPackage(targetDir, {
     filesResponse,
     force,
+    disableRelinkLocalDirDeps,
     requiresBuild,
     sideEffectsCacheKey,
     keepModulesDir,
   })
   return { status: 'success', value: { isBuilt, importMethod } }
+}
+
+function symlinkAllModules (opts: SymlinkAllModulesMessage) {
+  for (const dep of opts.deps) {
+    for (const [alias, pkgDir] of Object.entries(dep.children)) {
+      if (alias !== dep.name) {
+        symlinkDependencySync(pkgDir, dep.modules, alias)
+      }
+    }
+  }
+  return { status: 'success' }
 }
 
 function writeFilesIndexFile (

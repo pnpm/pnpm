@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "11.0.0",
+  "version": "12.1.1",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -100,8 +100,8 @@
     "path-name": "^1.0.0",
     "read-yaml-file": "^2.1.0",
     "resolve-link-target": "^2.0.0",
-    "sinon": "^15.2.0",
-    "symlink-dir": "^5.1.1",
+    "sinon": "^16.0.0",
+    "symlink-dir": "^5.2.0",
     "write-json-file": "^4.3.0",
     "write-yaml-file": "^5.0.0"
   },

@@ -29,6 +29,7 @@ export async function linkHoistedModules (
   hierarchy: DepHierarchy,
   opts: {
     depsStateCache: DepsStateCache
+    disableRelinkLocalDirDeps?: boolean
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
@@ -45,9 +46,11 @@ export async function linkHoistedModules (
     prefix: opts.lockfileDir,
     removed: dirsToRemove.length,
   })
-  await Promise.all([
-    ...dirsToRemove.map((dir) => tryRemoveDir(dir)),
-    ...Object.entries(hierarchy)
+  // We should avoid removing unnecessary directories while simultaneously adding new ones.
+  // Doing so can sometimes lead to a race condition when linking commands to `node_modules/.bin`.
+  await Promise.all(dirsToRemove.map((dir) => tryRemoveDir(dir)))
+  await Promise.all(
+    Object.entries(hierarchy)
       .map(([parentDir, depsHierarchy]) => {
         function warn (message: string) {
           logger.info({
@@ -59,8 +62,8 @@ export async function linkHoistedModules (
           ...opts,
           warn,
         })
-      }),
-  ])
+      })
+  )
 }
 
 async function tryRemoveDir (dir: string) {
@@ -86,6 +89,7 @@ async function linkAllPkgsInOrder (
   parentDir: string,
   opts: {
     depsStateCache: DepsStateCache
+    disableRelinkLocalDirDeps?: boolean
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
@@ -120,7 +124,8 @@ async function linkAllPkgsInOrder (
         await limitLinking(async () => {
           const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
             filesResponse,
-            force: opts.force || depNode.depPath !== prevGraph[dir]?.depPath,
+            force: true,
+            disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
             keepModulesDir: true,
             requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
             sideEffectsCacheKey,
