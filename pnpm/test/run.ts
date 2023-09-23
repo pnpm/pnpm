@@ -222,3 +222,20 @@ test('--parallel should work with single project', async () => {
   expect(output).toContain('script1: 1')
   expect(output).toContain('script2: 2')
 })
+
+test('--reporter-hide-prefix should hide workspace prefix', async () => {
+  prepare({
+    scripts: {
+      script1: 'echo 1',
+      script2: 'echo 2',
+    },
+  })
+
+  const result = execPnpmSync(['--parallel', '--reporter-hide-prefix', 'run', '/script[12]/'])
+
+  const output = result.stdout.toString()
+  expect(output).toContain('1')
+  expect(output).not.toContain('script1: 1')
+  expect(output).toContain('2')
+  expect(output).not.toContain('script2: 2')
+})

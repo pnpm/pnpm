@@ -17,7 +17,6 @@ const OUTPUT_INDENTATION = chalk.magentaBright('│')
 const STATUS_INDENTATION = chalk.magentaBright('└─')
 const STATUS_RUNNING = chalk.magentaBright('Running...')
 const STATUS_DONE = chalk.magentaBright('Done in 1s')
-const EOL = '\n'
 
 function replaceTimeWith1Sec (text: string) {
   return text
@@ -136,7 +135,7 @@ ${STATUS_INDENTATION} ${STATUS_DONE}`)
   })
 })
 
-test('groups lifecycle output when append-only is used', (done) => {
+test('groups lifecycle output when append-only is used', async () => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     reportingOptions: {
@@ -231,31 +230,23 @@ test('groups lifecycle output when append-only is used', (done) => {
     wd: 'packages/foo',
   })
 
-  expect.assertions(1)
-
-  const allOutputs = [] as string[]
-
-  output$.pipe(take(11), map(normalizeNewline)).subscribe({
-    complete: () => {
-      expect(allOutputs.join(EOL)).toBe(`\
-${chalk.cyan('packages/foo')} ${PREINSTALL}$ node foo
-${chalk.cyan('packages/foo')} ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
-${chalk.cyan('packages/foo')} ${PREINSTALL}: Failed
-${chalk.cyan('packages/foo')} ${POSTINSTALL}$ node foo
-${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo I
-${chalk.magenta('packages/bar')} ${POSTINSTALL}$ node bar
-${chalk.magenta('packages/bar')} ${POSTINSTALL}: bar I
-${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo II
-${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo III
-${chalk.blue('packages/qar')} ${INSTALL}$ node qar
-${chalk.blue('packages/qar')} ${INSTALL}: Done`)
-      done()
-    },
-    error: done,
-    next: (output: string) => {
-      allOutputs.push(output)
-    },
-  })
+  await expect(
+    firstValueFrom(
+      output$.pipe(take(11), map<string, string>(normalizeNewline), toArray())
+    )
+  ).resolves.toEqual([
+    `${chalk.cyan('packages/foo')} ${PREINSTALL}$ node foo`,
+    `${chalk.cyan('packages/foo')} ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30`,
+    `${chalk.cyan('packages/foo')} ${PREINSTALL}: Failed`,
+    `${chalk.cyan('packages/foo')} ${POSTINSTALL}$ node foo`,
+    `${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo I`,
+    `${chalk.magenta('packages/bar')} ${POSTINSTALL}$ node bar`,
+    `${chalk.magenta('packages/bar')} ${POSTINSTALL}: bar I`,
+    `${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo II`,
+    `${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo III`,
+    `${chalk.blue('packages/qar')} ${INSTALL}$ node qar`,
+    `${chalk.blue('packages/qar')} ${INSTALL}: Done`,
+  ])
 })
 
 test('groups lifecycle output when append-only and aggregate-output are used', async () => {
@@ -488,6 +479,123 @@ ${chalk.blue('packages/qar')} ${INSTALL}: Done
 ${chalk.cyan('packages/foo')} ${POSTINSTALL}: Done`)
     },
   })
+})
+
+test('groups lifecycle output when append-only and reporter-hide-prefix are used', async () => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    reportingOptions: {
+      appendOnly: true,
+      outputMaxWidth: 79,
+      hideLifecyclePrefix: true,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    optional: false,
+    script: 'node foo',
+    stage: 'preinstall',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30',
+    stage: 'preinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    exitCode: 1,
+    optional: true,
+    stage: 'preinstall',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    optional: false,
+    script: 'node foo',
+    stage: 'postinstall',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo I',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/bar',
+    optional: false,
+    script: 'node bar',
+    stage: 'postinstall',
+    wd: 'packages/bar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/bar',
+    line: 'bar I',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/bar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo II',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo III',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/qar',
+    optional: false,
+    script: 'node qar',
+    stage: 'install',
+    wd: 'packages/qar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/qar',
+    exitCode: 0,
+    optional: false,
+    stage: 'install',
+    wd: 'packages/qar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    exitCode: 0,
+    optional: false,
+    stage: 'postinstall',
+    wd: 'packages/foo',
+  })
+
+  expect.assertions(1)
+
+  await expect(
+    firstValueFrom(
+      output$.pipe(map<string, string>(normalizeNewline), take(11), toArray())
+    )
+  ).resolves.toEqual([
+    `${chalk.cyan('packages/foo')} ${PREINSTALL}$ node foo`,
+    'foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30',
+    `${chalk.cyan('packages/foo')} ${PREINSTALL}: Failed`,
+    `${chalk.cyan('packages/foo')} ${POSTINSTALL}$ node foo`,
+    'foo I',
+    `${chalk.magenta('packages/bar')} ${POSTINSTALL}$ node bar`,
+    'bar I',
+    'foo II',
+    'foo III',
+    `${chalk.blue('packages/qar')} ${INSTALL}$ node qar`,
+    `${chalk.blue('packages/qar')} ${INSTALL}: Done`,
+  ])
 })
 
 test('collapse lifecycle output when it has too many lines', (done) => {
