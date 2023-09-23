@@ -14,7 +14,8 @@ export function pkgSnapshotToResolution (
 ): Resolution {
   if (
     Boolean((pkgSnapshot.resolution as TarballResolution).type) ||
-    (pkgSnapshot.resolution as TarballResolution).tarball?.startsWith('file:') || isGitHostedPkgUrl((pkgSnapshot.resolution as TarballResolution).tarball ?? '')
+    (pkgSnapshot.resolution as TarballResolution).tarball?.startsWith('file:') ||
+    isGitHostedPkgUrl((pkgSnapshot.resolution as TarballResolution).tarball ?? '')
   ) {
     return pkgSnapshot.resolution as Resolution
   }
