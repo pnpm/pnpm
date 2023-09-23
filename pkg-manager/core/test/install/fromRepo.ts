@@ -6,11 +6,16 @@ import {
   addDependenciesToPackage,
   install,
 } from '@pnpm/core'
+import { fixtures } from '@pnpm/test-fixtures'
+import { assertProject } from '@pnpm/assert-project'
 import rimraf from '@zkochan/rimraf'
 import { isCI } from 'ci-info'
 import exists from 'path-exists'
 import sinon from 'sinon'
 import { testDefaults } from '../utils'
+
+const f = fixtures(__dirname)
+const withGitProtocolDepFixture = f.find('with-git-protocol-dep')
 
 test('from a github repo', async () => {
   const project = prepareEmpty()
@@ -277,4 +282,35 @@ test('re-adding a git repo with a different tag', async () => {
       },
     }
   )
+})
+
+test('should not update when adding unrelated dependency', async () => {
+  process.chdir(withGitProtocolDepFixture)
+  fs.rmSync('./node_modules', {
+    recursive: true,
+    force: true,
+  })
+  let manifest = JSON.parse(fs.readFileSync('./package.json', 'utf8'))
+  await install(manifest, await testDefaults({ preferFrozenLockfile: false, dir: withGitProtocolDepFixture, lockfileDir: withGitProtocolDepFixture }))
+
+  expect(fs.existsSync('./node_modules/.pnpm/github.com+kevva+is-negative@219c424611ff4a2af15f7deeff4f93c62558c43d')).toBe(true)
+
+  manifest = await addDependenciesToPackage(manifest, ['is-number'], await testDefaults({ preferFrozenLockfile: false }))
+
+  expect(manifest.dependencies).toHaveProperty('is-number')
+  expect(manifest.dependencies['is-negative']).toBe('github:kevva/is-negative#master')
+
+  const project = assertProject(withGitProtocolDepFixture)
+  await project.has('is-number')
+  expect(fs.existsSync('./node_modules/.pnpm/github.com+kevva+is-negative@219c424611ff4a2af15f7deeff4f93c62558c43d')).toBe(true)
+  expect((await project.readLockfile()).dependencies).toEqual({
+    'is-negative': {
+      specifier: 'github:kevva/is-negative#master',
+      version: 'github.com/kevva/is-negative/219c424611ff4a2af15f7deeff4f93c62558c43d',
+    },
+    'is-number': {
+      specifier: '^7.0.0',
+      version: '7.0.0',
+    },
+  })
 })

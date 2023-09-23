@@ -1,0 +1,6 @@
+{
+  "name":"with-git-protocol-dep",
+  "dependencies": {
+    "is-negative": "github:kevva/is-negative#master"
+  }
+}

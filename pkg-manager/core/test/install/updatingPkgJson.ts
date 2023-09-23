@@ -35,7 +35,7 @@ test("don't override existing spec in package.json on named installation", async
   expect(manifest.dependencies).toStrictEqual({
     'is-negative': '^1.0.1',
     'is-positive': '^2.0.0',
-    sec: 'github:sindresorhus/sec#main',
+    sec: 'sindresorhus/sec#main',
   })
 })
 

@@ -7,6 +7,8 @@ import {
 } from '@pnpm/manifest-utils'
 import versionSelectorType from 'version-selector-type'
 import semver from 'semver'
+import { isGitHostedPkgUrl } from '@pnpm/pick-fetcher'
+import { type TarballResolution } from '@pnpm/resolver-base'
 import { type ResolvedDirectDependency } from './resolveDependencyTree'
 import { type ImporterToResolve } from '.'
 
@@ -25,7 +27,16 @@ export async function updateProjectManifest (
     .filter((rdd, index) => importer.wantedDependencies[index]?.updateSpec)
     .map((rdd, index) => {
       const wantedDep = importer.wantedDependencies[index]!
-      return resolvedDirectDepToSpecObject({ ...rdd, isNew: wantedDep.isNew, specRaw: wantedDep.raw, preserveNonSemverVersionSpec: wantedDep.preserveNonSemverVersionSpec }, importer, {
+      return resolvedDirectDepToSpecObject({
+        ...rdd,
+        isNew:
+        wantedDep.isNew,
+        specRaw: wantedDep.raw,
+        preserveNonSemverVersionSpec: wantedDep.preserveNonSemverVersionSpec,
+        // For git-protocol dependencies that are already installed locally, there is no normalizedPref unless do force resolve,
+        // so we use pref in wantedDependency here.
+        normalizedPref: rdd.normalizedPref ?? (isGitHostedPkgUrl((rdd.resolution as TarballResolution).tarball ?? '') ? wantedDep.pref : undefined),
+      }, importer, {
         nodeExecPath: wantedDep.nodeExecPath,
         pinnedVersion: wantedDep.pinnedVersion ?? importer.pinnedVersion ?? 'major',
         preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,

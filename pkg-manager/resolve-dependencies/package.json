@@ -38,6 +38,7 @@
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
+    "@pnpm/pick-fetcher": "workspace:*",
     "@pnpm/prune-lockfile": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
