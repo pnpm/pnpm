@@ -17,7 +17,6 @@ const OUTPUT_INDENTATION = chalk.magentaBright('│')
 const STATUS_INDENTATION = chalk.magentaBright('└─')
 const STATUS_RUNNING = chalk.magentaBright('Running...')
 const STATUS_DONE = chalk.magentaBright('Done in 1s')
-// const EOL = '\n'
 
 function replaceTimeWith1Sec (text: string) {
   return text
@@ -230,35 +229,6 @@ test('groups lifecycle output when append-only is used', async () => {
     stage: 'postinstall',
     wd: 'packages/foo',
   })
-
-  expect.assertions(1)
-
-  // const allOutputs = [] as string[]
-
-  // output$.pipe(take(11), map(normalizeNewline)).subscribe({
-  //   complete: () => {
-  //     console.log({ allOutputs })
-  //     expect(allOutputs.join(EOL)).toBe(`\
-  // ${chalk.cyan('packages/foo')} ${PREINSTALL}$ node foo
-  // ${chalk.cyan('packages/foo')} ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
-  // ${chalk.cyan('packages/foo')} ${PREINSTALL}: Failed
-  // ${chalk.cyan('packages/foo')} ${POSTINSTALL}$ node foo
-  // ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo I
-  // ${chalk.magenta('packages/bar')} ${POSTINSTALL}$ node bar
-  // ${chalk.magenta('packages/bar')} ${POSTINSTALL}: bar I
-  // ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo II
-  // ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo III
-  // ${chalk.blue('packages/qar')} ${INSTALL}$ node qar
-  // ${chalk.blue('packages/qar')} ${INSTALL}: Done`)
-  //     console.log('complete')
-  //     done()
-  //   },
-  //   error: done,
-  //   next: (output: string) => {
-  //     console.log({ output })
-  //     allOutputs.push(output)
-  //   },
-  // })
 
   await expect(
     firstValueFrom(
@@ -989,7 +959,7 @@ test('do not fail if the debug log has no output', (done) => {
       expect(replaceTimeWith1Sec(output)).toBe(`\
 ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s
 .../foo/1.0.0/node_modules/foo ${INSTALL}$ node foo
-${OUTPUT_INDENTATION}
+${OUTPUT_INDENTATION} 
 ${STATUS_INDENTATION} ${failedAt(wd)}`)
     },
   })
