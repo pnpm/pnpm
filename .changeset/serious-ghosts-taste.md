@@ -1,6 +1,8 @@
 ---
 "@pnpm/resolve-dependencies": patch
 "@pnpm/core": patch
+"@pnpm/lockfile-utils": patch
+"@pnpm/pick-fetcher": patch
 "pnpm": patch
 ---
 
