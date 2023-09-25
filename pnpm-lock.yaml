@@ -5053,12 +5053,18 @@ importers:
       '@pnpm/lockfile-utils':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-utils
+      '@pnpm/matcher':
+        specifier: workspace:*
+        version: link:../../config/matcher
       '@pnpm/modules-yaml':
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
+      '@pnpm/npm-package-arg':
+        specifier: ^1.0.0
+        version: 1.0.0
       '@pnpm/read-modules-dir':
         specifier: workspace:*
         version: link:../../fs/read-modules-dir
@@ -5077,6 +5083,9 @@ importers:
       resolve-link-target:
         specifier: ^2.0.0
         version: 2.0.0
+      semver:
+        specifier: ^7.5.4
+        version: 7.5.4
     devDependencies:
       '@pnpm/constants':
         specifier: workspace:*
@@ -5090,6 +5099,9 @@ importers:
       '@types/normalize-path':
         specifier: ^3.0.0
         version: 3.0.0
+      '@types/semver':
+        specifier: 7.3.13
+        version: 7.3.13
 
   reviewing/license-scanner:
     dependencies:
@@ -5154,12 +5166,6 @@ importers:
 
   reviewing/list:
     dependencies:
-      '@pnpm/matcher':
-        specifier: workspace:*
-        version: link:../../config/matcher
-      '@pnpm/npm-package-arg':
-        specifier: ^1.0.0
-        version: 1.0.0
       '@pnpm/read-package-json':
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
@@ -5187,9 +5193,6 @@ importers:
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
-      semver:
-        specifier: ^7.5.4
-        version: 7.5.4
     devDependencies:
       '@pnpm/list':
         specifier: workspace:*
@@ -5203,9 +5206,6 @@ importers:
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
-      '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
 
   reviewing/outdated:
     dependencies:

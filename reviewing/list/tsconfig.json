@@ -13,9 +13,6 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
-      "path": "../../config/matcher"
-    },
-    {
       "path": "../../packages/types"
     },
     {

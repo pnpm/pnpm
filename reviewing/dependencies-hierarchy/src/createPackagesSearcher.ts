@@ -1,6 +1,6 @@
 import { createMatcher } from '@pnpm/matcher'
 import npa from '@pnpm/npm-package-arg'
-import { type SearchFunction } from '@pnpm/reviewing.dependencies-hierarchy'
+import { type SearchFunction } from './types'
 import semver from 'semver'
 
 export function createPackagesSearcher (queries: string[]) {
