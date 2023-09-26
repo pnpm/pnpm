@@ -14,7 +14,6 @@ import { type DependenciesField, DEPENDENCIES_FIELDS, type Registries } from '@p
 import normalizePath from 'normalize-path'
 import realpathMissing from 'realpath-missing'
 import resolveLinkTarget from 'resolve-link-target'
-import { createHash } from 'crypto'
 import { type PackageNode } from './PackageNode'
 import { type SearchFunction } from './types'
 import { getTree } from './getTree'
@@ -30,7 +29,7 @@ export interface DependenciesHierarchy {
 }
 
 export async function buildDependenciesHierarchy (
-  projectPaths: string[],
+  projectPaths: string[] | undefined,
   maybeOpts: {
     depth: number
     include?: { [dependenciesField in DependenciesField]: boolean }
@@ -52,6 +51,10 @@ export async function buildDependenciesHierarchy (
   })
   const currentLockfile = (modules?.virtualStoreDir && await readCurrentLockfile(modules.virtualStoreDir, { ignoreIncompatible: false })) ?? null
   const wantedLockfile = await readWantedLockfile(maybeOpts.lockfileDir, { ignoreIncompatible: false })
+  if (projectPaths == null) {
+    projectPaths = Object.keys(wantedLockfile?.importers ?? {})
+      .map((id) => path.join(maybeOpts.lockfileDir, id))
+  }
 
   const result = {} as { [projectDir: string]: DependenciesHierarchy }
 
@@ -213,94 +216,7 @@ async function dependenciesHierarchyForPackage (
     })
   )
 
-  const prunedResult = pruneTreeToGetFirst10EndLeafs(result)
-
-  return prunedResult
-}
-
-/**
- * Prunes the tree to get the first 10 end leafs if there are more than 10.
- *
- * This will make the tree more readable and avoid memory issues when rendering the tree.
- */
-function pruneTreeToGetFirst10EndLeafs (tree: DependenciesHierarchy | null): DependenciesHierarchy | null {
-  if (tree === null) {
-    return null
-  }
-
-  const endLeafPaths: PackageNode[][] = []
-
-  const visitedNodes = new Set<string>()
-
-  function dfs (node: PackageNode, path: PackageNode[]): void {
-    // Check for circular property to avoid infinite loop
-    if (node.circular) {
-      return
-    }
-
-    const nodeId = `${node.name}@${node.version}`
-    if (visitedNodes.has(nodeId)) {
-      return
-    }
-
-    visitedNodes.add(nodeId)
-    const newPath = [...path, node]
-
-    if (!node.dependencies || node.dependencies.length === 0) {
-      endLeafPaths.push(newPath)
-      if (endLeafPaths.length >= 10) {
-        return
-      }
-    }
-
-    for (const child of node.dependencies ?? []) {
-      dfs(child, newPath)
-      if (endLeafPaths.length >= 10) {
-        return
-      }
-    }
-
-    // Remove the visited mark to allow this node to be included in other end leaf paths.
-    visitedNodes.delete(nodeId)
-  }
-
-  if (tree.dependencies) {
-    for (const node of tree.dependencies) {
-      dfs(node, [])
-    }
-  }
-
-  // Trim paths to first 10 end leaves
-  const first10Paths = endLeafPaths.slice(0, 10)
-
-  const map = new Map<string, PackageNode>()
-
-  // Reconstruct the tree based on these paths
-  const newTree: DependenciesHierarchy = { dependencies: [] }
-
-  for (const path of first10Paths) {
-    let currentDependencies: PackageNode[] = newTree.dependencies!
-
-    let pathSoFar = ''
-
-    for (const node of path) {
-      pathSoFar += `${node.name}@${node.version},`
-      // Calculate the hash of the path string to use as the id, since the path is unique
-      const id = createHash('sha256').update(pathSoFar).digest('hex')
-
-      let existingNode = map.get(id)
-
-      if (!existingNode) {
-        existingNode = { ...node, dependencies: [] }
-        currentDependencies.push(existingNode)
-        map.set(id, existingNode)
-      }
-
-      currentDependencies = existingNode.dependencies!
-    }
-  }
-
-  return newTree
+  return result
 }
 
 function getAllDirectDependencies (projectSnapshot: ProjectSnapshot) {
