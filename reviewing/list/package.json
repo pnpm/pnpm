@@ -34,8 +34,6 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/reviewing/list#readme",
   "dependencies": {
-    "@pnpm/matcher": "workspace:*",
-    "@pnpm/npm-package-arg": "^1.0.0",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
@@ -44,15 +42,13 @@
     "chalk": "^4.1.2",
     "cli-columns": "^4.0.0",
     "p-limit": "^3.1.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1",
-    "semver": "^7.5.4"
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "devDependencies": {
     "@pnpm/list": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/archy": "0.0.32",
-    "@types/ramda": "0.28.20",
-    "@types/semver": "7.3.13"
+    "@types/ramda": "0.28.20"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

@@ -106,6 +106,7 @@ export interface BaseManifest {
   keywords?: string[]
   author?: string
   license?: string
+  exports?: Record<string, string>
 }
 
 export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'name' | 'version'>>

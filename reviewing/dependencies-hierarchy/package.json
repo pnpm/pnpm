@@ -35,20 +35,24 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
+    "@pnpm/matcher": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/normalize-registries": "workspace:*",
+    "@pnpm/npm-package-arg": "^1.0.0",
     "@pnpm/read-modules-dir": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",
     "normalize-path": "^3.0.0",
     "realpath-missing": "^1.1.0",
-    "resolve-link-target": "^2.0.0"
+    "resolve-link-target": "^2.0.0",
+    "semver": "^7.5.4"
   },
   "devDependencies": {
     "@pnpm/constants": "workspace:*",
     "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/normalize-path": "^3.0.0"
+    "@types/normalize-path": "^3.0.0",
+    "@types/semver": "7.3.13"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

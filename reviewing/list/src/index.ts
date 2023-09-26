@@ -1,14 +1,14 @@
 import path from 'path'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { type DependenciesField, type Registries } from '@pnpm/types'
-import { type PackageNode, buildDependenciesHierarchy, type DependenciesHierarchy } from '@pnpm/reviewing.dependencies-hierarchy'
-import { createPackagesSearcher } from './createPackagesSearcher'
+import { type PackageNode, buildDependenciesHierarchy, type DependenciesHierarchy, createPackagesSearcher } from '@pnpm/reviewing.dependencies-hierarchy'
 import { renderJson } from './renderJson'
 import { renderParseable } from './renderParseable'
 import { renderTree } from './renderTree'
 import { type PackageDependencyHierarchy } from './types'
 
 export type { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
+export { renderJson, renderParseable, renderTree }
 
 const DEFAULTS = {
   alwaysPrintRootPackage: true,
