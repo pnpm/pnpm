@@ -29,7 +29,7 @@ export interface DependenciesHierarchy {
 }
 
 export async function buildDependenciesHierarchy (
-  projectPaths: string[] | undefined,
+  projectPaths: string[],
   maybeOpts: {
     depth: number
     include?: { [dependenciesField in DependenciesField]: boolean }
@@ -51,10 +51,6 @@ export async function buildDependenciesHierarchy (
   })
   const currentLockfile = (modules?.virtualStoreDir && await readCurrentLockfile(modules.virtualStoreDir, { ignoreIncompatible: false })) ?? null
   const wantedLockfile = await readWantedLockfile(maybeOpts.lockfileDir, { ignoreIncompatible: false })
-  if (projectPaths == null) {
-    projectPaths = Object.keys(wantedLockfile?.importers ?? {})
-      .map((id) => path.join(maybeOpts.lockfileDir, id))
-  }
 
   const result = {} as { [projectDir: string]: DependenciesHierarchy }
 
