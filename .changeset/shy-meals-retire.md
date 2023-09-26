@@ -1,6 +1,6 @@
 ---
+"@pnpm/plugin-commands-listing": patch
 "@pnpm/reviewing.dependencies-hierarchy": patch
 ---
 
-Fix memory error when running `bit why` in large trees. 
-The function will now limit the end leafs to 10, which also makes the output more readable.
+Fix memory error when using `pnpm why <package>` in a project with many dependencies, the result is cropped to 10 end leafs and now supports the option to limit the depth (`pnpm why <package> --depth 2`).

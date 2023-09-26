@@ -8,6 +8,7 @@ import { handler as list, type ListCommandOptions } from './list'
 
 export function rcOptionsTypes () {
   return pick([
+    'depth',
     'dev',
     'global-dir',
     'global',
@@ -79,6 +80,10 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: "Don't display packages from `optionalDependencies`",
             name: '--no-optional',
           },
+          {
+            name: '--depth <number>',
+            description: 'Max display depth of the dependency graph',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
@@ -103,7 +108,7 @@ export async function handler (
     ...opts,
     cliOptions: {
       ...(opts.cliOptions ?? {}),
-      depth: Infinity,
+      depth: opts.depth ?? Infinity,
     },
   }, params)
 }
