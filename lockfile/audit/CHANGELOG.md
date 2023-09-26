@@ -1,5 +1,14 @@
 # @pnpm/audit
 
+## 7.0.15
+
+### Patch Changes
+
+- Updated dependencies [101c97ecb]
+- Updated dependencies [f394cfccd]
+  - @pnpm/list@9.1.0
+  - @pnpm/lockfile-utils@8.0.5
+
 ## 7.0.14
 
 ### Patch Changes

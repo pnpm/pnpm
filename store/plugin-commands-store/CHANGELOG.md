@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-store
 
+## 8.0.23
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+- Updated dependencies [f394cfccd]
+  - @pnpm/config@19.1.0
+  - @pnpm/lockfile-utils@8.0.5
+  - @pnpm/cli-utils@2.0.21
+  - @pnpm/store-connection-manager@7.0.2
+
 ## 8.0.22
 
 ### Patch Changes

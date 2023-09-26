@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-installation
 
+## 13.1.7
+
+### Patch Changes
+
+- ba48fe0bc: Pass through the `--ignore-scripts` command to install, when running `pnpm dedupe --ignore-scripts` [#7102](https://github.com/pnpm/pnpm/issues/7102).
+- Updated dependencies [1f32d3eb8]
+- Updated dependencies [ee328fd25]
+- Updated dependencies [f394cfccd]
+  - @pnpm/core@12.1.2
+  - @pnpm/config@19.1.0
+  - @pnpm/cli-utils@2.0.21
+  - @pnpm/plugin-commands-rebuild@9.1.16
+  - @pnpm/store-connection-manager@7.0.2
+  - @pnpm/outdated@13.0.19
+  - @pnpm/workspace.find-packages@1.0.11
+  - @pnpm/package-store@19.0.1
+  - @pnpm/filter-workspace-packages@7.1.1
+
 ## 13.1.6
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @pnpm/headless
 
+## 22.1.2
+
+### Patch Changes
+
+- 1f32d3eb8: When the `node-linker` is set to `hoisted`, the `package.json` files of the existing dependencies inside `node_modules` will be checked to verify their actual versions. The data in the `node_modules/.modules.yaml` and `node_modules/.pnpm/lock.yaml` may not be fully reliable, as an installation may fail after changes to dependencies were made but before those state files were updated [#7107](https://github.com/pnpm/pnpm/pull/7107).
+- Updated dependencies [f394cfccd]
+  - @pnpm/lockfile-utils@8.0.5
+  - @pnpm/deps.graph-builder@0.1.4
+  - @pnpm/filter-lockfile@8.0.9
+  - @pnpm/lockfile-to-pnp@3.0.9
+  - @pnpm/hoist@8.0.12
+  - @pnpm/modules-cleaner@14.0.14
+  - @pnpm/real-hoist@2.0.11
+  - @pnpm/package-requester@24.0.1
+
 ## 22.1.1
 
 ### Patch Changes

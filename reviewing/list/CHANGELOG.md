@@ -1,5 +1,16 @@
 # @pnpm/list
 
+## 9.1.0
+
+### Minor Changes
+
+- 101c97ecb: Export the renderer functions.
+
+### Patch Changes
+
+- Updated dependencies [101c97ecb]
+  - @pnpm/reviewing.dependencies-hierarchy@2.1.0
+
 ## 9.0.12
 
 ### Patch Changes

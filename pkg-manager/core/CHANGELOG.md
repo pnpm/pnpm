@@ -1,5 +1,22 @@
 # @pnpm/core
 
+## 12.1.2
+
+### Patch Changes
+
+- 1f32d3eb8: When the `node-linker` is set to `hoisted`, the `package.json` files of the existing dependencies inside `node_modules` will be checked to verify their actual versions. The data in the `node_modules/.modules.yaml` and `node_modules/.pnpm/lock.yaml` may not be fully reliable, as an installation may fail after changes to dependencies were made but before those state files were updated [#7107](https://github.com/pnpm/pnpm/pull/7107).
+- f394cfccd: Don't update git-hosted dependencies when adding an unrelated dependency [#7008](https://github.com/pnpm/pnpm/issues/7008).
+- Updated dependencies [1f32d3eb8]
+- Updated dependencies [f394cfccd]
+  - @pnpm/headless@22.1.2
+  - @pnpm/resolve-dependencies@31.1.18
+  - @pnpm/lockfile-utils@8.0.5
+  - @pnpm/filter-lockfile@8.0.9
+  - @pnpm/lockfile-to-pnp@3.0.9
+  - @pnpm/hoist@8.0.12
+  - @pnpm/modules-cleaner@14.0.14
+  - @pnpm/package-requester@24.0.1
+
 ## 12.1.1
 
 ### Patch Changes

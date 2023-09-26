@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 19.1.0
+
+### Minor Changes
+
+- ee328fd25: Add `--hide-reporter-prefix' option for `run` command to hide project name as prefix for lifecycle log outputs of running scripts [#7061](https://github.com/pnpm/pnpm/issues/7061).
+
 ## 19.0.3
 
 ### Patch Changes

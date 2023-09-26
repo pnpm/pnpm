@@ -1,5 +1,12 @@
 # @pnpm/package-requester
 
+## 24.0.1
+
+### Patch Changes
+
+- Updated dependencies [f394cfccd]
+  - @pnpm/pick-fetcher@2.0.1
+
 ## 24.0.0
 
 ### Major Changes

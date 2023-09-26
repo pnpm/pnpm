@@ -1,5 +1,13 @@
 # @pnpm/lockfile-utils
 
+## 8.0.5
+
+### Patch Changes
+
+- f394cfccd: Don't update git-hosted dependencies when adding an unrelated dependency [#7008](https://github.com/pnpm/pnpm/issues/7008).
+- Updated dependencies [f394cfccd]
+  - @pnpm/pick-fetcher@2.0.1
+
 ## 8.0.4
 
 ### Patch Changes

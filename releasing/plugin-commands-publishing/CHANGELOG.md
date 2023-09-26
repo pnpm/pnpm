@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.3.13
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+  - @pnpm/config@19.1.0
+  - @pnpm/cli-utils@2.0.21
+
 ## 7.3.12
 
 ### Patch Changes

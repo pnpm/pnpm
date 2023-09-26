@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-config
 
+## 2.0.22
+
+### Patch Changes
+
+- 6d9773989: Throw meaningful error for config sub commands[#7106](https://github.com/pnpm/pnpm/issues/7106).
+- Updated dependencies [ee328fd25]
+  - @pnpm/config@19.1.0
+  - @pnpm/cli-utils@2.0.21
+
 ## 2.0.21
 
 ### Patch Changes

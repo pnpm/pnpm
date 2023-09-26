@@ -1,5 +1,12 @@
 # @pnpm/node.fetcher
 
+## 3.0.21
+
+### Patch Changes
+
+- Updated dependencies [f394cfccd]
+  - @pnpm/pick-fetcher@2.0.1
+
 ## 3.0.20
 
 ### Patch Changes
