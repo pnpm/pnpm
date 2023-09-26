@@ -6,4 +6,4 @@
 "pnpm": patch
 ---
 
-Don't update git-hosted dependencies when adding unrelated dependency [#7008](https://github.com/pnpm/pnpm/issues/7008).
+Don't update git-hosted dependencies when adding an unrelated dependency [#7008](https://github.com/pnpm/pnpm/issues/7008).
