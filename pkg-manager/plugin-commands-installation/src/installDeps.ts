@@ -58,6 +58,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'production'
 | 'rawLocalConfig'
 | 'registries'
+| 'rootProjectManifest'
 | 'save'
 | 'saveDev'
 | 'saveExact'
@@ -213,7 +214,7 @@ when running add/update with the --workspace option')
   const store = await createOrConnectStoreController(opts)
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    ...getOptionsFromRootManifest(manifest),
+    ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository
