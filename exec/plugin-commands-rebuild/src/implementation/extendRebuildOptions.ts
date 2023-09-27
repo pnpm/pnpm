@@ -45,6 +45,8 @@ export interface StrictRebuildOptions {
   pending: boolean
   shamefullyHoist: boolean
   deployAllFiles: boolean
+  neverBuiltDependencies?: string[]
+  onlyBuiltDependencies?: string[]
 }
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &

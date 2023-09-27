@@ -94,6 +94,8 @@ export async function handler (
     reporter?: (logObj: LogBase) => void
     pending: boolean
     skipIfHasSideEffectsCache?: boolean
+    neverBuiltDependencies?: string[]
+    onlyBuiltDependencies?: string[]
   },
   params: string[]
 ) {

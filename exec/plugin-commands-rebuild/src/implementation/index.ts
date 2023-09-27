@@ -282,6 +282,17 @@ async function _rebuild (
   const warn = (message: string) => {
     logger.info({ message, prefix: opts.dir })
   }
+
+  const allowBuild = (pkgName: string) => {
+    if (opts.onlyBuiltDependencies) {
+      return opts.onlyBuiltDependencies.includes(pkgName)
+    } else if (opts.neverBuiltDependencies) {
+      return !opts.neverBuiltDependencies.includes(pkgName)
+    } else {
+      return true
+    }
+  }
+
   const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath) && !ctx.skipped.has(depPath)).map((depPath) =>
     async () => {
       const pkgSnapshot = pkgSnapshots[depPath]
@@ -318,7 +329,8 @@ async function _rebuild (
             return
           }
         }
-        const hasSideEffects = await runPostinstallHooks({
+
+        const hasSideEffects = allowBuild(pkgInfo.name) && await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,

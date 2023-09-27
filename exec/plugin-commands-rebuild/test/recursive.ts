@@ -222,3 +222,191 @@ test.skip('rebuild multiple packages in correct order', async () => {
   expect(outputs1).toStrictEqual(['project-1', 'project-2'])
   expect(outputs2).toStrictEqual(['project-1', 'project-3'])
 })
+
+test('never build neverBuiltDependencies', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/install-script-example': '*',
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/install-script-example': '*',
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '*',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
+  await execa(
+    'node',
+    [
+      pnpmBin,
+      'install',
+      '-r',
+      `--registry=${REGISTRY}`,
+      `--store-dir=${path.resolve(DEFAULT_OPTS.storeDir)}`,
+      `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
+      '--ignore-scripts',
+      '--reporter=append-only',
+    ],
+    { stdout: 'inherit' }
+  )
+  await projects['project-1'].hasNot(
+    '@pnpm.e2e/install-script-example/generated-by-install.js'
+  )
+  await projects['project-2'].hasNot(
+    '@pnpm.e2e/install-script-example/generated-by-install.js'
+  )
+  await projects['project-1'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-1'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+  await projects['project-2'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-2'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+
+  const modulesManifest = await projects['project-1'].readModulesManifest()
+  await rebuild.handler(
+    {
+      ...DEFAULT_OPTS,
+      neverBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      registries: modulesManifest!.registries!,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    },
+    []
+  )
+
+  await projects['project-1'].has(
+    '@pnpm.e2e/install-script-example/generated-by-install.js'
+  )
+  await projects['project-2'].has(
+    '@pnpm.e2e/install-script-example/generated-by-install.js'
+  )
+  await projects['project-1'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-1'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+  await projects['project-2'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-2'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+})
+
+test('only build onlyBuiltDependencies', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/install-script-example': '*',
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/install-script-example': '*',
+        '@pnpm.e2e/pre-and-postinstall-scripts-example': '*',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(
+    process.cwd(),
+    []
+  )
+  await execa(
+    'node',
+    [
+      pnpmBin,
+      'install',
+      '-r',
+      `--registry=${REGISTRY}`,
+      `--store-dir=${path.resolve(DEFAULT_OPTS.storeDir)}`,
+      `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
+      '--ignore-scripts',
+      '--reporter=append-only',
+    ],
+    { stdout: 'inherit' }
+  )
+  await projects['project-1'].hasNot(
+    '@pnpm.e2e/install-script-example/generated-by-install.js'
+  )
+  await projects['project-2'].hasNot(
+    '@pnpm.e2e/install-script-example/generated-by-install.js'
+  )
+  await projects['project-1'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-1'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+  await projects['project-2'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-2'].hasNot(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+
+  const modulesManifest = await projects['project-1'].readModulesManifest()
+  await rebuild.handler(
+    {
+      ...DEFAULT_OPTS,
+      onlyBuiltDependencies: ['@pnpm.e2e/pre-and-postinstall-scripts-example'],
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      registries: modulesManifest!.registries!,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    },
+    []
+  )
+
+  await projects['project-1'].hasNot(
+    '@pnpm.e2e/install-script-example/generated-by-install.js'
+  )
+  await projects['project-2'].hasNot(
+    '@pnpm.e2e/install-script-example/generated-by-install.js'
+  )
+  await projects['project-1'].has(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-1'].has(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+  await projects['project-2'].has(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js'
+  )
+  await projects['project-2'].has(
+    '@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js'
+  )
+})
