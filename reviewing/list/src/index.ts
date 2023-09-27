@@ -9,7 +9,7 @@ import { type PackageDependencyHierarchy } from './types'
 import { pruneDependenciesTrees } from './pruneTree'
 
 export type { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
-export { renderJson, renderParseable, renderTree }
+export { renderJson, renderParseable, renderTree, type PackageDependencyHierarchy }
 
 const DEFAULTS = {
   alwaysPrintRootPackage: true,
