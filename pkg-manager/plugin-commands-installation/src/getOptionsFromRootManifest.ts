@@ -57,7 +57,7 @@ function createVersionReferencesReplacer (manifest: ProjectManifest) {
 }
 
 function replaceVersionReferences (dep: Record<string, string>, spec: string) {
-  if (!spec.startsWith('$')) return spec
+  if (!(spec[0] === '$')) return spec
   const dependencyName = spec.slice(1)
   const newSpec = dep[dependencyName]
   if (newSpec) return newSpec

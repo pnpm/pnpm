@@ -532,7 +532,7 @@ export async function getConfig (
     }).filter(key => key.trim() !== '')
     const unknownKeys = []
     for (const key of settingKeys) {
-      if (!rcOptions.includes(key) && !key.startsWith('//') && !(key.startsWith('@') && key.endsWith(':registry'))) {
+      if (!rcOptions.includes(key) && !key.startsWith('//') && !(key[0] === '@' && key.endsWith(':registry'))) {
         unknownKeys.push(key)
       }
     }

@@ -125,7 +125,7 @@ export function parse (dependencyPath: string) {
     host,
     isAbsolute: _isAbsolute,
   }
-  const name = parts[0].startsWith('@')
+  const name = parts[0][0] === '@'
     ? `${parts.shift()}/${parts.shift()}`
     : parts.shift()
   let version = parts.join('/')
@@ -179,7 +179,7 @@ export function depPathToFilename (depPath: string) {
 
 function depPathToFilenameUnescaped (depPath: string) {
   if (depPath.indexOf('file:') !== 0) {
-    if (depPath.startsWith('/')) {
+    if (depPath[0] === '/') {
       depPath = depPath.substring(1)
     }
     const index = depPath.lastIndexOf('/', depPath.includes('(') ? depPath.indexOf('(') - 1 : depPath.length)
