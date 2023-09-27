@@ -82,6 +82,7 @@ export const types = Object.assign({
   'modules-cache-max-age': Number,
   'modules-dir': String,
   'network-concurrency': Number,
+  'no-cyclic': Boolean,
   'node-linker': ['pnp', 'isolated', 'hoisted'],
   noproxy: String,
   'npm-path': String,
@@ -218,6 +219,7 @@ export async function getConfig (
     'link-workspace-packages': true,
     'lockfile-include-tarball-url': false,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
+    'no-cyclic': false,
     'node-linker': 'isolated',
     'package-lock': npmDefaults['package-lock'],
     pending: false,

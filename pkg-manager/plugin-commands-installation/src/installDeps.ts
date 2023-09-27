@@ -81,6 +81,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'workspaceDir'
 | 'extraEnv'
 | 'ignoreWorkspaceCycles'
+| 'noCyclic'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -157,6 +158,11 @@ when running add/update with the --workspace option')
         const cyclicDependenciesInfo = sequencedGraph.cycles.length > 0
           ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
           : ''
+
+        if (opts.noCyclic) {
+          throw new PnpmError('NO_CYCLIC', `There are cyclic workspace dependencies${cyclicDependenciesInfo}`)
+        }
+
         logger.warn({
           message: `There are cyclic workspace dependencies${cyclicDependenciesInfo}`,
           prefix: opts.workspaceDir,
