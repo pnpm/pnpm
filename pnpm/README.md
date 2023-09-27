@@ -39,17 +39,6 @@ To quote the [Rush](https://rushjs.io/) team:
         <a href="https://bit.dev/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80"></a>
       </td>
       <td align="center" valign="middle">
-        <a href="https://novu.co/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/novu.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/novu_light.svg" />
-            <img src="https://pnpm.io/img/users/novu.svg" width="180" />
-          </picture>
-        </a>
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="middle">
         <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/prisma.svg" />
@@ -57,9 +46,6 @@ To quote the [Rush](https://rushjs.io/) team:
             <img src="https://pnpm.io/img/users/prisma.svg" width="180" />
           </picture>
         </a>
-      </td>
-      <td align="center" valign="middle">
-        <a href="https://www.flightcontrol.dev/?ref=pnpm" target="_blank"><img src="https://pnpm.io/img/users/flightcontrol.svg" width="240"></a>
       </td>
     </tr>
   </tbody>
@@ -106,15 +92,6 @@ To quote the [Rush](https://rushjs.io/) team:
       </td>
     </tr>
     <tr>
-      <td align="center" valign="middle">
-        <a href="https://www.thinkmill.com.au/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/thinkmill.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/thinkmill_light.svg" />
-            <img src="https://pnpm.io/img/users/thinkmill.svg" width="200" />
-          </picture>
-        </a>
-      </td>
       <td align="center" valign="middle">
         <a href="https://devowl.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
