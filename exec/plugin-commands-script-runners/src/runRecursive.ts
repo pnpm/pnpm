@@ -1,4 +1,4 @@
-import path from 'path'
+import path, { normalize, relative } from 'path'
 import { throwOnCommandFail } from '@pnpm/cli-utils'
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -31,6 +31,19 @@ Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' 
   ifPresent?: boolean
   resumeFrom?: string
   reportSummary?: boolean
+}
+
+function logGHGroup (type: 'start' | 'end', concurrency: number = 4, name?: string, version?: string, prefix?: string, workspaceDir?: string) {
+  if (!process.env.GITHUB_ACTIONS && concurrency === 1) return
+  if (type === 'end') {
+    process.stderr.write('::endgroup::\n')
+  } else {
+    let str = '::group::'
+    str += name ? `${name ?? 'unknown'}${version ? `@${version}` : ''}` : ''
+    str += prefix ? ` ${normalize(relative(workspaceDir ?? process.cwd(), prefix))}` : ''
+    str += '\n'
+    process.stderr.write(str)
+  }
 }
 
 export async function runRecursive (
@@ -127,7 +140,9 @@ export async function runRecursive (
           }
 
           const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
+          logGHGroup('start', opts.workspaceConcurrency, pkg.package.manifest.name, pkg.package.manifest.version, prefix, opts.workspaceDir)
           await _runScript(scriptName)
+          logGHGroup('end', opts.workspaceConcurrency)
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
