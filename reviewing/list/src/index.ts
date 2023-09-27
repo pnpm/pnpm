@@ -6,6 +6,7 @@ import { renderJson } from './renderJson'
 import { renderParseable } from './renderParseable'
 import { renderTree } from './renderTree'
 import { type PackageDependencyHierarchy } from './types'
+import { pruneDependenciesTrees } from './pruneTree'
 
 export type { PackageNode } from '@pnpm/reviewing.dependencies-hierarchy'
 export { renderJson, renderParseable, renderTree }
@@ -105,8 +106,10 @@ export async function listForPackages (
 
   const pkgs = await searchForPackages(packages, projectPaths, opts)
 
+  const prunedPkgs = pruneDependenciesTrees(pkgs ?? null, 10)
+
   const print = getPrinter(opts.reportAs)
-  return print(pkgs, {
+  return print(prunedPkgs, {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth,
     long: opts.long,
