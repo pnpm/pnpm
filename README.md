@@ -1,5 +1,3 @@
-[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner-direct.svg)](https://stand-with-ukraine.pp.ua)
-
 [简体中文](https://pnpm.io/zh/) |
 [日本語](https://pnpm.io/ja/) |
 [한국어](https://pnpm.io/ko/) |
@@ -29,6 +27,7 @@ To quote the [Rush](https://rushjs.io/) team:
 [![OpenCollective](https://opencollective.com/pnpm/backers/badge.svg)](https://opencollective.com/pnpm)
 [![OpenCollective](https://opencollective.com/pnpm/sponsors/badge.svg)](https://opencollective.com/pnpm)
 [![Twitter Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://twitter.com/intent/follow?screen_name=pnpmjs&region=follow_link)
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://stand-with-ukraine.pp.ua)
 
 ## Gold Sponsors
 
@@ -156,3 +155,4 @@ This project exists thanks to all the people who contribute. [Contribute](../../
 ## License
 
 [MIT](https://github.com/pnpm/pnpm/blob/main/LICENSE)
+
