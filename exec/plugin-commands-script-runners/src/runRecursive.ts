@@ -33,13 +33,14 @@ Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' 
   reportSummary?: boolean
 }
 
-function logGHGroup (type: 'start' | 'end', concurrency: number = 4, name?: string, version?: string, prefix?: string, workspaceDir?: string) {
-  if (!process.env.GITHUB_ACTIONS && concurrency === 1) return
+function logGHGroup (type: 'start' | 'end', concurrency: number = 4, script?: string, name?: string, version?: string, prefix?: string, workspaceDir?: string) {
+  if (!process.env.GITHUB_ACTIONS || concurrency > 1) return
   if (type === 'end') {
     process.stdout.write('::endgroup::\n')
   } else {
     let str = '::group::'
     str += name ? `${name ?? 'unknown'}${version ? `@${version}` : ''}` : ''
+    str += script ? `: ${script}` : ''
     str += prefix ? ` ${path.normalize(path.relative(workspaceDir ?? process.cwd(), prefix))}` : ''
     str += '\n'
     process.stdout.write(str)
@@ -140,7 +141,7 @@ export async function runRecursive (
           }
 
           const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
-          logGHGroup('start', opts.workspaceConcurrency, pkg.package.manifest.name, pkg.package.manifest.version, prefix, opts.workspaceDir)
+          logGHGroup('start', opts.workspaceConcurrency, scriptName, pkg.package.manifest.name, pkg.package.manifest.version, prefix, opts.workspaceDir)
           await _runScript(scriptName)
           logGHGroup('end', opts.workspaceConcurrency)
           result[prefix].status = 'passed'
