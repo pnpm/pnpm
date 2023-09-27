@@ -11,7 +11,7 @@ export function pruneDependenciesTrees (trees: PackageDependencyHierarchy[] | nu
     const endLeafPaths: PackageNode[][] = []
     const visitedNodes = new Set<string>()
 
-    function findEndLeafs (node: PackageNode, path: PackageNode[]): void {
+    function findEndLeaves (node: PackageNode, path: PackageNode[]): void {
       if (node.circular) {
         return
       }
@@ -32,7 +32,7 @@ export function pruneDependenciesTrees (trees: PackageDependencyHierarchy[] | nu
       }
 
       for (const child of node.dependencies ?? []) {
-        findEndLeafs(child, newPath)
+        findEndLeaves(child, newPath)
         if (endLeafPaths.length >= limit) {
           return
         }
@@ -43,7 +43,7 @@ export function pruneDependenciesTrees (trees: PackageDependencyHierarchy[] | nu
 
     if (tree.dependencies) {
       for (const node of tree.dependencies) {
-        findEndLeafs(node, [])
+        findEndLeaves(node, [])
       }
     }
 
