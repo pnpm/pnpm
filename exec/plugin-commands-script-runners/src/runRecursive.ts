@@ -1,4 +1,4 @@
-import path, { normalize, relative } from 'path'
+import path from 'path'
 import { throwOnCommandFail } from '@pnpm/cli-utils'
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
@@ -40,7 +40,7 @@ function logGHGroup (type: 'start' | 'end', concurrency: number = 4, name?: stri
   } else {
     let str = '::group::'
     str += name ? `${name ?? 'unknown'}${version ? `@${version}` : ''}` : ''
-    str += prefix ? ` ${normalize(relative(workspaceDir ?? process.cwd(), prefix))}` : ''
+    str += prefix ? ` ${path.normalize(path.relative(workspaceDir ?? process.cwd(), prefix))}` : ''
     str += '\n'
     process.stderr.write(str)
   }
