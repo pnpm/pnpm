@@ -36,13 +36,13 @@ Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' 
 function logGHGroup (type: 'start' | 'end', concurrency: number = 4, name?: string, version?: string, prefix?: string, workspaceDir?: string) {
   if (!process.env.GITHUB_ACTIONS && concurrency === 1) return
   if (type === 'end') {
-    process.stderr.write('::endgroup::\n')
+    process.stdout.write('::endgroup::\n')
   } else {
     let str = '::group::'
     str += name ? `${name ?? 'unknown'}${version ? `@${version}` : ''}` : ''
     str += prefix ? ` ${path.normalize(path.relative(workspaceDir ?? process.cwd(), prefix))}` : ''
     str += '\n'
-    process.stderr.write(str)
+    process.stdout.write(str)
   }
 }
 
