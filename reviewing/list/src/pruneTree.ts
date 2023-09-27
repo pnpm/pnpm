@@ -2,7 +2,7 @@ import { type DependenciesHierarchy, type PackageNode } from '@pnpm/reviewing.de
 import { type PackageDependencyHierarchy } from './types'
 import { createHash } from 'crypto'
 
-export function pruneTreeToGetFirst10EndLeafs (trees: PackageDependencyHierarchy[] | null): PackageDependencyHierarchy[] {
+export function pruneDependenciesTrees (trees: PackageDependencyHierarchy[] | null, limit: number): PackageDependencyHierarchy[] {
   if (trees === null) {
     return []
   }
@@ -11,7 +11,7 @@ export function pruneTreeToGetFirst10EndLeafs (trees: PackageDependencyHierarchy
     const endLeafPaths: PackageNode[][] = []
     const visitedNodes = new Set<string>()
 
-    function dfs (node: PackageNode, path: PackageNode[]): void {
+    function findEndLeafs (node: PackageNode, path: PackageNode[]): void {
       if (node.circular) {
         return
       }
@@ -26,14 +26,14 @@ export function pruneTreeToGetFirst10EndLeafs (trees: PackageDependencyHierarchy
 
       if (!node.dependencies || node.dependencies.length === 0) {
         endLeafPaths.push(newPath)
-        if (endLeafPaths.length >= 10) {
+        if (endLeafPaths.length >= limit) {
           return
         }
       }
 
       for (const child of node.dependencies ?? []) {
-        dfs(child, newPath)
-        if (endLeafPaths.length >= 10) {
+        findEndLeafs(child, newPath)
+        if (endLeafPaths.length >= limit) {
           return
         }
       }
@@ -43,15 +43,15 @@ export function pruneTreeToGetFirst10EndLeafs (trees: PackageDependencyHierarchy
 
     if (tree.dependencies) {
       for (const node of tree.dependencies) {
-        dfs(node, [])
+        findEndLeafs(node, [])
       }
     }
 
-    const first10Paths = endLeafPaths.slice(0, 10)
+    const firstNPaths = endLeafPaths.slice(0, limit)
     const map = new Map<string, PackageNode>()
     const newTree: DependenciesHierarchy = { dependencies: [] }
 
-    for (const path of first10Paths) {
+    for (const path of firstNPaths) {
       let currentDependencies: PackageNode[] = newTree.dependencies!
       let pathSoFar = ''
 
