@@ -315,7 +315,7 @@ function matchPackages<T> (
 ): string[] {
   const match = createMatcher(pattern)
   const matches = Object.keys(graph).filter((id) => graph[id].package.manifest.name && match(graph[id].package.manifest.name!))
-  if (matches.length === 0 && !pattern.startsWith('@') && !pattern.includes('/')) {
+  if (matches.length === 0 && !(pattern[0] === '@') && !pattern.includes('/')) {
     const scopedMatches = matchPackages(graph, `@*/${pattern}`)
     return scopedMatches.length !== 1 ? [] : scopedMatches
   }

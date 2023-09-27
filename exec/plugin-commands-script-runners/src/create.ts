@@ -65,7 +65,7 @@ const CREATE_PREFIX = 'create-'
  * For more info, see https://docs.npmjs.com/cli/v9/commands/npm-init#description
  */
 function convertToCreateName (packageName: string) {
-  if (packageName.startsWith('@')) {
+  if (packageName[0] === '@') {
     const preferredVersionPosition = packageName.indexOf('@', 1)
     let preferredVersion = ''
     if (preferredVersionPosition > -1) {

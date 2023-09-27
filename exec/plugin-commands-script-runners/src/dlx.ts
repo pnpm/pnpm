@@ -141,7 +141,7 @@ ${binNames.map(name => `pnpm --package=${pkgName} dlx ${name}`).join('\n')}
 }
 
 function scopeless (pkgName: string) {
-  if (pkgName.startsWith('@')) {
+  if (pkgName[0] === '@') {
     return pkgName.split('/')[1]
   }
   return pkgName

@@ -135,7 +135,7 @@ async function diffFolders (folderA: string, folderB: string) {
 }
 
 function removeTrailingAndLeadingSlash (p: string) {
-  if (p.startsWith('/') || p.endsWith('/')) {
+  if (p[0] === '/' || p.endsWith('/')) {
     return p.replace(/^\/|\/$/g, '')
   }
   return p
