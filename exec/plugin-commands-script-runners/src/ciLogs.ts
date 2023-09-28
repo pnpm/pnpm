@@ -16,6 +16,7 @@ export class CiLogs {
   private labels () {
     const { name, version, prefix, script } = this.opts
     const ScriptName = `${name ?? 'unknown'}${version ? `@${version}` : ''} ${script ? `: ${script}` : ''} ${prefix}`
+    const id = `${name ?? 'unknown'}@${version ?? 'unknown'}-${script}`
 
     if (CI.GITHUB_ACTIONS) {
       return {
@@ -24,13 +25,13 @@ export class CiLogs {
       }
     } else if (CI.GITLAB) {
       return {
-        start: `section_start:${Math.floor(Date.now() / 1000)}:${prefix}\\r\\e[0K${ScriptName}`,
-        end: `section_end:${Math.floor(Date.now() / 1000)}:${prefix}\\r\\e[0K`,
+        start: `section_start:${Math.floor(Date.now() / 1000)}:${id}\\r\\e[0K${ScriptName}\r\n`,
+        end: `section_end:${Math.floor(Date.now() / 1000)}:${id}\\r\\e[0K`,
       }
     } else if (CI.TRAVIS) {
       return {
-        start: `travis_fold:start:${prefix}${ScriptName}\r\n`,
-        end: `travis_fold:end:${prefix}${ScriptName}\r\n`,
+        start: `travis_fold:start:${ScriptName}\r\n`,
+        end: `travis_fold:end:${ScriptName}\r\n`,
       }
     } else if (CI.AZURE_PIPELINES) {
       return {
