@@ -182,6 +182,7 @@ when running add/update with the --workspace option')
         params,
         {
           ...opts,
+          ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
           forceHoistPattern,
           forcePublicHoistPattern,
           allProjectsGraph,
