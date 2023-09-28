@@ -9,6 +9,7 @@ import type {
 } from '@pnpm/types'
 import { depPathToFilename, createPeersFolderSuffix } from '@pnpm/dependency-path'
 import mapValues from 'ramda/src/map'
+import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
 import scan from 'ramda/src/scan'
 import {
@@ -497,7 +498,8 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   const allResolvedPeers = new Map<string, string>()
   const allMissingPeers = new Set<string>()
 
-  for (const childNodeId of Object.values(children)) {
+  const [repeated, notRepeated] = partition(([alias]) => parentPkgs[alias] != null, Object.entries(children))
+  for (const [, childNodeId] of [...repeated, ...notRepeated]) {
     const { resolvedPeers, missingPeers } = resolvePeersOfNode(childNodeId, parentPkgs, ctx)
     for (const [k, v] of resolvedPeers) {
       allResolvedPeers.set(k, v)
