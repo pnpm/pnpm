@@ -17352,16 +17352,3 @@ packages:
   /zwitch@1.0.5:
     resolution: {integrity: sha512-V50KMwwzqJV0NpZIZFwfOD5/lyny3WlSzRiXgA0G7VUnRlqttta1L6UQIHzd6EuBY/cHGfwTIck7w1yH6Q5zUw==}
     dev: false
-
-time:
-  /@pnpm/node-fetch@1.0.0: '2023-04-19T11:13:43.487Z'
-  /@pnpm/ramda@0.28.1: '2022-08-03T13:56:59.597Z'
-  /@pnpm/which@3.0.1: '2023-05-14T22:08:27.551Z'
-  /@types/byline@4.2.34: '2023-09-15T19:35:36.812Z'
-  /@types/table@6.0.0: '2020-09-17T17:56:44.787Z'
-  /@zkochan/hosted-git-info@4.0.2: '2021-09-05T21:33:51.709Z'
-  /@zkochan/js-yaml@0.0.6: '2022-05-10T14:42:39.813Z'
-  /ci-info@3.8.0: '2023-02-11T14:11:34.779Z'
-  /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
-  /node-gyp@9.4.0: '2023-06-13T04:49:57.782Z'
-  /safe-execa@0.1.2: '2022-07-18T01:09:17.517Z'
