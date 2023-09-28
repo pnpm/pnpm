@@ -14,6 +14,7 @@ import { existsInDir } from './existsInDir'
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec'
 import { runScript } from './run'
 import { tryBuildRegExpFromCommand } from './regexpCommand'
+import { CiLogs } from './ciLogs'
 import { type PackageScripts } from '@pnpm/types'
 
 export type RecursiveRunOpts = Pick<Config,
@@ -31,20 +32,6 @@ Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reverse' | 'sort' 
   ifPresent?: boolean
   resumeFrom?: string
   reportSummary?: boolean
-}
-
-function logGHGroup (type: 'start' | 'end', concurrency: number = 4, script?: string, name?: string, version?: string, prefix?: string, workspaceDir?: string) {
-  if (!process.env.GITHUB_ACTIONS || concurrency > 1) return
-  if (type === 'end') {
-    process.stdout.write('::endgroup::\n')
-  } else {
-    let str = '::group::'
-    str += name ? `${name ?? 'unknown'}${version ? `@${version}` : ''}` : ''
-    str += script ? `: ${script}` : ''
-    str += prefix ? ` ${path.normalize(path.relative(workspaceDir ?? process.cwd(), prefix))}` : ''
-    str += '\n'
-    process.stdout.write(str)
-  }
 }
 
 export async function runRecursive (
@@ -141,9 +128,16 @@ export async function runRecursive (
           }
 
           const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
-          logGHGroup('start', opts.workspaceConcurrency, scriptName, pkg.package.manifest.name, pkg.package.manifest.version, prefix, opts.workspaceDir)
+          const logCIGroups = new CiLogs({
+            concurrency: opts.workspaceConcurrency,
+            name: pkg.package.manifest.name,
+            script: scriptName,
+            version: pkg.package.manifest.version,
+            workspaceDir: opts.workspaceDir,
+          })
+          logCIGroups.log('start')
           await _runScript(scriptName)
-          logGHGroup('end', opts.workspaceConcurrency)
+          logCIGroups.log('end')
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
