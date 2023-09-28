@@ -24,7 +24,7 @@ Update available! ${chalk.red(log.currentVersion)} → ${chalk.green(log.latestV
 ${chalk.magenta('Changelog:')} https://github.com/pnpm/pnpm/releases/tag/v${log.latestVersion}
 ${updateMessage}
 
-Follow ${chalk.magenta('@pnpmjs')} for updates: https://twitter.com/pnpmjs`,
+Follow ${chalk.magenta('@pnpmjs')} for updates: https://x.com/pnpmjs`,
         {
           padding: 1,
           margin: 1,
