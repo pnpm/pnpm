@@ -498,8 +498,12 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   const allResolvedPeers = new Map<string, string>()
   const allMissingPeers = new Set<string>()
 
+  // Partition children based on whether they're repeated in parentPkgs.
+  // This impacts the efficiency of graph traversal and prevents potential out-of-memory errors.mes can even lead to out-of-memory exceptions.
   const [repeated, notRepeated] = partition(([alias]) => parentPkgs[alias] != null, Object.entries(children))
-  for (const [, childNodeId] of [...repeated, ...notRepeated]) {
+
+  // Resolving non-repeated nodes before repeated nodes proved to be slightly faster.
+  for (const [, childNodeId] of [...notRepeated, ...repeated]) {
     const { resolvedPeers, missingPeers } = resolvePeersOfNode(childNodeId, parentPkgs, ctx)
     for (const [k, v] of resolvedPeers) {
       allResolvedPeers.set(k, v)
