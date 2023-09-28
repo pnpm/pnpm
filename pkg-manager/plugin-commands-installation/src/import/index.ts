@@ -165,7 +165,7 @@ export async function handler (
   const manifest = await readProjectManifestOnly(opts.dir)
   const installOpts = {
     ...opts,
-    ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
+    ...getOptionsFromRootManifest(opts.rootProjectManifest ?? manifest),
     lockfileOnly: true,
     preferredVersions,
     storeController: store.ctrl,
