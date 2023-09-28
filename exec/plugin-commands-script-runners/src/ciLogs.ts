@@ -6,8 +6,7 @@ export class CiLogs {
     script?: string
     name?: string
     version?: string
-    prefix?: string
-    workspaceDir?: string
+    prefix: string
   }) {
     if (!this.opts.concurrency) {
       this.opts.concurrency = 4
@@ -16,7 +15,7 @@ export class CiLogs {
 
   private labels () {
     const { name, version, prefix, script } = this.opts
-    const ScriptName = `${name ?? 'unknown'}${version ? `@${version}` : ''}${script ? `: ${script}` : ''}${prefix ? ` ${prefix}` : ''}`
+    const ScriptName = `${name ?? 'unknown'}${version ? `@${version}` : ''} ${script ? `: ${script}` : ''} ${prefix}`
 
     if (CI.GITHUB_ACTIONS) {
       return {

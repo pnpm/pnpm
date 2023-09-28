@@ -133,7 +133,7 @@ export async function runRecursive (
             name: pkg.package.manifest.name,
             script: scriptName,
             version: pkg.package.manifest.version,
-            workspaceDir: opts.workspaceDir,
+            prefix: path.normalize(path.relative(opts.workspaceDir, prefix)),
           })
           logCIGroups.log('start')
           await _runScript(scriptName)
