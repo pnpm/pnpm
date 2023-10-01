@@ -6021,6 +6021,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../packages/error
+      '@pnpm/fs.hard-link-dir':
+        specifier: workspace:*
+        version: link:../fs/hard-link-dir
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../fs/graceful-fs
