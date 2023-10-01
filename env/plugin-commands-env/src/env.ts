@@ -5,6 +5,7 @@ import { envRemove } from './envRemove'
 import { envUse } from './envUse'
 import { type NvmNodeCommandOptions } from './node'
 import { envList } from './envList'
+import { envAdd } from './envAdd'
 
 export function rcOptionsTypes () {
   return {}
@@ -27,11 +28,15 @@ export function help () {
         title: 'Commands',
         list: [
           {
-            description: 'Installs the specified version of Node.js. The npm CLI bundled with the given Node.js version gets installed as well.',
+            description: 'Installs the specified version of Node.js. The npm CLI bundled with the given Node.js version gets installed as well. This sets this version of Node.js as the current version.',
             name: 'use',
           },
           {
-            description: 'Removes the specified version of Node.js.',
+            description: 'Installs the specified version(s) of Node.js without activating them as the current version.',
+            name: 'add',
+          },
+          {
+            description: 'Removes the specified version(s) of Node.js.',
             name: 'remove',
             shortAlias: 'rm',
           },
@@ -59,12 +64,14 @@ export function help () {
     ],
     url: docsUrl('env'),
     usages: [
-      'pnpm env [command] [options] <version>',
+      'pnpm env [command] [options] <version> [<additional-versions>...]',
       'pnpm env use --global 16',
       'pnpm env use --global lts',
       'pnpm env use --global argon',
       'pnpm env use --global latest',
       'pnpm env use --global rc/16',
+      'pnpm env add --global 16',
+      'pnpm env add --global 18 19 20.6.0',
       'pnpm env remove --global 16 lts',
       'pnpm env remove --global argon',
       'pnpm env remove --global latest',
@@ -92,6 +99,10 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     })
   }
   switch (params[0]) {
+  case 'install':
+  case 'add': {
+    return envAdd(opts, params.slice(1))
+  }
   case 'use': {
     return envUse(opts, params.slice(1))
   }

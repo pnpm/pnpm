@@ -136,7 +136,7 @@ test('it re-attempts failed downloads', async () => {
   }
 })
 
-describe('env remove', () => {
+describe('env add/remove', () => {
   test('fail if --global is missing', async () => {
     tempDir()
 
@@ -213,7 +213,7 @@ describe('env remove', () => {
     expect(() => execa.sync('node', ['-v'], opts)).toThrowError()
   })
 
-  test('remove multiple Node.js versions in one command', async () => {
+  test('install and remove multiple Node.js versions in one command', async () => {
     tempDir()
 
     const configDir = path.resolve('config')
@@ -224,35 +224,35 @@ describe('env remove', () => {
       global: true,
       pnpmHomeDir: process.cwd(),
       rawConfig: {},
-    }, ['use', '16.4.0'])
-    await env.handler({
-      bin: process.cwd(),
-      configDir,
-      global: true,
-      pnpmHomeDir: process.cwd(),
-      rawConfig: {},
-    }, ['use', '17.9.1'])
-
-    const opts = {
-      env: {
-        [PATH]: process.cwd(),
-      },
-      extendEnv: false,
-    }
+    }, ['install', '16.4.0', '18.18.0'])
 
     {
-      const { stdout } = execa.sync('node', ['-v'], opts)
-      expect(stdout.toString()).toBe('v17.9.1')
-    }
+      const version = await env.handler({
+        bin: process.cwd(),
+        configDir,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      }, ['list'])
 
+      expect(version.trim().replaceAll(/\s/g, '')).toMatch(/16\.4\.0.*18\.18\.0/)
+    }
     await env.handler({
       bin: process.cwd(),
       global: true,
       pnpmHomeDir: process.cwd(),
       rawConfig: {},
-    }, ['rm', '16.4.0', '17.9.1'])
+    }, ['rm', '16.4.0', '18.18.0'])
 
-    expect(() => execa.sync('node', ['-v'], opts)).toThrowError()
+    {
+      const version = await env.handler({
+        bin: process.cwd(),
+        configDir,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      }, ['list'])
+
+      expect(version).toMatch('')
+    }
   })
 })
 
