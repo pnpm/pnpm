@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
+import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
@@ -1362,22 +1363,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     })),
     stats,
   }
-}
-
-function createAllowBuildFunction (
-  opts: {
-    neverBuiltDependencies?: string[]
-    onlyBuiltDependencies?: string[]
-  }
-): undefined | ((pkgName: string) => boolean) {
-  if (opts.neverBuiltDependencies != null && opts.neverBuiltDependencies.length > 0) {
-    const neverBuiltDependencies = new Set(opts.neverBuiltDependencies)
-    return (pkgName) => !neverBuiltDependencies.has(pkgName)
-  } else if (opts.onlyBuiltDependencies != null) {
-    const onlyBuiltDependencies = new Set(opts.onlyBuiltDependencies)
-    return (pkgName) => onlyBuiltDependencies.has(pkgName)
-  }
-  return undefined
 }
 
 const installInContext: InstallFunction = async (projects, ctx, opts) => {

@@ -45,6 +45,7 @@
     "write-yaml-file": "^5.0.0"
   },
   "dependencies": {
+    "@pnpm/builder.policy": "1.0.0",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",

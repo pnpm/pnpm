@@ -1158,6 +1158,9 @@ importers:
 
   exec/plugin-commands-rebuild:
     dependencies:
+      '@pnpm/builder.policy':
+        specifier: 1.0.0
+        version: 1.0.0
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
@@ -2862,6 +2865,9 @@ importers:
       '@pnpm/build-modules':
         specifier: workspace:*
         version: link:../../exec/build-modules
+      '@pnpm/builder.policy':
+        specifier: 1.0.0
+        version: 1.0.0
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
@@ -7732,6 +7738,11 @@ packages:
     requiresBuild: true
     dev: false
     optional: true
+
+  /@pnpm/builder.policy@1.0.0:
+    resolution: {integrity: sha512-0BhTu6nZ5DzIjJzuTJWOVbd1cN+0wu8k1aXXSawT+/i9Biq/3vuzqnxiTSt5e7IStZ01n59GTMvCoZ/VRAYQiA==}
+    engines: {node: '>=12.22.0'}
+    dev: false
 
   /@pnpm/byline@1.0.0:
     resolution: {integrity: sha512-61tmh+k7hnKK6b2XbF4GvxmiaF3l2a+xQlZyeoOGBs7mXU3Ie8iCAeAnM0+r70KiqTrgWvBCjMeM+W3JarJqaQ==}

@@ -25,6 +25,7 @@ import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { type ProjectManifest } from '@pnpm/types'
+import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import * as dp from '@pnpm/dependency-path'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import loadJsonFile from 'load-json-file'
@@ -283,15 +284,7 @@ async function _rebuild (
     logger.info({ message, prefix: opts.dir })
   }
 
-  const allowBuild = (pkgName: string) => {
-    if (opts.onlyBuiltDependencies) {
-      return opts.onlyBuiltDependencies.includes(pkgName)
-    } else if (opts.neverBuiltDependencies) {
-      return !opts.neverBuiltDependencies.includes(pkgName)
-    } else {
-      return true
-    }
-  }
+  const allowBuild = createAllowBuildFunction(opts) ?? (() => true)
 
   const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath) && !ctx.skipped.has(depPath)).map((depPath) =>
     async () => {
