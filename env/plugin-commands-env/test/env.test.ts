@@ -212,6 +212,48 @@ describe('env remove', () => {
 
     expect(() => execa.sync('node', ['-v'], opts)).toThrowError()
   })
+
+  test('remove multiple Node.js versions in one command', async () => {
+    tempDir()
+
+    const configDir = path.resolve('config')
+
+    await env.handler({
+      bin: process.cwd(),
+      configDir,
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, ['use', '16.4.0'])
+    await env.handler({
+      bin: process.cwd(),
+      configDir,
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, ['use', '17.9.1'])
+
+    const opts = {
+      env: {
+        [PATH]: process.cwd(),
+      },
+      extendEnv: false,
+    }
+
+    {
+      const { stdout } = execa.sync('node', ['-v'], opts)
+      expect(stdout.toString()).toBe('v17.9.1')
+    }
+
+    await env.handler({
+      bin: process.cwd(),
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, ['rm', '16.4.0', '17.9.1'])
+
+    expect(() => execa.sync('node', ['-v'], opts)).toThrowError()
+  })
 })
 
 describe('env list', () => {
