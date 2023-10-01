@@ -23,7 +23,7 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]) 
     messages.push(await removeNodeVersion(fetch, opts, version))
   }
   if (messages.length === 1 && messages[0] instanceof Error) throw messages[0]
-  return messages.map((msg: string | Error) => msg instanceof Error ? msg.message : msg).join('\n')
+  return 'All specified Node.js versions were removed'
 }
 
 async function removeNodeVersion (fetch: FetchFromRegistry, opts: NvmNodeCommandOptions, version: string) {
@@ -63,6 +63,6 @@ async function removeNodeVersion (fetch: FetchFromRegistry, opts: NvmNodeCommand
 
   await rimraf(versionDir)
 
-  return `Node.js ${nodeVersion as string} is removed
-  ${versionDir}`
+  globalInfo(`Node.js ${nodeVersion as string} was removed
+  ${versionDir}`)
 }
