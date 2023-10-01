@@ -9,7 +9,7 @@ import {
   type AddDirToStoreMessage,
   type LinkPkgMessage,
   type SymlinkAllModulesMessage,
-  HardLinkDirMessage,
+  type HardLinkDirMessage,
 } from './types'
 
 let workerPool: WorkerPool | undefined
@@ -239,7 +239,7 @@ export async function hardLinkDir (src: string, destDirs: string[]): Promise<voi
     localWorker.postMessage({
       type: 'hardLinkDir',
       src,
-      destDirs
+      destDirs,
     } as HardLinkDirMessage)
   })
 }

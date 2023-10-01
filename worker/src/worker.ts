@@ -23,7 +23,7 @@ import {
   type LinkPkgMessage,
   type SymlinkAllModulesMessage,
   type TarballExtractMessage,
-  HardLinkDirMessage,
+  type HardLinkDirMessage,
 } from './types'
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
@@ -242,4 +242,3 @@ function writeJsonFile (filePath: string, data: unknown) {
 process.on('uncaughtException', (err) => {
   console.error(err)
 })
-

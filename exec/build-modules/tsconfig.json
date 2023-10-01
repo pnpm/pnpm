@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../fs/hard-link-dir"
-    },
-    {
       "path": "../../packages/calc-dep-state"
     },
     {
@@ -32,6 +29,9 @@
     },
     {
       "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../worker"
     },
     {
       "path": "../lifecycle"

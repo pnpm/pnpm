@@ -1057,9 +1057,6 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
-      '@pnpm/fs.hard-link-dir':
-        specifier: workspace:*
-        version: link:../../fs/hard-link-dir
       '@pnpm/graph-sequencer':
         specifier: 1.1.1
         version: 1.1.1
@@ -1084,6 +1081,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../../worker
       p-defer:
         specifier: ^3.0.0
         version: 3.0.0
@@ -1182,9 +1182,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fs.hard-link-dir':
-        specifier: workspace:*
-        version: link:../../fs/hard-link-dir
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
@@ -1233,6 +1230,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../../worker
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: link:../../workspace/find-packages
