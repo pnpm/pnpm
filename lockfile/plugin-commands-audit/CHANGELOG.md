@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-audit
 
+## 8.0.27
+
+### Patch Changes
+
+- @pnpm/audit@7.0.16
+
 ## 8.0.26
 
 ### Patch Changes

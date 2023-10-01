@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 12.1.3
+
+### Patch Changes
+
+- Updated dependencies [b0afd7833]
+  - @pnpm/resolve-dependencies@31.1.19
+
 ## 12.1.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/audit
 
+## 7.0.16
+
+### Patch Changes
+
+- Updated dependencies [40798fb1c]
+  - @pnpm/list@9.1.1
+
 ## 7.0.15
 
 ### Patch Changes

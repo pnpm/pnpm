@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.19
+
+### Patch Changes
+
+- b0afd7833: Optimize peers resolution to avoid out-of-memory exceptions in some rare cases, when there are too many circular dependencies and peer dependencies [#7149](https://github.com/pnpm/pnpm/pull/7149).
+
 ## 31.1.18
 
 ### Patch Changes

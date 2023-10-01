@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 9.1.1
+
+### Patch Changes
+
+- 40798fb1c: Fix memory error in `pnpm why` when the dependencies tree is too big, the command will now prune the tree to just 10 end leafs and now supports `--depth` argument.
+
 ## 9.1.0
 
 ### Minor Changes
