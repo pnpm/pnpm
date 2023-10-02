@@ -224,7 +224,7 @@ describe('env add/remove', () => {
       global: true,
       pnpmHomeDir: process.cwd(),
       rawConfig: {},
-    }, ['install', '16.4.0', '18.18.0'])
+    }, ['add', '16.4.0', '18.18.0'])
 
     {
       const version = await env.handler({

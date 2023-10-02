@@ -99,7 +99,6 @@ export async function handler (opts: NvmNodeCommandOptions, params: string[]) {
     })
   }
   switch (params[0]) {
-  case 'install':
   case 'add': {
     return envAdd(opts, params.slice(1))
   }
