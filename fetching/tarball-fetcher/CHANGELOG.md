@@ -1,5 +1,78 @@
 # @pnpm/tarball-fetcher
 
+## 18.0.1
+
+### Patch Changes
+
+- Updated dependencies [17d2ddb05]
+  - @pnpm/prepare-package@5.0.12
+
+## 18.0.0
+
+### Major Changes
+
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/worker@0.3.0
+  - @pnpm/graceful-fs@3.2.0
+  - @pnpm/fetcher-base@15.0.1
+  - @pnpm/prepare-package@5.0.11
+
+## 17.0.1
+
+### Patch Changes
+
+- @pnpm/worker@0.2.1
+
+## 17.0.0
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+- Updated dependencies [48dcd108c]
+  - @pnpm/worker@0.2.0
+  - @pnpm/fetcher-base@15.0.1
+  - @pnpm/prepare-package@5.0.10
+
+## 16.0.2
+
+### Patch Changes
+
+- @pnpm/worker@0.1.2
+- @pnpm/prepare-package@5.0.9
+
+## 16.0.1
+
+### Patch Changes
+
+- Updated dependencies [4a1a9431d]
+  - @pnpm/fetcher-base@15.0.1
+  - @pnpm/worker@0.1.1
+  - @pnpm/prepare-package@5.0.9
+
+## 16.0.0
+
+### Major Changes
+
+- 083bbf590: Breaking changes to the API.
+- 70b2830ac: Breaking changes to the API.
+
+### Patch Changes
+
+- 96e165c7f: Performance optimizations. Package tarballs are now download directly to memory and built to an ArrayBuffer. Hashing and other operations are avoided until the stream has been fully received [#6819](https://github.com/pnpm/pnpm/pull/6819).
+- Updated dependencies [70b2830ac]
+- Updated dependencies [083bbf590]
+- Updated dependencies [083bbf590]
+- Updated dependencies [083bbf590]
+  - @pnpm/fetcher-base@15.0.0
+  - @pnpm/worker@0.1.0
+  - @pnpm/graceful-fs@3.1.0
+  - @pnpm/prepare-package@5.0.8
+
 ## 15.0.9
 
 ### Patch Changes

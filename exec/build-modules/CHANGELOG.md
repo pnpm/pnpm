@@ -1,5 +1,51 @@
 # @pnpm/build-modules
 
+## 11.0.15
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/lifecycle@16.0.0
+  - @pnpm/link-bins@9.0.7
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 11.0.14
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+  - @pnpm/lifecycle@15.0.9
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/link-bins@9.0.6
+
+## 11.0.13
+
+### Patch Changes
+
+- @pnpm/lifecycle@15.0.8
+- @pnpm/store-controller-types@16.0.1
+- @pnpm/fs.hard-link-dir@2.0.1
+- @pnpm/patching.apply-patch@2.0.5
+- @pnpm/link-bins@9.0.6
+
+## 11.0.12
+
+### Patch Changes
+
+- Updated dependencies [494f87544]
+- Updated dependencies [512d71254]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/lifecycle@15.0.7
+  - @pnpm/link-bins@9.0.6
+  - @pnpm/fs.hard-link-dir@2.0.1
+
 ## 11.0.11
 
 ### Patch Changes

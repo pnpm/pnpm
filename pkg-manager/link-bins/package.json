@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "9.0.5",
+  "version": "9.0.7",
   "description": "Link bins to node_modules/.bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -46,13 +46,13 @@
     "normalize-path": "^3.0.0",
     "p-settle": "^4.1.1",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "symlink-dir": "^5.1.1"
+    "symlink-dir": "^5.2.0"
   },
   "devDependencies": {
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.0",
-    "@types/node": "^16.18.41",
+    "@types/node": "^16.18.52",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.20",
     "cmd-extension": "^1.0.2",

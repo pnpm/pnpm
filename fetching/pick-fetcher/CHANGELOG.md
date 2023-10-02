@@ -1,5 +1,11 @@
 # @pnpm/pick-fetcher
 
+## 2.0.1
+
+### Patch Changes
+
+- f394cfccd: Don't update git-hosted dependencies when adding an unrelated dependency [#7008](https://github.com/pnpm/pnpm/issues/7008).
+
 ## 2.0.0
 
 ### Major Changes

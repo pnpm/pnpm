@@ -103,6 +103,7 @@ export const types = Object.assign({
   'resolution-mode': ['highest', 'time-based', 'lowest-direct'],
   'resolve-peers-from-workspace-root': Boolean,
   'aggregate-output': Boolean,
+  'reporter-hide-prefix': Boolean,
   'save-peer': Boolean,
   'save-workspace-protocol': Boolean,
   'script-shell': String,
@@ -531,7 +532,7 @@ export async function getConfig (
     }).filter(key => key.trim() !== '')
     const unknownKeys = []
     for (const key of settingKeys) {
-      if (!rcOptions.includes(key) && !key.startsWith('//') && !(key.startsWith('@') && key.endsWith(':registry'))) {
+      if (!rcOptions.includes(key) && !key.startsWith('//') && !(key[0] === '@' && key.endsWith(':registry'))) {
         unknownKeys.push(key)
       }
     }

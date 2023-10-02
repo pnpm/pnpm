@@ -1,5 +1,56 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.19
+
+### Patch Changes
+
+- b0afd7833: Optimize peers resolution to avoid out-of-memory exceptions in some rare cases, when there are too many circular dependencies and peer dependencies [#7149](https://github.com/pnpm/pnpm/pull/7149).
+
+## 31.1.18
+
+### Patch Changes
+
+- f394cfccd: Don't update git-hosted dependencies when adding an unrelated dependency [#7008](https://github.com/pnpm/pnpm/issues/7008).
+- Updated dependencies [f394cfccd]
+  - @pnpm/lockfile-utils@8.0.5
+  - @pnpm/pick-fetcher@2.0.1
+
+## 31.1.17
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/npm-resolver@16.0.10
+
+## 31.1.16
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+  - @pnpm/npm-resolver@16.0.9
+
+## 31.1.15
+
+### Patch Changes
+
+- @pnpm/store-controller-types@16.0.1
+- @pnpm/npm-resolver@16.0.9
+
+## 31.1.14
+
+### Patch Changes
+
+- 77e24d341: Dedupe deps with the same alias in direct dependencies [6966](https://github.com/pnpm/pnpm/issues/6966)
+- Updated dependencies [41c2b65cf]
+- Updated dependencies [494f87544]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/npm-resolver@16.0.9
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/lockfile-utils@8.0.4
+
 ## 31.1.13
 
 ### Patch Changes

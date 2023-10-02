@@ -7,9 +7,11 @@ import rimraf from '@zkochan/rimraf'
 import preferredPM from 'preferred-pm'
 import omit from 'ramda/src/omit'
 
+// We don't run prepublishOnly to prepare the dependency.
+// This might be counterintuitive as prepublishOnly is where a lot of packages put their build scripts.
+// However, neither npm nor Yarn run prepublishOnly of git-hosted dependencies (checked on npm v10 and Yarn v3).
 const PREPUBLISH_SCRIPTS = [
   'prepublish',
-  'prepublishOnly',
   'prepack',
   'publish',
 ]

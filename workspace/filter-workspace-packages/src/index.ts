@@ -70,9 +70,18 @@ export interface FilterPackagesOptions {
 export async function filterPackagesFromDir (
   workspaceDir: string,
   filter: WorkspaceFilter[],
-  opts: FilterPackagesOptions & { engineStrict?: boolean, patterns: string[] }
+  opts: FilterPackagesOptions & {
+    engineStrict?: boolean
+    nodeVersion?: string
+    patterns: string[]
+  }
 ) {
-  const allProjects = await findWorkspacePackages(workspaceDir, { engineStrict: opts?.engineStrict, patterns: opts.patterns, sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile })
+  const allProjects = await findWorkspacePackages(workspaceDir, {
+    engineStrict: opts?.engineStrict,
+    patterns: opts.patterns,
+    sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+    nodeVersion: opts.nodeVersion,
+  })
   return {
     allProjects,
     ...(await filterPackages(allProjects, filter, opts)),
@@ -306,7 +315,7 @@ function matchPackages<T> (
 ): string[] {
   const match = createMatcher(pattern)
   const matches = Object.keys(graph).filter((id) => graph[id].package.manifest.name && match(graph[id].package.manifest.name!))
-  if (matches.length === 0 && !pattern.startsWith('@') && !pattern.includes('/')) {
+  if (matches.length === 0 && !(pattern[0] === '@') && !pattern.includes('/')) {
     const scopedMatches = matchPackages(graph, `@*/${pattern}`)
     return scopedMatches.length !== 1 ? [] : scopedMatches
   }

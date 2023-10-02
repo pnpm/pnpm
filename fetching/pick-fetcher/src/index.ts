@@ -23,7 +23,7 @@ export function pickFetcher (fetcherByHostingType: Partial<Fetchers>, resolution
   return fetch
 }
 
-function isGitHostedPkgUrl (url: string) {
+export function isGitHostedPkgUrl (url: string) {
   return (
     url.startsWith('https://codeload.github.com/') ||
     url.startsWith('https://bitbucket.org/') ||

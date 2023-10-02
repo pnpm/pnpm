@@ -44,7 +44,6 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 > & {
   cafsLocker?: CafsLocker
   ignoreFile?: (filename: string) => boolean
-  relinkLocalDirDeps?: boolean
 } & Partial<Pick<Config, 'userConfig' | 'deployAllFiles'>> & Pick<ClientOptions, 'resolveSymlinksInInjectedDirs'>
 
 export async function createNewStoreController (
@@ -102,7 +101,6 @@ export async function createNewStoreController (
       packageImportMethod: opts.packageImportMethod,
       cacheDir: opts.cacheDir,
       storeDir: opts.storeDir,
-      relinkLocalDirDeps: opts.relinkLocalDirDeps,
       verifyStoreIntegrity: typeof opts.verifyStoreIntegrity === 'boolean'
         ? opts.verifyStoreIntegrity
         : true,

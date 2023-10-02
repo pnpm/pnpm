@@ -1,11 +1,6 @@
 import type { IntegrityLike } from 'ssri'
 import type { DependencyManifest } from '@pnpm/types'
 
-export interface DeferredManifestPromise {
-  resolve: (manifest: DependencyManifest | undefined) => void
-  reject: (err: Error) => void
-}
-
 export interface PackageFileInfo {
   checkedAt?: number // Nullable for backward compatibility
   integrity: string
@@ -13,11 +8,12 @@ export interface PackageFileInfo {
   size: number
 }
 
+export type ResolvedFrom = 'store' | 'local-dir' | 'remote'
+
 export type PackageFilesResponse = {
-  fromStore: boolean
+  resolvedFrom: ResolvedFrom
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   sideEffects?: Record<string, Record<string, PackageFileInfo>>
-  local?: boolean
 } & ({
   unprocessed?: false
   filesIndex: Record<string, string>
@@ -27,6 +23,7 @@ export type PackageFilesResponse = {
 })
 
 export interface ImportPackageOpts {
+  disableRelinkLocalDirDeps?: boolean
   requiresBuild?: boolean
   sideEffectsCacheKey?: string
   filesResponse: PackageFilesResponse

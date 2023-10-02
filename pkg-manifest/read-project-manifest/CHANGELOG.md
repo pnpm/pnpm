@@ -1,5 +1,19 @@
 # @pnpm/read-project-manifest
 
+## 5.0.6
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/graceful-fs@3.2.0
+
+## 5.0.5
+
+### Patch Changes
+
+- Updated dependencies [083bbf590]
+  - @pnpm/graceful-fs@3.1.0
+
 ## 5.0.4
 
 ### Patch Changes

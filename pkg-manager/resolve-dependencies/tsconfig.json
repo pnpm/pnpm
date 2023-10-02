@@ -13,6 +13,9 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
+      "path": "../../fetching/pick-fetcher"
+    },
+    {
       "path": "../../lockfile/lockfile-types"
     },
     {

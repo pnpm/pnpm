@@ -55,6 +55,11 @@ export const REPORT_SUMMARY_OPTION_HELP = {
   name: '--report-summary',
 }
 
+export const REPORTER_HIDE_PREFIX_HELP = {
+  description: 'Hide project name prefix from output of running scripts. Useful when running in CI like GitHub Actions and the output from a script may create an annotation.',
+  name: '--reporter-hide-prefix',
+}
+
 export const shorthands = {
   parallel: [
     '--workspace-concurrency=Infinity',
@@ -91,6 +96,7 @@ export function cliOptionsTypes () {
     reverse: Boolean,
     'resume-from': String,
     'report-summary': Boolean,
+    'reporter-hide-prefix': Boolean,
   }
 }
 
@@ -130,6 +136,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           ...UNIVERSAL_OPTIONS,
           SEQUENTIAL_OPTION_HELP,
           REPORT_SUMMARY_OPTION_HELP,
+          REPORTER_HIDE_PREFIX_HELP,
         ],
       },
       FILTERING,

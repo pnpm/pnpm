@@ -1,5 +1,93 @@
 # @pnpm/plugin-commands-deploy
 
+## 3.1.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.8
+
+## 3.1.7
+
+### Patch Changes
+
+- Updated dependencies [ba48fe0bc]
+  - @pnpm/plugin-commands-installation@13.1.7
+  - @pnpm/cli-utils@2.0.21
+
+## 3.1.6
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.6
+- @pnpm/cli-utils@2.0.20
+
+## 3.1.5
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/fs.indexed-pkg-importer@5.0.0
+  - @pnpm/plugin-commands-installation@13.1.5
+  - @pnpm/cli-utils@2.0.19
+  - @pnpm/directory-fetcher@7.0.1
+
+## 3.1.4
+
+### Patch Changes
+
+- Updated dependencies [cb6e4212c]
+  - @pnpm/fs.indexed-pkg-importer@4.1.1
+  - @pnpm/plugin-commands-installation@13.1.4
+
+## 3.1.3
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/fs.indexed-pkg-importer@4.1.0
+  - @pnpm/plugin-commands-installation@13.1.3
+  - @pnpm/cli-utils@2.0.18
+  - @pnpm/directory-fetcher@7.0.0
+
+## 3.1.2
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.2
+- @pnpm/fs.indexed-pkg-importer@4.0.1
+- @pnpm/directory-fetcher@7.0.0
+
+## 3.1.1
+
+### Patch Changes
+
+- d92070876: Reverting a change shipped in v8.7 that caused issues with the `pnpm deploy` command and "injected dependencies" [#6943](https://github.com/pnpm/pnpm/pull/6943).
+- Updated dependencies [4a1a9431d]
+- Updated dependencies [d92070876]
+  - @pnpm/directory-fetcher@7.0.0
+  - @pnpm/plugin-commands-installation@13.1.1
+  - @pnpm/fs.indexed-pkg-importer@4.0.1
+  - @pnpm/cli-utils@2.0.17
+
+## 3.1.0
+
+### Minor Changes
+
+- d57e4de6d: Apply `publishConfig` for workspace packages on directory fetch. Enables a publishable ("exportable") `package.json` on deployment [#6693](https://github.com/pnpm/pnpm/issues/6693).
+
+### Patch Changes
+
+- Updated dependencies [ef3609049]
+- Updated dependencies [e0474bc4c]
+- Updated dependencies [d57e4de6d]
+- Updated dependencies [f2009d175]
+- Updated dependencies [bf21c9bf3]
+- Updated dependencies [81e5ada3a]
+  - @pnpm/plugin-commands-installation@13.1.0
+  - @pnpm/directory-fetcher@6.1.0
+  - @pnpm/fs.indexed-pkg-importer@4.0.0
+  - @pnpm/cli-utils@2.0.16
+
 ## 3.0.31
 
 ### Patch Changes

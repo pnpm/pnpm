@@ -1,5 +1,90 @@
 # @pnpm/package-store
 
+## 19.0.1
+
+### Patch Changes
+
+- @pnpm/package-requester@24.0.1
+
+## 19.0.0
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/worker@0.3.0
+  - @pnpm/package-requester@24.0.0
+  - @pnpm/create-cafs-store@6.0.0
+  - @pnpm/store.cafs@2.0.4
+  - @pnpm/fetcher-base@15.0.1
+
+## 18.0.1
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@5.1.1
+- @pnpm/package-requester@23.0.1
+- @pnpm/worker@0.2.1
+
+## 18.0.0
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+- Updated dependencies [48dcd108c]
+  - @pnpm/store-controller-types@16.1.0
+  - @pnpm/create-cafs-store@5.1.0
+  - @pnpm/worker@0.2.0
+  - @pnpm/package-requester@23.0.0
+  - @pnpm/store.cafs@2.0.3
+  - @pnpm/fetcher-base@15.0.1
+
+## 17.0.2
+
+### Patch Changes
+
+- Updated dependencies [b3947185c]
+  - @pnpm/store.cafs@2.0.2
+  - @pnpm/package-requester@22.0.2
+  - @pnpm/create-cafs-store@5.0.2
+  - @pnpm/worker@0.1.2
+
+## 17.0.1
+
+### Patch Changes
+
+- Updated dependencies [b548f2f43]
+- Updated dependencies [4a1a9431d]
+  - @pnpm/store.cafs@2.0.1
+  - @pnpm/fetcher-base@15.0.1
+  - @pnpm/package-requester@22.0.1
+  - @pnpm/create-cafs-store@5.0.1
+  - @pnpm/worker@0.1.1
+  - @pnpm/store-controller-types@16.0.1
+
+## 17.0.0
+
+### Major Changes
+
+- 494f87544: Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [0fd9e6a6c]
+- Updated dependencies [f2009d175]
+- Updated dependencies [494f87544]
+- Updated dependencies [70b2830ac]
+- Updated dependencies [083bbf590]
+- Updated dependencies [083bbf590]
+- Updated dependencies [083bbf590]
+  - @pnpm/store.cafs@2.0.0
+  - @pnpm/create-cafs-store@5.0.0
+  - @pnpm/package-requester@22.0.0
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/fetcher-base@15.0.0
+  - @pnpm/worker@0.1.0
+
 ## 16.1.0
 
 ### Minor Changes

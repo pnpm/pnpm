@@ -1,5 +1,88 @@
 # @pnpm/plugin-commands-store
 
+## 8.0.23
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+- Updated dependencies [f394cfccd]
+  - @pnpm/config@19.1.0
+  - @pnpm/lockfile-utils@8.0.5
+  - @pnpm/cli-utils@2.0.21
+  - @pnpm/store-connection-manager@7.0.2
+
+## 8.0.22
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+- @pnpm/store-connection-manager@7.0.1
+
+## 8.0.21
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-connection-manager@7.0.0
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/store.cafs@2.0.4
+  - @pnpm/config@19.0.3
+  - @pnpm/cli-utils@2.0.19
+
+## 8.0.20
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@6.2.1
+
+## 8.0.19
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-connection-manager@6.2.0
+  - @pnpm/store-controller-types@16.1.0
+  - @pnpm/store.cafs@2.0.3
+  - @pnpm/config@19.0.2
+  - @pnpm/cli-utils@2.0.18
+
+## 8.0.18
+
+### Patch Changes
+
+- Updated dependencies [b3947185c]
+  - @pnpm/store.cafs@2.0.2
+  - @pnpm/store-connection-manager@6.1.3
+  - @pnpm/config@19.0.1
+
+## 8.0.17
+
+### Patch Changes
+
+- Updated dependencies [b548f2f43]
+  - @pnpm/store.cafs@2.0.1
+  - @pnpm/store-connection-manager@6.1.2
+  - @pnpm/store-controller-types@16.0.1
+  - @pnpm/config@19.0.1
+  - @pnpm/cli-utils@2.0.17
+
+## 8.0.16
+
+### Patch Changes
+
+- Updated dependencies [0fd9e6a6c]
+- Updated dependencies [cb8bcc8df]
+- Updated dependencies [494f87544]
+- Updated dependencies [083bbf590]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/store.cafs@2.0.0
+  - @pnpm/config@19.0.0
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/lockfile-utils@8.0.4
+  - @pnpm/cli-utils@2.0.16
+  - @pnpm/store-connection-manager@6.1.1
+
 ## 8.0.15
 
 ### Patch Changes

@@ -1,5 +1,62 @@
 # @pnpm/outdated
 
+## 13.0.19
+
+### Patch Changes
+
+- Updated dependencies [f394cfccd]
+  - @pnpm/lockfile-utils@8.0.5
+
+## 13.0.18
+
+### Patch Changes
+
+- @pnpm/client@10.0.24
+
+## 13.0.17
+
+### Patch Changes
+
+- @pnpm/client@10.0.23
+- @pnpm/npm-resolver@16.0.10
+
+## 13.0.16
+
+### Patch Changes
+
+- @pnpm/client@10.0.22
+
+## 13.0.15
+
+### Patch Changes
+
+- @pnpm/client@10.0.21
+- @pnpm/npm-resolver@16.0.9
+
+## 13.0.14
+
+### Patch Changes
+
+- @pnpm/client@10.0.20
+- @pnpm/npm-resolver@16.0.9
+
+## 13.0.13
+
+### Patch Changes
+
+- @pnpm/client@10.0.19
+- @pnpm/npm-resolver@16.0.9
+
+## 13.0.12
+
+### Patch Changes
+
+- Updated dependencies [41c2b65cf]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/npm-resolver@16.0.9
+  - @pnpm/lockfile-utils@8.0.4
+  - @pnpm/client@10.0.18
+
 ## 13.0.11
 
 ### Patch Changes

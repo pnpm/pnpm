@@ -5,6 +5,7 @@ import { addFilesFromTarball } from './addFilesFromTarball'
 import {
   checkPkgFilesIntegrity,
   type PackageFilesIndex,
+  type VerifyResult,
 } from './checkPkgFilesIntegrity'
 import { readManifestFromStore } from './readManifestFromStore'
 import {
@@ -28,6 +29,7 @@ export {
   type PackageFilesIndex,
   optimisticRenameOverwrite,
   type FilesIndex,
+  type VerifyResult,
 }
 
 export type CafsLocker = Map<string, number>

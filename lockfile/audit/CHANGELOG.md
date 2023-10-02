@@ -1,5 +1,38 @@
 # @pnpm/audit
 
+## 7.0.16
+
+### Patch Changes
+
+- Updated dependencies [40798fb1c]
+  - @pnpm/list@9.1.1
+
+## 7.0.15
+
+### Patch Changes
+
+- Updated dependencies [101c97ecb]
+- Updated dependencies [f394cfccd]
+  - @pnpm/list@9.1.0
+  - @pnpm/lockfile-utils@8.0.5
+
+## 7.0.14
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@5.0.6
+- @pnpm/list@9.0.12
+
+## 7.0.13
+
+### Patch Changes
+
+- Updated dependencies [f73eeac06]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/list@9.0.11
+  - @pnpm/lockfile-utils@8.0.4
+  - @pnpm/read-project-manifest@5.0.5
+
 ## 7.0.12
 
 ### Patch Changes

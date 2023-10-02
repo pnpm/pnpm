@@ -1,5 +1,61 @@
 # @pnpm/plugin-commands-audit
 
+## 8.0.27
+
+### Patch Changes
+
+- @pnpm/audit@7.0.16
+
+## 8.0.26
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+  - @pnpm/config@19.1.0
+  - @pnpm/audit@7.0.15
+  - @pnpm/cli-utils@2.0.21
+
+## 8.0.25
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+
+## 8.0.24
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@5.0.6
+- @pnpm/config@19.0.3
+- @pnpm/cli-utils@2.0.19
+- @pnpm/audit@7.0.14
+
+## 8.0.23
+
+### Patch Changes
+
+- @pnpm/config@19.0.2
+- @pnpm/cli-utils@2.0.18
+- @pnpm/audit@7.0.13
+
+## 8.0.22
+
+### Patch Changes
+
+- @pnpm/config@19.0.1
+- @pnpm/cli-utils@2.0.17
+- @pnpm/audit@7.0.13
+
+## 8.0.21
+
+### Patch Changes
+
+- Updated dependencies [cb8bcc8df]
+  - @pnpm/config@19.0.0
+  - @pnpm/audit@7.0.13
+  - @pnpm/cli-utils@2.0.16
+  - @pnpm/read-project-manifest@5.0.5
+
 ## 8.0.20
 
 ### Patch Changes

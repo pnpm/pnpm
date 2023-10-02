@@ -1,5 +1,48 @@
 # @pnpm/filter-workspace-packages
 
+## 7.1.1
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.0.11
+
+## 7.1.0
+
+### Minor Changes
+
+- a6f5e5c9c: Fix a bug in which `use-node-version` or `node-version` isn't passed down to `checkEngine` when using pnpm workspace, resulting in an error [#6981](https://github.com/pnpm/pnpm/issues/6981).
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.0.10
+
+## 7.0.19
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@2.0.6
+- @pnpm/workspace.find-packages@1.0.9
+
+## 7.0.18
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.0.8
+
+## 7.0.17
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1.0.7
+
+## 7.0.16
+
+### Patch Changes
+
+- Updated dependencies [41c2b65cf]
+  - @pnpm/workspace.pkgs-graph@2.0.5
+  - @pnpm/workspace.find-packages@1.0.6
+
 ## 7.0.15
 
 ### Patch Changes

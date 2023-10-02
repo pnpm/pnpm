@@ -1,5 +1,4 @@
 import path from 'path'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import {
   packageManifestLogger,
@@ -277,7 +276,11 @@ export async function resolveDependencies (
   }
 
   // waiting till package requests are finished
-  const waitTillAllFetchingsFinish = async () => Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ finishing }) => finishing?.()))
+  const waitTillAllFetchingsFinish = async () => Promise.all(Object.values(resolvedPackagesByDepPath).map(async ({ fetching }) => {
+    try {
+      await fetching?.()
+    } catch {}
+  }))
 
   return {
     dependenciesByProjectId,
@@ -322,36 +325,39 @@ async function finishLockfileUpdates (
 ) {
   return Promise.all(pendingRequiresBuilds.map(async (depPath) => {
     const depNode = dependenciesGraph[depPath]
-    let requiresBuild!: boolean
-    if (depNode.optional) {
-      // We assume that all optional dependencies have to be built.
-      // Optional dependencies are not always downloaded, so there is no way to know whether they need to be built or not.
-      requiresBuild = true
-    } else if (depNode.fetchingBundledManifest != null) {
-      const filesResponse = await depNode.fetchingFiles()
-      // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-      const pkgJson = await depNode.fetchingBundledManifest()
-      requiresBuild = Boolean(
-        pkgJson?.scripts != null && (
-          Boolean(pkgJson.scripts.preinstall) ||
-          Boolean(pkgJson.scripts.install) ||
-          Boolean(pkgJson.scripts.postinstall)
-        ) ||
-        filesResponse.filesIndex['binding.gyp'] ||
-          Object.keys(filesResponse.filesIndex).some((filename) => !(filename.match(/^[.]hooks[\\/]/) == null)) // TODO: optimize this
-      )
-    } else {
-      // This should never ever happen
-      throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${depPath}"`)
-    }
-    if (typeof depNode.requiresBuild === 'function') {
-      depNode.requiresBuild['resolve'](requiresBuild)
-    }
+    if (!depNode) return
+    try {
+      let requiresBuild!: boolean
+      if (depNode.optional) {
+        // We assume that all optional dependencies have to be built.
+        // Optional dependencies are not always downloaded, so there is no way to know whether they need to be built or not.
+        requiresBuild = true
+      } else {
+        // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
+        const { files, bundledManifest: pkgJson } = await depNode.fetching()
+        requiresBuild = Boolean(
+          pkgJson?.scripts != null && (
+            Boolean(pkgJson.scripts.preinstall) ||
+            Boolean(pkgJson.scripts.install) ||
+            Boolean(pkgJson.scripts.postinstall)
+          ) ||
+          files.filesIndex['binding.gyp'] ||
+            Object.keys(files.filesIndex).some((filename) => !(filename.match(/^[.]hooks[\\/]/) == null)) // TODO: optimize this
+        )
+      }
+      if (typeof depNode.requiresBuild === 'function') {
+        depNode.requiresBuild['resolve'](requiresBuild)
+      }
 
-    // TODO: try to cover with unit test the case when entry is no longer available in lockfile
-    // It is an edge that probably happens if the entry is removed during lockfile prune
-    if (requiresBuild && newLockfile.packages?.[depPath]) {
-      newLockfile.packages[depPath].requiresBuild = true
+      // TODO: try to cover with unit test the case when entry is no longer available in lockfile
+      // It is an edge that probably happens if the entry is removed during lockfile prune
+      if (requiresBuild && newLockfile.packages?.[depPath]) {
+        newLockfile.packages[depPath].requiresBuild = true
+      }
+    } catch (err: any) { // eslint-disable-line
+      if (typeof depNode.requiresBuild === 'function') {
+        depNode.requiresBuild['reject'](err)
+      }
     }
   }))
 }

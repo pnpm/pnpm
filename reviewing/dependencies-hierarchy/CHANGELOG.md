@@ -1,5 +1,23 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 2.1.0
+
+### Minor Changes
+
+- 101c97ecb: Export `createPackagesSearcher()`.
+
+### Patch Changes
+
+- Updated dependencies [f394cfccd]
+  - @pnpm/lockfile-utils@8.0.5
+
+## 2.0.11
+
+### Patch Changes
+
+- Updated dependencies [e9aa6f682]
+  - @pnpm/lockfile-utils@8.0.4
+
 ## 2.0.10
 
 ### Patch Changes

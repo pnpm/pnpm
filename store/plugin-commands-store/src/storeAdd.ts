@@ -37,7 +37,7 @@ export async function storeAdd (
         projectDir: prefix,
         registry: (dep.alias && pickRegistryForPackage(registries, dep.alias)) ?? registries.default,
       })
-      await pkgResponse.files!()
+      await pkgResponse.fetching!()
       globalInfo(`+ ${pkgResponse.body.id}`)
     } catch (e: any) { // eslint-disable-line
       hasFailures = true

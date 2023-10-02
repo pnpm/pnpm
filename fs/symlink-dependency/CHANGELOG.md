@@ -1,5 +1,11 @@
 # @pnpm/symlink-dependency
 
+## 7.1.0
+
+### Minor Changes
+
+- 48dcd108c: Add a sync symlinker.
+
 ## 7.0.3
 
 ### Patch Changes

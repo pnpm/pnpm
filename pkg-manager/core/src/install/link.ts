@@ -27,6 +27,7 @@ import {
   type HoistedDependencies,
   type Registries,
 } from '@pnpm/types'
+import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
 import pathExists from 'path-exists'
 import equals from 'ramda/src/equals'
@@ -48,6 +49,7 @@ export async function linkPackages (
     currentLockfile: Lockfile
     dedupeDirectDeps: boolean
     dependenciesByProjectId: Record<string, Record<string, string>>
+    disableRelinkLocalDirDeps?: boolean
     force: boolean
     depsStateCache: DepsStateCache
     extraNodePaths: string[]
@@ -142,6 +144,7 @@ export async function linkPackages (
     newCurrentLockfile,
     depGraph,
     {
+      disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       force: opts.force,
       depsStateCache: opts.depsStateCache,
       ignoreScripts: opts.ignoreScripts,
@@ -300,6 +303,7 @@ async function linkNewPackages (
   depGraph: DependenciesGraph,
   opts: {
     depsStateCache: DepsStateCache
+    disableRelinkLocalDirDeps?: boolean
     force: boolean
     optional: boolean
     ignoreScripts: boolean
@@ -365,6 +369,7 @@ async function linkNewPackages (
     linkAllPkgs(opts.storeController, newPkgs, {
       depGraph,
       depsStateCache: opts.depsStateCache,
+      disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       force: opts.force,
       ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
@@ -417,6 +422,7 @@ async function linkAllPkgs (
   opts: {
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
+    disableRelinkLocalDirDeps?: boolean
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
@@ -425,20 +431,21 @@ async function linkAllPkgs (
 ) {
   return Promise.all(
     depNodes.map(async (depNode) => {
-      const filesResponse = await depNode.fetchingFiles()
+      const { files } = await depNode.fetching()
 
       if (typeof depNode.requiresBuild === 'function') {
         depNode.requiresBuild = await depNode.requiresBuild()
       }
       let sideEffectsCacheKey: string | undefined
-      if (opts.sideEffectsCacheRead && filesResponse.sideEffects && !isEmpty(filesResponse.sideEffects)) {
+      if (opts.sideEffectsCacheRead && files.sideEffects && !isEmpty(files.sideEffects)) {
         sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
           isBuilt: !opts.ignoreScripts && depNode.requiresBuild,
           patchFileHash: depNode.patchFile?.hash,
         })
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
-        filesResponse,
+        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
+        filesResponse: files,
         force: opts.force,
         sideEffectsCacheKey,
         requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
@@ -472,25 +479,26 @@ async function linkAllModules (
     optional: boolean
   }
 ) {
-  await Promise.all(
-    depNodes
-      .map(async ({ children, optionalDependencies, name, modules }) => {
-        const childrenToLink: Record<string, string> = opts.optional
-          ? children
-          : pickBy((_, childAlias) => !optionalDependencies.has(childAlias), children)
-
-        await Promise.all(
-          Object.entries(childrenToLink)
-            .map(async ([childAlias, childDepPath]) => {
-              if (childDepPath.startsWith('link:')) {
-                await limitLinking(() => symlinkDependency(path.resolve(opts.lockfileDir, childDepPath.slice(5)), modules, childAlias))
-                return
-              }
-              const pkg = depGraph[childDepPath]
-              if (!pkg || !pkg.installable && pkg.optional || childAlias === name) return
-              await limitLinking(() => symlinkDependency(pkg.dir, modules, childAlias))
-            })
-        )
-      })
-  )
+  await symlinkAllModules({
+    deps: depNodes.map((depNode) => {
+      const children = opts.optional
+        ? depNode.children
+        : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
+      const childrenPaths: Record<string, string> = {}
+      for (const [alias, childDepPath] of Object.entries(children ?? {})) {
+        if (childDepPath.startsWith('link:')) {
+          childrenPaths[alias] = path.resolve(opts.lockfileDir, childDepPath.slice(5))
+        } else {
+          const pkg = depGraph[childDepPath]
+          if (!pkg || !pkg.installable && pkg.optional || alias === depNode.name) continue
+          childrenPaths[alias] = pkg.dir
+        }
+      }
+      return {
+        children: childrenPaths,
+        modules: depNode.modules,
+        name: depNode.name,
+      }
+    }),
+  })
 }

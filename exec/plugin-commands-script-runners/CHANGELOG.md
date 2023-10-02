@@ -1,5 +1,94 @@
 # @pnpm/plugin-commands-script-runners
 
+## 7.2.1
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.8
+
+## 7.2.0
+
+### Minor Changes
+
+- ee328fd25: Add `--hide-reporter-prefix' option for `run` command to hide project name as prefix for lifecycle log outputs of running scripts [#7061](https://github.com/pnpm/pnpm/issues/7061).
+
+### Patch Changes
+
+- Updated dependencies [ba48fe0bc]
+- Updated dependencies [ee328fd25]
+  - @pnpm/plugin-commands-installation@13.1.7
+  - @pnpm/config@19.1.0
+  - @pnpm/cli-utils@2.0.21
+
+## 7.1.26
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.6
+- @pnpm/cli-utils@2.0.20
+
+## 7.1.25
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/lifecycle@16.0.0
+  - @pnpm/plugin-commands-installation@13.1.5
+  - @pnpm/read-project-manifest@5.0.6
+  - @pnpm/config@19.0.3
+  - @pnpm/cli-utils@2.0.19
+
+## 7.1.24
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.4
+
+## 7.1.23
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.3
+- @pnpm/lifecycle@15.0.9
+- @pnpm/config@19.0.2
+- @pnpm/cli-utils@2.0.18
+
+## 7.1.22
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.2
+- @pnpm/config@19.0.1
+- @pnpm/lifecycle@15.0.8
+
+## 7.1.21
+
+### Patch Changes
+
+- b962c27ae: Allow create scoped package with preferred version. [#7053](https://github.com/pnpm/pnpm/issues/7053)
+  - @pnpm/lifecycle@15.0.8
+  - @pnpm/plugin-commands-installation@13.1.1
+  - @pnpm/config@19.0.1
+  - @pnpm/cli-utils@2.0.17
+
+## 7.1.20
+
+### Patch Changes
+
+- d4ee98f83: Remove unused logger.info [#7005](https://github.com/pnpm/pnpm/issues/7005)
+- ce3f1712b: Fix misleading "command not found" error message.
+- Updated dependencies [ef3609049]
+- Updated dependencies [e0474bc4c]
+- Updated dependencies [bf21c9bf3]
+- Updated dependencies [cb8bcc8df]
+- Updated dependencies [e9aa6f682]
+- Updated dependencies [81e5ada3a]
+  - @pnpm/plugin-commands-installation@13.1.0
+  - @pnpm/config@19.0.0
+  - @pnpm/lifecycle@15.0.7
+  - @pnpm/cli-utils@2.0.16
+  - @pnpm/read-project-manifest@5.0.5
+
 ## 7.1.19
 
 ### Patch Changes

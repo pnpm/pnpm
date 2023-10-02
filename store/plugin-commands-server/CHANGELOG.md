@@ -1,5 +1,81 @@
 # @pnpm/plugin-commands-server
 
+## 6.0.33
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+  - @pnpm/config@19.1.0
+  - @pnpm/cli-utils@2.0.21
+  - @pnpm/store-connection-manager@7.0.2
+  - @pnpm/server@17.0.0
+
+## 6.0.32
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+- @pnpm/server@17.0.0
+- @pnpm/store-connection-manager@7.0.1
+
+## 6.0.31
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-connection-manager@7.0.0
+  - @pnpm/server@17.0.0
+  - @pnpm/config@19.0.3
+  - @pnpm/cli-utils@2.0.19
+
+## 6.0.30
+
+### Patch Changes
+
+- @pnpm/server@16.0.2
+- @pnpm/store-connection-manager@6.2.1
+
+## 6.0.29
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-connection-manager@6.2.0
+  - @pnpm/server@16.0.2
+  - @pnpm/config@19.0.2
+  - @pnpm/cli-utils@2.0.18
+
+## 6.0.28
+
+### Patch Changes
+
+- @pnpm/server@16.0.1
+- @pnpm/store-connection-manager@6.1.3
+- @pnpm/config@19.0.1
+
+## 6.0.27
+
+### Patch Changes
+
+- 548768e09: Fix a bug causing the pnpm server to hang if a tarball worker was requested while another worker was exiting [#7041](https://github.com/pnpm/pnpm/pull/7041).
+- Updated dependencies [548768e09]
+  - @pnpm/server@16.0.1
+  - @pnpm/store-connection-manager@6.1.2
+  - @pnpm/config@19.0.1
+  - @pnpm/cli-utils@2.0.17
+
+## 6.0.26
+
+### Patch Changes
+
+- Updated dependencies [cb8bcc8df]
+- Updated dependencies [494f87544]
+  - @pnpm/config@19.0.0
+  - @pnpm/server@16.0.0
+  - @pnpm/cli-utils@2.0.16
+  - @pnpm/store-connection-manager@6.1.1
+
 ## 6.0.25
 
 ### Patch Changes

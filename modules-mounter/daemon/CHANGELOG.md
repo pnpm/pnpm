@@ -1,5 +1,56 @@
 # @pnpm/mount-modules
 
+## 0.4.24
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+- Updated dependencies [f394cfccd]
+  - @pnpm/config@19.1.0
+  - @pnpm/lockfile-utils@8.0.5
+
+## 0.4.23
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.4
+- @pnpm/config@19.0.3
+
+## 0.4.22
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.3
+- @pnpm/config@19.0.2
+
+## 0.4.21
+
+### Patch Changes
+
+- Updated dependencies [b3947185c]
+  - @pnpm/store.cafs@2.0.2
+  - @pnpm/config@19.0.1
+
+## 0.4.20
+
+### Patch Changes
+
+- Updated dependencies [b548f2f43]
+  - @pnpm/store.cafs@2.0.1
+  - @pnpm/config@19.0.1
+
+## 0.4.19
+
+### Patch Changes
+
+- Updated dependencies [0fd9e6a6c]
+- Updated dependencies [cb8bcc8df]
+- Updated dependencies [083bbf590]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/store.cafs@2.0.0
+  - @pnpm/config@19.0.0
+  - @pnpm/lockfile-utils@8.0.4
+
 ## 0.4.18
 
 ### Patch Changes

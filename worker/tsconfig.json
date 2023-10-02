@@ -13,6 +13,9 @@
       "path": "../fs/graceful-fs"
     },
     {
+      "path": "../fs/symlink-dependency"
+    },
+    {
       "path": "../packages/error"
     },
     {

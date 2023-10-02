@@ -1,11 +1,18 @@
 import { type PackageFilesResponse } from '@pnpm/cafs-types'
 
+export interface PkgNameVersion {
+  name?: string
+  version?: string
+}
+
 export interface TarballExtractMessage {
   type: 'extract'
   buffer: Buffer
   cafsDir: string
   integrity?: string
   filesIndexFile: string
+  readManifest?: boolean
+  pkg?: PkgNameVersion
 }
 
 export interface LinkPkgMessage {
@@ -15,9 +22,19 @@ export interface LinkPkgMessage {
   filesResponse: PackageFilesResponse
   sideEffectsCacheKey?: string | undefined
   targetDir: string
-  requiresBuild: boolean
+  requiresBuild?: boolean
   force: boolean
   keepModulesDir?: boolean
+  disableRelinkLocalDirDeps?: boolean
+}
+
+export interface SymlinkAllModulesMessage {
+  type: 'symlinkAllModules'
+  deps: Array<{
+    children: Record<string, string>
+    modules: string
+    name: string
+  }>
 }
 
 export interface AddDirToStoreMessage {
@@ -26,4 +43,14 @@ export interface AddDirToStoreMessage {
   dir: string
   filesIndexFile: string
   sideEffectsCacheKey?: string
+  readManifest?: boolean
+  pkg?: PkgNameVersion
+}
+
+export interface ReadPkgFromCafsMessage {
+  type: 'readPkgFromCafs'
+  cafsDir: string
+  filesIndexFile: string
+  readManifest: boolean
+  verifyStoreIntegrity: boolean
 }

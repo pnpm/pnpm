@@ -49,9 +49,9 @@ describe('cafs', () => {
 })
 
 describe('checkPkgFilesIntegrity()', () => {
-  it("doesn't fail if file was removed from the store", async () => {
+  it("doesn't fail if file was removed from the store", () => {
     const storeDir = tempy.directory()
-    expect(await checkPkgFilesIntegrity(storeDir, {
+    expect(checkPkgFilesIntegrity(storeDir, {
       files: {
         foo: {
           integrity: 'sha512-8xCvrlC7W3TlwXxetv5CZTi53szYhmT7tmpXF/ttNthtTR9TC7Y7WJFPmJToHaSQ4uObuZyOARdOJYNYuTSbXA==',
@@ -59,7 +59,7 @@ describe('checkPkgFilesIntegrity()', () => {
           size: 10,
         },
       },
-    })).toBeFalsy()
+    }).passed).toBeFalsy()
   })
 })
 
@@ -112,4 +112,13 @@ test('unpack an older version of tar that prefixes with spaces', () => {
     'lib/syml.js',
     'package.json',
   ])
+})
+
+test('unpack a tarball that contains hard links', () => {
+  const dest = tempy.directory()
+  const cafs = createCafs(dest)
+  const { filesIndex } = cafs.addFilesFromTarball(
+    fs.readFileSync(path.join(__dirname, 'fixtures/vue.examples.todomvc.todo-store-0.0.1.tgz'))
+  )
+  expect(Object.keys(filesIndex).length).toBeGreaterThan(0)
 })

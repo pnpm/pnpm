@@ -90,6 +90,7 @@ export interface Config {
   failedToLoadBuiltInConfig: boolean
   resolvePeersFromWorkspaceRoot?: boolean
   deployAllFiles?: boolean
+  reporterHidePrefix?: boolean
 
   // proxy
   httpProxy?: string
@@ -119,7 +120,6 @@ export interface Config {
   fetchingConcurrency?: number
   lockfileOnly?: boolean // like npm's --package-lock-only
   childConcurrency?: number
-  repeatInstallDepth?: number
   ignorePnpmfile?: boolean
   pnpmfile: string
   hooks?: Hooks

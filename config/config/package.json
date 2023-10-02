@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config",
-  "version": "18.4.4",
+  "version": "19.1.0",
   "description": "Gets configuration options for pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -62,7 +62,7 @@
     "@types/is-windows": "^1.0.0",
     "@types/ramda": "0.28.20",
     "@types/which": "^2.0.2",
-    "symlink-dir": "^5.1.1"
+    "symlink-dir": "^5.2.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

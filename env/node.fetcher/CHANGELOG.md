@@ -1,5 +1,80 @@
 # @pnpm/node.fetcher
 
+## 3.0.21
+
+### Patch Changes
+
+- Updated dependencies [f394cfccd]
+  - @pnpm/pick-fetcher@2.0.1
+
+## 3.0.20
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@18.0.1
+
+## 3.0.19
+
+### Major Changes
+
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/create-cafs-store@6.0.0
+  - @pnpm/tarball-fetcher@18.0.0
+  - @pnpm/fetcher-base@15.0.1
+
+## 3.0.18
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@5.1.1
+- @pnpm/tarball-fetcher@17.0.1
+
+## 3.0.17
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/create-cafs-store@5.1.0
+  - @pnpm/tarball-fetcher@17.0.0
+  - @pnpm/fetcher-base@15.0.1
+
+## 3.0.16
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@5.0.2
+- @pnpm/tarball-fetcher@16.0.2
+
+## 3.0.15
+
+### Patch Changes
+
+- Updated dependencies [4a1a9431d]
+  - @pnpm/fetcher-base@15.0.1
+  - @pnpm/create-cafs-store@5.0.1
+  - @pnpm/pick-fetcher@2.0.0
+  - @pnpm/tarball-fetcher@16.0.1
+
+## 3.0.14
+
+### Patch Changes
+
+- 66423df83: Emit a clear error message when users attempt to specify an undownloadable node version [#6916](https://github.com/pnpm/pnpm/pull/6916).
+- Updated dependencies [f2009d175]
+- Updated dependencies [083bbf590]
+- Updated dependencies [70b2830ac]
+- Updated dependencies [083bbf590]
+- Updated dependencies [96e165c7f]
+- Updated dependencies [083bbf590]
+  - @pnpm/create-cafs-store@5.0.0
+  - @pnpm/tarball-fetcher@16.0.0
+  - @pnpm/fetcher-base@15.0.0
+  - @pnpm/pick-fetcher@2.0.0
+
 ## 3.0.13
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/patching.apply-patch
 
+## 2.0.5
+
+### Patch Changes
+
+- 512d71254: `pnpm patch` should write patch files with a trailing newline [#6905](https://github.com/pnpm/pnpm/pull/6905).
+
 ## 2.0.4
 
 ### Patch Changes

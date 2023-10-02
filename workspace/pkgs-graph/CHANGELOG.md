@@ -1,5 +1,19 @@
 # @pnpm/workspace.pkgs-graph
 
+## 2.0.6
+
+### Patch Changes
+
+- @pnpm/npm-resolver@16.0.10
+
+## 2.0.5
+
+### Patch Changes
+
+- 41c2b65cf: Respect workspace alias syntax in pkg graph [#6922](https://github.com/pnpm/pnpm/issues/6922)
+- Updated dependencies [41c2b65cf]
+  - @pnpm/npm-resolver@16.0.9
+
 ## 2.0.4
 
 ### Patch Changes

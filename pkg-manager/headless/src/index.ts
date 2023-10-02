@@ -56,6 +56,7 @@ import {
 import { symlinkDependency } from '@pnpm/symlink-dependency'
 import { type DependencyManifest, type HoistedDependencies, type ProjectManifest, type Registries, DEPENDENCIES_FIELDS } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
+import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
 import pathAbsolute from 'path-absolute'
 import equals from 'ramda/src/equals'
@@ -131,6 +132,7 @@ export interface HeadlessOptions {
   sideEffectsCacheRead: boolean
   sideEffectsCacheWrite: boolean
   symlink?: boolean
+  disableRelinkLocalDirDeps?: boolean
   force: boolean
   storeDir: string
   rawConfig: object
@@ -352,6 +354,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   if (opts.nodeLinker === 'hoisted' && hierarchy && prevGraph) {
     await linkHoistedModules(opts.storeController, graph, prevGraph, hierarchy, {
       depsStateCache,
+      disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
       force: opts.force,
       ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
@@ -378,11 +381,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       opts.symlink === false
         ? Promise.resolve()
         : linkAllModules(depNodes, {
-          lockfileDir,
           optional: opts.include.optionalDependencies,
         }),
       linkAllPkgs(opts.storeController, depNodes, {
         force: opts.force,
+        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         depGraph: graph,
         depsStateCache,
         ignoreScripts: opts.ignoreScripts,
@@ -583,7 +586,11 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }
 
   // waiting till package requests are finished
-  await Promise.all(depNodes.map(({ finishing }) => finishing))
+  await Promise.all(depNodes.map(async ({ fetching }) => {
+    try {
+      await fetching?.()
+    } catch {}
+  }))
 
   summaryLogger.debug({ prefix: lockfileDir })
 
@@ -766,6 +773,7 @@ async function linkAllPkgs (
   opts: {
     depGraph: DependenciesGraph
     depsStateCache: DepsStateCache
+    disableRelinkLocalDirDeps?: boolean
     force: boolean
     ignoreScripts: boolean
     lockfileDir: string
@@ -776,7 +784,7 @@ async function linkAllPkgs (
     depNodes.map(async (depNode) => {
       let filesResponse!: PackageFilesResponse
       try {
-        filesResponse = await depNode.fetchingFiles()
+        filesResponse = (await depNode.fetching()).files
       } catch (err: any) { // eslint-disable-line
         if (depNode.optional) return
         throw err
@@ -792,6 +800,7 @@ async function linkAllPkgs (
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
+        disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
         requiresBuild: depNode.requiresBuild || depNode.patchFile != null,
         sideEffectsCacheKey,
       })
@@ -871,29 +880,18 @@ async function linkAllBins (
 }
 
 async function linkAllModules (
-  depNodes: DependenciesGraphNode[],
+  depNodes: Array<Pick<DependenciesGraphNode, 'children' | 'optionalDependencies' | 'modules' | 'name'>>,
   opts: {
     optional: boolean
-    lockfileDir: string
   }
 ) {
-  await Promise.all(
-    depNodes
-      .map(async (depNode) => {
-        const childrenToLink: Record<string, string> = opts.optional
-          ? depNode.children
-          : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children)
-
-        await Promise.all(
-          Object.entries(childrenToLink)
-            .map(async ([alias, pkgDir]) => {
-              // if (!pkg.installable && pkg.optional) return
-              if (alias === depNode.name) {
-                return
-              }
-              await limitLinking(() => symlinkDependency(pkgDir, depNode.modules, alias))
-            })
-        )
-      })
-  )
+  await symlinkAllModules({
+    deps: depNodes.map((depNode) => ({
+      children: opts.optional
+        ? depNode.children
+        : pickBy((_, childAlias) => !depNode.optionalDependencies.has(childAlias), depNode.children),
+      modules: depNode.modules,
+      name: depNode.name,
+    })),
+  })
 }

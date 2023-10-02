@@ -28,6 +28,7 @@ export function reportLifecycleScripts (
   opts: {
     appendOnly?: boolean
     aggregateOutput?: boolean
+    hideLifecyclePrefix?: boolean
     cwd: string
     width: number
   }
@@ -40,7 +41,7 @@ export function reportLifecycleScripts (
       lifecycle$ = lifecycle$.pipe(aggregateOutput)
     }
 
-    const streamLifecycleOutput = createStreamLifecycleOutput(opts.cwd)
+    const streamLifecycleOutput = createStreamLifecycleOutput(opts.cwd, !!opts.hideLifecyclePrefix)
     return lifecycle$.pipe(
       map((log: LifecycleLog) => Rx.of({
         msg: streamLifecycleOutput(log),
@@ -215,15 +216,16 @@ function highlightLastFolder (p: string) {
 
 const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
 
-function createStreamLifecycleOutput (cwd: string) {
+function createStreamLifecycleOutput (cwd: string, hideLifecyclePrefix: boolean) {
   currentColor = 0
   const colorByPrefix: ColorByPkg = new Map()
-  return streamLifecycleOutput.bind(null, colorByPrefix, cwd)
+  return streamLifecycleOutput.bind(null, colorByPrefix, cwd, hideLifecyclePrefix)
 }
 
 function streamLifecycleOutput (
   colorByPkg: ColorByPkg,
   cwd: string,
+  hideLifecyclePrefix: boolean,
   logObj: LifecycleLog
 ) {
   const prefix = formatLifecycleScriptPrefix(colorByPkg, cwd, logObj.wd, logObj.stage)
@@ -238,7 +240,7 @@ function streamLifecycleOutput (
     return `${prefix}$ ${logObj['script'] as string}`
   }
   const line = formatLine(Infinity, logObj)
-  return `${prefix}: ${line}`
+  return hideLifecyclePrefix ? line : `${prefix}: ${line}`
 }
 
 function formatIndentedOutput (maxWidth: number, logObj: LifecycleLog) {

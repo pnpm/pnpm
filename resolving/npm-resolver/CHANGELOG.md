@@ -1,5 +1,20 @@
 # @pnpm/npm-resolver
 
+## 16.0.10
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/graceful-fs@3.2.0
+
+## 16.0.9
+
+### Patch Changes
+
+- 41c2b65cf: Respect workspace alias syntax in pkg graph [#6922](https://github.com/pnpm/pnpm/issues/6922)
+- Updated dependencies [083bbf590]
+  - @pnpm/graceful-fs@3.1.0
+
 ## 16.0.8
 
 ### Patch Changes

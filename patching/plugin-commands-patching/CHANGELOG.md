@@ -1,5 +1,100 @@
 # @pnpm/plugin-commands-patching
 
+## 3.1.29
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.8
+
+## 3.1.28
+
+### Patch Changes
+
+- Updated dependencies [ba48fe0bc]
+- Updated dependencies [ee328fd25]
+- Updated dependencies [f394cfccd]
+  - @pnpm/plugin-commands-installation@13.1.7
+  - @pnpm/config@19.1.0
+  - @pnpm/lockfile-utils@8.0.5
+  - @pnpm/cli-utils@2.0.21
+  - @pnpm/store-connection-manager@7.0.2
+
+## 3.1.27
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.6
+- @pnpm/cli-utils@2.0.20
+- @pnpm/store-connection-manager@7.0.1
+
+## 3.1.26
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-connection-manager@7.0.0
+  - @pnpm/plugin-commands-installation@13.1.5
+  - @pnpm/read-project-manifest@5.0.6
+  - @pnpm/config@19.0.3
+  - @pnpm/cli-utils@2.0.19
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 3.1.25
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.4
+- @pnpm/store-connection-manager@6.2.1
+
+## 3.1.24
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-connection-manager@6.2.0
+  - @pnpm/plugin-commands-installation@13.1.3
+  - @pnpm/config@19.0.2
+  - @pnpm/cli-utils@2.0.18
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 3.1.23
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.2
+- @pnpm/store-connection-manager@6.1.3
+- @pnpm/config@19.0.1
+- @pnpm/patching.apply-patch@2.0.5
+
+## 3.1.22
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@6.1.2
+- @pnpm/plugin-commands-installation@13.1.1
+- @pnpm/config@19.0.1
+- @pnpm/patching.apply-patch@2.0.5
+- @pnpm/cli-utils@2.0.17
+
+## 3.1.21
+
+### Patch Changes
+
+- Updated dependencies [ef3609049]
+- Updated dependencies [e0474bc4c]
+- Updated dependencies [bf21c9bf3]
+- Updated dependencies [cb8bcc8df]
+- Updated dependencies [512d71254]
+- Updated dependencies [e9aa6f682]
+- Updated dependencies [81e5ada3a]
+  - @pnpm/plugin-commands-installation@13.1.0
+  - @pnpm/config@19.0.0
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/lockfile-utils@8.0.4
+  - @pnpm/cli-utils@2.0.16
+  - @pnpm/store-connection-manager@6.1.1
+  - @pnpm/read-project-manifest@5.0.5
+
 ## 3.1.20
 
 ### Patch Changes

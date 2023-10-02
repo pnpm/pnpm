@@ -1,5 +1,48 @@
 # @pnpm/default-reporter
 
+## 12.4.0
+
+### Minor Changes
+
+- ee328fd25: Add `--hide-reporter-prefix' option for `run` command to hide project name as prefix for lifecycle log outputs of running scripts [#7061](https://github.com/pnpm/pnpm/issues/7061).
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+  - @pnpm/config@19.1.0
+
+## 12.3.5
+
+### Patch Changes
+
+- 61b9ca189: Don't print out each deprecated subdependency separately with its deprecation message. Just print out a summary of all the deprecated subdependencies [#6707](https://github.com/pnpm/pnpm/issues/6707).
+
+## 12.3.4
+
+### Patch Changes
+
+- @pnpm/config@19.0.3
+
+## 12.3.3
+
+### Patch Changes
+
+- @pnpm/config@19.0.2
+
+## 12.3.2
+
+### Patch Changes
+
+- @pnpm/config@19.0.1
+
+## 12.3.1
+
+### Patch Changes
+
+- cc785f7e1: Fix a bug causing errors to be printed as `Cannot read properties of undefined (reading 'code')` instead of the underlying reason when using the pnpm store server.
+- Updated dependencies [cb8bcc8df]
+  - @pnpm/config@19.0.0
+
 ## 12.3.0
 
 ### Minor Changes

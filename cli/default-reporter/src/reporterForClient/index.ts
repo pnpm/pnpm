@@ -69,6 +69,7 @@ export function reporterForClient (
     hideAddedPkgsProgress?: boolean
     hideProgressPrefix?: boolean
     hideLifecycleOutput?: boolean
+    hideLifecyclePrefix?: boolean
   }
 ): Array<Rx.Observable<Rx.Observable<{ msg: string }>>> {
   const width = opts.width ?? process.stdout.columns ?? 80
@@ -81,6 +82,7 @@ export function reporterForClient (
     reportLifecycleScripts(log$, {
       appendOnly: (opts.appendOnly === true || opts.streamLifecycleOutput) && !opts.hideLifecycleOutput,
       aggregateOutput: opts.aggregateOutput,
+      hideLifecyclePrefix: opts.hideLifecyclePrefix,
       cwd,
       width,
     }),
@@ -115,7 +117,10 @@ export function reporterForClient (
   if (logLevelNumber >= LOG_LEVEL_NUMBER.warn) {
     outputs.push(
       reportPeerDependencyIssues(log$),
-      reportDeprecations(log$.deprecation, { cwd, isRecursive: opts.isRecursive }),
+      reportDeprecations({
+        deprecation: log$.deprecation,
+        stage: log$.stage,
+      }, { cwd, isRecursive: opts.isRecursive }),
       reportRequestRetry(log$.requestRetry)
     )
   }

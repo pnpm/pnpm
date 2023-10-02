@@ -18,8 +18,8 @@ import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { type PatchFile, type Registries } from '@pnpm/types'
 import {
+  type PkgRequestFetchResult,
   type FetchPackageToStoreFunction,
-  type PackageFilesResponse,
   type StoreController,
 } from '@pnpm/store-controller-types'
 import * as dp from '@pnpm/dependency-path'
@@ -33,8 +33,7 @@ export interface DependenciesGraphNode {
   hasBundledDependencies: boolean
   modules: string
   name: string
-  fetchingFiles: () => Promise<PackageFilesResponse>
-  finishing: () => Promise<void>
+  fetching: () => Promise<PkgRequestFetchResult>
   dir: string
   children: Record<string, string>
   optionalDependencies: Set<string>
@@ -161,7 +160,7 @@ export async function lockfileToDepGraph (
               name: pkgName,
               version: pkgVersion,
             },
-          })
+          }) as any // eslint-disable-line
           if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
         } catch (err: any) { // eslint-disable-line
           if (pkgSnapshot.optional) return
@@ -171,9 +170,8 @@ export async function lockfileToDepGraph (
           children: {},
           depPath,
           dir,
-          fetchingFiles: fetchResponse.files,
+          fetching: fetchResponse.fetching,
           filesIndexFile: fetchResponse.filesIndexFile,
-          finishing: fetchResponse.finishing,
           hasBin: pkgSnapshot.hasBin === true,
           hasBundledDependencies: pkgSnapshot.bundledDependencies != null,
           modules,

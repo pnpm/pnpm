@@ -1,5 +1,39 @@
 # @pnpm/directory-fetcher
 
+## 7.0.1
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.1
+- @pnpm/read-project-manifest@5.0.6
+
+## 7.0.0
+
+### Major Changes
+
+- 4a1a9431d: Breaking change to the `directory-fetcher` API.
+
+### Patch Changes
+
+- d92070876: Reverting a change shipped in v8.7 that caused issues with the `pnpm deploy` command and "injected dependencies" [#6943](https://github.com/pnpm/pnpm/pull/6943).
+- Updated dependencies [4a1a9431d]
+  - @pnpm/fetcher-base@15.0.1
+
+## 6.1.0
+
+### Minor Changes
+
+- d57e4de6d: Apply `publishConfig` for workspace packages on directory fetch. Enables a publishable ("exportable") `package.json` on deployment [#6693](https://github.com/pnpm/pnpm/issues/6693).
+
+### Patch Changes
+
+- Updated dependencies [70b2830ac]
+- Updated dependencies [e9aa6f682]
+- Updated dependencies [083bbf590]
+  - @pnpm/fetcher-base@15.0.0
+  - @pnpm/exportable-manifest@5.0.6
+  - @pnpm/read-project-manifest@5.0.5
+
 ## 6.0.4
 
 ### Patch Changes

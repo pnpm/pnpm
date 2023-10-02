@@ -1,5 +1,69 @@
 # @pnpm/plugin-commands-outdated
 
+## 9.0.31
+
+### Patch Changes
+
+- Updated dependencies [ee328fd25]
+  - @pnpm/config@19.1.0
+  - @pnpm/cli-utils@2.0.21
+  - @pnpm/outdated@13.0.19
+
+## 9.0.30
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.20
+- @pnpm/outdated@13.0.18
+
+## 9.0.29
+
+### Patch Changes
+
+- @pnpm/config@19.0.3
+- @pnpm/outdated@13.0.17
+- @pnpm/cli-utils@2.0.19
+- @pnpm/default-resolver@18.0.14
+
+## 9.0.28
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.16
+
+## 9.0.27
+
+### Patch Changes
+
+- @pnpm/config@19.0.2
+- @pnpm/cli-utils@2.0.18
+- @pnpm/outdated@13.0.15
+
+## 9.0.26
+
+### Patch Changes
+
+- @pnpm/config@19.0.1
+- @pnpm/outdated@13.0.14
+
+## 9.0.25
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.13
+- @pnpm/config@19.0.1
+- @pnpm/cli-utils@2.0.17
+
+## 9.0.24
+
+### Patch Changes
+
+- Updated dependencies [cb8bcc8df]
+  - @pnpm/config@19.0.0
+  - @pnpm/default-resolver@18.0.13
+  - @pnpm/outdated@13.0.12
+  - @pnpm/cli-utils@2.0.16
+
 ## 9.0.23
 
 ### Patch Changes
