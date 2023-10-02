@@ -1718,6 +1718,9 @@ importers:
       '@pnpm/store-controller-types':
         specifier: workspace:*
         version: link:../../store/store-controller-types
+      '@refclone/refclone':
+        specifier: 0.1.5
+        version: 0.1.5
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3
@@ -1736,9 +1739,6 @@ importers:
       path-temp:
         specifier: ^2.1.0
         version: 2.1.0
-      rclonefile:
-        specifier: 1.0.1
-        version: 1.0.1
       rename-overwrite:
         specifier: ^4.0.3
         version: 4.0.3
@@ -8315,6 +8315,92 @@ packages:
       write-yaml-file: 5.0.0
     dev: true
 
+  /@refclone/refclone-darwin-arm64@0.1.5:
+    resolution: {integrity: sha512-FeAep7pwkLKT/YNszxtB0qh0hqvjKytlKeZEAnsTebtsUFssTgMk/Jj8VVxi3JJhai/CTqCq9UiQlKun/A3g1Q==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@refclone/refclone-darwin-x64@0.1.5:
+    resolution: {integrity: sha512-eb/Q6SPsrtno+qZH3Mw54VfW+kx267c4RQyxh6wx5EfZmgujhVwGMypFqk1E71KnV59abEgHUKSmP11U/LvpCg==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@refclone/refclone-linux-arm64-gnu@0.1.5:
+    resolution: {integrity: sha512-T7bI5OBaEHUU8KMTAY7gXeC3wySQSqxmpDsvWVrZj7V7ZJeJeMZ330lq/mhXO0/SBfHRkdaTQ1Mqa0mhqnSmMA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@refclone/refclone-linux-arm64-musl@0.1.5:
+    resolution: {integrity: sha512-GHwTOJ1OR0Y8Gk1zKLT/Kg2XN+Xj20mElMxDt7zwaJx8GUnkVP1NY60yeya+yNJG/1JgxHnpd2YnO7DUbI7YYQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@refclone/refclone-linux-x64-gnu@0.1.5:
+    resolution: {integrity: sha512-fsEb9GR66AP51Jr3cRKVEAdgBXk1Vr4fg3uY/UMIoojTw6ZrRMIfDOHadl7hTlznS1KUI12HviU2XQt0Qe2Pgw==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@refclone/refclone-linux-x64-musl@0.1.5:
+    resolution: {integrity: sha512-6HnFe1sUtBQT21s6FaZ8A6g6Ky/KA2SHrjCCoDowsX87g4bySjxMP+oiOLK22tMLJjHWYgqB+ITFKrFeOfHy9w==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@refclone/refclone-win32-arm64-msvc@0.1.5:
+    resolution: {integrity: sha512-72BmLXES0nXccxkieq0QYx1+99fjjnfS22psC6Cf+1d8+6juRt3xWedQyh7rZStVFdWCj+RjVckiMMdF6Xkj9A==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [win32]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@refclone/refclone-win32-x64-msvc@0.1.5:
+    resolution: {integrity: sha512-8v0kj2roD+Jsw1H1YtPjyB1186khM1qYKxZNwDGC4xczhSpkVmeCipGnxuFI4sYFXohws7LmVhrhC3kjVEosIA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@refclone/refclone@0.1.5:
+    resolution: {integrity: sha512-EjkeAkR8uxiDRpnDWe4WA72SLoHP1tql37HqE+P0nhXNswLvgv88mOWJQnb9wlT410Hfv9D+KvI/KzDa4nZthw==}
+    engines: {node: '>= 10'}
+    optionalDependencies:
+      '@refclone/refclone-darwin-arm64': 0.1.5
+      '@refclone/refclone-darwin-x64': 0.1.5
+      '@refclone/refclone-linux-arm64-gnu': 0.1.5
+      '@refclone/refclone-linux-arm64-musl': 0.1.5
+      '@refclone/refclone-linux-x64-gnu': 0.1.5
+      '@refclone/refclone-linux-x64-musl': 0.1.5
+      '@refclone/refclone-win32-arm64-msvc': 0.1.5
+      '@refclone/refclone-win32-x64-msvc': 0.1.5
+    dev: false
+
   /@rushstack/worker-pool@0.3.34(@types/node@16.18.41):
     resolution: {integrity: sha512-ZpIrJUk539uQrsmbcnoMxhrM6/Lq0qCEL1QL9l8cj2RSq1qHwZ9lGIvd+pRmN8uEQSxL9k5fSnE6LasIzcKC3Q==}
     peerDependencies:
@@ -11145,6 +11231,7 @@ packages:
   /esm@3.2.25:
     resolution: {integrity: sha512-U1suiZ2oDVWv4zPO56S0NcR5QriEahGtdN2OR6FiOG4WJvcjBVFB0qI4+eKoWFH483PKGuLuu6V8Z4T5g63UVA==}
     engines: {node: '>=6'}
+    dev: true
 
   /espree@9.6.1:
     resolution: {integrity: sha512-oruZaFkjorTpF32kDSI5/75ViwGeZginGGy2NoOSg3Q9bnwlnmDm4HLnkl0RE3n+njDXR037aY1+x58Z/zFdwQ==}
@@ -14949,34 +15036,6 @@ packages:
       minimist: 1.2.8
       strip-json-comments: 2.0.1
     dev: true
-
-  /rclonefile-darwin-arm64@1.0.1:
-    resolution: {integrity: sha512-lGXyyLEvdFQQIfg9us8j6TqOG+lYYuOcucd2wmVnKukntDtEFtIQIcx2+w+wQ7ah4WBa29FRFQmK/21aqWXokA==}
-    engines: {node: '>= 10'}
-    cpu: [arm64]
-    os: [darwin]
-    requiresBuild: true
-    dev: false
-    optional: true
-
-  /rclonefile-darwin-x64@1.0.1:
-    resolution: {integrity: sha512-ZmxgDLLBaSNaxo72D97g0J3gSEd/bICPD7oxAMObjPB3v6ipUt2IIX/v0S4IjxbnuVFCMRyaatnEGhi2G9F+Nw==}
-    engines: {node: '>= 10'}
-    cpu: [x64]
-    os: [darwin]
-    requiresBuild: true
-    dev: false
-    optional: true
-
-  /rclonefile@1.0.1:
-    resolution: {integrity: sha512-+K3uczM2PwHGsPUszoIV79EzgvWmEJAtokgXCM6W42YktWeOvwUiWSlWgjCZTyh0pOlqGfXURmu9E8q8+DqyXQ==}
-    engines: {node: '>= 10'}
-    dependencies:
-      esm: 3.2.25
-    optionalDependencies:
-      rclonefile-darwin-arm64: 1.0.1
-      rclonefile-darwin-x64: 1.0.1
-    dev: false
 
   /react-is@18.2.0:
     resolution: {integrity: sha512-xWGDIW6x921xtzPkhiULtthJHoJvBbF3q26fzloPCK0hsvxtPVelvftw3zjbHWSkR2km9Z+4uxbDDK/6Zw9B8w==}

@@ -1,10 +1,11 @@
 import { type Stats, existsSync } from 'fs'
+import { constants } from 'fs/promises'
 import fs from '@pnpm/graceful-fs'
 import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import { type FilesMap, type ImportOptions, type ImportIndexedPackage } from '@pnpm/store-controller-types'
-import { cloneFileSync } from 'rclonefile'
+import { reflinkFileSync } from '@refclone/refclone'
 import { importIndexedDir, type ImportFile } from './importIndexedDir'
 
 export function createIndexedPkgImporter (
@@ -108,7 +109,17 @@ function clonePkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.fromStore || opts.force || !existsSync(pkgJsonPath)) {
-    importIndexedDir(cloneFileSync, to, opts.filesMap, opts)
+    let cloneFn!: (src: string, dest: string) => void
+
+    if (process.platform === 'win32' || process.platform === 'darwin') {
+      cloneFn = reflinkFileSync
+    } else {
+      cloneFn = (src: string, dest: string) => {
+        fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
+      }
+    }
+
+    importIndexedDir(cloneFn, to, opts.filesMap, opts)
     return 'clone'
   }
   return undefined
