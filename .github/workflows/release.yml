@@ -34,7 +34,7 @@ jobs:
           version: next-8
           standalone: true
       - name: pnpm install
-        run: pnpm install
+        run: pnpm install --force
       - name: Publish Packages
         env:
           # setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly doesn't work.
