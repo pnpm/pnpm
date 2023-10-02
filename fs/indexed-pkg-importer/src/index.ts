@@ -1,5 +1,4 @@
-import { type Stats, existsSync } from 'fs'
-import { constants } from 'fs/promises'
+import { type Stats, existsSync, constants } from 'fs'
 import fs from '@pnpm/graceful-fs'
 import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
