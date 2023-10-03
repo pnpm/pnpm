@@ -100,6 +100,7 @@ export type ImportCommandOptions = Pick<Config,
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
 | 'sharedWorkspaceLockfile'
+| 'rootProjectManifest'
 > & CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>
 
 export async function handler (
@@ -170,7 +171,7 @@ export async function handler (
   const manifest = await readProjectManifestOnly(opts.dir)
   const installOpts = {
     ...opts,
-    ...getOptionsFromRootManifest(manifest),
+    ...getOptionsFromRootManifest({ ...opts.rootProjectManifest, ...manifest }),
     lockfileOnly: true,
     preferredVersions,
     storeController: store.ctrl,

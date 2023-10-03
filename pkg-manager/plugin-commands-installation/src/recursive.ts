@@ -58,6 +58,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'pnpmfile'
 | 'rawLocalConfig'
 | 'registries'
+| 'rootProjectManifest'
 | 'save'
 | 'saveDev'
 | 'saveExact'
@@ -363,7 +364,7 @@ export async function recursive (
           {
             ...installOpts,
             ...localConfig,
-            ...getOptionsFromRootManifest(manifest),
+            ...getOptionsFromRootManifest({ ...opts.rootProjectManifest, ...manifest }),
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,
             hooks,
@@ -412,6 +413,7 @@ export async function recursive (
   ) {
     await rebuild.handler({
       ...opts,
+      ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
       pending: opts.pending === true,
       skipIfHasSideEffectsCache: true,
     }, [])
