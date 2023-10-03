@@ -122,6 +122,7 @@ function createCloneFunction (): CloneFunction {
   // Node.js currently does not natively support reflinks on Windows and macOS.
   // Hence, we use a third party solution.
   if (process.platform === 'win32' || process.platform === 'darwin') {
+    // eslint-disable-next-line
     const { reflinkFileSync } = require('@refclone/refclone')
     return reflinkFileSync
   }
