@@ -4,7 +4,6 @@ import path from 'path'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { packageImportMethodLogger } from '@pnpm/core-loggers'
 import { type FilesMap, type ImportOptions, type ImportIndexedPackage } from '@pnpm/store-controller-types'
-import { reflinkFileSync } from '@refclone/refclone'
 import { importIndexedDir, type ImportFile } from './importIndexedDir'
 
 export function createIndexedPkgImporter (
@@ -123,6 +122,7 @@ function createCloneFunction (): CloneFunction {
   // Node.js currently does not natively support reflinks on Windows and macOS.
   // Hence, we use a third party solution.
   if (process.platform === 'win32' || process.platform === 'darwin') {
+    const { reflinkFileSync } = require('@refclone/refclone')
     return reflinkFileSync
   }
   return (src: string, dest: string) => {
