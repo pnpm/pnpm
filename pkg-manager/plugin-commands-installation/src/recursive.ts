@@ -364,7 +364,7 @@ export async function recursive (
           {
             ...installOpts,
             ...localConfig,
-            ...getOptionsFromRootManifest(opts.rootProjectManifest ?? manifest),
+            ...getOptionsFromRootManifest({ ...opts.rootProjectManifest, ...manifest }),
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,
             hooks,
