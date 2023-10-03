@@ -105,6 +105,7 @@ export interface StrictInstallOptions {
   resolutionMode: 'highest' | 'time-based' | 'lowest-direct'
   resolvePeersFromWorkspaceRoot: boolean
   ignoreWorkspaceCycles: boolean
+  disallowWorkspaceCycles: boolean
 
   publicHoistPattern: string[] | undefined
   hoistPattern: string[] | undefined
@@ -223,6 +224,7 @@ const defaults = (opts: InstallOptions) => {
     resolvePeersFromWorkspaceRoot: true,
     extendNodePath: true,
     ignoreWorkspaceCycles: false,
+    disallowWorkspaceCycles: false,
     excludeLinksFromLockfile: false,
   } as StrictInstallOptions
 }
