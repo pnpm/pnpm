@@ -1,10 +1,10 @@
 {
   "pkg": {
     "assets": [
-      "dist_pkg/worker.js",
-      "dist_pkg/pnpmrc",
-      "dist_pkg/scripts/*",
-      "dist_pkg/refclone.darwin-x64-*.node"
+      "dist/worker.js",
+      "dist/pnpmrc",
+      "dist/scripts/*",
+      "dist/refclone.darwin-x64-*.node"
     ],
     "targets": ["node18-macos-x64"],
     "outputPath": "../macos-x64"
