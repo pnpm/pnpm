@@ -4483,9 +4483,6 @@ importers:
       cross-spawn:
         specifier: ^7.0.3
         version: 7.0.3
-      cross-var-no-babel:
-        specifier: ^1.2.0
-        version: 1.2.0
       deep-require-cwd:
         specifier: 1.0.0
         version: 1.0.0
@@ -9003,8 +9000,8 @@ packages:
       '@types/lodash': 4.14.197
       '@types/semver': 7.3.13
       '@types/treeify': 1.0.1
-      '@yarnpkg/fslib': 3.0.0-rc.45
-      '@yarnpkg/libzip': 3.0.0-rc.45(@yarnpkg/fslib@3.0.0-rc.45)
+      '@yarnpkg/fslib': 3.0.0-rc.25
+      '@yarnpkg/libzip': 3.0.0-rc.25(@yarnpkg/fslib@3.0.0-rc.25)
       '@yarnpkg/parsers': 3.0.0-rc.45
       '@yarnpkg/shell': 4.0.0-rc.45(typanion@3.14.0)
       camelcase: 5.3.1
@@ -9042,22 +9039,22 @@ packages:
     engines: {node: '>=14.15.0'}
     dependencies:
       tslib: 2.6.2
-    dev: false
 
   /@yarnpkg/fslib@3.0.0-rc.45:
     resolution: {integrity: sha512-XarEtHTbeO4+rgZQObn16+uFzb1dXiVHuoqDNGoMywwBm/FF7DeCqSANeKiNYbi79WMgoLk8l3lO4g0vRYkJBg==}
     engines: {node: '>=14.15.0'}
     dependencies:
       tslib: 2.6.2
+    dev: false
 
-  /@yarnpkg/libzip@3.0.0-rc.45(@yarnpkg/fslib@3.0.0-rc.45):
-    resolution: {integrity: sha512-ZsYi6Y01yMJOLnJ5ISZgOFvCEXzp4EScrM91D7bvCx0lIfH3DZ40H4M5nGNeVFk7jXUHOXuJkNYlNoXixSconA==}
+  /@yarnpkg/libzip@3.0.0-rc.25(@yarnpkg/fslib@3.0.0-rc.25):
+    resolution: {integrity: sha512-YmG+oTBCyrAoMIx5g2I9CfyurSpHyoan+9SCj7laaFKseOe3lFEyIVKvwRBQMmSt8uzh+eY5RWeQnoyyOs6AbA==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
       '@yarnpkg/fslib': 3.0.0-rc.45
     dependencies:
       '@types/emscripten': 1.39.8
-      '@yarnpkg/fslib': 3.0.0-rc.45
+      '@yarnpkg/fslib': 3.0.0-rc.25
       tslib: 2.6.2
 
   /@yarnpkg/lockfile@1.1.0:
@@ -9130,7 +9127,7 @@ packages:
     engines: {node: '>=14.15.0'}
     hasBin: true
     dependencies:
-      '@yarnpkg/fslib': 3.0.0-rc.45
+      '@yarnpkg/fslib': 3.0.0-rc.25
       '@yarnpkg/parsers': 3.0.0-rc.45
       chalk: 3.0.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)
@@ -10427,14 +10424,6 @@ packages:
       path-key: 3.1.1
       shebang-command: 2.0.0
       which: 2.0.2
-
-  /cross-var-no-babel@1.2.0:
-    resolution: {integrity: sha512-7l0hGWt/RdodCJxB3V3CGlkwMyZQOncyy1mrWaVc7utVQihfw16gU6uAQO/aeQOU+UQTFFEZNuMV9d88DFlV3A==}
-    hasBin: true
-    dependencies:
-      cross-spawn: 5.1.0
-      exit: 0.1.2
-    dev: true
 
   /crypto-random-string@2.0.0:
     resolution: {integrity: sha512-v1plID3y9r/lPhviJ1wrXpLeyUIGAZ2SHNYTEapm7/8A9nLPoyvVp3RK/EPFqn5kEznyWgYZNsRtYYIWbuG8KA==}
@@ -15916,6 +15905,7 @@ packages:
   /string-width@1.0.2:
     resolution: {integrity: sha512-0XsVpQLnVCXHJfyEs8tC0zpTVIr5PKKsQtkT29IwupnPTjtPmQ3xT/4yCREF9hYkV/3M3kzcUTSAZT6a6h81tw==}
     engines: {node: '>=0.10.0'}
+    requiresBuild: true
     dependencies:
       code-point-at: 1.1.0
       is-fullwidth-code-point: 1.0.0
