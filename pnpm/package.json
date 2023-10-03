@@ -16,6 +16,7 @@
     "bin"
   ],
   "dependencies": {
+    "@refclone/refclone": "0.1.5",
     "v8-compile-cache": "2.4.0"
   },
   "optionalDependencies": {
@@ -152,7 +153,7 @@
     "url": "git+https://github.com/pnpm/pnpm.git"
   },
   "scripts": {
-    "bundle": "ts-node esbuild.config.ts",
+    "bundle": "ts-node bundle.ts",
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
@@ -161,7 +162,7 @@
     "prepublishOnly": "pnpm compile && npm cache clear --force && publish-packed --prune --npm-client=pnpm --dest=dist",
     "postpublish": "publish-packed",
     "_compile": "tsc --build",
-    "compile": "tsc --build && pnpm run lint --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc"
+    "compile": "tsc --build && pnpm run lint --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist_pkg/scripts && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc && shx cp pnpmrc dist_pkg/pnpmrc"
   },
   "publishConfig": {
     "tag": "next-8",

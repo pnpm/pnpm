@@ -1,6 +1,6 @@
 {
   "pkg": {
-    "assets": ["dist/worker.js", "dist/pnpmrc", "dist/scripts/*"],
+    "assets": ["dist_pkg/worker.js", "dist_pkg/pnpmrc", "dist_pkg/scripts/*"],
     "targets": ["node18-linux-x64"],
     "outputPath": "../linux-x64"
   }

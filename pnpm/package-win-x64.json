@@ -1,10 +1,10 @@
 {
   "pkg": {
     "assets": [
-      "dist/worker.js",
-      "dist/pnpmrc",
-      "dist/scripts/*",
-      "dist/refclone.win32-x64-*.node"
+      "dist_pkg/worker.js",
+      "dist_pkg/pnpmrc",
+      "dist_pkg/scripts/*",
+      "dist_pkg/refclone.win32-x64-*.node"
     ],
     "targets": ["node18-win-x64"],
     "outputPath": "../win-x64"
