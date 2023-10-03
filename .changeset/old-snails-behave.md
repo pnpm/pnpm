@@ -5,4 +5,4 @@
 "pnpm": minor
 ---
 
-Add `no-cyclic` to error instead of warn about cyclic dependencies
+Add `disallow-workspace-cycles` option to error instead of warn about cyclic dependencies

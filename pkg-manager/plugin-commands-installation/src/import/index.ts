@@ -98,7 +98,7 @@ export type ImportCommandOptions = Pick<Config,
 | 'selectedProjectsGraph'
 | 'workspaceDir'
 | 'ignoreWorkspaceCycles'
-| 'noCyclic'
+| 'disallowWorkspaceCycles'
 | 'sharedWorkspaceLockfile'
 > & CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>
 
@@ -141,8 +141,8 @@ export async function handler (
           ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
           : ''
 
-        if (opts.noCyclic) {
-          throw new PnpmError('NO_CYCLIC', `There are cyclic workspace dependencies${cyclicDependenciesInfo}`)
+        if (opts.disallowWorkspaceCycles) {
+          throw new PnpmError('DISALLOW_WORKSPACE_CYCLES', `There are cyclic workspace dependencies${cyclicDependenciesInfo}`)
         }
 
         logger.warn({

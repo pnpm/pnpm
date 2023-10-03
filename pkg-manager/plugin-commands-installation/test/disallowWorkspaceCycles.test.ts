@@ -4,7 +4,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { DEFAULT_OPTS } from './utils'
 import type { PnpmError } from '@pnpm/error'
 
-test('should error if no-cyclic is set', async () => {
+test('should error if disallow-workspace-cycles is set', async () => {
   preparePackages([
     {
       name: 'project-1',
@@ -29,15 +29,15 @@ test('should error if no-cyclic is set', async () => {
       recursive: true,
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
-      noCyclic: true,
+      disallowWorkspaceCycles: true,
     })
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
-  expect(err.code).toBe('ERR_PNPM_NO_CYCLIC')
+  expect(err.code).toBe('ERR_PNPM_DISALLOW_WORKSPACE_CYCLES')
 })
 
-test('should not error if no-cyclic is not set', async () => {
+test('should not error if disallow-workspace-cycles is not set', async () => {
   preparePackages([
     {
       name: 'project-1',
@@ -93,7 +93,7 @@ test('should not error if there are no cyclic dependencies', async () => {
       recursive: true,
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
-      noCyclic: true,
+      disallowWorkspaceCycles: true,
     })
   } catch (_err: any) { // eslint-disable-line
     err = _err
