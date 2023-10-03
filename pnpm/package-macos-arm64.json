@@ -4,7 +4,7 @@
       "dist/worker.js",
       "dist/pnpmrc",
       "dist/scripts/*",
-      "dist/*.node"
+      "dist/refclone.darwin-arm64-*.node"
     ],
     "targets": ["node18-macos-arm64"],
     "outputPath": "../macos-arm64"

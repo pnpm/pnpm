@@ -4,7 +4,7 @@
       "dist/worker.js",
       "dist/pnpmrc",
       "dist/scripts/*",
-      "dist/*.node"
+      "dist/refclone.win32-x64-*.node"
     ],
     "targets": ["node18-win-x64"],
     "outputPath": "../win-x64"
