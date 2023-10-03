@@ -152,7 +152,7 @@
     "url": "git+https://github.com/pnpm/pnpm.git"
   },
   "scripts": {
-    "bundle": "ts-node esbuild.config.ts && ts-node esbuild.worker.config.ts",
+    "bundle": "ts-node esbuild.config.ts",
     "start": "tsc --watch",
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm",
