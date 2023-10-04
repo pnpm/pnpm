@@ -34,7 +34,7 @@ jobs:
           version: latest-8
           standalone: true
       - name: pnpm install
-        # We use --force because we want all artifacts of @refclone/refclone to be installed.
+        # We use --force because we want all artifacts of @reflink/reflink to be installed.
         run: pnpm install --force
       - name: Publish Packages
         env:
