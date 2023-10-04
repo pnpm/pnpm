@@ -14,7 +14,9 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]) {
     throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
   }
   const nodeInfo = await downloadNodeVersion(opts, params[0])
-  if (nodeInfo instanceof Error) throw nodeInfo
+  if (!nodeInfo) {
+    throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${params[0]}`)
+  }
   const { nodeDir, nodeVersion } = nodeInfo
   const src = getNodeExecPathInNodeDir(nodeDir)
   const dest = getNodeExecPathInBinDir(opts.bin)

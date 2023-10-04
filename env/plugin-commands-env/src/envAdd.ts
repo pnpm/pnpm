@@ -2,20 +2,20 @@
 import { PnpmError } from '@pnpm/error'
 import { type NvmNodeCommandOptions } from './node'
 import { downloadNodeVersion } from './downloadNodeVersion'
-import { globalWarn } from '@pnpm/logger'
 
 export async function envAdd (opts: NvmNodeCommandOptions, params: string[]) {
   if (!opts.global) {
     throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
   }
-  const errors = []
-  for (const version of params) {
-    const message = await downloadNodeVersion(opts, version)
-    if (message instanceof Error) {
-      globalWarn(message.message)
-      errors.push(message)
+  const failed: string[] = []
+  for (const envSpecifier of params) {
+    const result = await downloadNodeVersion(opts, envSpecifier)
+    if (!result) {
+      failed.push(envSpecifier)
     }
   }
-  if (errors.length > 0) throw errors[0]
+  if (failed.length > 0) {
+    throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${failed.join(', ')}`)
+  }
   return 'All specified Node.js versions were installed'
 }

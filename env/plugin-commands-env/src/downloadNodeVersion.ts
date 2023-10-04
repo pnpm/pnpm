@@ -3,22 +3,21 @@ import { getNodeMirror } from './getNodeMirror'
 import { getNodeDir, type NvmNodeCommandOptions } from './node'
 import { parseEnvSpecifier } from './parseEnvSpecifier'
 import { createFetchFromRegistry } from '@pnpm/fetch'
-import { PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 
-export async function getNodeVersion (opts: NvmNodeCommandOptions, version: string) {
+export async function getNodeVersion (opts: NvmNodeCommandOptions, envSpecifier: string) {
   const fetch = createFetchFromRegistry(opts)
-  const { releaseChannel, versionSpecifier } = parseEnvSpecifier(version)
+  const { releaseChannel, versionSpecifier } = parseEnvSpecifier(envSpecifier)
   const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
   const nodeVersion = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
   return { nodeVersion, nodeMirrorBaseUrl, releaseChannel, versionSpecifier }
 }
 
-export async function downloadNodeVersion (opts: NvmNodeCommandOptions, version: string) {
+export async function downloadNodeVersion (opts: NvmNodeCommandOptions, envSpecifier: string) {
   const fetch = createFetchFromRegistry(opts)
-  const { nodeVersion, nodeMirrorBaseUrl } = await getNodeVersion(opts, version)
+  const { nodeVersion, nodeMirrorBaseUrl } = await getNodeVersion(opts, envSpecifier)
   if (!nodeVersion) {
-    return new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${version}`)
+    return null
   }
   const nodeDir = await getNodeDir(fetch, {
     ...opts,
