@@ -123,7 +123,7 @@ function createCloneFunction (): CloneFunction {
   // Hence, we use a third party solution.
   if (process.platform === 'win32' || process.platform === 'darwin') {
     // eslint-disable-next-line
-    const { reflinkFileSync } = require('@refclone/refclone')
+    const { reflinkFileSync } = require('@reflink/reflink')
     return reflinkFileSync
   }
   return (src: string, dest: string) => {
