@@ -34,7 +34,8 @@ jobs:
           version: latest-8
           standalone: true
       - name: pnpm install
-        run: pnpm install
+        # We use --force because we want all artifacts of @reflink/reflink to be installed.
+        run: pnpm install --force
       - name: Publish Packages
         env:
           # setting the "npm_config_//registry.npmjs.org/:_authToken" env variable directly doesn't work.

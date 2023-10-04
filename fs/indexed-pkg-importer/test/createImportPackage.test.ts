@@ -4,6 +4,8 @@ import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
 import gfs from '@pnpm/graceful-fs'
 import { globalInfo } from '@pnpm/logger'
 
+const testOnLinuxOnly = (process.platform === 'darwin' || process.platform === 'win32') ? test.skip : test
+
 jest.mock('@pnpm/graceful-fs', () => {
   const { access, promises } = jest.requireActual('fs')
   const fsMock = {
@@ -36,7 +38,7 @@ beforeEach(() => {
   ;(globalInfo as jest.Mock).mockReset()
 })
 
-test('packageImportMethod=auto: clone files by default', () => {
+testOnLinuxOnly('packageImportMethod=auto: clone files by default', () => {
   const importPackage = createIndexedPkgImporter('auto')
   expect(importPackage('project/package', {
     filesMap: {
@@ -58,7 +60,7 @@ test('packageImportMethod=auto: clone files by default', () => {
   )
 })
 
-test('packageImportMethod=auto: link files if cloning fails', () => {
+testOnLinuxOnly('packageImportMethod=auto: link files if cloning fails', () => {
   const importPackage = createIndexedPkgImporter('auto')
   ;(gfs.copyFileSync as jest.Mock).mockImplementation(() => {
     throw new Error('This file system does not support cloning')
@@ -90,7 +92,7 @@ test('packageImportMethod=auto: link files if cloning fails', () => {
   expect(gfs.linkSync).toBeCalledWith(path.join('hash2'), path.join('project2', 'package_tmp', 'index.js'))
 })
 
-test('packageImportMethod=auto: link files if cloning fails and even hard linking fails but not with EXDEV error', () => {
+testOnLinuxOnly('packageImportMethod=auto: link files if cloning fails and even hard linking fails but not with EXDEV error', () => {
   const importPackage = createIndexedPkgImporter('auto')
   ;(gfs.copyFileSync as jest.Mock).mockImplementation(() => {
     throw new Error('This file system does not support cloning')
@@ -114,7 +116,7 @@ test('packageImportMethod=auto: link files if cloning fails and even hard linkin
   expect(gfs.copyFileSync).toBeCalledTimes(1)
 })
 
-test('packageImportMethod=auto: chooses copying if cloning and hard linking is not possible', () => {
+testOnLinuxOnly('packageImportMethod=auto: chooses copying if cloning and hard linking is not possible', () => {
   const importPackage = createIndexedPkgImporter('auto')
   ;(gfs.copyFileSync as jest.Mock).mockImplementation((src: string, dest: string, flags?: number) => {
     if (flags === fs.constants.COPYFILE_FICLONE_FORCE) {
@@ -135,7 +137,7 @@ test('packageImportMethod=auto: chooses copying if cloning and hard linking is n
   expect(gfs.copyFileSync).toBeCalledTimes(2)
 })
 
-test('packageImportMethod=hardlink: fall back to copying if hardlinking fails', () => {
+testOnLinuxOnly('packageImportMethod=hardlink: fall back to copying if hardlinking fails', () => {
   const importPackage = createIndexedPkgImporter('hardlink')
   ;(gfs.linkSync as jest.Mock).mockImplementation((src: string, dest: string) => {
     if (dest.endsWith('license')) {
