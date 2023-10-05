@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import { tempDir } from '@pnpm/prepare'
-import { env, node } from '@pnpm/plugin-commands-env'
+import { env } from '@pnpm/plugin-commands-env'
 import * as execa from 'execa'
 import nock from 'nock'
 import PATH from 'path-name'
@@ -136,7 +136,7 @@ test('it re-attempts failed downloads', async () => {
   }
 })
 
-describe('env remove', () => {
+describe('env add/remove', () => {
   test('fail if --global is missing', async () => {
     tempDir()
 
@@ -160,13 +160,11 @@ describe('env remove', () => {
         pnpmHomeDir: process.cwd(),
         rawConfig: {},
       }, ['rm', 'non-existing-version'])
-    ).rejects.toEqual(new PnpmError('COULD_NOT_RESOLVE_NODEJS', 'Couldn\'t find Node.js version matching non-existing-version'))
+    ).resolves.toEqual({ exitCode: 1 })
   })
 
   test('fail if trying to remove version that is not installed', async () => {
     tempDir()
-
-    const nodeDir = node.getNodeVersionsBaseDir(process.cwd())
 
     await expect(
       env.handler({
@@ -175,7 +173,7 @@ describe('env remove', () => {
         pnpmHomeDir: process.cwd(),
         rawConfig: {},
       }, ['remove', '16.4.0'])
-    ).rejects.toEqual(new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${path.resolve(nodeDir, '16.4.0')}`))
+    ).resolves.toEqual({ exitCode: 1 })
   })
 
   test('install and remove Node.js by exact version', async () => {
@@ -211,6 +209,48 @@ describe('env remove', () => {
     }, ['rm', '16.4.0'])
 
     expect(() => execa.sync('node', ['-v'], opts)).toThrowError()
+  })
+
+  test('install and remove multiple Node.js versions in one command', async () => {
+    tempDir()
+
+    const configDir = path.resolve('config')
+
+    await env.handler({
+      bin: process.cwd(),
+      configDir,
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, ['add', '16.4.0', '18.18.0'])
+
+    {
+      const version = await env.handler({
+        bin: process.cwd(),
+        configDir,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      }, ['list'])
+
+      expect((version as string).trim().replaceAll(/\s/g, '')).toMatch(/16\.4\.0.*18\.18\.0/)
+    }
+    await env.handler({
+      bin: process.cwd(),
+      global: true,
+      pnpmHomeDir: process.cwd(),
+      rawConfig: {},
+    }, ['rm', '16.4.0', '18.18.0'])
+
+    {
+      const version = await env.handler({
+        bin: process.cwd(),
+        configDir,
+        pnpmHomeDir: process.cwd(),
+        rawConfig: {},
+      }, ['list'])
+
+      expect(version).toMatch('')
+    }
   })
 })
 
@@ -262,7 +302,7 @@ describe('env list', () => {
       remote: true,
     }, ['list', '16'])
 
-    const versions = versionStr.split('\n')
+    const versions = (versionStr as string).split('\n')
     expect(versions.every(version => semver.satisfies(version, '16'))).toBeTruthy()
   })
 })
