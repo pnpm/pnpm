@@ -2,8 +2,7 @@
 import { existsSync } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { createFetchFromRegistry, type FetchFromRegistry } from '@pnpm/fetch'
-import { globalInfo, globalWarn } from '@pnpm/logger'
+import { logger, globalInfo } from '@pnpm/logger'
 import { removeBin } from '@pnpm/remove-bins'
 import rimraf from '@zkochan/rimraf'
 import { getNodeExecPathAndTargetDir } from './utils'
@@ -15,21 +14,18 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]) 
     throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
   }
 
-  const fetch = createFetchFromRegistry(opts)
-
-  const errors = []
+  let failed = false
   for (const version of params) {
-    const message = await removeNodeVersion(fetch, opts, version)
-    if (message instanceof Error) {
-      globalWarn(message.message)
-      errors.push(message)
+    const err = await removeNodeVersion(opts, version)
+    if (err) {
+      logger.error(err)
+      failed = true
     }
   }
-  if (errors.length > 0) throw errors[0]
-  return 'All specified Node.js versions were removed'
+  return { exitCode: failed ? 1 : 0 }
 }
 
-async function removeNodeVersion (fetch: FetchFromRegistry, opts: NvmNodeCommandOptions, version: string) {
+async function removeNodeVersion (opts: NvmNodeCommandOptions, version: string): Promise<Error | undefined> {
   const { nodeVersion } = await getNodeVersion(opts, version)
   const nodeDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
 
@@ -65,5 +61,6 @@ async function removeNodeVersion (fetch: FetchFromRegistry, opts: NvmNodeCommand
   await rimraf(versionDir)
 
   globalInfo(`Node.js ${nodeVersion as string} was removed
-  ${versionDir}`)
+${versionDir}`)
+  return undefined
 }
