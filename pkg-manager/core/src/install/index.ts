@@ -455,6 +455,7 @@ Note that in CI environments, this setting is enabled by default.`,
           const { stats } = await headlessInstall({
             ...ctx,
             ...opts,
+            allowBuild: createAllowBuildFunction(opts),
             currentEngine: {
               nodeVersion: opts.nodeVersion,
               pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
@@ -1165,6 +1166,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           }
         }
         await buildModules(dependenciesGraph, rootNodes, {
+          allowBuild: createAllowBuildFunction(opts),
           childConcurrency: opts.childConcurrency,
           depsStateCache,
           depsToBuild: new Set(result.newDepPaths),
@@ -1375,6 +1377,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
       const { stats } = await headlessInstall({
         ...ctx,
         ...opts,
+        allowBuild: createAllowBuildFunction(opts),
         currentEngine: {
           nodeVersion: opts.nodeVersion,
           pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',

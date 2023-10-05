@@ -20,6 +20,7 @@ export async function buildModules (
   depGraph: DependenciesGraph,
   rootDepPaths: string[],
   opts: {
+    allowBuild?: (pkgName: string) => boolean
     childConcurrency?: number
     depsToBuild?: Set<string>
     depsStateCache: DepsStateCache
@@ -53,10 +54,11 @@ export async function buildModules (
     warn,
   }
   const chunks = buildSequence(depGraph, rootDepPaths)
+  const allowBuild = opts.allowBuild ?? (() => true)
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
-      return (node.requiresBuild || node.patchFile != null) && !node.isBuilt
+      return (node.requiresBuild || node.patchFile != null) && !node.isBuilt && allowBuild(node.name)
     })
     if (opts.depsToBuild != null) {
       chunk = chunk.filter((depPath) => opts.depsToBuild!.has(depPath))

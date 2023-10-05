@@ -93,6 +93,7 @@ export interface Project {
 }
 
 export interface HeadlessOptions {
+  allowBuild?: (pkgName: string) => boolean
   autoInstallPeers?: boolean
   childConcurrency?: number
   currentLockfile?: Lockfile
@@ -488,6 +489,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       }
     }
     await buildModules(graph, Array.from(directNodes), {
+      allowBuild: opts.allowBuild,
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
       extraEnv,
