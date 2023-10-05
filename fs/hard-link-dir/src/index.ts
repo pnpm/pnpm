@@ -16,13 +16,15 @@ function _hardLinkDir (src: string, destDirs: string[], isRoot?: boolean) {
   } catch (err: any) { // eslint-disable-line
     if (!isRoot || err.code !== 'ENOENT') throw err
     globalWarn(`Source directory not found when creating hardLinks for: ${src}. Creating destinations as empty: ${destDirs.join(', ')}`)
-    destDirs.map((dir) => fs.mkdirSync(dir, { recursive: true }))
+    for (const dir of destDirs) {
+      fs.mkdirSync(dir, { recursive: true })
+    }
     return
   }
   for (const file of files) {
     if (file === 'node_modules') continue
     const srcFile = path.join(src, file)
-    if ((fs.lstatSync(srcFile)).isDirectory()) {
+    if (fs.lstatSync(srcFile).isDirectory()) {
       const destSubdirs = destDirs.map((destDir) => {
         const destSubdir = path.join(destDir, file)
         try {
