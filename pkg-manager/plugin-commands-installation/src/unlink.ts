@@ -55,6 +55,7 @@ export async function handler (
   | 'rawLocalConfig'
   | 'registries'
   | 'rootProjectManifest'
+  | 'rootProjectManifestDir'
   | 'pnpmfile'
   | 'workspaceDir'
   > & {
@@ -73,7 +74,7 @@ export async function handler (
   }
   const store = await createOrConnectStoreController(opts)
   const unlinkOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
+    ...getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest ?? {}),
     globalBin: opts.bin,
     storeController: store.ctrl,
     storeDir: store.dir,

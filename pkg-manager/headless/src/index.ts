@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import { buildModules } from '@pnpm/build-modules'
+import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import { calcDepState, type DepsStateCache } from '@pnpm/calc-dep-state'
 import {
   LAYOUT_VERSION,
@@ -93,7 +94,9 @@ export interface Project {
 }
 
 export interface HeadlessOptions {
-  allowBuild?: (pkgName: string) => boolean
+  neverBuiltDependencies?: string[]
+  onlyBuiltDependencies?: string[]
+  onlyBuiltDependenciesFile?: string
   autoInstallPeers?: boolean
   childConcurrency?: number
   currentLockfile?: Lockfile
@@ -489,7 +492,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       }
     }
     await buildModules(graph, Array.from(directNodes), {
-      allowBuild: opts.allowBuild,
+      allowBuild: createAllowBuildFunction(opts),
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
       extraEnv,

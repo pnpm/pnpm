@@ -58,6 +58,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'production'
 | 'rawLocalConfig'
 | 'registries'
+| 'rootProjectManifestDir'
 | 'rootProjectManifest'
 | 'save'
 | 'saveDev'
@@ -188,7 +189,7 @@ when running add/update with the --workspace option')
         params,
         {
           ...opts,
-          ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
+          ...getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest ?? {}),
           forceHoistPattern,
           forcePublicHoistPattern,
           allProjectsGraph,
@@ -219,9 +220,13 @@ when running add/update with the --workspace option')
   }
 
   const store = await createOrConnectStoreController(opts)
+  const manifestOpts = {
+    ...(opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest) : {}),
+    ...getOptionsFromRootManifest(opts.dir, manifest),
+  }
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    ...getOptionsFromRootManifest({ ...opts.rootProjectManifest, ...manifest }),
+    ...manifestOpts,
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository

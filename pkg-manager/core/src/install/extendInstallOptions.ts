@@ -63,6 +63,7 @@ export interface StrictInstallOptions {
   engineStrict: boolean
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
+  onlyBuiltDependenciesFile?: string
   nodeExecPath?: string
   nodeLinker: 'isolated' | 'hoisted' | 'pnp'
   nodeVersion: string

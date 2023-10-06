@@ -175,7 +175,7 @@ export async function handler (
       await install(
         await readProjectManifestOnly(dir, opts), {
           ...config,
-          ...getOptionsFromRootManifest(config.rootProjectManifest ?? {}),
+          ...getOptionsFromRootManifest(config.rootProjectManifestDir!, config.rootProjectManifest ?? {}),
           include: {
             dependencies: config.production !== false,
             devDependencies: config.dev !== false,

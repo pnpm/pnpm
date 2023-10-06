@@ -7,12 +7,13 @@ import {
 } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
 
-export function getOptionsFromRootManifest (manifest: ProjectManifest): {
+export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowNonAppliedPatches?: boolean
   overrides?: Record<string, string>
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
+  onlyBuiltDependenciesFile?: string
   packageExtensions?: Record<string, PackageExtension>
   patchedDependencies?: Record<string, string>
   peerDependencyRules?: PeerDependencyRules
@@ -26,6 +27,7 @@ export function getOptionsFromRootManifest (manifest: ProjectManifest): {
   )
   const neverBuiltDependencies = manifest.pnpm?.neverBuiltDependencies
   const onlyBuiltDependencies = manifest.pnpm?.onlyBuiltDependencies
+  const onlyBuiltDependenciesFile = manifest.pnpm?.onlyBuiltDependenciesFile
   const packageExtensions = manifest.pnpm?.packageExtensions
   const peerDependencyRules = manifest.pnpm?.peerDependencyRules
   const allowedDeprecatedVersions = manifest.pnpm?.allowedDeprecatedVersions
@@ -43,6 +45,10 @@ export function getOptionsFromRootManifest (manifest: ProjectManifest): {
   if (onlyBuiltDependencies) {
     // @ts-expect-error
     settings['onlyBuiltDependencies'] = onlyBuiltDependencies
+  }
+  if (onlyBuiltDependenciesFile) {
+    // @ts-expect-error
+    settings['onlyBuiltDependenciesFile'] = path.join(manifestDir, onlyBuiltDependenciesFile)
   }
   return settings
 }

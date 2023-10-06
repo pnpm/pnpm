@@ -59,6 +59,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'rawLocalConfig'
 | 'registries'
 | 'rootProjectManifest'
+| 'rootProjectManifestDir'
 | 'save'
 | 'saveDev'
 | 'saveExact'
@@ -123,8 +124,9 @@ export async function recursive (
     ? arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
     : {}
   const targetDependenciesField = getSaveType(opts)
+  const rootManifestDir = opts.lockfileDir ?? opts.dir
   const installOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(manifestsByPath[opts.lockfileDir ?? opts.dir]?.manifest ?? {}),
+    ...getOptionsFromRootManifest(rootManifestDir, manifestsByPath[rootManifestDir]?.manifest ?? {}),
     allProjects: getAllProjects(manifestsByPath, opts.allProjectsGraph, opts.sort),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     ownLifecycleHooksStdio: 'pipe',
@@ -359,12 +361,16 @@ export async function recursive (
         }
 
         const localConfig = await memReadLocalConfig(rootDir)
+        const optionsFromManifest = {
+          ...(opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest) : {}),
+          ...getOptionsFromRootManifest(rootDir, manifest),
+        }
         const newManifest = await action(
           manifest,
           {
             ...installOpts,
             ...localConfig,
-            ...getOptionsFromRootManifest({ ...opts.rootProjectManifest, ...manifest }),
+            ...optionsFromManifest,
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,
             hooks,
@@ -413,7 +419,7 @@ export async function recursive (
   ) {
     await rebuild.handler({
       ...opts,
-      ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
+      ...getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest ?? {}),
       pending: opts.pending === true,
       skipIfHasSideEffectsCache: true,
     }, [])
