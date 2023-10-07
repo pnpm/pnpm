@@ -1,3 +1,4 @@
+import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import {
   type AllowedDeprecatedVersions,
