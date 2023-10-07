@@ -1,4 +1,13 @@
 import { getOptionsFromRootManifest } from '../lib/getOptionsFromRootManifest'
+import { logger } from '@pnpm/logger'
+
+beforeEach(() => {
+  jest.spyOn(logger, 'warn')
+})
+
+afterEach(() => {
+  (logger.warn as jest.Mock).mockRestore()
+})
 
 test('getOptionsFromRootManifest() should read "resolutions" field for compatibility with Yarn', () => {
   const options = getOptionsFromRootManifest({
@@ -76,4 +85,32 @@ test('getOptionsFromRootManifest() throws an error if cannot resolve an override
       },
     },
   })).toThrow('Cannot resolve version $foo in overrides. The direct dependencies don\'t have dependency "foo".')
+})
+
+test('getOptionsFromRootManifest() throws an error if cannot resolve an override link to relative path', () => {
+  getOptionsFromRootManifest({
+    dependencies: {
+      bar: '1.0.0',
+    },
+    pnpm: {
+      overrides: {
+        bar: 'link:../test/bar',
+      },
+    },
+  })
+  expect(logger.warn).toBeCalledTimes(1)
+})
+
+test('getOptionsFromRootManifest() throws an error if cannot resolve an override link to absolute path', () => {
+  getOptionsFromRootManifest({
+    dependencies: {
+      bar: '1.0.0',
+    },
+    pnpm: {
+      overrides: {
+        bar: 'link:G:/test/bar',
+      },
+    },
+  })
+  expect(logger.warn).toBeCalledTimes(1)
 })

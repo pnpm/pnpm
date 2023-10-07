@@ -1,4 +1,5 @@
 import { PnpmError } from '@pnpm/error'
+import { logger } from '@pnpm/logger'
 import {
   type AllowedDeprecatedVersions,
   type PackageExtension,
@@ -6,6 +7,23 @@ import {
   type ProjectManifest,
 } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
+import path from 'path'
+import fs from 'fs'
+
+function checkOverrides (overrides: Record<string, string>) {
+  Object.keys(overrides).forEach(key => {
+    const value = overrides[key]
+    if (value.startsWith('link:')) {
+      const _path = path.isAbsolute(value) ? value : path.join(process.cwd(), value)
+      if (!fs.existsSync(_path)) {
+        logger.warn({
+          message: `Cannot resolve package ${key} in overrides. The address of the package link is incorrect.`,
+          prefix: process.cwd(),
+        })
+      }
+    }
+  })
+}
 
 export function getOptionsFromRootManifest (manifest: ProjectManifest): {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
@@ -24,6 +42,7 @@ export function getOptionsFromRootManifest (manifest: ProjectManifest): {
     createVersionReferencesReplacer(manifest),
     manifest.pnpm?.overrides ?? manifest.resolutions ?? {}
   )
+  checkOverrides(overrides)
   const neverBuiltDependencies = manifest.pnpm?.neverBuiltDependencies
   const onlyBuiltDependencies = manifest.pnpm?.onlyBuiltDependencies
   const packageExtensions = manifest.pnpm?.packageExtensions
