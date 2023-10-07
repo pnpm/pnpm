@@ -1,7 +1,7 @@
 import { getOptionsFromRootManifest } from '../lib/getOptionsFromRootManifest'
 
 test('getOptionsFromRootManifest() should read "resolutions" field for compatibility with Yarn', () => {
-  const options = getOptionsFromRootManifest({
+  const options = getOptionsFromRootManifest(process.cwd(), {
     resolutions: {
       foo: '1.0.0',
     },
@@ -10,7 +10,7 @@ test('getOptionsFromRootManifest() should read "resolutions" field for compatibi
 })
 
 test('getOptionsFromRootManifest() should read "overrides" field', () => {
-  const options = getOptionsFromRootManifest({
+  const options = getOptionsFromRootManifest(process.cwd(), {
     pnpm: {
       overrides: {
         foo: '1.0.0',
@@ -21,7 +21,7 @@ test('getOptionsFromRootManifest() should read "overrides" field', () => {
 })
 
 test('getOptionsFromRootManifest() Support $ in overrides by dependencies', () => {
-  const options = getOptionsFromRootManifest({
+  const options = getOptionsFromRootManifest(process.cwd(), {
     dependencies: {
       foo: '1.0.0',
     },
@@ -35,7 +35,7 @@ test('getOptionsFromRootManifest() Support $ in overrides by dependencies', () =
 })
 
 test('getOptionsFromRootManifest() Support $ in overrides by devDependencies', () => {
-  const options = getOptionsFromRootManifest({
+  const options = getOptionsFromRootManifest(process.cwd(), {
     devDependencies: {
       foo: '1.0.0',
     },
@@ -49,7 +49,7 @@ test('getOptionsFromRootManifest() Support $ in overrides by devDependencies', (
 })
 
 test('getOptionsFromRootManifest() Support $ in overrides by dependencies and devDependencies', () => {
-  const options = getOptionsFromRootManifest({
+  const options = getOptionsFromRootManifest(process.cwd(), {
     dependencies: {
       foo: '1.0.0',
     },
@@ -66,7 +66,7 @@ test('getOptionsFromRootManifest() Support $ in overrides by dependencies and de
 })
 
 test('getOptionsFromRootManifest() throws an error if cannot resolve an override version reference', () => {
-  expect(() => getOptionsFromRootManifest({
+  expect(() => getOptionsFromRootManifest(process.cwd(), {
     dependencies: {
       bar: '1.0.0',
     },
