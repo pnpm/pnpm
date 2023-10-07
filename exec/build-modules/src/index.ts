@@ -58,14 +58,19 @@ export async function buildModules (
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
-      return (node.requiresBuild || node.patchFile != null) && !node.isBuilt && allowBuild(node.name)
+      return (node.requiresBuild || node.patchFile != null) && !node.isBuilt
     })
     if (opts.depsToBuild != null) {
       chunk = chunk.filter((depPath) => opts.depsToBuild!.has(depPath))
     }
 
     return chunk.map((depPath: string) =>
-      async () => buildDependency(depPath, depGraph, buildDepOpts)
+      async () => {
+        return buildDependency(depPath, depGraph, {
+          ...buildDepOpts,
+          ignoreScripts: Boolean(buildDepOpts.ignoreScripts) || !allowBuild(depGraph[depPath].name),
+        })
+      }
     )
   })
   await runGroups(opts.childConcurrency ?? 4, groups)
