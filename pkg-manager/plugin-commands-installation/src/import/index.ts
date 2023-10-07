@@ -169,10 +169,7 @@ export async function handler (
 
   const store = await createOrConnectStoreController(opts)
   const manifest = await readProjectManifestOnly(opts.dir)
-  const manifestOpts = {
-    ...(opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest) : {}),
-    ...getOptionsFromRootManifest(opts.dir, manifest),
-  }
+  const manifestOpts = opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest) : {}
   const installOpts = {
     ...opts,
     ...manifestOpts,

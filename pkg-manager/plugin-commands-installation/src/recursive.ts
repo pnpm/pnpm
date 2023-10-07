@@ -360,10 +360,7 @@ export async function recursive (
         }
 
         const localConfig = await memReadLocalConfig(rootDir)
-        const optionsFromManifest = {
-          ...(opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest) : {}),
-          ...getOptionsFromRootManifest(rootDir, manifest),
-        }
+        const optionsFromManifest = opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest) : {}
         const newManifest = await action(
           manifest,
           {

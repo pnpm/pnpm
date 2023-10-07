@@ -219,10 +219,7 @@ when running add/update with the --workspace option')
   }
 
   const store = await createOrConnectStoreController(opts)
-  const manifestOpts = {
-    ...(opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest) : {}),
-    ...getOptionsFromRootManifest(opts.dir, manifest),
-  }
+  const manifestOpts = opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest) : {}
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
     ...manifestOpts,
