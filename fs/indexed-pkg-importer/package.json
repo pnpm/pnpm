@@ -24,7 +24,7 @@
     "p-limit": "^3.1.0",
     "path-exists": "^4.0.0",
     "path-temp": "^2.1.0",
-    "@reflink/reflink": "0.1.6",
+    "@reflink/reflink": "0.1.7",
     "rename-overwrite": "^4.0.3",
     "sanitize-filename": "^1.6.3"
   },

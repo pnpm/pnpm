@@ -1707,8 +1707,8 @@ importers:
         specifier: workspace:*
         version: link:../../store/store-controller-types
       '@reflink/reflink':
-        specifier: 0.1.6
-        version: 0.1.6
+        specifier: 0.1.7
+        version: 0.1.7
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3
@@ -8294,8 +8294,8 @@ packages:
       write-yaml-file: 5.0.0
     dev: true
 
-  /@reflink/reflink-darwin-arm64@0.1.6:
-    resolution: {integrity: sha512-2C72IhdARYLNgI61apAeXrTm4b4Kgbs6MCKQ5LzxpeV3YR7GfDAr6q/NUjUJDPgxpkAw0f/Wfn9gYHacAI9uSQ==}
+  /@reflink/reflink-darwin-arm64@0.1.7:
+    resolution: {integrity: sha512-iU8bC3ErTCqhLD0lyWDMnBa2dYJTLe256dCAohL9KbzUR9NktCnxqArQd/iKPqBp47PNmP4+ZlNGu2/KcShDrw==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
@@ -8303,8 +8303,8 @@ packages:
     dev: false
     optional: true
 
-  /@reflink/reflink-darwin-x64@0.1.6:
-    resolution: {integrity: sha512-GWo+iysYQcXiHhI6IhvWLAAvv6/yjyyLdTO8lMM00OclZ6TJ55VoSfFTMXgLxX2qh3UiFOOwtSovz7o1L+pQYg==}
+  /@reflink/reflink-darwin-x64@0.1.7:
+    resolution: {integrity: sha512-3qzodnCUHUF78gWnDVjmbmjDXW3oJbaR2GTIK+IM4y1y/QUQm0aBDi0q+rD5k4oRN22LX8CyzeRDRcSDZ+aemg==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
@@ -8312,8 +8312,8 @@ packages:
     dev: false
     optional: true
 
-  /@reflink/reflink-win32-arm64-msvc@0.1.6:
-    resolution: {integrity: sha512-zFaf1/8Lbjsy2fLRWUEzB8Xj6cXeCjYrf4IyNHhrbCzsDG09oKJCX6c2sikA6crxPnDgiJ9TZVqRvRyhKFcsAQ==}
+  /@reflink/reflink-win32-arm64-msvc@0.1.7:
+    resolution: {integrity: sha512-YB9GemcxPClBVdv56vmioFRP7yijt3tKQawFPD7VZ7YUsYLXJs21pN15BWdg55k8eDTESGiOf7Z/d/mRlaI14A==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [win32]
@@ -8321,8 +8321,8 @@ packages:
     dev: false
     optional: true
 
-  /@reflink/reflink-win32-x64-msvc@0.1.6:
-    resolution: {integrity: sha512-4uWFUGrjKfpVwdOnQBclCgz5IpFTQRnECNnJ4oPwNa5D2xeLsB8EEij29oPGMlQKTWJL17TfE50uHmplmslw+w==}
+  /@reflink/reflink-win32-x64-msvc@0.1.7:
+    resolution: {integrity: sha512-hYY5X/j4jYi13s/OlAOm2jwR45wEAOa+OVW6uEqNBNJVtfikCO426aIPd3zNSPPBTAlozlTV7+poJKgtm+5VjQ==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
@@ -8330,14 +8330,14 @@ packages:
     dev: false
     optional: true
 
-  /@reflink/reflink@0.1.6:
-    resolution: {integrity: sha512-o3v5AZmdJ0+2hvdld6RFpEkTe5p4YhinKMt0GPNgRC/l3ouVPbqGeFAORtycOsvNXKZdf5AZLAUqiypZZL19nA==}
+  /@reflink/reflink@0.1.7:
+    resolution: {integrity: sha512-uQ/nKANqucF0OiUFSSTmPlJc2HVy7ajfqEzMvTAn1t0R/DBHHOpiQxYNSWhSttY+Sos+UVj9d9+7NRyrfR1zzw==}
     engines: {node: '>= 10'}
     optionalDependencies:
-      '@reflink/reflink-darwin-arm64': 0.1.6
-      '@reflink/reflink-darwin-x64': 0.1.6
-      '@reflink/reflink-win32-arm64-msvc': 0.1.6
-      '@reflink/reflink-win32-x64-msvc': 0.1.6
+      '@reflink/reflink-darwin-arm64': 0.1.7
+      '@reflink/reflink-darwin-x64': 0.1.7
+      '@reflink/reflink-win32-arm64-msvc': 0.1.7
+      '@reflink/reflink-win32-x64-msvc': 0.1.7
     dev: false
 
   /@rushstack/worker-pool@0.3.34(@types/node@16.18.57):
