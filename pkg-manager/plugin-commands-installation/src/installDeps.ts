@@ -3,7 +3,7 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
-import { type Config } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/workspace.find-packages'
@@ -21,7 +21,6 @@ import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import isSubdir from 'is-subdir'
-import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { getPinnedVersion } from './getPinnedVersion'
 import { getSaveType } from './getSaveType'
 import { getNodeExecPath } from './nodeExecPath'

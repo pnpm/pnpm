@@ -4,7 +4,7 @@ import {
   type RecursiveSummary,
   throwOnCommandFail,
 } from '@pnpm/cli-utils'
-import { type Config, readLocalConfig } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest, readLocalConfig } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/workspace.find-packages'
 import { logger } from '@pnpm/logger'
@@ -35,7 +35,6 @@ import isSubdir from 'is-subdir'
 import mem from 'mem'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
-import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 import { updateToLatestSpecsFromManifest, createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { getSaveType } from './getSaveType'

@@ -7,7 +7,7 @@ import {
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/workspace.find-packages'
@@ -28,7 +28,6 @@ import pick from 'ramda/src/pick'
 import partition from 'ramda/src/partition'
 import renderHelp from 'render-help'
 import * as installCommand from './install'
-import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { getSaveType } from './getSaveType'
 
 // @ts-expect-error
