@@ -31,7 +31,7 @@
 
 ### Patch Changes
 
-- d43ccc44d: Update `@pnpm/graph-sequencer`.
+- d43ccc44d: Update `@pnpm/deps.graph-sequencer`.
 
 ## 5.0.0
 
@@ -131,7 +131,7 @@
 
 ### Patch Changes
 
-- 2109f2e8e: Use `@pnpm/graph-sequencer` instead of `graph-sequencer`.
+- 2109f2e8e: Use `@pnpm/deps.graph-sequencer` instead of `graph-sequencer`.
 
 ## 3.0.0
 

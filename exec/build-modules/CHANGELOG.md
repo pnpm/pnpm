@@ -169,7 +169,7 @@
 
 ### Patch Changes
 
-- d43ccc44d: Update `@pnpm/graph-sequencer`.
+- d43ccc44d: Update `@pnpm/deps.graph-sequencer`.
 - Updated dependencies [64d0f47ff]
   - @pnpm/fs.hard-link-dir@2.0.1
 
@@ -611,7 +611,7 @@
 
 ### Patch Changes
 
-- 2109f2e8e: Use `@pnpm/graph-sequencer` instead of `graph-sequencer`.
+- 2109f2e8e: Use `@pnpm/deps.graph-sequencer` instead of `graph-sequencer`.
 - Updated dependencies [8fa95fd86]
   - @pnpm/link-bins@7.1.0
   - @pnpm/lifecycle@13.0.1

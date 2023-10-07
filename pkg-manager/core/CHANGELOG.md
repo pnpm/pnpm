@@ -630,7 +630,7 @@
 ### Patch Changes
 
 - 6706a7d17: Add lockfileCheck option for lockfile only diff installs
-- d43ccc44d: Update `@pnpm/graph-sequencer`.
+- d43ccc44d: Update `@pnpm/deps.graph-sequencer`.
 - c0760128d: bump semver to 7.4.0
 - Updated dependencies [8f7e99477]
 - Updated dependencies [d43ccc44d]
@@ -2566,7 +2566,7 @@
 
 ### Patch Changes
 
-- 2109f2e8e: Use `@pnpm/graph-sequencer` instead of `graph-sequencer`.
+- 2109f2e8e: Use `@pnpm/deps.graph-sequencer` instead of `graph-sequencer`.
 - 88289a42c: peerDependencyRules will no longer cause duplicated peer dependency rules in the lockfile when used in workspaces
 - aecd4acdd: Linked in dependencies should be considered when resolving peer dependencies [#4541](https://github.com/pnpm/pnpm/pull/4541).
 - dbe366990: Peer dependency should be correctly resolved from the workspace, when it is declared using a workspace protocol [#4529](https://github.com/pnpm/pnpm/issues/4529).

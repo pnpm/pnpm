@@ -1,6 +1,6 @@
 import type { ProjectsGraph } from '@pnpm/types'
-import graphSequencer from '@pnpm/graph-sequencer'
-import type { Result as GraphSequencerResult } from '@pnpm/graph-sequencer'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
+import type { Result as GraphSequencerResult } from '@pnpm/deps.graph-sequencer'
 
 export function sequenceGraph (pkgGraph: ProjectsGraph): GraphSequencerResult<string> {
   const keys = Object.keys(pkgGraph)
@@ -9,62 +9,10 @@ export function sequenceGraph (pkgGraph: ProjectsGraph): GraphSequencerResult<st
     keys.map((pkgPath) => [
       pkgPath,
       pkgGraph[pkgPath].dependencies.filter(
-        /* remove cycles of length 1 (ie., package 'a' depends on 'a').  They
-        confuse the graph-sequencer, but can be ignored when ordering packages
-        topologically.
-
-        See the following example where 'b' and 'c' depend on themselves:
-
-          graphSequencer({graph: new Map([
-            ['a', ['b', 'c']],
-            ['b', ['b']],
-            ['c', ['b', 'c']]]
-          ),
-          groups: [['a', 'b', 'c']]})
-
-        returns chunks:
-
-            [['b'],['a'],['c']]
-
-        But both 'b' and 'c' should be executed _before_ 'a', because 'a' depends on
-        them.  It works (and is considered 'safe' if we run:)
-
-          graphSequencer({graph: new Map([
-            ['a', ['b', 'c']],
-            ['b', []],
-            ['c', ['b']]]
-          ), groups: [['a', 'b', 'c']]})
-
-        returning:
-
-            [['b'], ['c'], ['a']]
-
-        */
-        d => d !== pkgPath &&
-        /* remove unused dependencies that we can ignore due to a filter expression.
-
-        Again, the graph sequencer used to behave weirdly in the following edge case:
-
-          graphSequencer({graph: new Map([
-            ['a', ['b', 'c']],
-            ['d', ['a']],
-            ['e', ['a', 'b', 'c']]]
-          ),
-          groups: [['a', 'e', 'e']]})
-
-        returns chunks:
-
-            [['d'],['a'],['e']]
-
-        But we really want 'a' to be executed first.
-        */
-        setOfKeys.has(d))]
+        d => d !== pkgPath && setOfKeys.has(d))]
     )
   )
-  return graphSequencer({
-    graph,
-    groups: [keys],
-  })
+  return graphSequencer(graph, keys)
 }
 
 export function sortPackages (pkgGraph: ProjectsGraph): string[][] {

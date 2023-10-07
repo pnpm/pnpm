@@ -56,7 +56,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/get-context": "workspace:*",
-    "@pnpm/graph-sequencer": "1.1.1",
+    "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",

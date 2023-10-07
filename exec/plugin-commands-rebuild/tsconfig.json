@@ -31,6 +31,9 @@
       "path": "../../config/normalize-registries"
     },
     {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
       "path": "../../fs/hard-link-dir"
     },
     {
