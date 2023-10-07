@@ -1,10 +1,9 @@
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { mutateModulesInSingleProject } from '@pnpm/core'
 import renderHelp from 'render-help'
-import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { cliOptionsTypes, rcOptionsTypes } from './install'
 import { recursive } from './recursive'
 
@@ -55,6 +54,7 @@ export async function handler (
   | 'rawLocalConfig'
   | 'registries'
   | 'rootProjectManifest'
+  | 'rootProjectManifestDir'
   | 'pnpmfile'
   | 'workspaceDir'
   > & {
@@ -73,7 +73,7 @@ export async function handler (
   }
   const store = await createOrConnectStoreController(opts)
   const unlinkOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
+    ...getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest ?? {}),
     globalBin: opts.bin,
     storeController: store.ctrl,
     storeDir: store.dir,

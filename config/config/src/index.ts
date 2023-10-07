@@ -25,6 +25,7 @@ import {
 } from './Config'
 import { getWorkspaceConcurrency } from './concurrency'
 
+export { getOptionsFromRootManifest, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
 export * from './readLocalConfig'
 
 export type { Config, UniversalOptions }
@@ -548,7 +549,8 @@ export async function getConfig (
   if (!pnpmConfig.ignorePnpmfile) {
     pnpmConfig.hooks = requireHooks(pnpmConfig.lockfileDir ?? pnpmConfig.dir, pnpmConfig)
   }
-  pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir) ?? undefined
+  pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
+  pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
   if (pnpmConfig.rootProjectManifest?.workspaces?.length && !pnpmConfig.workspaceDir) {
     warnings.push('The "workspaces" field in package.json is not supported by pnpm. Create a "pnpm-workspace.yaml" file instead.')
   }

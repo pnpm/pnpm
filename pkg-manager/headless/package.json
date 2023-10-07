@@ -22,7 +22,7 @@
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",
-    "@pnpm/registry-mock": "3.11.0",
+    "@pnpm/registry-mock": "3.13.0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
@@ -64,6 +64,7 @@
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:*",
+    "@pnpm/builder.policy": "1.1.0",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",

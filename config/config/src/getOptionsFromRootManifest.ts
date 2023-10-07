@@ -1,3 +1,4 @@
+import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import {
   type AllowedDeprecatedVersions,
@@ -7,16 +8,19 @@ import {
 } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
 
-export function getOptionsFromRootManifest (manifest: ProjectManifest): {
+export interface OptionsFromRootManifest {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowNonAppliedPatches?: boolean
   overrides?: Record<string, string>
   neverBuiltDependencies?: string[]
   onlyBuiltDependencies?: string[]
+  onlyBuiltDependenciesFile?: string
   packageExtensions?: Record<string, PackageExtension>
   patchedDependencies?: Record<string, string>
   peerDependencyRules?: PeerDependencyRules
-} {
+}
+
+export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
   // We read Yarn's resolutions field for compatibility
   // but we really replace the version specs to any other version spec, not only to exact versions,
   // so we cannot call it resolutions
@@ -26,12 +30,13 @@ export function getOptionsFromRootManifest (manifest: ProjectManifest): {
   )
   const neverBuiltDependencies = manifest.pnpm?.neverBuiltDependencies
   const onlyBuiltDependencies = manifest.pnpm?.onlyBuiltDependencies
+  const onlyBuiltDependenciesFile = manifest.pnpm?.onlyBuiltDependenciesFile
   const packageExtensions = manifest.pnpm?.packageExtensions
   const peerDependencyRules = manifest.pnpm?.peerDependencyRules
   const allowedDeprecatedVersions = manifest.pnpm?.allowedDeprecatedVersions
   const allowNonAppliedPatches = manifest.pnpm?.allowNonAppliedPatches
   const patchedDependencies = manifest.pnpm?.patchedDependencies
-  const settings = {
+  const settings: OptionsFromRootManifest = {
     allowedDeprecatedVersions,
     allowNonAppliedPatches,
     overrides,
@@ -41,8 +46,10 @@ export function getOptionsFromRootManifest (manifest: ProjectManifest): {
     patchedDependencies,
   }
   if (onlyBuiltDependencies) {
-    // @ts-expect-error
-    settings['onlyBuiltDependencies'] = onlyBuiltDependencies
+    settings.onlyBuiltDependencies = onlyBuiltDependencies
+  }
+  if (onlyBuiltDependenciesFile) {
+    settings.onlyBuiltDependenciesFile = path.join(manifestDir, onlyBuiltDependenciesFile)
   }
   return settings
 }

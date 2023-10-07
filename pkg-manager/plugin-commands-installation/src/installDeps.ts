@@ -3,7 +3,7 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
-import { type Config } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/workspace.find-packages'
@@ -21,7 +21,6 @@ import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import isSubdir from 'is-subdir'
-import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { getPinnedVersion } from './getPinnedVersion'
 import { getSaveType } from './getSaveType'
 import { getNodeExecPath } from './nodeExecPath'
@@ -58,6 +57,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'production'
 | 'rawLocalConfig'
 | 'registries'
+| 'rootProjectManifestDir'
 | 'rootProjectManifest'
 | 'save'
 | 'saveDev'
@@ -188,7 +188,7 @@ when running add/update with the --workspace option')
         params,
         {
           ...opts,
-          ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
+          ...getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest ?? {}),
           forceHoistPattern,
           forcePublicHoistPattern,
           allProjectsGraph,
@@ -219,9 +219,10 @@ when running add/update with the --workspace option')
   }
 
   const store = await createOrConnectStoreController(opts)
+  const manifestOpts = opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest) : {}
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    ...getOptionsFromRootManifest({ ...opts.rootProjectManifest, ...manifest }),
+    ...manifestOpts,
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository

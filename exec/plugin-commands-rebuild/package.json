@@ -34,7 +34,7 @@
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-rebuild": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.11.0",
+    "@pnpm/registry-mock": "3.13.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",
@@ -45,7 +45,7 @@
     "write-yaml-file": "^5.0.0"
   },
   "dependencies": {
-    "@pnpm/builder.policy": "1.0.0",
+    "@pnpm/builder.policy": "1.1.0",
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/common-cli-options-help": "workspace:*",

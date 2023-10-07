@@ -5,6 +5,7 @@ import filter from 'ramda/src/filter'
 export interface DependenciesGraphNode {
   children: Record<string, string>
   depPath: string
+  name: string
   dir: string
   fetchingBundledManifest?: () => Promise<PackageManifest | undefined>
   filesIndexFile: string

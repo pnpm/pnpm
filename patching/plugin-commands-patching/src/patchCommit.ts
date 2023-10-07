@@ -86,6 +86,7 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
 
   return install.handler({
     ...opts,
+    rootProjectManifest,
     rawLocalConfig: {
       ...opts.rawLocalConfig,
       'frozen-lockfile': false,

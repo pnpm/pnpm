@@ -1,4 +1,5 @@
 import path from 'path'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { type LogBase } from '@pnpm/logger'
 import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { type StoreController } from '@pnpm/store-controller-types'
@@ -50,7 +51,7 @@ export interface StrictRebuildOptions {
 }
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &
-Pick<StrictRebuildOptions, 'storeDir' | 'storeController'>
+Pick<StrictRebuildOptions, 'storeDir' | 'storeController'> & Pick<Config, 'rootProjectManifest' | 'rootProjectManifestDir'>
 
 const defaults = async (opts: RebuildOptions) => {
   const packageManager = opts.packageManager ??
@@ -96,7 +97,12 @@ export async function extendRebuildOptions (
     }
   }
   const defaultOpts = await defaults(opts)
-  const extendedOpts = { ...defaultOpts, ...opts, storeDir: defaultOpts.storeDir }
+  const extendedOpts = {
+    ...defaultOpts,
+    ...opts,
+    storeDir: defaultOpts.storeDir,
+    ...(opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest) : {}),
+  }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   return extendedOpts
 }

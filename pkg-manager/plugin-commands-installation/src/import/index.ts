@@ -9,7 +9,7 @@ import {
 } from '@pnpm/store-connection-manager'
 import gfs from '@pnpm/graceful-fs'
 import { install, type InstallOptions } from '@pnpm/core'
-import { type Config } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type Project } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
@@ -22,7 +22,6 @@ import { parse as parseYarnLock, type LockFileObject } from '@yarnpkg/lockfile'
 import * as yarnCore from '@yarnpkg/core'
 import { parseSyml } from '@yarnpkg/parsers'
 import exists from 'path-exists'
-import { getOptionsFromRootManifest } from '../getOptionsFromRootManifest'
 import { recursive } from '../recursive'
 import { yarnLockFileKeyNormalizer } from './yarnUtil'
 
@@ -101,6 +100,7 @@ export type ImportCommandOptions = Pick<Config,
 | 'disallowWorkspaceCycles'
 | 'sharedWorkspaceLockfile'
 | 'rootProjectManifest'
+| 'rootProjectManifestDir'
 > & CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>
 
 export async function handler (
@@ -169,9 +169,10 @@ export async function handler (
 
   const store = await createOrConnectStoreController(opts)
   const manifest = await readProjectManifestOnly(opts.dir)
+  const manifestOpts = opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest) : {}
   const installOpts = {
     ...opts,
-    ...getOptionsFromRootManifest({ ...opts.rootProjectManifest, ...manifest }),
+    ...manifestOpts,
     lockfileOnly: true,
     preferredVersions,
     storeController: store.ctrl,

@@ -169,6 +169,7 @@ export interface Config {
 
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
+  rootProjectManifestDir?: string
   rootProjectManifest?: ProjectManifest
   userConfig: Record<string, string>
 }
