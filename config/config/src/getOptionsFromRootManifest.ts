@@ -26,7 +26,10 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
   // so we cannot call it resolutions
   const overrides = mapValues(
     createVersionReferencesReplacer(manifest),
-    manifest.pnpm?.overrides ?? manifest.resolutions ?? {}
+    {
+      ...manifest.resolutions,
+      ...manifest.pnpm?.overrides,
+    }
   )
   const neverBuiltDependencies = manifest.pnpm?.neverBuiltDependencies
   const onlyBuiltDependencies = manifest.pnpm?.onlyBuiltDependencies
