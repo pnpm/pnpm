@@ -8,7 +8,7 @@ import {
 } from '@pnpm/types'
 import mapValues from 'ramda/src/map'
 
-export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): {
+export interface OptionsFromRootManifest {
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowNonAppliedPatches?: boolean
   overrides?: Record<string, string>
@@ -18,7 +18,9 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
   packageExtensions?: Record<string, PackageExtension>
   patchedDependencies?: Record<string, string>
   peerDependencyRules?: PeerDependencyRules
-} {
+}
+
+export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
   // We read Yarn's resolutions field for compatibility
   // but we really replace the version specs to any other version spec, not only to exact versions,
   // so we cannot call it resolutions
@@ -34,7 +36,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
   const allowedDeprecatedVersions = manifest.pnpm?.allowedDeprecatedVersions
   const allowNonAppliedPatches = manifest.pnpm?.allowNonAppliedPatches
   const patchedDependencies = manifest.pnpm?.patchedDependencies
-  const settings = {
+  const settings: OptionsFromRootManifest = {
     allowedDeprecatedVersions,
     allowNonAppliedPatches,
     overrides,
@@ -44,12 +46,10 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
     patchedDependencies,
   }
   if (onlyBuiltDependencies) {
-    // @ts-expect-error
-    settings['onlyBuiltDependencies'] = onlyBuiltDependencies
+    settings.onlyBuiltDependencies = onlyBuiltDependencies
   }
   if (onlyBuiltDependenciesFile) {
-    // @ts-expect-error
-    settings['onlyBuiltDependenciesFile'] = path.join(manifestDir, onlyBuiltDependenciesFile)
+    settings.onlyBuiltDependenciesFile = path.join(manifestDir, onlyBuiltDependenciesFile)
   }
   return settings
 }

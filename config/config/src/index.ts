@@ -25,7 +25,7 @@ import {
 } from './Config'
 import { getWorkspaceConcurrency } from './concurrency'
 
-export { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
+export { getOptionsFromRootManifest, type OptionsFromRootManifest } from './getOptionsFromRootManifest'
 export * from './readLocalConfig'
 
 export type { Config, UniversalOptions }
