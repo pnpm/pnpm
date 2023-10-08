@@ -1,5 +1,19 @@
 # @pnpm/config
 
+## 19.2.0
+
+### Minor Changes
+
+- d774a3196: Add a new setting: rootProjectManifestDir.
+- 832e28826: Add `disallow-workspace-cycles` option to error instead of warn about cyclic dependencies
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/pnpmfile@5.0.14
+  - @pnpm/read-project-manifest@5.0.7
+
 ## 19.1.0
 
 ### Minor Changes

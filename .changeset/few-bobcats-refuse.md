@@ -1,5 +1,4 @@
 ---
-"@pnpm/fs.indexed-pkg-importer": patch
 "pnpm": patch
 ---
 

@@ -1,9 +1,4 @@
 ---
-"@pnpm/plugin-commands-installation": minor
-"@pnpm/plugin-commands-rebuild": minor
-"@pnpm/headless": minor
-"@pnpm/core": minor
-"@pnpm/types": minor
 "pnpm": minor
 ---
 

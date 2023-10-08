@@ -1,5 +1,13 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 5.0.1
+
+### Patch Changes
+
+- ee6e0734e: Use reflinks instead of hard links by default on macOS and Windows Dev Drives [#5001](https://github.com/pnpm/pnpm/issues/5001).
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/store-controller-types@17.0.1
+
 ## 5.0.0
 
 ### Major Changes

@@ -1,5 +1,12 @@
 # @pnpm/pkg-manager.direct-dep-linker
 
+## 2.1.6
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@7.1.1
+- @pnpm/core-loggers@9.0.3
+
 ## 2.1.5
 
 ### Patch Changes

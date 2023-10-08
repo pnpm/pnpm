@@ -1,5 +1,60 @@
 # @pnpm/plugin-commands-installation
 
+## 13.2.0
+
+### Minor Changes
+
+- d774a3196: The list of packages that are allowed to run installation scripts now may be provided in a separate configuration file. The path to the file should be specified via the `pnpm.onlyBuiltDependenciesFile` field in `package.json`. For instance:
+
+  ```json
+  {
+    "dependencies": {
+      "@my-org/policy": "1.0.0"
+    }
+    "pnpm": {
+      "onlyBuiltDependenciesFile": "node_modules/@my-org/policy/allow-build.json"
+    }
+  }
+  ```
+
+  In the example above, the list is loaded from a dependency. The JSON file with the list should contain an array of package names. For instance:
+
+  ```json
+  ["esbuild", "@reflink/reflink"]
+  ```
+
+  With the above list, only `esbuild` and `@reflink/reflink` will be allowed to run scripts during installation.
+
+  Related issue: [#7137](https://github.com/pnpm/pnpm/issues/7137).
+
+- 832e28826: Add `disallow-workspace-cycles` option to error instead of warn about cyclic dependencies
+
+### Patch Changes
+
+- 12f45a83d: Use `neverBuiltDependencies` and `onlyBuiltDependencies` from the root `package.json` of the workspace, when `shared-workspace-lockfile` is set to `false` [#7141](https://github.com/pnpm/pnpm/pull/7141).
+- Updated dependencies [d774a3196]
+- Updated dependencies [12f45a83d]
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/plugin-commands-rebuild@9.2.0
+  - @pnpm/core@12.2.0
+  - @pnpm/types@9.3.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/store-connection-manager@7.0.3
+  - @pnpm/dedupe.check@1.0.4
+  - @pnpm/pnpmfile@5.0.14
+  - @pnpm/lockfile-types@5.1.2
+  - @pnpm/manifest-utils@5.0.4
+  - @pnpm/read-project-manifest@5.0.7
+  - @pnpm/resolver-base@10.0.3
+  - @pnpm/outdated@13.0.20
+  - @pnpm/package-store@19.0.2
+  - @pnpm/workspace.find-packages@1.0.12
+  - @pnpm/sort-packages@5.0.5
+  - @pnpm/workspace.pkgs-graph@2.0.7
+  - @pnpm/filter-workspace-packages@7.1.2
+
 ## 13.1.8
 
 ### Patch Changes

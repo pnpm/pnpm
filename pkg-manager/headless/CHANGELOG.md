@@ -1,5 +1,61 @@
 # @pnpm/headless
 
+## 22.2.0
+
+### Minor Changes
+
+- d774a3196: The list of packages that are allowed to run installation scripts now may be provided in a separate configuration file. The path to the file should be specified via the `pnpm.onlyBuiltDependenciesFile` field in `package.json`. For instance:
+
+  ```json
+  {
+    "dependencies": {
+      "@my-org/policy": "1.0.0"
+    }
+    "pnpm": {
+      "onlyBuiltDependenciesFile": "node_modules/@my-org/policy/allow-build.json"
+    }
+  }
+  ```
+
+  In the example above, the list is loaded from a dependency. The JSON file with the list should contain an array of package names. For instance:
+
+  ```json
+  ["esbuild", "@reflink/reflink"]
+  ```
+
+  With the above list, only `esbuild` and `@reflink/reflink` will be allowed to run scripts during installation.
+
+  Related issue: [#7137](https://github.com/pnpm/pnpm/issues/7137).
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/build-modules@11.1.0
+  - @pnpm/package-is-installable@8.0.5
+  - @pnpm/deps.graph-builder@0.1.5
+  - @pnpm/lifecycle@16.0.1
+  - @pnpm/symlink-dependency@7.1.1
+  - @pnpm/filter-lockfile@8.0.10
+  - @pnpm/lockfile-file@8.1.3
+  - @pnpm/lockfile-to-pnp@3.0.10
+  - @pnpm/lockfile-utils@8.0.6
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/dependency-path@2.1.4
+  - @pnpm/hoist@8.0.13
+  - @pnpm/link-bins@9.0.8
+  - @pnpm/modules-cleaner@14.0.15
+  - @pnpm/modules-yaml@12.1.3
+  - @pnpm/package-requester@24.0.2
+  - @pnpm/read-package-json@8.0.4
+  - @pnpm/read-project-manifest@5.0.7
+  - @pnpm/store-controller-types@17.0.1
+  - @pnpm/worker@0.3.1
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.6
+  - @pnpm/real-hoist@2.0.12
+  - @pnpm/calc-dep-state@4.1.2
+
 ## 22.1.2
 
 ### Patch Changes

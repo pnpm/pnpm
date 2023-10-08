@@ -1,5 +1,14 @@
 # @pnpm/worker
 
+## 0.3.1
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.1
+- @pnpm/symlink-dependency@7.1.1
+- @pnpm/store.cafs@2.0.5
+- @pnpm/cafs-types@4.0.0
+
 ## 0.3.0
 
 ### Minor Changes

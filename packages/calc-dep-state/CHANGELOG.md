@@ -1,5 +1,12 @@
 # @pnpm/calc-dep-state
 
+## 4.1.2
+
+### Patch Changes
+
+- @pnpm/lockfile-types@5.1.2
+- @pnpm/dependency-path@2.1.4
+
 ## 4.1.1
 
 ### Patch Changes
