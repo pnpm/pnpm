@@ -26,7 +26,7 @@ export function pkgSnapshotToResolution (
     tarball = getTarball(registry)
   } else {
     tarball = new url.URL((pkgSnapshot.resolution as TarballResolution).tarball,
-      registry.endsWith('/') ? registry : `${registry}/`
+      registry[registry.length - 1] === '/' ? registry : `${registry}/`
     ).toString()
   }
   return {

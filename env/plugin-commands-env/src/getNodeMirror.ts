@@ -8,5 +8,5 @@ export function getNodeMirror (rawConfig: Config['rawConfig'], releaseChannel: s
 }
 
 function normalizeNodeMirror (nodeMirror: string): string {
-  return nodeMirror.endsWith('/') ? nodeMirror : `${nodeMirror}/`
+  return nodeMirror[nodeMirror.length - 1] === '/' ? nodeMirror : `${nodeMirror}/`
 }

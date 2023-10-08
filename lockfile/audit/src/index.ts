@@ -24,7 +24,7 @@ export async function audit (
   }
 ) {
   const auditTree = await lockfileToAuditTree(lockfile, { include: opts.include, lockfileDir: opts.lockfileDir })
-  const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
+  const registry = opts.registry[opts.registry.length - 1] === '/' ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/audits`
   const authHeaderValue = getAuthHeader(registry)
 

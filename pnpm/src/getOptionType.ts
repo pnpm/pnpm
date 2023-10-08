@@ -60,6 +60,6 @@ function isOption (word: string) {
 }
 
 export function currentTypedWordType (completionCtx: CompletionCtx) {
-  if (completionCtx.partial.endsWith(' ')) return null
+  if (completionCtx.partial[completionCtx.partial.length - 1] === ' ') return null
   return completionCtx.lastPartial.startsWith('-') ? 'option' : 'value'
 }

@@ -21,7 +21,7 @@ export function parsePackageSelector (rawSelector: string, prefix: string): Pack
   const includeDependencies = rawSelector.endsWith('...')
   if (includeDependencies) {
     rawSelector = rawSelector.slice(0, -3)
-    if (rawSelector.endsWith('^')) {
+    if (rawSelector[rawSelector.length - 1] === '^') {
       excludeSelf = true
       rawSelector = rawSelector.slice(0, -1)
     }

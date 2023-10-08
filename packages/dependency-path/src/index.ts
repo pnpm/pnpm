@@ -27,7 +27,7 @@ export function resolve (
 }
 
 export function indexOfPeersSuffix (depPath: string) {
-  if (!depPath.endsWith(')')) return -1
+  if (!(depPath[depPath.length - 1] === ')')) return -1
   let open = true
   for (let i = depPath.length - 2; i >= 0; i--) {
     if (depPath[i] === '(') {
@@ -132,7 +132,7 @@ export function parse (dependencyPath: string) {
   if (version) {
     let peerSepIndex!: number
     let peersSuffix: string | undefined
-    if (version.includes('(') && version.endsWith(')')) {
+    if (version.includes('(') && version[version.length - 1] === ')') {
       peerSepIndex = version.indexOf('(')
       if (peerSepIndex !== -1) {
         peersSuffix = version.substring(peerSepIndex)
