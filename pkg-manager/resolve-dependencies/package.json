@@ -33,6 +33,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/fetch": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
@@ -61,6 +62,7 @@
     "semver": "^7.5.4",
     "semver-range-intersect": "^0.3.1",
     "version-selector-type": "^3.0.0"
+    
   },
   "devDependencies": {
     "@pnpm/resolve-dependencies": "workspace:*",

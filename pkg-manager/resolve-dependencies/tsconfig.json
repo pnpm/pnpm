@@ -25,6 +25,9 @@
       "path": "../../lockfile/prune-lockfile"
     },
     {
+      "path": "../../network/fetch"
+    },
+    {
       "path": "../../packages/constants"
     },
     {
