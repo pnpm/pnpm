@@ -146,7 +146,7 @@ function getChangelogEntry (changelog: string, version: string) {
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://www.thinkmill.com.au/?utm_source=pnpm&utm_medium=readme" target="_blank">
+        <a href="https://www.thinkmill.com.au/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/thinkmill.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/thinkmill_light.svg" />
