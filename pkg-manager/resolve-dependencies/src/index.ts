@@ -338,18 +338,22 @@ async function finishLockfileUpdates (
     try {
       let requiresBuild!: boolean
       if (depNode.optional) {
-        const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
-        const res = await fetchFromRegistry(`https://registry.npmjs.org/${depNode.name}`)
+        try {
+          const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
+          const res = await fetchFromRegistry('http://localhost:4873/' + depNode.name)
+          const metadata = await res.json() as registryResponse
 
-        const metadata = await res.json() as registryResponse
-
-        requiresBuild = Boolean(
-          metadata.versions[depNode.version]?.scripts != null && (
-            Boolean(metadata.versions[depNode.version].scripts?.preinstall) ||
+          requiresBuild = Boolean(
+            metadata.versions[depNode.version]?.scripts != null && (
+              Boolean(metadata.versions[depNode.version].scripts?.preinstall) ||
             Boolean(metadata.versions[depNode.version].scripts?.install) ||
             Boolean(metadata.versions[depNode.version].scripts?.postinstall)
+            )
           )
-        )
+        } catch {
+          // if we can't fetch the metadata, we assume it requires a build
+          requiresBuild = true
+        }
       } else {
         // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
         const { files, bundledManifest: pkgJson } = await depNode.fetching()
