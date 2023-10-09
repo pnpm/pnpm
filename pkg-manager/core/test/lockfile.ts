@@ -1638,3 +1638,18 @@ test('installation should work with packages that have () in the scope name', as
   const manifest = await addDependenciesToPackage({}, ['@(-.-)/env@0.3.1'], opts)
   await install(manifest, opts)
 })
+
+test('A package with an optional dependency that requires build has requiresBuild=true', async () => {
+  prepareEmpty()
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/foo'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/independent-and-requires-build'], await testDefaults({ saveOptional: true }))
+  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  expect(lockfile.packages!['/@pnpm.e2e/independent-and-requires-build@1.0.0'].requiresBuild).toBeTruthy()
+})
+
+test('A package with an optional dependency that doesnt require build has no requiresBuildFlag', async () => {
+  prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-optional@1.0.0'], await testDefaults({ save: true }))
+  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  expect(lockfile.packages!['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'].requiresBuild).toBeUndefined()
+})
