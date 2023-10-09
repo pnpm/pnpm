@@ -124,10 +124,23 @@ function createCloneFunction (): CloneFunction {
   if (process.platform === 'win32' || process.platform === 'darwin') {
     // eslint-disable-next-line
     const { reflinkFileSync } = require('@reflink/reflink')
-    return reflinkFileSync
+    return (fr, to) => {
+      try {
+        reflinkFileSync(fr, to)
+      } catch (err: any) { // eslint-disable-line
+        // If the file already exists, then we just proceed.
+        // This will probably only happen if the package's index file contains the same file twice.
+        // For intstance: { "index.js": "hash", "./index.js": "hash" }
+        if (!err.message.startsWith('File exists')) throw err
+      }
+    }
   }
   return (src: string, dest: string) => {
-    fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
+    try {
+      fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
+    } catch (err: any) { // eslint-disable-line
+      if (err.code !== 'EEXIST') throw err
+    }
   }
 }
 
