@@ -1,5 +1,11 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 5.0.2
+
+### Patch Changes
+
+- 6337dcdbc: Don't fail on reflink creation while importing a package, if the target file already exists.
+
 ## 5.0.1
 
 ### Patch Changes

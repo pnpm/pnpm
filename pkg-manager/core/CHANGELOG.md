@@ -1,5 +1,13 @@
 # @pnpm/core
 
+## 12.2.1
+
+### Patch Changes
+
+- @pnpm/package-requester@24.0.3
+- @pnpm/worker@0.3.2
+- @pnpm/headless@22.2.1
+
 ## 12.2.0
 
 ### Minor Changes

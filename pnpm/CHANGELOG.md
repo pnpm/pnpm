@@ -1,6 +1,6 @@
 # pnpm
 
-## 8.9.0-0
+## 8.9.0-1
 
 ### Minor Changes
 
