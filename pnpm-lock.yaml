@@ -4037,9 +4037,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fetch':
-        specifier: workspace:*
-        version: link:../../network/fetch
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-types

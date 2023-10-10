@@ -44,7 +44,6 @@ import {
 import { toResolveImporter } from './toResolveImporter'
 import { updateLockfile } from './updateLockfile'
 import { updateProjectManifest } from './updateProjectManifest'
-import { createFetchFromRegistry } from '@pnpm/fetch'
 
 export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
 
@@ -319,14 +318,6 @@ function verifyPatches (
   })
 }
 
-interface registryResponse {
-  versions: {
-    [version: string]: {
-      scripts?: Record<string, string>
-    }
-  }
-}
-
 async function finishLockfileUpdates (
   dependenciesGraph: DependenciesGraph,
   pendingRequiresBuilds: string[],
@@ -339,17 +330,9 @@ async function finishLockfileUpdates (
       let requiresBuild!: boolean
       if (depNode.optional) {
         try {
-          const fetchFromRegistry = createFetchFromRegistry({ fullMetadata: true })
-          const res = await fetchFromRegistry('http://localhost:4873/' + depNode.name)
-          const metadata = await res.json() as registryResponse
-
-          requiresBuild = Boolean(
-            metadata.versions[depNode.version]?.scripts != null && (
-              Boolean(metadata.versions[depNode.version].scripts?.preinstall) ||
-            Boolean(metadata.versions[depNode.version].scripts?.install) ||
-            Boolean(metadata.versions[depNode.version].scripts?.postinstall)
-            )
-          )
+          if (depNode.additionalInfo.requiresBuild) {
+            requiresBuild = depNode.additionalInfo.requiresBuild
+          }
         } catch {
           // if we can't fetch the metadata, we assume it requires a build
           requiresBuild = true

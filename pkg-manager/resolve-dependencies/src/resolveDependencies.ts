@@ -228,6 +228,7 @@ export interface ResolvedPackage {
     cpu?: string[]
     os?: string[]
     libc?: string[]
+    requiresBuild?: boolean
   }
   parentImporterIds: Set<string>
 }
@@ -1425,6 +1426,7 @@ function getResolvedPackage (
       engines: options.pkg.engines,
       os: options.pkg.os,
       libc: options.pkg.libc,
+      requiresBuild: !!options.pkg.scripts?.install ?? options.pkg.scripts?.preinstall ?? options.pkg.scripts?.postinstall,
     },
     parentImporterIds: new Set([options.parentImporterId]),
     depPath: options.depPath,
