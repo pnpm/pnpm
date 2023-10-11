@@ -285,6 +285,7 @@ async function _rebuild (
   }
 
   const allowBuild = createAllowBuildFunction(opts) ?? (() => true)
+  const builtDepPaths = new Set<string>()
 
   const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath) && !ctx.skipped.has(depPath)).map((depPath) =>
     async () => {
@@ -336,6 +337,7 @@ async function _rebuild (
           unsafePerm: opts.unsafePerm || false,
         })
         if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && resolution.integrity) {
+          builtDepPaths.add(depPath)
           const filesIndexFile = getFilePathInCafs(cafsDir, resolution.integrity!.toString(), 'index')
           try {
             if (!sideEffectsCacheKey) {
@@ -388,27 +390,29 @@ async function _rebuild (
 
   await runGroups(opts.childConcurrency || 5, groups)
 
-  // It may be optimized because some bins were already linked before running lifecycle scripts
-  await Promise.all(
-    Object
-      .keys(pkgSnapshots)
-      .filter((depPath) => !packageIsIndependent(pkgSnapshots[depPath]))
-      .map(async (depPath) => limitLinking(async () => {
-        const pkgSnapshot = pkgSnapshots[depPath]
-        const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
-        const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
-        return linkBins(modules, binPath, { warn })
-      }))
-  )
-  await Promise.all(Object.values(ctx.projects).map(async ({ rootDir }) => limitLinking(async () => {
-    const modules = path.join(rootDir, 'node_modules')
-    const binPath = path.join(modules, '.bin')
-    return linkBins(modules, binPath, {
-      allowExoticManifests: true,
-      warn,
-    })
-  })))
+  if (builtDepPaths.size > 0) {
+    // It may be optimized because some bins were already linked before running lifecycle scripts
+    await Promise.all(
+      Object
+        .keys(pkgSnapshots)
+        .filter((depPath) => !packageIsIndependent(pkgSnapshots[depPath]))
+        .map(async (depPath) => limitLinking(async () => {
+          const pkgSnapshot = pkgSnapshots[depPath]
+          const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+          const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
+          const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
+          return linkBins(modules, binPath, { warn })
+        }))
+    )
+    await Promise.all(Object.values(ctx.projects).map(async ({ rootDir }) => limitLinking(async () => {
+      const modules = path.join(rootDir, 'node_modules')
+      const binPath = path.join(modules, '.bin')
+      return linkBins(modules, binPath, {
+        allowExoticManifests: true,
+        warn,
+      })
+    })))
+  }
 
   return pkgsThatWereRebuilt
 }
