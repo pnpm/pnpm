@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-rebuild
 
+## 9.2.3
+
+### Patch Changes
+
+- 4aa41ef3a: Only link bins after rebuild, when at least one dependency was actually built.
+  - @pnpm/store-connection-manager@7.0.6
+
 ## 9.2.2
 
 ### Patch Changes

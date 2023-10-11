@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-env
 
+## 4.1.3
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.24
+- @pnpm/node.resolver@2.0.25
+
 ## 4.1.2
 
 ### Patch Changes
