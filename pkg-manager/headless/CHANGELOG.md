@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 22.2.2
+
+### Patch Changes
+
+- @pnpm/package-requester@24.0.4
+- @pnpm/worker@0.3.3
+
 ## 22.2.1
 
 ### Patch Changes

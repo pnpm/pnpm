@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 18.0.4
+
+### Patch Changes
+
+- @pnpm/worker@0.3.3
+
 ## 18.0.3
 
 ### Patch Changes
