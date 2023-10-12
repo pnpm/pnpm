@@ -110,8 +110,8 @@ test('interactively update', async () => {
           name: 'micromatch',
         },
       ],
-      name: 'dependencies',
-      disabled: true,
+      name: '[dependencies]',
+      message: 'dependencies',
     },
   ])
   expect(prompt).toBeCalledWith(
@@ -167,8 +167,8 @@ test('interactively update', async () => {
           name: 'micromatch',
         },
       ],
-      name: 'dependencies',
-      disabled: true,
+      name: '[dependencies]',
+      message: 'dependencies',
     },
   ])
   expect(prompt).toBeCalledWith(
@@ -326,8 +326,8 @@ test('interactively update should ignore dependencies from the ignoreDependencie
             name: 'micromatch',
           },
         ],
-        name: 'dependencies',
-        disabled: true,
+        name: '[dependencies]',
+        message: 'dependencies',
       },
     ]
   )
