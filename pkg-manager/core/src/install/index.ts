@@ -698,11 +698,10 @@ Note that in CI environments, this setting is enabled by default.`,
 }
 
 async function calcPatchHashes (patches: Record<string, string>, lockfileDir: string) {
-  return pMapValues(async (patchFileRelativePath) => {
-    const patchFilePath = path.join(lockfileDir, patchFileRelativePath)
+  return pMapValues(async (patchFilePath) => {
     return {
       hash: await createBase32HashFromFile(patchFilePath),
-      path: patchFileRelativePath,
+      path: path.relative(lockfileDir, patchFilePath).replaceAll('\\', '/'),
     }
   }, patches)
 }
