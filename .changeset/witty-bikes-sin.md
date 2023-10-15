@@ -1,5 +1,6 @@
 ---
 "pnpm": patch
+"@pnpm/plugin-commands-script-runners": patch
 ---
 
-Fixed issue where using `patchedDependencies` with `pnpx` or `pnpm dlx` resulted in errors [#7198](https://github.com/pnpm/pnpm/issues/7198).
+`pnpm dlx` should ignore any settings that are in a `package.json` file found in the current working directory [#7198](https://github.com/pnpm/pnpm/issues/7198).
