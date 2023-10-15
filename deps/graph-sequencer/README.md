@@ -27,4 +27,4 @@ pnpm add @pnpm/deps.graph-sequencer
 
 ## License
 
-MIT
+[MIT](LICENSE)
