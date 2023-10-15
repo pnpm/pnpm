@@ -56,10 +56,10 @@
     "@types/adm-zip": "^0.5.2",
     "@types/graceful-fs": "^4.1.7",
     "@types/is-windows": "^1.0.0",
-    "@types/semver": "7.3.13",
+    "@types/semver": "7.5.3",
     "adm-zip": "^0.5.10",
     "execa": "npm:safe-execa@0.1.2",
-    "nock": "13.3.2",
+    "nock": "13.3.4",
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0",
     "path-name": "^1.0.0"
   },

@@ -30,7 +30,7 @@
     "@types/ramda": "0.28.20",
     "@types/rimraf": "^3.0.2",
     "@types/sinon": "^10.0.19",
-    "concurrently": "8.2.0",
+    "concurrently": "8.2.1",
     "isexe": "2.0.0",
     "load-json-file": "^6.2.0",
     "sinon": "^16.1.0",

@@ -41,7 +41,7 @@
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
-    "nock": "13.3.2"
+    "nock": "13.3.4"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

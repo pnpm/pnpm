@@ -54,7 +54,7 @@
     "promise-share": "^1.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "semver": "^7.5.4",
-    "ssri": "10.0.4"
+    "ssri": "10.0.5"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
@@ -65,11 +65,11 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.20",
-    "@types/semver": "7.3.13",
+    "@types/semver": "7.5.3",
     "@types/ssri": "^7.1.2",
     "delay": "^5.0.0",
     "load-json-file": "^6.2.0",
-    "nock": "13.3.2",
+    "nock": "13.3.4",
     "normalize-path": "^3.0.0",
     "tempy": "^1.0.1"
   },

@@ -38,7 +38,7 @@
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "normalize-path": "^3.0.0",
-    "ssri": "10.0.4"
+    "ssri": "10.0.5"
   },
   "devDependencies": {
     "@pnpm/local-resolver": "workspace:*",

@@ -26,7 +26,7 @@
     "@zkochan/rimraf": "^2.1.3",
     "load-json-file": "^6.2.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "ssri": "10.0.4"
+    "ssri": "10.0.5"
   },
   "devDependencies": {
     "@pnpm/client": "workspace:*",

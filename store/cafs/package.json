@@ -23,7 +23,7 @@
     "is-gzip": "2.0.0",
     "p-limit": "^3.1.0",
     "rename-overwrite": "^4.0.3",
-    "ssri": "10.0.4",
+    "ssri": "10.0.5",
     "strip-bom": "^4.0.0"
   },
   "devDependencies": {

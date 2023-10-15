@@ -37,8 +37,8 @@
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/manifest-utils": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/pick-fetcher": "workspace:*",
+    "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/prune-lockfile": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
@@ -66,7 +66,7 @@
     "@pnpm/resolve-dependencies": "workspace:*",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.20",
-    "@types/semver": "7.3.13"
+    "@types/semver": "7.5.3"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

@@ -75,7 +75,7 @@
     "@types/is-windows": "^1.0.0",
     "@types/pnpm__byline": "npm:@types/byline@^4.2.34",
     "@types/ramda": "0.28.20",
-    "@types/semver": "7.3.13",
+    "@types/semver": "7.5.3",
     "@types/which": "^2.0.2",
     "@zkochan/retry": "^0.2.0",
     "@zkochan/rimraf": "^2.1.3",

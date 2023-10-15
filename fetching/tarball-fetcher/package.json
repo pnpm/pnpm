@@ -57,8 +57,8 @@
     "@types/ramda": "0.28.20",
     "@types/retry": "^0.12.3",
     "@types/ssri": "^7.1.2",
-    "nock": "13.3.2",
-    "ssri": "10.0.4",
+    "nock": "13.3.4",
+    "ssri": "10.0.5",
     "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",

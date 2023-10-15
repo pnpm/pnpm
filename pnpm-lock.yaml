@@ -127,8 +127,8 @@ importers:
         specifier: ^7.14.0
         version: 7.14.0
       concurrently:
-        specifier: 8.2.0
-        version: 8.2.0
+        specifier: 8.2.1
+        version: 8.2.1
       cross-env:
         specifier: ^7.0.3
         version: 7.0.3
@@ -142,8 +142,8 @@ importers:
         specifier: ^29.7.0
         version: 29.7.0(@babel/types@7.23.0)(@types/node@16.18.58)(ts-node@10.9.1)
       keyv:
-        specifier: 4.5.3
-        version: 4.5.3
+        specifier: 4.5.4
+        version: 4.5.4
       lcov-result-merger:
         specifier: ^3.3.0
         version: 3.3.0
@@ -252,8 +252,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       '@types/isexe':
-        specifier: 2.0.1
-        version: 2.0.1
+        specifier: 2.0.2
+        version: 2.0.2
       '@types/node':
         specifier: ^16.18.58
         version: 16.18.58
@@ -534,8 +534,8 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
       ghooks:
         specifier: 2.0.4
         version: 2.0.4
@@ -722,8 +722,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
 
   config/parse-overrides:
     dependencies:
@@ -826,8 +826,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/archy':
-        specifier: 0.0.32
-        version: 0.0.32
+        specifier: 0.0.33
+        version: 0.0.33
       strip-ansi:
         specifier: ^6.0.1
         version: 6.0.1
@@ -955,8 +955,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
 
   env/plugin-commands-env:
     dependencies:
@@ -1031,8 +1031,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
       adm-zip:
         specifier: ^0.5.10
         version: 0.5.10
@@ -1040,8 +1040,8 @@ importers:
         specifier: npm:safe-execa@0.1.2
         version: /safe-execa@0.1.2
       nock:
-        specifier: 13.3.2
-        version: 13.3.2
+        specifier: 13.3.4
+        version: 13.3.4
       node-fetch:
         specifier: npm:@pnpm/node-fetch@1.0.0
         version: /@pnpm/node-fetch@1.0.0
@@ -1283,8 +1283,8 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
       '@types/sinon':
         specifier: ^10.0.19
         version: 10.0.19
@@ -1635,11 +1635,11 @@ importers:
         specifier: ^7.1.2
         version: 7.1.2
       nock:
-        specifier: 13.3.2
-        version: 13.3.2
+        specifier: 13.3.4
+        version: 13.3.4
       ssri:
-        specifier: 10.0.4
-        version: 10.0.4
+        specifier: 10.0.5
+        version: 10.0.5
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -1856,8 +1856,8 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
       '@yarnpkg/core':
         specifier: 4.0.0-rc.45
         version: 4.0.0-rc.45(typanion@3.14.0)
@@ -1927,8 +1927,8 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
       nock:
-        specifier: 13.3.2
-        version: 13.3.2
+        specifier: 13.3.4
+        version: 13.3.4
 
   lockfile/filter-lockfile:
     dependencies:
@@ -2052,8 +2052,8 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
       '@types/write-file-atomic':
         specifier: ^4.0.1
         version: 4.0.1
@@ -2207,8 +2207,8 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
 
   lockfile/plugin-commands-audit:
     dependencies:
@@ -2274,8 +2274,8 @@ importers:
         specifier: ^6.2.0
         version: 6.2.0
       nock:
-        specifier: 13.3.2
-        version: 13.3.2
+        specifier: 13.3.4
+        version: 13.3.4
       strip-ansi:
         specifier: ^6.0.1
         version: 6.0.1
@@ -2402,8 +2402,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       nock:
-        specifier: 13.3.2
-        version: 13.3.2
+        specifier: 13.3.4
+        version: 13.3.4
 
   network/fetching-types:
     dependencies:
@@ -2488,8 +2488,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
 
   packages/error:
     dependencies:
@@ -2670,8 +2670,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/archy':
-        specifier: 0.0.32
-        version: 0.0.32
+        specifier: 0.0.33
+        version: 0.0.33
       strip-ansi:
         specifier: ^6.0.1
         version: 6.0.1
@@ -2817,8 +2817,8 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
       write-yaml-file:
         specifier: ^5.0.0
         version: 5.0.0
@@ -3086,8 +3086,8 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
       '@types/sinon':
         specifier: ^10.0.19
         version: 10.0.19
@@ -3110,8 +3110,8 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       nock:
-        specifier: 13.3.2
-        version: 13.3.2
+        specifier: 13.3.4
+        version: 13.3.4
       path-name:
         specifier: ^1.0.0
         version: 1.0.0
@@ -3362,8 +3362,8 @@ importers:
         specifier: ^10.0.19
         version: 10.0.19
       concurrently:
-        specifier: 8.2.0
-        version: 8.2.0
+        specifier: 8.2.1
+        version: 8.2.1
       isexe:
         specifier: 2.0.0
         version: 2.0.0
@@ -3676,8 +3676,8 @@ importers:
         specifier: ^7.5.4
         version: 7.5.4
       ssri:
-        specifier: 10.0.4
-        version: 10.0.4
+        specifier: 10.0.5
+        version: 10.0.5
     devDependencies:
       '@pnpm/cafs-types':
         specifier: workspace:*
@@ -3704,8 +3704,8 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
       '@types/ssri':
         specifier: ^7.1.2
         version: 7.1.2
@@ -3716,8 +3716,8 @@ importers:
         specifier: ^6.2.0
         version: 6.2.0
       nock:
-        specifier: 13.3.2
-        version: 13.3.2
+        specifier: 13.3.4
+        version: 13.3.4
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
@@ -4135,8 +4135,8 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
 
   pkg-manifest/exportable-manifest:
     dependencies:
@@ -4472,8 +4472,8 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
       '@types/which':
         specifier: ^2.0.2
         version: 2.0.2
@@ -4891,8 +4891,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
       is-windows:
         specifier: ^1.0.2
         version: 1.0.2
@@ -4918,8 +4918,8 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       ssri:
-        specifier: 10.0.4
-        version: 10.0.4
+        specifier: 10.0.5
+        version: 10.0.5
     devDependencies:
       '@pnpm/local-resolver':
         specifier: workspace:*
@@ -4994,8 +4994,8 @@ importers:
         specifier: ^7.5.4
         version: 7.5.4
       ssri:
-        specifier: 10.0.4
-        version: 10.0.4
+        specifier: 10.0.5
+        version: 10.0.5
       version-selector-type:
         specifier: ^3.0.0
         version: 3.0.0
@@ -5016,14 +5016,14 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
       '@types/ssri':
         specifier: ^7.1.2
         version: 7.1.2
       nock:
-        specifier: 13.3.2
-        version: 13.3.2
+        specifier: 13.3.4
+        version: 13.3.4
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -5109,8 +5109,8 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
 
   reviewing/license-scanner:
     dependencies:
@@ -5210,8 +5210,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
       '@types/archy':
-        specifier: 0.0.32
-        version: 0.0.32
+        specifier: 0.0.33
+        version: 0.0.33
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -5271,8 +5271,8 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
 
   reviewing/plugin-commands-licenses:
     dependencies:
@@ -5529,8 +5529,8 @@ importers:
         specifier: ^4.0.3
         version: 4.0.3
       ssri:
-        specifier: 10.0.4
-        version: 10.0.4
+        specifier: 10.0.5
+        version: 10.0.5
       strip-bom:
         specifier: ^4.0.0
         version: 4.0.0
@@ -5648,8 +5648,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       ssri:
-        specifier: 10.0.4
-        version: 10.0.4
+        specifier: 10.0.5
+        version: 10.0.5
     devDependencies:
       '@pnpm/client':
         specifier: workspace:*
@@ -5822,8 +5822,8 @@ importers:
         specifier: 3.13.0
         version: 3.13.0(typanion@3.14.0)
       '@types/archy':
-        specifier: 0.0.32
-        version: 0.0.32
+        specifier: 0.0.33
+        version: 0.0.33
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -5840,8 +5840,8 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       ssri:
-        specifier: 10.0.4
-        version: 10.0.4
+        specifier: 10.0.5
+        version: 10.0.5
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -6190,8 +6190,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/semver':
-        specifier: 7.3.13
-        version: 7.3.13
+        specifier: 7.5.3
+        version: 7.5.3
 
   workspace/sort-packages:
     dependencies:
@@ -8431,8 +8431,8 @@ packages:
       '@types/node': 20.8.6
     dev: true
 
-  /@types/archy@0.0.32:
-    resolution: {integrity: sha512-5ZZ5+YGmUE01yejiXsKnTcvhakMZ2UllZlMsQni53Doc1JWhe21ia8VntRoRD6fAEWw08JBh/z9qQHJ+//MrIg==}
+  /@types/archy@0.0.33:
+    resolution: {integrity: sha512-HcAaohMlGAE+96MY6Bxb2gHj0e7gyfvcD0Zt33pDErljD9ri+YCH4/IjOmavADdiIEJQUS/8HiJg2tOen6pYTQ==}
     dev: true
 
   /@types/babel__core@7.20.2:
@@ -8535,8 +8535,8 @@ packages:
     resolution: {integrity: sha512-tJ1rq04tGKuIJoWIH0Gyuwv4RQ3+tIu7wQrC0MV47raQ44kIzXSSFKfrxFUOWVRvesoF7mrTqigXmqoZJsXwTg==}
     dev: true
 
-  /@types/isexe@2.0.1:
-    resolution: {integrity: sha512-leMb+b2fOo1s7NsCVGQr07/zXI/CNodvhHE3IMizhWVzoN/8+gSdyqlo/SWxL/zEoVcYdV6F8/RZHg5Hm+wrfw==}
+  /@types/isexe@2.0.2:
+    resolution: {integrity: sha512-V8+kbRpbA/72Q8+3RC95umV1o5N6sUYmz62DeV54YhqGOaiC9rDd0kLjGDKWIj/YdBiOFLMRpMcGLjvz08MSqg==}
     dependencies:
       '@types/node': 16.18.58
     dev: true
@@ -8693,9 +8693,6 @@ packages:
   /@types/semver@6.2.4:
     resolution: {integrity: sha512-5o/e00/5/rWZlD4dClsj0xf21J0VFFjfZBUp75Imm1Y2V0gm72kmbDNHs1fyZLPlbF90LaPBrPGzbRBJdKhjyQ==}
     dev: false
-
-  /@types/semver@7.3.13:
-    resolution: {integrity: sha512-21cFJr9z3g5dW8B0CVI9g2O9beqaThGQ6ZFBqHfwhzLDKUxaqTIy3vnfah/UPkfOiF2pLq+tGz+W8RyCskuslw==}
 
   /@types/semver@7.5.3:
     resolution: {integrity: sha512-OxepLK9EuNEIPxWNME+C6WwbRAOOI2o2BaQEGzz5Lu2e4Z5eDnEo+/aVEDMIXywoJitJ7xWd641wrGLZdtwRyw==}
@@ -9018,10 +9015,10 @@ packages:
     dependencies:
       '@arcanis/slice-ansi': 1.1.1
       '@types/lodash': 4.14.197
-      '@types/semver': 7.3.13
+      '@types/semver': 7.5.3
       '@types/treeify': 1.0.1
-      '@yarnpkg/fslib': 3.0.0-rc.45
-      '@yarnpkg/libzip': 3.0.0-rc.45(@yarnpkg/fslib@3.0.0-rc.45)
+      '@yarnpkg/fslib': 3.0.0-rc.25
+      '@yarnpkg/libzip': 3.0.0-rc.25(@yarnpkg/fslib@3.0.0-rc.25)
       '@yarnpkg/parsers': 3.0.0-rc.45
       '@yarnpkg/shell': 4.0.0-rc.45(typanion@3.14.0)
       camelcase: 5.3.1
@@ -9059,22 +9056,22 @@ packages:
     engines: {node: '>=14.15.0'}
     dependencies:
       tslib: 2.6.2
-    dev: false
 
   /@yarnpkg/fslib@3.0.0-rc.45:
     resolution: {integrity: sha512-XarEtHTbeO4+rgZQObn16+uFzb1dXiVHuoqDNGoMywwBm/FF7DeCqSANeKiNYbi79WMgoLk8l3lO4g0vRYkJBg==}
     engines: {node: '>=14.15.0'}
     dependencies:
       tslib: 2.6.2
+    dev: false
 
-  /@yarnpkg/libzip@3.0.0-rc.45(@yarnpkg/fslib@3.0.0-rc.45):
-    resolution: {integrity: sha512-ZsYi6Y01yMJOLnJ5ISZgOFvCEXzp4EScrM91D7bvCx0lIfH3DZ40H4M5nGNeVFk7jXUHOXuJkNYlNoXixSconA==}
+  /@yarnpkg/libzip@3.0.0-rc.25(@yarnpkg/fslib@3.0.0-rc.25):
+    resolution: {integrity: sha512-YmG+oTBCyrAoMIx5g2I9CfyurSpHyoan+9SCj7laaFKseOe3lFEyIVKvwRBQMmSt8uzh+eY5RWeQnoyyOs6AbA==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
       '@yarnpkg/fslib': 3.0.0-rc.45
     dependencies:
       '@types/emscripten': 1.39.8
-      '@yarnpkg/fslib': 3.0.0-rc.45
+      '@yarnpkg/fslib': 3.0.0-rc.25
       tslib: 2.6.2
 
   /@yarnpkg/lockfile@1.1.0:
@@ -9147,7 +9144,7 @@ packages:
     engines: {node: '>=14.15.0'}
     hasBin: true
     dependencies:
-      '@yarnpkg/fslib': 3.0.0-rc.45
+      '@yarnpkg/fslib': 3.0.0-rc.25
       '@yarnpkg/parsers': 3.0.0-rc.45
       chalk: 3.0.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)
@@ -10263,8 +10260,8 @@ packages:
       readable-stream: 2.3.8
       typedarray: 0.0.6
 
-  /concurrently@8.2.0:
-    resolution: {integrity: sha512-nnLMxO2LU492mTUj9qX/az/lESonSZu81UznYDoXtz1IQf996ixVqPAgHXwvHiHCAef/7S8HIK+fTFK7Ifk8YA==}
+  /concurrently@8.2.1:
+    resolution: {integrity: sha512-nVraf3aXOpIcNud5pB9M82p1tynmZkrSGQ1p6X/VY8cJ+2LMVqAgXsJxYYefACSHbTYlm92O1xuhdGTjwoEvbQ==}
     engines: {node: ^14.13.0 || >=16.0.0}
     hasBin: true
     dependencies:
@@ -13238,12 +13235,6 @@ packages:
     dependencies:
       tsscmp: 1.0.6
 
-  /keyv@4.5.3:
-    resolution: {integrity: sha512-QCiSav9WaX1PgETJ+SpNnx2PRRapJ/oRSXM4VO5OGYGSjrxbKPVFVhB3l2OCbLCk329N8qyAtsJjSjvVBWzEug==}
-    dependencies:
-      json-buffer: 3.0.1
-    dev: true
-
   /keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
     dependencies:
@@ -13935,8 +13926,6 @@ packages:
     resolution: {integrity: sha512-jYofLM5Dam9279rdkWzqHozUo4ybjdZmCsDHePy5V/PbBcVMiSZR97gmAy45aqi8CK1lG2ECd356FU86avfwUQ==}
     engines: {node: '>=16 || 14 >=14.17'}
     requiresBuild: true
-    dev: false
-    optional: true
 
   /minizlib@2.1.2:
     resolution: {integrity: sha512-bAxsR8BVfj60DWXHE3u30oHzfl4G7khkSuPW+qvpd7jFRHm7dLxOjUk1EHACJ/hxLY8phGJ0YhYHZo7jil7Qdg==}
@@ -14072,8 +14061,8 @@ packages:
       walk-filtered: 0.9.3
     dev: true
 
-  /nock@13.3.2:
-    resolution: {integrity: sha512-CwbljitiWJhF1gL83NbanhoKs1l23TDlRioNraPTZrzZIEooPemrHRj5m0FZCPkB1ecdYCSWWGcHysJgX/ngnQ==}
+  /nock@13.3.4:
+    resolution: {integrity: sha512-DDpmn5oLEdCTclEqweOT4U7bEpuoifBMFUXem9sA4turDAZ5tlbrEoWqCorwXey8CaAw44mst5JOQeVNiwtkhw==}
     engines: {node: '>= 10.13'}
     dependencies:
       debug: 4.3.4
@@ -15895,20 +15884,12 @@ packages:
       safer-buffer: 2.1.2
       tweetnacl: 0.14.5
 
-  /ssri@10.0.4:
-    resolution: {integrity: sha512-12+IR2CB2C28MMAw0Ncqwj5QbTcs0nGIhgJzYWzDkb21vWmfNI83KS4f3Ci6GI98WreIfG7o9UXp3C0qbpA8nQ==}
-    engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
-    dependencies:
-      minipass: 5.0.0
-
   /ssri@10.0.5:
     resolution: {integrity: sha512-bSf16tAFkGeRlUNDjXu8FzaMQt6g2HZJrun7mtMbIPOddxt3GLMSz5VWUWcqTJUPfLEaDIepGxv+bYQW49596A==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
     requiresBuild: true
     dependencies:
       minipass: 7.0.4
-    dev: false
-    optional: true
 
   /ssri@8.0.1:
     resolution: {integrity: sha512-97qShzy1AiyxvPNIkLWoGua7xoQzzPjQ0HAH4B0rWKo7SZ6USuPcrUiAFrws0UH8RrbWmgq3LMTObhPIHbbBeQ==}

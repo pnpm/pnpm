@@ -39,7 +39,7 @@
     "@types/js-yaml": "^4.0.7",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.20",
-    "@types/semver": "7.3.13",
+    "@types/semver": "7.5.3",
     "@types/write-file-atomic": "^4.0.1",
     "tempy": "^1.0.1",
     "write-yaml-file": "^5.0.0",

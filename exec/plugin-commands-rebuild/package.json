@@ -37,7 +37,7 @@
     "@pnpm/registry-mock": "3.13.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.20",
-    "@types/semver": "7.3.13",
+    "@types/semver": "7.5.3",
     "@types/sinon": "^10.0.19",
     "execa": "npm:safe-execa@0.1.2",
     "path-exists": "^4.0.0",

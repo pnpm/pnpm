@@ -39,7 +39,7 @@
     "@types/normalize-path": "^3.0.0",
     "@types/npm-packlist": "^3.0.0",
     "@types/ramda": "0.28.20",
-    "@types/semver": "7.3.13",
+    "@types/semver": "7.5.3",
     "write-yaml-file": "^5.0.0"
   },
   "dependencies": {
