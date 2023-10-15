@@ -38,8 +38,9 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
   const peerDependencyRules = manifest.pnpm?.peerDependencyRules
   const allowedDeprecatedVersions = manifest.pnpm?.allowedDeprecatedVersions
   const allowNonAppliedPatches = manifest.pnpm?.allowNonAppliedPatches
-  const patchedDependencies = manifest.pnpm?.patchedDependencies
+  let patchedDependencies = manifest.pnpm?.patchedDependencies
   if (patchedDependencies) {
+    patchedDependencies = { ...patchedDependencies }
     for (const [dep, patchFile] of Object.entries(patchedDependencies)) {
       if (path.isAbsolute(patchFile)) continue
       patchedDependencies[dep] = path.join(manifestDir, patchFile)

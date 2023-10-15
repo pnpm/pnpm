@@ -42,7 +42,7 @@ export function help () {
   })
 }
 
-export async function handler (opts: install.InstallCommandOptions & Pick<Config, 'patchesDir' | 'rootProjectManifest'>, params: string[]) {
+export async function handler (opts: install.InstallCommandOptions & Pick<Config, 'patchesDir' | 'rootProjectManifest' | 'rootProjectManifestDir'>, params: string[]) {
   const userDir = params[0]
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
   const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
