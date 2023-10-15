@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/sort-packages",
-  "version": "5.0.5",
-  "description": "Sort packages",
+  "name": "@pnpm/deps.graph-sequencer",
+  "version": "0.0.0",
+  "description": "Sort items in a graph using a topological sort",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
@@ -12,28 +12,28 @@
     "node": ">=16.14"
   },
   "scripts": {
-    "lint": "eslint \"src/**/*.ts\"",
-    "test": "pnpm run compile",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "_test": "jest",
+    "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/sort-packages",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/deps/graph-sequencer",
   "keywords": [
     "pnpm8",
-    "pnpm"
+    "pnpm",
+    "graph"
   ],
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/sort-packages#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/deps/graph-sequencer#readme",
   "dependencies": {
-    "@pnpm/deps.graph-sequencer": "workspace:*",
-    "@pnpm/types": "workspace:*"
-  },
+    },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/sort-packages": "workspace:*"
+    "@pnpm/deps.graph-sequencer": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"

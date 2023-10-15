@@ -884,6 +884,12 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
 
+  deps/graph-sequencer:
+    devDependencies:
+      '@pnpm/deps.graph-sequencer':
+        specifier: workspace:*
+        version: 'link:'
+
   env/node.fetcher:
     dependencies:
       '@pnpm/create-cafs-store':
@@ -1057,12 +1063,12 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../packages/core-loggers
+      '@pnpm/deps.graph-sequencer':
+        specifier: workspace:*
+        version: link:../../deps/graph-sequencer
       '@pnpm/fs.hard-link-dir':
         specifier: workspace:*
         version: link:../../fs/hard-link-dir
-      '@pnpm/graph-sequencer':
-        specifier: 1.1.1
-        version: 1.1.1
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../lifecycle
@@ -1182,6 +1188,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/deps.graph-sequencer':
+        specifier: workspace:*
+        version: link:../../deps/graph-sequencer
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -1191,9 +1200,6 @@ importers:
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
-      '@pnpm/graph-sequencer':
-        specifier: 1.1.1
-        version: 1.1.1
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../lifecycle
@@ -2886,6 +2892,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/deps.graph-sequencer':
+        specifier: workspace:*
+        version: link:../../deps/graph-sequencer
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -2895,9 +2904,6 @@ importers:
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../get-context
-      '@pnpm/graph-sequencer':
-        specifier: 1.1.1
-        version: 1.1.1
       '@pnpm/headless':
         specifier: workspace:*
         version: link:../headless
@@ -6195,9 +6201,9 @@ importers:
 
   workspace/sort-packages:
     dependencies:
-      '@pnpm/graph-sequencer':
-        specifier: 1.1.1
-        version: 1.1.1
+      '@pnpm/deps.graph-sequencer':
+        specifier: workspace:*
+        version: link:../../deps/graph-sequencer
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -7931,10 +7937,6 @@ packages:
     dependencies:
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
     dev: true
-
-  /@pnpm/graph-sequencer@1.1.1:
-    resolution: {integrity: sha512-nlLogZV9i8J2z9vw1cHtKAX8Caj3WeYUw63G1ni2ULLwvb+FfRAhdIfDsuce0gUHdOClF/gsKN+7H28yryNlAw==}
-    dev: false
 
   /@pnpm/hooks.types@1.0.1:
     resolution: {integrity: sha512-Zx2hzwxBKv1RmFzyu4pEVY7QeIGUb54smSSYt8GcJgByn+uMXgwJ7ydv9t2Koc90QTqk8J3P2J+RDrZVIQpVQw==}
