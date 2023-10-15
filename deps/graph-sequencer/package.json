@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.graph-sequencer",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Sort items in a graph using a topological sort",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,8 +29,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/deps/graph-sequencer#readme",
-  "dependencies": {
-    },
+  "dependencies": {},
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/deps.graph-sequencer": "workspace:*"

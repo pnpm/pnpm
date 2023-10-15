@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.3.19
+
+### Patch Changes
+
+- Updated dependencies [4246f41be]
+- Updated dependencies [84f81c9ae]
+  - @pnpm/sort-packages@5.0.6
+  - @pnpm/lifecycle@16.0.2
+  - @pnpm/client@10.0.29
+
 ## 7.3.18
 
 ### Patch Changes

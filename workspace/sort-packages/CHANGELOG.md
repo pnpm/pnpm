@@ -1,5 +1,13 @@
 # @pnpm/sort-packages
 
+## 5.0.6
+
+### Patch Changes
+
+- 4246f41be: Add package @pnpm/deps.graph-sequencer for better topological sort [#7168](https://github.com/pnpm/pnpm/pull/7168).
+- Updated dependencies [4246f41be]
+  - @pnpm/deps.graph-sequencer@1.0.0
+
 ## 5.0.5
 
 ### Patch Changes
