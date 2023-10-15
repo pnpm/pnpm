@@ -1,15 +1,12 @@
 # @pnpm/deps.graph-sequencer
 
-> graph-sequencer
+> Sort items in a graph using a topological sort
 
-[![npm version](https://img.shields.io/npm/v/@pnpm/deps.graph-sequencer.svg)](https://www.npmjs.com/package/@pnpm/deps.graph-sequencer)
+## Install
 
-## Installation
-
-```sh
+```
 pnpm add @pnpm/deps.graph-sequencer
 ```
-
 
 ## Usage
 
@@ -27,7 +24,6 @@ pnpm add @pnpm/deps.graph-sequencer
     }
   )
 ```
-
 
 ## License
 

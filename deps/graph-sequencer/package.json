@@ -21,7 +21,8 @@
   "repository": "https://github.com/pnpm/pnpm/blob/main/deps/graph-sequencer",
   "keywords": [
     "pnpm8",
-    "pnpm"
+    "pnpm",
+    "graph"
   ],
   "license": "MIT",
   "bugs": {
