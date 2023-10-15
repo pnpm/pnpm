@@ -360,13 +360,12 @@ export async function recursive (
         }
 
         const localConfig = await memReadLocalConfig(rootDir)
-        const optionsFromManifest = opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest) : {}
         const newManifest = await action(
           manifest,
           {
             ...installOpts,
             ...localConfig,
-            ...optionsFromManifest,
+            ...getOptionsFromRootManifest(rootDir, manifest),
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,
             hooks,
@@ -415,7 +414,6 @@ export async function recursive (
   ) {
     await rebuild.handler({
       ...opts,
-      ...getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest ?? {}),
       pending: opts.pending === true,
       skipIfHasSideEffectsCache: true,
     }, [])
