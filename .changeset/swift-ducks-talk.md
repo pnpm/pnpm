@@ -1,5 +1,6 @@
 ---
-"@pnpm/lifecycle": minor
+"@pnpm/lifecycle": patch
+"pnpm": patch
 ---
 
-fix: Do not run node-gyp rebuild if preinstall lifecycle script is present
+Do not run node-gyp rebuild if `preinstall` lifecycle script is present [#7206](https://github.com/pnpm/pnpm/pull/7206).
