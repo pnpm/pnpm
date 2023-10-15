@@ -38,10 +38,10 @@
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",
-    "@types/sinon": "^10.0.16",
+    "@types/sinon": "^10.0.19",
     "execa": "npm:safe-execa@0.1.2",
     "path-exists": "^4.0.0",
-    "sinon": "^16.0.0",
+    "sinon": "^16.1.0",
     "write-yaml-file": "^5.0.0"
   },
   "dependencies": {

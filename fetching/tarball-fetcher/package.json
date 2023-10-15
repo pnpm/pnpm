@@ -55,8 +55,8 @@
     "@pnpm/types": "workspace:*",
     "@types/lodash.throttle": "4.1.7",
     "@types/ramda": "0.28.20",
-    "@types/retry": "^0.12.2",
-    "@types/ssri": "^7.1.1",
+    "@types/retry": "^0.12.3",
+    "@types/ssri": "^7.1.2",
     "nock": "13.3.2",
     "ssri": "10.0.4",
     "tempy": "^1.0.1"

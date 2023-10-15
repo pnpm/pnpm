@@ -63,7 +63,7 @@
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",
-    "@types/ssri": "^7.1.1",
+    "@types/ssri": "^7.1.2",
     "nock": "13.3.2",
     "path-exists": "^4.0.0",
     "tempy": "^1.0.1"

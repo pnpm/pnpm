@@ -33,7 +33,7 @@
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@types/ramda": "0.28.20",
-    "@types/ssri": "^7.1.1",
+    "@types/ssri": "^7.1.2",
     "tempy": "^1.0.1"
   },
   "directories": {

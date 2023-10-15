@@ -36,11 +36,11 @@
   },
   "devDependencies": {
     "@pnpm/lockfile-file": "workspace:*",
-    "@types/js-yaml": "^4.0.6",
+    "@types/js-yaml": "^4.0.7",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",
-    "@types/write-file-atomic": "^4.0.0",
+    "@types/write-file-atomic": "^4.0.1",
     "tempy": "^1.0.1",
     "write-yaml-file": "^5.0.0",
     "yaml-tag": "1.1.0"

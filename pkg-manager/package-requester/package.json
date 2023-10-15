@@ -66,7 +66,7 @@
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.3.13",
-    "@types/ssri": "^7.1.1",
+    "@types/ssri": "^7.1.2",
     "delay": "^5.0.0",
     "load-json-file": "^6.2.0",
     "nock": "13.3.2",
