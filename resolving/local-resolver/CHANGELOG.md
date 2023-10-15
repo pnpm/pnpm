@@ -1,5 +1,11 @@
 # @pnpm/local-resolver
 
+## 10.0.9
+
+### Patch Changes
+
+- 01bc58e2c: Update ssri to v10.0.5.
+
 ## 10.0.8
 
 ### Patch Changes

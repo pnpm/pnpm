@@ -1,5 +1,13 @@
 # @pnpm/git-fetcher
 
+## 12.0.5
+
+### Patch Changes
+
+- Updated dependencies [08b65ff78]
+  - @pnpm/worker@0.3.4
+  - @pnpm/prepare-package@5.0.13
+
 ## 12.0.4
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 16.0.12
+
+### Patch Changes
+
+- 01bc58e2c: Update ssri to v10.0.5.
+- ff55119a8: Update lru-cache.
+
 ## 16.0.11
 
 ### Patch Changes

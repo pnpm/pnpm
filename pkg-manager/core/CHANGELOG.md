@@ -1,5 +1,24 @@
 # @pnpm/core
 
+## 13.0.0
+
+### Major Changes
+
+- ac5abd3ff: The paths in patchedDependencies passed to `@pnpm/core` are absolute.
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [08b65ff78]
+  - @pnpm/package-requester@24.0.5
+  - @pnpm/worker@0.3.4
+  - @pnpm/headless@22.2.3
+  - @pnpm/resolve-dependencies@31.1.21
+  - @pnpm/symlink-dependency@7.1.1
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/lifecycle@16.0.1
+  - @pnpm/link-bins@9.0.8
+
 ## 12.2.2
 
 ### Patch Changes

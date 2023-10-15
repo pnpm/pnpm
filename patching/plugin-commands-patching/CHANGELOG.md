@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-patching
 
+## 4.0.0
+
+### Major Changes
+
+- ac5abd3ff: The paths in patchedDependencies passed to `@pnpm/core` are absolute.
+
+### Patch Changes
+
+- Updated dependencies [bc83798d4]
+- Updated dependencies [46dc34dcc]
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/plugin-commands-installation@13.2.4
+  - @pnpm/config@20.0.0
+  - @pnpm/store-connection-manager@7.0.7
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/patching.apply-patch@2.0.5
+
 ## 3.1.33
 
 ### Patch Changes

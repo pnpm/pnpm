@@ -1,5 +1,15 @@
 # @pnpm/package-requester
 
+## 24.0.5
+
+### Patch Changes
+
+- 01bc58e2c: Update ssri to v10.0.5.
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [08b65ff78]
+  - @pnpm/store.cafs@2.0.6
+  - @pnpm/worker@0.3.4
+
 ## 24.0.4
 
 ### Patch Changes

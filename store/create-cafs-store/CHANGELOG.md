@@ -1,5 +1,14 @@
 # @pnpm/create-cafs-store
 
+## 6.0.4
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [6dfbca86b]
+  - @pnpm/store.cafs@2.0.6
+  - @pnpm/fs.indexed-pkg-importer@5.0.4
+
 ## 6.0.3
 
 ### Patch Changes

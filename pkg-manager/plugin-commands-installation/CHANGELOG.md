@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-installation
 
+## 13.2.4
+
+### Patch Changes
+
+- bc83798d4: Optimize selection result output of `pnpm update --interactive` [7109](https://github.com/pnpm/pnpm/issues/7109)
+- 46dc34dcc: When `shared-workspace-lockfile` is set to `false`, read the pnpm settings from `package.json` files that are nested. This was broken in pnpm v8.9.0 [#7184](https://github.com/pnpm/pnpm/issues/7184).
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/package-store@19.0.5
+  - @pnpm/core@13.0.0
+  - @pnpm/config@20.0.0
+  - @pnpm/outdated@13.0.23
+  - @pnpm/workspace.pkgs-graph@2.0.8
+  - @pnpm/store-connection-manager@7.0.7
+  - @pnpm/plugin-commands-rebuild@9.2.4
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/filter-workspace-packages@7.1.4
+  - @pnpm/workspace.find-packages@1.0.14
+
 ## 13.2.3
 
 ### Patch Changes

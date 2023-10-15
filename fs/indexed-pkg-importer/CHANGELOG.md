@@ -1,5 +1,11 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 5.0.4
+
+### Patch Changes
+
+- 6dfbca86b: Update reflink.
+
 ## 5.0.3
 
 ### Patch Changes
