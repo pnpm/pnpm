@@ -561,8 +561,8 @@ importers:
         specifier: ^0.2.1
         version: 0.2.1
       didyoumean2:
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^6.0.1
+        version: 6.0.1
     devDependencies:
       '@pnpm/parse-cli-args':
         specifier: workspace:*
@@ -1349,8 +1349,8 @@ importers:
         specifier: ^2.1.3
         version: 2.1.3
       didyoumean2:
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^6.0.1
+        version: 6.0.1
       execa:
         specifier: npm:safe-execa@0.1.2
         version: /safe-execa@0.1.2
@@ -10681,9 +10681,9 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
-  /didyoumean2@5.0.0:
-    resolution: {integrity: sha512-Plha9WCF08aSGB39IsOhlk0AHecwcXtq/gMbHgylRNEv7JV3lnlt7akfdax7mnUHndEuuh57CmBaKSSXns7+YA==}
-    engines: {node: '>=12.13'}
+  /didyoumean2@6.0.1:
+    resolution: {integrity: sha512-PSy0zQwMg5O+LjT5Mz7vnKC8I7DfWLPF6M7oepqW7WP5mn2CY3hz46xZOa1GJY+KVfyXhdmz6+tdgXwrHlZc5g==}
+    engines: {node: ^16.14.0 || >=18.12.0}
     dependencies:
       '@babel/runtime': 7.23.2
       fastest-levenshtein: 1.0.16
