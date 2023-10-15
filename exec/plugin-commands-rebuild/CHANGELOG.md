@@ -477,7 +477,7 @@
 
 ### Patch Changes
 
-- d43ccc44d: Update `@pnpm/deps.graph-sequencer`.
+- d43ccc44d: Update `@pnpm/graph-sequencer`.
 - c0760128d: bump semver to 7.4.0
 - Updated dependencies [64d0f47ff]
 - Updated dependencies [32f8e08c6]
@@ -1776,7 +1776,7 @@
 
 ### Patch Changes
 
-- 2109f2e8e: Use `@pnpm/deps.graph-sequencer` instead of `graph-sequencer`.
+- 2109f2e8e: Use `@pnpm/graph-sequencer` instead of `graph-sequencer`.
 - Updated dependencies [0a70aedb1]
 - Updated dependencies [8fa95fd86]
 - Updated dependencies [2109f2e8e]
