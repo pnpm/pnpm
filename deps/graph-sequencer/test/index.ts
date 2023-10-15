@@ -1,6 +1,6 @@
 import { graphSequencer } from '../src'
 
-test('graph with three independent self cycles', () => {
+test('graph with three independent self-cycles', () => {
   expect(graphSequencer(new Map([
     ['a', ['a']],
     ['b', ['b']],
@@ -17,7 +17,22 @@ test('graph with three independent self cycles', () => {
   )
 })
 
-test('graph with two self cycles and an edge linking them', () => {
+test('graph with self-cycle. Sequencing a subgraph', () => {
+  expect(graphSequencer(new Map([
+    ['a', ['a']],
+    ['b', ['b']],
+    ['c', ['c']],
+
+  ]), ['a', 'b'])).toStrictEqual(
+    {
+      safe: true,
+      chunks: [['a', 'b']],
+      cycles: [['a'], ['b']],
+    }
+  )
+})
+
+test('graph with two self-cycles and an edge linking them', () => {
   expect(graphSequencer(new Map([
     ['a', ['b', 'c']],
     ['b', ['b']],
@@ -191,7 +206,7 @@ test('graph with two cycles', () => {
   )
 })
 
-test('graph with multiple cycles', () => {
+test('graph with multiple cycles. case 1', () => {
   expect(graphSequencer(new Map([
     ['a', ['c']],
     ['b', ['a', 'd']],
@@ -207,7 +222,7 @@ test('graph with multiple cycles', () => {
   )
 })
 
-test('graph with multiple cycles', () => {
+test('graph with multiple cycles. case 2', () => {
   expect(graphSequencer(new Map([
     ['a', ['b']],
     ['b', ['d']],
@@ -241,7 +256,7 @@ test('graph with fully connected subgraph and additional connected node', () => 
   )
 })
 
-test('graph with fully connected subgraph', () => {
+test('graph with fully connected subgraph. case 1', () => {
   expect(graphSequencer(new Map([
     ['a', ['b', 'c', 'd']],
     ['b', ['a', 'c', 'd']],
@@ -257,7 +272,7 @@ test('graph with fully connected subgraph', () => {
   )
 })
 
-test('graph with fully conn subgraph', () => {
+test('graph with fully connected subgraph. case 2', () => {
   expect(graphSequencer(new Map([
     ['a', ['b', 'c', 'd']],
     ['b', ['a', 'c', 'd']],
@@ -273,37 +288,7 @@ test('graph with fully conn subgraph', () => {
   )
 })
 
-test('graph with self-cycle', () => {
-  expect(graphSequencer(new Map([
-    ['a', ['a']],
-    ['b', ['b']],
-    ['c', ['c']],
-
-  ]))).toStrictEqual(
-    {
-      safe: true,
-      chunks: [['a', 'b', 'c']],
-      cycles: [['a'], ['b'], ['c']],
-    }
-  )
-})
-
-test('graph with self cycle subgraph', () => {
-  expect(graphSequencer(new Map([
-    ['a', ['a']],
-    ['b', ['b']],
-    ['c', ['c']],
-
-  ]), ['a', 'b'])).toStrictEqual(
-    {
-      safe: true,
-      chunks: [['a', 'b']],
-      cycles: [['a'], ['b']],
-    }
-  )
-})
-
-test('graph with two self cycle', () => {
+test('graph with two self-cycles', () => {
   expect(graphSequencer(new Map([
     ['a', ['b', 'c']],
     ['b', ['b']],
@@ -318,7 +303,7 @@ test('graph with two self cycle', () => {
   )
 })
 
-test('graph with two self cycle subgraph', () => {
+test('graph with two self-cycles. Sequencing a subgraph', () => {
   expect(graphSequencer(new Map([
     ['a', ['b', 'c']],
     ['b', ['b']],
@@ -349,7 +334,7 @@ test('graph with many nodes', () => {
   )
 })
 
-test('graph with many nodes and need subgraph', () => {
+test('graph with many nodes. Sequencing a subgraph', () => {
   expect(graphSequencer(new Map([
     ['a', ['b', 'c']],
     ['b', []],
