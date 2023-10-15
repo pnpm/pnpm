@@ -121,8 +121,9 @@ function clonePkg (
 function createCloneFunction (): CloneFunction {
   // Node.js currently does not natively support reflinks on Windows and macOS.
   // Hence, we use a third party solution.
+  //
   // For now, we use it only for macOS as we are tracking down an issue on Windows:
-  //   https://github.com/pnpm/pnpm/issues/7186#issuecomment-1763494887
+  //   https://github.com/pnpm/pnpm/issues/7186
   if (process.platform === 'darwin') {
     // eslint-disable-next-line
     const { reflinkFileSync } = require('@reflink/reflink')
