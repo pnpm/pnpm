@@ -73,6 +73,7 @@ export async function findDependencyLicenses (opts: {
   modulesDir?: string
   registries: Registries
   wantedLockfile: Lockfile | null
+  importerIds?: string[]
 }): Promise<LicensePackage[]> {
   if (opts.wantedLockfile == null) {
     throw new PnpmError(
@@ -88,6 +89,7 @@ export async function findDependencyLicenses (opts: {
     virtualStoreDir: opts.virtualStoreDir,
     include: opts.include,
     registries: opts.registries,
+    importerIds: opts.importerIds,
   })
 
   const licensePackages = new Map<string, LicensePackage>()

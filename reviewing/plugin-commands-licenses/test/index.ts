@@ -6,6 +6,7 @@ import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import stripAnsi from 'strip-ansi'
 import { DEFAULT_OPTS } from './utils'
+import { readProjects } from '@pnpm/filter-workspace-packages'
 
 const f = fixtures(__dirname)
 
@@ -170,27 +171,43 @@ test('pnpm licenses should work with file protocol dependency', async () => {
   expect(stripAnsi(output)).toMatchSnapshot('show-packages')
 })
 
-test('pnpm licenses should work with git protocol dep that have patches', async () => {
+test('pnpm licenses: filter outputs', async () => {
   const workspaceDir = tempDir()
-  f.copy('with-git-protocol-patched-deps', workspaceDir)
+  f.copy('workspace-licenses', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await readProjects(workspaceDir, [])
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
     pnpmHomeDir: '',
     storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
   })
 
-  const { exitCode } = await licenses.handler({
-    ...DEFAULT_OPTS,
-    dir: workspaceDir,
-    pnpmHomeDir: '',
-    long: false,
-    storeDir: path.resolve(storeDir, 'v3'),
-  }, ['list'])
+  const { output, exitCode } = await licenses.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      pnpmHomeDir: '',
+      long: false,
+      selectedProjectsGraph: Object.fromEntries(
+        Object.entries(selectedProjectsGraph).filter(([path]) =>
+          path.includes('bar')
+        )
+      ),
+      storeDir: path.resolve(storeDir, 'v3'),
+    }, ['list']
+  )
 
   expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toMatchSnapshot('show-packages')
 })
 
 test('pnpm licenses should work with git protocol dep that have peerDependencies', async () => {

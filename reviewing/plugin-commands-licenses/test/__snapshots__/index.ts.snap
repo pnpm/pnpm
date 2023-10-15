@@ -11,6 +11,15 @@ exports[`pnpm licenses should work with file protocol dependency: show-packages 
 "
 `;
 
+exports[`pnpm licenses: filter outputs: show-packages 1`] = `
+"┌─────────────┬─────────┐
+│ Package     │ License │
+├─────────────┼─────────┤
+│ is-positive │ MIT     │
+└─────────────┴─────────┘
+"
+`;
+
 exports[`pnpm licenses: output as json: found-license-types 1`] = `
 [
   "MIT",
