@@ -88,7 +88,9 @@ export async function handler (
   const pkgs = opts.package ?? [command]
   const env = makeEnv({ userAgent: opts.userAgent, prependPaths: [binsDir] })
   await add.handler({
-    ...omit(['workspaceDir'], opts),
+    // Ideally the config reader should ignore these settings when the dlx command is executed.
+    // This is a temporary solution until "@pnpm/config" is refactored.
+    ...omit(['workspaceDir', 'rootProjectManifest', 'rootProjectManifestDir'], opts),
     bin: binsDir,
     dir: prefix,
     lockfileDir: prefix,

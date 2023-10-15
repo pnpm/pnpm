@@ -16,7 +16,7 @@ test('patch package', async () => {
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
-    'is-positive@1.0.0': path.relative(process.cwd(), patchPath),
+    'is-positive@1.0.0': patchPath,
   }
   const opts = await testDefaults({
     fastUnpack: false,
@@ -36,7 +36,7 @@ test('patch package', async () => {
   const lockfile = await project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
-      path: patchedDependencies['is-positive@1.0.0'],
+      path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
       hash: patchFileHash,
     },
   })
@@ -102,8 +102,8 @@ test('patch package reports warning if not all patches are applied and allowNonA
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
-    'is-positive@1.0.0': path.relative(process.cwd(), patchPath),
-    'is-negative@1.0.0': path.relative(process.cwd(), patchPath),
+    'is-positive@1.0.0': patchPath,
+    'is-negative@1.0.0': patchPath,
   }
   const opts = await testDefaults({
     fastUnpack: false,
@@ -131,8 +131,8 @@ test('patch package throws an exception if not all patches are applied', async (
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
-    'is-positive@1.0.0': path.relative(process.cwd(), patchPath),
-    'is-negative@1.0.0': path.relative(process.cwd(), patchPath),
+    'is-positive@1.0.0': patchPath,
+    'is-negative@1.0.0': patchPath,
   }
   const opts = await testDefaults({
     fastUnpack: false,
@@ -155,7 +155,7 @@ test('the patched package is updated if the patch is modified', async () => {
   const patchPath = path.resolve('patches', 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
-    'is-positive@1.0.0': path.relative(process.cwd(), patchPath),
+    'is-positive@1.0.0': patchPath,
   }
   const opts = await testDefaults({
     fastUnpack: false,
@@ -182,7 +182,7 @@ test('patch package when scripts are ignored', async () => {
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
-    'is-positive@1.0.0': path.relative(process.cwd(), patchPath),
+    'is-positive@1.0.0': patchPath,
   }
   const opts = await testDefaults({
     fastUnpack: false,
@@ -203,7 +203,7 @@ test('patch package when scripts are ignored', async () => {
   const lockfile = await project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
-      path: patchedDependencies['is-positive@1.0.0'],
+      path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
       hash: patchFileHash,
     },
   })
@@ -269,7 +269,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
-    'is-positive@1.0.0': path.relative(process.cwd(), patchPath),
+    'is-positive@1.0.0': patchPath,
   }
   const opts = await testDefaults({
     fastUnpack: false,
@@ -290,7 +290,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   const lockfile = await project.readLockfile()
   expect(lockfile.patchedDependencies).toStrictEqual({
     'is-positive@1.0.0': {
-      path: patchedDependencies['is-positive@1.0.0'],
+      path: path.relative(process.cwd(), patchedDependencies['is-positive@1.0.0']).replaceAll('\\', '/'),
       hash: patchFileHash,
     },
   })
@@ -356,7 +356,7 @@ test('patch package when the patched package has no dependencies and appears mul
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
-    'is-positive@1.0.0': path.relative(process.cwd(), patchPath),
+    'is-positive@1.0.0': patchPath,
   }
   const opts = await testDefaults({
     fastUnpack: false,
@@ -388,7 +388,7 @@ test('patch package should fail when the patch could not be applied', async () =
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
   const patchedDependencies = {
-    'is-positive@3.1.0': path.relative(process.cwd(), patchPath),
+    'is-positive@3.1.0': patchPath,
   }
   const opts = await testDefaults({
     fastUnpack: false,
