@@ -1853,3 +1853,34 @@ test('peer dependencies are resolved from the root of the workspace when a new d
   const lockfile = await projects['project-1'].readLockfile()
   expect(lockfile.packages).toHaveProperty(['/ajv-keywords@1.5.0(ajv@4.10.4)'])
 })
+
+test('overrides in workspace project should be taken into account when shared-workspace-lockfiles is false', async () => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      pnpm: {
+        overrides: {
+          'is-odd': '1.0.0',
+        },
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+  ])
+
+  await fs.writeFile('.npmrc', `
+shared-workspace-lockfile=false
+`, 'utf8')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm(['install'])
+
+  const lockfile = await projects['project-1'].readLockfile()
+  expect(lockfile.overrides).toStrictEqual({
+    'is-odd': '1.0.0',
+  })
+})

@@ -1,5 +1,52 @@
 # @pnpm/store-connection-manager
 
+## 7.0.7
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/package-store@19.0.5
+  - @pnpm/config@20.0.0
+  - @pnpm/server@17.0.1
+  - @pnpm/client@10.0.28
+
+## 7.0.6
+
+### Patch Changes
+
+- @pnpm/package-store@19.0.4
+- @pnpm/server@17.0.1
+- @pnpm/client@10.0.27
+
+## 7.0.5
+
+### Patch Changes
+
+- @pnpm/package-store@19.0.3
+- @pnpm/server@17.0.1
+- @pnpm/client@10.0.26
+
+## 7.0.4
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+
+## 7.0.3
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/cli-meta@5.0.3
+  - @pnpm/package-store@19.0.2
+  - @pnpm/server@17.0.1
+  - @pnpm/client@10.0.25
+
 ## 7.0.2
 
 ### Patch Changes

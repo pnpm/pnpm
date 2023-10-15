@@ -1,5 +1,21 @@
 # @pnpm/npm-resolver
 
+## 16.0.12
+
+### Patch Changes
+
+- 01bc58e2c: Update ssri to v10.0.5.
+- ff55119a8: Update lru-cache.
+
+## 16.0.11
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/resolver-base@10.0.3
+
 ## 16.0.10
 
 ### Patch Changes

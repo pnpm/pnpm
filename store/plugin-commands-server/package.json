@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-server",
-  "version": "6.0.33",
+  "version": "6.0.38",
   "description": "Commands for controlling the store server",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,7 +32,7 @@
     "@pnpm/plugin-commands-server": "workspace:*",
     "@types/is-windows": "^1.0.0",
     "@types/ramda": "0.28.20",
-    "@types/signal-exit": "^3.0.1"
+    "@types/signal-exit": "^3.0.2"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:*",

@@ -1,5 +1,42 @@
 # @pnpm/plugin-commands-listing
 
+## 7.0.26
+
+### Patch Changes
+
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/config@20.0.0
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/list@9.1.2
+
+## 7.0.25
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+  - @pnpm/cli-utils@2.0.23
+
+## 7.0.24
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/types@9.3.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/list@9.1.2
+
+## 7.0.23
+
+### Patch Changes
+
+- Updated dependencies [40798fb1c]
+  - @pnpm/list@9.1.1
+
 ## 7.0.22
 
 ### Patch Changes

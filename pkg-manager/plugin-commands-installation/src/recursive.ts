@@ -4,7 +4,7 @@ import {
   type RecursiveSummary,
   throwOnCommandFail,
 } from '@pnpm/cli-utils'
-import { type Config, readLocalConfig } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest, readLocalConfig } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/workspace.find-packages'
 import { logger } from '@pnpm/logger'
@@ -35,7 +35,6 @@ import isSubdir from 'is-subdir'
 import mem from 'mem'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
-import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 import { updateToLatestSpecsFromManifest, createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { getSaveType } from './getSaveType'
@@ -58,6 +57,8 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'pnpmfile'
 | 'rawLocalConfig'
 | 'registries'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 | 'save'
 | 'saveDev'
 | 'saveExact'
@@ -122,8 +123,9 @@ export async function recursive (
     ? arrayOfWorkspacePackagesToMap(allProjects) as WorkspacePackages
     : {}
   const targetDependenciesField = getSaveType(opts)
+  const rootManifestDir = opts.lockfileDir ?? opts.dir
   const installOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(manifestsByPath[opts.lockfileDir ?? opts.dir]?.manifest ?? {}),
+    ...getOptionsFromRootManifest(rootManifestDir, manifestsByPath[rootManifestDir]?.manifest ?? {}),
     allProjects: getAllProjects(manifestsByPath, opts.allProjectsGraph, opts.sort),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     ownLifecycleHooksStdio: 'pipe',
@@ -363,7 +365,7 @@ export async function recursive (
           {
             ...installOpts,
             ...localConfig,
-            ...getOptionsFromRootManifest(manifest),
+            ...getOptionsFromRootManifest(rootDir, manifest),
             bin: path.join(rootDir, 'node_modules', '.bin'),
             dir: rootDir,
             hooks,

@@ -20,6 +20,7 @@ export async function buildModules (
   depGraph: DependenciesGraph,
   rootDepPaths: string[],
   opts: {
+    allowBuild?: (pkgName: string) => boolean
     childConcurrency?: number
     depsToBuild?: Set<string>
     depsStateCache: DepsStateCache
@@ -53,6 +54,7 @@ export async function buildModules (
     warn,
   }
   const chunks = buildSequence(depGraph, rootDepPaths)
+  const allowBuild = opts.allowBuild ?? (() => true)
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => {
       const node = depGraph[depPath]
@@ -63,7 +65,12 @@ export async function buildModules (
     }
 
     return chunk.map((depPath: string) =>
-      async () => buildDependency(depPath, depGraph, buildDepOpts)
+      async () => {
+        return buildDependency(depPath, depGraph, {
+          ...buildDepOpts,
+          ignoreScripts: Boolean(buildDepOpts.ignoreScripts) || !allowBuild(depGraph[depPath].name),
+        })
+      }
     )
   })
   await runGroups(opts.childConcurrency ?? 4, groups)

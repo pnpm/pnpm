@@ -1,5 +1,31 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 5.0.4
+
+### Patch Changes
+
+- 6dfbca86b: Update reflink.
+
+## 5.0.3
+
+### Patch Changes
+
+- e19de6a59: Fix file cloning to `node_modules` on Windows Dev Drives [#7186](https://github.com/pnpm/pnpm/issues/7186). This is a fix to a regression that was shipped with v8.9.0.
+
+## 5.0.2
+
+### Patch Changes
+
+- 6337dcdbc: Don't fail on reflink creation while importing a package, if the target file already exists.
+
+## 5.0.1
+
+### Patch Changes
+
+- ee6e0734e: Use reflinks instead of hard links by default on macOS and Windows Dev Drives [#5001](https://github.com/pnpm/pnpm/issues/5001).
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/store-controller-types@17.0.1
+
 ## 5.0.0
 
 ### Major Changes

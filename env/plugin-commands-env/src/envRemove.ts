@@ -1,35 +1,42 @@
+/* eslint-disable no-await-in-loop */
 import { existsSync } from 'fs'
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { createFetchFromRegistry } from '@pnpm/fetch'
-import { globalInfo } from '@pnpm/logger'
-import { resolveNodeVersion } from '@pnpm/node.resolver'
+import { logger, globalInfo } from '@pnpm/logger'
 import { removeBin } from '@pnpm/remove-bins'
 import rimraf from '@zkochan/rimraf'
-import { parseEnvSpecifier } from './parseEnvSpecifier'
 import { getNodeExecPathAndTargetDir } from './utils'
-import { getNodeMirror } from './getNodeMirror'
 import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
+import { getNodeVersion } from './downloadNodeVersion'
 
 export async function envRemove (opts: NvmNodeCommandOptions, params: string[]) {
   if (!opts.global) {
     throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
   }
 
-  const fetch = createFetchFromRegistry(opts)
-  const { releaseChannel, versionSpecifier } = parseEnvSpecifier(params[0])
-  const nodeMirrorBaseUrl = getNodeMirror(opts.rawConfig, releaseChannel)
-  const nodeVersion = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl)
+  let failed = false
+  for (const version of params) {
+    const err = await removeNodeVersion(opts, version)
+    if (err) {
+      logger.error(err)
+      failed = true
+    }
+  }
+  return { exitCode: failed ? 1 : 0 }
+}
+
+async function removeNodeVersion (opts: NvmNodeCommandOptions, version: string): Promise<Error | undefined> {
+  const { nodeVersion } = await getNodeVersion(opts, version)
   const nodeDir = getNodeVersionsBaseDir(opts.pnpmHomeDir)
 
   if (!nodeVersion) {
-    throw new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${params[0]}`)
+    return new PnpmError('COULD_NOT_RESOLVE_NODEJS', `Couldn't find Node.js version matching ${version}`)
   }
 
   const versionDir = path.resolve(nodeDir, nodeVersion)
 
   if (!existsSync(versionDir)) {
-    throw new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${versionDir}`)
+    return new PnpmError('ENV_NO_NODE_DIRECTORY', `Couldn't find Node.js directory in ${versionDir}`)
   }
 
   const { nodePath, nodeLink } = await getNodeExecPathAndTargetDir(opts.pnpmHomeDir)
@@ -47,12 +54,13 @@ export async function envRemove (opts: NvmNodeCommandOptions, params: string[]) 
         removeBin(npxPath),
       ])
     } catch (err: any) { // eslint-disable-line
-      if (err.code !== 'ENOENT') throw err
+      if (err.code !== 'ENOENT') return err
     }
   }
 
   await rimraf(versionDir)
 
-  return `Node.js ${nodeVersion as string} is removed
-${versionDir}`
+  globalInfo(`Node.js ${nodeVersion as string} was removed
+${versionDir}`)
+  return undefined
 }

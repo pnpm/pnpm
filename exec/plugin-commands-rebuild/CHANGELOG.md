@@ -1,5 +1,98 @@
 # @pnpm/plugin-commands-rebuild
 
+## 9.2.4
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/store.cafs@2.0.6
+  - @pnpm/config@20.0.0
+  - @pnpm/store-connection-manager@7.0.7
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/workspace.find-packages@1.0.14
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/lifecycle@16.0.1
+  - @pnpm/link-bins@9.0.8
+
+## 9.2.3
+
+### Patch Changes
+
+- 4aa41ef3a: Only link bins after rebuild, when at least one dependency was actually built.
+  - @pnpm/store-connection-manager@7.0.6
+
+## 9.2.2
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@7.0.5
+
+## 9.2.1
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+  - @pnpm/cli-utils@2.0.23
+  - @pnpm/store-connection-manager@7.0.4
+  - @pnpm/workspace.find-packages@1.0.13
+
+## 9.2.0
+
+### Minor Changes
+
+- d774a3196: The list of packages that are allowed to run installation scripts now may be provided in a separate configuration file. The path to the file should be specified via the `pnpm.onlyBuiltDependenciesFile` field in `package.json`. For instance:
+
+  ```json
+  {
+    "dependencies": {
+      "@my-org/policy": "1.0.0"
+    }
+    "pnpm": {
+      "onlyBuiltDependenciesFile": "node_modules/@my-org/policy/allow-build.json"
+    }
+  }
+  ```
+
+  In the example above, the list is loaded from a dependency. The JSON file with the list should contain an array of package names. For instance:
+
+  ```json
+  ["esbuild", "@reflink/reflink"]
+  ```
+
+  With the above list, only `esbuild` and `@reflink/reflink` will be allowed to run scripts during installation.
+
+  Related issue: [#7137](https://github.com/pnpm/pnpm/issues/7137).
+
+### Patch Changes
+
+- 12f45a83d: Use `neverBuiltDependencies` and `onlyBuiltDependencies` from the root `package.json` of the workspace, when `shared-workspace-lockfile` is set to `false` [#7141](https://github.com/pnpm/pnpm/pull/7141).
+- Updated dependencies [d774a3196]
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/types@9.3.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/store-connection-manager@7.0.3
+  - @pnpm/normalize-registries@5.0.3
+  - @pnpm/lifecycle@16.0.1
+  - @pnpm/lockfile-types@5.1.2
+  - @pnpm/lockfile-utils@8.0.6
+  - @pnpm/lockfile-walker@7.0.5
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/dependency-path@2.1.4
+  - @pnpm/get-context@10.0.4
+  - @pnpm/link-bins@9.0.8
+  - @pnpm/modules-yaml@12.1.3
+  - @pnpm/store.cafs@2.0.5
+  - @pnpm/store-controller-types@17.0.1
+  - @pnpm/workspace.find-packages@1.0.12
+  - @pnpm/sort-packages@5.0.5
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/calc-dep-state@4.1.2
+
 ## 9.1.16
 
 ### Patch Changes

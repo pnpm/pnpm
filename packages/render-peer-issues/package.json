@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/render-peer-issues",
   "description": "Visualizes peer dependency issues",
-  "version": "4.0.2",
+  "version": "4.0.3",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -36,7 +36,7 @@
   },
   "devDependencies": {
     "@pnpm/render-peer-issues": "workspace:*",
-    "@types/archy": "0.0.32",
+    "@types/archy": "0.0.33",
     "strip-ansi": "^6.0.1"
   },
   "exports": {

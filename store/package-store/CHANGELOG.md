@@ -1,5 +1,47 @@
 # @pnpm/package-store
 
+## 19.0.5
+
+### Patch Changes
+
+- 01bc58e2c: Update ssri to v10.0.5.
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [08b65ff78]
+  - @pnpm/package-requester@24.0.5
+  - @pnpm/store.cafs@2.0.6
+  - @pnpm/worker@0.3.4
+  - @pnpm/create-cafs-store@6.0.4
+
+## 19.0.4
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.3
+- @pnpm/package-requester@24.0.4
+- @pnpm/worker@0.3.3
+
+## 19.0.3
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.2
+- @pnpm/package-requester@24.0.3
+- @pnpm/worker@0.3.2
+
+## 19.0.2
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/create-cafs-store@6.0.1
+  - @pnpm/fetcher-base@15.0.2
+  - @pnpm/package-requester@24.0.2
+  - @pnpm/resolver-base@10.0.3
+  - @pnpm/store.cafs@2.0.5
+  - @pnpm/store-controller-types@17.0.1
+  - @pnpm/worker@0.3.1
+
 ## 19.0.1
 
 ### Patch Changes

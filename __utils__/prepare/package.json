@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/prepare",
-  "version": "0.0.80",
+  "version": "0.0.82",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "dependencies": {
@@ -13,7 +13,7 @@
   },
   "devDependencies": {
     "@pnpm/prepare": "workspace:*",
-    "@types/node": "^16.18.52"
+    "@types/node": "^16.18.58"
   },
   "scripts": {
     "lint": "eslint src/**/*.ts",

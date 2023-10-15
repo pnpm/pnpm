@@ -126,6 +126,7 @@ export type ProjectManifest = BaseManifest & {
   pnpm?: {
     neverBuiltDependencies?: string[]
     onlyBuiltDependencies?: string[]
+    onlyBuiltDependenciesFile?: string
     overrides?: Record<string, string>
     packageExtensions?: Record<string, PackageExtension>
     peerDependencyRules?: PeerDependencyRules

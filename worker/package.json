@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/worker",
-  "version": "0.3.0",
+  "version": "0.3.4",
   "description": "A worker for extracting package taralls to the store",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -39,7 +39,7 @@
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/symlink-dependency": "workspace:*",
-    "@rushstack/worker-pool": "0.3.34",
+    "@rushstack/worker-pool": "0.4.9",
     "load-json-file": "^6.2.0"
   },
   "devDependencies": {

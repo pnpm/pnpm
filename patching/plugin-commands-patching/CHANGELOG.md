@@ -1,5 +1,73 @@
 # @pnpm/plugin-commands-patching
 
+## 4.0.0
+
+### Major Changes
+
+- ac5abd3ff: The paths in patchedDependencies passed to `@pnpm/core` are absolute.
+
+### Patch Changes
+
+- Updated dependencies [bc83798d4]
+- Updated dependencies [46dc34dcc]
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/plugin-commands-installation@13.2.4
+  - @pnpm/config@20.0.0
+  - @pnpm/store-connection-manager@7.0.7
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 3.1.33
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.2.3
+- @pnpm/store-connection-manager@7.0.6
+
+## 3.1.32
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.2.2
+- @pnpm/store-connection-manager@7.0.5
+
+## 3.1.31
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+  - @pnpm/cli-utils@2.0.23
+  - @pnpm/plugin-commands-installation@13.2.1
+  - @pnpm/store-connection-manager@7.0.4
+
+## 3.1.30
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [12f45a83d]
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/plugin-commands-installation@13.2.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/store-connection-manager@7.0.3
+  - @pnpm/pick-registry-for-package@5.0.3
+  - @pnpm/lockfile-file@8.1.3
+  - @pnpm/lockfile-utils@8.0.6
+  - @pnpm/modules-yaml@12.1.3
+  - @pnpm/read-package-json@8.0.4
+  - @pnpm/read-project-manifest@5.0.7
+  - @pnpm/patching.apply-patch@2.0.5
+
+## 3.1.29
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.8
+
 ## 3.1.28
 
 ### Patch Changes

@@ -1,5 +1,24 @@
 # @pnpm/build-modules
 
+## 11.1.0
+
+### Minor Changes
+
+- d774a3196: Accept an allowBuild function to filter which dependencies may run scripts.
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/lifecycle@16.0.1
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/link-bins@9.0.8
+  - @pnpm/read-package-json@8.0.4
+  - @pnpm/store-controller-types@17.0.1
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/calc-dep-state@4.1.2
+
 ## 11.0.15
 
 ### Patch Changes

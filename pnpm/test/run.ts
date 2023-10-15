@@ -141,6 +141,29 @@ test('silent dlx prints the output of the child process only', async () => {
   expect(result.stdout.toString().trim()).toBe('hi')
 })
 
+test('dlx ignores configuration in current project package.json', async () => {
+  prepare({
+    pnpm: {
+      patchedDependencies: {
+        'shx@0.3.4': 'this_doesnt_exist',
+      },
+    },
+  })
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  mkdirSync(global)
+
+  const env = {
+    [PATH_NAME]: `${pnpmHome}${path.delimiter}${process.env[PATH_NAME]}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+  }
+
+  const result = execPnpmSync(['dlx', 'shx@0.3.4', 'echo', 'hi'], { env })
+  // It didn't try to use the patch that doesn't exist, so it did not fail
+  expect(result.status).toBe(0)
+})
+
 testOnPosix('pnpm run with preferSymlinkedExecutables true', async () => {
   prepare({
     scripts: {

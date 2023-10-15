@@ -1,5 +1,38 @@
 # @pnpm/resolve-dependencies
 
+## 31.1.21
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [ff55119a8]
+  - @pnpm/npm-resolver@16.0.12
+
+## 31.1.20
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/pick-registry-for-package@5.0.3
+  - @pnpm/lockfile-types@5.1.2
+  - @pnpm/lockfile-utils@8.0.6
+  - @pnpm/prune-lockfile@5.0.6
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/dependency-path@2.1.4
+  - @pnpm/manifest-utils@5.0.4
+  - @pnpm/read-package-json@8.0.4
+  - @pnpm/npm-resolver@16.0.11
+  - @pnpm/resolver-base@10.0.3
+  - @pnpm/store-controller-types@17.0.1
+  - @pnpm/pick-fetcher@2.0.1
+
+## 31.1.19
+
+### Patch Changes
+
+- b0afd7833: Optimize peers resolution to avoid out-of-memory exceptions in some rare cases, when there are too many circular dependencies and peer dependencies [#7149](https://github.com/pnpm/pnpm/pull/7149).
+
 ## 31.1.18
 
 ### Patch Changes

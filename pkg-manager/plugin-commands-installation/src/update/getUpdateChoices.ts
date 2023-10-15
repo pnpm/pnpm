@@ -13,7 +13,9 @@ export interface ChoiceRow {
 
 type ChoiceGroup = Array<{
   name: string
+  message: string
   choices: ChoiceRow[]
+  disabled?: boolean
 }>
 
 export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], workspacesEnabled: boolean) {
@@ -67,12 +69,16 @@ export function getUpdateChoices (outdatedPkgsOfProjects: OutdatedPackage[], wor
         }
       }
       return {
-        name: renderedTable[i],
+        name: outdatedPkg.name,
+        message: renderedTable[i],
         value: outdatedPkg.name,
       }
     })
 
-    finalChoices.push({ name: depGroup, choices })
+    // To filter out selected "dependencies" or "devDependencies" in the final output,
+    // we rename it here to "[dependencies]" or "[devDependencies]",
+    // which will be filtered out in the format function of the prompt.
+    finalChoices.push({ name: `[${depGroup}]`, choices, message: depGroup })
 
     return finalChoices
   }, [])

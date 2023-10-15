@@ -9,7 +9,7 @@ import {
 } from '@pnpm/store-connection-manager'
 import gfs from '@pnpm/graceful-fs'
 import { install, type InstallOptions } from '@pnpm/core'
-import { type Config } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type Project } from '@pnpm/types'
 import { logger } from '@pnpm/logger'
@@ -22,7 +22,6 @@ import { parse as parseYarnLock, type LockFileObject } from '@yarnpkg/lockfile'
 import * as yarnCore from '@yarnpkg/core'
 import { parseSyml } from '@yarnpkg/parsers'
 import exists from 'path-exists'
-import { getOptionsFromRootManifest } from '../getOptionsFromRootManifest'
 import { recursive } from '../recursive'
 import { yarnLockFileKeyNormalizer } from './yarnUtil'
 
@@ -98,7 +97,10 @@ export type ImportCommandOptions = Pick<Config,
 | 'selectedProjectsGraph'
 | 'workspaceDir'
 | 'ignoreWorkspaceCycles'
+| 'disallowWorkspaceCycles'
 | 'sharedWorkspaceLockfile'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 > & CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>
 
 export async function handler (
@@ -139,6 +141,11 @@ export async function handler (
         const cyclicDependenciesInfo = sequencedGraph.cycles.length > 0
           ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
           : ''
+
+        if (opts.disallowWorkspaceCycles) {
+          throw new PnpmError('DISALLOW_WORKSPACE_CYCLES', `There are cyclic workspace dependencies${cyclicDependenciesInfo}`)
+        }
+
         logger.warn({
           message: `There are cyclic workspace dependencies${cyclicDependenciesInfo}`,
           prefix: opts.workspaceDir,
@@ -162,9 +169,10 @@ export async function handler (
 
   const store = await createOrConnectStoreController(opts)
   const manifest = await readProjectManifestOnly(opts.dir)
+  const manifestOpts = opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest) : {}
   const installOpts = {
     ...opts,
-    ...getOptionsFromRootManifest(manifest),
+    ...manifestOpts,
     lockfileOnly: true,
     preferredVersions,
     storeController: store.ctrl,

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetcher-base",
-  "version": "15.0.1",
+  "version": "15.0.2",
   "description": "Types for pnpm-compatible fetchers",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@types/ssri": "^7.1.1"
+    "@types/ssri": "^7.1.2"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {

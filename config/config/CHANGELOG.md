@@ -1,5 +1,35 @@
 # @pnpm/config
 
+## 20.0.0
+
+### Major Changes
+
+- ac5abd3ff: The paths in patchedDependencies passed to `@pnpm/core` are absolute.
+
+### Patch Changes
+
+- b60bb6cbe: Update which to v4.
+
+## 19.2.1
+
+### Patch Changes
+
+- b1dd0ee58: Instead of `pnpm.overrides` replacing `resolutions`, the two are now merged. This is intended to make it easier to migrate from Yarn by allowing one to keep using `resolutions` for Yarn, but adding additional changes just for pnpm using `pnpm.overrides`.
+
+## 19.2.0
+
+### Minor Changes
+
+- d774a3196: Add a new setting: rootProjectManifestDir.
+- 832e28826: Add `disallow-workspace-cycles` option to error instead of warn about cyclic dependencies
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/pnpmfile@5.0.14
+  - @pnpm/read-project-manifest@5.0.7
+
 ## 19.1.0
 
 ### Minor Changes

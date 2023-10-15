@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/merge-lockfile-changes",
-  "version": "5.0.3",
+  "version": "5.0.4",
   "description": "Merges lockfiles. Can automatically fix merge conflicts",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -40,7 +40,7 @@
   "devDependencies": {
     "@pnpm/merge-lockfile-changes": "workspace:*",
     "@types/ramda": "0.28.20",
-    "@types/semver": "7.3.13"
+    "@types/semver": "7.5.3"
   },
   "exports": {
     ".": "./lib/index.js"

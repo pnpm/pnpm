@@ -37,6 +37,16 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
   }
 
   await esbuild.build({
+    entryPoints: [pathLib.resolve(__dirname, '../../worker/src/worker.ts')],
+    bundle: true,
+    platform: 'node',
+    outfile: pathLib.resolve(__dirname, 'dist/worker.js'),
+    loader: {
+      '.node': 'copy',
+    },
+  })
+
+  await esbuild.build({
     bundle: true,
     platform: 'node',
     target: 'node14',
@@ -53,6 +63,9 @@ const pnpmPackageJson = JSON.parse(fs.readFileSync(pathLib.join(__dirname, 'pack
     sourcemap: true, // nice for local debugging
     logLevel: 'warning', // keeps esbuild quiet unless there's a problem
     plugins: [spnpmImportsPlugin],
+    loader: {
+      '.node': 'binary',
+    }
   })
 
   // Require the file just built by esbuild
