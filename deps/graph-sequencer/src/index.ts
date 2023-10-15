@@ -20,50 +20,82 @@ export interface Result<T> {
  * @returns {Result<T>} An object containing the result of the sorting, including safe, chunks, and cycles.
  */
 export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...graph.keys()]): Result<T> {
-  const cycles: T[][] = []
-  const chunks: T[][] = []
-  const visited = new Set<T>()
-  const nodes = new Set<T>(includedNodes)
-  const outDegree = new Map<T, number>()
-  const reverseGraph = new Map<T, T[]>()
-  let safe = true
-  // Function to update the outDegree of a node.
-  const changeDegree = (node: T, v: number) => {
-    const degree = outDegree.get(node) ?? 0
-    outDegree.set(node, degree + v)
-  }
-
   // Initialize reverseGraph with empty arrays for all nodes.
+  const reverseGraph = new Map<T, T[]>()
   for (const key of graph.keys()) {
     reverseGraph.set(key, [])
   }
 
   // Calculate outDegree and reverseGraph for the included nodes.
+  const nodes = new Set<T>(includedNodes)
+  const visited = new Set<T>()
+  const outDegree = new Map<T, number>()
   for (const [from, edges] of graph.entries()) {
     outDegree.set(from, 0)
     for (const to of edges) {
       if (nodes.has(from) && nodes.has(to)) {
-        changeDegree(from, 1)
-        const reverseEdges = reverseGraph.get(to)!
-        reverseGraph.set(to, [...reverseEdges, from])
+        changeOutDegree(from, 1)
+        reverseGraph.get(to)!.push(from)
       }
     }
-
     if (!nodes.has(from)) {
       visited.add(from)
     }
   }
 
+  const chunks: T[][] = []
+  const cycles: T[][] = []
+  let safe = true
+  while (nodes.size) {
+    const chunk: T[] = []
+    let minDegree = Number.MAX_SAFE_INTEGER
+    for (const node of nodes) {
+      const degree = outDegree.get(node)!
+      if (degree === 0) {
+        chunk.push(node)
+      }
+      minDegree = Math.min(minDegree, degree)
+    }
+
+    if (minDegree === 0) {
+      chunk.forEach(removeNode)
+      chunks.push(chunk)
+    } else {
+      const cycleNodes: T[] = []
+      for (const node of nodes) {
+        const cycle = findCycle(node)
+        if (cycle.length) {
+          cycles.push(cycle)
+          cycle.forEach(removeNode)
+          cycleNodes.push(...cycle)
+
+          if (cycle.length > 1) {
+            safe = false
+          }
+        }
+      }
+      chunks.push(cycleNodes)
+    }
+  }
+
+  return { safe, chunks, cycles }
+
+  // Function to update the outDegree of a node.
+  function changeOutDegree (node: T, value: number) {
+    const degree = outDegree.get(node) ?? 0
+    outDegree.set(node, degree + value)
+  }
+
   // Function to remove a node from the graph.
-  const removeNode = (node: T) => {
+  function removeNode (node: T) {
     for (const from of reverseGraph.get(node)!) {
-      changeDegree(from, -1)
+      changeOutDegree(from, -1)
     }
     visited.add(node)
     nodes.delete(node)
   }
 
-  const findCycle = (startNode: T): T[] => {
+  function findCycle (startNode: T): T[] {
     const queue: Array<[T, T[]]> = [[startNode, [startNode]]]
     const cycleVisited = new Set<T>()
     while (queue.length) {
@@ -81,38 +113,4 @@ export function graphSequencer<T> (graph: Graph<T>, includedNodes: T[] = [...gra
     }
     return []
   }
-
-  while (nodes.size) {
-    const chunk: T[] = []
-    let minDegree = Number.MAX_SAFE_INTEGER
-    for (const node of nodes) {
-      const degree = outDegree.get(node)!
-      if (degree === 0) {
-        chunk.push(node)
-      }
-      minDegree = Math.min(minDegree, degree)
-    }
-
-    if (minDegree === 0) {
-      chunk.forEach(removeNode)
-      chunks.push(chunk)
-    } else {
-      let cycleNodes: T[] = []
-      for (const node of nodes) {
-        const cycle = findCycle(node)
-        if (cycle.length) {
-          cycles.push(cycle)
-          cycle.forEach(removeNode)
-          cycleNodes = cycleNodes.concat(cycle)
-
-          if (cycle.length > 1) {
-            safe = false
-          }
-        }
-      }
-      chunks.push(cycleNodes)
-    }
-  }
-
-  return { safe, chunks, cycles }
 }

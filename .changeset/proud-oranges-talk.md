@@ -1,10 +1,10 @@
 ---
-"@pnpm/plugin-commands-rebuild": minor
+"@pnpm/plugin-commands-rebuild": patch
 "@pnpm/deps.graph-sequencer": major
-"@pnpm/sort-packages": minor
-"@pnpm/build-modules": minor
-"@pnpm/core": minor
-"@pnpm-private/typings": minor
+"@pnpm/sort-packages": patch
+"@pnpm/build-modules": patch
+"@pnpm/core": patch
+"@pnpm-private/typings": patch
 ---
 
-add package @pnpm/deps.graph-sequencer for better topological sort
+Add package @pnpm/deps.graph-sequencer for better topological sort [#7168](https://github.com/pnpm/pnpm/pull/7168).

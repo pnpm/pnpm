@@ -6,7 +6,7 @@ test('graph with three independent self cycles', () => {
     ['b', ['b']],
     ['c', ['c']],
   ]
-  ), ['a', 'b', 'c'])).toStrictEqual(
+  ))).toStrictEqual(
     {
       safe: true,
       chunks: [['a', 'b', 'c']],
@@ -22,7 +22,7 @@ test('graph with two self cycles and an edge linking them', () => {
     ['a', ['b', 'c']],
     ['b', ['b']],
     ['c', ['b', 'c']]]
-  ), ['a', 'b', 'c'])).toStrictEqual(
+  ))).toStrictEqual(
     {
       safe: true,
       chunks: [['b', 'c'], ['a']],
@@ -38,7 +38,7 @@ test('graph with nodes connected to each other sequentially without forming a cy
     ['a', ['b', 'c']],
     ['b', []],
     ['c', ['b']]]
-  ), ['a', 'b', 'c'])).toStrictEqual(
+  ))).toStrictEqual(
     {
       safe: true,
       chunks: [['b'], ['c'], ['a']],
@@ -69,7 +69,7 @@ test('graph with no edges', () => {
     ['b', []],
     ['c', []],
     ['d', []],
-  ]), ['a', 'b', 'c', 'd'])).toStrictEqual(
+  ]))).toStrictEqual(
     {
       safe: true,
       chunks: [['a', 'b', 'c', 'd']],
@@ -99,7 +99,7 @@ test('graph with multiple dependencies on one item', () => {
     ['b', ['d']],
     ['c', []],
     ['d', []],
-  ]), ['a', 'b', 'c', 'd'])).toStrictEqual(
+  ]))).toStrictEqual(
     {
       safe: true,
       chunks: [['c', 'd'], ['a', 'b']],
@@ -114,7 +114,7 @@ test('graph with resolved cycle', () => {
     ['b', ['c']],
     ['c', ['d']],
     ['d', ['a']],
-  ]), ['a', 'b', 'c', 'd'])).toStrictEqual(
+  ]))).toStrictEqual(
     {
       safe: false,
       chunks: [['a', 'b', 'c', 'd']],
@@ -144,7 +144,7 @@ test('graph with resolved cycle with multiple unblocked deps', () => {
     ['b', ['d']],
     ['c', ['d']],
     ['d', ['a']],
-  ]), ['a', 'b', 'c', 'd'])).toStrictEqual(
+  ]))).toStrictEqual(
     {
       safe: false,
       chunks: [
@@ -179,7 +179,7 @@ test('graph with two cycles', () => {
     ['b', ['a']],
     ['c', ['d']],
     ['d', ['c']],
-  ]), ['a', 'b', 'c', 'd'])).toStrictEqual(
+  ]))).toStrictEqual(
     {
       safe: false,
       chunks: [['a', 'b', 'c', 'd']],
@@ -198,7 +198,7 @@ test('graph with multiple cycles', () => {
     ['c', ['b']],
     ['d', ['c', 'e']],
     ['e', []],
-  ]), ['a', 'b', 'c', 'd', 'e'])).toStrictEqual(
+  ]))).toStrictEqual(
     {
       safe: false,
       chunks: [['e'], ['a', 'c', 'b'], ['d']],
@@ -213,7 +213,7 @@ test('graph with multiple cycles', () => {
     ['b', ['d']],
     ['c', []],
     ['d', ['b', 'c']],
-  ]), ['a', 'b', 'c', 'd'])).toStrictEqual(
+  ]))).toStrictEqual(
     {
       safe: false,
       chunks: [['c'], ['b', 'd'], ['a']],
@@ -229,7 +229,7 @@ test('graph with fully connected subgraph and additional connected node', () => 
     ['c', ['a', 'b', 'd']],
     ['d', ['a', 'b', 'c']],
     ['e', ['b']],
-  ]), ['a', 'b', 'c', 'd', 'e'])).toStrictEqual(
+  ]))).toStrictEqual(
     {
       safe: false,
       chunks: [['a', 'b', 'c', 'd'], ['e']],
@@ -279,7 +279,7 @@ test('graph with self-cycle', () => {
     ['b', ['b']],
     ['c', ['c']],
 
-  ]), ['a', 'b', 'c'])).toStrictEqual(
+  ]))).toStrictEqual(
     {
       safe: true,
       chunks: [['a', 'b', 'c']],
@@ -309,7 +309,7 @@ test('graph with two self cycle', () => {
     ['b', ['b']],
     ['c', ['c']],
 
-  ]), ['a', 'b', 'c'])).toStrictEqual(
+  ]))).toStrictEqual(
     {
       safe: true,
       chunks: [['b', 'c'], ['a']],
@@ -340,7 +340,7 @@ test('graph with many nodes', () => {
     ['c', []],
     ['d', ['a']],
     ['e', ['a', 'b', 'c']],
-  ]), ['a', 'b', 'c', 'd', 'e'])).toStrictEqual(
+  ]))).toStrictEqual(
     {
       safe: true,
       chunks: [['b', 'c'], ['a'], ['d', 'e']],
