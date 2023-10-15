@@ -6043,8 +6043,8 @@ importers:
         specifier: workspace:*
         version: link:../fs/symlink-dependency
       '@rushstack/worker-pool':
-        specifier: 0.3.34
-        version: 0.3.34(@types/node@16.18.58)
+        specifier: 0.4.9
+        version: 0.4.9
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -8343,15 +8343,13 @@ packages:
       '@reflink/reflink-win32-x64-msvc': 0.1.12
     dev: false
 
-  /@rushstack/worker-pool@0.3.34(@types/node@16.18.58):
-    resolution: {integrity: sha512-ZpIrJUk539uQrsmbcnoMxhrM6/Lq0qCEL1QL9l8cj2RSq1qHwZ9lGIvd+pRmN8uEQSxL9k5fSnE6LasIzcKC3Q==}
+  /@rushstack/worker-pool@0.4.9:
+    resolution: {integrity: sha512-ibAOeQCuz3g0c88GGawAPO2LVOTZE3uPh4DCEJILZS9SEv9opEUObsovC18EHPgeIuFy4HkoJT+t7l8LURZjIw==}
     peerDependencies:
       '@types/node': '*'
     peerDependenciesMeta:
       '@types/node':
         optional: true
-    dependencies:
-      '@types/node': 16.18.58
     dev: false
 
   /@sinclair/typebox@0.27.8:
@@ -8635,6 +8633,7 @@ packages:
 
   /@types/node@16.18.58:
     resolution: {integrity: sha512-YGncyA25/MaVtQkjWW9r0EFBukZ+JulsLcVZBlGUfIb96OBMjkoRWwQo5IEWJ8Fj06Go3GHw+bjYDitv6BaGsA==}
+    dev: true
 
   /@types/node@18.18.5:
     resolution: {integrity: sha512-4slmbtwV59ZxitY4ixUZdy1uRLf9eSIvBWPQxNjhHYWEtn0FryfKpyS2cvADYXTayWdKEIsJengncrVvkI4I6A==}
