@@ -4967,8 +4967,8 @@ importers:
         specifier: ^6.2.0
         version: 6.2.0
       lru-cache:
-        specifier: ^9.1.2
-        version: 9.1.2
+        specifier: ^10.0.1
+        version: 10.0.1
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
@@ -13464,7 +13464,6 @@ packages:
     engines: {node: 14 || >=16.14}
     requiresBuild: true
     dev: false
-    optional: true
 
   /lru-cache@4.1.5:
     resolution: {integrity: sha512-sWZlbEP2OsHNkXrMl5GYk/jKk70MBng6UU4YI/qGDYbgf6YbP4EvmqISbXCoJiRKs+1bSpFHVgQxvJ17F2li5g==}
@@ -13498,11 +13497,6 @@ packages:
     resolution: {integrity: sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==}
     engines: {node: '>=12'}
     requiresBuild: true
-    dev: false
-
-  /lru-cache@9.1.2:
-    resolution: {integrity: sha512-ERJq3FOzJTxBbFjZ7iDs+NiK4VI9Wz+RdrrAB8dio1oV+YvdPzUEE4QNiT2VD51DkIbCYRUUzCRkssXCHqSnKQ==}
-    engines: {node: 14 || >=16.14}
     dev: false
 
   /lunr-mutable-indexes@2.3.2:
