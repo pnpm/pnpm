@@ -13,6 +13,9 @@
       "path": "../../deps/graph-sequencer"
     },
     {
+      "path": "../../fs/hard-link-dir"
+    },
+    {
       "path": "../../packages/calc-dep-state"
     },
     {
