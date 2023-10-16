@@ -1,5 +1,11 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 5.0.5
+
+### Patch Changes
+
+- 2ca756fd2: Don't use reflink on Windows [#7186](https://github.com/pnpm/pnpm/issues/7186).
+
 ## 5.0.4
 
 ### Patch Changes

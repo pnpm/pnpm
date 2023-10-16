@@ -1,5 +1,19 @@
 # @pnpm/core
 
+## 13.0.1
+
+### Patch Changes
+
+- 4246f41be: Add package @pnpm/deps.graph-sequencer for better topological sort [#7168](https://github.com/pnpm/pnpm/pull/7168).
+- Updated dependencies [4246f41be]
+- Updated dependencies [84f81c9ae]
+  - @pnpm/deps.graph-sequencer@1.0.0
+  - @pnpm/build-modules@11.1.1
+  - @pnpm/lifecycle@16.0.2
+  - @pnpm/headless@22.2.4
+  - @pnpm/package-requester@24.0.6
+  - @pnpm/worker@0.3.5
+
 ## 13.0.0
 
 ### Major Changes

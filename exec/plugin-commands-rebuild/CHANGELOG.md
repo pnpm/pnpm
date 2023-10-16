@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-rebuild
 
+## 9.2.5
+
+### Patch Changes
+
+- 4246f41be: Add package @pnpm/deps.graph-sequencer for better topological sort [#7168](https://github.com/pnpm/pnpm/pull/7168).
+- Updated dependencies [4246f41be]
+- Updated dependencies [84f81c9ae]
+  - @pnpm/deps.graph-sequencer@1.0.0
+  - @pnpm/sort-packages@5.0.6
+  - @pnpm/lifecycle@16.0.2
+  - @pnpm/store-connection-manager@7.0.8
+
 ## 9.2.4
 
 ### Patch Changes

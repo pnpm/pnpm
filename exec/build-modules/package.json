@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "11.1.0",
+  "version": "11.1.1",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -36,7 +36,8 @@
   "dependencies": {
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/graph-sequencer": "1.1.1",
+    "@pnpm/fs.hard-link-dir": "workspace:*",
+    "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",

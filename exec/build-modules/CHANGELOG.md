@@ -1,5 +1,15 @@
 # @pnpm/build-modules
 
+## 11.1.1
+
+### Patch Changes
+
+- 4246f41be: Add package @pnpm/deps.graph-sequencer for better topological sort [#7168](https://github.com/pnpm/pnpm/pull/7168).
+- Updated dependencies [4246f41be]
+- Updated dependencies [84f81c9ae]
+  - @pnpm/deps.graph-sequencer@1.0.0
+  - @pnpm/lifecycle@16.0.2
+
 ## 11.1.0
 
 ### Minor Changes

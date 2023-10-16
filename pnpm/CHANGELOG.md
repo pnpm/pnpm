@@ -1,5 +1,12 @@
 # pnpm
 
+## 8.9.2
+
+### Patch Changes
+
+- Don't use reflink on Windows [#7186](https://github.com/pnpm/pnpm/issues/7186).
+- Do not run node-gyp rebuild if `preinstall` lifecycle script is present [#7206](https://github.com/pnpm/pnpm/pull/7206).
+
 ## 8.9.1
 
 ### Patch Changes
