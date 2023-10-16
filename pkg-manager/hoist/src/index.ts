@@ -198,7 +198,7 @@ async function hoistGraph (
           continue
         }
         if (opts.lockfile.packages?.[childPath]?.hasBin) {
-          hoistedAliasesWithBins.add(childPath)
+          hoistedAliasesWithBins.add(childAlias)
         }
         hoistedAliases.add(childAliasNormalized)
         if (!hoistedDependencies[childPath]) {
