@@ -110,7 +110,7 @@ async function linkAllBins (modulesDir: string, opts: LinkAllBinsOptions) {
     logger.info({ message, prefix: path.join(modulesDir, '../..') })
   }
   try {
-    await linkBinsOfPkgsByAliases(Array.from(opts.hoistedAliasesWithBins), bin, {
+    await linkBinsOfPkgsByAliases(opts.hoistedAliasesWithBins, bin, {
       allowExoticManifests: true,
       extraNodePaths: opts.extraNodePaths,
       modulesDir,
