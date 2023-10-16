@@ -1,10 +1,11 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import { promises as fs, writeFileSync } from 'fs'
+import { promises as fs, writeFileSync, readdirSync, existsSync, readFileSync } from 'fs'
 import path from 'path'
 import { logger, globalWarn } from '@pnpm/logger'
 import {
   linkBins,
   linkBinsOfPackages,
+  linkBinsOfPkgsByAliases,
 } from '@pnpm/link-bins'
 import { fixtures } from '@pnpm/test-fixtures'
 import CMD_EXTENSION from 'cmd-extension'
@@ -164,6 +165,36 @@ test('linkBinsOfPackages()', async () => {
   const binLocation = path.join(binTarget, 'simple')
   expect(await exists(binLocation)).toBe(true)
   const content = await fs.readFile(binLocation, 'utf8')
+  expect(content).toMatch('node_modules/simple/index.js')
+})
+
+test('linkBinsOfPkgsByAliases()', async () => {
+  const binTarget = tempy.directory()
+  const simpleFixture = f.prepare('simple-fixture')
+
+  await linkBinsOfPkgsByAliases(
+    [],
+    binTarget,
+    {
+      modulesDir: path.join(simpleFixture, 'node_modules'),
+      warn: () => {},
+    }
+  )
+  expect(readdirSync(binTarget)).toEqual([])
+
+  await linkBinsOfPkgsByAliases(
+    ['simple'],
+    binTarget,
+    {
+      modulesDir: path.join(simpleFixture, 'node_modules'),
+      warn: () => {},
+    }
+  )
+
+  expect(readdirSync(binTarget)).toEqual(getExpectedBins(['simple']))
+  const binLocation = path.join(binTarget, 'simple')
+  expect(existsSync(binLocation)).toBe(true)
+  const content = readFileSync(binLocation, 'utf8')
   expect(content).toMatch('node_modules/simple/index.js')
 })
 
