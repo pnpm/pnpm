@@ -149,6 +149,7 @@ export async function handler (
   | 'selectedProjectsGraph'
   | 'workspaceDir'
   | 'sharedWorkspaceLockfile'
+  | 'supportedArchitectures'
   > & {
     recursive?: boolean
   },

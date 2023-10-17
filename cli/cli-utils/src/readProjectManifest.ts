@@ -1,5 +1,5 @@
 import * as utils from '@pnpm/read-project-manifest'
-import { type ProjectManifest } from '@pnpm/types'
+import { type SupportedArchitectures, type ProjectManifest } from '@pnpm/types'
 import { packageIsInstallable } from './packageIsInstallable'
 
 export async function readProjectManifest (
@@ -7,6 +7,7 @@ export async function readProjectManifest (
   opts: {
     engineStrict?: boolean
     nodeVersion?: string
+    supportedArchitectures: SupportedArchitectures
   }
 ): Promise<{
     fileName: string
@@ -23,9 +24,17 @@ export async function readProjectManifestOnly (
   opts: {
     engineStrict?: boolean
     nodeVersion?: string
-  } = {}
+    supportedArchitectures: SupportedArchitectures
+  } = {
+    supportedArchitectures: {
+      os: ['current'],
+      cpu: ['current'],
+      libc: ['current'],
+    },
+  }
 ): Promise<ProjectManifest> {
   const manifest = await utils.readProjectManifestOnly(projectDir)
+
   packageIsInstallable(projectDir, manifest as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
   return manifest
 }
@@ -35,6 +44,7 @@ export async function tryReadProjectManifest (
   opts: {
     engineStrict?: boolean
     nodeVersion?: string
+    supportedArchitectures: SupportedArchitectures
   }
 ): Promise<{
     fileName: string

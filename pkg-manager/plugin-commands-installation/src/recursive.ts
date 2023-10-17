@@ -70,6 +70,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileIncludeTarballUrl'
 | 'sharedWorkspaceLockfile'
 | 'tag'
+| 'supportedArchitectures'
 > & {
   include?: IncludedDependencies
   includeDirect?: IncludedDependencies

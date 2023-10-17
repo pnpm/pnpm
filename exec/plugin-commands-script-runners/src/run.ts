@@ -104,7 +104,14 @@ export const completion: CompletionFunc = async (cliOpts, params) => {
   if (params.length > 0) {
     return []
   }
-  const manifest = await readProjectManifestOnly(cliOpts.dir as string ?? process.cwd(), cliOpts)
+  const manifest = await readProjectManifestOnly(cliOpts.dir as string ?? process.cwd(), {
+    ...cliOpts,
+    supportedArchitectures: {
+      os: ['current'],
+      cpu: ['current'],
+      libc: ['current'],
+    },
+  })
   return Object.keys(manifest.scripts ?? {}).map((name) => ({ name }))
 }
 
@@ -149,7 +156,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
   & { recursive?: boolean }
-  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent' | 'extraEnv'>
+  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent' | 'extraEnv' | 'supportedArchitectures'>
   & (
     & { recursive?: false }
     & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>

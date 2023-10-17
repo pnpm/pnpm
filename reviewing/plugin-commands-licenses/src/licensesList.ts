@@ -46,7 +46,13 @@ export async function licensesList (opts: LicensesCommandOptions) {
     optionalDependencies: opts.optional !== false,
   }
 
-  const manifest = await readProjectManifestOnly(opts.dir, {})
+  const manifest = await readProjectManifestOnly(opts.dir, {
+    supportedArchitectures: {
+      os: ['current'],
+      cpu: ['current'],
+      libc: ['current'],
+    },
+  })
 
   const includedImporterIds = opts.selectedProjectsGraph
     ? Object.keys(opts.selectedProjectsGraph)

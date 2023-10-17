@@ -83,6 +83,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'extraEnv'
 | 'ignoreWorkspaceCycles'
 | 'disallowWorkspaceCycles'
+| 'supportedArchitectures'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]

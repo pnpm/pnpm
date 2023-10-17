@@ -16,7 +16,11 @@ test('target cpu wrong', () => {
     os: 'any',
     libc: 'any',
   }
-  const err = checkPlatform(packageId, target)
+  const err = checkPlatform(packageId, target, {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  })
   expect(err).toBeTruthy()
   expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
@@ -27,7 +31,11 @@ test('os wrong', () => {
     os: 'enten-os',
     libc: 'any',
   }
-  const err = checkPlatform(packageId, target)
+  const err = checkPlatform(packageId, target, {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  })
   expect(err).toBeTruthy()
   expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
@@ -38,7 +46,11 @@ test('libc wrong', () => {
     os: 'any',
     libc: 'enten-libc',
   }
-  const err = checkPlatform(packageId, target)
+  const err = checkPlatform(packageId, target, {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  })
   expect(err).toBeTruthy()
   expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
@@ -49,33 +61,57 @@ test('nothing wrong', () => {
     os: 'any',
     libc: 'any',
   }
-  expect(checkPlatform(packageId, target)).toBeFalsy()
+  expect(checkPlatform(packageId, target, {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  })).toBeFalsy()
 })
 
 test('only target cpu wrong', () => {
-  const err = checkPlatform(packageId, { cpu: 'enten-cpu', os: 'any', libc: 'any' })
+  const err = checkPlatform(packageId, { cpu: 'enten-cpu', os: 'any', libc: 'any' }, {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  })
   expect(err).toBeTruthy()
   expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
 
 test('only os wrong', () => {
-  const err = checkPlatform(packageId, { cpu: 'any', os: 'enten-os', libc: 'any' })
+  const err = checkPlatform(packageId, { cpu: 'any', os: 'enten-os', libc: 'any' }, {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  })
   expect(err).toBeTruthy()
   expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
 
 test('everything wrong w/arrays', () => {
-  const err = checkPlatform(packageId, { cpu: ['enten-cpu'], os: ['enten-os'], libc: ['enten-libc'] })
+  const err = checkPlatform(packageId, { cpu: ['enten-cpu'], os: ['enten-os'], libc: ['enten-libc'] }, {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  })
   expect(err).toBeTruthy()
   expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
 
 test('os wrong (negation)', () => {
-  const err = checkPlatform(packageId, { cpu: 'any', os: `!${process.platform}`, libc: 'any' })
+  const err = checkPlatform(packageId, { cpu: 'any', os: `!${process.platform}`, libc: 'any' }, {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  })
   expect(err).toBeTruthy()
   expect(err?.code).toBe('ERR_PNPM_UNSUPPORTED_PLATFORM')
 })
 
 test('nothing wrong (negation)', () => {
-  expect(checkPlatform(packageId, { cpu: '!enten-cpu', os: '!enten-os', libc: '!enten-libc' })).toBe(null)
+  expect(checkPlatform(packageId, { cpu: '!enten-cpu', os: '!enten-os', libc: '!enten-libc' }, {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  })).toBe(null)
 })

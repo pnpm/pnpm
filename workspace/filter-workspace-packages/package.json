@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@types/is-windows": "^1.0.0",
     "@types/micromatch": "^4.0.3",
     "@types/ramda": "0.28.20",

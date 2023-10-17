@@ -58,7 +58,7 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig' | 'embedReadme' | 'packGzipLevel'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
+  opts: Pick<UniversalOptions, 'dir'> & Pick<Config, 'ignoreScripts' | 'rawConfig' | 'embedReadme' | 'packGzipLevel' | 'supportedArchitectures'> & Partial<Pick<Config, 'extraBinPaths' | 'extraEnv'>> & {
     argv: {
       original: string[]
     }
@@ -145,7 +145,13 @@ async function packPkg (opts: {
     projectDir,
     embedReadme,
   } = opts
-  const { manifest } = await readProjectManifest(projectDir, {})
+  const { manifest } = await readProjectManifest(projectDir, {
+    supportedArchitectures: {
+      os: ['current'],
+      cpu: ['current'],
+      libc: ['current'],
+    },
+  })
   const bins = [
     ...(await getBinsFromPackageManifest(manifest as DependencyManifest, projectDir)).map(({ path }) => path),
     ...(manifest.publishConfig?.executableFiles ?? [])
