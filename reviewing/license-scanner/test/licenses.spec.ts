@@ -100,4 +100,78 @@ describe('licences', () => {
       },
     ] as LicensePackage[])
   })
+
+  test('filterable by includedImporterIds', async () => {
+    const lockfile: Lockfile = {
+      importers: {
+        '.': {
+          dependencies: {
+            foo: '1.0.0',
+          },
+          specifiers: {
+            foo: '^1.0.0',
+          },
+        },
+        'packages/a': {
+          dependencies: {
+            bar: '1.0.0',
+          },
+          specifiers: {
+            bar: '^1.0.0',
+          },
+        },
+        'packages/b': {
+          dependencies: {
+            baz: '1.0.0',
+          },
+          specifiers: {
+            baz: '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        '/baz/1.0.0': {
+          resolution: {
+            integrity: 'baz-integrity',
+          },
+        },
+        '/bar/1.0.0': {
+          resolution: {
+            integrity: 'bar-integrity',
+          },
+        },
+        '/foo/1.0.0': {
+          resolution: {
+            integrity: 'foo-integrity',
+          },
+        },
+      },
+    }
+
+    const licensePackages = await findDependencyLicenses({
+      lockfileDir: '/opt/pnpm',
+      manifest: {} as ProjectManifest,
+      virtualStoreDir: '/.pnpm',
+      registries: {} as Registries,
+      wantedLockfile: lockfile,
+      storeDir: '/opt/.pnpm',
+      includedImporterIds: ['packages/a'],
+    })
+
+    expect(licensePackages).toEqual([
+      {
+        belongsTo: 'dependencies',
+        description: 'Package Description',
+        version: '1.0.0',
+        name: 'bar',
+        license: 'MIT',
+        licenseContents: undefined,
+        author: 'Package Author',
+        homepage: 'Homepage',
+        repository: 'Repository',
+        path: '/path/to/package/bar@1.0.0/node_modules',
+      },
+    ] as LicensePackage[])
+  })
 })
