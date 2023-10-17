@@ -47,7 +47,7 @@ export async function licensesList (opts: LicensesCommandOptions) {
 
   const manifest = await readProjectManifestOnly(opts.dir, {})
 
-  const importerIds = opts.selectedProjectsGraph
+  const includedImporterIds = opts.selectedProjectsGraph
     ? Object.keys(opts.selectedProjectsGraph)
       .map((path) => getLockfileImporterId(opts.lockfileDir ?? opts.dir, path))
     : undefined
@@ -67,7 +67,7 @@ export async function licensesList (opts: LicensesCommandOptions) {
     registries: opts.registries,
     wantedLockfile: lockfile,
     manifest,
-    importerIds,
+    includedImporterIds,
   })
 
   if (licensePackages.length === 0)

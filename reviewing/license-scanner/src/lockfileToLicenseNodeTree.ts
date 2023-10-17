@@ -120,12 +120,12 @@ export async function lockfileToLicenseNodeTree (
   lockfile: Lockfile,
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean }
-    importerIds?: string[]
+    includedImporterIds?: string[]
   } & LicenseExtractOptions
 ): Promise<LicenseNodeTree> {
   const importerWalkers = lockfileWalkerGroupImporterSteps(
     lockfile,
-    opts.importerIds ?? Object.keys(lockfile.importers),
+    opts.includedImporterIds ?? Object.keys(lockfile.importers),
     { include: opts?.include }
   )
   const dependencies = Object.fromEntries(

@@ -101,7 +101,7 @@ describe('licences', () => {
     ] as LicensePackage[])
   })
 
-  test('filterable by importerIds', async () => {
+  test('filterable by includedImporterIds', async () => {
     const lockfile: Lockfile = {
       importers: {
         '.': {
@@ -156,7 +156,7 @@ describe('licences', () => {
       registries: {} as Registries,
       wantedLockfile: lockfile,
       storeDir: '/opt/.pnpm',
-      importerIds: ['packages/a'],
+      includedImporterIds: ['packages/a'],
     })
 
     expect(licensePackages).toEqual([
