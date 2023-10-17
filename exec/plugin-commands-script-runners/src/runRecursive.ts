@@ -14,7 +14,7 @@ import { existsInDir } from './existsInDir'
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec'
 import { runScript } from './run'
 import { tryBuildRegExpFromCommand } from './regexpCommand'
-import { CiLogs } from './ciLogs'
+import { logSectionStart } from './ciLogs'
 import { type PackageScripts } from '@pnpm/types'
 
 export type RecursiveRunOpts = Pick<Config,
@@ -128,16 +128,16 @@ export async function runRecursive (
           }
 
           const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
-          const logCIGroups = new CiLogs({
-            concurrency: opts.workspaceConcurrency,
-            name: pkg.package.manifest.name,
-            script: scriptName,
-            version: pkg.package.manifest.version,
-            prefix: path.normalize(path.relative(opts.workspaceDir, prefix)),
-          })
-          logCIGroups.log('start')
+          const logSectionEnd = (opts.workspaceConcurrency ?? 4) > 1
+            ? undefined
+            : logSectionStart(formatSectionName({
+              name: pkg.package.manifest.name,
+              script: scriptName,
+              version: pkg.package.manifest.version,
+              prefix: path.normalize(path.relative(opts.workspaceDir, prefix)),
+            }))
           await _runScript(scriptName)
-          logCIGroups.log('end')
+          logSectionEnd?.()
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
@@ -182,6 +182,20 @@ export async function runRecursive (
     summary: result,
   })
   throwOnCommandFail('pnpm recursive run', result)
+}
+
+function formatSectionName ({
+  script,
+  name,
+  version,
+  prefix,
+}: {
+  script?: string
+  name?: string
+  version?: string
+  prefix: string
+}) {
+  return `${name ?? 'unknown'}${version ? `@${version}` : ''} ${script ? `: ${script}` : ''} ${prefix}`
 }
 
 export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {
