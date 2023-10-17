@@ -7,7 +7,7 @@ import {
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { logger } from '@pnpm/logger'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type DependenciesField } from '@pnpm/types'
+import { type SupportedArchitectures, type DependenciesField } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import mapValues from 'ramda/src/map'
 import pickBy from 'ramda/src/pickBy'
@@ -30,6 +30,7 @@ export function filterLockfileByImportersAndEngine (
     failOnMissingDependencies: boolean
     lockfileDir: string
     skipped: Set<string>
+    supportedArchitectures: SupportedArchitectures
   }
 ): { lockfile: Lockfile, selectedImporterIds: string[] } {
   const importerIdSet = new Set(importerIds) as Set<string>
@@ -50,6 +51,7 @@ export function filterLockfileByImportersAndEngine (
             opts.includeIncompatiblePackages === true,
         lockfileDir: opts.lockfileDir,
         skipped: opts.skipped,
+        supportedArchitectures: opts.supportedArchitectures,
       })
       : {}
 
@@ -89,6 +91,7 @@ function pickPkgsWithAllDeps (
     includeIncompatiblePackages: boolean
     lockfileDir: string
     skipped: Set<string>
+    supportedArchitectures: SupportedArchitectures
   }
 ) {
   const pickedPackages = {} as PackageSnapshots
@@ -115,6 +118,7 @@ function pkgAllDeps (
     includeIncompatiblePackages: boolean
     lockfileDir: string
     skipped: Set<string>
+    supportedArchitectures: SupportedArchitectures
   }
 ) {
   for (const depPath of depPaths) {
@@ -150,6 +154,7 @@ function pkgAllDeps (
           nodeVersion: opts.currentEngine.nodeVersion,
           optional: pkgSnapshot.optional === true,
           pnpmVersion: opts.currentEngine.pnpmVersion,
+          supportedArchitectures: opts.supportedArchitectures,
         }) !== false
       if (!installable) {
         if (!ctx.pickedPackages[depPath] && pkgSnapshot.optional === true) {

@@ -67,7 +67,7 @@ class StoreStatusError extends PnpmError {
   }
 }
 
-export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir'> & CreateStoreControllerOptions & {
+export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir' | 'supportedArchitectures'> & CreateStoreControllerOptions & {
   reporter?: (logObj: LogBase) => void
 }
 
@@ -98,6 +98,7 @@ export async function handler (opts: StoreCommandOptions, params: string[]) {
       reporter: opts.reporter,
       storeController: store.ctrl,
       tag: opts.tag,
+      supportedArchitectures: opts.supportedArchitectures,
     })
   default:
     return help()

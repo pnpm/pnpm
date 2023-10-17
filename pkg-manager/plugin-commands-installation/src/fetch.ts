@@ -45,7 +45,7 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<Config, 'production' | 'dev'> & CreateStoreControllerOptions
+  opts: Pick<Config, 'production' | 'dev' | 'supportedArchitectures'> & CreateStoreControllerOptions
 ) {
   const store = await createOrConnectStoreController(opts)
   const include = {
@@ -67,5 +67,6 @@ export async function handler (
     pruneStore: true,
     storeController: store.ctrl,
     storeDir: store.dir,
+    supportedArchitectures: opts.supportedArchitectures,
   } as InstallOptions)
 }

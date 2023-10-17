@@ -13,7 +13,7 @@ import {
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
-import { type PatchFile, type Registries } from '@pnpm/types'
+import { type SupportedArchitectures, type PatchFile, type Registries } from '@pnpm/types'
 import {
   type FetchPackageToStoreFunction,
   type StoreController,
@@ -47,6 +47,7 @@ export interface LockfileToHoistedDepGraphOptions {
   storeController: StoreController
   storeDir: string
   virtualStoreDir: string
+  supportedArchitectures: SupportedArchitectures
 }
 
 export async function lockfileToHoistedDepGraph (
@@ -181,6 +182,7 @@ async function fetchDeps (
         nodeVersion: opts.nodeVersion,
         optional: pkgSnapshot.optional === true,
         pnpmVersion: opts.pnpmVersion,
+        supportedArchitectures: opts.supportedArchitectures,
       }) === false
     ) {
       opts.skipped.add(depPath)

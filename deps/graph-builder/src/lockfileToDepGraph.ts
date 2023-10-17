@@ -16,7 +16,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type PatchFile, type Registries } from '@pnpm/types'
+import { type SupportedArchitectures, type PatchFile, type Registries } from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
   type FetchPackageToStoreFunction,
@@ -68,6 +68,7 @@ export interface LockfileToDepGraphOptions {
   storeController: StoreController
   storeDir: string
   virtualStoreDir: string
+  supportedArchitectures: SupportedArchitectures
 }
 
 export interface DirectDependenciesByImporterId {
@@ -121,6 +122,7 @@ export async function lockfileToDepGraph (
             nodeVersion: opts.nodeVersion,
             optional: pkgSnapshot.optional === true,
             pnpmVersion: opts.pnpmVersion,
+            supportedArchitectures: opts.supportedArchitectures,
           }) === false
         ) {
           opts.skipped.add(depPath)

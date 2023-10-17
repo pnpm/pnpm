@@ -25,6 +25,7 @@ Config,
 | 'modulesDir'
 | 'pnpmHomeDir'
 | 'selectedProjectsGraph'
+| 'supportedArchitectures'
 > &
 Partial<Pick<Config, 'userConfig'>>
 
@@ -68,6 +69,7 @@ export async function licensesList (opts: LicensesCommandOptions) {
     wantedLockfile: lockfile,
     manifest,
     includedImporterIds,
+    supportedArchitectures: opts.supportedArchitectures,
   })
 
   if (licensePackages.length === 0)

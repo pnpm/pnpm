@@ -55,7 +55,7 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
-import { type DependencyManifest, type HoistedDependencies, type ProjectManifest, type Registries, DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { type DependencyManifest, type HoistedDependencies, type ProjectManifest, type Registries, DEPENDENCIES_FIELDS, type SupportedArchitectures } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
@@ -159,6 +159,7 @@ export interface HeadlessOptions {
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
   useGitBranchLockfile?: boolean
   useLockfile?: boolean
+  supportedArchitectures: SupportedArchitectures
 }
 
 export interface InstallationResultStats {
@@ -266,6 +267,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     failOnMissingDependencies: true,
     includeIncompatiblePackages: opts.force,
     lockfileDir,
+    supportedArchitectures: opts.supportedArchitectures,
   })
   if (opts.excludeLinksFromLockfile) {
     for (const { id, manifest, rootDir } of selectedProjects) {
@@ -305,6 +307,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     virtualStoreDir,
     nodeVersion: opts.currentEngine.nodeVersion,
     pnpmVersion: opts.currentEngine.pnpmVersion,
+    supportedArchitectures: opts.supportedArchitectures,
   } as LockfileToDepGraphOptions
   const {
     directDependenciesByImporterId,
