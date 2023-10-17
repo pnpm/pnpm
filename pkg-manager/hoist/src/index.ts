@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { linkLogger } from '@pnpm/core-loggers'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { linkBins, type WarnFunction } from '@pnpm/link-bins'
+import { linkBinsOfPkgsByAliases, type WarnFunction } from '@pnpm/link-bins'
 import {
   type Lockfile,
   nameVerFromPkgSnapshot,
@@ -56,8 +56,9 @@ export async function hoist (
 
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
-  const hoistedDependencies = await hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
+  const { hoistedDependencies, hoistedAliasesWithBins } = await hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
     getAliasHoistType,
+    lockfile: opts.lockfile,
   })
 
   await symlinkHoistedDependencies(hoistedDependencies, {
@@ -74,6 +75,7 @@ export async function hoist (
   // are in the same directory as the regular dependencies.
   await linkAllBins(opts.privateHoistedModulesDir, {
     extraNodePaths: opts.extraNodePath,
+    hoistedAliasesWithBins,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
   })
 
@@ -97,6 +99,7 @@ function createGetAliasHoistType (
 
 interface LinkAllBinsOptions {
   extraNodePaths?: string[]
+  hoistedAliasesWithBins: string[]
   preferSymlinkedExecutables?: boolean
 }
 
@@ -107,9 +110,10 @@ async function linkAllBins (modulesDir: string, opts: LinkAllBinsOptions) {
     logger.info({ message, prefix: path.join(modulesDir, '../..') })
   }
   try {
-    await linkBins(modulesDir, bin, {
+    await linkBinsOfPkgsByAliases(opts.hoistedAliasesWithBins, bin, {
       allowExoticManifests: true,
       extraNodePaths: opts.extraNodePaths,
+      modulesDir,
       preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       warn,
     })
@@ -160,15 +164,22 @@ export interface Dependency {
   depth: number
 }
 
+interface HoistGraphResult {
+  hoistedDependencies: HoistedDependencies
+  hoistedAliasesWithBins: string[]
+}
+
 async function hoistGraph (
   depNodes: Dependency[],
   currentSpecifiers: Record<string, string>,
   opts: {
     getAliasHoistType: GetAliasHoistType
+    lockfile: Lockfile
   }
-): Promise<HoistedDependencies> {
+): Promise<HoistGraphResult> {
   const hoistedAliases = new Set(Object.keys(currentSpecifiers))
   const hoistedDependencies: HoistedDependencies = {}
+  const hoistedAliasesWithBins = new Set<string>()
 
   depNodes
     // sort by depth and then alphabetically
@@ -186,6 +197,9 @@ async function hoistGraph (
         if (hoistedAliases.has(childAliasNormalized)) {
           continue
         }
+        if (opts.lockfile.packages?.[childPath]?.hasBin) {
+          hoistedAliasesWithBins.add(childAlias)
+        }
         hoistedAliases.add(childAliasNormalized)
         if (!hoistedDependencies[childPath]) {
           hoistedDependencies[childPath] = {}
@@ -194,7 +208,7 @@ async function hoistGraph (
       }
     })
 
-  return hoistedDependencies
+  return { hoistedDependencies, hoistedAliasesWithBins: Array.from(hoistedAliasesWithBins) }
 }
 
 async function symlinkHoistedDependencies (

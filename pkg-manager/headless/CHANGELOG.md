@@ -1,5 +1,28 @@
 # @pnpm/headless
 
+## 22.2.4
+
+### Patch Changes
+
+- Updated dependencies [4246f41be]
+- Updated dependencies [84f81c9ae]
+  - @pnpm/build-modules@11.1.1
+  - @pnpm/lifecycle@16.0.2
+  - @pnpm/package-requester@24.0.6
+  - @pnpm/worker@0.3.5
+
+## 22.2.3
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [08b65ff78]
+  - @pnpm/package-requester@24.0.5
+  - @pnpm/worker@0.3.4
+  - @pnpm/symlink-dependency@7.1.1
+  - @pnpm/lifecycle@16.0.1
+  - @pnpm/link-bins@9.0.8
+
 ## 22.2.2
 
 ### Patch Changes

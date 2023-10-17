@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 16.0.2
+
+### Patch Changes
+
+- 84f81c9ae: Do not run node-gyp rebuild if `preinstall` lifecycle script is present [#7206](https://github.com/pnpm/pnpm/pull/7206).
+
 ## 16.0.1
 
 ### Patch Changes

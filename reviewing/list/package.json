@@ -47,7 +47,7 @@
   "devDependencies": {
     "@pnpm/list": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/archy": "0.0.32",
+    "@types/archy": "0.0.33",
     "@types/ramda": "0.28.20"
   },
   "funding": "https://opencollective.com/pnpm",

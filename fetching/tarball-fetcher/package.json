@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-fetcher",
-  "version": "18.0.4",
+  "version": "18.0.6",
   "description": "Fetcher for packages hosted as tarballs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -55,10 +55,10 @@
     "@pnpm/types": "workspace:*",
     "@types/lodash.throttle": "4.1.7",
     "@types/ramda": "0.28.20",
-    "@types/retry": "^0.12.2",
-    "@types/ssri": "^7.1.1",
-    "nock": "13.3.2",
-    "ssri": "10.0.4",
+    "@types/retry": "^0.12.3",
+    "@types/ssri": "^7.1.2",
+    "nock": "13.3.4",
+    "ssri": "10.0.5",
     "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",

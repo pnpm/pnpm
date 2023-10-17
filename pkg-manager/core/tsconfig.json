@@ -28,6 +28,9 @@
       "path": "../../config/normalize-registries"
     },
     {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
       "path": "../../exec/build-modules"
     },
     {

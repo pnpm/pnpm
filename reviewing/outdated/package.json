@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "13.0.22",
+  "version": "13.0.24",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -51,7 +51,7 @@
   "devDependencies": {
     "@pnpm/outdated": "workspace:*",
     "@types/ramda": "0.28.20",
-    "@types/semver": "7.3.13"
+    "@types/semver": "7.5.3"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

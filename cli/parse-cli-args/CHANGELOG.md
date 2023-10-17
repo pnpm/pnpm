@@ -1,5 +1,11 @@
 # @pnpm/parse-cli-args
 
+## 7.0.4
+
+### Patch Changes
+
+- 1ce2dd13a: Update didyoumean2 to v6.
+
 ## 7.0.3
 
 ### Patch Changes

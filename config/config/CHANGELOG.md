@@ -1,5 +1,15 @@
 # @pnpm/config
 
+## 20.0.0
+
+### Major Changes
+
+- ac5abd3ff: The paths in patchedDependencies passed to `@pnpm/core` are absolute.
+
+### Patch Changes
+
+- b60bb6cbe: Update which to v4.
+
 ## 19.2.1
 
 ### Patch Changes

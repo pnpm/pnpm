@@ -30,7 +30,7 @@ import * as dp from '@pnpm/dependency-path'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import loadJsonFile from 'load-json-file'
 import runGroups from 'run-groups'
-import graphSequencer from '@pnpm/graph-sequencer'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import npa from '@pnpm/npm-package-arg'
 import pLimit from 'p-limit'
 import semver from 'semver'
@@ -275,10 +275,10 @@ async function _rebuild (
       .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
       .filter((childRelDepPath) => childRelDepPath && nodesToBuildAndTransitive.has(childRelDepPath)))
   }
-  const graphSequencerResult = graphSequencer({
+  const graphSequencerResult = graphSequencer(
     graph,
-    groups: [nodesToBuildAndTransitiveArray],
-  })
+    nodesToBuildAndTransitiveArray
+  )
   const chunks = graphSequencerResult.chunks as string[][]
   const warn = (message: string) => {
     logger.info({ message, prefix: opts.dir })

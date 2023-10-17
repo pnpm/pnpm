@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "@pnpm/read-modules-dir": "workspace:*",
-    "@types/graceful-fs": "^4.1.6"
+    "@types/graceful-fs": "^4.1.7"
   },
   "exports": {
     ".": "./lib/index.js"

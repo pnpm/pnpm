@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../deps/graph-sequencer"
+    },
+    {
       "path": "../../fs/hard-link-dir"
     },
     {

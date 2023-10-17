@@ -1,5 +1,11 @@
 # @pnpm/store.cafs
 
+## 2.0.6
+
+### Patch Changes
+
+- 01bc58e2c: Update ssri to v10.0.5.
+
 ## 2.0.5
 
 ### Patch Changes
