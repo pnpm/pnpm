@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/sort-packages",
-  "version": "5.0.4",
+  "version": "5.0.6",
   "description": "Sort packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/sort-packages#readme",
   "dependencies": {
-    "@pnpm/graph-sequencer": "1.1.1",
+    "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/types": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",

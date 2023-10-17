@@ -1,10 +1,11 @@
-import graphSequencer from '@pnpm/graph-sequencer'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { type PackageManifest, type PatchFile } from '@pnpm/types'
 import filter from 'ramda/src/filter'
 
 export interface DependenciesGraphNode {
   children: Record<string, string>
   depPath: string
+  name: string
   dir: string
   fetchingBundledManifest?: () => Promise<PackageManifest | undefined>
   filesIndexFile: string
@@ -35,10 +36,7 @@ export function buildSequence (
     nodesToBuildArray
       .map((depPath) => [depPath, onlyFromBuildGraph(Object.values(depGraph[depPath].children))])
   )
-  const graphSequencerResult = graphSequencer({
-    graph,
-    groups: [nodesToBuildArray],
-  })
+  const graphSequencerResult = graphSequencer(graph, nodesToBuildArray)
   const chunks = graphSequencerResult.chunks as string[][]
   return chunks
 }

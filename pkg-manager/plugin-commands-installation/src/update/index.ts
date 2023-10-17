@@ -225,6 +225,18 @@ async function interactiveUpdate (
     result () {
       return this.selected
     },
+    format () {
+      if (!this.state.submitted || this.state.cancelled) return ''
+
+      if (Array.isArray(this.selected)) {
+        return this.selected
+          // The custom format function is used to filter out "[dependencies]" or "[devDependencies]" from the output.
+          // https://github.com/enquirer/enquirer/blob/master/lib/prompts/select.js#L98
+          .filter((choice: ChoiceRow) => !/^\[.+\]$/.test(choice.name))
+          .map((choice: ChoiceRow) => this.styles.primary(choice.name)).join(', ')
+      }
+      return this.styles.primary(this.selected.name)
+    },
     styles: {
       dark: chalk.white,
       em: chalk.bgBlack.whiteBright,

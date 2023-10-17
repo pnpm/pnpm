@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-package-json",
-  "version": "8.0.3",
+  "version": "8.0.4",
   "description": "Read a package.json",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -38,7 +38,7 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/read-package-json": "workspace:*",
-    "@types/normalize-package-data": "^2.4.1"
+    "@types/normalize-package-data": "^2.4.2"
   },
   "exports": {
     ".": "./lib/index.js"

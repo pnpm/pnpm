@@ -1,5 +1,42 @@
 # @pnpm/worker
 
+## 0.3.5
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.5
+
+## 0.3.4
+
+### Patch Changes
+
+- 08b65ff78: Update @rushstack/worker-pool.
+- Updated dependencies [01bc58e2c]
+  - @pnpm/store.cafs@2.0.6
+  - @pnpm/create-cafs-store@6.0.4
+  - @pnpm/symlink-dependency@7.1.1
+
+## 0.3.3
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.3
+
+## 0.3.2
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.2
+
+## 0.3.1
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.1
+- @pnpm/symlink-dependency@7.1.1
+- @pnpm/store.cafs@2.0.5
+- @pnpm/cafs-types@4.0.0
+
 ## 0.3.0
 
 ### Minor Changes

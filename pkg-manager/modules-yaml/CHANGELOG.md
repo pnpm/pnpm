@@ -1,5 +1,12 @@
 # @pnpm/modules-yaml
 
+## 12.1.3
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+
 ## 12.1.2
 
 ### Patch Changes

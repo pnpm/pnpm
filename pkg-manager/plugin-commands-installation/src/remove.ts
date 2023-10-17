@@ -5,7 +5,7 @@ import {
 } from '@pnpm/cli-utils'
 import { type CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config, types as allTypes } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest, types as allTypes } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
@@ -15,7 +15,6 @@ import { mutateModulesInSingleProject } from '@pnpm/core'
 import pick from 'ramda/src/pick'
 import without from 'ramda/src/without'
 import renderHelp from 'render-help'
-import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { getSaveType } from './getSaveType'
 import { recursive } from './recursive'
 
@@ -143,6 +142,7 @@ export async function handler (
   | 'rawLocalConfig'
   | 'registries'
   | 'rootProjectManifest'
+  | 'rootProjectManifestDir'
   | 'saveDev'
   | 'saveOptional'
   | 'saveProd'
@@ -172,7 +172,7 @@ export async function handler (
   }
   const store = await createOrConnectStoreController(opts)
   const removeOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(opts.rootProjectManifest ?? {}),
+    ...getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest ?? {}),
     storeController: store.ctrl,
     storeDir: store.dir,
     include,

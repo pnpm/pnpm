@@ -22,7 +22,7 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
   switch (packageImportMethod ?? 'auto') {
   case 'clone':
     packageImportMethodLogger.debug({ method: 'clone' })
-    return clonePkg
+    return clonePkg.bind(null, createCloneFunction())
   case 'hardlink':
     packageImportMethodLogger.debug({ method: 'hardlink' })
     return hardlinkPkg.bind(null, linkOrCopy)
@@ -49,9 +49,10 @@ function createAutoImporter (): ImportIndexedPackage {
     opts: ImportOptions
   ): string | undefined {
     try {
-      if (!clonePkg(to, opts)) return undefined
+      const _clonePkg = clonePkg.bind(null, createCloneFunction())
+      if (!_clonePkg(to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
-      auto = clonePkg
+      auto = _clonePkg
       return 'clone'
     } catch (err: any) { // eslint-disable-line
       // ignore
@@ -87,9 +88,10 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
     opts: ImportOptions
   ): string | undefined {
     try {
-      if (!clonePkg(to, opts)) return undefined
+      const _clonePkg = clonePkg.bind(null, createCloneFunction())
+      if (!_clonePkg(to, opts)) return undefined
       packageImportMethodLogger.debug({ method: 'clone' })
-      auto = clonePkg
+      auto = _clonePkg
       return 'clone'
     } catch (err: any) { // eslint-disable-line
       // ignore
@@ -100,21 +102,49 @@ function createCloneOrCopyImporter (): ImportIndexedPackage {
   }
 }
 
+type CloneFunction = (src: string, dest: string) => void
+
 function clonePkg (
+  clone: CloneFunction,
   to: string,
   opts: ImportOptions
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (opts.resolvedFrom !== 'store' || opts.force || !existsSync(pkgJsonPath)) {
-    importIndexedDir(cloneFile, to, opts.filesMap, opts)
+    importIndexedDir(clone, to, opts.filesMap, opts)
     return 'clone'
   }
   return undefined
 }
 
-function cloneFile (from: string, to: string) {
-  fs.copyFileSync(from, to, constants.COPYFILE_FICLONE_FORCE)
+function createCloneFunction (): CloneFunction {
+  // Node.js currently does not natively support reflinks on Windows and macOS.
+  // Hence, we use a third party solution.
+  //
+  // For now, we use it only for macOS as we are tracking down an issue on Windows:
+  //   https://github.com/pnpm/pnpm/issues/7186
+  if (process.platform === 'darwin') {
+    // eslint-disable-next-line
+    const { reflinkFileSync } = require('@reflink/reflink')
+    return (fr, to) => {
+      try {
+        reflinkFileSync(fr, to)
+      } catch (err: any) { // eslint-disable-line
+        // If the file already exists, then we just proceed.
+        // This will probably only happen if the package's index file contains the same file twice.
+        // For intstance: { "index.js": "hash", "./index.js": "hash" }
+        if (!err.message.startsWith('File exists')) throw err
+      }
+    }
+  }
+  return (src: string, dest: string) => {
+    try {
+      fs.copyFileSync(src, dest, constants.COPYFILE_FICLONE_FORCE)
+    } catch (err: any) { // eslint-disable-line
+      if (err.code !== 'EEXIST') throw err
+    }
+  }
 }
 
 function hardlinkPkg (

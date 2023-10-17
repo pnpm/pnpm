@@ -1,5 +1,62 @@
 # @pnpm/plugin-commands-env
 
+## 4.1.5
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.26
+- @pnpm/node.resolver@2.0.27
+
+## 4.1.4
+
+### Patch Changes
+
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/config@20.0.0
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/node.fetcher@3.0.25
+  - @pnpm/node.resolver@2.0.26
+
+## 4.1.3
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.24
+- @pnpm/node.resolver@2.0.25
+
+## 4.1.2
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.23
+- @pnpm/node.resolver@2.0.24
+
+## 4.1.1
+
+### Patch Changes
+
+- Updated dependencies [b1dd0ee58]
+  - @pnpm/config@19.2.1
+  - @pnpm/cli-utils@2.0.23
+
+## 4.1.0
+
+### Minor Changes
+
+- 2e6915727: Allow `env rm` to remove multiple node versions at once, and introduce `env add` for installing node versions without setting as default [#7155](https://github.com/pnpm/pnpm/pull/7155).
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/config@19.2.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/remove-bins@5.0.4
+  - @pnpm/node.fetcher@3.0.22
+  - @pnpm/fetch@7.0.4
+  - @pnpm/node.resolver@2.0.23
+
 ## 4.0.30
 
 ### Patch Changes

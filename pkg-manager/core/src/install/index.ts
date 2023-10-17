@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import path from 'path'
 import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/build-modules'
+import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
@@ -697,11 +698,10 @@ Note that in CI environments, this setting is enabled by default.`,
 }
 
 async function calcPatchHashes (patches: Record<string, string>, lockfileDir: string) {
-  return pMapValues(async (patchFileRelativePath) => {
-    const patchFilePath = path.join(lockfileDir, patchFileRelativePath)
+  return pMapValues(async (patchFilePath) => {
     return {
       hash: await createBase32HashFromFile(patchFilePath),
-      path: patchFileRelativePath,
+      path: path.relative(lockfileDir, patchFilePath).replaceAll('\\', '/'),
     }
   }, patches)
 }
@@ -1003,7 +1003,8 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   } = await resolveDependencies(
     projects,
     {
-      allowBuild: createAllowBuildFunction(opts),
+      // In the next major allow build should be just () => true here always
+      allowBuild: opts.onlyBuiltDependenciesFile ? () => true : createAllowBuildFunction({ onlyBuiltDependencies: opts.onlyBuiltDependencies, neverBuiltDependencies: opts.neverBuiltDependencies }),
       allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
       allowNonAppliedPatches: opts.allowNonAppliedPatches,
       autoInstallPeers: opts.autoInstallPeers,
@@ -1164,6 +1165,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           }
         }
         await buildModules(dependenciesGraph, rootNodes, {
+          allowBuild: createAllowBuildFunction(opts),
           childConcurrency: opts.childConcurrency,
           depsStateCache,
           depsToBuild: new Set(result.newDepPaths),
@@ -1362,22 +1364,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     })),
     stats,
   }
-}
-
-function createAllowBuildFunction (
-  opts: {
-    neverBuiltDependencies?: string[]
-    onlyBuiltDependencies?: string[]
-  }
-): undefined | ((pkgName: string) => boolean) {
-  if (opts.neverBuiltDependencies != null && opts.neverBuiltDependencies.length > 0) {
-    const neverBuiltDependencies = new Set(opts.neverBuiltDependencies)
-    return (pkgName) => !neverBuiltDependencies.has(pkgName)
-  } else if (opts.onlyBuiltDependencies != null) {
-    const onlyBuiltDependencies = new Set(opts.onlyBuiltDependencies)
-    return (pkgName) => onlyBuiltDependencies.has(pkgName)
-  }
-  return undefined
 }
 
 const installInContext: InstallFunction = async (projects, ctx, opts) => {

@@ -270,6 +270,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'preferFrozenLockfile'
 | 'production'
 | 'registries'
+| 'rootProjectManifest'
 | 'save'
 | 'saveDev'
 | 'saveExact'
@@ -293,6 +294,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'extraEnv'
 | 'resolutionMode'
 | 'ignoreWorkspaceCycles'
+| 'disallowWorkspaceCycles'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]

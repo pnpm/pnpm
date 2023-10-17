@@ -25,11 +25,12 @@ import { logger, streamParser } from '@pnpm/logger'
 import { writeModulesManifest } from '@pnpm/modules-yaml'
 import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { type ProjectManifest } from '@pnpm/types'
+import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import * as dp from '@pnpm/dependency-path'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import loadJsonFile from 'load-json-file'
 import runGroups from 'run-groups'
-import graphSequencer from '@pnpm/graph-sequencer'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import npa from '@pnpm/npm-package-arg'
 import pLimit from 'p-limit'
 import semver from 'semver'
@@ -274,14 +275,18 @@ async function _rebuild (
       .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
       .filter((childRelDepPath) => childRelDepPath && nodesToBuildAndTransitive.has(childRelDepPath)))
   }
-  const graphSequencerResult = graphSequencer({
+  const graphSequencerResult = graphSequencer(
     graph,
-    groups: [nodesToBuildAndTransitiveArray],
-  })
+    nodesToBuildAndTransitiveArray
+  )
   const chunks = graphSequencerResult.chunks as string[][]
   const warn = (message: string) => {
     logger.info({ message, prefix: opts.dir })
   }
+
+  const allowBuild = createAllowBuildFunction(opts) ?? (() => true)
+  const builtDepPaths = new Set<string>()
+
   const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath) && !ctx.skipped.has(depPath)).map((depPath) =>
     async () => {
       const pkgSnapshot = pkgSnapshots[depPath]
@@ -318,7 +323,8 @@ async function _rebuild (
             return
           }
         }
-        const hasSideEffects = await runPostinstallHooks({
+
+        const hasSideEffects = allowBuild(pkgInfo.name) && await runPostinstallHooks({
           depPath,
           extraBinPaths,
           extraEnv: opts.extraEnv,
@@ -331,6 +337,7 @@ async function _rebuild (
           unsafePerm: opts.unsafePerm || false,
         })
         if (hasSideEffects && (opts.sideEffectsCacheWrite ?? true) && resolution.integrity) {
+          builtDepPaths.add(depPath)
           const filesIndexFile = getFilePathInCafs(cafsDir, resolution.integrity!.toString(), 'index')
           try {
             if (!sideEffectsCacheKey) {
@@ -383,27 +390,29 @@ async function _rebuild (
 
   await runGroups(opts.childConcurrency || 5, groups)
 
-  // It may be optimized because some bins were already linked before running lifecycle scripts
-  await Promise.all(
-    Object
-      .keys(pkgSnapshots)
-      .filter((depPath) => !packageIsIndependent(pkgSnapshots[depPath]))
-      .map(async (depPath) => limitLinking(async () => {
-        const pkgSnapshot = pkgSnapshots[depPath]
-        const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-        const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
-        const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
-        return linkBins(modules, binPath, { warn })
-      }))
-  )
-  await Promise.all(Object.values(ctx.projects).map(async ({ rootDir }) => limitLinking(async () => {
-    const modules = path.join(rootDir, 'node_modules')
-    const binPath = path.join(modules, '.bin')
-    return linkBins(modules, binPath, {
-      allowExoticManifests: true,
-      warn,
-    })
-  })))
+  if (builtDepPaths.size > 0) {
+    // It may be optimized because some bins were already linked before running lifecycle scripts
+    await Promise.all(
+      Object
+        .keys(pkgSnapshots)
+        .filter((depPath) => !packageIsIndependent(pkgSnapshots[depPath]))
+        .map(async (depPath) => limitLinking(async () => {
+          const pkgSnapshot = pkgSnapshots[depPath]
+          const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+          const modules = path.join(ctx.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
+          const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
+          return linkBins(modules, binPath, { warn })
+        }))
+    )
+    await Promise.all(Object.values(ctx.projects).map(async ({ rootDir }) => limitLinking(async () => {
+      const modules = path.join(rootDir, 'node_modules')
+      const binPath = path.join(modules, '.bin')
+      return linkBins(modules, binPath, {
+        allowExoticManifests: true,
+        warn,
+      })
+    })))
+  }
 
   return pkgsThatWereRebuilt
 }

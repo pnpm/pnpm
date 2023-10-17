@@ -1,5 +1,13 @@
 # @pnpm/exportable-manifest
 
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/read-project-manifest@5.0.7
+
 ## 5.0.7
 
 ### Patch Changes

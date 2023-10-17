@@ -1,5 +1,34 @@
 # @pnpm/build-modules
 
+## 11.1.1
+
+### Patch Changes
+
+- 4246f41be: Add package @pnpm/deps.graph-sequencer for better topological sort [#7168](https://github.com/pnpm/pnpm/pull/7168).
+- Updated dependencies [4246f41be]
+- Updated dependencies [84f81c9ae]
+  - @pnpm/deps.graph-sequencer@1.0.0
+  - @pnpm/lifecycle@16.0.2
+
+## 11.1.0
+
+### Minor Changes
+
+- d774a3196: Accept an allowBuild function to filter which dependencies may run scripts.
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/lifecycle@16.0.1
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/link-bins@9.0.8
+  - @pnpm/read-package-json@8.0.4
+  - @pnpm/store-controller-types@17.0.1
+  - @pnpm/fs.hard-link-dir@2.0.1
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/calc-dep-state@4.1.2
+
 ## 11.0.15
 
 ### Patch Changes

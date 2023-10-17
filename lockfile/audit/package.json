@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/audit",
-  "version": "7.0.15",
+  "version": "7.0.17",
   "description": "Audit a lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -38,7 +38,7 @@
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.20",
-    "nock": "13.3.2"
+    "nock": "13.3.4"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",

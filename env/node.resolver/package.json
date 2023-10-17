@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.resolver",
-  "version": "2.0.22",
+  "version": "2.0.27",
   "description": "Resolves a Node.js version specifier to an exact Node.js version",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -43,6 +43,6 @@
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
     "@pnpm/node.resolver": "workspace:*",
-    "@types/semver": "7.3.13"
+    "@types/semver": "7.5.3"
   }
 }

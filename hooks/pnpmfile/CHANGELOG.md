@@ -1,5 +1,16 @@
 # @pnpm/pnpmfile
 
+## 5.0.14
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/hooks.types@1.0.3
+  - @pnpm/lockfile-types@5.1.2
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/store-controller-types@17.0.1
+
 ## 5.0.13
 
 ### Patch Changes

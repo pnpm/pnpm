@@ -27,7 +27,7 @@ export async function runPostinstallHooks (
     pkg.scripts = {}
   }
 
-  if (!pkg.scripts.install) {
+  if (!pkg.scripts.install && !pkg.scripts.preinstall) {
     await checkBindingGyp(opts.pkgRoot, pkg.scripts)
   }
 
@@ -47,8 +47,8 @@ export async function runPostinstallHooks (
 }
 
 /**
- * Run node-gyp when binding.gyp is available. Only do this when there's no
- * `install` script (see `npm help scripts`).
+ * Run node-gyp when binding.gyp is available. Only do this when there are no
+ * `install` and `preinstall` scripts (see `npm help scripts`).
  */
 async function checkBindingGyp (
   root: string,

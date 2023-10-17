@@ -3,7 +3,7 @@ import {
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
-import { type Config } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/workspace.find-packages'
@@ -21,7 +21,6 @@ import { logger } from '@pnpm/logger'
 import { sequenceGraph } from '@pnpm/sort-packages'
 import { createPkgGraph } from '@pnpm/workspace.pkgs-graph'
 import isSubdir from 'is-subdir'
-import { getOptionsFromRootManifest } from './getOptionsFromRootManifest'
 import { getPinnedVersion } from './getPinnedVersion'
 import { getSaveType } from './getSaveType'
 import { getNodeExecPath } from './nodeExecPath'
@@ -58,6 +57,8 @@ export type InstallDepsOptions = Pick<Config,
 | 'production'
 | 'rawLocalConfig'
 | 'registries'
+| 'rootProjectManifestDir'
+| 'rootProjectManifest'
 | 'save'
 | 'saveDev'
 | 'saveExact'
@@ -81,6 +82,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'workspaceDir'
 | 'extraEnv'
 | 'ignoreWorkspaceCycles'
+| 'disallowWorkspaceCycles'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[]
@@ -157,6 +159,11 @@ when running add/update with the --workspace option')
         const cyclicDependenciesInfo = sequencedGraph.cycles.length > 0
           ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
           : ''
+
+        if (opts.disallowWorkspaceCycles) {
+          throw new PnpmError('DISALLOW_WORKSPACE_CYCLES', `There are cyclic workspace dependencies${cyclicDependenciesInfo}`)
+        }
+
         logger.warn({
           message: `There are cyclic workspace dependencies${cyclicDependenciesInfo}`,
           prefix: opts.workspaceDir,
@@ -181,6 +188,7 @@ when running add/update with the --workspace option')
         params,
         {
           ...opts,
+          ...getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest ?? {}),
           forceHoistPattern,
           forcePublicHoistPattern,
           allProjectsGraph,
@@ -213,7 +221,7 @@ when running add/update with the --workspace option')
   const store = await createOrConnectStoreController(opts)
   const installOpts: Omit<MutateModulesOptions, 'allProjects'> = {
     ...opts,
-    ...getOptionsFromRootManifest(manifest),
+    ...getOptionsFromRootManifest(opts.dir, manifest),
     forceHoistPattern,
     forcePublicHoistPattern,
     // In case installation is done in a multi-package repository

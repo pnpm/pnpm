@@ -1,5 +1,68 @@
 # @pnpm/plugin-commands-deploy
 
+## 3.1.14
+
+### Patch Changes
+
+- Updated dependencies [2ca756fd2]
+  - @pnpm/fs.indexed-pkg-importer@5.0.5
+  - @pnpm/plugin-commands-installation@13.2.5
+
+## 3.1.13
+
+### Patch Changes
+
+- Updated dependencies [bc83798d4]
+- Updated dependencies [46dc34dcc]
+- Updated dependencies [6dfbca86b]
+  - @pnpm/plugin-commands-installation@13.2.4
+  - @pnpm/fs.indexed-pkg-importer@5.0.4
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/directory-fetcher@7.0.2
+
+## 3.1.12
+
+### Patch Changes
+
+- Updated dependencies [e19de6a59]
+  - @pnpm/fs.indexed-pkg-importer@5.0.3
+  - @pnpm/plugin-commands-installation@13.2.3
+
+## 3.1.11
+
+### Patch Changes
+
+- Updated dependencies [6337dcdbc]
+  - @pnpm/fs.indexed-pkg-importer@5.0.2
+  - @pnpm/plugin-commands-installation@13.2.2
+
+## 3.1.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.0.23
+- @pnpm/plugin-commands-installation@13.2.1
+
+## 3.1.9
+
+### Patch Changes
+
+- Updated dependencies [ee6e0734e]
+- Updated dependencies [12f45a83d]
+- Updated dependencies [d774a3196]
+- Updated dependencies [832e28826]
+  - @pnpm/fs.indexed-pkg-importer@5.0.1
+  - @pnpm/plugin-commands-installation@13.2.0
+  - @pnpm/types@9.3.0
+  - @pnpm/cli-utils@2.0.22
+  - @pnpm/directory-fetcher@7.0.2
+
+## 3.1.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@13.1.8
+
 ## 3.1.7
 
 ### Patch Changes
