@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 18.0.7
+
+### Patch Changes
+
+- @pnpm/prepare-package@5.0.15
+
 ## 18.0.6
 
 ### Patch Changes

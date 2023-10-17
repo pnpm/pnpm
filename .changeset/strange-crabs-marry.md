@@ -1,6 +1,4 @@
 ---
-"@pnpm/link-bins": patch
-"@pnpm/hoist": patch
 "pnpm": patch
 ---
 

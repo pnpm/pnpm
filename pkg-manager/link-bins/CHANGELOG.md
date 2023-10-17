@@ -1,5 +1,11 @@
 # @pnpm/link-bins
 
+## 9.0.9
+
+### Patch Changes
+
+- 5c8c9196c: Improved the performance of linking bins of hoisted dependencies to `node_modules/.pnpm/node_modules/.bin` [#7212](https://github.com/pnpm/pnpm/pull/7212).
+
 ## 9.0.8
 
 ### Patch Changes

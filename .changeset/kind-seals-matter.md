@@ -1,6 +1,4 @@
 ---
-"@pnpm/plugin-commands-licenses": minor
-"@pnpm/license-scanner": minor
 "pnpm": minor
 ---
 

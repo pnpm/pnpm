@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.3.20
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.3
+- @pnpm/client@10.0.30
+
 ## 7.3.19
 
 ### Patch Changes

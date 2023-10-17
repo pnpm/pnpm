@@ -1,5 +1,17 @@
 # @pnpm/core
 
+## 13.0.2
+
+### Patch Changes
+
+- Updated dependencies [5c8c9196c]
+  - @pnpm/link-bins@9.0.9
+  - @pnpm/hoist@8.0.14
+  - @pnpm/build-modules@11.1.2
+  - @pnpm/lifecycle@16.0.3
+  - @pnpm/headless@22.2.5
+  - @pnpm/package-requester@24.0.6
+
 ## 13.0.1
 
 ### Patch Changes
