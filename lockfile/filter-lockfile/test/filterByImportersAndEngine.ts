@@ -116,6 +116,11 @@ test('filterByImportersAndEngine(): skip packages that are not installable', () 
       },
       lockfileDir: process.cwd(),
       skipped: skippedPackages,
+      supportedArchitectures: {
+        os: ['current'],
+        cpu: ['current'],
+        libc: ['current'],
+      },
     }
   )
 
@@ -297,6 +302,11 @@ test('filterByImportersAndEngine(): filter the packages that set os and cpu', ()
       },
       lockfileDir: process.cwd(),
       skipped: skippedPackages,
+      supportedArchitectures: {
+        os: ['current'],
+        cpu: ['current'],
+        libc: ['current'],
+      },
     }
   )
 
@@ -467,6 +477,11 @@ test('filterByImportersAndEngine(): filter the packages that set libc', () => {
       },
       lockfileDir: process.cwd(),
       skipped: skippedPackages,
+      supportedArchitectures: {
+        os: ['current'],
+        cpu: ['current'],
+        libc: ['current'],
+      },
     }
   )
 
@@ -602,6 +617,11 @@ test('filterByImportersAndEngine(): includes linked packages', () => {
       },
       lockfileDir: process.cwd(),
       skipped: new Set(),
+      supportedArchitectures: {
+        os: ['current'],
+        cpu: ['current'],
+        libc: ['current'],
+      },
     }
   )
 
