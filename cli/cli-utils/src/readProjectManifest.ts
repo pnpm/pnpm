@@ -25,12 +25,9 @@ export async function readProjectManifestOnly (
     engineStrict?: boolean
     nodeVersion?: string
     supportedArchitectures?: SupportedArchitectures
-  } = {
-
-  }
+  } = {}
 ): Promise<ProjectManifest> {
   const manifest = await utils.readProjectManifestOnly(projectDir)
-
   packageIsInstallable(projectDir, manifest as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any
   return manifest
 }
