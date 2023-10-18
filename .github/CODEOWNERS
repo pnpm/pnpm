@@ -3,3 +3,4 @@
 /reviewing/dependencies-hierarchy/* @gluxon
 /reviewing/list/* @gluxon
 /reviewing/plugin-commands-listing/* @gluxon
+/hooks/* @d3lm
