@@ -21,9 +21,9 @@ export function checkPlatform (
   supportedArchitectures?: SupportedArchitectures
 ) {
   const platforms = {
-    os: dedupeArchs(process.platform, supportedArchitectures?.os ?? ['current']),
-    cpu: dedupeArchs(process.arch, supportedArchitectures?.cpu ?? ['current']),
-    libc: dedupeArchs(currentLibc, supportedArchitectures?.libc ?? ['current']),
+    os: dedupeCurrent(process.platform, supportedArchitectures?.os ?? ['current']),
+    cpu: dedupeCurrent(process.arch, supportedArchitectures?.cpu ?? ['current']),
+    libc: dedupeCurrent(currentLibc, supportedArchitectures?.libc ?? ['current']),
   }
 
   const { platform, arch } = process
@@ -85,7 +85,7 @@ function checkList (value: string | string[], list: string | string[]): boolean 
   return match || blc === list.length
 }
 
-function dedupeArchs (current: string, supported: string[]) {
+function dedupeCurrent (current: string, supported: string[]) {
   const result = supported.filter((arch) => arch !== 'current')
 
   if (supported.includes('current')) {
