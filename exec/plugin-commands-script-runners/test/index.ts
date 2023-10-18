@@ -29,7 +29,6 @@ test('pnpm run: returns correct exit code', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-
   }, ['exit0'])
 
   let err!: Error & { errno: number }
@@ -66,7 +65,6 @@ test('pnpm run --no-bail never fails', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-
   }, ['exit1'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -91,7 +89,6 @@ test('run: pass the args to the command that is specified in the build script', 
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -114,7 +111,6 @@ test('run: pass the args to the command that is specified in the build script of
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -137,7 +133,6 @@ test('test: pass the args to the command that is specified in the build script o
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-
   }, ['arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -160,7 +155,6 @@ test('run start: pass the args to the command that is specified in the build scr
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-
   }, ['start', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -183,7 +177,6 @@ test('run stop: pass the args to the command that is specified in the build scri
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-
   }, ['stop', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -213,7 +206,6 @@ test('restart: run stop, restart and start', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-
   }, [])
 
   const { default: scriptsRan } = await import(path.resolve('output.json'))
@@ -248,7 +240,6 @@ test('restart: run stop, restart and start and all the pre/post scripts', async 
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-
   }, [])
 
   const { default: scriptsRan } = await import(path.resolve('output.json'))
@@ -278,7 +269,6 @@ test('"pnpm run" prints the list of available commands', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-
   }, [])
 
   expect(output).toBe(`\
@@ -389,7 +379,6 @@ test('pnpm run does not fail with --if-present even if the wanted script is not 
     extraEnv: {},
     ifPresent: true,
     rawConfig: {},
-
   }, ['build'])
 })
 
@@ -458,7 +447,6 @@ test('scripts work with PnP', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-
   }, ['foo'])
 
   const { default: scriptsRan } = await import(path.resolve('output.json'))
@@ -513,7 +501,6 @@ test('pnpm run with RegExp script selector should work', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-
   }, ['/^(lint|build):.*/'])
 
   expect(await fs.readFile('output-build-a.txt', { encoding: 'utf-8' })).toEqual('a')
@@ -561,7 +548,6 @@ test('pnpm run with RegExp script selector should work parallel as a default beh
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-
   }, ['/build:.*/'])
 
   const { default: outputsA } = await import(path.resolve('output-a.json'))
