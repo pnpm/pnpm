@@ -86,11 +86,5 @@ function checkList (value: string | string[], list: string | string[]): boolean 
 }
 
 function dedupeCurrent (current: string, supported: string[]) {
-  const result = supported.filter((arch) => arch !== 'current')
-
-  if (supported.includes('current')) {
-    result.push(current)
-  }
-
-  return result
+  return supported.map((supported) => supported === 'current' ? current : supported)
 }
