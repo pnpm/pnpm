@@ -25,9 +25,8 @@ Config,
 | 'modulesDir'
 | 'pnpmHomeDir'
 | 'selectedProjectsGraph'
-| 'supportedArchitectures'
 > &
-Partial<Pick<Config, 'userConfig'>>
+Partial<Pick<Config, 'userConfig' | 'supportedArchitectures'>>
 
 export async function licensesList (opts: LicensesCommandOptions) {
   const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, {
@@ -47,11 +46,7 @@ export async function licensesList (opts: LicensesCommandOptions) {
   }
 
   const manifest = await readProjectManifestOnly(opts.dir, {
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   })
 
   const includedImporterIds = opts.selectedProjectsGraph

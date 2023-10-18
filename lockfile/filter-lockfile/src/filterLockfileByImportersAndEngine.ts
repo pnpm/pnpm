@@ -30,7 +30,7 @@ export function filterLockfileByImportersAndEngine (
     failOnMissingDependencies: boolean
     lockfileDir: string
     skipped: Set<string>
-    supportedArchitectures: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures
   }
 ): { lockfile: Lockfile, selectedImporterIds: string[] } {
   const importerIdSet = new Set(importerIds) as Set<string>
@@ -91,7 +91,7 @@ function pickPkgsWithAllDeps (
     includeIncompatiblePackages: boolean
     lockfileDir: string
     skipped: Set<string>
-    supportedArchitectures: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures
   }
 ) {
   const pickedPackages = {} as PackageSnapshots
@@ -118,7 +118,7 @@ function pkgAllDeps (
     includeIncompatiblePackages: boolean
     lockfileDir: string
     skipped: Set<string>
-    supportedArchitectures: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures
   }
 ) {
   for (const depPath of depPaths) {

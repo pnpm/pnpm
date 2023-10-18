@@ -19,7 +19,7 @@ export interface OptionsFromRootManifest {
   packageExtensions?: Record<string, PackageExtension>
   patchedDependencies?: Record<string, string>
   peerDependencyRules?: PeerDependencyRules
-  supportedArchitectures: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {

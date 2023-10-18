@@ -138,12 +138,12 @@ export interface StrictInstallOptions {
    */
   disableRelinkLocalDirDeps: boolean
 
-  supportedArchitectures: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export type InstallOptions =
   & Partial<StrictInstallOptions>
-  & Pick<StrictInstallOptions, 'storeDir' | 'storeController' | 'supportedArchitectures'>
+  & Pick<StrictInstallOptions, 'storeDir' | 'storeController'>
 
 const defaults = (opts: InstallOptions) => {
   const packageManager = opts.packageManager ?? {

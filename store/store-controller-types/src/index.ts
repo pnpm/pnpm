@@ -129,7 +129,7 @@ export interface RequestPackageOptions {
   update?: boolean
   workspacePackages?: WorkspacePackages
   forceResolve?: boolean
-  supportedArchitectures: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>

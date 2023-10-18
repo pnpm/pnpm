@@ -16,7 +16,7 @@ export async function findWorkspacePackages (
     nodeVersion?: string
     patterns?: string[]
     sharedWorkspaceLockfile?: boolean
-    supportedArchitectures: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<Project[]> {
   const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)

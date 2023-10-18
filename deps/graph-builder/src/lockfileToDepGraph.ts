@@ -68,7 +68,7 @@ export interface LockfileToDepGraphOptions {
   storeController: StoreController
   storeDir: string
   virtualStoreDir: string
-  supportedArchitectures: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export interface DirectDependenciesByImporterId {

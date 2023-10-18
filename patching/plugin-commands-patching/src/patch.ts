@@ -59,8 +59,9 @@ export type PatchCommandOptions = Pick<Config,
 | 'lockfileDir'
 | 'modulesDir'
 | 'virtualStoreDir'
-| 'supportedArchitectures'
-> & CreateStoreControllerOptions & {
+>
+& Partial<Pick<Config, 'supportedArchitectures'>>
+& CreateStoreControllerOptions & {
   editDir?: string
   reporter?: (logObj: LogBase) => void
   ignoreExisting?: boolean

@@ -7,7 +7,7 @@ export async function readProjectManifest (
   opts: {
     engineStrict?: boolean
     nodeVersion?: string
-    supportedArchitectures: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<{
     fileName: string
@@ -24,13 +24,9 @@ export async function readProjectManifestOnly (
   opts: {
     engineStrict?: boolean
     nodeVersion?: string
-    supportedArchitectures: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures
   } = {
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }
 ): Promise<ProjectManifest> {
   const manifest = await utils.readProjectManifestOnly(projectDir)
@@ -44,7 +40,7 @@ export async function tryReadProjectManifest (
   opts: {
     engineStrict?: boolean
     nodeVersion?: string
-    supportedArchitectures: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<{
     fileName: string

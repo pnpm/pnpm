@@ -45,7 +45,7 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<Config, 'production' | 'dev' | 'supportedArchitectures'> & CreateStoreControllerOptions
+  opts: Pick<Config, 'production' | 'dev'> & CreateStoreControllerOptions
 ) {
   const store = await createOrConnectStoreController(opts)
   const include = {

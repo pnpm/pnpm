@@ -43,7 +43,7 @@ export async function readProjects (
     engineStrict?: boolean
     linkWorkspacePackages?: boolean
     changedFilesIgnorePattern?: string[]
-    supportedArchitectures: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<ReadProjectsResult> {
   const allProjects = await findWorkspacePackages(workspaceDir, { engineStrict: opts?.engineStrict, supportedArchitectures: opts?.supportedArchitectures ?? { os: ['current'], cpu: ['current'], libc: ['current'] } })
@@ -76,7 +76,7 @@ export async function filterPackagesFromDir (
     engineStrict?: boolean
     nodeVersion?: string
     patterns: string[]
-    supportedArchitectures: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures
   }
 ) {
   const allProjects = await findWorkspacePackages(workspaceDir, {

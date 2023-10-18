@@ -173,7 +173,7 @@ export interface Config {
   rootProjectManifestDir?: string
   rootProjectManifest?: ProjectManifest
   userConfig: Record<string, string>
-  supportedArchitectures: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

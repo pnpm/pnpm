@@ -6,7 +6,7 @@ import {
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import type { ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 
-export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'registries' | 'supportedArchitectures'>
+export type WritePackageOptions = CreateStoreControllerOptions & Pick<Config, 'registries'>
 
 export async function writePackage (dep: ParseWantedDependencyResult, dest: string, opts: WritePackageOptions) {
   const store = await createOrConnectStoreController({

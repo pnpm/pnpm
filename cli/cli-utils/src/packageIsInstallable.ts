@@ -14,7 +14,7 @@ export function packageIsInstallable (
   opts: {
     engineStrict?: boolean
     nodeVersion?: string
-    supportedArchitectures: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures
   }
 ) {
   const pnpmVersion = packageManager.name === 'pnpm'
@@ -23,7 +23,11 @@ export function packageIsInstallable (
   const err = checkPackage(pkgPath, pkg, {
     nodeVersion: opts.nodeVersion,
     pnpmVersion,
-    supportedArchitectures: opts.supportedArchitectures,
+    supportedArchitectures: opts.supportedArchitectures ?? {
+      os: ['current'],
+      cpu: ['current'],
+      libc: ['current'],
+    },
   })
   if (err === null) return
   if (

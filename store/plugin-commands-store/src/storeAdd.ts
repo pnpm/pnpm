@@ -14,7 +14,7 @@ export async function storeAdd (
     reporter?: ReporterFunction
     storeController: StoreController
     tag?: string
-    supportedArchitectures: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures
   }
 ) {
   const reporter = opts?.reporter

@@ -49,11 +49,7 @@ test('request package', async () => {
     preferredVersions: {},
     projectDir,
     registry,
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   })
 
   expect(pkgResponse).toBeTruthy()
@@ -97,11 +93,7 @@ test('request package but skip fetching', async () => {
     projectDir,
     registry,
     skipFetch: true,
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   })
 
   expect(pkgResponse).toBeTruthy()
@@ -151,11 +143,7 @@ test('request package but skip fetching, when resolution is already available', 
     registry,
     skipFetch: true,
     update: false,
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }) as PackageResponse & {
     body: {
       latest: string
@@ -316,11 +304,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     projectDir,
     registry,
     update: false,
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }
 
   {
@@ -816,11 +800,7 @@ test('do not fetch an optional package that is not installable', async () => {
     preferredVersions: {},
     projectDir,
     registry,
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   })
 
   expect(pkgResponse).toBeTruthy()
@@ -1059,11 +1039,7 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
       name: 'is-positive',
       version: '3.0.0',
     },
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   })
   await expect(pkgResponse.fetching!()).resolves.toStrictEqual(expect.anything())
 })
@@ -1087,11 +1063,7 @@ test('the version in the bundled manifest should be normalized', async () => {
     preferredVersions: {},
     projectDir: tempy.directory(),
     registry,
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   })
   expect((await pkgResponse.fetching!()).bundledManifest).toStrictEqual(expect.objectContaining({
     version: '1.2.1',

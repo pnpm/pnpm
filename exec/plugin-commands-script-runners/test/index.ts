@@ -29,11 +29,7 @@ test('pnpm run: returns correct exit code', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, ['exit0'])
 
   let err!: Error & { errno: number }
@@ -70,11 +66,7 @@ test('pnpm run --no-bail never fails', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, ['exit1'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -99,11 +91,7 @@ test('run: pass the args to the command that is specified in the build script', 
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -126,11 +114,7 @@ test('run: pass the args to the command that is specified in the build script of
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -153,11 +137,7 @@ test('test: pass the args to the command that is specified in the build script o
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, ['arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -180,11 +160,7 @@ test('run start: pass the args to the command that is specified in the build scr
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, ['start', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -207,11 +183,7 @@ test('run stop: pass the args to the command that is specified in the build scri
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, ['stop', 'arg', '--flag=true', '--help', '-h'])
 
   const { default: args } = await import(path.resolve('args.json'))
@@ -241,11 +213,7 @@ test('restart: run stop, restart and start', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, [])
 
   const { default: scriptsRan } = await import(path.resolve('output.json'))
@@ -280,11 +248,7 @@ test('restart: run stop, restart and start and all the pre/post scripts', async 
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, [])
 
   const { default: scriptsRan } = await import(path.resolve('output.json'))
@@ -314,11 +278,7 @@ test('"pnpm run" prints the list of available commands', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, [])
 
   expect(output).toBe(`\
@@ -429,11 +389,7 @@ test('pnpm run does not fail with --if-present even if the wanted script is not 
     extraEnv: {},
     ifPresent: true,
     rawConfig: {},
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, ['build'])
 })
 
@@ -502,11 +458,7 @@ test('scripts work with PnP', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, ['foo'])
 
   const { default: scriptsRan } = await import(path.resolve('output.json'))
@@ -536,11 +488,7 @@ test('pnpm run with custom shell', async () => {
     extraEnv: {},
     rawConfig: {},
     scriptShell: path.resolve(`node_modules/.bin/shell-mock${isWindows() ? '.cmd' : ''}`),
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, ['build'])
 
   expect((await import(path.resolve('shell-input.json'))).default).toStrictEqual(['-c', 'foo bar'])
@@ -565,11 +513,7 @@ test('pnpm run with RegExp script selector should work', async () => {
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, ['/^(lint|build):.*/'])
 
   expect(await fs.readFile('output-build-a.txt', { encoding: 'utf-8' })).toEqual('a')
@@ -595,11 +539,7 @@ test('pnpm run with RegExp script selector should work also for pre/post script'
     extraEnv: {},
     rawConfig: {},
     enablePrePostScripts: true,
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, ['/build:.*/'])
 
   expect(await fs.readFile('output-a.txt', { encoding: 'utf-8' })).toEqual('a')
@@ -621,11 +561,7 @@ test('pnpm run with RegExp script selector should work parallel as a default beh
     extraBinPaths: [],
     extraEnv: {},
     rawConfig: {},
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
+
   }, ['/build:.*/'])
 
   const { default: outputsA } = await import(path.resolve('output-a.json'))
@@ -650,11 +586,6 @@ test('pnpm run with RegExp script selector should work sequentially with --works
     extraEnv: {},
     rawConfig: {},
     workspaceConcurrency: 1,
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
   }, ['/build:.*/'])
 
   const { default: outputsA } = await import(path.resolve('output-a.json'))
@@ -704,11 +635,6 @@ test('pnpm run with slightly incorrect command suggests correct one', async () =
     extraEnv: {},
     rawConfig: {},
     workspaceConcurrency: 1,
-    supportedArchitectures: {
-      os: ['current'],
-      cpu: ['current'],
-      libc: ['current'],
-    },
   }, ['buil'])).rejects.toEqual(expect.objectContaining({
     code: 'ERR_PNPM_NO_SCRIPT',
     hint: 'Command "buil" not found. Did you mean "pnpm run build"?',

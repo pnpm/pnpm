@@ -88,7 +88,7 @@ export interface ResolveDependenciesOptions {
   virtualStoreDir: string
   wantedLockfile: Lockfile
   workspacePackages: WorkspacePackages
-  supportedArchitectures: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export async function resolveDependencyTree<T> (

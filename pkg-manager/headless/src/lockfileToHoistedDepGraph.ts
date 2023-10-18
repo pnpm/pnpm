@@ -47,7 +47,7 @@ export interface LockfileToHoistedDepGraphOptions {
   storeController: StoreController
   storeDir: string
   virtualStoreDir: string
-  supportedArchitectures: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export async function lockfileToHoistedDepGraph (

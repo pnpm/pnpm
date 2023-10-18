@@ -44,8 +44,7 @@ type LinkOpts = CreateStoreControllerOptions & Pick<Config,
 | 'saveProd'
 | 'workspaceDir'
 | 'sharedWorkspaceLockfile'
-| 'supportedArchitectures'
-> & Partial<Pick<Config, 'linkWorkspacePackages' >>
+> & Partial<Pick<Config, 'linkWorkspacePackages' | 'supportedArchitectures' >>
 
 export const rcOptionsTypes = cliOptionsTypes
 

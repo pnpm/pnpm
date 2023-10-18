@@ -36,7 +36,7 @@ export interface LicenseExtractOptions {
   modulesDir?: string
   dir: string
   registries: Registries
-  supportedArchitectures: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export async function lockfileToLicenseNode (

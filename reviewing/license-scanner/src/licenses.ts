@@ -75,7 +75,7 @@ export async function findDependencyLicenses (opts: {
   registries: Registries
   wantedLockfile: Lockfile | null
   includedImporterIds?: string[]
-  supportedArchitectures: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures
 }): Promise<LicensePackage[]> {
   if (opts.wantedLockfile == null) {
     throw new PnpmError(

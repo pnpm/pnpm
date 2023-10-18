@@ -46,6 +46,7 @@ Partial<Pick<Config,
 | 'userAgent'
 | 'userConfig'
 | 'verifyStoreIntegrity'
+| 'supportedArchitectures'
 >> & {
   access?: 'public' | 'restricted'
   argv: {
@@ -55,7 +56,7 @@ Partial<Pick<Config,
 }
 
 export async function recursivePublish (
-  opts: PublishRecursiveOpts & Required<Pick<Config, 'selectedProjectsGraph' | 'supportedArchitectures'>>
+  opts: PublishRecursiveOpts & Required<Pick<Config, 'selectedProjectsGraph'>>
 ): Promise<{ exitCode: number }> {
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
   const resolve = createResolver({

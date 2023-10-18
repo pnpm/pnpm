@@ -57,7 +57,6 @@ export async function handler (
   | 'rootProjectManifestDir'
   | 'pnpmfile'
   | 'workspaceDir'
-  | 'supportedArchitectures'
   > & {
     recursive?: boolean
   },

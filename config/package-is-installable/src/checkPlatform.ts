@@ -18,7 +18,7 @@ export class UnsupportedPlatformError extends PnpmError {
 export function checkPlatform (
   packageId: string,
   wantedPlatform: WantedPlatform,
-  supportedArchitectures: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures
 ) {
   const platforms = {
     os: dedupeArchs(process.platform, supportedArchitectures?.os ?? ['current']),

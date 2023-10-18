@@ -32,7 +32,7 @@ export function packageIsInstallable (
     optional: boolean
     pnpmVersion?: string
     lockfileDir: string
-    supportedArchitectures: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures
   }
 ): boolean | null {
   const warn = checkPackage(pkgId, pkg, options)
@@ -75,7 +75,7 @@ export function checkPackage (
   options: {
     nodeVersion?: string
     pnpmVersion?: string
-    supportedArchitectures: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures
   }
 ): null | UnsupportedEngineError | UnsupportedPlatformError {
   return checkPlatform(pkgId, {

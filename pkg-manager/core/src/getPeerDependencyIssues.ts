@@ -19,8 +19,8 @@ export type ListMissingPeersOptions = Partial<GetContextOptions>
 | 'storeController'
 | 'useGitBranchLockfile'
 | 'workspacePackages'
-| 'supportedArchitectures'
 >
+& Partial<Pick<InstallOptions, 'supportedArchitectures'>>
 & Pick<GetContextOptions, 'autoInstallPeers' | 'excludeLinksFromLockfile' | 'storeDir'>
 
 export async function getPeerDependencyIssues (

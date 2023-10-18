@@ -87,7 +87,6 @@ export async function handler (
   | 'scriptsPrependNodePath'
   | 'shellEmulator'
   | 'workspaceDir'
-  | 'supportedArchitectures'
   > &
   CreateStoreControllerOptions &
   {

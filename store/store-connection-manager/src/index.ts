@@ -21,7 +21,7 @@ export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions,
 | 'useRunningStoreServer'
 | 'useStoreServer'
 | 'workspaceDir'
->
+> & Partial<Pick<Config, 'supportedArchitectures'>>
 
 export async function createOrConnectStoreControllerCached (
   storeControllerCache: Map<string, Promise<{ ctrl: StoreController, dir: string }>>,

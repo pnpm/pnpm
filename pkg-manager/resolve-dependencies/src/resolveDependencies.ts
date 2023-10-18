@@ -254,7 +254,7 @@ interface ResolvedDependenciesOptions {
   updateMatching?: UpdateMatchingFunction
   updateDepth: number
   prefix: string
-  supportedArchitectures: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures
 }
 
 interface PostponedResolutionOpts {
@@ -768,7 +768,7 @@ async function resolveChildren (
     updateDepth: number
     prefix: string
     updateMatching?: UpdateMatchingFunction
-    supportedArchitectures: SupportedArchitectures
+    supportedArchitectures?: SupportedArchitectures
   },
   {
     parentPkgAliases,
@@ -1018,7 +1018,7 @@ interface ResolveDependencyOptions {
   update: boolean
   updateDepth: number
   updateMatching?: UpdateMatchingFunction
-  supportedArchitectures: SupportedArchitectures
+  supportedArchitectures?: SupportedArchitectures
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null
