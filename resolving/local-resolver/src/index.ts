@@ -10,6 +10,7 @@ import {
 } from '@pnpm/resolver-base'
 import { type DependencyManifest } from '@pnpm/types'
 import ssri from 'ssri'
+import { logger } from '@pnpm/logger'
 import { parsePref, type WantedLocalDependency } from './parsePref'
 
 export type { WantedLocalDependency }
@@ -37,6 +38,7 @@ export async function resolveFromLocal (
   ) | null
   > {
   const spec = parsePref(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir)
+  console.log('lock resolver ----> spec --->', spec)
   if (spec == null) return null
   if (spec.type === 'file') {
     return {
@@ -59,6 +61,10 @@ export async function resolveFromLocal (
         throw new PnpmError('LINKED_PKG_DIR_NOT_FOUND',
           `Could not install from "${spec.fetchSpec}" as it does not exist.`)
       }
+      logger.warn({
+        message: `Install from a non-existent directory: ${spec.fetchSpec}`,
+        prefix: opts.projectDir,
+      })
       localDependencyManifest = {
         name: path.basename(spec.fetchSpec),
         version: '0.0.0',

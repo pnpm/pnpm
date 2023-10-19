@@ -45,6 +45,9 @@
     "@types/normalize-path": "^3.0.0",
     "@types/ssri": "^7.1.2"
   },
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
+  },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
     ".": "./lib/index.js"
