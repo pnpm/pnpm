@@ -19,7 +19,7 @@ import { type PkgRequestFetchResult } from '@pnpm/store-controller-types'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
 const f = fixtures(__dirname)
-const IS_POSTIVE_TARBALL = f.find('is-positive-1.0.0.tgz')
+const IS_POSITIVE_TARBALL = f.find('is-positive-1.0.0.tgz')
 
 const authConfig = { registry }
 
@@ -494,7 +494,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
 
   nock(registry)
     .get('/is-positive/-/is-positive-1.0.0.tgz')
-    .replyWithFile(200, IS_POSTIVE_TARBALL)
+    .replyWithFile(200, IS_POSITIVE_TARBALL)
 
   const noRetry = createClient({
     authConfig,
@@ -617,7 +617,7 @@ test('always return a package manifest in the response', async () => {
 test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
   nock(registry)
     .get('/is-positive/-/is-positive-1.0.0.tgz')
-    .replyWithFile(200, IS_POSTIVE_TARBALL)
+    .replyWithFile(200, IS_POSITIVE_TARBALL)
 
   const storeDir = tempy.directory()
   const cafs = createCafsStore(storeDir)
@@ -898,7 +898,7 @@ test('throw exception if the package data in the store differs from the expected
     await expect(fetching()).rejects.toThrow(/Package name mismatch found while reading/)
   }
 
-  // Do not fail when the versions are the same but written in a differnt format (1.0.0 is the same as v1.0.0)
+  // Do not fail when the versions are the same but written in a different format (1.0.0 is the same as v1.0.0)
   {
     const requestPackage = createPackageRequester({
       resolve,
