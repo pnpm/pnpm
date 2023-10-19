@@ -1090,6 +1090,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../../worker
       p-defer:
         specifier: ^3.0.0
         version: 3.0.0
@@ -1194,9 +1197,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fs.hard-link-dir':
-        specifier: workspace:*
-        version: link:../../fs/hard-link-dir
       '@pnpm/get-context':
         specifier: workspace:*
         version: link:../../pkg-manager/get-context
@@ -1242,6 +1242,9 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@pnpm/worker':
+        specifier: workspace:*
+        version: link:../../worker
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: link:../../workspace/find-packages
@@ -6036,6 +6039,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../packages/error
+      '@pnpm/fs.hard-link-dir':
+        specifier: workspace:*
+        version: link:../fs/hard-link-dir
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../fs/graceful-fs
@@ -6050,7 +6056,7 @@ importers:
         version: link:../fs/symlink-dependency
       '@rushstack/worker-pool':
         specifier: 0.4.9
-        version: 0.4.9
+        version: 0.4.9(@types/node@16.18.58)
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -8345,13 +8351,15 @@ packages:
       '@reflink/reflink-win32-x64-msvc': 0.1.12
     dev: false
 
-  /@rushstack/worker-pool@0.4.9:
+  /@rushstack/worker-pool@0.4.9(@types/node@16.18.58):
     resolution: {integrity: sha512-ibAOeQCuz3g0c88GGawAPO2LVOTZE3uPh4DCEJILZS9SEv9opEUObsovC18EHPgeIuFy4HkoJT+t7l8LURZjIw==}
     peerDependencies:
       '@types/node': '*'
     peerDependenciesMeta:
       '@types/node':
         optional: true
+    dependencies:
+      '@types/node': 16.18.58
     dev: false
 
   /@sinclair/typebox@0.27.8:
@@ -8635,7 +8643,6 @@ packages:
 
   /@types/node@16.18.58:
     resolution: {integrity: sha512-YGncyA25/MaVtQkjWW9r0EFBukZ+JulsLcVZBlGUfIb96OBMjkoRWwQo5IEWJ8Fj06Go3GHw+bjYDitv6BaGsA==}
-    dev: true
 
   /@types/node@18.18.5:
     resolution: {integrity: sha512-4slmbtwV59ZxitY4ixUZdy1uRLf9eSIvBWPQxNjhHYWEtn0FryfKpyS2cvADYXTayWdKEIsJengncrVvkI4I6A==}
@@ -9069,7 +9076,7 @@ packages:
     resolution: {integrity: sha512-YmG+oTBCyrAoMIx5g2I9CfyurSpHyoan+9SCj7laaFKseOe3lFEyIVKvwRBQMmSt8uzh+eY5RWeQnoyyOs6AbA==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
-      '@yarnpkg/fslib': 3.0.0-rc.45
+      '@yarnpkg/fslib': 3.0.0-rc.25
     dependencies:
       '@types/emscripten': 1.39.8
       '@yarnpkg/fslib': 3.0.0-rc.25

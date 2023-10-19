@@ -37,6 +37,9 @@
       "path": "../../store/store-controller-types"
     },
     {
+      "path": "../../worker"
+    },
+    {
       "path": "../lifecycle"
     }
   ],

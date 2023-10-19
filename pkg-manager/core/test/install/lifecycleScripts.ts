@@ -10,6 +10,7 @@ import {
   type MutatedProject,
   mutateModules,
 } from '@pnpm/core'
+import { restartWorkerPool } from '@pnpm/worker'
 import rimraf from '@zkochan/rimraf'
 import isWindows from 'is-windows'
 import loadJsonFile from 'load-json-file'
@@ -656,6 +657,7 @@ test('ignore-dep-scripts', async () => {
 })
 
 test('run pre/postinstall scripts in a workspace that uses node-linker=hoisted', async () => {
+  await restartWorkerPool()
   const projects = preparePackages([
     {
       location: 'project-1',
