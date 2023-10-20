@@ -228,7 +228,6 @@ export interface ResolvedPackage {
     cpu?: string[]
     os?: string[]
     libc?: string[]
-    requiresBuild?: boolean
   }
   parentImporterIds: Set<string>
 }
@@ -1417,6 +1416,7 @@ function getResolvedPackage (
     ? ((options.dependencyLockfile != null) ? Boolean(options.dependencyLockfile.requiresBuild) : safePromiseDefer<boolean>())
     : false
 
+  // TODO: Use files end point to find if there is binding.gyp or hooks dir
   return {
     additionalInfo: {
       bundledDependencies: options.pkg.bundledDependencies,
@@ -1426,7 +1426,6 @@ function getResolvedPackage (
       engines: options.pkg.engines,
       os: options.pkg.os,
       libc: options.pkg.libc,
-      requiresBuild: !!options.pkg.scripts?.install ?? !!options.pkg.scripts?.preinstall ?? !!options.pkg.scripts?.postinstall,
     },
     parentImporterIds: new Set([options.parentImporterId]),
     depPath: options.depPath,

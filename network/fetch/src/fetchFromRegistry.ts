@@ -89,7 +89,9 @@ function getHeaders (
     userAgent?: string
   }
 ) {
+  opts.fullMetadata = true
   const headers: { accept: string, authorization?: string, 'user-agent'?: string } = {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-boolean-literal-compare
     accept: opts.fullMetadata === true ? JSON_DOC : ABBREVIATED_DOC,
   }
   if (opts.auth) {

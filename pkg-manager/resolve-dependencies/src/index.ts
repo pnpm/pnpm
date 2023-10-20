@@ -327,29 +327,18 @@ async function finishLockfileUpdates (
     const depNode = dependenciesGraph[depPath]
     if (!depNode) return
     try {
-      let requiresBuild!: boolean
-      if (depNode.optional) {
-        try {
-          if (depNode.additionalInfo.requiresBuild) {
-            requiresBuild = depNode.additionalInfo.requiresBuild
-          }
-        } catch {
-          // if we can't fetch the metadata, we assume it requires a build
-          requiresBuild = true
-        }
-      } else {
-        // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-        const { files, bundledManifest: pkgJson } = await depNode.fetching()
-        requiresBuild = Boolean(
-          pkgJson?.scripts != null && (
-            Boolean(pkgJson.scripts.preinstall) ||
+      // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
+      const { files, bundledManifest: pkgJson } = await depNode.fetching()
+      const requiresBuild = Boolean(
+        pkgJson?.scripts != null && (
+          Boolean(pkgJson.scripts.preinstall) ||
             Boolean(pkgJson.scripts.install) ||
             Boolean(pkgJson.scripts.postinstall)
-          ) ||
+        ) ||
           files.filesIndex['binding.gyp'] ||
             Object.keys(files.filesIndex).some((filename) => !(filename.match(/^[.]hooks[\\/]/) == null)) // TODO: optimize this
-        )
-      }
+      )
+
       if (typeof depNode.requiresBuild === 'function') {
         depNode.requiresBuild['resolve'](requiresBuild)
       }
