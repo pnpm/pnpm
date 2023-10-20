@@ -136,7 +136,7 @@ async function dependenciesHierarchyForPackage (
   })
   const parentId: TreeNodeId = { type: 'importer', importerId }
   const result: DependenciesHierarchy = {}
-  for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciedField => opts.include[dependenciedField])) {
+  for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciesField => opts.include[dependenciesField])) {
     const topDeps = currentLockfile.importers[importerId][dependenciesField] ?? {}
     result[dependenciesField] = []
     Object.entries(topDeps).forEach(([alias, ref]) => {

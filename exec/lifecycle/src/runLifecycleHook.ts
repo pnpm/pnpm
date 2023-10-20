@@ -93,7 +93,7 @@ export async function runLifecycleHook (
     unsafePerm: opts.unsafePerm,
   })
 
-  function npmLog (prefix: string, logid: string, stdtype: string, line: string) {
+  function npmLog (prefix: string, logId: string, stdtype: string, line: string) {
     switch (stdtype) {
     case 'stdout':
     case 'stderr':

@@ -5,9 +5,9 @@ const REGIONAL_ARCH = Object.assign({}, process.arch)
 const REGIONAL_CPU = Object.assign({}, process.platform)
 
 jest.mock('detect-libc', () => {
-  const orginal = jest.requireActual('detect-libc')
+  const original = jest.requireActual('detect-libc')
   return {
-    ...orginal,
+    ...original,
     familySync: () => 'musl',
   }
 })

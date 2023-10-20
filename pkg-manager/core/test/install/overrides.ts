@@ -45,7 +45,7 @@ test('versions are replaced with versions specified through overrides option', a
 
   // The lockfile is updated if the overrides are changed
   overrides['@pnpm.e2e/bar@^100.0.0'] = '100.0.0'
-  // A direct dependency may be overriden as well
+  // A direct dependency may be overridden as well
   overrides['@pnpm.e2e/foobarqar'] = '1.0.1'
   await mutateModulesInSingleProject({
     manifest,

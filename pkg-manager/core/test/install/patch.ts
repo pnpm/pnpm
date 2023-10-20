@@ -351,7 +351,7 @@ test('patch package when the package is not in onlyBuiltDependencies list', asyn
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
 })
 
-test('patch package when the patched package has no dependencies and appears multipe times', async () => {
+test('patch package when the patched package has no dependencies and appears multiple times', async () => {
   const project = prepareEmpty()
   const patchPath = path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch')
 
