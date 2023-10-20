@@ -1,3 +1,4 @@
+// cspell:ignore checkin
 import path from 'path'
 import os from 'os'
 import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
@@ -55,7 +56,7 @@ export async function addFilesFromDir (
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest }>((resolve, reject) => {
-    // eslint-disalbe-next-line
+    // eslint-disable-next-line
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {

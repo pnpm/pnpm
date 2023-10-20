@@ -147,8 +147,8 @@ test('installation fails if lifecycle script fails', async () => {
 test('INIT_CWD is always set to lockfile directory', async () => {
   prepareEmpty()
   const rootDir = process.cwd()
-  await fs.mkdir('subd')
-  process.chdir('subd')
+  await fs.mkdir('sub_dir')
+  process.chdir('sub_dir')
   await mutateModulesInSingleProject({
     mutation: 'install',
     manifest: {

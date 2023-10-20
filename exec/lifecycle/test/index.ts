@@ -71,11 +71,11 @@ test('runPostinstallHooks()', async () => {
 })
 
 test('runLifecycleHook() should throw an error while missing script start or file server.js', async () => {
-  const pkgRoot = f.find('without-scriptstart-serverjs')
+  const pkgRoot = f.find('without-script-start-serverjs')
   const pkg = await import(path.join(pkgRoot, 'package.json'))
   await expect(
     runLifecycleHook('start', pkg, {
-      depPath: '/without-scriptstart-serverjs/1.0.0',
+      depPath: '/without-script-start-serverjs/1.0.0',
       optional: false,
       pkgRoot,
       rawConfig: {},

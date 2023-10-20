@@ -89,7 +89,7 @@ export function pruneLockfile (
   const updatedImporter: ProjectSnapshot = {
     specifiers,
   }
-  const prunnedLockfile: Lockfile = {
+  const prunedLockfile: Lockfile = {
     importers: {
       ...lockfile.importers,
       [importerId]: updatedImporter,
@@ -98,7 +98,7 @@ export function pruneLockfile (
     packages: lockfile.packages,
   }
   if (!isEmpty(packages)) {
-    prunnedLockfile.packages = packages
+    prunedLockfile.packages = packages
   }
   if (!isEmpty(lockfileDependencies)) {
     updatedImporter.dependencies = lockfileDependencies
@@ -109,7 +109,7 @@ export function pruneLockfile (
   if (!isEmpty(lockfileDevDependencies)) {
     updatedImporter.devDependencies = lockfileDevDependencies
   }
-  return pruneSharedLockfile(prunnedLockfile, opts)
+  return pruneSharedLockfile(prunedLockfile, opts)
 }
 
 function copyPackageSnapshots (

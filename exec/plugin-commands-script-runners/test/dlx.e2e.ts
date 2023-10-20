@@ -107,7 +107,7 @@ test('dlx should work in shell mode', async () => {
   expect(fs.existsSync('foo')).toBeTruthy()
 })
 
-test('dlx should return a non-zero exit code when the underying script fails', async () => {
+test('dlx should return a non-zero exit code when the underlying script fails', async () => {
   prepareEmpty()
 
   const { exitCode } = await dlx.handler({

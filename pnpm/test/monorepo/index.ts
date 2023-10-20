@@ -1,3 +1,4 @@
+// cspell:ignore buildscript
 import { promises as fs } from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'

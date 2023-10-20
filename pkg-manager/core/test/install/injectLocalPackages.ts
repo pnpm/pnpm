@@ -1393,7 +1393,7 @@ test('peer dependency of injected project should be resolved correctly', async (
 })
 
 // There was a bug related to this. The manifests in the workspacePackages object were modified
-test('do not modify the manifest of the injected workpspace project', async () => {
+test('do not modify the manifest of the injected workspace project', async () => {
   const project1Manifest = {
     name: 'project-1',
     version: '1.0.0',

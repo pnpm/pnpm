@@ -52,14 +52,14 @@ describe('removePort()', () => {
   })
 
   /**
-   * @description intentially mismatch the port
+   * @description intentionally mismatch the port
    * https|wss set to 443
    * http|ws set to 80
    *
    * @tests regexp loopholes of (80:443)
    */
   it('removes the ports from urls with protocol port mismatches', () => {
-    const mistmatchProtocolPorts = new Map([
+    const mismatchProtocolPorts = new Map([
       ['http', 443],
       ['ws', 443],
       ['https', 80],
@@ -70,7 +70,7 @@ describe('removePort()', () => {
       `${protocol}://custom.domain.com:${port}/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
     const expectedOutput = (protocol: string) =>
       `${protocol}://custom.domain.com/artifactory/api/npm/npm-virtual/-/foo-1.0.0.tgz`
-    mistmatchProtocolPorts.forEach((value: number, protocol) => {
+    mismatchProtocolPorts.forEach((value: number, protocol) => {
       expect(removePort(getUrl(value, protocol))).toEqual(
         expectedOutput(protocol)
       )

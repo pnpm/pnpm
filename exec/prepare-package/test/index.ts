@@ -15,7 +15,7 @@ test('prepare package runs the prepublish script', async () => {
   ])
 })
 
-test('prepare package does not run the prebublish script if the main file is present', async () => {
+test('prepare package does not run the prepublish script if the main file is present', async () => {
   const tmp = tempDir()
   f.copy('has-prepublish-script-and-main-file', tmp)
   await preparePackage({ rawConfig: {} }, tmp)

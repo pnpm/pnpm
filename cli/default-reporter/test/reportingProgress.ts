@@ -50,7 +50,7 @@ test('prints progress beginning', (done) => {
   })
 })
 
-test('prints progress without added packges stats', (done) => {
+test('prints progress without added packages stats', (done) => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],

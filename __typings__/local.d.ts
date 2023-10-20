@@ -59,6 +59,7 @@ declare module 'better-path-resolve' {
   export = anything
 }
 
+// cspell:disable-next-line
 declare module '@zkochan/diable' {
   const anything: any
   export = anything
@@ -116,11 +117,6 @@ declare module 'nerf-dart' {
 
 declare module '@pnpm/patch-package/dist/applyPatches' {
   export function applyPatch (opts: any): boolean
-}
-
-declare module 'string.prototype.replaceall' {
-  const anything: any
-  export = anything
 }
 
 declare module 'ramda/src/map' {
