@@ -829,11 +829,11 @@ test('pnpm exec command not found (implicit fallback)', async () => {
       bail: true,
       selectedProjectsGraph,
       implicitlyFellbackFromRun: true,
-    }, ['buil'])
+    }, ['buil']) // cspell:disable-line
   } catch (err: any) { // eslint-disable-line
     error = err
   }
-  expect(error?.message).toBe('Command "buil" not found')
+  expect(error?.message).toBe('Command "buil" not found') // cspell:disable-line
   expect(error?.hint).toBe('Did you mean "pnpm build"?')
 })
 

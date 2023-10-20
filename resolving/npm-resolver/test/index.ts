@@ -870,7 +870,7 @@ test('error is thrown when there is no package found for the requested tag', asy
     )
 })
 
-test('resolveFromNpm() loads full metadata even if non-full metadata is alread cached in store', async () => {
+test('resolveFromNpm() loads full metadata even if non-full metadata is already cached in store', async () => {
   nock(registry)
     .get('/is-positive')
     .reply(200, isPositiveMeta)

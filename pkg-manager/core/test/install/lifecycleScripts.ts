@@ -10,6 +10,7 @@ import {
   type MutatedProject,
   mutateModules,
 } from '@pnpm/core'
+import { restartWorkerPool } from '@pnpm/worker'
 import rimraf from '@zkochan/rimraf'
 import isWindows from 'is-windows'
 import loadJsonFile from 'load-json-file'
@@ -146,8 +147,8 @@ test('installation fails if lifecycle script fails', async () => {
 test('INIT_CWD is always set to lockfile directory', async () => {
   prepareEmpty()
   const rootDir = process.cwd()
-  await fs.mkdir('subd')
-  process.chdir('subd')
+  await fs.mkdir('sub_dir')
+  process.chdir('sub_dir')
   await mutateModulesInSingleProject({
     mutation: 'install',
     manifest: {
@@ -656,6 +657,7 @@ test('ignore-dep-scripts', async () => {
 })
 
 test('run pre/postinstall scripts in a workspace that uses node-linker=hoisted', async () => {
+  await restartWorkerPool()
   const projects = preparePackages([
     {
       location: 'project-1',

@@ -145,7 +145,7 @@ test('dlx ignores configuration in current project package.json', async () => {
   prepare({
     pnpm: {
       patchedDependencies: {
-        'shx@0.3.4': 'this_doesnt_exist',
+        'shx@0.3.4': 'this_does_not_exist',
       },
     },
   })

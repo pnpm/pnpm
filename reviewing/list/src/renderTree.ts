@@ -5,12 +5,12 @@ import archy from 'archy'
 import chalk from 'chalk'
 import cliColumns from 'cli-columns'
 import sortBy from 'ramda/src/sortBy'
-import rpath from 'ramda/src/path'
+import ramdaPath from 'ramda/src/path'
 import { type Ord } from 'ramda'
 import { getPkgInfo } from './getPkgInfo'
 import { type PackageDependencyHierarchy } from './types'
 
-const sortPackages = sortBy(rpath(['name']) as (pkg: PackageNode) => Ord)
+const sortPackages = sortBy(ramdaPath(['name']) as (pkg: PackageNode) => Ord)
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color

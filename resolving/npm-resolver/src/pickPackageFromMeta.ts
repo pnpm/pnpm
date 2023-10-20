@@ -156,11 +156,11 @@ export function pickVersionByVersionRange (
 function prioritizePreferredVersions (
   meta: PackageMeta,
   versionRange: string,
-  preferredVerSels?: VersionSelectors
+  preferredVerSelectors?: VersionSelectors
 ): string[][] {
-  const preferredVerSelsArr = Object.entries(preferredVerSels ?? {})
+  const preferredVerSelectorsArr = Object.entries(preferredVerSelectors ?? {})
   const versionsPrioritizer = new PreferredVersionsPrioritizer()
-  for (const [preferredSelector, preferredSelectorType] of preferredVerSelsArr) {
+  for (const [preferredSelector, preferredSelectorType] of preferredVerSelectorsArr) {
     const { selectorType, weight } = typeof preferredSelectorType === 'string'
       ? { selectorType: preferredSelectorType, weight: 1 }
       : preferredSelectorType
