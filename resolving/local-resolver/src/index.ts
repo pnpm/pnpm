@@ -38,7 +38,6 @@ export async function resolveFromLocal (
   ) | null
   > {
   const spec = parsePref(wantedDependency, opts.projectDir, opts.lockfileDir ?? opts.projectDir)
-  console.log('lock resolver ----> spec --->', spec)
   if (spec == null) return null
   if (spec.type === 'file') {
     return {
