@@ -1642,14 +1642,21 @@ test('installation should work with packages that have () in the scope name', as
 test('A package with an optional dependency that requires build has requiresBuild=true', async () => {
   prepareEmpty()
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/foo'], await testDefaults({ save: true }))
-  await addDependenciesToPackage(manifest, ['@pnpm.e2e/independent-and-requires-build'], await testDefaults({ saveOptional: true }))
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/independent-and-requires-build'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
   expect(lockfile.packages!['/@pnpm.e2e/independent-and-requires-build@1.0.0'].requiresBuild).toBeTruthy()
 })
 
 test('A package with an optional dependency that doesnt require build has no requiresBuildFlag', async () => {
   prepareEmpty()
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-optional@1.0.0'], await testDefaults({ save: true }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-optional@1.0.0'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
   expect(lockfile.packages!['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'].requiresBuild).toBeUndefined()
+})
+
+test('A package with an optional dependncy build with bindings.gyp has requiresBuild=true', async () => {
+  prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/has-binding-gyp'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  expect(lockfile.packages!['@pnpm.e2e/has-binding-gyp'].requiresBuild).toBeTruthy()
 })
