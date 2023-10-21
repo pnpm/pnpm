@@ -187,7 +187,7 @@ test('createPeerDependencyPatcher() corner case correctly applies override', () 
   })
 })
 
-test('createPeerDependencyPathcer() throws expected error if parent>child selector cannot parse', () => {
+test('createPeerDependencyPatcher() throws expected error if parent>child selector cannot parse', () => {
   expect(() => createPeerDependencyPatcher({
     allowedVersions: {
       'foo > bar': '2',

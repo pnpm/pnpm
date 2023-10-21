@@ -77,14 +77,14 @@ function sanitizeFilenames (filenames: Record<string, string>) {
 
 function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Record<string, string>) {
   makeEmptyDir(newDir, { recursive: true })
-  const alldirs = new Set<string>()
+  const allDirs = new Set<string>()
   Object.keys(filenames)
     .forEach((f) => {
       const dir = path.dirname(f)
       if (dir === '.') return
-      alldirs.add(dir)
+      allDirs.add(dir)
     })
-  Array.from(alldirs)
+  Array.from(allDirs)
     .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
     .forEach((dir) => fs.mkdirSync(path.join(newDir, dir), { recursive: true }))
   for (const [f, src] of Object.entries(filenames)) {

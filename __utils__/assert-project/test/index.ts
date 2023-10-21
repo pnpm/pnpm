@@ -6,7 +6,7 @@ test('assertProject()', async () => {
   const project = assertProject(path.join(__dirname, '../../..'))
 
   await project.has('rimraf')
-  await project.hasNot('sfdsff3g34')
+  await project.hasNot('sfdsff3g34') // cspell:disable-line
   expect(typeof project.requireModule('rimraf')).toBe('function')
   await project.isExecutable('.bin/rimraf')
 })

@@ -10,7 +10,7 @@ test('uninstall package and remove from appropriate property', async () => {
   await execPnpm(['install', '--save-optional', 'is-positive@3.1.0'])
 
   // testing the CLI directly as there was an issue where `npm.config` started to set save = true by default
-  // npm@5 introduced --save-prod that bahaves the way --save worked in pre 5 versions
+  // npm@5 introduced --save-prod that behaves the way --save worked in pre 5 versions
   await execPnpm(['uninstall', 'is-positive'])
 
   await project.storeHas('is-positive', '3.1.0')
