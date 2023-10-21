@@ -7,6 +7,7 @@ import {
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
+import { groupStart } from '@pnpm/log.group'
 import { sortPackages } from '@pnpm/sort-packages'
 import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'
@@ -14,7 +15,6 @@ import { existsInDir } from './existsInDir'
 import { createEmptyRecursiveSummary, getExecutionDuration, getResumedPackageChunks, writeRecursiveSummary } from './exec'
 import { runScript } from './run'
 import { tryBuildRegExpFromCommand } from './regexpCommand'
-import { logSectionStart } from './ciLogs'
 import { type PackageScripts } from '@pnpm/types'
 
 export type RecursiveRunOpts = Pick<Config,
@@ -128,16 +128,16 @@ export async function runRecursive (
           }
 
           const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
-          const logSectionEnd = (opts.workspaceConcurrency ?? 4) > 1
+          const groupEnd = (opts.workspaceConcurrency ?? 4) > 1
             ? undefined
-            : logSectionStart(formatSectionName({
+            : groupStart(formatSectionName({
               name: pkg.package.manifest.name,
               script: scriptName,
               version: pkg.package.manifest.version,
               prefix: path.normalize(path.relative(opts.workspaceDir, prefix)),
             }))
           await _runScript(scriptName)
-          logSectionEnd?.()
+          groupEnd?.()
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
