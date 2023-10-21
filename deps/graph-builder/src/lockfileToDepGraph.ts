@@ -34,7 +34,7 @@ export interface DependenciesGraphNode {
   hasBundledDependencies: boolean
   modules: string
   name: string
-  fetching: () => Promise<PkgRequestFetchResult>
+  fetching?: () => Promise<PkgRequestFetchResult>
   dir: string
   children: Record<string, string>
   optionalDependencies: Set<string>
@@ -44,7 +44,7 @@ export interface DependenciesGraphNode {
   requiresBuild: boolean
   prepare: boolean
   hasBin: boolean
-  filesIndexFile: string
+  filesIndexFile?: string
   patchFile?: PatchFile
 }
 
@@ -130,11 +130,10 @@ export async function lockfileToDepGraph (
           return
         }
         const dir = path.join(modules, pkgName)
-        if (
-          !refIsLocalDirectory(depPath) &&
-          currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies) &&
+        const depIsPresent = !refIsLocalDirectory(depPath) &&
+          currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies)
+        if (depIsPresent &&
           (
-            equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies) ||
             isEmpty(currentPackages[depPath].optionalDependencies) &&
             isEmpty(lockfile.packages![depPath].optionalDependencies)
           )
@@ -153,25 +152,36 @@ export async function lockfileToDepGraph (
           requester: opts.lockfileDir,
           status: 'resolved',
         })
-        let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
-        try {
-          fetchResponse = opts.storeController.fetchPackage({
-            force: false,
-            lockfileDir: opts.lockfileDir,
-            ignoreScripts: opts.ignoreScripts,
-            pkg: {
-              id: packageId,
-              resolution,
-            },
-            expectedPkg: {
-              name: pkgName,
-              version: pkgVersion,
-            },
-          }) as any // eslint-disable-line
-          if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-        } catch (err: any) { // eslint-disable-line
-          if (pkgSnapshot.optional) return
-          throw err
+        let fetchResponse!: Partial<ReturnType<FetchPackageToStoreFunction>>
+        if (depIsPresent && equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)) {
+          if (await pathExists(dir)) {
+            fetchResponse = {}
+          } else {
+            brokenModulesLogger.debug({
+              missing: dir,
+            })
+          }
+        }
+        if (!fetchResponse) {
+          try {
+            fetchResponse = opts.storeController.fetchPackage({
+              force: false,
+              lockfileDir: opts.lockfileDir,
+              ignoreScripts: opts.ignoreScripts,
+              pkg: {
+                id: packageId,
+                resolution,
+              },
+              expectedPkg: {
+                name: pkgName,
+                version: pkgVersion,
+              },
+            }) as any // eslint-disable-line
+            if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
+          } catch (err: any) { // eslint-disable-line
+            if (pkgSnapshot.optional) return
+            throw err
+          }
         }
         graph[dir] = {
           children: {},

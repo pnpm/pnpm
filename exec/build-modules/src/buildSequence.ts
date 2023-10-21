@@ -8,7 +8,7 @@ export interface DependenciesGraphNode {
   name: string
   dir: string
   fetchingBundledManifest?: () => Promise<PackageManifest | undefined>
-  filesIndexFile: string
+  filesIndexFile?: string
   hasBin: boolean
   hasBundledDependencies: boolean
   installable?: boolean

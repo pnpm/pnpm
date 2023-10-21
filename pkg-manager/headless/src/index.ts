@@ -790,6 +790,7 @@ async function linkAllPkgs (
 ) {
   return Promise.all(
     depNodes.map(async (depNode) => {
+      if (!depNode.fetching) return
       let filesResponse!: PackageFilesResponse
       try {
         filesResponse = (await depNode.fetching()).files
