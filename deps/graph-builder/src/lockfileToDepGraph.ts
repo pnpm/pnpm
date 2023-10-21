@@ -25,6 +25,7 @@ import {
 import * as dp from '@pnpm/dependency-path'
 import pathExists from 'path-exists'
 import equals from 'ramda/src/equals'
+import isEmpty from 'ramda/src/isEmpty'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
@@ -132,7 +133,8 @@ export async function lockfileToDepGraph (
         if (
           !refIsLocalDirectory(depPath) &&
           currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies) &&
-          equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)
+          isEmpty(currentPackages[depPath].optionalDependencies) &&
+          isEmpty(lockfile.packages![depPath].optionalDependencies)
         ) {
           if (await pathExists(dir)) {
             return

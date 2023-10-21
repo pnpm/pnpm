@@ -580,10 +580,11 @@ test('install optional dependency for the supported architecture set by the user
   prepareEmpty()
 
   const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], await testDefaults({ supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] } }))
-
   expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-arm64', './package.json']).version).toBe('1.0.0')
 
-  await install(manifest, await testDefaults({ supportedArchitectures: { os: ['darwin'], cpu: ['x64'] } }))
-
+  await install(manifest, await testDefaults({ preferFrozenLockfile: false, supportedArchitectures: { os: ['darwin'], cpu: ['x64'] } }))
   expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-x64', './package.json']).version).toBe('1.0.0')
+
+  await install(manifest, await testDefaults({ frozenLockfile: true, supportedArchitectures: { os: ['linux'], cpu: ['x64'] } }))
+  expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/linux-x64', './package.json']).version).toBe('1.0.0')
 })
