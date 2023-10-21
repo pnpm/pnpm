@@ -34,7 +34,7 @@ function parseSearchQuery (query: string) {
     return { matchName: createMatcher(parsed.name) }
   }
   if (parsed.type !== 'version' && parsed.type !== 'range') {
-    throw new Error(`Invalid queryment - ${query}. List can search only by version or range`)
+    throw new Error(`Invalid query - ${query}. List can search only by version or range`)
   }
   return {
     matchName: createMatcher(parsed.name),

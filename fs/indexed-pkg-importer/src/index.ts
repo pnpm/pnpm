@@ -133,7 +133,7 @@ function createCloneFunction (): CloneFunction {
       } catch (err: any) { // eslint-disable-line
         // If the file already exists, then we just proceed.
         // This will probably only happen if the package's index file contains the same file twice.
-        // For intstance: { "index.js": "hash", "./index.js": "hash" }
+        // For instance: { "index.js": "hash", "./index.js": "hash" }
         if (!err.message.startsWith('File exists')) throw err
       }
     }
