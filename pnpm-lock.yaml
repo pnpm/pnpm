@@ -1333,6 +1333,9 @@ importers:
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../lifecycle
+      '@pnpm/log.group':
+        specifier: 1.0.1
+        version: 1.0.1
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -8252,6 +8255,13 @@ packages:
     dependencies:
       '@pnpm/types': 9.1.0
     dev: true
+
+  /@pnpm/log.group@1.0.1:
+    resolution: {integrity: sha512-MncPYEfmuDeLMVJfcBSJRqWvTRuONWsF3xiCRrzNhvWZa+yffiDXXqthUxomEZkNngpecsmUmCdiLDhap1kwDA==}
+    engines: {node: '>=12.22.0'}
+    dependencies:
+      ci-info: 3.9.0
+    dev: false
 
   /@pnpm/logger@5.0.0:
     resolution: {integrity: sha512-YfcB2QrX+Wx1o6LD1G2Y2fhDhOix/bAY/oAnMpHoNLsKkWIRbt1oKLkIFvxBMzLwAEPqnYWguJrYC+J6i4ywbw==}
