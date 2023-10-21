@@ -3,6 +3,7 @@ import path from 'path'
 import { resolveFromLocal } from '@pnpm/local-resolver'
 import { type DirectoryResolution } from '@pnpm/resolver-base'
 import normalize from 'normalize-path'
+import { logger } from '@pnpm/logger'
 
 test('resolve directory', async () => {
   const resolveResult = await resolveFromLocal({ pref: '..' }, { projectDir: __dirname })
@@ -128,12 +129,18 @@ test('fail when resolving from not existing directory an injected dependency', a
 })
 
 test('do not fail when resolving from not existing directory', async () => {
+  jest.spyOn(logger, 'warn')
   const wantedDependency = { pref: 'link:./dir-does-not-exist' }
   const resolveResult = await resolveFromLocal(wantedDependency, { projectDir: __dirname })
   expect(resolveResult?.manifest).toStrictEqual({
     name: 'dir-does-not-exist',
     version: '0.0.0',
   })
+  expect(logger.warn).toHaveBeenCalledWith({
+    message: `Installing a dependency from a non-existent directory: ${path.join(__dirname, './dir-does-not-exist')}`,
+    prefix: __dirname,
+  })
+  ;(logger.warn as jest.Mock).mockRestore()
 })
 
 test('throw error when the path: protocol is used', async () => {
