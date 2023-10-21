@@ -481,7 +481,6 @@ async function linkAllModules (
     optional: boolean
   }
 ) {
-  console.log(depNodes)
   await symlinkAllModules({
     deps: depNodes.map((depNode) => {
       const children = opts.optional
