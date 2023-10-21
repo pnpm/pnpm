@@ -6,6 +6,7 @@ import { tempDir } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import stripAnsi from 'strip-ansi'
 import { DEFAULT_OPTS } from './utils'
+import { readProjects } from '@pnpm/filter-workspace-packages'
 
 const f = fixtures(__dirname)
 
@@ -104,6 +105,45 @@ test('pnpm licenses: output as json', async () => {
     'description',
   ])
   expect(packagesWithMIT[0].name).toBe('is-positive')
+})
+
+test('pnpm licenses: filter outputs', async () => {
+  const workspaceDir = tempDir()
+  f.copy('workspace-licenses', workspaceDir)
+
+  const { allProjects, allProjectsGraph, selectedProjectsGraph } =
+    await readProjects(workspaceDir, [])
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    workspaceDir,
+    lockfileDir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+    allProjects,
+    allProjectsGraph,
+    selectedProjectsGraph,
+  })
+
+  const { output, exitCode } = await licenses.handler(
+    {
+      ...DEFAULT_OPTS,
+      dir: workspaceDir,
+      pnpmHomeDir: '',
+      long: false,
+      selectedProjectsGraph: Object.fromEntries(
+        Object.entries(selectedProjectsGraph).filter(([path]) =>
+          path.includes('bar')
+        )
+      ),
+      storeDir: path.resolve(storeDir, 'v3'),
+    }, ['list']
+  )
+
+  expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toMatchSnapshot('show-packages')
 })
 
 test('pnpm licenses: fails when lockfile is missing', async () => {

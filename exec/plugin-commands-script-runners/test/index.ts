@@ -593,6 +593,7 @@ test('pnpm run with slightly incorrect command suggests correct one', async () =
     },
   })
 
+  // cspell:ignore buil
   await expect(run.handler({
     dir: process.cwd(),
     extraBinPaths: [],

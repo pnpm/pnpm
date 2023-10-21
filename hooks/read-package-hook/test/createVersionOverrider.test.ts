@@ -1,7 +1,7 @@
 import path from 'path'
 import { createVersionsOverrider } from '../lib/createVersionsOverrider'
 
-test('createVersionsOverrider() matches subranges', () => {
+test('createVersionsOverrider() matches sub-ranges', () => {
   const overrider = createVersionsOverrider({
     'foo@2': '2.12.0',
     'qar@>2': '1.0.0',

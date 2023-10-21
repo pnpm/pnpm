@@ -1,5 +1,19 @@
 # @pnpm/license-scanner
 
+## 2.1.0
+
+### Minor Changes
+
+- fff7866f3: The `pnpm licenses list` command now accepts the `--filter` option to check the licenses of the dependencies of a subset of workspace projects [#5806](https://github.com/pnpm/pnpm/issues/5806).
+
+## 2.0.22
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+  - @pnpm/store.cafs@2.0.6
+  - @pnpm/directory-fetcher@7.0.2
+
 ## 2.0.21
 
 ### Patch Changes

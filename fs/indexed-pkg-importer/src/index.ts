@@ -121,7 +121,10 @@ function clonePkg (
 function createCloneFunction (): CloneFunction {
   // Node.js currently does not natively support reflinks on Windows and macOS.
   // Hence, we use a third party solution.
-  if (process.platform === 'win32' || process.platform === 'darwin') {
+  //
+  // For now, we use it only for macOS as we are tracking down an issue on Windows:
+  //   https://github.com/pnpm/pnpm/issues/7186
+  if (process.platform === 'darwin') {
     // eslint-disable-next-line
     const { reflinkFileSync } = require('@reflink/reflink')
     return (fr, to) => {
@@ -130,7 +133,7 @@ function createCloneFunction (): CloneFunction {
       } catch (err: any) { // eslint-disable-line
         // If the file already exists, then we just proceed.
         // This will probably only happen if the package's index file contains the same file twice.
-        // For intstance: { "index.js": "hash", "./index.js": "hash" }
+        // For instance: { "index.js": "hash", "./index.js": "hash" }
         if (!err.message.startsWith('File exists')) throw err
       }
     }

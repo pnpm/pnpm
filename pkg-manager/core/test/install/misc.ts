@@ -462,7 +462,7 @@ test('circular deps', async () => {
 
 test('concurrent circular deps', async () => {
   // es5-ext is an external package from the registry
-  // the latest dist-tag is overriden to have a stable test
+  // the latest dist-tag is overridden to have a stable test
   await addDistTag({ package: 'es5-ext', version: '0.10.31', distTag: 'latest' })
   await addDistTag({ package: 'es6-iterator', version: '2.0.1', distTag: 'latest' })
 

@@ -54,3 +54,9 @@ export interface ReadPkgFromCafsMessage {
   readManifest: boolean
   verifyStoreIntegrity: boolean
 }
+
+export interface HardLinkDirMessage {
+  type: 'hardLinkDir'
+  src: string
+  destDirs: string[]
+}

@@ -1,3 +1,4 @@
+// cspell:ignore haspeer
 import path from 'path'
 import { lockfileToPackageRegistry } from '@pnpm/lockfile-to-pnp'
 

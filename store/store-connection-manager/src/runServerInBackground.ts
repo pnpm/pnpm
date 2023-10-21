@@ -1,4 +1,5 @@
 import { PnpmError } from '@pnpm/error'
+// cspell:ignore diable
 import diable from '@zkochan/diable'
 
 export function runServerInBackground (storePath: string) {

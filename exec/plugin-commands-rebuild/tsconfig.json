@@ -31,7 +31,7 @@
       "path": "../../config/normalize-registries"
     },
     {
-      "path": "../../fs/hard-link-dir"
+      "path": "../../deps/graph-sequencer"
     },
     {
       "path": "../../lockfile/lockfile-types"
@@ -77,6 +77,9 @@
     },
     {
       "path": "../../store/store-controller-types"
+    },
+    {
+      "path": "../../worker"
     },
     {
       "path": "../../workspace/filter-workspace-packages"

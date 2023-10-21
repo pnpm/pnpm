@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/local-resolver",
-  "version": "10.0.8",
+  "version": "10.0.9",
   "description": "Resolver for local packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -38,12 +38,15 @@
     "@pnpm/resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",
     "normalize-path": "^3.0.0",
-    "ssri": "10.0.4"
+    "ssri": "10.0.5"
   },
   "devDependencies": {
     "@pnpm/local-resolver": "workspace:*",
     "@types/normalize-path": "^3.0.0",
-    "@types/ssri": "^7.1.1"
+    "@types/ssri": "^7.1.2"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "^5.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

@@ -44,6 +44,23 @@ export async function linkBins (
   const allDeps = await readModulesDir(modulesDir)
   // If the modules dir does not exist, do nothing
   if (allDeps === null) return []
+  return linkBinsOfPkgsByAliases(allDeps, binsDir, {
+    ...opts,
+    modulesDir,
+  })
+}
+
+export async function linkBinsOfPkgsByAliases (
+  depsAliases: string[],
+  binsDir: string,
+  opts: LinkBinOptions & {
+    modulesDir: string
+    allowExoticManifests?: boolean
+    nodeExecPathByAlias?: Record<string, string>
+    projectManifest?: ProjectManifest
+    warn: WarnFunction
+  }
+): Promise<string[]> {
   const pkgBinOpts = {
     allowExoticManifests: false,
     ...opts,
@@ -53,9 +70,9 @@ export async function linkBins (
     : new Set(Object.keys(getAllDependenciesFromManifest(opts.projectManifest)))
   const allCmds = unnest(
     (await Promise.all(
-      allDeps
+      depsAliases
         .map((alias) => ({
-          depDir: path.resolve(modulesDir, alias),
+          depDir: path.resolve(opts.modulesDir, alias),
           isDirectDependency: directDependencies?.has(alias),
           nodeExecPath: opts.nodeExecPathByAlias?.[alias],
         }))

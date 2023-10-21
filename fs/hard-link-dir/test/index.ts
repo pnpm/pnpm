@@ -3,7 +3,7 @@ import path from 'path'
 import { tempDir as createTempDir } from '@pnpm/prepare'
 import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 
-test('hardLinkDirectory()', async () => {
+test('hardLinkDirectory()', () => {
   const tempDir = createTempDir()
   const srcDir = path.join(tempDir, 'source')
   const dest1Dir = path.join(tempDir, 'dest1')
@@ -18,7 +18,7 @@ test('hardLinkDirectory()', async () => {
   fs.writeFileSync(path.join(srcDir, 'subdir/file.txt'), 'Hello World')
   fs.writeFileSync(path.join(srcDir, 'node_modules/file.txt'), 'Hello World')
 
-  await hardLinkDir(srcDir, [dest1Dir, dest2Dir])
+  hardLinkDir(srcDir, [dest1Dir, dest2Dir])
 
   // It should link the files from the root
   expect(fs.readFileSync(path.join(dest1Dir, 'file.txt'), 'utf8')).toBe('Hello World')
@@ -33,12 +33,12 @@ test('hardLinkDirectory()', async () => {
   expect(fs.existsSync(path.join(dest2Dir, 'node_modules/file.txt'))).toBe(false)
 })
 
-test("don't fail on missing source and dest directories", async () => {
+test("don't fail on missing source and dest directories", () => {
   const tempDir = createTempDir()
   const missingDirSrc = path.join(tempDir, 'missing_source')
   const missingDirDest = path.join(tempDir, 'missing_dest')
 
-  await hardLinkDir(missingDirSrc, [missingDirDest])
+  hardLinkDir(missingDirSrc, [missingDirDest])
 
   // It should create an empty dest dir if src does not exist
   expect(fs.existsSync(missingDirSrc)).toBe(false)

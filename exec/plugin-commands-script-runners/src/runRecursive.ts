@@ -7,6 +7,7 @@ import {
   type RunLifecycleHookOptions,
 } from '@pnpm/lifecycle'
 import { logger } from '@pnpm/logger'
+import { groupStart } from '@pnpm/log.group'
 import { sortPackages } from '@pnpm/sort-packages'
 import pLimit from 'p-limit'
 import realpathMissing from 'realpath-missing'
@@ -127,7 +128,16 @@ export async function runRecursive (
           }
 
           const _runScript = runScript.bind(null, { manifest: pkg.package.manifest, lifecycleOpts, runScriptOptions: { enablePrePostScripts: opts.enablePrePostScripts ?? false }, passedThruArgs })
+          const groupEnd = (opts.workspaceConcurrency ?? 4) > 1
+            ? undefined
+            : groupStart(formatSectionName({
+              name: pkg.package.manifest.name,
+              script: scriptName,
+              version: pkg.package.manifest.version,
+              prefix: path.normalize(path.relative(opts.workspaceDir, prefix)),
+            }))
           await _runScript(scriptName)
+          groupEnd?.()
           result[prefix].status = 'passed'
           result[prefix].duration = getExecutionDuration(startTime)
         } catch (err: any) { // eslint-disable-line
@@ -172,6 +182,20 @@ export async function runRecursive (
     summary: result,
   })
   throwOnCommandFail('pnpm recursive run', result)
+}
+
+function formatSectionName ({
+  script,
+  name,
+  version,
+  prefix,
+}: {
+  script?: string
+  name?: string
+  version?: string
+  prefix: string
+}) {
+  return `${name ?? 'unknown'}${version ? `@${version}` : ''} ${script ? `: ${script}` : ''} ${prefix}`
 }
 
 export function getSpecifiedScripts (scripts: PackageScripts, scriptName: string) {

@@ -63,7 +63,7 @@ export function optimisticRenameOverwrite (temp: string, fileDest: string) {
     // This is done to avoid lots of random crypto number generations.
     //   PR with related performance optimization: https://github.com/pnpm/pnpm/pull/6817
     //
-    // Probably the only scenario in which the temp directory will dissappear
+    // Probably the only scenario in which the temp directory will disappear
     // before being renamed is when two containers use the same mounted directory
     // for their content-addressable store. In this case there's a chance that the process ID
     // will be the same in both containers.
@@ -76,7 +76,7 @@ export function optimisticRenameOverwrite (temp: string, fileDest: string) {
 /**
  * The process ID is appended to the file name to create a temporary file.
  * If the process fails, on rerun the new temp file may get a filename the got left over.
- * That is fine, the file will be overriden.
+ * That is fine, the file will be overridden.
  */
 export function pathTemp (file: string): string {
   const basename = removeSuffix(path.basename(file))

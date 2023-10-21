@@ -71,11 +71,11 @@ test('runPostinstallHooks()', async () => {
 })
 
 test('runLifecycleHook() should throw an error while missing script start or file server.js', async () => {
-  const pkgRoot = f.find('without-scriptstart-serverjs')
+  const pkgRoot = f.find('without-script-start-serverjs')
   const pkg = await import(path.join(pkgRoot, 'package.json'))
   await expect(
     runLifecycleHook('start', pkg, {
-      depPath: '/without-scriptstart-serverjs/1.0.0',
+      depPath: '/without-script-start-serverjs/1.0.0',
       optional: false,
       pkgRoot,
       rawConfig: {},
@@ -83,4 +83,19 @@ test('runLifecycleHook() should throw an error while missing script start or fil
       unsafePerm: true,
     })
   ).rejects.toThrow(new PnpmError('NO_SCRIPT_OR_SERVER', 'Missing script start or file server.js'))
+})
+
+test('preinstall script does not trigger node-gyp rebuild', async () => {
+  const pkgRoot = f.find('gyp-with-preinstall')
+  await rimraf(path.join(pkgRoot, 'output.json'))
+  await runPostinstallHooks({
+    depPath: '/gyp-with-preinstall/1.0.0',
+    optional: false,
+    pkgRoot,
+    rawConfig: {},
+    rootModulesDir,
+    unsafePerm: true,
+  })
+
+  expect(loadJsonFile.sync(path.join(pkgRoot, 'output.json'))).toStrictEqual(['preinstall'])
 })

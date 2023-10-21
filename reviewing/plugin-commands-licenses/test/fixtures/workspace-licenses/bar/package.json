@@ -1,0 +1,7 @@
+{
+  "name": "bar",
+  "version": "1.0.0",
+  "dependencies": {
+    "is-positive": "^3.1.0"
+  }
+}

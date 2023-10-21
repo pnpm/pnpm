@@ -77,7 +77,8 @@ test('getUpdateChoices()', () => {
     ], false))
     .toStrictEqual([
       {
-        name: 'dependencies',
+        name: '[dependencies]',
+        message: 'dependencies',
         choices: [
           {
             name: 'Package                                                    Current   Target            URL              ',
@@ -86,13 +87,15 @@ test('getUpdateChoices()', () => {
             value: '',
           },
           {
-            name: chalk`foo                                                          1.0.0 ❯ {redBright.bold 2.0.0}             https://pnpm.io/ `,
+            message: chalk`foo                                                          1.0.0 ❯ {redBright.bold 2.0.0}             https://pnpm.io/ `,
             value: 'foo',
+            name: 'foo',
           },
         ],
       },
       {
-        name: 'devDependencies',
+        name: '[devDependencies]',
+        message: 'devDependencies',
         choices: [
           {
             name: 'Package                                                    Current   Target            URL ',
@@ -101,21 +104,25 @@ test('getUpdateChoices()', () => {
             value: '',
           },
           {
-            name: chalk`qar                                                          1.0.0 ❯ 1.{yellowBright.bold 2.0}                 `,
+            message: chalk`qar                                                          1.0.0 ❯ 1.{yellowBright.bold 2.0}                 `,
+            name: 'qar',
             value: 'qar',
           },
           {
-            name: chalk`zoo                                                          1.1.0 ❯ 1.{yellowBright.bold 2.0}                 `,
+            message: chalk`zoo                                                          1.1.0 ❯ 1.{yellowBright.bold 2.0}                 `,
+            name: 'zoo',
             value: 'zoo',
           },
           {
-            name: chalk`foo                                                          1.0.1 ❯ 1.{yellowBright.bold 2.0}                 `,
+            message: chalk`foo                                                          1.0.1 ❯ 1.{yellowBright.bold 2.0}                 `,
+            name: 'foo',
             value: 'foo',
           },
         ],
       },
       {
-        name: 'optionalDependencies',
+        name: '[optionalDependencies]',
+        message: 'optionalDependencies',
         choices: [
           {
             name: 'Package                                                    Current   Target            URL ',
@@ -124,7 +131,8 @@ test('getUpdateChoices()', () => {
             value: '',
           },
           {
-            name: chalk`qaz                                                          1.0.1 ❯ 1.{yellowBright.bold 2.0}                 `,
+            message: chalk`qaz                                                          1.0.1 ❯ 1.{yellowBright.bold 2.0}                 `,
+            name: 'qaz',
             value: 'qaz',
           },
         ],

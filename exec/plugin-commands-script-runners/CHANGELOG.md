@@ -1,5 +1,37 @@
 # @pnpm/plugin-commands-script-runners
 
+## 7.2.8
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.3
+- @pnpm/plugin-commands-installation@13.2.6
+
+## 7.2.7
+
+### Patch Changes
+
+- Updated dependencies [4246f41be]
+- Updated dependencies [84f81c9ae]
+  - @pnpm/sort-packages@5.0.6
+  - @pnpm/lifecycle@16.0.2
+  - @pnpm/plugin-commands-installation@13.2.5
+
+## 7.2.6
+
+### Patch Changes
+
+- 1ce2dd13a: Update didyoumean2 to v6.
+- ac5abd3ff: `pnpm dlx` should ignore any settings that are in a `package.json` file found in the current working directory [#7198](https://github.com/pnpm/pnpm/issues/7198).
+- Updated dependencies [bc83798d4]
+- Updated dependencies [46dc34dcc]
+- Updated dependencies [ac5abd3ff]
+- Updated dependencies [b60bb6cbe]
+  - @pnpm/plugin-commands-installation@13.2.4
+  - @pnpm/config@20.0.0
+  - @pnpm/cli-utils@2.0.24
+  - @pnpm/lifecycle@16.0.1
+
 ## 7.2.5
 
 ### Patch Changes

@@ -122,7 +122,7 @@ test('lockfile with scoped package', async () => {
 test("lockfile doesn't lock subdependencies that don't satisfy the new specs", async () => {
   const project = prepareEmpty()
 
-  // dependends on react-onclickoutside@5.9.0
+  // depends on react-onclickoutside@5.9.0
   const manifest = await addDependenciesToPackage({}, ['react-datetime@2.8.8'], await testDefaults({
     autoInstallPeers: false,
     fastUnpack: false,
@@ -130,7 +130,7 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
     strictPeerDependencies: false,
   }))
 
-  // dependends on react-onclickoutside@0.3.4
+  // depends on react-onclickoutside@0.3.4
   await addDependenciesToPackage(manifest, ['react-datetime@1.3.0'], await testDefaults({
     autoInstallPeers: false,
     save: true,

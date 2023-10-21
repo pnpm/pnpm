@@ -51,7 +51,7 @@ test('updateToWorkspacePackagesFromManifest()', () => {
       betta: '1.0.0',
     },
     optionalDependencies: {
-      hamma: '1.0.0',
+      hamma: '1.0.0', // cspell:disable-line
       qar: '1.0.0',
     },
   }

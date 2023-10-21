@@ -1,4 +1,5 @@
-import url, { URL } from 'url'
+// cspell:ignore sshurl
+import urlLib, { URL } from 'url'
 import { fetch } from '@pnpm/fetch'
 
 import git from 'graceful-git'
@@ -39,12 +40,12 @@ export async function parsePref (pref: string): Promise<HostedPackageSpec | null
   const protocol = pref.slice(0, colonsPos)
   if (protocol && gitProtocols.has(protocol.toLocaleLowerCase())) {
     const correctPref = correctUrl(pref)
-    const urlparse = new URL(correctPref)
-    if (!urlparse?.protocol) return null
+    const url = new URL(correctPref)
+    if (!url?.protocol) return null
 
-    const committish = (urlparse.hash?.length > 1) ? decodeURIComponent(urlparse.hash.slice(1)) : null
+    const committish = (url.hash?.length > 1) ? decodeURIComponent(url.hash.slice(1)) : null
     return {
-      fetchSpec: urlToFetchSpec(urlparse),
+      fetchSpec: urlToFetchSpec(url),
       normalizedPref: pref,
       ...setGitCommittish(committish),
     }
@@ -52,9 +53,9 @@ export async function parsePref (pref: string): Promise<HostedPackageSpec | null
   return null
 }
 
-function urlToFetchSpec (urlparse: URL) {
-  urlparse.hash = ''
-  const fetchSpec = url.format(urlparse)
+function urlToFetchSpec (url: URL) {
+  url.hash = ''
+  const fetchSpec = urlLib.format(url)
   if (fetchSpec.startsWith('git+')) {
     return fetchSpec.slice(4)
   }
@@ -92,7 +93,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
         try {
           // when git ls-remote private repo, it asks for login credentials.
           // use HTTP HEAD request to test whether this is a private repo, to avoid login prompt.
-          // this is very similar to yarn's behaviour.
+          // this is very similar to yarn's behavior.
           // npm instead tries git ls-remote directly which prompts user for login credentials.
 
           // HTTP HEAD on https://domain/user/repo, strip out ".git"
@@ -154,8 +155,8 @@ function setGitCommittish (committish: string | null) {
 
 // handle SCP-like URLs
 // see https://github.com/yarnpkg/yarn/blob/5682d55/src/util/git.js#L103
-function correctUrl (giturl: string) {
-  const parsed = url.parse(giturl.replace(/^git\+/, '')) // eslint-disable-line n/no-deprecated-api
+function correctUrl (gitUrl: string) {
+  const parsed = urlLib.parse(gitUrl.replace(/^git\+/, '')) // eslint-disable-line n/no-deprecated-api
 
   if (parsed.protocol === 'ssh:' &&
     parsed.hostname &&
@@ -163,8 +164,8 @@ function correctUrl (giturl: string) {
     parsed.pathname.startsWith('/:') &&
     parsed.port === null) {
     parsed.pathname = parsed.pathname.replace(/^\/:/, '')
-    return url.format(parsed)
+    return urlLib.format(parsed)
   }
 
-  return giturl
+  return gitUrl
 }

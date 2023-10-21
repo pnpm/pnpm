@@ -1,5 +1,13 @@
 # @pnpm/hoist
 
+## 8.0.14
+
+### Patch Changes
+
+- 5c8c9196c: Improved the performance of linking bins of hoisted dependencies to `node_modules/.pnpm/node_modules/.bin` [#7212](https://github.com/pnpm/pnpm/pull/7212).
+- Updated dependencies [5c8c9196c]
+  - @pnpm/link-bins@9.0.9
+
 ## 8.0.13
 
 ### Patch Changes

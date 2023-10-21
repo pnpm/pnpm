@@ -1,4 +1,4 @@
-import graphSequencer from '@pnpm/graph-sequencer'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { type PackageManifest, type PatchFile } from '@pnpm/types'
 import filter from 'ramda/src/filter'
 
@@ -16,7 +16,7 @@ export interface DependenciesGraphNode {
   optional: boolean
   optionalDependencies: Set<string>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  requiresBuild?: boolean | any // this is a durty workaround added in https://github.com/pnpm/pnpm/pull/4898
+  requiresBuild?: boolean | any // this is a dirty workaround added in https://github.com/pnpm/pnpm/pull/4898
   patchFile?: PatchFile
 }
 
@@ -36,10 +36,7 @@ export function buildSequence (
     nodesToBuildArray
       .map((depPath) => [depPath, onlyFromBuildGraph(Object.values(depGraph[depPath].children))])
   )
-  const graphSequencerResult = graphSequencer({
-    graph,
-    groups: [nodesToBuildArray],
-  })
+  const graphSequencerResult = graphSequencer(graph, nodesToBuildArray)
   const chunks = graphSequencerResult.chunks as string[][]
   return chunks
 }
