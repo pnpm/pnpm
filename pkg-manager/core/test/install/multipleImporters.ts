@@ -704,7 +704,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         dependencies: {
           'is-positive': {
             specifier: '1.0.0',
-            vesrion: '1.0.0',
+            version: '1.0.0',
           },
         },
       },

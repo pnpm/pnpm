@@ -18,6 +18,7 @@ jobs:
           - '16.14'
           - '18'
           - '20'
+          - '21'
         platform:
           - ubuntu-latest
           - windows-latest

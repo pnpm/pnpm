@@ -1,3 +1,4 @@
+// cspell:ignore diable
 import {
   close as _close,
   closeSync,

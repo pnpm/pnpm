@@ -20,20 +20,6 @@ wget -qO- https://get.pnpm.io/install.sh | sh -
 
 After installation, restart your shell to get pnpm accessible.
 
-### Alternatively, if you do have Node.js installed
-
-On macOS, Linux, or Windows Subsystem for Linux:
-
-```
-curl -f https://get.pnpm.io/v6.16.js | node - add --global @pnpm/exe
-```
-
-On Windows (using PowerShell):
-
-```
-(Invoke-WebRequest 'https://get.pnpm.io/v6.16.js' -UseBasicParsing).Content | node - add --global @pnpm/exe
-```
-
 ## License
 
 MIT

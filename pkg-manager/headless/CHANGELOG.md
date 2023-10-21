@@ -1,5 +1,16 @@
 # @pnpm/headless
 
+## 22.2.5
+
+### Patch Changes
+
+- Updated dependencies [5c8c9196c]
+  - @pnpm/link-bins@9.0.9
+  - @pnpm/hoist@8.0.14
+  - @pnpm/build-modules@11.1.2
+  - @pnpm/lifecycle@16.0.3
+  - @pnpm/package-requester@24.0.6
+
 ## 22.2.4
 
 ### Patch Changes

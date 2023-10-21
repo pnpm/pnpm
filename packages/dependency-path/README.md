@@ -17,6 +17,7 @@ pnpm add dependency-path
 
 ## Usage
 
+<!--/* cspell:disable */-->
 <!--@example('./example.js')-->
 ```js
 const dependencyPath = require('dependency-path')
@@ -47,6 +48,7 @@ console.log(dependencyPath.parse('/foo/2.0.0'))
 //> { isAbsolute: false, name: 'foo', version: '2.0.0' }
 ```
 <!--/@-->
+<!--/* cspell:enable */-->
 
 ## License
 

@@ -1,5 +1,13 @@
 # @pnpm/build-modules
 
+## 11.1.2
+
+### Patch Changes
+
+- Updated dependencies [5c8c9196c]
+  - @pnpm/link-bins@9.0.9
+  - @pnpm/lifecycle@16.0.3
+
 ## 11.1.1
 
 ### Patch Changes
@@ -285,7 +293,7 @@
 
 ### Minor Changes
 
-- 3360c9f4b: When the hoisted `node-linker` is used, pnpm should not build the same package multiple times during installation. If a package is present at multipe locations because hoisting could not hoist them to a single directory, then the package should only built in one of the locations and copied to the rest.
+- 3360c9f4b: When the hoisted `node-linker` is used, pnpm should not build the same package multiple times during installation. If a package is present at multiple locations because hoisting could not hoist them to a single directory, then the package should only built in one of the locations and copied to the rest.
 
 ### Patch Changes
 

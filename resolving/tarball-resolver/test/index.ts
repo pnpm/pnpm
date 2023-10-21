@@ -1,4 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
+// cspell:ignore buildserver
 import { resolveFromTarball } from '@pnpm/tarball-resolver'
 
 test('tarball from npm registry', async () => {

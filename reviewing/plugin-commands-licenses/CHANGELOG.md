@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-licenses
 
+## 2.1.0
+
+### Minor Changes
+
+- fff7866f3: The `pnpm licenses list` command now accepts the `--filter` option to check the licenses of the dependencies of a subset of workspace projects [#5806](https://github.com/pnpm/pnpm/issues/5806).
+
+### Patch Changes
+
+- Updated dependencies [fff7866f3]
+  - @pnpm/license-scanner@2.1.0
+
 ## 2.0.30
 
 ### Patch Changes

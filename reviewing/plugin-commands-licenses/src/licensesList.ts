@@ -3,7 +3,7 @@ import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { getStorePath } from '@pnpm/store-path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { readWantedLockfile } from '@pnpm/lockfile-file'
+import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile-file'
 import { findDependencyLicenses } from '@pnpm/license-scanner'
 import { renderLicences } from './outputRenderer'
 
@@ -24,6 +24,7 @@ Config,
 | 'virtualStoreDir'
 | 'modulesDir'
 | 'pnpmHomeDir'
+| 'selectedProjectsGraph'
 > &
 Partial<Pick<Config, 'userConfig'>>
 
@@ -46,6 +47,11 @@ export async function licensesList (opts: LicensesCommandOptions) {
 
   const manifest = await readProjectManifestOnly(opts.dir, {})
 
+  const includedImporterIds = opts.selectedProjectsGraph
+    ? Object.keys(opts.selectedProjectsGraph)
+      .map((path) => getLockfileImporterId(opts.lockfileDir ?? opts.dir, path))
+    : undefined
+
   const storeDir = await getStorePath({
     pkgRoot: opts.dir,
     storePath: opts.storeDir,
@@ -61,6 +67,7 @@ export async function licensesList (opts: LicensesCommandOptions) {
     registries: opts.registries,
     wantedLockfile: lockfile,
     manifest,
+    includedImporterIds,
   })
 
   if (licensePackages.length === 0)

@@ -1,5 +1,12 @@
 # @pnpm/lifecycle
 
+## 16.0.3
+
+### Patch Changes
+
+- Updated dependencies [5c8c9196c]
+  - @pnpm/link-bins@9.0.9
+
 ## 16.0.2
 
 ### Patch Changes

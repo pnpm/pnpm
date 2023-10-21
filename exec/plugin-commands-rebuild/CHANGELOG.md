@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-rebuild
 
+## 9.2.6
+
+### Patch Changes
+
+- Updated dependencies [5c8c9196c]
+  - @pnpm/link-bins@9.0.9
+  - @pnpm/lifecycle@16.0.3
+  - @pnpm/store-connection-manager@7.0.9
+
 ## 9.2.5
 
 ### Patch Changes

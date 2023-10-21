@@ -170,7 +170,7 @@ describe('getTree', () => {
       },
     }
 
-    test('revisiting package at lower depth prints dependenices not previously printed', () => {
+    test('revisiting package at lower depth prints dependencies not previously printed', () => {
       // This tests the "glob" npm package on a subset of its dependency tree.
       // Max depth shown in square brackets.
       //
@@ -229,7 +229,7 @@ describe('getTree', () => {
       ])
     })
 
-    test('revisiting package at higher depth does not print extra dependenices', () => {
+    test('revisiting package at higher depth does not print extra dependencies', () => {
       // This tests the "glob" npm package on a subset of its dependency tree.
       // Max depth shown in square brackets.
       //

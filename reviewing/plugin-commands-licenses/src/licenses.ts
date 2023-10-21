@@ -8,6 +8,7 @@ import { PnpmError } from '@pnpm/error'
 import pick from 'ramda/src/pick'
 import renderHelp from 'render-help'
 import { licensesList, type LicensesCommandOptions } from './licensesList'
+import { FILTERING } from '@pnpm/common-cli-options-help'
 
 export function rcOptionsTypes () {
   return {
@@ -66,6 +67,7 @@ To display the details, pass this option.',
           },
         ],
       },
+      FILTERING,
     ],
     url: docsUrl('licenses'),
     usages: [

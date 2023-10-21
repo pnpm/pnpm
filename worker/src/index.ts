@@ -1,3 +1,4 @@
+// cspell:ignore checkin
 import path from 'path'
 import os from 'os'
 import { WorkerPool } from '@rushstack/worker-pool/lib/WorkerPool'
@@ -9,6 +10,7 @@ import {
   type AddDirToStoreMessage,
   type LinkPkgMessage,
   type SymlinkAllModulesMessage,
+  type HardLinkDirMessage,
 } from './types'
 
 let workerPool: WorkerPool | undefined
@@ -54,7 +56,7 @@ export async function addFilesFromDir (
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest }>((resolve, reject) => {
-    // eslint-disalbe-next-line
+    // eslint-disable-next-line
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {
@@ -218,5 +220,27 @@ export async function symlinkAllModules (
       type: 'symlinkAllModules',
       ...opts,
     } as SymlinkAllModulesMessage)
+  })
+}
+
+export async function hardLinkDir (src: string, destDirs: string[]): Promise<void> {
+  if (!workerPool) {
+    workerPool = createTarballWorkerPool()
+  }
+  const localWorker = await workerPool.checkoutWorkerAsync(true)
+  await new Promise<void>((resolve, reject) => {
+    localWorker.once('message', ({ status, error }: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      workerPool!.checkinWorker(localWorker)
+      if (status === 'error') {
+        reject(new PnpmError('HARDLINK_FAILED', error as string))
+        return
+      }
+      resolve()
+    })
+    localWorker.postMessage({
+      type: 'hardLinkDir',
+      src,
+      destDirs,
+    } as HardLinkDirMessage)
   })
 }

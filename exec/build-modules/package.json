@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "11.1.1",
+  "version": "11.1.2",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -44,6 +44,7 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/worker": "workspace:*",
     "p-defer": "^3.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "run-groups": "^3.0.1"

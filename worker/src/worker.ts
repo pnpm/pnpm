@@ -3,6 +3,7 @@ import fs from 'fs'
 import gfs from '@pnpm/graceful-fs'
 import * as crypto from 'crypto'
 import { createCafsStore } from '@pnpm/create-cafs-store'
+import { hardLinkDir } from '@pnpm/fs.hard-link-dir'
 import {
   checkPkgFilesIntegrity,
   createCafs,
@@ -22,6 +23,7 @@ import {
   type LinkPkgMessage,
   type SymlinkAllModulesMessage,
   type TarballExtractMessage,
+  type HardLinkDirMessage,
 } from './types'
 
 const INTEGRITY_REGEX: RegExp = /^([^-]+)-([A-Za-z0-9+/=]+)$/
@@ -33,7 +35,7 @@ const cafsStoreCache = new Map<string, ReturnType<typeof createCafsStore>>()
 const cafsLocker = new Map<string, number>()
 
 async function handleMessage (
-  message: TarballExtractMessage | LinkPkgMessage | AddDirToStoreMessage | ReadPkgFromCafsMessage | SymlinkAllModulesMessage | false
+  message: TarballExtractMessage | LinkPkgMessage | AddDirToStoreMessage | ReadPkgFromCafsMessage | SymlinkAllModulesMessage | HardLinkDirMessage | false
 ): Promise<void> {
   if (message === false) {
     parentPort!.off('message', handleMessage)
@@ -92,6 +94,11 @@ async function handleMessage (
     }
     case 'symlinkAllModules': {
       parentPort!.postMessage(symlinkAllModules(message))
+      break
+    }
+    case 'hardLinkDir': {
+      hardLinkDir(message.src, message.destDirs)
+      parentPort!.postMessage({ status: 'success' })
       break
     }
     }
