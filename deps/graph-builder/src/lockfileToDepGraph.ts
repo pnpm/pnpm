@@ -132,11 +132,9 @@ export async function lockfileToDepGraph (
         const dir = path.join(modules, pkgName)
         const depIsPresent = !refIsLocalDirectory(depPath) &&
           currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies)
-        if (depIsPresent &&
-          (
-            isEmpty(currentPackages[depPath].optionalDependencies) &&
-            isEmpty(lockfile.packages![depPath].optionalDependencies)
-          )
+        if (
+          depIsPresent && isEmpty(currentPackages[depPath].optionalDependencies) &&
+          isEmpty(lockfile.packages![depPath].optionalDependencies)
         ) {
           if (await pathExists(dir)) {
             return
@@ -146,12 +144,6 @@ export async function lockfileToDepGraph (
             missing: dir,
           })
         }
-        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
-        progressLogger.debug({
-          packageId,
-          requester: opts.lockfileDir,
-          status: 'resolved',
-        })
         let fetchResponse!: Partial<ReturnType<FetchPackageToStoreFunction>>
         if (depIsPresent && equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)) {
           if (await pathExists(dir)) {
@@ -163,6 +155,12 @@ export async function lockfileToDepGraph (
           }
         }
         if (!fetchResponse) {
+          const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
+          progressLogger.debug({
+            packageId,
+            requester: opts.lockfileDir,
+            status: 'resolved',
+          })
           try {
             fetchResponse = opts.storeController.fetchPackage({
               force: false,
