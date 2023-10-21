@@ -58,6 +58,12 @@ export default async (workspaceDir: string) => {
       lockfile,
       workspaceDir,
     }),
+    'cspell.json': (cspell: any) => {
+      if (cspell?.words) {
+        cspell.words = cspell.words.sort()
+      }
+      return cspell
+    },
   })
 }
 
