@@ -44,6 +44,7 @@ import {
 import { toResolveImporter } from './toResolveImporter'
 import { updateLockfile } from './updateLockfile'
 import { updateProjectManifest } from './updateProjectManifest'
+import { fetchBuildFromRegistryFS } from '@pnpm/fetch'
 
 export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
 
@@ -327,20 +328,25 @@ async function finishLockfileUpdates (
     const depNode = dependenciesGraph[depPath]
     if (!depNode) return
     try {
+      let requiresBuild!: boolean
+      if (!depNode.fetching) {
+        requiresBuild = await fetchBuildFromRegistryFS(depNode.name, depNode.version)
+      } else {
       // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-      const { files, bundledManifest: pkgJson } = await depNode.fetching()
-      const requiresBuild = Boolean(
-        pkgJson?.scripts != null && (
-          Boolean(pkgJson.scripts.preinstall) ||
+        const { files, bundledManifest: pkgJson } = await depNode.fetching()
+        requiresBuild = Boolean(
+          pkgJson?.scripts != null && (
+            Boolean(pkgJson.scripts.preinstall) ||
             Boolean(pkgJson.scripts.install) ||
             Boolean(pkgJson.scripts.postinstall)
-        ) ||
+          ) ||
           files.filesIndex['binding.gyp'] ||
             Object.keys(files.filesIndex).some((filename) => !(filename.match(/^[.]hooks[\\/]/) == null)) // TODO: optimize this
-      )
+        )
 
-      if (typeof depNode.requiresBuild === 'function') {
-        depNode.requiresBuild['resolve'](requiresBuild)
+        if (typeof depNode.requiresBuild === 'function') {
+          depNode.requiresBuild['resolve'](requiresBuild)
+        }
       }
 
       // TODO: try to cover with unit test the case when entry is no longer available in lockfile
