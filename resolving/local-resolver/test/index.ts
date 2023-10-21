@@ -137,7 +137,7 @@ test('do not fail when resolving from not existing directory', async () => {
     version: '0.0.0',
   })
   expect(logger.warn).toHaveBeenCalledWith({
-    message: `Install from a non-existent directory: ${path.join(__dirname, './dir-does-not-exist')}`,
+    message: `Installing a dependency from a non-existent directory: ${path.join(__dirname, './dir-does-not-exist')}`,
     prefix: __dirname,
   })
   ;(logger.warn as jest.Mock).mockRestore()

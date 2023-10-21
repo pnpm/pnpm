@@ -61,7 +61,7 @@ export async function resolveFromLocal (
           `Could not install from "${spec.fetchSpec}" as it does not exist.`)
       }
       logger.warn({
-        message: `Install from a non-existent directory: ${spec.fetchSpec}`,
+        message: `Installing a dependency from a non-existent directory: ${spec.fetchSpec}`,
         prefix: opts.projectDir,
       })
       localDependencyManifest = {
