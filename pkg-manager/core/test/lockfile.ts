@@ -1647,16 +1647,23 @@ test('A package with an optional dependency that requires build has requiresBuil
   expect(lockfile.packages!['/@pnpm.e2e/independent-and-requires-build@1.0.0'].requiresBuild).toBeTruthy()
 })
 
-test('A package with an optional dependency that doesnt require build has no requiresBuildFlag', async () => {
+test('A package with an optional dependency that does not require build has no requiresBuildFlag', async () => {
   prepareEmpty()
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-optional@1.0.0'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  await addDependenciesToPackage({}, ['is-positive@3.1.0'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  expect(lockfile.packages!['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'].requiresBuild).toBeUndefined()
+  expect(lockfile.packages!['/is-positive@3.1.0'].requiresBuild).toBeUndefined()
 })
 
-test('A package with an optional dependncy build with bindings.gyp has requiresBuild=true', async () => {
+test('A package with an optional dependency build with bindings.gyp has requiresBuild=true', async () => {
   prepareEmpty()
-  await addDependenciesToPackage({}, ['@pnpm.e2e/has-binding-gyp'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  await addDependenciesToPackage({}, ['nodecv@1.1.2'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  expect(lockfile.packages!['@pnpm.e2e/has-binding-gyp'].requiresBuild).toBeTruthy()
+  expect(lockfile.packages!['/nodecv@1.1.2'].requiresBuild).toBeTruthy()
+})
+
+test('A package with an optional dependency with file details that cannot be fetched defaults to requiresBuild=true', async () => {
+  prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/has-binding-gyp@1.0.0'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  expect(lockfile.packages!['/@pnpm.e2e/has-binding-gyp@1.0.0'].requiresBuild).toBeTruthy()
 })
