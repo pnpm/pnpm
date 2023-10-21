@@ -2,6 +2,7 @@ import path from 'path'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import deepRequireCwd from 'deep-require-cwd'
 import readYamlFile from 'read-yaml-file'
 import {
   addDependenciesToPackage,
@@ -13,7 +14,6 @@ import {
 import rimraf from '@zkochan/rimraf'
 import exists from 'path-exists'
 import sinon from 'sinon'
-import deepRequireCwd from 'deep-require-cwd'
 import { testDefaults } from '../utils'
 
 test('successfully install optional dependency with subdependencies', async () => {
@@ -574,4 +574,16 @@ test('fail on a package with failing postinstall if the package is both an optio
       await testDefaults({})
     )
   ).rejects.toThrow()
+})
+
+test('install optional dependency for the supported architecture set by the user', async () => {
+  prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], await testDefaults({ supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] } }))
+
+  expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-arm64', './package.json']).version).toBe('1.0.0')
+
+  await install(manifest, await testDefaults({ supportedArchitectures: { os: ['darwin'], cpu: ['x64'] } }))
+
+  expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-x64', './package.json']).version).toBe('1.0.0')
 })
