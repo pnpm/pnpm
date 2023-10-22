@@ -329,10 +329,11 @@ async function finishLockfileUpdates (
     if (!depNode) return
     try {
       let requiresBuild!: boolean
-      if (!depNode.fetching) {
+      if (depNode.optional) {
+        // Attempt to use NPM's file list to determine if the package requiresBuild
         requiresBuild = await fetchBuildFromRegistryFS(depNode.name, depNode.version)
       } else {
-      // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
+        // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
         const { files, bundledManifest: pkgJson } = await depNode.fetching()
         requiresBuild = Boolean(
           pkgJson?.scripts != null && (
@@ -343,10 +344,9 @@ async function finishLockfileUpdates (
           files.filesIndex['binding.gyp'] ||
             Object.keys(files.filesIndex).some((filename) => !(filename.match(/^[.]hooks[\\/]/) == null)) // TODO: optimize this
         )
-
-        if (typeof depNode.requiresBuild === 'function') {
-          depNode.requiresBuild['resolve'](requiresBuild)
-        }
+      }
+      if (typeof depNode.requiresBuild === 'function') {
+        depNode.requiresBuild['resolve'](requiresBuild)
       }
 
       // TODO: try to cover with unit test the case when entry is no longer available in lockfile
