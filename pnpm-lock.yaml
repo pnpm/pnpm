@@ -5843,8 +5843,8 @@ importers:
         specifier: 3.14.0
         version: 3.14.0(typanion@3.14.0)
       '@types/archy':
-        specifier: 0.0.33
-        version: 0.0.33
+        specifier: 0.0.32
+        version: 0.0.32
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -8744,6 +8744,10 @@ packages:
     resolution: {integrity: sha512-33OTTnnW3onOE6HJuoqsi7T7Ojupz7zO/Vs5ddRNVCYQnu4lg05RqH/pr9eidHGvGyYfdO4uPO9cvegAMixBCQ==}
     dependencies:
       '@types/node': 20.8.6
+    dev: true
+
+  /@types/archy@0.0.32:
+    resolution: {integrity: sha512-5ZZ5+YGmUE01yejiXsKnTcvhakMZ2UllZlMsQni53Doc1JWhe21ia8VntRoRD6fAEWw08JBh/z9qQHJ+//MrIg==}
     dev: true
 
   /@types/archy@0.0.33:
