@@ -151,7 +151,7 @@ export type PackageManifest = DependencyManifest & {
 }
 
 export interface SupportedArchitectures {
-  os: string[]
-  cpu: string[]
-  libc: string[]
+  os?: string[]
+  cpu?: string[]
+  libc?: string[]
 }

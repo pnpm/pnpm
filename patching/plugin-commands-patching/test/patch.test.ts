@@ -47,11 +47,6 @@ describe('patch and commit', () => {
       cacheDir,
       dir: process.cwd(),
       storeDir,
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     }
 
     await install.handler({
@@ -357,11 +352,6 @@ describe('prompt to choose version', () => {
       cacheDir,
       dir: process.cwd(),
       storeDir,
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     }
   })
 
@@ -430,11 +420,6 @@ describe('patching should work when there is a no EOL in the patched file', () =
       cacheDir,
       dir: process.cwd(),
       storeDir,
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     }
 
     await install.handler({
@@ -541,11 +526,6 @@ describe('patch and commit in workspaces', () => {
       cacheDir,
       dir: process.cwd(),
       storeDir,
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     }
     await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
   })
@@ -685,11 +665,6 @@ describe('patch with custom modules-dir and virtual-store-dir', () => {
       storeDir,
       modulesDir: 'fake_modules',
       virtualStoreDir: 'fake_modules/.fake_store',
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     }
   })
 

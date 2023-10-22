@@ -38,11 +38,6 @@ test('pnpm run: returns correct exit code', async () => {
       extraBinPaths: [],
       extraEnv: {},
       rawConfig: {},
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     }, ['exit1'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
@@ -320,11 +315,6 @@ test('"pnpm run" prints the list of available commands, including commands of th
       rawConfig: {},
       selectedProjectsGraph,
       workspaceDir,
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     }, [])
 
     expect(output).toBe(`\
@@ -352,11 +342,6 @@ Commands of the root workspace project (to run them, use "pnpm -w run"):
       rawConfig: {},
       selectedProjectsGraph,
       workspaceDir,
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     }, [])
 
     expect(output).toBe(`\
@@ -476,7 +461,6 @@ test('pnpm run with custom shell', async () => {
     extraEnv: {},
     rawConfig: {},
     scriptShell: path.resolve(`node_modules/.bin/shell-mock${isWindows() ? '.cmd' : ''}`),
-
   }, ['build'])
 
   expect((await import(path.resolve('shell-input.json'))).default).toStrictEqual(['-c', 'foo bar'])
@@ -596,11 +580,6 @@ test('pnpm run with RegExp script selector with flag should throw error', async 
       extraEnv: {},
       rawConfig: {},
       workspaceConcurrency: 1,
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     }, ['/build:.*/i'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
