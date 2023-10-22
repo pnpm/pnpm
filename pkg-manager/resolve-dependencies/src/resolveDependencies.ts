@@ -1416,7 +1416,6 @@ function getResolvedPackage (
     ? ((options.dependencyLockfile != null) ? Boolean(options.dependencyLockfile.requiresBuild) : safePromiseDefer<boolean>())
     : false
 
-  // TODO: Use files end point to find if there is binding.gyp or hooks dir
   return {
     additionalInfo: {
       bundledDependencies: options.pkg.bundledDependencies,
