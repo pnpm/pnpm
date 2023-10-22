@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
@@ -576,52 +577,44 @@ test('fail on a package with failing postinstall if the package is both an optio
   ).rejects.toThrow()
 })
 
-test('install optional dependency for the supported architecture set by the user', async () => {
-  prepareEmpty()
-  const opts = await testDefaults()
+describe('supported architectures', () => {
+  test.each(['isolated', 'hoisted'])('install optional dependency for the supported architecture set by the user (nodeLinker=%s)', async (nodeLinker) => {
+    prepareEmpty()
+    const opts = await testDefaults({ nodeLinker })
 
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
-    ...opts,
-    supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] },
+    const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
+      ...opts,
+      supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] },
+    })
+    expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-arm64', './package.json']).version).toBe('1.0.0')
+
+    await install(manifest, {
+      ...opts,
+      preferFrozenLockfile: false,
+      supportedArchitectures: { os: ['darwin'], cpu: ['x64'] },
+    })
+    expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-x64', './package.json']).version).toBe('1.0.0')
+
+    await install(manifest, {
+      ...opts,
+      frozenLockfile: true,
+      supportedArchitectures: { os: ['linux'], cpu: ['x64'] },
+    })
+    expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/linux-x64', './package.json']).version).toBe('1.0.0')
   })
-  expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-arm64', './package.json']).version).toBe('1.0.0')
+  test('remove optional dependencies that are not used', async () => {
+    prepareEmpty()
+    const opts = await testDefaults({ modulesCacheMaxAge: 0 })
 
-  await install(manifest, {
-    ...opts,
-    preferFrozenLockfile: false,
-    supportedArchitectures: { os: ['darwin'], cpu: ['x64'] },
+    const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
+      ...opts,
+      supportedArchitectures: { os: ['darwin', 'linux', 'win32'], cpu: ['arm64', 'x64'] },
+    })
+
+    await install(manifest, {
+      ...opts,
+      supportedArchitectures: { os: ['darwin'], cpu: ['x64'] },
+    })
+    expect(fs.readdirSync('node_modules/.pnpm').length).toBe(3)
   })
-  expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-x64', './package.json']).version).toBe('1.0.0')
-
-  await install(manifest, {
-    ...opts,
-    frozenLockfile: true,
-    supportedArchitectures: { os: ['linux'], cpu: ['x64'] },
-  })
-  expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/linux-x64', './package.json']).version).toBe('1.0.0')
-})
-
-test('install optional dependency for the supported architecture set by the user in a hoisted node_modules', async () => {
-  prepareEmpty()
-  const opts = await testDefaults({ nodeLinker: 'hoisted' })
-
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
-    ...opts,
-    supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] },
-  })
-  expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-arm64', './package.json']).version).toBe('1.0.0')
-
-  await install(manifest, {
-    ...opts,
-    preferFrozenLockfile: false,
-    supportedArchitectures: { os: ['darwin'], cpu: ['x64'] },
-  })
-  expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-x64', './package.json']).version).toBe('1.0.0')
-
-  await install(manifest, {
-    ...opts,
-    frozenLockfile: true,
-    supportedArchitectures: { os: ['linux'], cpu: ['x64'] },
-  })
-  expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/linux-x64', './package.json']).version).toBe('1.0.0')
 })
