@@ -49,7 +49,6 @@ test('request package', async () => {
     preferredVersions: {},
     projectDir,
     registry,
-
   })
 
   expect(pkgResponse).toBeTruthy()
@@ -93,7 +92,6 @@ test('request package but skip fetching', async () => {
     projectDir,
     registry,
     skipFetch: true,
-
   })
 
   expect(pkgResponse).toBeTruthy()
@@ -143,7 +141,6 @@ test('request package but skip fetching, when resolution is already available', 
     registry,
     skipFetch: true,
     update: false,
-
   }) as PackageResponse & {
     body: {
       latest: string
@@ -206,11 +203,6 @@ test('refetch local tarball if its integrity has changed', async () => {
           tarball,
         },
       },
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     }) as PackageResponse & {
       fetching: () => Promise<PkgRequestFetchResult>
     }
@@ -242,11 +234,6 @@ test('refetch local tarball if its integrity has changed', async () => {
           tarball,
         },
       },
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     })
     const { files, bundledManifest } = await response.fetching!()
 
@@ -272,11 +259,6 @@ test('refetch local tarball if its integrity has changed', async () => {
           integrity: 'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
           tarball,
         },
-      },
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
       },
     }) as PackageResponse & {
       fetching: () => Promise<PkgRequestFetchResult>
@@ -304,7 +286,6 @@ test('refetch local tarball if its integrity has changed. The requester does not
     projectDir,
     registry,
     update: false,
-
   }
 
   {
@@ -595,11 +576,6 @@ test('always return a package manifest in the response', async () => {
       preferredVersions: {},
       projectDir,
       registry,
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     }) as PackageResponse & { body: { manifest: { name: string } } }
 
     expect(pkgResponse.body).toBeTruthy()
@@ -621,11 +597,6 @@ test('always return a package manifest in the response', async () => {
       preferredVersions: {},
       projectDir,
       registry,
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     }) as PackageResponse & { fetching: () => Promise<PkgRequestFetchResult> }
 
     expect(pkgResponse.body).toBeTruthy()
@@ -800,7 +771,6 @@ test('do not fetch an optional package that is not installable', async () => {
     preferredVersions: {},
     projectDir,
     registry,
-
   })
 
   expect(pkgResponse).toBeTruthy()
@@ -839,11 +809,6 @@ test('fetch a git package without a package.json', async () => {
       preferredVersions: {},
       projectDir,
       registry,
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     }) as PackageResponse & { body: { manifest: { name: string } } }
 
     expect(pkgResponse.body).toBeTruthy()
@@ -875,11 +840,6 @@ test('throw exception if the package data in the store differs from the expected
       preferredVersions: {},
       projectDir,
       registry,
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     })
     await pkgResponse.fetching!()
   }
@@ -1012,11 +972,6 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
       preferredVersions: {},
       projectDir,
       registry,
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     })
     await pkgResponse.fetching!()
   }
@@ -1039,7 +994,6 @@ test("don't throw an error if the package was updated, so the expectedPkg has a 
       name: 'is-positive',
       version: '3.0.0',
     },
-
   })
   await expect(pkgResponse.fetching!()).resolves.toStrictEqual(expect.anything())
 })
@@ -1063,7 +1017,6 @@ test('the version in the bundled manifest should be normalized', async () => {
     preferredVersions: {},
     projectDir: tempy.directory(),
     registry,
-
   })
   expect((await pkgResponse.fetching!()).bundledManifest).toStrictEqual(expect.objectContaining({
     version: '1.2.1',
@@ -1094,11 +1047,6 @@ test('should skip store integrity check and resolve manifest if fetchRawManifest
       preferredVersions: {},
       projectDir,
       registry,
-      supportedArchitectures: {
-        os: ['current'],
-        cpu: ['current'],
-        libc: ['current'],
-      },
     })
 
     await pkgResponse.fetching!()
