@@ -215,30 +215,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     unsafePerm: opts.unsafePerm || false,
   }
 
-  stageLogger.debug({
-    prefix: lockfileDir,
-    stage: 'importing_started',
-  })
-
   const skipped = opts.skipped || new Set<string>()
-  const filterOpts = {
-    include: opts.include,
-    registries: opts.registries,
-    skipped,
-  }
-  const initialImporterIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
-    ? Object.keys(wantedLockfile.importers)
-    : selectedProjects.map(({ id }) => id)
-  const { lockfile: filteredLockfile, selectedImporterIds: importerIds } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, {
-    ...filterOpts,
-    currentEngine: opts.currentEngine,
-    engineStrict: opts.engineStrict,
-    failOnMissingDependencies: true,
-    includeIncompatiblePackages: opts.force,
-    lockfileDir,
-    supportedArchitectures: opts.supportedArchitectures,
-  })
-
   let removed = 0
   if (opts.nodeLinker !== 'hoisted') {
     if (currentLockfile != null && !opts.ignorePackageManifest) {
@@ -258,7 +235,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           skipped,
           storeController: opts.storeController,
           virtualStoreDir,
-          wantedLockfile: filteredLockfile,
+          wantedLockfile,
         }
       )
       removed = removedDepPaths.size
@@ -269,6 +246,29 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       })
     }
   }
+
+  stageLogger.debug({
+    prefix: lockfileDir,
+    stage: 'importing_started',
+  })
+
+  const filterOpts = {
+    include: opts.include,
+    registries: opts.registries,
+    skipped,
+  }
+  const initialImporterIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
+    ? Object.keys(wantedLockfile.importers)
+    : selectedProjects.map(({ id }) => id)
+  const { lockfile: filteredLockfile, selectedImporterIds: importerIds } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, {
+    ...filterOpts,
+    currentEngine: opts.currentEngine,
+    engineStrict: opts.engineStrict,
+    failOnMissingDependencies: true,
+    includeIncompatiblePackages: opts.force,
+    lockfileDir,
+    supportedArchitectures: opts.supportedArchitectures,
+  })
   if (opts.excludeLinksFromLockfile) {
     for (const { id, manifest, rootDir } of selectedProjects) {
       if (filteredLockfile.importers[id]) {
