@@ -632,4 +632,19 @@ describe('supported architectures', () => {
     })
     expect(fs.readdirSync('node_modules/@pnpm.e2e').sort()).toStrictEqual(['darwin-x64', 'has-many-optional-deps'])
   })
+  test('remove optional dependencies if supported architectures have changed and a new dependency is added', async () => {
+    prepareEmpty()
+    const opts = await testDefaults({ modulesCacheMaxAge: 0 })
+
+    const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/parent-of-has-many-optional-deps@1.0.0'], {
+      ...opts,
+      supportedArchitectures: { os: ['darwin', 'linux', 'win32'], cpu: ['arm64', 'x64'] },
+    })
+
+    await addDependenciesToPackage(manifest, ['is-positive@1.0.0'], {
+      ...opts,
+      supportedArchitectures: { os: ['darwin'], cpu: ['x64'] },
+    })
+    expect(fs.readdirSync('node_modules/.pnpm').length).toBe(5)
+  })
 })
