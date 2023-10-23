@@ -42,7 +42,8 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
         hint: preferred.isGitHosted ? 'Git Hosted' : undefined,
       })),
       result (selected) {
-        return preferredVersions.find(preferred => preferred.version === selected)!.tarball
+        const selectedVersion = preferredVersions.find(preferred => preferred.version === selected)!
+        return selectedVersion.isGitHosted ? selectedVersion.tarball : selected
       },
     })
     dep.pref = version
