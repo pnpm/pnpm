@@ -57,7 +57,11 @@ export async function lockfileToHoistedDepGraph (
 ): Promise<LockfileToDepGraphResult> {
   let prevGraph!: DependenciesGraph
   if (currentLockfile?.packages != null) {
-    prevGraph = (await _lockfileToHoistedDepGraph(currentLockfile, opts)).graph
+    prevGraph = (await _lockfileToHoistedDepGraph(currentLockfile, {
+      ...opts,
+      force: true,
+      skipped: new Set(),
+    })).graph
   } else {
     prevGraph = {}
   }

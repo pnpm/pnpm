@@ -617,4 +617,19 @@ describe('supported architectures', () => {
     })
     expect(fs.readdirSync('node_modules/.pnpm').length).toBe(3)
   })
+  test('remove optional dependencies that are not used, when hoisted node linker is used', async () => {
+    prepareEmpty()
+    const opts = await testDefaults({ nodeLinker: 'hoisted' })
+
+    const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
+      ...opts,
+      supportedArchitectures: { os: ['darwin', 'linux', 'win32'], cpu: ['arm64', 'x64'] },
+    })
+
+    await install(manifest, {
+      ...opts,
+      supportedArchitectures: { os: ['darwin'], cpu: ['x64'] },
+    })
+    expect(fs.readdirSync('node_modules/@pnpm.e2e').sort()).toStrictEqual(['darwin-x64', 'has-many-optional-deps'])
+  })
 })
