@@ -16,22 +16,32 @@ import { filterImporter } from './filterImporter'
 
 const lockfileLogger = logger('lockfile')
 
+export function filterLockfileByEngine (
+  lockfile: Lockfile,
+  opts: FilterLockfileOptions
+) {
+  const importerIds = Object.keys(lockfile.importers)
+  return filterLockfileByImportersAndEngine(lockfile, importerIds, opts)
+}
+
+export interface FilterLockfileOptions {
+  currentEngine: {
+    nodeVersion: string
+    pnpmVersion: string
+  }
+  engineStrict: boolean
+  include: { [dependenciesField in DependenciesField]: boolean }
+  includeIncompatiblePackages?: boolean
+  failOnMissingDependencies: boolean
+  lockfileDir: string
+  skipped: Set<string>
+  supportedArchitectures?: SupportedArchitectures
+}
+
 export function filterLockfileByImportersAndEngine (
   lockfile: Lockfile,
   importerIds: string[],
-  opts: {
-    currentEngine: {
-      nodeVersion: string
-      pnpmVersion: string
-    }
-    engineStrict: boolean
-    include: { [dependenciesField in DependenciesField]: boolean }
-    includeIncompatiblePackages?: boolean
-    failOnMissingDependencies: boolean
-    lockfileDir: string
-    skipped: Set<string>
-    supportedArchitectures?: SupportedArchitectures
-  }
+  opts: FilterLockfileOptions
 ): { lockfile: Lockfile, selectedImporterIds: string[] } {
   const importerIdSet = new Set(importerIds) as Set<string>
 

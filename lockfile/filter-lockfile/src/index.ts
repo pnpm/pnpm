@@ -1,3 +1,3 @@
 export { filterLockfile } from './filterLockfile'
 export { filterLockfileByImporters } from './filterLockfileByImporters'
-export { filterLockfileByImportersAndEngine } from './filterLockfileByImportersAndEngine'
+export { filterLockfileByImportersAndEngine, filterLockfileByEngine } from './filterLockfileByImportersAndEngine'
