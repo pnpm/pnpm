@@ -2758,6 +2758,9 @@ importers:
       '@pnpm/patching.apply-patch':
         specifier: workspace:*
         version: link:../apply-patch
+      '@pnpm/pick-fetcher':
+        specifier: workspace:*
+        version: link:../../fetching/pick-fetcher
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package

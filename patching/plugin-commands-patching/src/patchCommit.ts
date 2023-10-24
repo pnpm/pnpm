@@ -14,8 +14,9 @@ import escapeStringRegexp from 'escape-string-regexp'
 import renderHelp from 'render-help'
 import tempy from 'tempy'
 import { writePackage } from './writePackage'
-import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
+import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import packlist from 'npm-packlist'
+import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -50,9 +51,16 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
   await fs.promises.mkdir(patchesDir, { recursive: true })
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
   const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
+  const gitTarballUrl = await getGitTarballUrlFromLockfile({
+    alias: patchedPkgManifest.name,
+    pref: patchedPkgManifest.version,
+  }, {
+    lockfileDir,
+    modulesDir: opts.modulesDir,
+    virtualStoreDir: opts.virtualStoreDir,
+  })
   const srcDir = tempy.directory()
-  await writePackage(parseWantedDependency(pkgNameAndVersion), srcDir, opts)
-
+  await writePackage(parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : pkgNameAndVersion), srcDir, opts)
   const patchedPkgDir = await preparePkgFilesForDiff(userDir)
   const patchContent = await diffFolders(srcDir, patchedPkgDir)
 
@@ -173,4 +181,9 @@ async function areAllFilesInPkg (files: string[], basePath: string) {
     cwd: basePath,
   })
   return equals(allFiles.sort(), files.sort())
+}
+
+async function getGitTarballUrlFromLockfile (dep: ParseWantedDependencyResult, opts: GetPatchedDependencyOptions) {
+  const { preferredVersions } = await getVersionsFromLockfile(dep, opts)
+  return preferredVersions[0]?.gitTarballUrl
 }
