@@ -1,5 +1,17 @@
 # @pnpm/link-bins
 
+## 9.0.10
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d2dc2e66a]
+  - @pnpm/types@9.4.0
+  - @pnpm/package-bins@8.0.4
+  - @pnpm/manifest-utils@5.0.5
+  - @pnpm/read-package-json@8.0.5
+  - @pnpm/read-project-manifest@5.0.8
+
 ## 9.0.9
 
 ### Patch Changes

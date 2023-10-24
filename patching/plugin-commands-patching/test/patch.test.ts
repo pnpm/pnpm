@@ -366,11 +366,21 @@ describe('prompt to choose version', () => {
     prompt.mockResolvedValue({
       version: '5.3.0',
     })
-
+    prompt.mockClear()
     const output = await patch.handler(defaultPatchOption, ['chalk'])
 
-    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining(['5.3.0', '4.1.2']))
-    prompt.mockClear()
+    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining([
+      {
+        name: '4.1.2',
+        message: '4.1.2',
+        value: '4.1.2',
+      },
+      {
+        name: '5.3.0',
+        message: '5.3.0',
+        value: '5.3.0',
+      },
+    ]))
 
     const patchDir = getPatchDirFromPatchOutput(output)
     const tempDir = os.tmpdir()
@@ -506,6 +516,7 @@ describe('patch and commit in workspaces', () => {
         version: '1.0.0',
         dependencies: {
           'is-positive': '1.0.0',
+          hi: '0.0.0',
         },
       },
       {
@@ -514,6 +525,7 @@ describe('patch and commit in workspaces', () => {
         dependencies: {
           'is-positive': '1.0.0',
           'project-1': '1',
+          hi: 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
         },
       },
     ])
@@ -569,7 +581,6 @@ describe('patch and commit in workspaces', () => {
       workspaceDir: process.cwd(),
       saveLockfile: true,
       frozenLockfile: false,
-      fixLockfile: true,
     }, [patchDir])
 
     const { manifest } = await readProjectManifest(process.cwd())
@@ -645,6 +656,69 @@ describe('patch and commit in workspaces', () => {
     expect(fs.existsSync('./node_modules/is-positive/license')).toBe(false)
     expect(fs.readFileSync('../project-2/node_modules/is-positive/index.js', 'utf8')).not.toContain('// test patching')
     expect(fs.existsSync('../project-2/node_modules/is-positive/license')).toBe(true)
+  })
+
+  test('patch and patch-commit for git hosted dependency', async () => {
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      allProjects,
+      allProjectsGraph,
+      dir: process.cwd(),
+      lockfileDir: process.cwd(),
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      saveLockfile: true,
+    })
+
+    prompt.mockResolvedValue({
+      version: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+    })
+    prompt.mockClear()
+    const output = await patch.handler(defaultPatchOption, ['hi'])
+    expect(prompt.mock.calls[0][0].choices).toEqual(expect.arrayContaining([
+      {
+        name: '0.0.0',
+        message: '0.0.0',
+        value: '0.0.0',
+      },
+      {
+        name: '1.0.0',
+        message: '1.0.0',
+        value: 'https://codeload.github.com/zkochan/hi/tar.gz/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+        hint: 'Git Hosted',
+      },
+    ]))
+    const patchDir = getPatchDirFromPatchOutput(output)
+    expect(fs.existsSync(patchDir)).toBe(true)
+    expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).toContain('module.exports = \'Hi\'')
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      cacheDir,
+      storeDir,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+      saveLockfile: true,
+      frozenLockfile: false,
+    }, [patchDir])
+
+    const { manifest } = await readProjectManifest(process.cwd())
+    expect(manifest.pnpm?.patchedDependencies).toStrictEqual({
+      'hi@1.0.0': 'patches/hi@1.0.0.patch',
+    })
+    const patchContent = fs.readFileSync('patches/hi@1.0.0.patch', 'utf8')
+    expect(patchContent).toContain('diff --git')
+    expect(patchContent).toContain('// test patching')
+    expect(fs.readFileSync('./project-2/node_modules/hi/index.js', 'utf8')).toContain('// test patching')
   })
 })
 

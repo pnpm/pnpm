@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-audit
 
+## 9.0.0
+
+### Major Changes
+
+- d6592964f: `rootProjectManifestDir` is a required field.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+  - @pnpm/types@9.4.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/config@20.1.0
+  - @pnpm/audit@7.0.18
+  - @pnpm/lockfile-file@8.1.4
+  - @pnpm/read-project-manifest@5.0.8
+
 ## 8.0.30
 
 ### Patch Changes

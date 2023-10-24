@@ -1,6 +1,6 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { type Config } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { createOrConnectStoreController, type CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { type InstallOptions, mutateModulesInSingleProject } from '@pnpm/core'
 import renderHelp from 'render-help'
@@ -45,7 +45,7 @@ export function help () {
 }
 
 export async function handler (
-  opts: Pick<Config, 'production' | 'dev'> & CreateStoreControllerOptions
+  opts: Pick<Config, 'production' | 'dev' | 'rootProjectManifest' | 'rootProjectManifestDir'> & CreateStoreControllerOptions
 ) {
   const store = await createOrConnectStoreController(opts)
   const include = {
@@ -61,6 +61,7 @@ export async function handler (
     rootDir: process.cwd(),
   }, {
     ...opts,
+    ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
     ignorePackageManifest: true,
     include,
     modulesCacheMaxAge: 0,

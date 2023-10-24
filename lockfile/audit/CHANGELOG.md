@@ -1,5 +1,18 @@
 # @pnpm/audit
 
+## 7.0.18
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/lockfile-types@5.1.3
+  - @pnpm/lockfile-utils@8.0.7
+  - @pnpm/lockfile-walker@7.0.6
+  - @pnpm/read-project-manifest@5.0.8
+  - @pnpm/list@9.1.3
+  - @pnpm/fetch@7.0.5
+
 ## 7.0.17
 
 ### Patch Changes

@@ -20,46 +20,16 @@ import symlinkDir from 'symlink-dir'
 
 const hoistLogger = logger('hoist')
 
-export async function hoist (
-  opts: {
-    extraNodePath?: string[]
-    preferSymlinkedExecutables?: boolean
-    lockfile: Lockfile
-    importerIds?: string[]
-    privateHoistPattern: string[]
-    privateHoistedModulesDir: string
-    publicHoistPattern: string[]
-    publicHoistedModulesDir: string
-    virtualStoreDir: string
-  }
-) {
-  if (opts.lockfile.packages == null) return {}
+export interface HoistOpts extends GetHoistedDependenciesOpts {
+  extraNodePath?: string[]
+  preferSymlinkedExecutables?: boolean
+  virtualStoreDir: string
+}
 
-  const { directDeps, step } = lockfileWalker(
-    opts.lockfile,
-    opts.importerIds ?? Object.keys(opts.lockfile.importers)
-  )
-  const deps = [
-    {
-      children: directDeps
-        .reduce((acc, { alias, depPath }) => {
-          if (!acc[alias]) {
-            acc[alias] = depPath
-          }
-          return acc
-        }, {} as Record<string, string>),
-      depPath: '',
-      depth: -1,
-    },
-    ...await getDependencies(step, 0),
-  ]
-
-  const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
-
-  const { hoistedDependencies, hoistedAliasesWithBins } = await hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
-    getAliasHoistType,
-    lockfile: opts.lockfile,
-  })
+export async function hoist (opts: HoistOpts) {
+  const result = getHoistedDependencies(opts)
+  if (!result) return {}
+  const { hoistedDependencies, hoistedAliasesWithBins } = result
 
   await symlinkHoistedDependencies(hoistedDependencies, {
     lockfile: opts.lockfile,
@@ -80,6 +50,45 @@ export async function hoist (
   })
 
   return hoistedDependencies
+}
+
+export interface GetHoistedDependenciesOpts {
+  lockfile: Lockfile
+  importerIds?: string[]
+  privateHoistPattern: string[]
+  privateHoistedModulesDir: string
+  publicHoistPattern: string[]
+  publicHoistedModulesDir: string
+}
+
+export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
+  if (opts.lockfile.packages == null) return null
+
+  const { directDeps, step } = lockfileWalker(
+    opts.lockfile,
+    opts.importerIds ?? Object.keys(opts.lockfile.importers)
+  )
+  const deps = [
+    {
+      children: directDeps
+        .reduce((acc, { alias, depPath }) => {
+          if (!acc[alias]) {
+            acc[alias] = depPath
+          }
+          return acc
+        }, {} as Record<string, string>),
+      depPath: '',
+      depth: -1,
+    },
+    ...getDependencies(0, step),
+  ]
+
+  const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
+
+  return hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
+    getAliasHoistType,
+    lockfile: opts.lockfile,
+  })
 }
 
 type GetAliasHoistType = (alias: string) => 'private' | 'public' | false
@@ -125,10 +134,10 @@ async function linkAllBins (modulesDir: string, opts: LinkAllBinsOptions) {
   }
 }
 
-async function getDependencies (
-  step: LockfileWalkerStep,
-  depth: number
-): Promise<Dependency[]> {
+function getDependencies (
+  depth: number,
+  step: LockfileWalkerStep
+): Dependency[] {
   const deps: Dependency[] = []
   const nextSteps: LockfileWalkerStep[] = []
   for (const { pkgSnapshot, depPath, next } of step.dependencies) {
@@ -151,11 +160,10 @@ async function getDependencies (
     logger.debug({ message: `No entry for "${depPath}" in ${WANTED_LOCKFILE}` })
   }
 
-  return (
-    await Promise.all(
-      nextSteps.map(async (nextStep) => getDependencies(nextStep, depth + 1))
-    )
-  ).reduce((acc, deps) => [...acc, ...deps], deps)
+  return [
+    ...deps,
+    ...nextSteps.flatMap(getDependencies.bind(null, depth + 1)),
+  ]
 }
 
 export interface Dependency {
@@ -169,14 +177,14 @@ interface HoistGraphResult {
   hoistedAliasesWithBins: string[]
 }
 
-async function hoistGraph (
+function hoistGraph (
   depNodes: Dependency[],
   currentSpecifiers: Record<string, string>,
   opts: {
     getAliasHoistType: GetAliasHoistType
     lockfile: Lockfile
   }
-): Promise<HoistGraphResult> {
+): HoistGraphResult {
   const hoistedAliases = new Set(Object.keys(currentSpecifiers))
   const hoistedDependencies: HoistedDependencies = {}
   const hoistedAliasesWithBins = new Set<string>()

@@ -146,7 +146,7 @@ async function packPkg (opts: {
     projectDir,
     embedReadme,
   } = opts
-  const { manifest } = await readProjectManifest(projectDir, {})
+  const { manifest } = await readProjectManifest(projectDir)
   const bins = [
     ...(await getBinsFromPackageManifest(manifest as DependencyManifest, projectDir)).map(({ path }) => path),
     ...(manifest.publishConfig?.executableFiles ?? [])

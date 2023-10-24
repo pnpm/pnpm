@@ -1039,6 +1039,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
       requiresbuildFromRegistry: opts.requiresbuildFromRegistry,
       resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
+      supportedArchitectures: opts.supportedArchitectures,
     }
   )
   if (!opts.include.optionalDependencies || !opts.include.devDependencies || !opts.include.dependencies) {

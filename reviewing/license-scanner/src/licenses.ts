@@ -1,6 +1,7 @@
 import { PnpmError } from '@pnpm/error'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import {
+  type SupportedArchitectures,
   type DependenciesField,
   type IncludedDependencies,
   type ProjectManifest,
@@ -74,6 +75,7 @@ export async function findDependencyLicenses (opts: {
   registries: Registries
   wantedLockfile: Lockfile | null
   includedImporterIds?: string[]
+  supportedArchitectures?: SupportedArchitectures
 }): Promise<LicensePackage[]> {
   if (opts.wantedLockfile == null) {
     throw new PnpmError(
@@ -90,6 +92,7 @@ export async function findDependencyLicenses (opts: {
     include: opts.include,
     registries: opts.registries,
     includedImporterIds: opts.includedImporterIds,
+    supportedArchitectures: opts.supportedArchitectures,
   })
 
   const licensePackages = new Map<string, LicensePackage>()

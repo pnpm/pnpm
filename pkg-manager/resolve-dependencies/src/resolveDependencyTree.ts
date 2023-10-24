@@ -2,6 +2,7 @@ import { type Lockfile, type PatchFile } from '@pnpm/lockfile-types'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
 import {
+  type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type ProjectManifest,
   type ReadPackageHook,
@@ -87,6 +88,7 @@ export interface ResolveDependenciesOptions {
   virtualStoreDir: string
   wantedLockfile: Lockfile
   workspacePackages: WorkspacePackages
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export async function resolveDependencyTree<T> (
@@ -153,6 +155,7 @@ export async function resolveDependencyTree<T> (
       updateDepth: -1,
       updateMatching: importer.updateMatching,
       prefix: importer.rootDir,
+      supportedArchitectures: opts.supportedArchitectures,
     }
     return {
       updatePackageManifest: importer.updatePackageManifest,

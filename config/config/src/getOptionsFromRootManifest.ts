@@ -1,6 +1,7 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
 import {
+  type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type PackageExtension,
   type PeerDependencyRules,
@@ -18,6 +19,7 @@ export interface OptionsFromRootManifest {
   packageExtensions?: Record<string, PackageExtension>
   patchedDependencies?: Record<string, string>
   peerDependencyRules?: PeerDependencyRules
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export function getOptionsFromRootManifest (manifestDir: string, manifest: ProjectManifest): OptionsFromRootManifest {
@@ -46,6 +48,13 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
       patchedDependencies[dep] = path.join(manifestDir, patchFile)
     }
   }
+
+  const supportedArchitectures = {
+    os: manifest.pnpm?.supportedArchitectures?.os ?? ['current'],
+    cpu: manifest.pnpm?.supportedArchitectures?.cpu ?? ['current'],
+    libc: manifest.pnpm?.supportedArchitectures?.libc ?? ['current'],
+  }
+
   const settings: OptionsFromRootManifest = {
     allowedDeprecatedVersions,
     allowNonAppliedPatches,
@@ -54,6 +63,7 @@ export function getOptionsFromRootManifest (manifestDir: string, manifest: Proje
     packageExtensions,
     peerDependencyRules,
     patchedDependencies,
+    supportedArchitectures,
   }
   if (onlyBuiltDependencies) {
     settings.onlyBuiltDependencies = onlyBuiltDependencies

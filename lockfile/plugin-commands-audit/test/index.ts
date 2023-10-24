@@ -50,6 +50,7 @@ export const DEFAULT_OPTS = {
   rawConfig,
   rawLocalConfig: {},
   registries,
+  rootProjectManifestDir: '',
   // registry: REGISTRY,
   sort: true,
   storeDir: '../store',

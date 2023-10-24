@@ -13,6 +13,7 @@ import {
   type ResolvedFrom,
 } from '@pnpm/cafs-types'
 import {
+  type SupportedArchitectures,
   type DependencyManifest,
   type PackageManifest,
 } from '@pnpm/types'
@@ -128,6 +129,7 @@ export interface RequestPackageOptions {
   update?: boolean
   workspacePackages?: WorkspacePackages
   forceResolve?: boolean
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>

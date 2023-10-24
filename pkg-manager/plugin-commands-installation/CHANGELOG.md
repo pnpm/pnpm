@@ -1,5 +1,36 @@
 # @pnpm/plugin-commands-installation
 
+## 14.0.0
+
+### Major Changes
+
+- d6592964f: `rootProjectManifestDir` is a required field.
+
+### Patch Changes
+
+- d6592964f: `pnpm fetch` read settings from root project manifest.
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [6390033cd]
+- Updated dependencies [d6592964f]
+  - @pnpm/filter-workspace-packages@7.2.0
+  - @pnpm/plugin-commands-rebuild@10.0.0
+  - @pnpm/workspace.find-packages@1.1.0
+  - @pnpm/core@13.1.0
+  - @pnpm/types@9.4.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/config@20.1.0
+  - @pnpm/package-store@19.0.7
+  - @pnpm/pnpmfile@5.0.15
+  - @pnpm/dedupe.check@1.0.5
+  - @pnpm/lockfile-types@5.1.3
+  - @pnpm/manifest-utils@5.0.5
+  - @pnpm/read-project-manifest@5.0.8
+  - @pnpm/resolver-base@10.0.4
+  - @pnpm/outdated@13.0.26
+  - @pnpm/sort-packages@5.0.7
+  - @pnpm/store-connection-manager@7.0.10
+  - @pnpm/workspace.pkgs-graph@2.0.9
+
 ## 13.2.6
 
 ### Patch Changes

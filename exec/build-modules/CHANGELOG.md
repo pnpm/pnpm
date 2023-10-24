@@ -1,5 +1,28 @@
 # @pnpm/build-modules
 
+## 11.2.0
+
+### Minor Changes
+
+- 6390033cd: Directory hard linking moved to the worker.
+
+### Patch Changes
+
+- 43ce9e4a6: `filesIndexFile` may be undefined.
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [6390033cd]
+- Updated dependencies [6390033cd]
+  - @pnpm/store-controller-types@17.1.0
+  - @pnpm/types@9.4.0
+  - @pnpm/worker@0.3.6
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/lifecycle@16.0.4
+  - @pnpm/core-loggers@9.0.4
+  - @pnpm/link-bins@9.0.10
+  - @pnpm/read-package-json@8.0.5
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/calc-dep-state@4.1.3
+
 ## 11.1.2
 
 ### Patch Changes

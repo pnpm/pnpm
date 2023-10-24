@@ -1,5 +1,80 @@
 # @pnpm/core
 
+## 13.1.0
+
+### Minor Changes
+
+- 43ce9e4a6: Support for multiple architectures when installing dependencies [#5965](https://github.com/pnpm/pnpm/issues/5965).
+
+  You can now specify architectures for which you'd like to install optional dependencies, even if they don't match the architecture of the system running the install. Use the `supportedArchitectures` field in `package.json` to define your preferences.
+
+  For example, the following configuration tells pnpm to install optional dependencies for Windows x64:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32"],
+        "cpu": ["x64"]
+      }
+    }
+  }
+  ```
+
+  Whereas this configuration will have pnpm install optional dependencies for Windows, macOS, and the architecture of the system currently running the install. It includes artifacts for both x64 and arm64 CPUs:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32", "darwin", "current"],
+        "cpu": ["x64", "arm64"]
+      }
+    }
+  }
+  ```
+
+  Additionally, `supportedArchitectures` also supports specifying the `libc` of the system.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [6390033cd]
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/resolve-dependencies@31.2.0
+  - @pnpm/package-requester@24.1.0
+  - @pnpm/store-controller-types@17.1.0
+  - @pnpm/filter-lockfile@8.1.0
+  - @pnpm/headless@22.3.0
+  - @pnpm/types@9.4.0
+  - @pnpm/build-modules@11.2.0
+  - @pnpm/worker@0.3.6
+  - @pnpm/lifecycle@16.0.4
+  - @pnpm/modules-cleaner@14.0.16
+  - @pnpm/normalize-registries@5.0.4
+  - @pnpm/symlink-dependency@7.1.2
+  - @pnpm/hooks.read-package-hook@3.0.8
+  - @pnpm/hooks.types@1.0.4
+  - @pnpm/lockfile-file@8.1.4
+  - @pnpm/lockfile-to-pnp@3.0.11
+  - @pnpm/lockfile-utils@8.0.7
+  - @pnpm/lockfile-walker@7.0.6
+  - @pnpm/prune-lockfile@5.0.7
+  - @pnpm/core-loggers@9.0.4
+  - @pnpm/dependency-path@2.1.5
+  - @pnpm/get-context@10.0.5
+  - @pnpm/hoist@8.0.15
+  - @pnpm/link-bins@9.0.10
+  - @pnpm/modules-yaml@12.1.4
+  - @pnpm/remove-bins@5.0.5
+  - @pnpm/manifest-utils@5.0.5
+  - @pnpm/read-package-json@8.0.5
+  - @pnpm/read-project-manifest@5.0.8
+  - @pnpm/resolver-base@10.0.4
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.7
+  - @pnpm/calc-dep-state@4.1.3
+
 ## 13.0.2
 
 ### Patch Changes

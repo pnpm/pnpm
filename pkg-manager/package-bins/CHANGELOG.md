@@ -1,5 +1,13 @@
 # @pnpm/package-bins
 
+## 8.0.4
+
+### Patch Changes
+
+- d2dc2e66a: Allow scoped name as bin name [#7112](https://github.com/pnpm/pnpm/issues/7112).
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+
 ## 8.0.3
 
 ### Patch Changes

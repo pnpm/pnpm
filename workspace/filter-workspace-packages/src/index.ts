@@ -1,4 +1,5 @@
 import { createMatcher } from '@pnpm/matcher'
+import { type SupportedArchitectures } from '@pnpm/types'
 import { findWorkspacePackages, type Project } from '@pnpm/workspace.find-packages'
 import { createPkgGraph, type Package, type PackageNode } from '@pnpm/workspace.pkgs-graph'
 import isSubdir from 'is-subdir'
@@ -42,9 +43,10 @@ export async function readProjects (
     engineStrict?: boolean
     linkWorkspacePackages?: boolean
     changedFilesIgnorePattern?: string[]
+    supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<ReadProjectsResult> {
-  const allProjects = await findWorkspacePackages(workspaceDir, { engineStrict: opts?.engineStrict })
+  const allProjects = await findWorkspacePackages(workspaceDir, { engineStrict: opts?.engineStrict, supportedArchitectures: opts?.supportedArchitectures ?? { os: ['current'], cpu: ['current'], libc: ['current'] } })
   const { allProjectsGraph, selectedProjectsGraph } = await filterPkgsBySelectorObjects(
     allProjects,
     pkgSelectors,
@@ -74,6 +76,7 @@ export async function filterPackagesFromDir (
     engineStrict?: boolean
     nodeVersion?: string
     patterns: string[]
+    supportedArchitectures?: SupportedArchitectures
   }
 ) {
   const allProjects = await findWorkspacePackages(workspaceDir, {
@@ -81,6 +84,7 @@ export async function filterPackagesFromDir (
     patterns: opts.patterns,
     sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
     nodeVersion: opts.nodeVersion,
+    supportedArchitectures: opts.supportedArchitectures,
   })
   return {
     allProjects,

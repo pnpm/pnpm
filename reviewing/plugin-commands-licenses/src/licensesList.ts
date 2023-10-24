@@ -1,5 +1,5 @@
 import { readProjectManifestOnly } from '@pnpm/cli-utils'
-import { type Config } from '@pnpm/config'
+import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { getStorePath } from '@pnpm/store-path'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
@@ -25,6 +25,8 @@ Config,
 | 'modulesDir'
 | 'pnpmHomeDir'
 | 'selectedProjectsGraph'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 > &
 Partial<Pick<Config, 'userConfig'>>
 
@@ -45,7 +47,7 @@ export async function licensesList (opts: LicensesCommandOptions) {
     optionalDependencies: opts.optional !== false,
   }
 
-  const manifest = await readProjectManifestOnly(opts.dir, {})
+  const manifest = await readProjectManifestOnly(opts.dir)
 
   const includedImporterIds = opts.selectedProjectsGraph
     ? Object.keys(opts.selectedProjectsGraph)
@@ -68,6 +70,7 @@ export async function licensesList (opts: LicensesCommandOptions) {
     wantedLockfile: lockfile,
     manifest,
     includedImporterIds,
+    supportedArchitectures: getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}).supportedArchitectures,
   })
 
   if (licensePackages.length === 0)

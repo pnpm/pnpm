@@ -135,10 +135,12 @@ async function buildDependency (
           patchFileHash: depNode.patchFile?.hash,
           isBuilt: hasSideEffects,
         })
-        await opts.storeController.upload(depNode.dir, {
-          sideEffectsCacheKey,
-          filesIndexFile: depNode.filesIndexFile,
-        })
+        if (depNode.filesIndexFile) {
+          await opts.storeController.upload(depNode.dir, {
+            sideEffectsCacheKey,
+            filesIndexFile: depNode.filesIndexFile,
+          })
+        }
       } catch (err: any) { // eslint-disable-line
         if (err.statusCode === 403) {
           logger.warn({

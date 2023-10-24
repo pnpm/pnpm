@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-listing
 
+## 8.0.0
+
+### Major Changes
+
+- d6592964f: `rootProjectManifestDir` is a required field.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+  - @pnpm/types@9.4.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/config@20.1.0
+  - @pnpm/list@9.1.3
+
 ## 7.0.26
 
 ### Patch Changes

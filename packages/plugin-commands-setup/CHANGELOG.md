@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-setup
 
+## 4.0.25
+
+### Patch Changes
+
+- 34654835d: `pnpm setup` should add a newline at the end of the updated shell config file [#7227](https://github.com/pnpm/pnpm/issues/7227).
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/cli-utils@2.1.0
+
 ## 4.0.24
 
 ### Patch Changes

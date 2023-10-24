@@ -1,5 +1,15 @@
 # @pnpm/lockfile-file
 
+## 8.1.4
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/lockfile-types@5.1.3
+  - @pnpm/dependency-path@2.1.5
+  - @pnpm/merge-lockfile-changes@5.0.5
+
 ## 8.1.3
 
 ### Patch Changes

@@ -32,6 +32,7 @@ const DEFAULT_OPTIONS = {
   registries: {
     default: REGISTRY_URL,
   },
+  rootProjectManifestDir: '',
   sort: true,
   storeDir: path.join(tmp, 'store'),
   userConfig: {},

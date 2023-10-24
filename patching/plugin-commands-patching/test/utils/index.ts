@@ -39,6 +39,7 @@ export const DEFAULT_OPTS = {
   rawLocalConfig: {},
   registries: { default: REGISTRY },
   registry: REGISTRY,
+  rootProjectManifestDir: '',
   sort: true,
   storeDir: '../store',
   strictSsl: false,
@@ -47,4 +48,9 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
+  supportedArchitectures: {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  },
 }

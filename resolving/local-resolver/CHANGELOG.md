@@ -1,5 +1,19 @@
 # @pnpm/local-resolver
 
+## 11.0.0
+
+### Major Changes
+
+- 5b7ed47d8: `@pnpm/logger` added as a peer dependency.
+
+### Patch Changes
+
+- 5b7ed47d8: Print a warning when installing a dependency from a non-existent directory [#7159](https://github.com/pnpm/pnpm/issues/7159)
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/read-project-manifest@5.0.8
+  - @pnpm/resolver-base@10.0.4
+
 ## 10.0.9
 
 ### Patch Changes
