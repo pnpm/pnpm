@@ -20,20 +20,49 @@ import symlinkDir from 'symlink-dir'
 
 const hoistLogger = logger('hoist')
 
-export async function hoist (
-  opts: {
-    extraNodePath?: string[]
-    preferSymlinkedExecutables?: boolean
-    lockfile: Lockfile
-    importerIds?: string[]
-    privateHoistPattern: string[]
-    privateHoistedModulesDir: string
-    publicHoistPattern: string[]
-    publicHoistedModulesDir: string
-    virtualStoreDir: string
-  }
-) {
-  if (opts.lockfile.packages == null) return {}
+export interface HoistOpts extends GetHoistedDependenciesOpts {
+  extraNodePath?: string[]
+  preferSymlinkedExecutables?: boolean
+  virtualStoreDir: string
+}
+
+export async function hoist (opts: HoistOpts) {
+  const result = getHoistedDependencies(opts)
+  if (!result) return {}
+  const { hoistedDependencies, hoistedAliasesWithBins } = result
+
+  await symlinkHoistedDependencies(hoistedDependencies, {
+    lockfile: opts.lockfile,
+    privateHoistedModulesDir: opts.privateHoistedModulesDir,
+    publicHoistedModulesDir: opts.publicHoistedModulesDir,
+    virtualStoreDir: opts.virtualStoreDir,
+  })
+
+  // Here we only link the bins of the privately hoisted modules.
+  // The bins of the publicly hoisted modules will be linked together with
+  // the bins of the project's direct dependencies.
+  // This is possible because the publicly hoisted modules
+  // are in the same directory as the regular dependencies.
+  await linkAllBins(opts.privateHoistedModulesDir, {
+    extraNodePaths: opts.extraNodePath,
+    hoistedAliasesWithBins,
+    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+  })
+
+  return hoistedDependencies
+}
+
+export interface GetHoistedDependenciesOpts {
+  lockfile: Lockfile
+  importerIds?: string[]
+  privateHoistPattern: string[]
+  privateHoistedModulesDir: string
+  publicHoistPattern: string[]
+  publicHoistedModulesDir: string
+}
+
+export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
+  if (opts.lockfile.packages == null) return null
 
   const { directDeps, step } = lockfileWalker(
     opts.lockfile,
@@ -56,30 +85,10 @@ export async function hoist (
 
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
-  const { hoistedDependencies, hoistedAliasesWithBins } = hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
+  return hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
     getAliasHoistType,
     lockfile: opts.lockfile,
   })
-
-  await symlinkHoistedDependencies(hoistedDependencies, {
-    lockfile: opts.lockfile,
-    privateHoistedModulesDir: opts.privateHoistedModulesDir,
-    publicHoistedModulesDir: opts.publicHoistedModulesDir,
-    virtualStoreDir: opts.virtualStoreDir,
-  })
-
-  // Here we only link the bins of the privately hoisted modules.
-  // The bins of the publicly hoisted modules will be linked together with
-  // the bins of the project's direct dependencies.
-  // This is possible because the publicly hoisted modules
-  // are in the same directory as the regular dependencies.
-  await linkAllBins(opts.privateHoistedModulesDir, {
-    extraNodePaths: opts.extraNodePath,
-    hoistedAliasesWithBins,
-    preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
-  })
-
-  return hoistedDependencies
 }
 
 type GetAliasHoistType = (alias: string) => 'private' | 'public' | false
