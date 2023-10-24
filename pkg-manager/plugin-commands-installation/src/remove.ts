@@ -172,7 +172,7 @@ export async function handler (
   }
   const store = await createOrConnectStoreController(opts)
   const removeOpts = Object.assign(opts, {
-    ...getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest ?? {}),
+    ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
     storeController: store.ctrl,
     storeDir: store.dir,
     include,
