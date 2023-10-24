@@ -51,12 +51,12 @@ export async function hoist (
       depPath: '',
       depth: -1,
     },
-    ...await getDependencies(step, 0),
+    ...getDependencies(0, step),
   ]
 
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
-  const { hoistedDependencies, hoistedAliasesWithBins } = await hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
+  const { hoistedDependencies, hoistedAliasesWithBins } = hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
     getAliasHoistType,
     lockfile: opts.lockfile,
   })
@@ -125,10 +125,10 @@ async function linkAllBins (modulesDir: string, opts: LinkAllBinsOptions) {
   }
 }
 
-async function getDependencies (
-  step: LockfileWalkerStep,
-  depth: number
-): Promise<Dependency[]> {
+function getDependencies (
+  depth: number,
+  step: LockfileWalkerStep
+): Dependency[] {
   const deps: Dependency[] = []
   const nextSteps: LockfileWalkerStep[] = []
   for (const { pkgSnapshot, depPath, next } of step.dependencies) {
@@ -151,11 +151,10 @@ async function getDependencies (
     logger.debug({ message: `No entry for "${depPath}" in ${WANTED_LOCKFILE}` })
   }
 
-  return (
-    await Promise.all(
-      nextSteps.map(async (nextStep) => getDependencies(nextStep, depth + 1))
-    )
-  ).reduce((acc, deps) => [...acc, ...deps], deps)
+  return [
+    ...deps,
+    ...nextSteps.flatMap(getDependencies.bind(null, depth + 1)),
+  ]
 }
 
 export interface Dependency {
@@ -169,14 +168,14 @@ interface HoistGraphResult {
   hoistedAliasesWithBins: string[]
 }
 
-async function hoistGraph (
+function hoistGraph (
   depNodes: Dependency[],
   currentSpecifiers: Record<string, string>,
   opts: {
     getAliasHoistType: GetAliasHoistType
     lockfile: Lockfile
   }
-): Promise<HoistGraphResult> {
+): HoistGraphResult {
   const hoistedAliases = new Set(Object.keys(currentSpecifiers))
   const hoistedDependencies: HoistedDependencies = {}
   const hoistedAliasesWithBins = new Set<string>()
