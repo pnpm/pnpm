@@ -59,8 +59,7 @@ export type PatchCommandOptions = Pick<Config,
 | 'lockfileDir'
 | 'modulesDir'
 | 'virtualStoreDir'
->
-& CreateStoreControllerOptions & {
+> & CreateStoreControllerOptions & {
   editDir?: string
   reporter?: (logObj: LogBase) => void
   ignoreExisting?: boolean

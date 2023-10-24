@@ -19,7 +19,7 @@ export interface ReadProjectManifestResult extends BaseReadProjectManifestResult
 
 export async function readProjectManifest (
   projectDir: string,
-  opts: ReadProjectManifestOpts
+  opts: ReadProjectManifestOpts = {}
 ): Promise<ReadProjectManifestResult> {
   const { fileName, manifest, writeProjectManifest } = await utils.readProjectManifest(projectDir)
   packageIsInstallable(projectDir, manifest as any, opts) // eslint-disable-line @typescript-eslint/no-explicit-any

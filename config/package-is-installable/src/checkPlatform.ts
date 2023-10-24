@@ -20,7 +20,7 @@ export function checkPlatform (
   wantedPlatform: WantedPlatform,
   supportedArchitectures?: SupportedArchitectures
 ) {
-  const platforms = {
+  const current = {
     os: dedupeCurrent(process.platform, supportedArchitectures?.os ?? ['current']),
     cpu: dedupeCurrent(process.arch, supportedArchitectures?.cpu ?? ['current']),
     libc: dedupeCurrent(currentLibc, supportedArchitectures?.libc ?? ['current']),
@@ -30,13 +30,13 @@ export function checkPlatform (
   let osOk = true; let cpuOk = true; let libcOk = true
 
   if (wantedPlatform.os) {
-    osOk = checkList(platforms.os, wantedPlatform.os)
+    osOk = checkList(current.os, wantedPlatform.os)
   }
   if (wantedPlatform.cpu) {
-    cpuOk = checkList(platforms.cpu, wantedPlatform.cpu)
+    cpuOk = checkList(current.cpu, wantedPlatform.cpu)
   }
   if (wantedPlatform.libc && currentLibc !== 'unknown') {
-    libcOk = checkList(platforms.libc, wantedPlatform.libc)
+    libcOk = checkList(current.libc, wantedPlatform.libc)
   }
 
   if (!osOk || !cpuOk || !libcOk) {
@@ -61,24 +61,21 @@ function checkList (value: string | string[], list: string | string[]): boolean 
   if (typeof list === 'string') {
     list = [list]
   }
-
   if (list.length === 1 && list[0] === 'any') {
     return true
   }
-
   const values = Array.isArray(value) ? value : [value]
-
-  for (const val of values) {
+  for (const value of values) {
     for (let i = 0; i < list.length; ++i) {
       tmp = list[i]
       if (tmp[0] === '!') {
         tmp = tmp.slice(1)
-        if (tmp === val) {
+        if (tmp === value) {
           return false
         }
         ++blc
       } else {
-        match = match || tmp === val
+        match = match || tmp === value
       }
     }
   }

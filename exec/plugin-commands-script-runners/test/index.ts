@@ -510,7 +510,6 @@ test('pnpm run with RegExp script selector should work also for pre/post script'
     extraEnv: {},
     rawConfig: {},
     enablePrePostScripts: true,
-
   }, ['/build:.*/'])
 
   expect(await fs.readFile('output-a.txt', { encoding: 'utf-8' })).toEqual('a')
