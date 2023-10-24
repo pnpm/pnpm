@@ -188,7 +188,7 @@ when running add/update with the --workspace option')
         params,
         {
           ...opts,
-          ...getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest ?? {}),
+          ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
           forceHoistPattern,
           forcePublicHoistPattern,
           allProjectsGraph,
