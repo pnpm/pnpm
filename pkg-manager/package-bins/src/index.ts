@@ -42,16 +42,20 @@ function commandsFromBin (bin: PackageBin, pkgName: string, pkgPath: string) {
   if (typeof bin === 'string') {
     return [
       {
-        name: pkgName[0] === '@' ? pkgName.slice(pkgName.indexOf('/') + 1) : pkgName,
+        name: normalizeBinName(pkgName),
         path: path.join(pkgPath, bin),
       },
     ]
   }
   return Object.keys(bin)
-    .filter((commandName) => encodeURIComponent(commandName) === commandName || commandName === '$')
+    .filter((commandName) => encodeURIComponent(commandName) === commandName || commandName === '$' || commandName[0] === '@')
     .map((commandName) => ({
-      name: commandName,
+      name: normalizeBinName(commandName),
       path: path.join(pkgPath, bin[commandName]),
     }))
     .filter((cmd) => isSubdir(pkgPath, cmd.path))
+}
+
+function normalizeBinName (name: string) {
+  return name[0] === '@' ? name.slice(name.indexOf('/') + 1) : name
 }

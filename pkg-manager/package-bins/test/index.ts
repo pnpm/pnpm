@@ -108,3 +108,21 @@ test('skip dangerous bin locations', async () => {
     ]
   )
 })
+
+test('get bin from scoped bin name', async () => {
+  expect(
+    await getBinsFromPackageManifest({
+      name: '@foo/a',
+      version: '1.0.0',
+      bin: {
+        '@foo/a': './a',
+      },
+    }, process.cwd())).toStrictEqual(
+    [
+      {
+        name: 'a',
+        path: path.resolve('a'),
+      },
+    ]
+  )
+})
