@@ -60,7 +60,6 @@ export type PatchCommandOptions = Pick<Config,
 | 'modulesDir'
 | 'virtualStoreDir'
 >
-& Partial<Pick<Config, 'supportedArchitectures'>>
 & CreateStoreControllerOptions & {
   editDir?: string
   reporter?: (logObj: LogBase) => void

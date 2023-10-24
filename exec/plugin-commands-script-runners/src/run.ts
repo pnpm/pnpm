@@ -154,7 +154,7 @@ export type RunOpts =
   & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent' | 'extraEnv'>
   & (
     & { recursive?: false }
-    & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir' | 'supportedArchitectures'>>
+    & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
     | { recursive: true }
     & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
   )

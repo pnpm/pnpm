@@ -1,5 +1,4 @@
 import {
-  type SupportedArchitectures,
   type Project,
   type ProjectManifest,
   type ProjectsGraph,
@@ -170,10 +169,9 @@ export interface Config {
 
   testPattern?: string[]
   changedFilesIgnorePattern?: string[]
-  rootProjectManifestDir?: string
+  rootProjectManifestDir: string
   rootProjectManifest?: ProjectManifest
   userConfig: Record<string, string>
-  supportedArchitectures?: SupportedArchitectures
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

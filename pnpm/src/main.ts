@@ -208,7 +208,6 @@ export async function main (inputArgv: string[]) {
       changedFilesIgnorePattern: config.changedFilesIgnorePattern,
       useGlobDirFiltering: !config.legacyDirFiltering,
       sharedWorkspaceLockfile: config.sharedWorkspaceLockfile,
-      supportedArchitectures: config.supportedArchitectures,
     })
 
     if (filterResults.allProjects.length === 0) {

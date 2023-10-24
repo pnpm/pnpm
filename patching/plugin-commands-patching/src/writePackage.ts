@@ -19,7 +19,6 @@ export async function writePackage (dep: ParseWantedDependencyResult, dest: stri
     preferredVersions: {},
     projectDir: opts.dir,
     registry: (dep.alias && pickRegistryForPackage(opts.registries, dep.alias)) ?? opts.registries.default,
-    supportedArchitectures: opts.supportedArchitectures,
   })
   const { files } = await pkgResponse.fetching!()
   await store.ctrl.importPackage(dest, {

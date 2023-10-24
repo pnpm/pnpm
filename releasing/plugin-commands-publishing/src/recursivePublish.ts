@@ -46,7 +46,6 @@ Partial<Pick<Config,
 | 'userAgent'
 | 'userConfig'
 | 'verifyStoreIntegrity'
-| 'supportedArchitectures'
 >> & {
   access?: 'public' | 'restricted'
   argv: {

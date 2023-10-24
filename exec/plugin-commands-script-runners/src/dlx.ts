@@ -90,10 +90,11 @@ export async function handler (
   await add.handler({
     // Ideally the config reader should ignore these settings when the dlx command is executed.
     // This is a temporary solution until "@pnpm/config" is refactored.
-    ...omit(['workspaceDir', 'rootProjectManifest', 'rootProjectManifestDir'], opts),
+    ...omit(['workspaceDir', 'rootProjectManifest'], opts),
     bin: binsDir,
     dir: prefix,
     lockfileDir: prefix,
+    rootProjectManifestDir: prefix, // This property won't be used as rootProjectManifest will be undefined
   }, pkgs)
   const binName = opts.package
     ? command

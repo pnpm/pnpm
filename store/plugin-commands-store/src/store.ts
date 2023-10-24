@@ -98,7 +98,6 @@ export async function handler (opts: StoreCommandOptions, params: string[]) {
       reporter: opts.reporter,
       storeController: store.ctrl,
       tag: opts.tag,
-      supportedArchitectures: opts.supportedArchitectures,
     })
   default:
     return help()

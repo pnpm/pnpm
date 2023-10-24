@@ -101,7 +101,7 @@ export async function extendRebuildOptions (
     ...defaultOpts,
     ...opts,
     storeDir: defaultOpts.storeDir,
-    ...(opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest) : {}),
+    ...(opts.rootProjectManifest ? getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest) : {}),
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   return extendedOpts

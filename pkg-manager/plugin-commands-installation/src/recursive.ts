@@ -92,7 +92,6 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 Pick<Config,
 | 'sort'
 | 'workspaceConcurrency'
-| 'supportedArchitectures'
 >
 > & Required<
 Pick<Config, 'workspaceDir'>
