@@ -16,6 +16,9 @@
       "path": "../../packages/error"
     },
     {
+      "path": "../../packages/types"
+    },
+    {
       "path": "../find-packages"
     },
     {

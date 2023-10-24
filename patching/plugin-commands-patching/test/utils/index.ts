@@ -48,4 +48,9 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
+  supportedArchitectures: {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  },
 }

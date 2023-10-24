@@ -16,7 +16,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { type IncludedDependencies } from '@pnpm/modules-yaml'
 import { packageIsInstallable } from '@pnpm/package-is-installable'
-import { type PatchFile, type Registries } from '@pnpm/types'
+import { type SupportedArchitectures, type PatchFile, type Registries } from '@pnpm/types'
 import {
   type PkgRequestFetchResult,
   type FetchPackageToStoreFunction,
@@ -25,6 +25,7 @@ import {
 import * as dp from '@pnpm/dependency-path'
 import pathExists from 'path-exists'
 import equals from 'ramda/src/equals'
+import isEmpty from 'ramda/src/isEmpty'
 
 const brokenModulesLogger = logger('_broken_node_modules')
 
@@ -33,7 +34,7 @@ export interface DependenciesGraphNode {
   hasBundledDependencies: boolean
   modules: string
   name: string
-  fetching: () => Promise<PkgRequestFetchResult>
+  fetching?: () => Promise<PkgRequestFetchResult>
   dir: string
   children: Record<string, string>
   optionalDependencies: Set<string>
@@ -43,7 +44,7 @@ export interface DependenciesGraphNode {
   requiresBuild: boolean
   prepare: boolean
   hasBin: boolean
-  filesIndexFile: string
+  filesIndexFile?: string
   patchFile?: PatchFile
 }
 
@@ -68,6 +69,7 @@ export interface LockfileToDepGraphOptions {
   storeController: StoreController
   storeDir: string
   virtualStoreDir: string
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export interface DirectDependenciesByImporterId {
@@ -121,16 +123,18 @@ export async function lockfileToDepGraph (
             nodeVersion: opts.nodeVersion,
             optional: pkgSnapshot.optional === true,
             pnpmVersion: opts.pnpmVersion,
+            supportedArchitectures: opts.supportedArchitectures,
           }) === false
         ) {
           opts.skipped.add(depPath)
           return
         }
         const dir = path.join(modules, pkgName)
+        const depIsPresent = !refIsLocalDirectory(depPath) &&
+          currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies)
         if (
-          !refIsLocalDirectory(depPath) &&
-          currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies) &&
-          equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)
+          depIsPresent && isEmpty(currentPackages[depPath].optionalDependencies) &&
+          isEmpty(lockfile.packages![depPath].optionalDependencies)
         ) {
           if (await pathExists(dir)) {
             return
@@ -140,31 +144,42 @@ export async function lockfileToDepGraph (
             missing: dir,
           })
         }
-        const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
-        progressLogger.debug({
-          packageId,
-          requester: opts.lockfileDir,
-          status: 'resolved',
-        })
-        let fetchResponse!: ReturnType<FetchPackageToStoreFunction>
-        try {
-          fetchResponse = opts.storeController.fetchPackage({
-            force: false,
-            lockfileDir: opts.lockfileDir,
-            ignoreScripts: opts.ignoreScripts,
-            pkg: {
-              id: packageId,
-              resolution,
-            },
-            expectedPkg: {
-              name: pkgName,
-              version: pkgVersion,
-            },
-          }) as any // eslint-disable-line
-          if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-        } catch (err: any) { // eslint-disable-line
-          if (pkgSnapshot.optional) return
-          throw err
+        let fetchResponse!: Partial<ReturnType<FetchPackageToStoreFunction>>
+        if (depIsPresent && equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)) {
+          if (await pathExists(dir)) {
+            fetchResponse = {}
+          } else {
+            brokenModulesLogger.debug({
+              missing: dir,
+            })
+          }
+        }
+        if (!fetchResponse) {
+          const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
+          progressLogger.debug({
+            packageId,
+            requester: opts.lockfileDir,
+            status: 'resolved',
+          })
+          try {
+            fetchResponse = opts.storeController.fetchPackage({
+              force: false,
+              lockfileDir: opts.lockfileDir,
+              ignoreScripts: opts.ignoreScripts,
+              pkg: {
+                id: packageId,
+                resolution,
+              },
+              expectedPkg: {
+                name: pkgName,
+                version: pkgVersion,
+              },
+            }) as any // eslint-disable-line
+            if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
+          } catch (err: any) { // eslint-disable-line
+            if (pkgSnapshot.optional) return
+            throw err
+          }
         }
         graph[dir] = {
           children: {},

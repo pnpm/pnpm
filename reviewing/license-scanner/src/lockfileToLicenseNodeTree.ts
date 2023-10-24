@@ -5,7 +5,7 @@ import {
   lockfileWalkerGroupImporterSteps,
   type LockfileWalkerStep,
 } from '@pnpm/lockfile-walker'
-import { type DependenciesField, type Registries } from '@pnpm/types'
+import { type SupportedArchitectures, type DependenciesField, type Registries } from '@pnpm/types'
 import { getPkgInfo } from './getPkgInfo'
 import mapValues from 'ramda/src/map'
 
@@ -36,6 +36,7 @@ export interface LicenseExtractOptions {
   modulesDir?: string
   dir: string
   registries: Registries
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export async function lockfileToLicenseNode (
@@ -56,6 +57,7 @@ export async function lockfileToLicenseNode (
       }, {
         optional: pkgSnapshot.optional ?? false,
         lockfileDir: options.dir,
+        supportedArchitectures: options.supportedArchitectures,
       })
 
       // If the package is not installable on the given platform, we ignore the
@@ -137,6 +139,7 @@ export async function lockfileToLicenseNodeTree (
           modulesDir: opts.modulesDir,
           dir: opts.dir,
           registries: opts.registries,
+          supportedArchitectures: opts.supportedArchitectures,
         })
         return [importerWalker.importerId, {
           dependencies: importerDeps,

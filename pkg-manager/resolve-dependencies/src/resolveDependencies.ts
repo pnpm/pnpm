@@ -30,6 +30,7 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import {
+  type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type Dependencies,
   type PackageManifest,
@@ -253,6 +254,7 @@ interface ResolvedDependenciesOptions {
   updateMatching?: UpdateMatchingFunction
   updateDepth: number
   prefix: string
+  supportedArchitectures?: SupportedArchitectures
 }
 
 interface PostponedResolutionOpts {
@@ -674,6 +676,7 @@ async function resolveDependenciesOfDependency (
     update,
     updateDepth,
     updateMatching: options.updateMatching,
+    supportedArchitectures: options.supportedArchitectures,
   }
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
@@ -709,6 +712,7 @@ async function resolveDependenciesOfDependency (
     updateDepth,
     prefix: options.prefix,
     updateMatching: options.updateMatching,
+    supportedArchitectures: options.supportedArchitectures,
   })
   return {
     resolveDependencyResult,
@@ -756,6 +760,7 @@ async function resolveChildren (
     updateDepth,
     updateMatching,
     prefix,
+    supportedArchitectures,
   }: {
     parentPkg: PkgAddress
     dependencyLockfile: PackageSnapshot | undefined
@@ -763,6 +768,7 @@ async function resolveChildren (
     updateDepth: number
     prefix: string
     updateMatching?: UpdateMatchingFunction
+    supportedArchitectures?: SupportedArchitectures
   },
   {
     parentPkgAliases,
@@ -808,6 +814,7 @@ async function resolveChildren (
       resolvedDependencies,
       updateDepth,
       updateMatching,
+      supportedArchitectures,
     }
   )
   ctx.childrenByParentDepPath[parentPkg.depPath] = pkgAddresses.map((child) => ({
@@ -1011,6 +1018,7 @@ interface ResolveDependencyOptions {
   update: boolean
   updateDepth: number
   updateMatching?: UpdateMatchingFunction
+  supportedArchitectures?: SupportedArchitectures
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null
@@ -1083,6 +1091,7 @@ async function resolveDependency (
       skipFetch: false,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
+      supportedArchitectures: options.supportedArchitectures,
     })
   } catch (err: any) { // eslint-disable-line
     if (wantedDependency.optional) {

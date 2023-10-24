@@ -342,7 +342,9 @@ async function linkNewPackages (
     for (const depPath of wantedRelDepPaths) {
       if (currentLockfile.packages[depPath] &&
         (!equals(currentLockfile.packages[depPath].dependencies, wantedLockfile.packages[depPath].dependencies) ||
-        !equals(currentLockfile.packages[depPath].optionalDependencies, wantedLockfile.packages[depPath].optionalDependencies))) {
+        !isEmpty(currentLockfile.packages[depPath].optionalDependencies) ||
+        !isEmpty(wantedLockfile.packages[depPath].optionalDependencies))
+      ) {
         // TODO: come up with a test that triggers the usecase of depGraph[depPath] undefined
         // see related issue: https://github.com/pnpm/pnpm/issues/870
         if (depGraph[depPath] && !newDepPathsSet.has(depPath)) {

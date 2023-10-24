@@ -1,6 +1,7 @@
 import { packageManager } from '@pnpm/cli-meta'
 import { logger } from '@pnpm/logger'
 import { checkPackage, UnsupportedEngineError, type WantedEngine } from '@pnpm/package-is-installable'
+import { type SupportedArchitectures } from '@pnpm/types'
 
 export function packageIsInstallable (
   pkgPath: string,
@@ -13,6 +14,7 @@ export function packageIsInstallable (
   opts: {
     engineStrict?: boolean
     nodeVersion?: string
+    supportedArchitectures?: SupportedArchitectures
   }
 ) {
   const pnpmVersion = packageManager.name === 'pnpm'
@@ -21,6 +23,11 @@ export function packageIsInstallable (
   const err = checkPackage(pkgPath, pkg, {
     nodeVersion: opts.nodeVersion,
     pnpmVersion,
+    supportedArchitectures: opts.supportedArchitectures ?? {
+      os: ['current'],
+      cpu: ['current'],
+      libc: ['current'],
+    },
   })
   if (err === null) return
   if (

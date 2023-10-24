@@ -140,6 +140,7 @@ export type ProjectManifest = BaseManifest & {
       ignoreCves?: string[]
     }
     requiredScripts?: string[]
+    supportedArchitectures?: SupportedArchitectures
   }
   private?: boolean
   resolutions?: Record<string, string>
@@ -147,4 +148,10 @@ export type ProjectManifest = BaseManifest & {
 
 export type PackageManifest = DependencyManifest & {
   deprecated?: string
+}
+
+export interface SupportedArchitectures {
+  os?: string[]
+  cpu?: string[]
+  libc?: string[]
 }

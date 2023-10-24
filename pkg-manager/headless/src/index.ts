@@ -15,6 +15,7 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import {
+  filterLockfileByEngine,
   filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
 import { hoist } from '@pnpm/hoist'
@@ -55,7 +56,7 @@ import {
   type StoreController,
 } from '@pnpm/store-controller-types'
 import { symlinkDependency } from '@pnpm/symlink-dependency'
-import { type DependencyManifest, type HoistedDependencies, type ProjectManifest, type Registries, DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { type DependencyManifest, type HoistedDependencies, type ProjectManifest, type Registries, DEPENDENCIES_FIELDS, type SupportedArchitectures } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 import { symlinkAllModules } from '@pnpm/worker'
 import pLimit from 'p-limit'
@@ -159,6 +160,7 @@ export interface HeadlessOptions {
   nodeLinker?: 'isolated' | 'hoisted' | 'pnp'
   useGitBranchLockfile?: boolean
   useLockfile?: boolean
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export interface InstallationResultStats {
@@ -215,6 +217,17 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }
 
   const skipped = opts.skipped || new Set<string>()
+  const filterOpts = {
+    include: opts.include,
+    registries: opts.registries,
+    skipped,
+    currentEngine: opts.currentEngine,
+    engineStrict: opts.engineStrict,
+    failOnMissingDependencies: true,
+    includeIncompatiblePackages: opts.force,
+    lockfileDir,
+    supportedArchitectures: opts.supportedArchitectures,
+  }
   let removed = 0
   if (opts.nodeLinker !== 'hoisted') {
     if (currentLockfile != null && !opts.ignorePackageManifest) {
@@ -234,7 +247,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           skipped,
           storeController: opts.storeController,
           virtualStoreDir,
-          wantedLockfile,
+          wantedLockfile: filterLockfileByEngine(wantedLockfile, filterOpts).lockfile,
         }
       )
       removed = removedDepPaths.size
@@ -251,22 +264,10 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     stage: 'importing_started',
   })
 
-  const filterOpts = {
-    include: opts.include,
-    registries: opts.registries,
-    skipped,
-  }
   const initialImporterIds = (opts.ignorePackageManifest === true || opts.nodeLinker === 'hoisted')
     ? Object.keys(wantedLockfile.importers)
     : selectedProjects.map(({ id }) => id)
-  const { lockfile: filteredLockfile, selectedImporterIds: importerIds } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, {
-    ...filterOpts,
-    currentEngine: opts.currentEngine,
-    engineStrict: opts.engineStrict,
-    failOnMissingDependencies: true,
-    includeIncompatiblePackages: opts.force,
-    lockfileDir,
-  })
+  const { lockfile: filteredLockfile, selectedImporterIds: importerIds } = filterLockfileByImportersAndEngine(wantedLockfile, initialImporterIds, filterOpts)
   if (opts.excludeLinksFromLockfile) {
     for (const { id, manifest, rootDir } of selectedProjects) {
       if (filteredLockfile.importers[id]) {
@@ -305,6 +306,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     virtualStoreDir,
     nodeVersion: opts.currentEngine.nodeVersion,
     pnpmVersion: opts.currentEngine.pnpmVersion,
+    supportedArchitectures: opts.supportedArchitectures,
   } as LockfileToDepGraphOptions
   const {
     directDependenciesByImporterId,
@@ -787,6 +789,7 @@ async function linkAllPkgs (
 ) {
   return Promise.all(
     depNodes.map(async (depNode) => {
+      if (!depNode.fetching) return
       let filesResponse!: PackageFilesResponse
       try {
         filesResponse = (await depNode.fetching()).files

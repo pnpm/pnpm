@@ -31,7 +31,13 @@ export async function complete (
   if (input.currentTypedWordType !== 'option') {
     if (input.lastOption === '--filter') {
       const workspaceDir = await findWorkspaceDir(process.cwd()) ?? process.cwd()
-      const allProjects = await findWorkspacePackages(workspaceDir, {})
+      const allProjects = await findWorkspacePackages(workspaceDir, {
+        supportedArchitectures: {
+          os: ['current'],
+          cpu: ['current'],
+          libc: ['current'],
+        },
+      })
       return allProjects
         .filter(({ manifest }) => manifest.name)
         .map(({ manifest }) => ({ name: manifest.name }))

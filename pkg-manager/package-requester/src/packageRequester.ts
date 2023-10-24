@@ -231,6 +231,7 @@ async function resolveAndFetch (
             nodeVersion: ctx.nodeVersion,
             optional: wantedDependency.optional === true,
             pnpmVersion: ctx.pnpmVersion,
+            supportedArchitectures: options.supportedArchitectures,
           })
       )
   )

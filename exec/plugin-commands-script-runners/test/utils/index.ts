@@ -50,6 +50,11 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
+  supportedArchitectures: {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  },
 }
 
 export const DLX_DEFAULT_OPTS = {
@@ -80,4 +85,9 @@ export const DLX_DEFAULT_OPTS = {
   storeDir: path.join(tmp, 'store'),
   userConfig: {},
   workspaceConcurrency: 1,
+  supportedArchitectures: {
+    os: ['current'],
+    cpu: ['current'],
+    libc: ['current'],
+  },
 }

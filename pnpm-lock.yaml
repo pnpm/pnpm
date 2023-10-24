@@ -6110,6 +6110,9 @@ importers:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@types/is-windows':
         specifier: ^1.0.0
         version: 1.0.0

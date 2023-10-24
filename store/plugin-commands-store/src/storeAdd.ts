@@ -3,7 +3,7 @@ import { logger, globalInfo, streamParser } from '@pnpm/logger'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { type StoreController } from '@pnpm/store-controller-types'
-import { type Registries } from '@pnpm/types'
+import { type SupportedArchitectures, type Registries } from '@pnpm/types'
 import { type ReporterFunction } from './types'
 
 export async function storeAdd (
@@ -14,6 +14,7 @@ export async function storeAdd (
     reporter?: ReporterFunction
     storeController: StoreController
     tag?: string
+    supportedArchitectures?: SupportedArchitectures
   }
 ) {
   const reporter = opts?.reporter
@@ -36,6 +37,7 @@ export async function storeAdd (
         preferredVersions: {},
         projectDir: prefix,
         registry: (dep.alias && pickRegistryForPackage(registries, dep.alias)) ?? registries.default,
+        supportedArchitectures: opts.supportedArchitectures,
       })
       await pkgResponse.fetching!()
       globalInfo(`+ ${pkgResponse.body.id}`)

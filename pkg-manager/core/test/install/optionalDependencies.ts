@@ -1,7 +1,9 @@
+import fs from 'fs'
 import path from 'path'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import deepRequireCwd from 'deep-require-cwd'
 import readYamlFile from 'read-yaml-file'
 import {
   addDependenciesToPackage,
@@ -13,7 +15,6 @@ import {
 import rimraf from '@zkochan/rimraf'
 import exists from 'path-exists'
 import sinon from 'sinon'
-import deepRequireCwd from 'deep-require-cwd'
 import { testDefaults } from '../utils'
 
 test('successfully install optional dependency with subdependencies', async () => {
@@ -574,4 +575,76 @@ test('fail on a package with failing postinstall if the package is both an optio
       await testDefaults({})
     )
   ).rejects.toThrow()
+})
+
+describe('supported architectures', () => {
+  test.each(['isolated', 'hoisted'])('install optional dependency for the supported architecture set by the user (nodeLinker=%s)', async (nodeLinker) => {
+    prepareEmpty()
+    const opts = await testDefaults({ nodeLinker })
+
+    const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
+      ...opts,
+      supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] },
+    })
+    expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-arm64', './package.json']).version).toBe('1.0.0')
+
+    await install(manifest, {
+      ...opts,
+      preferFrozenLockfile: false,
+      supportedArchitectures: { os: ['darwin'], cpu: ['x64'] },
+    })
+    expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/darwin-x64', './package.json']).version).toBe('1.0.0')
+
+    await install(manifest, {
+      ...opts,
+      frozenLockfile: true,
+      supportedArchitectures: { os: ['linux'], cpu: ['x64'] },
+    })
+    expect(deepRequireCwd(['@pnpm.e2e/has-many-optional-deps', '@pnpm.e2e/linux-x64', './package.json']).version).toBe('1.0.0')
+  })
+  test('remove optional dependencies that are not used', async () => {
+    prepareEmpty()
+    const opts = await testDefaults({ modulesCacheMaxAge: 0 })
+
+    const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
+      ...opts,
+      supportedArchitectures: { os: ['darwin', 'linux', 'win32'], cpu: ['arm64', 'x64'] },
+    })
+
+    await install(manifest, {
+      ...opts,
+      supportedArchitectures: { os: ['darwin'], cpu: ['x64'] },
+    })
+    expect(fs.readdirSync('node_modules/.pnpm').length).toBe(3)
+  })
+  test('remove optional dependencies that are not used, when hoisted node linker is used', async () => {
+    prepareEmpty()
+    const opts = await testDefaults({ nodeLinker: 'hoisted' })
+
+    const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/has-many-optional-deps@1.0.0'], {
+      ...opts,
+      supportedArchitectures: { os: ['darwin', 'linux', 'win32'], cpu: ['arm64', 'x64'] },
+    })
+
+    await install(manifest, {
+      ...opts,
+      supportedArchitectures: { os: ['darwin'], cpu: ['x64'] },
+    })
+    expect(fs.readdirSync('node_modules/@pnpm.e2e').sort()).toStrictEqual(['darwin-x64', 'has-many-optional-deps'])
+  })
+  test('remove optional dependencies if supported architectures have changed and a new dependency is added', async () => {
+    prepareEmpty()
+    const opts = await testDefaults({ modulesCacheMaxAge: 0 })
+
+    const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/parent-of-has-many-optional-deps@1.0.0'], {
+      ...opts,
+      supportedArchitectures: { os: ['darwin', 'linux', 'win32'], cpu: ['arm64', 'x64'] },
+    })
+
+    await addDependenciesToPackage(manifest, ['is-positive@1.0.0'], {
+      ...opts,
+      supportedArchitectures: { os: ['darwin'], cpu: ['x64'] },
+    })
+    expect(fs.readdirSync('node_modules/.pnpm').length).toBe(5)
+  })
 })

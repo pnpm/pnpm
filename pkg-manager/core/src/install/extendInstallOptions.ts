@@ -9,6 +9,7 @@ import { normalizeRegistries, DEFAULT_REGISTRIES } from '@pnpm/normalize-registr
 import { type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
 import {
+  type SupportedArchitectures,
   type AllowedDeprecatedVersions,
   type PackageExtension,
   type PeerDependencyRules,
@@ -136,6 +137,8 @@ export interface StrictInstallOptions {
    * The option might be used in the future to improve performance.
    */
   disableRelinkLocalDirDeps: boolean
+
+  supportedArchitectures?: SupportedArchitectures
 }
 
 export type InstallOptions =

@@ -1,7 +1,7 @@
 import path from 'path'
 import { packageIsInstallable } from '@pnpm/cli-utils'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
-import { type ProjectManifest, type Project } from '@pnpm/types'
+import { type ProjectManifest, type Project, type SupportedArchitectures } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { findPackages } from '@pnpm/fs.find-packages'
 import { logger } from '@pnpm/logger'
@@ -16,11 +16,18 @@ export async function findWorkspacePackages (
     nodeVersion?: string
     patterns?: string[]
     sharedWorkspaceLockfile?: boolean
+    supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<Project[]> {
   const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
   for (const pkg of pkgs) {
-    packageIsInstallable(pkg.dir, pkg.manifest, opts ?? {})
+    packageIsInstallable(pkg.dir, pkg.manifest, opts ?? {
+      supportedArchitectures: {
+        os: ['current'],
+        cpu: ['current'],
+        libc: ['current'],
+      },
+    })
     // When setting shared-workspace-lockfile=false, `pnpm` can be set in sub-project's package.json.
     if (opts?.sharedWorkspaceLockfile && pkg.dir !== workspaceRoot) {
       checkNonRootProjectManifest(pkg)
