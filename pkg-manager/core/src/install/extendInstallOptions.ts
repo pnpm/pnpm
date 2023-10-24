@@ -47,6 +47,7 @@ export interface StrictInstallOptions {
   lockfileIncludeTarballUrl: boolean
   preferWorkspacePackages: boolean
   preserveWorkspaceProtocol: boolean
+  requiresbuildFromRegistry: boolean
   scriptsPrependNodePath: boolean | 'warn-only'
   scriptShell?: string
   shellEmulator: boolean
@@ -196,6 +197,7 @@ const defaults = (opts: InstallOptions) => {
     resolutionMode: 'lowest-direct',
     saveWorkspaceProtocol: 'rolling',
     lockfileIncludeTarballUrl: false,
+    requiresbuildFromRegistry: false,
     scriptsPrependNodePath: false,
     shamefullyHoist: false,
     shellEmulator: false,

@@ -194,6 +194,7 @@
     "reka",
     "relinks",
     "reqheaders",
+    "requiresbuild",
     "rpmdevtools",
     "rpmlint",
     "rstacruz",

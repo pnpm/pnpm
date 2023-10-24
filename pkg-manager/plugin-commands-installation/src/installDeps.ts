@@ -57,6 +57,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'production'
 | 'rawLocalConfig'
 | 'registries'
+| 'requiresbuildFromRegistry'
 | 'rootProjectManifestDir'
 | 'rootProjectManifest'
 | 'save'

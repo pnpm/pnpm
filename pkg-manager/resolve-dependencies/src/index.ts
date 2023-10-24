@@ -100,6 +100,7 @@ export async function resolveDependencies (
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
     allowNonAppliedPatches?: boolean
+    requiresbuildFromRegistry?: boolean
   }
 ) {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -286,7 +287,7 @@ export async function resolveDependencies (
   return {
     dependenciesByProjectId,
     dependenciesGraph,
-    finishLockfileUpdates: promiseShare(finishLockfileUpdates(dependenciesGraph, pendingRequiresBuilds, newLockfile)),
+    finishLockfileUpdates: promiseShare(finishLockfileUpdates(dependenciesGraph, pendingRequiresBuilds, newLockfile, opts.requiresbuildFromRegistry)),
     outdatedDependencies,
     linkedDependenciesByProjectId,
     newLockfile,
@@ -322,7 +323,9 @@ function verifyPatches (
 async function finishLockfileUpdates (
   dependenciesGraph: DependenciesGraph,
   pendingRequiresBuilds: string[],
-  newLockfile: Lockfile
+  newLockfile: Lockfile,
+  requiresbuildFromRegistry?: boolean
+
 ) {
   return Promise.all(pendingRequiresBuilds.map(async (depPath) => {
     const depNode = dependenciesGraph[depPath]
@@ -330,8 +333,12 @@ async function finishLockfileUpdates (
     try {
       let requiresBuild!: boolean
       if (depNode.optional) {
+        if (requiresbuildFromRegistry) {
         // Attempt to use NPM's file list to determine if the package requiresBuild
-        requiresBuild = await fetchBuildFromRegistryFS(depNode.name, depNode.version)
+          requiresBuild = await fetchBuildFromRegistryFS(depNode.name, depNode.version)
+        } else {
+          requiresBuild = true
+        }
       } else {
         // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
         const { files, bundledManifest: pkgJson } = await depNode.fetching()

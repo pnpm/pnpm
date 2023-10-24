@@ -54,6 +54,7 @@ export function rcOptionsTypes () {
     'proxy',
     'registry',
     'reporter',
+    'requiresbuild-from-registry',
     'save',
     'save-exact',
     'save-prefix',

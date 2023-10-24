@@ -270,6 +270,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'preferFrozenLockfile'
 | 'production'
 | 'registries'
+| 'requiresbuildFromRegistry'
 | 'rootProjectManifest'
 | 'save'
 | 'saveDev'
