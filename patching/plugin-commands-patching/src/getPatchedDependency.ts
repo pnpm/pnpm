@@ -38,7 +38,7 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
       choices: preferredVersions.map(preferred => ({
         name: preferred.version,
         message: preferred.version,
-        value: preferred.gitTarballUrl ? preferred.gitTarballUrl : preferred.version,
+        value: preferred.gitTarballUrl ?? preferred.version,
         hint: preferred.gitTarballUrl ? 'Git Hosted' : undefined,
       })),
       result (selected) {
