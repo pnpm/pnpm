@@ -61,7 +61,7 @@ export async function handler (
     rootDir: process.cwd(),
   }, {
     ...opts,
-    ...getOptionsFromRootManifest(opts.rootProjectManifestDir!, opts.rootProjectManifest ?? {}),
+    ...getOptionsFromRootManifest(opts.rootProjectManifestDir, opts.rootProjectManifest ?? {}),
     ignorePackageManifest: true,
     include,
     modulesCacheMaxAge: 0,
