@@ -1,5 +1,11 @@
 # @pnpm/fs.hard-link-dir
 
+## 3.0.0
+
+### Major Changes
+
+- 6390033cd: Changed to be sync.
+
 ## 2.0.1
 
 ### Patch Changes

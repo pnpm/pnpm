@@ -1,5 +1,20 @@
 # @pnpm/outdated
 
+## 13.0.26
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/pick-registry-for-package@5.0.4
+  - @pnpm/lockfile-file@8.1.4
+  - @pnpm/lockfile-utils@8.0.7
+  - @pnpm/dependency-path@2.1.5
+  - @pnpm/modules-yaml@12.1.4
+  - @pnpm/manifest-utils@5.0.5
+  - @pnpm/npm-resolver@16.0.13
+  - @pnpm/client@10.0.31
+
 ## 13.0.25
 
 ### Patch Changes

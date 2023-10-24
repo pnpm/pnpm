@@ -1,5 +1,17 @@
 # @pnpm/worker
 
+## 0.3.6
+
+### Patch Changes
+
+- 6390033cd: Directory hard linking moved to the worker.
+- Updated dependencies [6390033cd]
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/store.cafs@2.0.7
+  - @pnpm/create-cafs-store@6.0.6
+  - @pnpm/symlink-dependency@7.1.2
+  - @pnpm/cafs-types@4.0.0
+
 ## 0.3.5
 
 ### Patch Changes

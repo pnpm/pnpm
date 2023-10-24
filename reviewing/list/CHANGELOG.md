@@ -1,5 +1,15 @@
 # @pnpm/list
 
+## 9.1.3
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/read-package-json@8.0.5
+  - @pnpm/read-project-manifest@5.0.8
+  - @pnpm/reviewing.dependencies-hierarchy@2.1.2
+
 ## 9.1.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/assert-store
 
+## 1.0.75
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.7
+
 ## 1.0.74
 
 ### Patch Changes

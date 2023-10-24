@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "19.0.6",
+  "version": "19.0.7",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },

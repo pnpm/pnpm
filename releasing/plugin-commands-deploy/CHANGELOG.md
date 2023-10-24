@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-deploy
 
+## 4.0.0
+
+### Major Changes
+
+- d6592964f: `rootProjectManifestDir` is a required field.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+- Updated dependencies [d6592964f]
+  - @pnpm/types@9.4.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/plugin-commands-installation@14.0.0
+  - @pnpm/fs.indexed-pkg-importer@5.0.6
+  - @pnpm/directory-fetcher@7.0.3
+
 ## 3.1.15
 
 ### Patch Changes

@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-outdated
 
+## 10.0.0
+
+### Major Changes
+
+- d6592964f: `rootProjectManifestDir` is a required field.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+- Updated dependencies [d6592964f]
+  - @pnpm/types@9.4.0
+  - @pnpm/cli-utils@2.1.0
+  - @pnpm/config@20.1.0
+  - @pnpm/lockfile-file@8.1.4
+  - @pnpm/modules-yaml@12.1.4
+  - @pnpm/outdated@13.0.26
+  - @pnpm/default-resolver@18.0.17
+
 ## 9.0.38
 
 ### Patch Changes
