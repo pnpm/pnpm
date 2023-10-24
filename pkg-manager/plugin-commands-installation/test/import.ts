@@ -33,6 +33,7 @@ const DEFAULT_OPTS = {
   rawConfig: { registry: REGISTRY },
   registries: { default: REGISTRY },
   registry: REGISTRY,
+  rootProjectManifestDir: '',
   storeDir: path.join(TMP, 'store'),
   strictSsl: false,
   userAgent: 'pnpm',

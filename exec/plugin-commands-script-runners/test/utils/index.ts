@@ -40,6 +40,7 @@ export const DEFAULT_OPTS = {
   proxy: undefined,
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: {},
+  rootProjectManifestDir: '',
   registries: { default: REGISTRY_URL },
   registry: REGISTRY_URL,
   sort: true,
@@ -74,6 +75,7 @@ export const DLX_DEFAULT_OPTS = {
   registries: {
     default: REGISTRY_URL,
   },
+  rootProjectManifestDir: '',
   sort: true,
   storeDir: path.join(tmp, 'store'),
   userConfig: {},

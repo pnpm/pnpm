@@ -79,6 +79,8 @@ export async function handler (
   | 'lockfileDir'
   | 'nodeLinker'
   | 'rawLocalConfig'
+  | 'rootProjectManifest'
+  | 'rootProjectManifestDir'
   | 'registries'
   | 'scriptShell'
   | 'selectedProjectsGraph'

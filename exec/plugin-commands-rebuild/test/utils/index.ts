@@ -38,6 +38,7 @@ export const DEFAULT_OPTS = {
   rawLocalConfig: {},
   registries: { default: REGISTRY },
   registry: REGISTRY,
+  rootProjectManifestDir: '',
   sort: true,
   storeDir: '../store',
   strictSsl: false,

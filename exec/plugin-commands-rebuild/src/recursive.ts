@@ -25,6 +25,8 @@ type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'nodeLinker'
 | 'rawLocalConfig'
 | 'registries'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 | 'sharedWorkspaceLockfile'
 > & {
   pending?: boolean

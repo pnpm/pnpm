@@ -25,6 +25,8 @@ Config,
 | 'modulesDir'
 | 'pnpmHomeDir'
 | 'selectedProjectsGraph'
+| 'rootProjectManifest'
+| 'rootProjectManifestDir'
 > &
 Partial<Pick<Config, 'userConfig'>>
 

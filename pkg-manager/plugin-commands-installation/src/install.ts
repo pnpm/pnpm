@@ -271,6 +271,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'production'
 | 'registries'
 | 'rootProjectManifest'
+| 'rootProjectManifestDir'
 | 'save'
 | 'saveDev'
 | 'saveExact'
