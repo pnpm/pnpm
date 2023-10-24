@@ -38,18 +38,18 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
       choices: preferredVersions.map(preferred => ({
         name: preferred.version,
         message: preferred.version,
-        value: preferred.isGitHosted ? preferred.tarball : preferred.version,
-        hint: preferred.isGitHosted ? 'Git Hosted' : undefined,
+        value: preferred.gitTarballUrl ? preferred.gitTarballUrl : preferred.version,
+        hint: preferred.gitTarballUrl ? 'Git Hosted' : undefined,
       })),
       result (selected) {
         const selectedVersion = preferredVersions.find(preferred => preferred.version === selected)!
-        return selectedVersion.isGitHosted ? selectedVersion.tarball : selected
+        return selectedVersion.gitTarballUrl ?? selected
       },
     })
     dep.pref = version
   } else {
     const preferred = preferredVersions[0]
-    dep.pref = preferred.isGitHosted ? preferred.tarball : preferred.version
+    dep.pref = preferred.gitTarballUrl ?? preferred.version
   }
   return dep
 }
@@ -75,8 +75,7 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
       const tarball = (pkgSnapshot.resolution as TarballResolution)?.tarball ?? ''
       return {
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
-        isGitHosted: isGitHostedPkgUrl(tarball ?? ''),
-        tarball,
+        gitTarballUrl: isGitHostedPkgUrl(tarball) ? tarball : undefined,
       }
     })
     .filter(({ name }) => name === pkgName)

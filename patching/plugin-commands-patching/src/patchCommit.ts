@@ -51,7 +51,7 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
   await fs.promises.mkdir(patchesDir, { recursive: true })
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
   const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
-  const gitTarballUrl = await getGitTarballUrlFormLockfile({
+  const gitTarballUrl = await getGitTarballUrlFromLockfile({
     alias: patchedPkgManifest.name,
     pref: patchedPkgManifest.version,
   }, {
@@ -183,10 +183,7 @@ async function areAllFilesInPkg (files: string[], basePath: string) {
   return equals(allFiles.sort(), files.sort())
 }
 
-async function getGitTarballUrlFormLockfile (dep: ParseWantedDependencyResult, opts: GetPatchedDependencyOptions) {
+async function getGitTarballUrlFromLockfile (dep: ParseWantedDependencyResult, opts: GetPatchedDependencyOptions) {
   const { preferredVersions } = await getVersionsFromLockfile(dep, opts)
-  if (preferredVersions[0]?.isGitHosted) {
-    return preferredVersions[0].tarball
-  }
-  return undefined
+  return preferredVersions[0]?.gitTarballUrl
 }
