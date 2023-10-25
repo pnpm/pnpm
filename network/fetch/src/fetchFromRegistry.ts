@@ -103,9 +103,8 @@ function getHeaders (
 
 export async function fetchBuildFromRegistryFS (pkgName: string, pkgVer: string): Promise<boolean> {
   const url = `https://npmjs.com/package/${pkgName}/v/${pkgVer}/index`
-  // TODO: retries current at 0, as 0 size get stuck in a retry loop
   try {
-    const fetchResult = await fetch(url, { retry: { retries: 0 } })
+    const fetchResult = await fetch(url, { retry: { retries: 3, randomize: true, factor: 10 } })
     if (!fetchResult.ok) {
       return true
     }
