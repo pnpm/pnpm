@@ -53,9 +53,9 @@
   "devDependencies": {
     "@pnpm/plugin-commands-env": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/adm-zip": "^0.5.2",
-    "@types/graceful-fs": "^4.1.7",
-    "@types/is-windows": "^1.0.0",
+    "@types/adm-zip": "^0.5.3",
+    "@types/graceful-fs": "^4.1.8",
+    "@types/is-windows": "^1.0.1",
     "@types/semver": "7.5.3",
     "adm-zip": "^0.5.10",
     "execa": "npm:safe-execa@0.1.2",

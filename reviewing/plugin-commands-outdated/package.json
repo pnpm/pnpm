@@ -38,7 +38,7 @@
     "@pnpm/registry-mock": "3.16.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.20",
-    "@types/wrap-ansi": "^8.0.1",
+    "@types/wrap-ansi": "^8.0.2",
     "@types/zkochan__table": "npm:@types/table@6.0.0"
   },
   "dependencies": {

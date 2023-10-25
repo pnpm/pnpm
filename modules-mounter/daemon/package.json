@@ -38,17 +38,17 @@
   },
   "devDependencies": {
     "@pnpm/mount-modules": "workspace:*",
-    "@types/normalize-path": "^3.0.0",
+    "@types/normalize-path": "^3.0.1",
     "rimraf": "^3.0.2"
   },
   "dependencies": {
-    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/logger": "^5.0.0",
     "@pnpm/store-path": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/types": "workspace:*",
     "hyperdrive-schemas": "^2.0.0",
     "load-json-file": "^6.2.0",

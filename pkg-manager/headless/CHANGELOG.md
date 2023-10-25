@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 22.3.1
+
+### Patch Changes
+
+- Updated dependencies [ee4d15fdd]
+  - @pnpm/hoist@8.1.0
+
 ## 22.3.0
 
 ### Minor Changes

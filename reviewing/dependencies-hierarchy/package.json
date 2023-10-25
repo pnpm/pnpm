@@ -51,7 +51,7 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/reviewing.dependencies-hierarchy": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/normalize-path": "^3.0.0",
+    "@types/normalize-path": "^3.0.1",
     "@types/semver": "7.5.3"
   },
   "funding": "https://opencollective.com/pnpm",
