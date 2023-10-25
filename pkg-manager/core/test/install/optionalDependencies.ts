@@ -79,8 +79,7 @@ test('skip optional dependency that does not support the current OS', async () =
 
   // optional dependencies always get requiresBuild: true
   // this is to resolve https://github.com/pnpm/pnpm/issues/2038
-  // No Longer required?
-  // expect(lockfile.packages['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'].requiresBuild).toBeTruthy()
+  expect(lockfile.packages['/@pnpm.e2e/not-compatible-with-any-os@1.0.0'].requiresBuild).toBeTruthy()
 
   expect(lockfile.packages['/@pnpm.e2e/dep-of-optional-pkg@1.0.0']).toBeTruthy()
 
