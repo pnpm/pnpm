@@ -222,7 +222,7 @@ export async function getConfig (
       'bitbucket.org',
     ],
     globalconfig: npmDefaults.globalconfig,
-    'use-git-branch-lockfile': false,
+    'git-branch-lockfile': false,
     hoist: true,
     'hoist-pattern': ['*'],
     'ignore-workspace-cycles': false,
@@ -313,13 +313,11 @@ export async function getConfig (
     ...getScopeRegistries(pnpmConfig.rawConfig),
   }
   pnpmConfig.useLockfile = (() => {
-    // @ts-expect-error
     if (typeof pnpmConfig['lockfile'] === 'boolean') return pnpmConfig['lockfile']
     if (typeof pnpmConfig['packageLock'] === 'boolean') return pnpmConfig['packageLock']
     return false
   })()
   pnpmConfig.useGitBranchLockfile = (() => {
-    // @ts-expect-error
     if (typeof pnpmConfig['gitBranchLockfile'] === 'boolean') return pnpmConfig['gitBranchLockfile']
     return false
   })()
@@ -338,9 +336,7 @@ export async function getConfig (
 
   if (cliOptions['global']) {
     let globalDirRoot
-    // @ts-expect-error
     if (pnpmConfig['globalDir']) {
-      // @ts-expect-error
       globalDirRoot = pnpmConfig['globalDir']
     } else {
       globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
@@ -482,7 +478,6 @@ export async function getConfig (
   default:
     if (
       (pnpmConfig.publicHoistPattern == null) ||
-        // @ts-expect-error
         (pnpmConfig.publicHoistPattern === '') ||
         (
           Array.isArray(pnpmConfig.publicHoistPattern) &&
