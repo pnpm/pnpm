@@ -313,20 +313,20 @@ export async function getConfig (
     ...getScopeRegistries(pnpmConfig.rawConfig),
   }
   pnpmConfig.useLockfile = (() => {
-    if (typeof pnpmConfig['lockfile'] === 'boolean') return pnpmConfig['lockfile']
-    if (typeof pnpmConfig['packageLock'] === 'boolean') return pnpmConfig['packageLock']
+    if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
+    if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
     return false
   })()
   pnpmConfig.useGitBranchLockfile = (() => {
-    if (typeof pnpmConfig['gitBranchLockfile'] === 'boolean') return pnpmConfig['gitBranchLockfile']
+    if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile
     return false
   })()
   pnpmConfig.mergeGitBranchLockfiles = await (async () => {
-    if (typeof pnpmConfig['mergeGitBranchLockfiles'] === 'boolean') return pnpmConfig['mergeGitBranchLockfiles']
-    if (pnpmConfig['mergeGitBranchLockfilesBranchPattern'] != null && pnpmConfig['mergeGitBranchLockfilesBranchPattern'].length > 0) {
+    if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean') return pnpmConfig.mergeGitBranchLockfiles
+    if (pnpmConfig.mergeGitBranchLockfilesBranchPattern != null && pnpmConfig.mergeGitBranchLockfilesBranchPattern.length > 0) {
       const branch = await getCurrentBranch()
       if (branch) {
-        const branchMatcher = createMatcher(pnpmConfig['mergeGitBranchLockfilesBranchPattern'])
+        const branchMatcher = createMatcher(pnpmConfig.mergeGitBranchLockfilesBranchPattern)
         return branchMatcher(branch)
       }
     }
@@ -336,8 +336,8 @@ export async function getConfig (
 
   if (cliOptions['global']) {
     let globalDirRoot
-    if (pnpmConfig['globalDir']) {
-      globalDirRoot = pnpmConfig['globalDir']
+    if (pnpmConfig.globalDir) {
+      globalDirRoot = pnpmConfig.globalDir
     } else {
       globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
     }
@@ -454,7 +454,7 @@ export async function getConfig (
     }
   }
 
-  if (pnpmConfig['shamefullyFlatten']) {
+  if (pnpmConfig.shamefullyFlatten) {
     warnings.push('The "shamefully-flatten" setting has been renamed to "shamefully-hoist". Also, in most cases you won\'t need "shamefully-hoist". Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).')
     pnpmConfig.shamefullyHoist = true
   }
@@ -465,7 +465,7 @@ export async function getConfig (
     pnpmConfig.stateDir = getStateDir(process)
   }
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-boolean-literal-compare
-  if (pnpmConfig['hoist'] === false) {
+  if (pnpmConfig.hoist === false) {
     delete pnpmConfig.hoistPattern
   }
   switch (pnpmConfig.shamefullyHoist) {
