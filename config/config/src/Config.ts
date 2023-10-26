@@ -172,9 +172,19 @@ export interface Config {
   rootProjectManifestDir: string
   rootProjectManifest?: ProjectManifest
   userConfig: Record<string, string>
+
+  globalconfig: any // eslint-disable-line
+  hoist: boolean
+  packageLock: any // eslint-disable-line
+  pending: boolean
+  userconfig: any // eslint-disable-line
+  workspacePrefix?: string
+  dedupeDirectDeps?: boolean
+  extendNodePath?: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
   globalPrefix?: string
   proxy?: string
+  shamefullyFlatten?: boolean
 }

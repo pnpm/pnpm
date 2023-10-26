@@ -30,6 +30,14 @@ export * from './readLocalConfig'
 
 export type { Config, UniversalOptions }
 
+type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
+  ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
+  : S
+
+type KebabCaseConfig = {
+  [K in keyof ConfigWithDeprecatedSettings as CamelToKebabCase<K>]: ConfigWithDeprecatedSettings[K];
+} | typeof npmTypes.types
+
 const npmDefaults = loadNpmConf.defaults
 
 export const types = Object.assign({
@@ -136,7 +144,8 @@ export const types = Object.assign({
   'embed-readme': Boolean,
   'update-notifier': Boolean,
   'registry-supports-time-field': Boolean,
-}, npmTypes.types)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+} as Partial<Record<keyof KebabCaseConfig, any>>, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string }
 
@@ -188,7 +197,7 @@ export async function getConfig (
     cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
-  const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, {
+  const defaultOptions: Partial<KebabCaseConfig> | typeof npmTypes.types = {
     'auto-install-peers': true,
     bail: true,
     color: 'auto',
@@ -213,7 +222,7 @@ export async function getConfig (
       'bitbucket.org',
     ],
     globalconfig: npmDefaults.globalconfig,
-    'git-branch-lockfile': false,
+    'use-git-branch-lockfile': false,
     hoist: true,
     'hoist-pattern': ['*'],
     'ignore-workspace-cycles': false,
@@ -252,7 +261,9 @@ export async function getConfig (
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,
     'registry-supports-time-field': false,
-  })
+  }
+
+  const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, defaultOptions)
 
   const configDir = getConfigDir(process)
   {
@@ -304,7 +315,6 @@ export async function getConfig (
   pnpmConfig.useLockfile = (() => {
     // @ts-expect-error
     if (typeof pnpmConfig['lockfile'] === 'boolean') return pnpmConfig['lockfile']
-    // @ts-expect-error
     if (typeof pnpmConfig['packageLock'] === 'boolean') return pnpmConfig['packageLock']
     return false
   })()
@@ -448,7 +458,6 @@ export async function getConfig (
     }
   }
 
-  // @ts-expect-error
   if (pnpmConfig['shamefullyFlatten']) {
     warnings.push('The "shamefully-flatten" setting has been renamed to "shamefully-hoist". Also, in most cases you won\'t need "shamefully-hoist". Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).')
     pnpmConfig.shamefullyHoist = true
@@ -459,7 +468,7 @@ export async function getConfig (
   if (!pnpmConfig.stateDir) {
     pnpmConfig.stateDir = getStateDir(process)
   }
-  // @ts-expect-error
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-boolean-literal-compare
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern
   }
