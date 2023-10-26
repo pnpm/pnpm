@@ -24,11 +24,6 @@ declare module '@pnpm/npm-conf' {
   export = anything
 }
 
-declare module '@pnpm/npm-conf/lib/types' {
-  const anything: any
-  export = anything
-}
-
 declare module '@pnpm/npm-lifecycle' {
   const anything: any
   export = anything

@@ -125,7 +125,7 @@ export interface Config {
   hooks?: Hooks
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   hoistPattern?: string[]
-  publicHoistPattern?: string[]
+  publicHoistPattern?: string[] | string
   useStoreServer?: boolean
   useRunningStoreServer?: boolean
   workspaceConcurrency: number
@@ -172,9 +172,22 @@ export interface Config {
   rootProjectManifestDir: string
   rootProjectManifest?: ProjectManifest
   userConfig: Record<string, string>
+
+  globalconfig: string
+  hoist: boolean
+  packageLock: boolean
+  pending: boolean
+  userconfig: string
+  workspacePrefix?: string
+  dedupeDirectDeps?: boolean
+  extendNodePath?: boolean
+  gitBranchLockfile?: boolean
+  globalDir?: string
+  lockfile?: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
   globalPrefix?: string
   proxy?: string
+  shamefullyFlatten?: boolean
 }

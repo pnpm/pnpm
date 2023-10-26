@@ -30,6 +30,14 @@ export * from './readLocalConfig'
 
 export type { Config, UniversalOptions }
 
+type CamelToKebabCase<S extends string> = S extends `${infer T}${infer U}`
+  ? `${T extends Capitalize<T> ? '-' : ''}${Lowercase<T>}${CamelToKebabCase<U>}`
+  : S
+
+type KebabCaseConfig = {
+  [K in keyof ConfigWithDeprecatedSettings as CamelToKebabCase<K>]: ConfigWithDeprecatedSettings[K];
+} | typeof npmTypes.types
+
 const npmDefaults = loadNpmConf.defaults
 
 export const types = Object.assign({
@@ -136,7 +144,8 @@ export const types = Object.assign({
   'embed-readme': Boolean,
   'update-notifier': Boolean,
   'registry-supports-time-field': Boolean,
-}, npmTypes.types)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+} as Partial<Record<keyof KebabCaseConfig, any>>, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string }
 
@@ -188,7 +197,7 @@ export async function getConfig (
     cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
   const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
-  const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, {
+  const defaultOptions: Partial<KebabCaseConfig> | typeof npmTypes.types = {
     'auto-install-peers': true,
     bail: true,
     color: 'auto',
@@ -252,7 +261,9 @@ export async function getConfig (
     'workspace-prefix': opts.workspaceDir,
     'embed-readme': false,
     'registry-supports-time-field': false,
-  })
+  }
+
+  const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, defaultOptions)
 
   const configDir = getConfigDir(process)
   {
@@ -302,23 +313,20 @@ export async function getConfig (
     ...getScopeRegistries(pnpmConfig.rawConfig),
   }
   pnpmConfig.useLockfile = (() => {
-    // @ts-expect-error
-    if (typeof pnpmConfig['lockfile'] === 'boolean') return pnpmConfig['lockfile']
-    // @ts-expect-error
-    if (typeof pnpmConfig['packageLock'] === 'boolean') return pnpmConfig['packageLock']
+    if (typeof pnpmConfig.lockfile === 'boolean') return pnpmConfig.lockfile
+    if (typeof pnpmConfig.packageLock === 'boolean') return pnpmConfig.packageLock
     return false
   })()
   pnpmConfig.useGitBranchLockfile = (() => {
-    // @ts-expect-error
-    if (typeof pnpmConfig['gitBranchLockfile'] === 'boolean') return pnpmConfig['gitBranchLockfile']
+    if (typeof pnpmConfig.gitBranchLockfile === 'boolean') return pnpmConfig.gitBranchLockfile
     return false
   })()
   pnpmConfig.mergeGitBranchLockfiles = await (async () => {
-    if (typeof pnpmConfig['mergeGitBranchLockfiles'] === 'boolean') return pnpmConfig['mergeGitBranchLockfiles']
-    if (pnpmConfig['mergeGitBranchLockfilesBranchPattern'] != null && pnpmConfig['mergeGitBranchLockfilesBranchPattern'].length > 0) {
+    if (typeof pnpmConfig.mergeGitBranchLockfiles === 'boolean') return pnpmConfig.mergeGitBranchLockfiles
+    if (pnpmConfig.mergeGitBranchLockfilesBranchPattern != null && pnpmConfig.mergeGitBranchLockfilesBranchPattern.length > 0) {
       const branch = await getCurrentBranch()
       if (branch) {
-        const branchMatcher = createMatcher(pnpmConfig['mergeGitBranchLockfilesBranchPattern'])
+        const branchMatcher = createMatcher(pnpmConfig.mergeGitBranchLockfilesBranchPattern)
         return branchMatcher(branch)
       }
     }
@@ -328,10 +336,8 @@ export async function getConfig (
 
   if (cliOptions['global']) {
     let globalDirRoot
-    // @ts-expect-error
-    if (pnpmConfig['globalDir']) {
-      // @ts-expect-error
-      globalDirRoot = pnpmConfig['globalDir']
+    if (pnpmConfig.globalDir) {
+      globalDirRoot = pnpmConfig.globalDir
     } else {
       globalDirRoot = path.join(pnpmConfig.pnpmHomeDir, 'global')
     }
@@ -448,8 +454,7 @@ export async function getConfig (
     }
   }
 
-  // @ts-expect-error
-  if (pnpmConfig['shamefullyFlatten']) {
+  if (pnpmConfig.shamefullyFlatten) {
     warnings.push('The "shamefully-flatten" setting has been renamed to "shamefully-hoist". Also, in most cases you won\'t need "shamefully-hoist". Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).')
     pnpmConfig.shamefullyHoist = true
   }
@@ -459,8 +464,8 @@ export async function getConfig (
   if (!pnpmConfig.stateDir) {
     pnpmConfig.stateDir = getStateDir(process)
   }
-  // @ts-expect-error
-  if (pnpmConfig['hoist'] === false) {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-boolean-literal-compare
+  if (pnpmConfig.hoist === false) {
     delete pnpmConfig.hoistPattern
   }
   switch (pnpmConfig.shamefullyHoist) {
@@ -473,7 +478,6 @@ export async function getConfig (
   default:
     if (
       (pnpmConfig.publicHoistPattern == null) ||
-        // @ts-expect-error
         (pnpmConfig.publicHoistPattern === '') ||
         (
           Array.isArray(pnpmConfig.publicHoistPattern) &&

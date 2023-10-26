@@ -106,6 +106,7 @@
     "localappdata",
     "lockfiles",
     "loglevel",
+    "logstream",
     "longlink",
     "longpaths",
     "martensson",
@@ -201,6 +202,10 @@
     "safecrlf",
     "scopeless",
     "sdiff",
+    "searchexclude",
+    "searchlimit",
+    "searchopts",
+    "searchstaleness",
     "sels",
     "semistrict",
     "serverjs",
@@ -245,6 +250,6 @@
     "xmarw",
     "zkochan",
     "zoli",
-    "zoltan"
+    "zoltan" 
   ]
 }
