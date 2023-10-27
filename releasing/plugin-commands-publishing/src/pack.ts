@@ -13,6 +13,7 @@ import realpathMissing from 'realpath-missing'
 import renderHelp from 'render-help'
 import tar from 'tar-stream'
 import packlist from 'npm-packlist'
+import Arborist from '@npmcli/arborist'
 import { runScriptsIfPresent } from './publish'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
@@ -95,7 +96,9 @@ export async function handler (
     throw new PnpmError('PACKAGE_VERSION_NOT_FOUND', `Package version is not defined in the ${manifestFileName}.`)
   }
   const tarballName = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
-  const files = await packlist({ path: dir })
+  const arborist = new Arborist(({ path: dir }))
+  const tree = await arborist.loadActual()
+  const files = await packlist(tree)
   const filesMap: Record<string, string> = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line
   if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(\..+)?/i.test(file))) {

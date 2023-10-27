@@ -129,6 +129,7 @@
     "noproxy",
     "nosystem",
     "nothrow",
+    "npmcli",
     "npmignore",
     "npmjs",
     "ofjergrg",

@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import Arborist from '@npmcli/arborist'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
 import { install } from '@pnpm/plugin-commands-installation'
@@ -157,7 +158,9 @@ function removeTrailingAndLeadingSlash (p: string) {
  * This is required in order for the diff to not include files that are not part of the package.
  */
 async function preparePkgFilesForDiff (src: string): Promise<string> {
-  const files = Array.from(new Set((await packlist({ path: src })).map((f) => path.join(f))))
+  const arborist = new Arborist(({ path: src }))
+  const tree = await arborist.loadActual()
+  const files = Array.from(new Set((await packlist(tree)).map((f) => path.join(f))))
   // If there are no extra files in the source directories, then there is no reason
   // to copy.
   if (await areAllFilesInPkg(files, src)) {

@@ -4,6 +4,7 @@ import type { DirectoryFetcher, DirectoryFetcherOptions } from '@pnpm/fetcher-ba
 import { logger } from '@pnpm/logger'
 import { safeReadProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { type DependencyManifest } from '@pnpm/types'
+import Arborist from '@npmcli/arborist'
 import packlist from 'npm-packlist'
 
 const directoryFetcherLogger = logger('directory-fetcher')
@@ -128,7 +129,9 @@ async function fetchPackageFilesFromDir (
   dir: string,
   opts: FetchFromDirOpts
 ) {
-  const files = await packlist({ path: dir })
+  const arborist = new Arborist(({ path: dir }))
+  const tree = await arborist.loadActual()
+  const files = await packlist(tree)
   const filesIndex: Record<string, string> = Object.fromEntries(files.map((file) => [file, path.join(dir, file)]))
   let manifest: DependencyManifest | undefined
   if (opts.readManifest) {
