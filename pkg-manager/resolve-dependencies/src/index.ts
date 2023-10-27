@@ -384,7 +384,7 @@ async function finishLockfileUpdates (
     try {
       let requiresBuild!: boolean
       if (depNode.optional) {
-        if (useExperimentalNpmjsFilesIndex && depNode.id.startsWith('registry.npmjs.org' || 'registry.npmjs.org')) {
+        if (useExperimentalNpmjsFilesIndex && depNode.id.startsWith('registry.npmjs.org/' || 'registry.npmjs.org/')) {
         // Attempt to use NPM's file list to determine if the package requiresBuild
           requiresBuild = await fetchBuildFromRegistryFS(depNode.name, depNode.version)
         } else {
