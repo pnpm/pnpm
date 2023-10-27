@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-store
 
+## 8.1.1
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@7.0.11
+
 ## 8.1.0
 
 ### Minor Changes

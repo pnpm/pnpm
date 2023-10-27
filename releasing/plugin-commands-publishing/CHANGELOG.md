@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.4.1
+
+### Patch Changes
+
+- 500363647: `pnpm publish` should not pack the same file twice sometimes [#6997](https://github.com/pnpm/pnpm/issues/6997).
+
+  The fix was to update `npm-packlist` to the latest version.
+
+- Updated dependencies [500363647]
+  - @pnpm/fs.packlist@1.0.0
+  - @pnpm/lifecycle@16.0.5
+  - @pnpm/client@10.0.32
+
 ## 7.4.0
 
 ### Minor Changes
