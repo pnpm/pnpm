@@ -1480,12 +1480,12 @@ importers:
 
   fetching/directory-fetcher:
     dependencies:
-      '@npmcli/arborist':
-        specifier: 7.2.0
-        version: 7.2.0
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../fetcher-base
+      '@pnpm/fs.packlist':
+        specifier: workspace:*
+        version: link:../../fs/packlist
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -1498,9 +1498,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
-      npm-packlist:
-        specifier: ^8.0.0
-        version: 8.0.0
     devDependencies:
       '@pnpm/directory-fetcher':
         specifier: workspace:*
@@ -1508,12 +1505,6 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
-      '@types/npm-packlist':
-        specifier: ^3.0.0
-        version: 3.0.0
-      '@types/npmcli__arborist':
-        specifier: 5.6.4
-        version: 5.6.4
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3
@@ -1764,6 +1755,25 @@ importers:
       '@types/fs-extra':
         specifier: ^9.0.13
         version: 9.0.13
+
+  fs/packlist:
+    dependencies:
+      '@npmcli/arborist':
+        specifier: 7.2.0
+        version: 7.2.0
+      npm-packlist:
+        specifier: ^8.0.0
+        version: 8.0.0
+    devDependencies:
+      '@pnpm/fs.packlist':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/npm-packlist':
+        specifier: ^3.0.0
+        version: 3.0.0
+      '@types/npmcli__arborist':
+        specifier: 5.6.4
+        version: 5.6.4
 
   fs/read-modules-dir:
     dependencies:
@@ -2734,9 +2744,6 @@ importers:
 
   patching/plugin-commands-patching:
     dependencies:
-      '@npmcli/arborist':
-        specifier: 7.2.0
-        version: 7.2.0
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
@@ -2749,6 +2756,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/fs.packlist':
+        specifier: workspace:*
+        version: link:../../fs/packlist
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-file
@@ -2797,9 +2807,6 @@ importers:
       normalize-path:
         specifier: ^3.0.0
         version: 3.0.0
-      npm-packlist:
-        specifier: ^8.0.0
-        version: 8.0.0
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
@@ -2837,12 +2844,6 @@ importers:
       '@types/normalize-path':
         specifier: ^3.0.1
         version: 3.0.1
-      '@types/npm-packlist':
-        specifier: ^3.0.0
-        version: 3.0.0
-      '@types/npmcli__arborist':
-        specifier: 5.6.4
-        version: 5.6.4
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -4722,9 +4723,6 @@ importers:
 
   releasing/plugin-commands-publishing:
     dependencies:
-      '@npmcli/arborist':
-        specifier: 7.2.0
-        version: 7.2.0
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
@@ -4743,6 +4741,9 @@ importers:
       '@pnpm/exportable-manifest':
         specifier: workspace:*
         version: link:../../pkg-manifest/exportable-manifest
+      '@pnpm/fs.packlist':
+        specifier: workspace:*
+        version: link:../../fs/packlist
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
@@ -4782,9 +4783,6 @@ importers:
       fast-glob:
         specifier: ^3.3.1
         version: 3.3.1
-      npm-packlist:
-        specifier: ^8.0.0
-        version: 8.0.0
       p-filter:
         specifier: ^2.1.0
         version: 2.1.0
@@ -4825,12 +4823,6 @@ importers:
       '@types/is-windows':
         specifier: ^1.0.1
         version: 1.0.1
-      '@types/npm-packlist':
-        specifier: ^3.0.0
-        version: 3.0.0
-      '@types/npmcli__arborist':
-        specifier: 5.6.4
-        version: 5.6.4
       '@types/proxyquire':
         specifier: ^1.3.30
         version: 1.3.30

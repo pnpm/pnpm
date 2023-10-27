@@ -28,6 +28,9 @@
       "path": "../../fetching/pick-fetcher"
     },
     {
+      "path": "../../fs/packlist"
+    },
+    {
       "path": "../../lockfile/lockfile-file"
     },
     {
