@@ -1769,8 +1769,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@types/npm-packlist':
-        specifier: ^3.0.0
-        version: 3.0.0
+        specifier: ^7.0.2
+        version: 7.0.2
       '@types/npmcli__arborist':
         specifier: 5.6.4
         version: 5.6.4
@@ -9059,6 +9059,12 @@ packages:
   /@types/http-cache-semantics@4.0.3:
     resolution: {integrity: sha512-V46MYLFp08Wf2mmaBhvgjStM3tPa+2GAdy/iqoX+noX1//zje2x4XmrIU0cAwyClATsTmahbtoQ2EwP7I5WSiA==}
 
+  /@types/ignore-walk@4.0.2:
+    resolution: {integrity: sha512-iykqN7LQv8482iDKWBlVcMXl1hUK1EglRYics/KrzX+8SV4J8BWLKdxxinwrCHx0rcVcJ2ADtFwbQSWATMa2Ng==}
+    dependencies:
+      '@types/node': 20.8.9
+    dev: true
+
   /@types/ini@1.3.31:
     resolution: {integrity: sha512-8ecxxaG4AlVEM1k9+BsziMw8UsX0qy3jYI1ad/71RrDZ+rdL6aZB0wLfAuflQiDhkD5o4yJ0uPK3OSUic3fG0w==}
     dev: true
@@ -9198,6 +9204,12 @@ packages:
     dependencies:
       undici-types: 5.25.3
 
+  /@types/node@20.8.9:
+    resolution: {integrity: sha512-UzykFsT3FhHb1h7yD4CA4YhBHq545JC0YnEz41xkipN88eKQtL6rSgocL5tbAP6Ola9Izm/Aw4Ora8He4x0BHg==}
+    dependencies:
+      undici-types: 5.26.5
+    dev: true
+
   /@types/normalize-package-data@2.4.3:
     resolution: {integrity: sha512-ehPtgRgaULsFG8x0NeYJvmyH1hmlfsNLujHe9dQEia/7MAJYdzMSi19JtchUHjmBA6XC/75dK55mzZH+RyieSg==}
     dev: true
@@ -9209,8 +9221,11 @@ packages:
     resolution: {integrity: sha512-zuqnmvs721gebIA28enST/9KvrHbNvO5HPdtkwzkfgDnUlI3rAJi0CaAxyccehcqDysMntsMpe3UZ4wpaENj+A==}
     dev: true
 
-  /@types/npm-packlist@3.0.0:
-    resolution: {integrity: sha512-IdiQ2SAR2NZgAUhdpwICaL8CWKrhRg0R2awttMKewoALrBb9cYPW67IZjnkEGdhkSp6uimAFLfoCdERYJyMaAg==}
+  /@types/npm-packlist@7.0.2:
+    resolution: {integrity: sha512-/SBXz2wWuIDeV3MZHEVYQCFpKAH1psGe7Q33A6fnyBSD5CwqEvqtHd4Hi6se13TN7yAOcaGz9pT6kq3YbGXebQ==}
+    dependencies:
+      '@types/ignore-walk': 4.0.2
+      '@types/npmcli__arborist': 5.6.4
     dev: true
 
   /@types/npm-registry-fetch@8.0.6:
@@ -16705,6 +16720,7 @@ packages:
 
   /safer-buffer@2.1.2:
     resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
+    requiresBuild: true
 
   /sanitize-filename@1.6.3:
     resolution: {integrity: sha512-y/52Mcy7aw3gRm7IrcGDFx/bCk4AhRh2eI9luHOQM86nZsqwiRkkq2GekHXBBD+SmPidc8i2PqtYZl+pWJ8Oeg==}
@@ -17877,6 +17893,10 @@ packages:
 
   /undici-types@5.25.3:
     resolution: {integrity: sha512-Ga1jfYwRn7+cP9v8auvEXN1rX3sWqlayd4HP7OKk4mZWylEmu3KzXDUGrQUN6Ol7qo1gPvB2e5gX6udnyEPgdA==}
+
+  /undici-types@5.26.5:
+    resolution: {integrity: sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==}
+    dev: true
 
   /unified@9.2.2:
     resolution: {integrity: sha512-Sg7j110mtefBD+qunSLO1lqOEKdrwBFBrR6Qd8f4uwkhWNlbkaqwHse6e7QvD3AP/MNoJdEDLaf8OxYyoWgorQ==}

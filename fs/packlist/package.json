@@ -33,7 +33,7 @@
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/fs.packlist": "workspace:*",
-    "@types/npm-packlist": "^3.0.0",
+    "@types/npm-packlist": "^7.0.2",
     "@types/npmcli__arborist": "5.6.4"
   },
   "exports": {
