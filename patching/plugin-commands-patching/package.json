@@ -37,7 +37,6 @@
     "@pnpm/registry-mock": "3.16.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.1",
-    "@types/npm-packlist": "^3.0.0",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.5.3",
     "write-yaml-file": "^5.0.0"
@@ -47,6 +46,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
     "@pnpm/modules-yaml": "workspace:*",
@@ -62,7 +62,6 @@
     "escape-string-regexp": "^4.0.0",
     "fast-glob": "^3.3.1",
     "normalize-path": "^3.0.0",
-    "npm-packlist": "^5.1.3",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "realpath-missing": "^1.1.0",
     "render-help": "^1.0.3",

@@ -106,6 +106,7 @@
     "localappdata",
     "lockfiles",
     "loglevel",
+    "logstream",
     "longlink",
     "longpaths",
     "martensson",
@@ -128,6 +129,7 @@
     "noproxy",
     "nosystem",
     "nothrow",
+    "npmcli",
     "npmignore",
     "npmjs",
     "ofjergrg",
@@ -202,6 +204,10 @@
     "safecrlf",
     "scopeless",
     "sdiff",
+    "searchexclude",
+    "searchlimit",
+    "searchopts",
+    "searchstaleness",
     "sels",
     "semistrict",
     "serverjs",
@@ -246,6 +252,6 @@
     "xmarw",
     "zkochan",
     "zoli",
-    "zoltan"
+    "zoltan" 
   ]
 }
