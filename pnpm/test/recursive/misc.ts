@@ -231,7 +231,6 @@ test('recursive installation of packages in workspace ignores hooks in packages'
   const depPaths = Object.keys(lockfile.packages ?? [])
   expect(depPaths).not.toContain('/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
   expect(depPaths).toContain('/is-number@1.0.0')
-  /* eslint-enable @typescript-eslint/no-unnecessary-type-assertion */
 })
 
 test('ignores .pnpmfile.cjs during recursive installation when --ignore-pnpmfile is used', async () => {

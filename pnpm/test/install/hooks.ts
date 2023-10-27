@@ -255,7 +255,6 @@ test('readPackage hook from pnpmfile at root of workspace', async () => {
   expect(lockfile.packages!['/is-negative@1.0.0'].dependencies).toStrictEqual({
     '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
   })
-  /* eslint-enable @typescript-eslint/no-unnecessary-type-assertion */
 })
 
 test('readPackage hook during update', async () => {
