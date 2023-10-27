@@ -1,5 +1,12 @@
 # @pnpm/license-scanner
 
+## 2.2.1
+
+### Patch Changes
+
+- Updated dependencies [500363647]
+  - @pnpm/directory-fetcher@7.0.4
+
 ## 2.2.0
 
 ### Minor Changes

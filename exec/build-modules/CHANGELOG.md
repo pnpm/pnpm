@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 11.2.1
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.5
+
 ## 11.2.0
 
 ### Minor Changes

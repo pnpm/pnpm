@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 22.3.2
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.5
+- @pnpm/build-modules@11.2.1
+- @pnpm/package-requester@24.1.0
+
 ## 22.3.1
 
 ### Patch Changes

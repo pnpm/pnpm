@@ -1,5 +1,12 @@
 # @pnpm/lifecycle
 
+## 16.0.5
+
+### Patch Changes
+
+- Updated dependencies [500363647]
+  - @pnpm/directory-fetcher@7.0.4
+
 ## 16.0.4
 
 ### Patch Changes
