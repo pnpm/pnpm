@@ -57,7 +57,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'production'
 | 'rawLocalConfig'
 | 'registries'
-| 'requiresbuildFromRegistry'
+| 'useExperimentalNpmjsFilesIndex'
 | 'rootProjectManifestDir'
 | 'rootProjectManifest'
 | 'save'

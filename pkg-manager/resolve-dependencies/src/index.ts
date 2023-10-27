@@ -44,7 +44,7 @@ import {
 import { toResolveImporter } from './toResolveImporter'
 import { updateLockfile } from './updateLockfile'
 import { updateProjectManifest } from './updateProjectManifest'
-import { fetchBuildFromRegistryFS } from '@pnpm/fetch'
+import { fetch } from '@pnpm/fetch'
 
 export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
 
@@ -100,7 +100,7 @@ export async function resolveDependencies (
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
     allowNonAppliedPatches?: boolean
-    requiresbuildFromRegistry?: boolean
+    useExperimentalNpmjsFilesIndex?: boolean
   }
 ) {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -287,7 +287,7 @@ export async function resolveDependencies (
   return {
     dependenciesByProjectId,
     dependenciesGraph,
-    finishLockfileUpdates: promiseShare(finishLockfileUpdates(dependenciesGraph, pendingRequiresBuilds, newLockfile, opts.requiresbuildFromRegistry)),
+    finishLockfileUpdates: promiseShare(finishLockfileUpdates(dependenciesGraph, pendingRequiresBuilds, newLockfile, opts.useExperimentalNpmjsFilesIndex)),
     outdatedDependencies,
     linkedDependenciesByProjectId,
     newLockfile,
@@ -320,12 +320,63 @@ function verifyPatches (
   })
 }
 
+export async function fetchBuildFromRegistryFS (pkgName: string, pkgVer: string): Promise<boolean> {
+  interface RegistryFileFields {
+    size: number
+    type: 'File'
+    path: string
+    contentType: string
+    hex: string
+    isBinary: boolean
+    linesCount: number
+  }
+
+  interface RegistryFileList {
+    files: {
+      [path: string]: RegistryFileFields
+    }
+  }
+
+  const url = `https://npmjs.com/package/${pkgName}/v/${pkgVer}/index`
+  try {
+    const fetchResult = await fetch(url)
+    if (!fetchResult.ok) {
+      throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVer}`,
+        fetchResult.statusText)
+    }
+
+    const fetchJSON = await fetchResult.json() as RegistryFileList
+    if (fetchJSON.files == null) {
+      throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVer}`,
+        'Registry Failed to Provide File List')
+    }
+    const regFS = fetchJSON.files
+    if (regFS['/binding.gyp'] || regFS['/hooks'] || regFS['/hooks/']) {
+      return true
+    }
+    const pkgJsonHex = regFS['/package.json'].hex
+  const pkgJson = await (await fetch(`https://npmjs.com/package/${pkgName}/file/${pkgJsonHex}`)).json() as any // eslint-disable-line
+    if (pkgJson?.scripts != null && (
+      Boolean(pkgJson.scripts.preinstall) ||
+      Boolean(pkgJson.scripts.install) ||
+      Boolean(pkgJson.scripts.postinstall)
+    )) {
+      return true
+    }
+    return false
+  } catch (e) {
+    if (e instanceof Error) {
+      throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVer}`, e.message)
+    }
+  }
+  return false
+}
+
 async function finishLockfileUpdates (
   dependenciesGraph: DependenciesGraph,
   pendingRequiresBuilds: string[],
   newLockfile: Lockfile,
-  requiresbuildFromRegistry?: boolean
-
+  useExperimentalNpmjsFilesIndex?: boolean
 ) {
   return Promise.all(pendingRequiresBuilds.map(async (depPath) => {
     const depNode = dependenciesGraph[depPath]
@@ -333,7 +384,7 @@ async function finishLockfileUpdates (
     try {
       let requiresBuild!: boolean
       if (depNode.optional) {
-        if (requiresbuildFromRegistry) {
+        if (useExperimentalNpmjsFilesIndex && depNode.id.startsWith('registry.npmjs.org' || 'registry.npmjs.org')) {
         // Attempt to use NPM's file list to determine if the package requiresBuild
           requiresBuild = await fetchBuildFromRegistryFS(depNode.name, depNode.version)
         } else {

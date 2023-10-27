@@ -430,7 +430,6 @@ Note that in CI environments, this setting is enabled by default.`,
     Failure reason:
     ${detailedReason ?? ''}`,
               })
-            /* eslint-enable @typescript-eslint/restrict-template-expressions */
           }
         }
       }
@@ -1037,7 +1036,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       workspacePackages: opts.workspacePackages,
       patchedDependencies: opts.patchedDependencies,
       lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
-      requiresbuildFromRegistry: opts.requiresbuildFromRegistry,
+      useExperimentalNpmjsFilesIndex: opts.useExperimentalNpmjsFilesIndex,
       resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       supportedArchitectures: opts.supportedArchitectures,
     }

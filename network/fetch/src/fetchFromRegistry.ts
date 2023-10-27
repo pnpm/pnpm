@@ -100,34 +100,3 @@ function getHeaders (
   }
   return headers
 }
-
-export async function fetchBuildFromRegistryFS (pkgName: string, pkgVer: string): Promise<boolean> {
-  const url = `https://npmjs.com/package/${pkgName}/v/${pkgVer}/index`
-  try {
-    const fetchResult = await fetch(url, { retry: { retries: 3, randomize: true, factor: 10 } })
-    if (!fetchResult.ok) {
-      return true
-    }
-  const fetchJSON = await fetchResult.json() as any // eslint-disable-line
-    if (fetchJSON.files == null) {
-      return true
-    }
-  const regFS = fetchJSON.files as any // eslint-disable-line
-    if (regFS['/binding.gyp'] || regFS['/hooks'] || regFS['/hooks/']) {
-      return true
-    }
-    const pkgJsonHex = regFS['/package.json'].hex
-  const pkgJson = await (await fetch(`https://npmjs.com/package/${pkgName}/file/${pkgJsonHex}`)).json() as any // eslint-disable-line
-    if (pkgJson?.scripts != null && (
-      Boolean(pkgJson.scripts.preinstall) ||
-      Boolean(pkgJson.scripts.install) ||
-      Boolean(pkgJson.scripts.postinstall)
-    )) {
-      return true
-    }
-    return false
-  } catch (e) {
-    // console.error(e)
-    return true
-  }
-}
