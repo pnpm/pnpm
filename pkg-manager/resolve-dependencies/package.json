@@ -64,7 +64,7 @@
   },
   "devDependencies": {
     "@pnpm/resolve-dependencies": "workspace:*",
-    "@types/normalize-path": "^3.0.0",
+    "@types/normalize-path": "^3.0.1",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.5.3"
   },

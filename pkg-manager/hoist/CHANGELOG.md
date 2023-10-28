@@ -1,5 +1,11 @@
 # @pnpm/hoist
 
+## 8.1.0
+
+### Minor Changes
+
+- ee4d15fdd: Export `getHoistedDependencies(opts)`.
+
 ## 8.0.15
 
 ### Patch Changes

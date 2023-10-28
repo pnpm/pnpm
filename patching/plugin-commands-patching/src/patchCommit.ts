@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { type Config, types as allTypes } from '@pnpm/config'
+import { packlist } from '@pnpm/fs.packlist'
 import { install } from '@pnpm/plugin-commands-installation'
 import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
@@ -15,7 +16,6 @@ import renderHelp from 'render-help'
 import tempy from 'tempy'
 import { writePackage } from './writePackage'
 import { type ParseWantedDependencyResult, parseWantedDependency } from '@pnpm/parse-wanted-dependency'
-import packlist from 'npm-packlist'
 import { type GetPatchedDependencyOptions, getVersionsFromLockfile } from './getPatchedDependency'
 
 export const rcOptionsTypes = cliOptionsTypes
@@ -157,7 +157,7 @@ function removeTrailingAndLeadingSlash (p: string) {
  * This is required in order for the diff to not include files that are not part of the package.
  */
 async function preparePkgFilesForDiff (src: string): Promise<string> {
-  const files = Array.from(new Set((await packlist({ path: src })).map((f) => path.join(f))))
+  const files = Array.from(new Set((await packlist(src)).map((f) => path.join(f))))
   // If there are no extra files in the source directories, then there is no reason
   // to copy.
   if (await areAllFilesInPkg(files, src)) {

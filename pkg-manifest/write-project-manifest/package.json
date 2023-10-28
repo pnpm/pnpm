@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@pnpm/write-project-manifest": "workspace:*",
-    "@types/write-file-atomic": "^4.0.1",
+    "@types/write-file-atomic": "^4.0.2",
     "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",

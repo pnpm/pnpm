@@ -1,5 +1,16 @@
 # @pnpm/directory-fetcher
 
+## 7.0.4
+
+### Patch Changes
+
+- 500363647: `pnpm publish` should not pack the same file twice sometimes [#6997](https://github.com/pnpm/pnpm/issues/6997).
+
+  The fix was to update `npm-packlist` to the latest version.
+
+- Updated dependencies [500363647]
+  - @pnpm/fs.packlist@1.0.0
+
 ## 7.0.3
 
 ### Patch Changes

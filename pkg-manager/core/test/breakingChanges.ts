@@ -119,7 +119,7 @@ test(`fail on non-compatible ${WANTED_LOCKFILE} when frozen lockfile installatio
     throw new Error('should have failed')
   } catch (err: any) { // eslint-disable-line
     if (err.message === 'should have failed') throw err
-    expect(err.code).toBe('ERR_PNPM_LOCKFILE_BREAKING_CHANGE')
+    expect(err.code).toBe('ERR_PNPM_BROKEN_LOCKFILE')
   }
 })
 
