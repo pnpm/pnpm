@@ -34,11 +34,11 @@ const DEP_PRIORITY: Record<DependenciesField, number> = {
 const COMPARATORS = [
   ...DEFAULT_COMPARATORS,
   (o1: OutdatedInWorkspace, o2: OutdatedInWorkspace) =>
-    DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
+    DEP_PRIORITY[o1.belongsTo as DependenciesField] - DEP_PRIORITY[o2.belongsTo as DependenciesField],
 ]
 
 interface OutdatedInWorkspace extends OutdatedPackage {
-  belongsTo: DependenciesField
+  belongsTo: DependenciesField | 'packageManager'
   current?: string
   dependentPkgs: Array<{ location: string, manifest: ProjectManifest }>
   latest?: string
@@ -188,7 +188,7 @@ function renderOutdatedJSON (
         latest: outdatedPkg.latestManifest?.version,
         wanted: outdatedPkg.wanted,
         isDeprecated: Boolean(outdatedPkg.latestManifest?.deprecated),
-        dependencyType: outdatedPkg.belongsTo,
+        dependencyType: outdatedPkg.belongsTo as DependenciesField,
         dependentPackages: outdatedPkg.dependentPkgs.map(({ manifest, location }) => ({ name: manifest.name!, location })),
       }
       if (opts.long) {

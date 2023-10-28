@@ -210,7 +210,7 @@ async function interactiveUpdate (
     }
     return 'All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json'
   }
-  const { updateDependencies } = await prompt({
+  let { updateDependencies } = await prompt({
     choices,
     footer: '\nEnter to start updating. Ctrl-c to cancel.',
     indicator (state: any, choice: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -230,7 +230,7 @@ async function interactiveUpdate (
 
       if (Array.isArray(this.selected)) {
         return this.selected
-          // The custom format function is used to filter out "[dependencies]" or "[devDependencies]" from the output.
+          // The custom format function is used to filter out "[dependencies]" or "[devDependencies]" or "[packageManager]" from the output.
           // https://github.com/enquirer/enquirer/blob/master/lib/prompts/select.js#L98
           .filter((choice: ChoiceRow) => !/^\[.+\]$/.test(choice.name))
           .map((choice: ChoiceRow) => this.styles.primary(choice.name)).join(', ')
@@ -267,6 +267,16 @@ async function interactiveUpdate (
     },
   } as any) as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
+  updateDependencies = (updateDependencies as ChoiceRow[]).filter(dep => !(dep.path && dep.path.startsWith('[packageManager]')))
+  const packageManagerManifest = outdatedPkgsOfProjects[0].filter(pkg => pkg.belongsTo === 'packageManager')
+
+  if (opts.save !== false && packageManagerManifest.length) {
+    await updateProjectCorepackConfig({
+      ...opts,
+      updatedVersion: packageManagerManifest[0].wanted,
+      updatedPackage: packageManagerManifest[0].packageName,
+    })
+  }
   const updatePkgNames = pluck('value', updateDependencies as ChoiceRow[])
   return update(updatePkgNames, opts)
 }
@@ -308,4 +318,20 @@ function makeIncludeDependenciesFromCLI (opts: {
     devDependencies: opts.dev === true || (opts.production !== true && opts.optional !== true),
     optionalDependencies: opts.optional === true || (opts.production !== true && opts.dev !== true),
   }
+}
+
+async function updateProjectCorepackConfig (opts: {
+  updatedVersion: string
+  updatedPackage: string
+} & UpdateCommandOptions) {
+  if (!opts.allProjects) {
+    return
+  }
+  const { updatedPackage, updatedVersion } = opts
+
+  return Promise.all(opts.allProjects.map((project) => {
+    const updatedManifest = project.manifest
+    updatedManifest.packageManager = `${updatedPackage}@${updatedVersion}`
+    return project.writeProjectManifest(updatedManifest)
+  }))
 }
