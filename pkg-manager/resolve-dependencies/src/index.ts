@@ -341,14 +341,14 @@ export async function fetchBuildFromRegistryFS (pkgName: string, pkgVer: string)
   try {
     const fetchResult = await fetch(url)
     if (!fetchResult.ok) {
-      throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVer}`,
-        fetchResult.statusText)
+      globalWarn(`Unable to  fetch npmjs file list for ${pkgName}@${pkgVer}: Fallback to requiresBuild=true`)
+      return true
     }
 
     const fetchJSON = await fetchResult.json() as RegistryFileList
     if (fetchJSON.files == null) {
-      throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVer}`,
-        'Registry Failed to Provide File List')
+      globalWarn(`Unable to parse npmjs file list for ${pkgName}@${pkgVer}: Fallback to requiresBuild=true`)
+      return true
     }
     const regFS = fetchJSON.files
     if (regFS['/binding.gyp'] || regFS['/hooks'] || regFS['/hooks/']) {
