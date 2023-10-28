@@ -704,7 +704,7 @@ describe('patch and commit in workspaces', () => {
       sharedWorkspaceLockfile: false,
     }, [patchDir])
 
-    // verify commited patch
+    // verify committed patch
     expect(fs.readFileSync('./node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
     expect(fs.existsSync('./node_modules/is-positive/license')).toBe(false)
 
@@ -716,7 +716,7 @@ describe('patch and commit in workspaces', () => {
     patchDir = getPatchDirFromPatchOutput(output)
     expect(fs.existsSync(patchDir)).toBe(true)
 
-    // verify temporary patch is reusing last commited patch
+    // verify temporary patch is reusing last committed patch
     expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).toContain('// test patching')
     expect(fs.existsSync(path.join(patchDir, 'license'))).toBe(false)
   })
