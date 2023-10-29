@@ -1,19 +1,19 @@
-import path from 'path';
-import { readProjects } from '@pnpm/filter-workspace-packages';
-import { type Lockfile } from '@pnpm/lockfile-types';
-import { add, install, update } from '@pnpm/plugin-commands-installation';
-import { prepare, preparePackages } from '@pnpm/prepare';
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock';
-import readYamlFile from 'read-yaml-file';
-import chalk from 'chalk';
-import * as enquirer from 'enquirer';
+import path from 'path'
+import { readProjects } from '@pnpm/filter-workspace-packages'
+import { type Lockfile } from '@pnpm/lockfile-types'
+import { add, install, update } from '@pnpm/plugin-commands-installation'
+import { prepare, preparePackages } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import readYamlFile from 'read-yaml-file'
+import chalk from 'chalk'
+import * as enquirer from 'enquirer'
 
-jest.mock('enquirer', () => ({ prompt: jest.fn() }));
+jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
 // eslint-disable-next-line
 const prompt = enquirer.prompt as any;
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`;
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 const DEFAULT_OPTIONS = {
   argv: {
@@ -41,7 +41,7 @@ const DEFAULT_OPTIONS = {
   sort: true,
   userConfig: {},
   workspaceConcurrency: 1,
-};
+}
 
 test('interactively update', async () => {
   const project = prepare({
@@ -53,16 +53,16 @@ test('interactively update', async () => {
       // has many versions that satisfy ^3.0.0
       micromatch: '^3.0.0',
     },
-  });
+  })
 
-  const storeDir = path.resolve('pnpm-store');
+  const storeDir = path.resolve('pnpm-store')
 
   const headerChoice = {
     name: 'Package                                                    Current   Target            URL ',
     disabled: true,
     hint: '',
     value: '',
-  };
+  }
 
   await add.handler(
     {
@@ -73,8 +73,8 @@ test('interactively update', async () => {
       save: false,
       storeDir,
     },
-    ['is-negative@1.0.0', 'is-positive@2.0.0', 'micromatch@3.0.0'],
-  );
+    ['is-negative@1.0.0', 'is-positive@2.0.0', 'micromatch@3.0.0']
+  )
 
   prompt.mockResolvedValue({
     updateDependencies: [
@@ -83,9 +83,9 @@ test('interactively update', async () => {
         name: chalk`is-negative 1.0.0 ❯ 1.0.{greenBright.bold 1} https://pnpm.io/ `,
       },
     ],
-  });
+  })
 
-  prompt.mockClear();
+  prompt.mockClear()
   // t.comment('update to compatible versions')
   await update.handler({
     ...DEFAULT_OPTIONS,
@@ -94,7 +94,7 @@ test('interactively update', async () => {
     interactive: true,
     linkWorkspacePackages: true,
     storeDir,
-  });
+  })
 
   expect(prompt.mock.calls[0][0].choices).toStrictEqual([
     {
@@ -114,7 +114,7 @@ test('interactively update', async () => {
       name: '[dependencies]',
       message: 'dependencies',
     },
-  ]);
+  ])
   expect(prompt).toBeCalledWith(
     expect.objectContaining({
       footer: '\nEnter to start updating. Ctrl-c to cancel.',
@@ -125,19 +125,19 @@ test('interactively update', async () => {
         `${chalk.cyan('<i>')} to invert selection)`,
       name: 'updateDependencies',
       type: 'multiselect',
-    }),
-  );
+    })
+  )
 
   {
-    const lockfile = await project.readLockfile();
+    const lockfile = await project.readLockfile()
 
-    expect(lockfile.packages['/micromatch@3.0.0']).toBeTruthy();
-    expect(lockfile.packages['/is-negative@1.0.1']).toBeTruthy();
-    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy();
+    expect(lockfile.packages['/micromatch@3.0.0']).toBeTruthy()
+    expect(lockfile.packages['/is-negative@1.0.1']).toBeTruthy()
+    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy()
   }
 
   // t.comment('update to latest versions')
-  prompt.mockClear();
+  prompt.mockClear()
   await update.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
@@ -146,7 +146,7 @@ test('interactively update', async () => {
     latest: true,
     linkWorkspacePackages: true,
     storeDir,
-  });
+  })
 
   expect(prompt.mock.calls[0][0].choices).toStrictEqual([
     {
@@ -171,7 +171,7 @@ test('interactively update', async () => {
       name: '[dependencies]',
       message: 'dependencies',
     },
-  ]);
+  ])
   expect(prompt).toBeCalledWith(
     expect.objectContaining({
       footer: '\nEnter to start updating. Ctrl-c to cancel.',
@@ -182,17 +182,17 @@ test('interactively update', async () => {
         `${chalk.cyan('<i>')} to invert selection)`,
       name: 'updateDependencies',
       type: 'multiselect',
-    }),
-  );
+    })
+  )
 
   {
-    const lockfile = await project.readLockfile();
+    const lockfile = await project.readLockfile()
 
-    expect(lockfile.packages['/micromatch@3.0.0']).toBeTruthy();
-    expect(lockfile.packages['/is-negative@2.1.0']).toBeTruthy();
-    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy();
+    expect(lockfile.packages['/micromatch@3.0.0']).toBeTruthy()
+    expect(lockfile.packages['/is-negative@2.1.0']).toBeTruthy()
+    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy()
   }
-});
+})
 
 test('interactive update of dev dependencies only', async () => {
   preparePackages([
@@ -210,8 +210,8 @@ test('interactive update of dev dependencies only', async () => {
         'is-negative': '^1.0.0',
       },
     },
-  ]);
-  const storeDir = path.resolve('store');
+  ])
+  const storeDir = path.resolve('store')
 
   prompt.mockResolvedValue({
     updateDependencies: [
@@ -220,12 +220,12 @@ test('interactive update of dev dependencies only', async () => {
         name: chalk`is-negative 1.0.0 ❯ 1.0.{greenBright.bold 1} https://pnpm.io/ `,
       },
     ],
-  });
+  })
 
   const { allProjects, selectedProjectsGraph } = await readProjects(
     process.cwd(),
-    [],
-  );
+    []
+  )
   await install.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
@@ -237,7 +237,7 @@ test('interactive update of dev dependencies only', async () => {
     selectedProjectsGraph,
     storeDir,
     workspaceDir: process.cwd(),
-  });
+  })
   await update.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
@@ -256,15 +256,15 @@ test('interactive update of dev dependencies only', async () => {
     selectedProjectsGraph,
     storeDir,
     workspaceDir: process.cwd(),
-  });
+  })
 
-  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml');
+  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
 
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
     '/is-negative@1.0.1',
     '/is-negative@2.1.0',
-  ]);
-});
+  ])
+})
 
 test('interactively update should ignore dependencies from the ignoreDependencies field', async () => {
   const project = prepare({
@@ -281,9 +281,9 @@ test('interactively update should ignore dependencies from the ignoreDependencie
         ignoreDependencies: ['is-negative'],
       },
     },
-  });
+  })
 
-  const storeDir = path.resolve('pnpm-store');
+  const storeDir = path.resolve('pnpm-store')
 
   await add.handler(
     {
@@ -294,14 +294,14 @@ test('interactively update should ignore dependencies from the ignoreDependencie
       save: false,
       storeDir,
     },
-    ['is-negative@1.0.0', 'is-positive@2.0.0', 'micromatch@3.0.0'],
-  );
+    ['is-negative@1.0.0', 'is-positive@2.0.0', 'micromatch@3.0.0']
+  )
 
   prompt.mockResolvedValue({
     updateDependencies: [{ value: 'micromatch', name: 'anything' }],
-  });
+  })
 
-  prompt.mockClear();
+  prompt.mockClear()
   await update.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
@@ -309,7 +309,7 @@ test('interactively update should ignore dependencies from the ignoreDependencie
     interactive: true,
     linkWorkspacePackages: true,
     storeDir,
-  });
+  })
 
   expect(prompt.mock.calls[0][0].choices).toStrictEqual([
     {
@@ -329,7 +329,7 @@ test('interactively update should ignore dependencies from the ignoreDependencie
       name: '[dependencies]',
       message: 'dependencies',
     },
-  ]);
+  ])
 
   expect(prompt).toBeCalledWith(
     expect.objectContaining({
@@ -341,25 +341,25 @@ test('interactively update should ignore dependencies from the ignoreDependencie
         `${chalk.cyan('<i>')} to invert selection)`,
       name: 'updateDependencies',
       type: 'multiselect',
-    }),
-  );
+    })
+  )
 
   {
-    const lockfile = await project.readLockfile();
+    const lockfile = await project.readLockfile()
 
-    expect(lockfile.packages['/micromatch@3.1.10']).toBeTruthy();
-    expect(lockfile.packages['/is-negative@1.0.0']).toBeTruthy();
-    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy();
+    expect(lockfile.packages['/micromatch@3.1.10']).toBeTruthy()
+    expect(lockfile.packages['/is-negative@1.0.0']).toBeTruthy()
+    expect(lockfile.packages['/is-positive@2.0.0']).toBeTruthy()
   }
-});
+})
 
 test('interactively update should update corepack config', async () => {
   prepare({
     name: 'project-1',
     packageManager: 'pnpm@8.7.0',
-  });
+  })
 
-  const storeDir = path.resolve('pnpm-store');
+  const storeDir = path.resolve('pnpm-store')
 
   await add.handler(
     {
@@ -370,8 +370,8 @@ test('interactively update should update corepack config', async () => {
       save: false,
       storeDir,
     },
-    ['pnpm@8.9.2'],
-  );
+    ['pnpm@8.9.2']
+  )
 
   prompt.mockResolvedValue({
     updateDependencies: [
@@ -380,9 +380,9 @@ test('interactively update should update corepack config', async () => {
         name: chalk`pnpm 8.7.0 ❯ 8.9.2 https://pnpm.io/ `,
       },
     ],
-  });
+  })
 
-  prompt.mockClear();
+  prompt.mockClear()
   await update.handler({
     ...DEFAULT_OPTIONS,
     cacheDir: path.resolve('cache'),
@@ -390,15 +390,15 @@ test('interactively update should update corepack config', async () => {
     interactive: true,
     linkWorkspacePackages: true,
     storeDir,
-  });
+  })
 
-  const promptStr = JSON.stringify(prompt.mock.calls[0][0].choices[0]);
-  const latestVersionIndex = promptStr.indexOf('❯');
+  const promptStr = JSON.stringify(prompt.mock.calls[0][0].choices[0])
+  const latestVersionIndex = promptStr.indexOf('❯')
   const latestVersion = promptStr.substring(
     latestVersionIndex + 2,
-    latestVersionIndex + 10,
-  );
-  const promptChoices = JSON.parse(promptStr.replace(latestVersion, '8.9.0'));
+    latestVersionIndex + 10
+  )
+  const promptChoices = JSON.parse(promptStr.replace(latestVersion, '8.9.0'))
 
   expect(promptChoices).toMatchInlineSnapshot(`
     {
@@ -418,7 +418,7 @@ test('interactively update should update corepack config', async () => {
       "message": "packageManager",
       "name": "[packageManager]",
     }
-  `);
+  `)
   expect(prompt).toBeCalledWith(
     expect.objectContaining({
       footer: '\nEnter to start updating. Ctrl-c to cancel.',
@@ -429,6 +429,6 @@ test('interactively update should update corepack config', async () => {
         `${chalk.cyan('<i>')} to invert selection)`,
       name: 'updateDependencies',
       type: 'multiselect',
-    }),
-  );
-});
+    })
+  )
+})
