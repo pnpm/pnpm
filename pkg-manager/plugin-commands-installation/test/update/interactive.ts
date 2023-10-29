@@ -10,8 +10,7 @@ import * as enquirer from 'enquirer'
 
 jest.mock('enquirer', () => ({ prompt: jest.fn() }))
 
-// eslint-disable-next-line
-const prompt = enquirer.prompt as any;
+const prompt = enquirer.prompt as any // eslint-disable-line
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
