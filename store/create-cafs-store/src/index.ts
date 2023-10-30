@@ -1,5 +1,6 @@
-import { promises as fs } from 'fs'
+import { promises as fs, readFileSync } from 'fs'
 import path from 'path'
+import { filesIncludeInstallScripts } from '@pnpm/exec.files-include-install-scripts'
 import {
   type CafsLocker,
   createCafs,
@@ -34,7 +35,17 @@ export function createPackageImporterAsync (
   const gfm = getFlatMap.bind(null, opts.cafsDir)
   return async (to, opts) => {
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
-    const pkgImportMethod = (opts.requiresBuild && !isBuilt)
+    let requiresBuild = opts.requiresBuild
+    if (requiresBuild == null) {
+      requiresBuild = filesIncludeInstallScripts(filesMap)
+      if (!requiresBuild && filesMap['package.json']) {
+        const pkgJson = JSON.parse(readFileSync(filesMap['package.json'], 'utf8'))
+        requiresBuild = Boolean(pkgJson.scripts.preinstall) ||
+          Boolean(pkgJson.scripts.install) ||
+          Boolean(pkgJson.scripts.postinstall)
+      }
+    }
+    const pkgImportMethod = (requiresBuild && !isBuilt)
       ? 'clone-or-copy'
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)

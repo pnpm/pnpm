@@ -15,6 +15,7 @@
     "@pnpm/logger": "^5.0.0"
   },
   "dependencies": {
+    "@pnpm/exec.files-include-install-scripts": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
