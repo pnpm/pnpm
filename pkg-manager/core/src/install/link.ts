@@ -450,7 +450,7 @@ async function linkAllPkgs (
         filesResponse: files,
         force: opts.force,
         sideEffectsCacheKey,
-        requiresBuild: depNode.patchFile != null || (depNode.optional ? undefined : depNode.requiresBuild),
+        requiresBuild: depNode.patchFile != null || (depNode.optional ? (depNode.requiresBuild ? undefined : false) : depNode.requiresBuild),
       })
       if (importMethod) {
         progressLogger.debug({

@@ -809,7 +809,7 @@ async function linkAllPkgs (
         filesResponse,
         force: opts.force,
         disableRelinkLocalDirDeps: opts.disableRelinkLocalDirDeps,
-        requiresBuild: depNode.patchFile != null || (depNode.optional ? undefined : depNode.requiresBuild),
+        requiresBuild: depNode.patchFile != null || (depNode.optional ? (depNode.requiresBuild ? undefined : false) : depNode.requiresBuild),
         sideEffectsCacheKey,
       })
       if (importMethod) {
