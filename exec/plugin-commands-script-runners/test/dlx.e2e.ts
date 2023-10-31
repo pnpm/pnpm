@@ -121,3 +121,13 @@ test('dlx should return a non-zero exit code when the underlying script fails', 
 
   expect(exitCode).toBe(1)
 })
+
+test('dlx should work when running in the root of a Windows Drive', async () => {
+  prepareEmpty()
+
+  await dlx.handler({
+    ...DEFAULT_OPTS,
+    dir: 'C:\\',
+    storeDir: path.resolve('store'),
+  }, ['cowsay', 'hello'])
+})
