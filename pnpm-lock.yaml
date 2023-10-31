@@ -1113,6 +1113,12 @@ importers:
         specifier: 0.28.20
         version: 0.28.20
 
+  exec/files-include-install-scripts:
+    devDependencies:
+      '@pnpm/exec.files-include-install-scripts':
+        specifier: workspace:*
+        version: 'link:'
+
   exec/lifecycle:
     dependencies:
       '@pnpm/core-loggers':
@@ -4068,6 +4074,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/exec.files-include-install-scripts':
+        specifier: workspace:*
+        version: link:../../exec/files-include-install-scripts
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-types
@@ -5602,6 +5611,9 @@ importers:
 
   store/create-cafs-store:
     dependencies:
+      '@pnpm/exec.files-include-install-scripts':
+        specifier: workspace:*
+        version: link:../../exec/files-include-install-scripts
       '@pnpm/fetcher-base':
         specifier: workspace:*
         version: link:../../fetching/fetcher-base

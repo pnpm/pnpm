@@ -648,3 +648,40 @@ describe('supported architectures', () => {
     expect(fs.readdirSync('node_modules/.pnpm').length).toBe(5)
   })
 })
+
+test('optional dependency is hardlinked to the store if it does not require a build', async () => {
+  prepareEmpty()
+  const manifest = {
+    dependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': '*',
+    },
+  }
+
+  const reporter = jest.fn()
+  await install(manifest, await testDefaults({ reporter }, {}, {}, { packageImportMethod: 'hardlink' }))
+
+  expect(reporter).toHaveBeenCalledWith(
+    expect.objectContaining({
+      level: 'debug',
+      name: 'pnpm:progress',
+      method: 'hardlink',
+      status: 'imported',
+      to: path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'),
+    })
+  )
+
+  await rimraf('node_modules')
+
+  reporter.mockClear()
+  await install(manifest, await testDefaults({ frozenLockfile: true, reporter }, {}, {}, { packageImportMethod: 'hardlink' }))
+
+  expect(reporter).toHaveBeenCalledWith(
+    expect.objectContaining({
+      level: 'debug',
+      name: 'pnpm:progress',
+      method: 'hardlink',
+      status: 'imported',
+      to: path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'),
+    })
+  )
+})

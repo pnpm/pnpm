@@ -1,5 +1,6 @@
 import path from 'path'
 import { PnpmError } from '@pnpm/error'
+import { filesIncludeInstallScripts } from '@pnpm/exec.files-include-install-scripts'
 import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
@@ -341,8 +342,7 @@ async function finishLockfileUpdates (
             Boolean(pkgJson.scripts.install) ||
             Boolean(pkgJson.scripts.postinstall)
           ) ||
-          files.filesIndex['binding.gyp'] ||
-            Object.keys(files.filesIndex).some((filename) => !(filename.match(/^[.]hooks[\\/]/) == null)) // TODO: optimize this
+          filesIncludeInstallScripts(files.filesIndex)
         )
       }
       if (typeof depNode.requiresBuild === 'function') {
