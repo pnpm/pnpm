@@ -321,7 +321,7 @@ function verifyPatches (
   })
 }
 
-export async function fetchBuildFromRegistryFS (pkgName: string, pkgVer: string): Promise<boolean> {
+export async function fetchBuildFromRegistryFS (pkgName: string, pkgVer: string, pkgUrl: string, useExperimentalNpmjsFilesIndex: boolean | string[]): Promise<boolean> {
   interface RegistryFileFields {
     size: number
     type: 'File'
@@ -336,6 +336,17 @@ export async function fetchBuildFromRegistryFS (pkgName: string, pkgVer: string)
     files: {
       [path: string]: RegistryFileFields
     }
+  }
+
+  let registryUrls = ['registry.npmjs.org/', 'registry.npmjs.com/']
+  if (Array.isArray(useExperimentalNpmjsFilesIndex)) {
+    registryUrls = useExperimentalNpmjsFilesIndex
+  }
+  // check if any of the registryUrls are contained in the pkgUrl
+  const registryUrl = registryUrls.find((url) => pkgUrl.startsWith(url))
+  if (!registryUrl) {
+    globalWarn(`${pkgName}@${pkgVer} (${pkgUrl}) is not in NPMJS Files Index URL Allow List: Fallback to requiresBuild=true`)
+    return true
   }
 
   const url = `https://npmjs.com/package/${pkgName}/v/${pkgVer}/index`
@@ -385,9 +396,9 @@ async function finishLockfileUpdates (
     try {
       let requiresBuild!: boolean
       if (depNode.optional) {
-        if (useExperimentalNpmjsFilesIndex && depNode.id.startsWith('registry.npmjs.org/' || 'registry.npmjs.org/')) {
+        if (useExperimentalNpmjsFilesIndex) {
         // Attempt to use NPM's file list to determine if the package requiresBuild
-          requiresBuild = await fetchBuildFromRegistryFS(depNode.name, depNode.version)
+          requiresBuild = await fetchBuildFromRegistryFS(depNode.name, depNode.version, depNode.id, useExperimentalNpmjsFilesIndex)
         } else {
           requiresBuild = true
         }
