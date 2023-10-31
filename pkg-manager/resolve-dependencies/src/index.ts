@@ -101,7 +101,7 @@ export async function resolveDependencies (
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
     allowNonAppliedPatches?: boolean
-    useExperimentalNpmjsFilesIndex?: boolean
+    useExperimentalNpmjsFilesIndex?: boolean | string[]
   }
 ) {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -388,7 +388,7 @@ async function finishLockfileUpdates (
   dependenciesGraph: DependenciesGraph,
   pendingRequiresBuilds: string[],
   newLockfile: Lockfile,
-  useExperimentalNpmjsFilesIndex?: boolean
+  useExperimentalNpmjsFilesIndex?: boolean | string[]
 ) {
   return Promise.all(pendingRequiresBuilds.map(async (depPath) => {
     const depNode = dependenciesGraph[depPath]
