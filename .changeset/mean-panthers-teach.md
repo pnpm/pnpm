@@ -5,4 +5,4 @@
 "pnpm": patch
 ---
 
-Optional dependencies should not be copied from the store unless they have to be built [#7046](https://github.com/pnpm/pnpm/issues/7046).
+Optional dependencies that do not have to be built will be reflinked (or hardlinked) to the store instead of copied [#7046](https://github.com/pnpm/pnpm/issues/7046).

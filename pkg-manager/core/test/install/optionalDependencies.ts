@@ -649,7 +649,7 @@ describe('supported architectures', () => {
   })
 })
 
-test('optional dependency is not copied if it does not require a build', async () => {
+test('optional dependency is hardlinked to the store if it does not require a build', async () => {
   prepareEmpty()
   const manifest = {
     dependencies: {
