@@ -77,7 +77,6 @@ test('resolveFromNpm()', async () => {
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
-    registry,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   })
   expect(resolveResult!.manifest).toBeTruthy()
@@ -147,7 +146,6 @@ test('dry run', async () => {
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
-    registry,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   })
   expect(resolveResult!.manifest).toBeTruthy()
@@ -920,7 +918,6 @@ test('resolve when tarball URL is requested from the registry', async () => {
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
-    registry,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   })
   expect(resolveResult!.manifest).toBeTruthy()
@@ -954,7 +951,6 @@ test('resolve when tarball URL is requested from the registry and alias is not s
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
-    registry,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   })
   expect(resolveResult!.manifest).toBeTruthy()
@@ -1076,7 +1072,6 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
-    registry,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   })
   expect(resolveResult!.manifest).toBeTruthy()
@@ -1185,7 +1180,6 @@ test('use version from the registry if it is newer than the local one', async ()
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9Qa5b+9n69IEuxk4FiNcavXqkixb9lD03BLtdTeu2bbORnLZQrw+pR/exiSg7SoODeu08yxS47mdZa9ddodNwQ==',
-    registry,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
   })
   expect(resolveResult!.manifest).toBeTruthy()
@@ -1709,7 +1703,6 @@ test('resolveFromNpm() should always return the name of the package that is spec
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9Qa5b+9n69IEuxk4FiNcavXqkixb9lD03BLtdTeu2bbORnLZQrw+pR/exiSg7SoODeu08yxS47mdZa9ddodNwQ==',
-    registry,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
   })
   expect(resolveResult!.manifest).toBeTruthy()
@@ -1807,7 +1800,6 @@ test('resolveFromNpm() does not fail if the meta file contains no integrity info
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: undefined,
-    registry,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-2.0.0.tgz',
   })
   expect(resolveResult!.manifest).toBeTruthy()
@@ -1847,7 +1839,6 @@ test('resolveFromNpm() should normalize the registry', async () => {
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
-    registry: 'https://reg.com/owner',
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   })
   expect(resolveResult!.manifest).toBeTruthy()

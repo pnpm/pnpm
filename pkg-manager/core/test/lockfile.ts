@@ -1185,7 +1185,6 @@ test('tarball domain differs from registry domain', async () => {
         name: 'is-positive',
         resolution: {
           integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
-          registry: 'https://registry.example.com/',
           tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
         },
         version: '3.1.0',
