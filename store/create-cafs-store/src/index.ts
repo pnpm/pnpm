@@ -39,10 +39,7 @@ export function createPackageImporterAsync (
     if (requiresBuild == null) {
       requiresBuild = filesIncludeInstallScripts(filesMap)
       if (!requiresBuild && filesMap['package.json']) {
-        const pkgJson = JSON.parse(readFileSync(filesMap['package.json'], 'utf8'))
-        requiresBuild = Boolean(pkgJson.scripts.preinstall) ||
-          Boolean(pkgJson.scripts.install) ||
-          Boolean(pkgJson.scripts.postinstall)
+        requiresBuild = pkgJsonHasInstallScripts(filesMap['package.json'])
       }
     }
     const pkgImportMethod = (requiresBuild && !isBuilt)
@@ -78,10 +75,7 @@ function createPackageImporter (
     if (requiresBuild == null) {
       requiresBuild = filesIncludeInstallScripts(filesMap)
       if (!requiresBuild && filesMap['package.json']) {
-        const pkgJson = JSON.parse(readFileSync(filesMap['package.json'], 'utf8'))
-        requiresBuild = Boolean(pkgJson.scripts.preinstall) ||
-          Boolean(pkgJson.scripts.install) ||
-          Boolean(pkgJson.scripts.postinstall)
+        requiresBuild = pkgJsonHasInstallScripts(filesMap['package.json'])
       }
     }
     const pkgImportMethod = (requiresBuild && !isBuilt)
@@ -148,4 +142,12 @@ export function createCafsStore (
       return tmpDir
     },
   }
+}
+
+function pkgJsonHasInstallScripts (file: string): boolean {
+  const pkgJson = JSON.parse(readFileSync(file, 'utf8'))
+  if (!pkgJson.scripts) return false
+  return Boolean(pkgJson.scripts.preinstall) ||
+    Boolean(pkgJson.scripts.install) ||
+    Boolean(pkgJson.scripts.postinstall)
 }
