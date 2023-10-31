@@ -35,14 +35,8 @@ export function createPackageImporterAsync (
   const gfm = getFlatMap.bind(null, opts.cafsDir)
   return async (to, opts) => {
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
-    let requiresBuild = opts.requiresBuild
-    if (requiresBuild == null) {
-      requiresBuild = filesIncludeInstallScripts(filesMap)
-      if (!requiresBuild && filesMap['package.json']) {
-        requiresBuild = pkgJsonHasInstallScripts(filesMap['package.json'])
-      }
-    }
-    const pkgImportMethod = (requiresBuild && !isBuilt)
+    const willBeBuilt = !isBuilt && (opts.requiresBuild ?? pkgRequiresBuild(filesMap))
+    const pkgImportMethod = willBeBuilt
       ? 'clone-or-copy'
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)
@@ -71,14 +65,8 @@ function createPackageImporter (
   const gfm = getFlatMap.bind(null, opts.cafsDir)
   return (to, opts) => {
     const { filesMap, isBuilt } = gfm(opts.filesResponse, opts.sideEffectsCacheKey)
-    let requiresBuild = opts.requiresBuild
-    if (requiresBuild == null) {
-      requiresBuild = filesIncludeInstallScripts(filesMap)
-      if (!requiresBuild && filesMap['package.json']) {
-        requiresBuild = pkgJsonHasInstallScripts(filesMap['package.json'])
-      }
-    }
-    const pkgImportMethod = (requiresBuild && !isBuilt)
+    const willBeBuilt = !isBuilt && (opts.requiresBuild ?? pkgRequiresBuild(filesMap))
+    const pkgImportMethod = willBeBuilt
       ? 'clone-or-copy'
       : (opts.filesResponse.packageImportMethod ?? packageImportMethod)
     const impPkg = cachedImporterCreator(pkgImportMethod)
@@ -142,6 +130,11 @@ export function createCafsStore (
       return tmpDir
     },
   }
+}
+
+function pkgRequiresBuild (filesMap: Record<string, string>) {
+  return filesIncludeInstallScripts(filesMap) ||
+    filesMap['package.json'] && pkgJsonHasInstallScripts(filesMap['package.json'])
 }
 
 function pkgJsonHasInstallScripts (file: string): boolean {
