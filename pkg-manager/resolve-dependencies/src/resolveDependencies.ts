@@ -1092,6 +1092,11 @@ async function resolveDependency (
       update: options.update,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
+      onFetchError: (err: any) => { // eslint-disable-line
+        err.prefix = options.prefix
+        err.pkgsStack = nodeIdToParents(options.parentPkg.nodeId, ctx.resolvedPackagesByDepPath)
+        return err
+      },
     })
   } catch (err: any) { // eslint-disable-line
     if (wantedDependency.optional) {
