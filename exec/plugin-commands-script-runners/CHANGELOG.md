@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-script-runners
 
+## 8.0.3
+
+### Patch Changes
+
+- 7d65d901a: Fix issue when trying to use `pnpm dlx` in the root of a Windows Drive [#7263](https://github.com/pnpm/pnpm/issues/7263).
+- Updated dependencies [7d65d901a]
+  - @pnpm/store-path@8.0.1
+  - @pnpm/plugin-commands-installation@14.0.3
+  - @pnpm/lifecycle@16.0.6
+  - @pnpm/config@20.1.1
+  - @pnpm/cli-utils@2.1.1
+
 ## 8.0.2
 
 ### Patch Changes

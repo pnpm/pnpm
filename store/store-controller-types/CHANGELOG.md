@@ -1,5 +1,14 @@
 # @pnpm/store-controller-types
 
+## 17.1.1
+
+### Patch Changes
+
+- 7ea45afbe: If a package's tarball cannot be fetched, print the dependency chain that leads to the failed package [#7265](https://github.com/pnpm/pnpm/pull/7265).
+- Updated dependencies [4c2450208]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/fetcher-base@15.0.4
+
 ## 17.1.0
 
 ### Minor Changes

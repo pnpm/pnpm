@@ -1,5 +1,12 @@
 # @pnpm/filter-workspace-packages
 
+## 7.2.1
+
+### Patch Changes
+
+- @pnpm/workspace.pkgs-graph@2.0.10
+- @pnpm/workspace.find-packages@1.1.1
+
 ## 7.2.0
 
 ### Minor Changes

@@ -1,7 +1,4 @@
 ---
-"@pnpm/create-cafs-store": patch
-"@pnpm/headless": patch
-"@pnpm/core": patch
 "pnpm": patch
 ---
 

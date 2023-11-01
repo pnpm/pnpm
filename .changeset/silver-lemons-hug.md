@@ -1,8 +1,4 @@
 ---
-"@pnpm/resolve-dependencies": patch
-"@pnpm/package-requester": patch
-"@pnpm/store-controller-types": patch
-"@pnpm/core": patch
 "pnpm": patch
 ---
 

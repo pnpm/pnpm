@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-licenses
 
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [7d65d901a]
+  - @pnpm/store-path@8.0.1
+  - @pnpm/license-scanner@2.2.2
+  - @pnpm/config@20.1.1
+  - @pnpm/cli-utils@2.1.1
+
 ## 3.0.1
 
 ### Patch Changes

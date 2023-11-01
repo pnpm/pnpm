@@ -1,7 +1,4 @@
 ---
-"@pnpm/lockfile-utils": major
-"@pnpm/resolver-base": major
-"@pnpm/npm-resolver": major
 "pnpm": patch
 ---
 

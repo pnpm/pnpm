@@ -1,5 +1,12 @@
 # @pnpm/server
 
+## 17.0.3
+
+### Patch Changes
+
+- Updated dependencies [7ea45afbe]
+  - @pnpm/store-controller-types@17.1.1
+
 ## 17.0.2
 
 ### Patch Changes

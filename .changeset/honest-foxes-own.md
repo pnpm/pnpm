@@ -1,6 +1,4 @@
 ---
-"@pnpm/plugin-commands-script-runners": patch
-"@pnpm/store-path": patch
 "pnpm": patch
 ---
 

@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-installation
 
+## 14.0.3
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+- Updated dependencies [cfc017ee3]
+- Updated dependencies [7ea45afbe]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/core@13.1.3
+  - @pnpm/plugin-commands-rebuild@10.0.2
+  - @pnpm/outdated@13.0.28
+  - @pnpm/package-store@19.0.8
+  - @pnpm/workspace.pkgs-graph@2.0.10
+  - @pnpm/store-connection-manager@7.0.12
+  - @pnpm/pnpmfile@5.0.16
+  - @pnpm/filter-workspace-packages@7.2.1
+  - @pnpm/config@20.1.1
+  - @pnpm/cli-utils@2.1.1
+  - @pnpm/workspace.find-packages@1.1.1
+
 ## 14.0.2
 
 ### Patch Changes

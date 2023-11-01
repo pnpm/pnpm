@@ -1,5 +1,20 @@
 # @pnpm/resolve-dependencies
 
+## 31.2.1
+
+### Patch Changes
+
+- 7ea45afbe: If a package's tarball cannot be fetched, print the dependency chain that leads to the failed package [#7265](https://github.com/pnpm/pnpm/pull/7265).
+- Updated dependencies [4c2450208]
+- Updated dependencies [7ea45afbe]
+- Updated dependencies [cfc017ee3]
+  - @pnpm/lockfile-utils@9.0.0
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/npm-resolver@17.0.0
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/exec.files-include-install-scripts@1.0.0
+  - @pnpm/pick-fetcher@2.0.1
+
 ## 31.2.0
 
 ### Minor Changes

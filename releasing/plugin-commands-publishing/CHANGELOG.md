@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.4.2
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/client@10.0.33
+  - @pnpm/lifecycle@16.0.6
+  - @pnpm/config@20.1.1
+  - @pnpm/cli-utils@2.1.1
+  - @pnpm/exportable-manifest@5.0.9
+
 ## 7.4.1
 
 ### Patch Changes

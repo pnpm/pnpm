@@ -1,5 +1,27 @@
 # @pnpm/headless
 
+## 22.3.3
+
+### Patch Changes
+
+- cfc017ee3: Optional dependencies that do not have to be built will be reflinked (or hardlinked) to the store instead of copied [#7046](https://github.com/pnpm/pnpm/issues/7046).
+- Updated dependencies [4c2450208]
+- Updated dependencies [7ea45afbe]
+  - @pnpm/lockfile-utils@9.0.0
+  - @pnpm/package-requester@24.1.1
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/deps.graph-builder@0.2.1
+  - @pnpm/filter-lockfile@8.1.1
+  - @pnpm/lockfile-to-pnp@3.0.12
+  - @pnpm/hoist@8.1.1
+  - @pnpm/modules-cleaner@14.0.17
+  - @pnpm/real-hoist@2.0.14
+  - @pnpm/worker@0.3.7
+  - @pnpm/build-modules@11.2.2
+  - @pnpm/lifecycle@16.0.6
+  - @pnpm/symlink-dependency@7.1.2
+  - @pnpm/link-bins@9.0.10
+
 ## 22.3.2
 
 ### Patch Changes
