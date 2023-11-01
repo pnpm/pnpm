@@ -1765,8 +1765,8 @@ importers:
   fs/packlist:
     dependencies:
       '@npmcli/arborist':
-        specifier: 7.2.0
-        version: 7.2.0
+        specifier: npm:@pnpm/arborist__fork@7.2.1
+        version: /@pnpm/arborist__fork@7.2.1
       npm-packlist:
         specifier: ^8.0.0
         version: 8.0.0
@@ -8022,49 +8022,6 @@ packages:
       - supports-color
     dev: false
 
-  /@npmcli/arborist@7.2.0:
-    resolution: {integrity: sha512-J6XCan+5nV6F94E0+9z//OnZADcqHw6HGDO0ynX+Ayd6GEopK0odq99V+UQjb8P1zexTmCWGvxp4jU5OM6NTtg==}
-    engines: {node: ^16.14.0 || >=18.0.0}
-    hasBin: true
-    dependencies:
-      '@isaacs/string-locale-compare': 1.1.0
-      '@npmcli/fs': 3.1.0
-      '@npmcli/installed-package-contents': 2.0.2
-      '@npmcli/map-workspaces': 3.0.4
-      '@npmcli/metavuln-calculator': 7.0.0
-      '@npmcli/name-from-folder': 2.0.0
-      '@npmcli/node-gyp': 3.0.0
-      '@npmcli/package-json': 5.0.0
-      '@npmcli/query': 3.0.1
-      '@npmcli/run-script': 7.0.1
-      bin-links: 4.0.3
-      cacache: 18.0.0
-      common-ancestor-path: 1.0.1
-      hosted-git-info: 7.0.1
-      json-parse-even-better-errors: 3.0.0
-      json-stringify-nice: 1.1.4
-      minimatch: 9.0.3
-      nopt: 7.2.0
-      npm-install-checks: 6.3.0
-      npm-package-arg: 11.0.1
-      npm-pick-manifest: 9.0.0
-      npm-registry-fetch: 16.1.0
-      npmlog: 7.0.1
-      pacote: 17.0.4
-      parse-conflict-json: 3.0.1
-      proc-log: 3.0.0
-      promise-all-reject-late: 1.0.1
-      promise-call-limit: 1.0.2
-      read-package-json-fast: 3.0.2
-      semver: 7.5.4
-      ssri: 10.0.5
-      treeverse: 3.0.0
-      walk-up-path: 3.0.1
-    transitivePeerDependencies:
-      - bluebird
-      - supports-color
-    dev: false
-
   /@npmcli/fs@3.1.0:
     resolution: {integrity: sha512-7kZUAaLscfgbwBQRbvdMYaZOWyMEcPTH/tJjnyAWJ/dvvs9Ef+CERx/qJb9GExJpl1qipaDGn7KqHnFGGixd0w==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
@@ -8160,13 +8117,13 @@ packages:
       postcss-selector-parser: 6.0.13
     dev: false
 
-  /@npmcli/run-script@7.0.1:
-    resolution: {integrity: sha512-Od/JMrgkjZ8alyBE0IzeqZDiF1jgMez9Gkc/OYrCkHHiXNwM0wc6s7+h+xM7kYDZkS0tAoOLr9VvygyE5+2F7g==}
+  /@npmcli/run-script@7.0.2:
+    resolution: {integrity: sha512-Omu0rpA8WXvcGeY6DDzyRoY1i5DkCBkzyJ+m2u7PD6quzb0TvSqdIPOkTn8ZBOj7LbbcbMfZ3c5skwSu6m8y2w==}
     engines: {node: ^16.14.0 || >=18.0.0}
     dependencies:
       '@npmcli/node-gyp': 3.0.0
       '@npmcli/promise-spawn': 7.0.0
-      node-gyp: 9.4.0
+      node-gyp: 10.0.0
       read-package-json-fast: 3.0.2
       which: 4.0.0
     transitivePeerDependencies:
@@ -8179,6 +8136,49 @@ packages:
     requiresBuild: true
     dev: false
     optional: true
+
+  /@pnpm/arborist__fork@7.2.1:
+    resolution: {integrity: sha512-eenClDXxxwYK7c/nWfVtYL/iOj/MAcFScvLFigGgRX7HzzHMlbY3Y1bxlDEgZ9glh2wefNzl5wMtvo4OXjkv3A==}
+    engines: {node: ^16.14.0 || >=18.0.0}
+    hasBin: true
+    dependencies:
+      '@isaacs/string-locale-compare': 1.1.0
+      '@npmcli/fs': 3.1.0
+      '@npmcli/installed-package-contents': 2.0.2
+      '@npmcli/map-workspaces': 3.0.4
+      '@npmcli/metavuln-calculator': 7.0.0
+      '@npmcli/name-from-folder': 2.0.0
+      '@npmcli/node-gyp': 3.0.0
+      '@npmcli/package-json': 5.0.0
+      '@npmcli/query': 3.0.1
+      '@npmcli/run-script': 7.0.2
+      bin-links: 4.0.3
+      cacache: 18.0.0
+      common-ancestor-path: 1.0.1
+      hosted-git-info: 7.0.1
+      json-parse-even-better-errors: 3.0.0
+      json-stringify-nice: 1.1.4
+      minimatch: 9.0.3
+      nopt: 7.2.0
+      npm-install-checks: 6.3.0
+      npm-package-arg: 11.0.1
+      npm-pick-manifest: 9.0.0
+      npm-registry-fetch: 16.1.0
+      npmlog: 7.0.1
+      pacote: 17.0.4
+      parse-conflict-json: 3.0.1
+      proc-log: 3.0.0
+      promise-all-reject-late: 1.0.1
+      promise-call-limit: 1.0.2
+      read-package-json-fast: 3.0.2
+      semver: 7.5.4
+      ssri: 10.0.5
+      treeverse: 3.0.0
+      walk-up-path: 3.0.1
+    transitivePeerDependencies:
+      - bluebird
+      - supports-color
+    dev: false
 
   /@pnpm/builder.policy@1.1.0:
     resolution: {integrity: sha512-G+u6np4QywMBd3k2GXK1fQRk0ADQVV67o51TXkm9JUhKIdID3K/k5mOV/R1f+eZHfnHO26wFZSfR38lYBiSH+A==}
@@ -15036,6 +15036,25 @@ packages:
     dev: false
     optional: true
 
+  /node-gyp@10.0.0:
+    resolution: {integrity: sha512-LkaKUbjyacJGRHiuhUeUblzZNxTF1/XNooyAl6aiaJ6ZpeurR4Mk9sjxncGNSI7pETqyqM+hLAER0788oSxt0A==}
+    engines: {node: ^16.14.0 || >=18.0.0}
+    hasBin: true
+    dependencies:
+      env-paths: 2.2.1
+      exponential-backoff: 3.1.1
+      glob: 10.3.10
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
+      make-fetch-happen: 13.0.0
+      nopt: 7.2.0
+      proc-log: 3.0.0
+      semver: 7.5.4
+      tar: 6.2.0
+      which: 4.0.0
+    transitivePeerDependencies:
+      - supports-color
+    dev: false
+
   /node-gyp@9.4.0:
     resolution: {integrity: sha512-dMXsYP6gc9rRbejLXmTbVRYjAHw7ppswsKyMxuxJxxOHzluIO1rGp9TOQgjFJ+2MCqcOcQTOPB/8Xwhr+7s4Eg==}
     engines: {node: ^12.13 || ^14.13 || >=16}
@@ -15551,7 +15570,7 @@ packages:
       '@npmcli/git': 5.0.3
       '@npmcli/installed-package-contents': 2.0.2
       '@npmcli/promise-spawn': 7.0.0
-      '@npmcli/run-script': 7.0.1
+      '@npmcli/run-script': 7.0.2
       cacache: 18.0.0
       fs-minipass: 3.0.3
       minipass: 7.0.4
