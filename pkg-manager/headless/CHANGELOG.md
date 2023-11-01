@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 22.3.5
+
+### Patch Changes
+
+- Updated dependencies [b06f50183]
+  - @pnpm/build-modules@11.2.4
+
 ## 22.3.4
 
 ### Patch Changes
