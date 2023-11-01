@@ -268,6 +268,7 @@ async function resolveAndFetch (
     expectedPkg: options.expectedPkg?.name != null
       ? (updated ? { name: options.expectedPkg.name, version: pkg.version } : options.expectedPkg)
       : pkg,
+    onFetchError: options.onFetchError,
   })
 
   return {
@@ -429,6 +430,9 @@ function fetchToStore (
       return await p
     } catch (err: any) { // eslint-disable-line
       ctx.fetchingLocker.delete(opts.pkg.id)
+      if (opts.onFetchError) {
+        throw opts.onFetchError(err)
+      }
       throw err
     }
   }

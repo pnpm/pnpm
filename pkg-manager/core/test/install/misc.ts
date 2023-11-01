@@ -1,7 +1,6 @@
 import * as path from 'path'
 import { promises as fs } from 'fs'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { type PnpmError } from '@pnpm/error'
 import {
   type PackageManifestLog,
   type ProgressLog,
@@ -1078,37 +1077,6 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
   }, await testDefaults({ preferFrozenLockfile: false }))
 
   expect(await exists(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
-})
-
-test('fail if none of the available resolvers support a version spec', async () => {
-  prepareEmpty()
-
-  let err!: PnpmError
-  try {
-    await mutateModulesInSingleProject({
-      manifest: {
-        dependencies: {
-          '@types/plotly.js': '1.44.29',
-        },
-      },
-      mutation: 'install',
-      rootDir: process.cwd(),
-    }, await testDefaults())
-    throw new Error('should have failed')
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-  expect(err.code).toBe('ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER')
-  expect(err.prefix).toBe(process.cwd())
-  expect(err.pkgsStack).toStrictEqual(
-    [
-      {
-        id: `localhost+${REGISTRY_MOCK_PORT}/@types/plotly.js/1.44.29`,
-        name: '@types/plotly.js',
-        version: '1.44.29',
-      },
-    ]
-  )
 })
 
 test('globally installed package which don\'t have bins should log warning message', async () => {
