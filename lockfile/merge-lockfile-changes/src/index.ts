@@ -1,4 +1,9 @@
-import { type Lockfile, type PackageSnapshot, type PackageSnapshots } from '@pnpm/lockfile-types'
+import {
+  type Lockfile,
+  type PackageSnapshot,
+  type PackageSnapshots,
+  type VersionAndSpecifier,
+} from '@pnpm/lockfile-types'
 import comverToSemver from 'comver-to-semver'
 import semver from 'semver'
 
@@ -12,23 +17,17 @@ export function mergeLockfileChanges (ours: Lockfile, theirs: Lockfile) {
 
   for (const importerId of Array.from(new Set([...Object.keys(ours.importers), ...Object.keys(theirs.importers)]))) {
     newLockfile.importers[importerId] = {
-      specifiers: {},
     }
     for (const key of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
       newLockfile.importers[importerId][key] = mergeDict(
         ours.importers[importerId]?.[key] ?? {},
         theirs.importers[importerId]?.[key] ?? {},
-        mergeVersions
+        mergeImporterVersions
       )
       if (Object.keys(newLockfile.importers[importerId][key] ?? {}).length === 0) {
         delete newLockfile.importers[importerId][key]
       }
     }
-    newLockfile.importers[importerId].specifiers = mergeDict(
-      ours.importers[importerId]?.specifiers ?? {},
-      theirs.importers[importerId]?.specifiers ?? {},
-      takeChangedValue
-    )
   }
 
   const packages: PackageSnapshots = {}
@@ -86,6 +85,17 @@ function mergeVersions (ourValue: string, theirValue: string) {
   if (!ourValue) return theirValue
   const [ourVersion] = ourValue.split('_')
   const [theirVersion] = theirValue.split('_')
+  if (semver.gt(ourVersion, theirVersion)) {
+    return ourValue
+  }
+  return theirValue
+}
+
+function mergeImporterVersions (ourValue: VersionAndSpecifier, theirValue: VersionAndSpecifier) {
+  if (ourValue?.specifier === theirValue?.specifier && ourValue?.version === theirValue?.version || !theirValue) return ourValue
+  if (!ourValue) return theirValue
+  const [ourVersion] = ourValue.version.split('_')
+  const [theirVersion] = theirValue.version.split('_')
   if (semver.gt(ourVersion, theirVersion)) {
     return ourValue
   }

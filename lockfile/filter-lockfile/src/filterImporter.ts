@@ -9,6 +9,5 @@ export function filterImporter (
     dependencies: !include.dependencies ? {} : importer.dependencies ?? {},
     devDependencies: !include.devDependencies ? {} : importer.devDependencies ?? {},
     optionalDependencies: !include.optionalDependencies ? {} : importer.optionalDependencies ?? {},
-    specifiers: importer.specifiers,
   }
 }

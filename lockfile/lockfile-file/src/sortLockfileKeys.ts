@@ -78,7 +78,7 @@ export function sortLockfileKeys (lockfile: LockfileFile) {
       })
     }
   }
-  for (const key of ['specifiers', 'dependencies', 'devDependencies', 'optionalDependencies', 'time', 'patchedDependencies'] as const) {
+  for (const key of ['dependencies', 'devDependencies', 'optionalDependencies', 'time', 'patchedDependencies'] as const) {
     if (!lockfile[key]) continue
     lockfile[key] = sortKeys<any>(lockfile[key]) // eslint-disable-line @typescript-eslint/no-explicit-any
   }

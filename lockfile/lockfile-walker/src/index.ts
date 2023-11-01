@@ -31,7 +31,7 @@ export function lockfileWalkerGroupImporterSteps (
       ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
       ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
     })
-      .map(([pkgName, reference]) => dp.refToRelative(reference, pkgName))
+      .map(([pkgName, { version: reference }]) => dp.refToRelative(reference, pkgName))
       .filter((nodeId) => nodeId !== null) as string[]
     return {
       importerId,
@@ -63,7 +63,7 @@ export function lockfileWalker (
       ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
       ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
     })
-      .forEach(([pkgName, reference]) => {
+      .forEach(([pkgName, { version: reference }]) => {
         const depPath = dp.refToRelative(reference, pkgName)
         if (depPath === null) return
         entryNodes.push(depPath)

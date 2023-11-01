@@ -93,7 +93,7 @@ function yamlStringify (lockfile: Lockfile, opts: NormalizeLockfileOpts) {
 }
 
 export function isEmptyLockfile (lockfile: Lockfile) {
-  return Object.values(lockfile.importers).every((importer) => isEmpty(importer.specifiers ?? {}) && isEmpty(importer.dependencies ?? {}))
+  return Object.values(lockfile.importers).every((importer) => isEmpty(importer.dependencies ?? {}))
 }
 
 export type LockfileFile = Omit<Lockfile, 'importers'> & Partial<ProjectSnapshot> & Partial<Pick<Lockfile, 'importers'>>
@@ -124,9 +124,6 @@ export function normalizeLockfile (lockfile: Lockfile, opts: NormalizeLockfileOp
       ...lockfile,
       importers: mapValues((importer) => {
         const normalizedImporter: Partial<ProjectSnapshot> = {}
-        if (!isEmpty(importer.specifiers ?? {}) || opts.includeEmptySpecifiersField) {
-          normalizedImporter['specifiers'] = importer.specifiers ?? {}
-        }
         if (importer.dependenciesMeta != null && !isEmpty(importer.dependenciesMeta)) {
           normalizedImporter['dependenciesMeta'] = importer.dependenciesMeta
         }
@@ -174,9 +171,7 @@ function pruneTimeInLockfileV6 (time: Record<string, string>, importers: Record<
   const rootDepPaths = new Set<string>()
   for (const importer of Object.values(importers)) {
     for (const depType of DEPENDENCIES_FIELDS) {
-      for (let [depName, ref] of Object.entries(importer[depType] ?? {})) {
-        // @ts-expect-error
-        if (ref['version']) ref = ref['version']
+      for (const [depName, { version: ref }] of Object.entries(importer[depType] ?? {})) {
         const suffixStart = ref.indexOf('(')
         const refWithoutPeerSuffix = suffixStart === -1 ? ref : ref.slice(0, suffixStart)
         const depPath = refToRelative(refWithoutPeerSuffix, depName)
@@ -208,9 +203,7 @@ function pruneTime (time: Record<string, string>, importers: Record<string, Proj
   const rootDepPaths = new Set<string>()
   for (const importer of Object.values(importers)) {
     for (const depType of DEPENDENCIES_FIELDS) {
-      for (let [depName, ref] of Object.entries(importer[depType] ?? {})) {
-        // @ts-expect-error
-        if (ref['version']) ref = ref['version']
+      for (const [depName, { version: ref }] of Object.entries(importer[depType] ?? {})) {
         const suffixStart = ref.indexOf('_')
         const refWithoutPeerSuffix = suffixStart === -1 ? ref : ref.slice(0, suffixStart)
         const depPath = dp.refToRelative(refWithoutPeerSuffix, depName)

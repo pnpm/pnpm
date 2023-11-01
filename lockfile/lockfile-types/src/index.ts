@@ -28,7 +28,12 @@ export interface ProjectSnapshot {
   publishDirectory?: string
 }
 
-export type ResolvedDependenciesOfImporters = Record<string, { version: string, specifier: string }>
+export interface VersionAndSpecifier {
+  version: string
+  specifier: string 
+}
+
+export type ResolvedDependenciesOfImporters = Record<string, VersionAndSpecifier>
 
 export interface PackageSnapshots {
   [packagePath: string]: PackageSnapshot

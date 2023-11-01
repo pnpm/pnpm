@@ -103,7 +103,7 @@ async function _read (
   }
   if (lockfile) {
     const lockfileSemver = comverToSemver((lockfile.lockfileVersion ?? 0).toString())
-    /* eslint-enable @typescript-eslint/dot-notation */
+
     if (
       !opts.wantedVersions ||
       opts.wantedVersions.length === 0 ||
@@ -143,7 +143,6 @@ export function createLockfileObject (
   const importers = importerIds.reduce((acc, importerId) => {
     acc[importerId] = {
       dependencies: {},
-      specifiers: {},
     }
     return acc
   }, {} as Lockfile['importers'])
@@ -243,12 +242,10 @@ function convertFromLockfileFileMutable (lockfileFile: LockfileFile): Lockfile {
   if (typeof lockfileFile?.['importers'] === 'undefined') {
     lockfileFile.importers = {
       '.': {
-        specifiers: lockfileFile['specifiers'] ?? {},
         dependenciesMeta: lockfileFile['dependenciesMeta'],
         publishDirectory: lockfileFile['publishDirectory'],
       },
     }
-    delete lockfileFile.specifiers
     for (const depType of DEPENDENCIES_FIELDS) {
       if (lockfileFile[depType] != null) {
         lockfileFile.importers['.'][depType] = lockfileFile[depType]

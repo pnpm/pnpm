@@ -1,10 +1,8 @@
 import * as dp from '@pnpm/dependency-path'
-import type { Lockfile, ProjectSnapshot, ResolvedDependencies } from '@pnpm/lockfile-types'
+import { type Lockfile, type ProjectSnapshot, type VersionAndSpecifier } from '@pnpm/lockfile-types'
 import {
   INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX,
   type InlineSpecifiersLockfile,
-  type InlineSpecifiersProjectSnapshot,
-  type InlineSpecifiersResolvedDependencies,
 } from './InlineSpecifiersLockfile'
 
 export function isExperimentalInlineSpecifiersFormat (
@@ -23,13 +21,13 @@ export function convertToInlineSpecifiersFormat (lockfile: Lockfile): InlineSpec
         .map(([importerId, pkgSnapshot]: [string, ProjectSnapshot]) => {
           const newSnapshot = { ...pkgSnapshot }
           if (newSnapshot.dependencies != null) {
-            newSnapshot.dependencies = mapValues(newSnapshot.dependencies, convertOldRefToNewRef)
+            newSnapshot.dependencies = mapValues(newSnapshot.dependencies, convertOldRefToNewRefInImporter)
           }
           if (newSnapshot.optionalDependencies != null) {
-            newSnapshot.optionalDependencies = mapValues(newSnapshot.optionalDependencies, convertOldRefToNewRef)
+            newSnapshot.optionalDependencies = mapValues(newSnapshot.optionalDependencies, convertOldRefToNewRefInImporter)
           }
           if (newSnapshot.devDependencies != null) {
-            newSnapshot.devDependencies = mapValues(newSnapshot.devDependencies, convertOldRefToNewRef)
+            newSnapshot.devDependencies = mapValues(newSnapshot.devDependencies, convertOldRefToNewRefInImporter)
           }
           return [importerId, newSnapshot]
         })
@@ -58,7 +56,7 @@ export function convertToInlineSpecifiersFormat (lockfile: Lockfile): InlineSpec
           ? lockfile.lockfileVersion.toString()
           : `${lockfile.lockfileVersion}${INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX}`
       ),
-    importers: mapValues(importers, convertProjectSnapshotToInlineSpecifiersFormat),
+    importers,
   }
   if (lockfile.lockfileVersion.toString().startsWith('6.') && newLockfile.time) {
     newLockfile.time = Object.fromEntries(
@@ -86,6 +84,10 @@ function convertOldDepPathToNewDepPath (oldDepPath: string) {
   return newDepPath
 }
 
+function convertOldRefToNewRefInImporter ({ version, specifier }: VersionAndSpecifier): VersionAndSpecifier {
+  return { version: convertOldRefToNewRef(version), specifier }
+}
+
 function convertOldRefToNewRef (oldRef: string) {
   if (oldRef.startsWith('link:') || oldRef.startsWith('file:')) {
     return oldRef
@@ -111,7 +113,7 @@ export function revertFromInlineSpecifiersFormat (lockfile: InlineSpecifiersLock
     throw new Error(`Unable to revert lockfile from inline specifiers format. Invalid version parsed: ${originalVersionStr}`)
   }
 
-  let revertedImporters = mapValues(importers, revertProjectSnapshot)
+  let revertedImporters = importers
   let packages = lockfile.packages
   if (originalVersionStr.startsWith('6.')) {
     revertedImporters = Object.fromEntries(
@@ -119,13 +121,13 @@ export function revertFromInlineSpecifiersFormat (lockfile: InlineSpecifiersLock
         .map(([importerId, pkgSnapshot]: [string, ProjectSnapshot]) => {
           const newSnapshot = { ...pkgSnapshot }
           if (newSnapshot.dependencies != null) {
-            newSnapshot.dependencies = mapValues(newSnapshot.dependencies, convertNewRefToOldRef)
+            newSnapshot.dependencies = mapValues(newSnapshot.dependencies, convertNewRefToOldRefInImporter)
           }
           if (newSnapshot.optionalDependencies != null) {
-            newSnapshot.optionalDependencies = mapValues(newSnapshot.optionalDependencies, convertNewRefToOldRef)
+            newSnapshot.optionalDependencies = mapValues(newSnapshot.optionalDependencies, convertNewRefToOldRefInImporter)
           }
           if (newSnapshot.devDependencies != null) {
-            newSnapshot.devDependencies = mapValues(newSnapshot.devDependencies, convertNewRefToOldRef)
+            newSnapshot.devDependencies = mapValues(newSnapshot.devDependencies, convertNewRefToOldRefInImporter)
           }
           return [importerId, newSnapshot]
         })
@@ -166,6 +168,10 @@ export function convertLockfileV6DepPathToV5DepPath (newDepPath: string) {
   return `${newDepPath.substring(0, index)}/${newDepPath.substring(index + 1)}`
 }
 
+function convertNewRefToOldRefInImporter ({ version, specifier }: VersionAndSpecifier): VersionAndSpecifier {
+  return { version: convertNewRefToOldRef(version), specifier }
+}
+
 function convertNewRefToOldRef (oldRef: string) {
   if (oldRef.startsWith('link:') || oldRef.startsWith('file:')) {
     return oldRef
@@ -174,68 +180,6 @@ function convertNewRefToOldRef (oldRef: string) {
     return convertLockfileV6DepPathToV5DepPath(oldRef)
   }
   return oldRef
-}
-
-function convertProjectSnapshotToInlineSpecifiersFormat (
-  projectSnapshot: ProjectSnapshot
-): InlineSpecifiersProjectSnapshot {
-  const { specifiers, ...rest } = projectSnapshot
-  const convertBlock = (block?: ResolvedDependencies) =>
-    block != null
-      ? convertResolvedDependenciesToInlineSpecifiersFormat(block, { specifiers })
-      : block
-  return {
-    ...rest,
-    dependencies: convertBlock(projectSnapshot.dependencies),
-    optionalDependencies: convertBlock(projectSnapshot.optionalDependencies),
-    devDependencies: convertBlock(projectSnapshot.devDependencies),
-  }
-}
-
-function convertResolvedDependenciesToInlineSpecifiersFormat (
-  resolvedDependencies: ResolvedDependencies,
-  { specifiers }: { specifiers: ResolvedDependencies }
-): InlineSpecifiersResolvedDependencies {
-  return mapValues(resolvedDependencies, (version, depName) => ({
-    specifier: specifiers[depName],
-    version,
-  }))
-}
-
-function revertProjectSnapshot (from: InlineSpecifiersProjectSnapshot): ProjectSnapshot {
-  const specifiers: ResolvedDependencies = {}
-
-  function moveSpecifiers (from: InlineSpecifiersResolvedDependencies): ResolvedDependencies {
-    const resolvedDependencies: ResolvedDependencies = {}
-    for (const [depName, { specifier, version }] of Object.entries(from)) {
-      const existingValue = specifiers[depName]
-      if (existingValue != null && existingValue !== specifier) {
-        throw new Error(`Project snapshot lists the same dependency more than once with conflicting versions: ${depName}`)
-      }
-
-      specifiers[depName] = specifier
-      resolvedDependencies[depName] = version
-    }
-    return resolvedDependencies
-  }
-
-  const dependencies = from.dependencies == null
-    ? from.dependencies
-    : moveSpecifiers(from.dependencies)
-  const devDependencies = from.devDependencies == null
-    ? from.devDependencies
-    : moveSpecifiers(from.devDependencies)
-  const optionalDependencies = from.optionalDependencies == null
-    ? from.optionalDependencies
-    : moveSpecifiers(from.optionalDependencies)
-
-  return {
-    ...from,
-    specifiers,
-    dependencies,
-    devDependencies,
-    optionalDependencies,
-  }
 }
 
 function mapValues<T, U> (obj: Record<string, T>, mapper: (val: T, key: string) => U): Record<string, U> {

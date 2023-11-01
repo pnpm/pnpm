@@ -85,7 +85,12 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
 
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
-  return hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
+  const rootAliases = opts.lockfile.importers['.'] ? Object.keys({
+    ...opts.lockfile.importers['.'].dependencies,
+    ...opts.lockfile.importers['.'].devDependencies,
+    ...opts.lockfile.importers['.'].optionalDependencies,
+  }) : []
+  return hoistGraph(deps, rootAliases, {
     getAliasHoistType,
     lockfile: opts.lockfile,
   })
@@ -179,13 +184,13 @@ interface HoistGraphResult {
 
 function hoistGraph (
   depNodes: Dependency[],
-  currentSpecifiers: Record<string, string>,
+  rootAliases: string[],
   opts: {
     getAliasHoistType: GetAliasHoistType
     lockfile: Lockfile
   }
 ): HoistGraphResult {
-  const hoistedAliases = new Set(Object.keys(currentSpecifiers))
+  const hoistedAliases = new Set(rootAliases)
   const hoistedDependencies: HoistedDependencies = {}
   const hoistedAliasesWithBins = new Set<string>()
 

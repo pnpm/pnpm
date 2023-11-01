@@ -24,6 +24,7 @@ import { depPathToFilename } from '@pnpm/dependency-path'
 import rimraf from '@zkochan/rimraf'
 import difference from 'ramda/src/difference'
 import equals from 'ramda/src/equals'
+import mapValues from 'ramda/src/map'
 import mergeAll from 'ramda/src/mergeAll'
 import pickAll from 'ramda/src/pickAll'
 import { removeDirectDependency } from './removeDirectDependency'
@@ -203,7 +204,7 @@ async function tryRemovePkg (lockfileDir: string, virtualStoreDir: string, pkgDi
 
 function mergeDependencies (projectSnapshot: ProjectSnapshot): { [depName: string]: string } {
   return mergeAll(
-    DEPENDENCIES_FIELDS.map((depType) => projectSnapshot[depType] ?? {})
+    DEPENDENCIES_FIELDS.map((depType) => mapValues(({ version }) => version, projectSnapshot[depType] ?? {}))
   )
 }
 
