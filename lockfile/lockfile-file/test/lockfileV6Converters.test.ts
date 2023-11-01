@@ -5,21 +5,27 @@ test('convertToInlineSpecifiersFormat()', () => {
     lockfileVersion: 5.0,
     importers: {
       project1: {
-        specifiers: {
-          foo: '^1.0.0',
-          bar: '^1.0.0',
-          qar: '^1.0.0',
-          tarball: '^1.0.0',
-        },
         dependencies: {
-          foo: '1.0.0',
-          tarball: '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          foo: {
+            version: '1.0.0',
+            specifier: '^1.0.0',
+          },
+          tarball: {
+            version: '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+            specifier: '^1.0.0',
+          },
         },
         devDependencies: {
-          bar: '/@bar/bar/1.0.0_@babel+core@2.0.0',
+          bar: {
+            version: '/@bar/bar/1.0.0_@babel+core@2.0.0',
+            specifier: '^1.0.0',
+          },
         },
         optionalDependencies: {
-          qar: 'reg.com/qar/1.0.0',
+          qar: {
+            version: 'reg.com/qar/1.0.0',
+            specifier: '^1.0.0',
+          },
         },
       },
     },
@@ -90,21 +96,27 @@ test('convertToInlineSpecifiersFormat() with lockfile v6', () => {
     lockfileVersion: '6.0',
     importers: {
       project1: {
-        specifiers: {
-          foo: '^1.0.0',
-          bar: '^1.0.0',
-          qar: '^1.0.0',
-          tarball: '^1.0.0',
-        },
         dependencies: {
-          foo: '1.0.0',
-          tarball: '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          foo: {
+            version: '1.0.0',
+            specifier: '^1.0.0',
+          },
+          tarball: {
+            version: '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+            specifier: '^1.0.0',
+          },
         },
         devDependencies: {
-          bar: '/@bar/bar/1.0.0_@babel+core@2.0.0',
+          bar: {
+            version: '/@bar/bar/1.0.0_@babel+core@2.0.0',
+            specifier: '^1.0.0',
+          },
         },
         optionalDependencies: {
-          qar: 'reg.com/qar/1.0.0',
+          qar: {
+            version: 'reg.com/qar/1.0.0',
+            specifier: '^1.0.0',
+          },
         },
       },
     },

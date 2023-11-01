@@ -74,12 +74,14 @@ test('writeWantedLockfile()', async () => {
     importers: {
       '.': {
         dependencies: {
-          'is-negative': '1.0.0',
-          'is-positive': '1.0.0',
-        },
-        specifiers: {
-          'is-negative': '^1.0.0',
-          'is-positive': '^1.0.0',
+          'is-negative': {
+            version: '1.0.0',
+            specifier: '^1.0.0',
+          },
+          'is-positive': {
+            version: '1.0.0',
+            specifier: '^1.0.0',
+          },
         },
       },
     },
@@ -117,12 +119,14 @@ test('writeCurrentLockfile()', async () => {
     importers: {
       '.': {
         dependencies: {
-          'is-negative': '1.0.0',
-          'is-positive': '1.0.0',
-        },
-        specifiers: {
-          'is-negative': '^1.0.0',
-          'is-positive': '^1.0.0',
+          'is-negative': {
+            version: '1.0.0',
+            specifier: '^1.0.0',
+          },
+          'is-positive': {
+            version: '1.0.0',
+            specifier: '^1.0.0',
+          },
         },
       },
     },
@@ -161,12 +165,14 @@ test('existsNonEmptyWantedLockfile()', async () => {
     importers: {
       '.': {
         dependencies: {
-          'is-negative': '1.0.0',
-          'is-positive': '1.0.0',
-        },
-        specifiers: {
-          'is-negative': '^1.0.0',
-          'is-positive': '^1.0.0',
+          'is-negative': {
+            version: '1.0.0',
+            specifier: '^1.0.0',
+          },
+          'is-positive': {
+            version: '1.0.0',
+            specifier: '^1.0.0',
+          },
         },
       },
     },
@@ -268,10 +274,10 @@ test('readWantedLockfile() with inlineSpecifiersFormat', async () => {
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0',
-        },
-        specifiers: {
-          'is-positive': '^1.0.0',
+          'is-positive': {
+            version: '1.0.0',
+            specifier: '^1.0.0',
+          },
         },
       },
     },

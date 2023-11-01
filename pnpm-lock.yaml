@@ -4015,6 +4015,9 @@ importers:
       '@yarnpkg/nm':
         specifier: 4.0.0-rc.45
         version: 4.0.0-rc.45(typanion@3.14.0)
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda@0.28.1
     devDependencies:
       '@pnpm/lockfile-file':
         specifier: workspace:*
@@ -4022,6 +4025,9 @@ importers:
       '@pnpm/real-hoist':
         specifier: workspace:*
         version: 'link:'
+      '@types/ramda':
+        specifier: 0.28.20
+        version: 0.28.20
 
   pkg-manager/remove-bins:
     dependencies:

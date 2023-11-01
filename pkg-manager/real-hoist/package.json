@@ -33,12 +33,14 @@
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/lockfile-utils": "workspace:*",
-    "@yarnpkg/nm": "4.0.0-rc.45"
+    "@yarnpkg/nm": "4.0.0-rc.45",
+    "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
     "@pnpm/lockfile-file": "workspace:*",
-    "@pnpm/real-hoist": "workspace:*"
+    "@pnpm/real-hoist": "workspace:*",
+    "@types/ramda": "0.28.20"
   },
   "exports": {
     ".": "./lib/index.js"

@@ -5,10 +5,13 @@ import {
 } from '@pnpm/lockfile-utils'
 import * as dp from '@pnpm/dependency-path'
 import { hoist as _hoist, HoisterDependencyKind, type HoisterTree, type HoisterResult } from '@yarnpkg/nm'
+import mapValues from 'ramda/src/map'
 
 export type HoistingLimits = Map<string, Set<string>>
 
 export type { HoisterResult }
+
+const getVersion = ({ version }: { version: string, specifier: string }) => version
 
 export function hoist (
   lockfile: Lockfile,
@@ -28,9 +31,11 @@ export function hoist (
     peerNames: new Set<string>([]),
     dependencyKind: HoisterDependencyKind.WORKSPACE,
     dependencies: toTree(nodes, lockfile, {
-      ...lockfile.importers['.']?.dependencies,
-      ...lockfile.importers['.']?.devDependencies,
-      ...lockfile.importers['.']?.optionalDependencies,
+      ...mapValues(getVersion, {
+        ...lockfile.importers['.']?.dependencies,
+        ...lockfile.importers['.']?.devDependencies,
+        ...lockfile.importers['.']?.optionalDependencies,
+      }),
       ...(Array.from(opts?.externalDependencies ?? [])).reduce((acc, dep) => {
         // It doesn't matter what version spec is used here.
         // This dependency will be removed from the tree anyway.
@@ -48,11 +53,11 @@ export function hoist (
       reference: `workspace:${importerId}`,
       peerNames: new Set<string>([]),
       dependencyKind: HoisterDependencyKind.WORKSPACE,
-      dependencies: toTree(nodes, lockfile, {
+      dependencies: toTree(nodes, lockfile, mapValues(getVersion, {
         ...importer.dependencies,
         ...importer.devDependencies,
         ...importer.optionalDependencies,
-      }, opts?.autoInstallPeers),
+      }), opts?.autoInstallPeers),
     }
     node.dependencies.add(importerNode)
   }

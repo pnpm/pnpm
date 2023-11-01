@@ -18,12 +18,14 @@ test('writeLockfiles()', async () => {
     importers: {
       '.': {
         dependencies: {
-          'is-negative': '1.0.0',
-          'is-positive': '1.0.0',
-        },
-        specifiers: {
-          'is-negative': '^1.0.0',
-          'is-positive': '^1.0.0',
+          'is-negative': {
+            version: '1.0.0',
+            specifier: '^1.0.0',
+          },
+          'is-positive': {
+            version: '1.0.0',
+            specifier: '^1.0.0',
+          },
         },
       },
     },
@@ -69,41 +71,20 @@ test('writeLockfiles()', async () => {
   expect(fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')).toMatchSnapshot()
 })
 
-test('writeLockfiles() when no specifiers but dependencies present', async () => {
-  const projectPath = tempy.directory()
-  const wantedLockfile = {
-    importers: {
-      '.': {
-        dependencies: {
-          'is-positive': 'link:../is-positive',
-        },
-        specifiers: {},
-      },
-    },
-    lockfileVersion: LOCKFILE_VERSION,
-  }
-  await writeLockfiles({
-    currentLockfile: wantedLockfile,
-    currentLockfileDir: projectPath,
-    wantedLockfile,
-    wantedLockfileDir: projectPath,
-  })
-  expect(await readCurrentLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
-  expect(await readWantedLockfile(projectPath, { ignoreIncompatible: false })).toEqual(wantedLockfile)
-})
-
 test('write does not use yaml anchors/aliases', async () => {
   const projectPath = tempy.directory()
   const wantedLockfile = {
     importers: {
       '.': {
         dependencies: {
-          'is-negative': '1.0.0',
-          'is-positive': '1.0.0',
-        },
-        specifiers: {
-          'is-negative': '1.0.0',
-          'is-positive': '1.0.0',
+          'is-negative': {
+            version: '1.0.0',
+            specifier: '1.0.0',
+          },
+          'is-positive': {
+            version: '1.0.0',
+            specifier: '1.0.0',
+          },
         },
       },
     },
@@ -158,12 +139,14 @@ test('writeLockfiles() does not fail if the lockfile has undefined properties', 
     importers: {
       '.': {
         dependencies: {
-          'is-negative': '1.0.0',
-          'is-positive': '1.0.0',
-        },
-        specifiers: {
-          'is-negative': '^1.0.0',
-          'is-positive': '^1.0.0',
+          'is-negative': {
+            version: '1.0.0',
+            specifier: '^1.0.0',
+          },
+          'is-positive': {
+            version: '1.0.0',
+            specifier: '^1.0.0',
+          },
         },
       },
     },
@@ -204,10 +187,10 @@ test('writeLockfiles() when useGitBranchLockfile', async () => {
     importers: {
       '.': {
         dependencies: {
-          foo: '1.0.0',
-        },
-        specifiers: {
-          foo: '^1.0.0',
+          foo: {
+            version: '1.0.0',
+            specifier: '^1.0.0',
+          },
         },
       },
     },
