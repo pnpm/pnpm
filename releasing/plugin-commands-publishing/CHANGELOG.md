@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.4.3
+
+### Patch Changes
+
+- Updated dependencies [c7f1359b6]
+  - @pnpm/fs.packlist@1.0.1
+  - @pnpm/lifecycle@16.0.7
+  - @pnpm/client@10.0.34
+
 ## 7.4.2
 
 ### Patch Changes

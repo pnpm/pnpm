@@ -1,5 +1,11 @@
 # @pnpm/node.fetcher
 
+## 3.0.31
+
+### Patch Changes
+
+- @pnpm/tarball-fetcher@18.0.11
+
 ## 3.0.30
 
 ### Patch Changes

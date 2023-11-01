@@ -31,7 +31,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v2.4.0
         with:
-          version: latest-8
+          version: 8.9.2
           standalone: true
       - name: pnpm install
         # We use --force because we want all artifacts of @reflink/reflink to be installed.

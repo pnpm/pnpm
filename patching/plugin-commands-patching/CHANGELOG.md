@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-patching
 
+## 5.0.4
+
+### Patch Changes
+
+- Updated dependencies [c7f1359b6]
+  - @pnpm/fs.packlist@1.0.1
+  - @pnpm/store-connection-manager@7.0.13
+  - @pnpm/plugin-commands-installation@14.0.4
+
 ## 5.0.3
 
 ### Patch Changes
