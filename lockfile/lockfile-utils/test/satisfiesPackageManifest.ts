@@ -9,8 +9,12 @@ test('satisfiesPackageManifest()', () => {
   expect(satisfiesPackageManifest(
     {},
     {
-      dependencies: { foo: '1.0.0' },
-      specifiers: { foo: '^1.0.0' },
+      dependencies: {
+        foo: {
+          version: '1.0.0',
+          specifier: '^1.0.0',
+        },
+      },
     },
     {
       ...DEFAULT_PKG_FIELDS,
@@ -20,9 +24,13 @@ test('satisfiesPackageManifest()', () => {
   expect(satisfiesPackageManifest(
     {},
     {
-      dependencies: { foo: '1.0.0' },
+      dependencies: {
+        foo: {
+          version: '1.0.0',
+          specifier: '^1.0.0',
+        },
+      },
       devDependencies: {},
-      specifiers: { foo: '^1.0.0' },
     },
     {
       ...DEFAULT_PKG_FIELDS,
@@ -32,8 +40,12 @@ test('satisfiesPackageManifest()', () => {
   expect(satisfiesPackageManifest(
     {},
     {
-      devDependencies: { foo: '1.0.0' },
-      specifiers: { foo: '^1.0.0' },
+      devDependencies: {
+        foo: {
+          version: '1.0.0',
+          specifier: '^1.0.0',
+        },
+      },
     },
     {
       ...DEFAULT_PKG_FIELDS,
@@ -43,8 +55,12 @@ test('satisfiesPackageManifest()', () => {
   expect(satisfiesPackageManifest(
     {},
     {
-      optionalDependencies: { foo: '1.0.0' },
-      specifiers: { foo: '^1.0.0' },
+      optionalDependencies: {
+        foo: {
+          version: '1.0.0',
+          specifier: '^1.0.0',
+        },
+      },
     },
     {
       ...DEFAULT_PKG_FIELDS,
@@ -54,8 +70,12 @@ test('satisfiesPackageManifest()', () => {
   expect(satisfiesPackageManifest(
     {},
     {
-      dependencies: { foo: '1.0.0' },
-      specifiers: { foo: '^1.0.0' },
+      dependencies: {
+        foo: {
+          version: '1.0.0',
+          specifier: '^1.0.0',
+        },
+      },
     },
     {
       ...DEFAULT_PKG_FIELDS,
@@ -68,8 +88,12 @@ test('satisfiesPackageManifest()', () => {
   expect(satisfiesPackageManifest(
     {},
     {
-      dependencies: { foo: '1.0.0' },
-      specifiers: { foo: '^1.0.0' },
+      dependencies: {
+        foo: {
+          version: '1.0.0',
+          specifier: '^1.0.0',
+        },
+      },
     },
     {
       ...DEFAULT_PKG_FIELDS,
@@ -77,13 +101,17 @@ test('satisfiesPackageManifest()', () => {
     }
   )).toStrictEqual({
     satisfies: false,
-    detailedReason: 'specifiers in the lockfile ({"foo":"^1.0.0"}) don\'t match specs in package.json ({"foo":"^1.1.0"})',
+    detailedReason: 'specifier in the lockfile for "foo" in "dependencies" (^1.0.0) don\'t match the spec in package.json (^1.1.0)',
   })
   expect(satisfiesPackageManifest(
     {},
     {
-      dependencies: { foo: '1.0.0' },
-      specifiers: { foo: '^1.0.0' },
+      dependencies: {
+        foo: {
+          version: '1.0.0',
+          specifier: '^1.0.0',
+        },
+      },
     },
     {
       ...DEFAULT_PKG_FIELDS,
@@ -91,14 +119,24 @@ test('satisfiesPackageManifest()', () => {
     }
   )).toStrictEqual({
     satisfies: false,
-    detailedReason: 'specifiers in the lockfile ({"foo":"^1.0.0"}) don\'t match specs in package.json ({"foo":"^1.0.0","bar":"2.0.0"})',
+    detailedReason: '"dependencies" in the lockfile ({"foo":"^1.0.0"}) doesn\'t match the same field in package.json ({"foo":"^1.0.0","bar":"2.0.0"})',
   })
 
   expect(satisfiesPackageManifest(
     {},
     {
-      dependencies: { foo: '1.0.0' },
-      specifiers: { foo: '^1.0.0', bar: '2.0.0' },
+      dependencies: {
+        foo: {
+          version: '1.0.0',
+          specifier: '^1.0.0',
+        },
+      },
+      devDependencies: {
+        bar: {
+          version: '2.0.0',
+          specifier: '^2.0.0',
+        },
+      },
     },
     {
       ...DEFAULT_PKG_FIELDS,
@@ -106,20 +144,22 @@ test('satisfiesPackageManifest()', () => {
     }
   )).toStrictEqual({
     satisfies: false,
-    detailedReason: '"dependencies" in the lockfile ({"foo":"1.0.0"}) doesn\'t match the same field in package.json ({"foo":"^1.0.0","bar":"2.0.0"})',
+    detailedReason: '"dependencies" in the lockfile ({"foo":"^1.0.0"}) doesn\'t match the same field in package.json ({"foo":"^1.0.0","bar":"2.0.0"})',
   })
 
   {
     const importer = {
       dependencies: {
-        foo: '1.0.0',
+        foo: {
+          version: '1.0.0',
+          specifier: '^1.0.0',
+        },
       },
       optionalDependencies: {
-        bar: '2.0.0',
-      },
-      specifiers: {
-        bar: '2.0.0',
-        foo: '^1.0.0',
+        bar: {
+          version: '2.0.0',
+          specifier: '2.0.0',
+        },
       },
     }
     const pkg = {
@@ -138,12 +178,14 @@ test('satisfiesPackageManifest()', () => {
   {
     const importer = {
       dependencies: {
-        bar: '2.0.0',
-        qar: '1.0.0',
-      },
-      specifiers: {
-        bar: '2.0.0',
-        qar: '^1.0.0',
+        bar: {
+          version: '2.0.0',
+          specifier: '2.0.0',
+        },
+        qar: {
+          version: '1.0.0',
+          specifier: '^1.0.0',
+        },
       },
     }
     const pkg = {
@@ -154,18 +196,21 @@ test('satisfiesPackageManifest()', () => {
     }
     expect(satisfiesPackageManifest({}, importer, pkg)).toStrictEqual({
       satisfies: false,
-      detailedReason: 'specifiers in the lockfile ({"bar":"2.0.0","qar":"^1.0.0"}) don\'t match specs in package.json ({"bar":"2.0.0"})',
+      detailedReason: '"dependencies" in the lockfile ({"bar":"2.0.0","qar":"^1.0.0"}) doesn\'t match the same field in package.json ({"bar":"2.0.0"})',
     })
   }
 
   {
     const importer = {
       dependencies: {
-        bar: '2.0.0',
-        qar: '1.0.0',
-      },
-      specifiers: {
-        bar: '2.0.0',
+        bar: {
+          version: '2.0.0',
+          specifier: '2.0.0',
+        },
+        qar: {
+          version: '1.0.0',
+          specifier: '^1.0.0',
+        },
       },
     }
     const pkg = {
@@ -176,15 +221,23 @@ test('satisfiesPackageManifest()', () => {
     }
     expect(satisfiesPackageManifest({}, importer, pkg)).toStrictEqual({
       satisfies: false,
-      detailedReason: '"dependencies" in the lockfile ({"bar":"2.0.0","qar":"1.0.0"}) doesn\'t match the same field in package.json ({"bar":"2.0.0"})',
+      detailedReason: '"dependencies" in the lockfile ({"bar":"2.0.0","qar":"^1.0.0"}) doesn\'t match the same field in package.json ({"bar":"2.0.0"})',
     })
   }
 
   expect(satisfiesPackageManifest(
     {},
     {
-      dependencies: { foo: '1.0.0', linked: 'link:../linked' },
-      specifiers: { foo: '^1.0.0' },
+      dependencies: {
+        foo: {
+          version: '1.0.0',
+          specifier: '^1.0.0',
+        },
+        linked: {
+          version: 'link:../linked',
+          specifier: 'link:../linked',
+        },
+      },
     },
     {
       ...DEFAULT_PKG_FIELDS,
@@ -205,10 +258,10 @@ test('satisfiesPackageManifest()', () => {
     {},
     {
       dependencies: {
-        foo: '1.0.0',
-      },
-      specifiers: {
-        foo: '1.0.0',
+        foo: {
+          version: '1.0.0',
+          specifier: '1.0.0',
+        },
       },
     },
     {
@@ -226,10 +279,10 @@ test('satisfiesPackageManifest()', () => {
     {},
     {
       dependencies: {
-        foo: '1.0.0',
-      },
-      specifiers: {
-        foo: '1.0.0',
+        foo: {
+          version: '1.0.0',
+          specifier: '1.0.0',
+        },
       },
     },
     {
@@ -248,12 +301,14 @@ test('satisfiesPackageManifest()', () => {
     { autoInstallPeers: true },
     {
       dependencies: {
-        foo: '1.0.0',
-        bar: '1.0.0',
-      },
-      specifiers: {
-        foo: '1.0.0',
-        bar: '^1.0.0',
+        foo: {
+          version: '1.0.0',
+          specifier: '1.0.0',
+        },
+        bar: {
+          version: '1.0.0',
+          specifier: '^1.0.0',
+        },
       },
     },
     {
@@ -271,18 +326,22 @@ test('satisfiesPackageManifest()', () => {
     { autoInstallPeers: true },
     {
       dependencies: {
-        qar: '1.0.0',
+        qar: {
+          version: '1.0.0',
+          specifier: '1.0.0',
+        },
       },
       optionalDependencies: {
-        bar: '1.0.0',
+        bar: {
+          version: '1.0.0',
+          specifier: '1.0.0',
+        },
       },
       devDependencies: {
-        foo: '1.0.0',
-      },
-      specifiers: {
-        foo: '1.0.0',
-        bar: '1.0.0',
-        qar: '1.0.0',
+        foo: {
+          version: '1.0.0',
+          specifier: '1.0.0',
+        },
       },
     },
     {
@@ -308,10 +367,10 @@ test('satisfiesPackageManifest()', () => {
     {},
     {
       dependencies: {
-        foo: '1.0.0',
-      },
-      specifiers: {
-        foo: '1.0.0',
+        foo: {
+          version: '1.0.0',
+          specifier: '1.0.0',
+        },
       },
       publishDirectory: 'dist',
     },
@@ -330,10 +389,10 @@ test('satisfiesPackageManifest()', () => {
     {},
     {
       dependencies: {
-        foo: '1.0.0',
-      },
-      specifiers: {
-        foo: '1.0.0',
+        foo: {
+          version: '1.0.0',
+          specifier: '1.0.0',
+        },
       },
       publishDirectory: 'dist',
     },
@@ -357,10 +416,10 @@ test('satisfiesPackageManifest()', () => {
     },
     {
       dependencies: {
-        foo: '1.0.0',
-      },
-      specifiers: {
-        foo: '1.0.0',
+        foo: {
+          version: '1.0.0',
+          specifier: '1.0.0',
+        },
       },
     },
     {

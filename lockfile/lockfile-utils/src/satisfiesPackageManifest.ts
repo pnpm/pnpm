@@ -4,6 +4,7 @@ import {
   type ProjectManifest,
 } from '@pnpm/types'
 import equals from 'ramda/src/equals'
+import mapValues from 'ramda/src/map'
 import pickBy from 'ramda/src/pickBy'
 import omit from 'ramda/src/omit'
 
@@ -31,17 +32,6 @@ export function satisfiesPackageManifest (
     }
   }
   const pickNonLinkedDeps = pickBy((spec) => !spec.startsWith('link:'))
-  let specs = importer.specifiers
-  if (opts?.excludeLinksFromLockfile) {
-    existingDeps = pickNonLinkedDeps(existingDeps)
-    specs = pickNonLinkedDeps(specs)
-  }
-  if (!equals(existingDeps, specs)) {
-    return {
-      satisfies: false,
-      detailedReason: `specifiers in the lockfile (${JSON.stringify(specs)}) don't match specs in package.json (${JSON.stringify(existingDeps)})`,
-    }
-  }
   if (importer.publishDirectory !== pkg.publishConfig?.directory) {
     return {
       satisfies: false,
@@ -83,14 +73,14 @@ export function satisfiesPackageManifest (
     ) {
       return {
         satisfies: false,
-        detailedReason: `"${depField}" in the lockfile (${JSON.stringify(importerDeps)}) doesn't match the same field in package.json (${JSON.stringify(pkgDeps)})`,
+        detailedReason: `"${depField}" in the lockfile (${JSON.stringify(mapValues(({ specifier }) => specifier, importerDeps))}) doesn't match the same field in package.json (${JSON.stringify(pkgDeps)})`,
       }
     }
     for (const depName of pkgDepNames) {
-      if (!importerDeps[depName] || importer.specifiers?.[depName] !== pkgDeps[depName]) {
+      if (!importerDeps[depName] || importerDeps[depName].specifier !== pkgDeps[depName]) {
         return {
           satisfies: false,
-          detailedReason: `importer ${depField}.${depName} specifier ${importer.specifiers[depName]} don't match package manifest specifier (${pkgDeps[depName]})`,
+          detailedReason: `specifier in the lockfile for "${depName}" in "${depField}" (${importerDeps[depName].specifier}) don't match the spec in package.json (${pkgDeps[depName]})`,
         }
       }
     }
@@ -98,6 +88,6 @@ export function satisfiesPackageManifest (
   return { satisfies: true }
 }
 
-function countOfNonLinkedDeps (lockfileDeps: { [depName: string]: string }): number {
-  return Object.values(lockfileDeps).filter((ref) => !ref.includes('link:') && !ref.includes('file:')).length
+function countOfNonLinkedDeps (lockfileDeps: { [depName: string]: { version: string, specifier: string } }): number {
+  return Object.values(lockfileDeps).filter(({ version: ref }) => !ref.includes('link:') && !ref.includes('file:')).length
 }
