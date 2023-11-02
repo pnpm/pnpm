@@ -374,7 +374,7 @@ async function fetchSpecificFileFromRegistryFS (pkgName: string, pkgVer: string,
   throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVer}, file ${fileHex}`, 'Unknown Error')
 }
 
-function pkgJsonFromRegFSHasInstallScripts (pkgJson: Record<string, { preinstall?: string, install?: string, postinstall?: string }>): boolean {
+function pkgJsonFromRegFSHasInstallScripts (pkgJson: ProjectManifest): boolean {
   if (!pkgJson.scripts) return false
   return Boolean(pkgJson.scripts.preinstall) ||
     Boolean(pkgJson.scripts.install) ||
@@ -401,7 +401,7 @@ async function fetchBuildFromRegistryFS (pkgName: string, pkgVer: string, pkgUrl
 
     const pkgJsonHex = regFS.files['/package.json'].hex
     const pkgJsonContent = await fetchSpecificFileFromRegistryFS(pkgName, pkgVer, pkgJsonHex)
-    const pkgJson = JSON.parse(pkgJsonContent)
+    const pkgJson = JSON.parse(pkgJsonContent) as ProjectManifest
     if (pkgJson?.scripts != null) {
       return pkgJsonFromRegFSHasInstallScripts(pkgJson)
     }
