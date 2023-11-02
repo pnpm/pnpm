@@ -180,6 +180,12 @@ Benchmarks on an app with lots of dependencies:
 
 ![](https://pnpm.io/img/benchmarks/alotta-files.svg)
 
+## Usage Trend
+
+[Usage Trend of JavaScript Package Manager](https://npm-compare.com/pnpm,npm,yarn/#timeRange=THREE_YEARS)
+
+![image](https://github.com/pnpm/pnpm/assets/3455798/07ee0a9a-b08a-4da5-a41e-a5219ca3b822)
+
 ## Backers
 
 Thank you to all our backers! [Become a backer](https://opencollective.com/pnpm#backer)
