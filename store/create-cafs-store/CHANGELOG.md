@@ -1,5 +1,18 @@
 # @pnpm/create-cafs-store
 
+## 6.0.7
+
+### Patch Changes
+
+- cfc017ee3: Optional dependencies that do not have to be built will be reflinked (or hardlinked) to the store instead of copied [#7046](https://github.com/pnpm/pnpm/issues/7046).
+- Updated dependencies [7ea45afbe]
+- Updated dependencies [cfc017ee3]
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/exec.files-include-install-scripts@1.0.0
+  - @pnpm/fetcher-base@15.0.4
+  - @pnpm/fs.indexed-pkg-importer@5.0.7
+  - @pnpm/store.cafs@2.0.8
+
 ## 6.0.6
 
 ### Patch Changes

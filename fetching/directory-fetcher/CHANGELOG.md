@@ -1,5 +1,20 @@
 # @pnpm/directory-fetcher
 
+## 7.0.6
+
+### Patch Changes
+
+- Updated dependencies [c7f1359b6]
+  - @pnpm/fs.packlist@1.0.1
+
+## 7.0.5
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/fetcher-base@15.0.4
+
 ## 7.0.4
 
 ### Patch Changes

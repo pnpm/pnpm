@@ -30,7 +30,6 @@ describe('store.importPackage()', () => {
         id: pkgId,
         resolution: {
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-          registry: 'https://registry.npmjs.org/',
           tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
         },
       },
@@ -69,7 +68,6 @@ describe('store.importPackage()', () => {
         id: pkgId,
         resolution: {
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-          registry: 'https://registry.npmjs.org/',
           tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
         },
       },
