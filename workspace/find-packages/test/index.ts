@@ -35,6 +35,52 @@ test('findWorkspacePackagesNoCheck() skips engine checks', async () => {
   expect(pkgs[0].manifest.name).toBe('pkg')
 })
 
+test('findWorkspacePackagesNoCheck() throws on string content', async () => {
+  await expect(
+    findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-workspace-manifests/string'))
+  ).rejects.toThrow('Invalid pnpm-workspace.yaml configuration. Expected object but found - string')
+})
+
+test('findWorkspacePackagesNoCheck() throws on array content', async () => {
+  await expect(
+    findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-workspace-manifests/array'))
+  ).rejects.toThrow('Invalid pnpm-workspace.yaml configuration. Expected object but found - array')
+})
+
+test('findWorkspacePackagesNoCheck() throws on empty packages field', async () => {
+  await expect(
+    findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-workspace-manifests/packages-empty'))
+  ).rejects.toThrow('Invalid pnpm-workspace.yaml configuration. packages field missing or empty')
+})
+
+test('findWorkspacePackagesNoCheck() throws on string packages field', async () => {
+  await expect(
+    findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-workspace-manifests/packages-string'))
+  ).rejects.toThrow('Invalid pnpm-workspace.yaml configuration. packages field is not an array')
+})
+
+test('findWorkspacePackagesNoCheck() throws on empty package', async () => {
+  await expect(
+    findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-workspace-manifests/packages-contains-empty'))
+  ).rejects.toThrow('Invalid pnpm-workspace.yaml configuration. Missing or empty package')
+})
+
+test('findWorkspacePackagesNoCheck() throws on numeric package', async () => {
+  await expect(
+    findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-workspace-manifests/packages-contains-number'))
+  ).rejects.toThrow('Invalid pnpm-workspace.yaml configuration. Invalid package type - number')
+})
+
+test('findWorkspacePackagesNoCheck() works when no workspace file is present', async () => {
+  const pkgs = await findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/no-workspace-file'))
+
+  expect(pkgs.length).toBe(1)
+  expect(pkgs[0].manifest).toStrictEqual({
+    name: 'pkg',
+    version: '1.0.0',
+  })
+})
+
 test('findWorkspacePackages() output warnings for non-root workspace project', async () => {
   const fixturePath = path.join(__dirname, '__fixtures__/warning-for-non-root-project')
 
