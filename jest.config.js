@@ -9,10 +9,7 @@ const config = {
   testPathIgnorePatterns: ["/fixtures/", "/__fixtures__/", "<rootDir>/test/utils/.+"],
   testTimeout: 4 * 60 * 1000, // 4 minutes
   setupFilesAfterEnv: [path.join(__dirname, "jest.setup.js")],
-  // Many tests change the dist tags of packages.
-  // Unfortunately, this means that if two such tests will run at the same time,
-  // they may break each other.
-  maxWorkers: 1,
+  maxWorkers: "50%",
 }
 
 if (process.env.PNPM_SCRIPT_SRC_DIR) {

@@ -62,7 +62,6 @@ test('request package', async () => {
   expect(!pkgResponse.body.normalizedPref).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-    registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
@@ -104,7 +103,6 @@ test('request package but skip fetching', async () => {
   expect(!pkgResponse.body.normalizedPref).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-    registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
@@ -130,7 +128,6 @@ test('request package but skip fetching, when resolution is already available', 
       id: `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`,
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
@@ -158,7 +155,6 @@ test('request package but skip fetching, when resolution is already available', 
   expect(!pkgResponse.body.normalizedPref).toBeTruthy()
   expect(pkgResponse.body.resolution).toStrictEqual({
     integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-    registry: `http://localhost:${REGISTRY_MOCK_PORT}`,
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   })
 
@@ -370,7 +366,6 @@ test('fetchPackageToStore()', async () => {
       id: pkgId,
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
@@ -395,7 +390,6 @@ test('fetchPackageToStore()', async () => {
       id: pkgId,
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
@@ -440,7 +434,6 @@ test('fetchPackageToStore() concurrency check', async () => {
         id: pkgId,
         resolution: {
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-          registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
         },
       },
@@ -454,7 +447,6 @@ test('fetchPackageToStore() concurrency check', async () => {
         id: pkgId,
         resolution: {
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-          registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
         },
       },
@@ -525,7 +517,6 @@ test('fetchPackageToStore() does not cache errors', async () => {
       id: pkgId,
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
@@ -541,7 +532,6 @@ test('fetchPackageToStore() does not cache errors', async () => {
       id: pkgId,
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-        registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
@@ -588,7 +578,6 @@ test('always return a package manifest in the response', async () => {
         id: `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`,
         resolution: {
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
-          registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
         },
       },
@@ -632,7 +621,6 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
 
   const pkgId = `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`
   const resolution = {
-    registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   }
   const fetchResults = await Promise.all([
@@ -670,7 +658,6 @@ test('refetch package to store if it has been modified', async () => {
 
   const pkgId = `localhost+${REGISTRY_MOCK_PORT}/magic-hook/2.0.0`
   const resolution = {
-    registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/magic-hook/-/magic-hook-2.0.0.tgz`,
   }
 

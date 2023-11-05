@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.packlist",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Get a list of the files to add from a directory into an npm package",
   "main": "lib/index.js",
   "files": [
@@ -27,7 +27,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/fs/packlist#readme",
   "dependencies": {
-    "@npmcli/arborist": "7.2.0",
+    "@npmcli/arborist": "npm:@pnpm/arborist__fork@7.2.1",
     "npm-packlist": "^8.0.0"
   },
   "funding": "https://opencollective.com/pnpm",

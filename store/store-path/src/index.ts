@@ -40,7 +40,7 @@ export function getStorePath (
 
 async function storePathRelativeToHome (pkgRoot: string, relStore: string, homedir: string) {
   const tempFile = pathTemp(pkgRoot)
-  await fs.mkdir(path.dirname(tempFile), { recursive: true })
+  if (path.parse(pkgRoot).root !== pkgRoot) await fs.mkdir(path.dirname(tempFile), { recursive: true })
   await touch(tempFile)
   const storeInHomeDir = path.join(homedir, relStore, STORE_VERSION)
   if (await canLinkToSubdir(tempFile, homedir)) {

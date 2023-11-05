@@ -31,7 +31,6 @@ export function pkgSnapshotToResolution (
   }
   return {
     ...pkgSnapshot.resolution,
-    registry,
     tarball,
   } as Resolution
 

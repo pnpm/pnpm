@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 20.1.1
+
+### Patch Changes
+
+- @pnpm/pnpmfile@5.0.16
+
 ## 20.1.0
 
 ### Minor Changes

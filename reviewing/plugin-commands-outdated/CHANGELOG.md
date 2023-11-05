@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-outdated
 
+## 10.0.3
+
+### Patch Changes
+
+- @pnpm/outdated@13.0.29
+
+## 10.0.2
+
+### Patch Changes
+
+- Updated dependencies [7d65d901a]
+  - @pnpm/store-path@8.0.1
+  - @pnpm/outdated@13.0.28
+  - @pnpm/default-resolver@18.0.18
+  - @pnpm/config@20.1.1
+  - @pnpm/cli-utils@2.1.1
+
 ## 10.0.1
 
 ### Patch Changes
