@@ -31,6 +31,7 @@
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
     "@pnpm/constants": "workspace:*",
+    "@pnpm/error": "workspace:*",
     "@pnpm/fs.find-packages": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "1.0.0",

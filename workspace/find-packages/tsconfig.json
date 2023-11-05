@@ -19,6 +19,9 @@
       "path": "../../packages/constants"
     },
     {
+      "path": "../../packages/error"
+    },
+    {
       "path": "../../packages/types"
     }
   ],

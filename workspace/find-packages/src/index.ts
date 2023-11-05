@@ -6,6 +6,7 @@ import { lexCompare } from '@pnpm/util.lex-comparator'
 import { findPackages } from '@pnpm/fs.find-packages'
 import { logger } from '@pnpm/logger'
 import readYamlFile from 'read-yaml-file'
+import { PnpmError } from '@pnpm/error'
 
 export type { Project }
 
@@ -67,27 +68,30 @@ async function requirePackagesManifest (dir: string): Promise<WorkspaceManifest 
     if (err['code'] === 'ENOENT') {
       return undefined
     }
-    throw err
+
+    throw new PnpmError('INVALID_WORKSPACE_CONFIGURATION', `\n${err.message}`)
   }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function validateWorkspaceManifest (manifest: any): manifest is Required<WorkspaceManifest> | undefined {
+  const ERR_CODE = 'INVALID_WORKSPACE_CONFIGURATION'
+
   if (manifest === undefined) {
     // Empty manifest is ok
     return true
   }
 
   if (manifest === null) {
-    throw new Error(`Invalid ${WORKSPACE_MANIFEST_FILENAME} configuration. Expected object but found - null`)
+    throw new PnpmError(ERR_CODE, 'Expected object but found - null')
   }
 
   if (typeof manifest !== 'object') {
-    throw new Error(`Invalid ${WORKSPACE_MANIFEST_FILENAME} configuration. Expected object but found - ${typeof manifest}`)
+    throw new PnpmError(ERR_CODE, `Expected object but found - ${typeof manifest}`)
   }
 
   if (Array.isArray(manifest)) {
-    throw new Error(`Invalid ${WORKSPACE_MANIFEST_FILENAME} configuration. Expected object but found - array`)
+    throw new PnpmError(ERR_CODE, 'Expected object but found - array')
   }
 
   if (Object.keys(manifest).length === 0) {
@@ -96,21 +100,21 @@ function validateWorkspaceManifest (manifest: any): manifest is Required<Workspa
   }
 
   if (!manifest.packages) {
-    throw new Error(`Invalid ${WORKSPACE_MANIFEST_FILENAME} configuration. packages field missing or empty`)
+    throw new PnpmError(ERR_CODE, 'packages field missing or empty')
   }
 
   if (!Array.isArray(manifest.packages)) {
-    throw new Error(`Invalid ${WORKSPACE_MANIFEST_FILENAME} configuration. packages field is not an array`)
+    throw new PnpmError(ERR_CODE, 'packages field is not an array')
   }
 
   manifest.packages.forEach((pkg: unknown) => {
     if (!pkg) {
-      throw new Error(`Invalid ${WORKSPACE_MANIFEST_FILENAME} configuration. Missing or empty package`)
+      throw new PnpmError(ERR_CODE, 'Missing or empty package')
     }
 
     const type = typeof pkg
     if (type !== 'string') {
-      throw new Error(`Invalid ${WORKSPACE_MANIFEST_FILENAME} configuration. Invalid package type - ${type}`)
+      throw new PnpmError(ERR_CODE, `Invalid package type - ${type}`)
     }
   })
 
