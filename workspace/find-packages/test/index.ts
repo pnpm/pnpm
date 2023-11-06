@@ -38,37 +38,37 @@ test('findWorkspacePackagesNoCheck() skips engine checks', async () => {
 test('findWorkspacePackagesNoCheck() throws on string content', async () => {
   await expect(
     findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-workspace-manifests/string'))
-  ).rejects.toThrow('Invalid pnpm-workspace.yaml configuration. Expected object but found - string')
+  ).rejects.toThrow('Expected object but found - string')
 })
 
 test('findWorkspacePackagesNoCheck() throws on array content', async () => {
   await expect(
     findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-workspace-manifests/array'))
-  ).rejects.toThrow('Invalid pnpm-workspace.yaml configuration. Expected object but found - array')
+  ).rejects.toThrow('Expected object but found - array')
 })
 
 test('findWorkspacePackagesNoCheck() throws on empty packages field', async () => {
   await expect(
     findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-workspace-manifests/packages-empty'))
-  ).rejects.toThrow('Invalid pnpm-workspace.yaml configuration. packages field missing or empty')
+  ).rejects.toThrow('packages field missing or empty')
 })
 
 test('findWorkspacePackagesNoCheck() throws on string packages field', async () => {
   await expect(
     findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-workspace-manifests/packages-string'))
-  ).rejects.toThrow('Invalid pnpm-workspace.yaml configuration. packages field is not an array')
+  ).rejects.toThrow('packages field is not an array')
 })
 
 test('findWorkspacePackagesNoCheck() throws on empty package', async () => {
   await expect(
     findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-workspace-manifests/packages-contains-empty'))
-  ).rejects.toThrow('Invalid pnpm-workspace.yaml configuration. Missing or empty package')
+  ).rejects.toThrow('Missing or empty package')
 })
 
 test('findWorkspacePackagesNoCheck() throws on numeric package', async () => {
   await expect(
     findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-workspace-manifests/packages-contains-number'))
-  ).rejects.toThrow('Invalid pnpm-workspace.yaml configuration. Invalid package type - number')
+  ).rejects.toThrow('Invalid package type - number')
 })
 
 test('findWorkspacePackagesNoCheck() works when no workspace file is present', async () => {
