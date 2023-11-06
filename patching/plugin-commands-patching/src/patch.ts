@@ -14,6 +14,7 @@ import { PnpmError } from '@pnpm/error'
 import { type ParseWantedDependencyResult } from '@pnpm/parse-wanted-dependency'
 import { writePackage } from './writePackage'
 import { getPatchedDependency } from './getPatchedDependency'
+import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 
 export function rcOptionsTypes () {
   return pick([], allTypes)
@@ -59,6 +60,7 @@ export type PatchCommandOptions = Pick<Config,
 | 'lockfileDir'
 | 'modulesDir'
 | 'virtualStoreDir'
+| 'sharedWorkspaceLockfile'
 > & CreateStoreControllerOptions & {
   editDir?: string
   reporter?: (logObj: LogBase) => void
@@ -81,13 +83,23 @@ export async function handler (opts: PatchCommandOptions, params: string[]) {
   })
 
   await writePackage(patchedDep, editDir, opts)
-  if (!opts.ignoreExisting && opts.rootProjectManifest?.pnpm?.patchedDependencies) {
-    tryPatchWithExistingPatchFile({
-      patchedDep,
-      patchedDir: editDir,
-      patchedDependencies: opts.rootProjectManifest.pnpm.patchedDependencies,
-      lockfileDir,
-    })
+
+  if (!opts.ignoreExisting) {
+    let rootProjectManifest = opts.rootProjectManifest
+    if (!opts.sharedWorkspaceLockfile) {
+      const { manifest } = await tryReadProjectManifest(lockfileDir)
+      if (manifest) {
+        rootProjectManifest = manifest
+      }
+    }
+    if (rootProjectManifest?.pnpm?.patchedDependencies) {
+      tryPatchWithExistingPatchFile({
+        patchedDep,
+        patchedDir: editDir,
+        patchedDependencies: rootProjectManifest.pnpm.patchedDependencies,
+        lockfileDir,
+      })
+    }
   }
   return `You can now edit the following folder: ${editDir}
 
