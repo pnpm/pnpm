@@ -51,7 +51,7 @@ export interface StoreController {
   getFilesIndexFilePath: GetFilesIndexFilePath
   importPackage: ImportPackageFunctionAsync
   close: () => Promise<void>
-  prune: (force?: boolean) => Promise<void>
+  prune: (removeAlienFiles?: boolean) => Promise<void>
   upload: UploadPkgToStore
 }
 
