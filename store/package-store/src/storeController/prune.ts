@@ -13,7 +13,7 @@ export interface PruneOptions {
   storeDir: string
 }
 
-export async function prune ({ cacheDir, storeDir }: PruneOptions, force?: boolean) {
+export async function prune ({ cacheDir, storeDir }: PruneOptions, removeAlienFiles?: boolean) {
   const cafsDir = path.join(storeDir, 'files')
   await Promise.all([
     rimraf(path.join(cacheDir, 'metadata')),
@@ -38,7 +38,7 @@ export async function prune ({ cacheDir, storeDir }: PruneOptions, force?: boole
       }
       const stat = await fs.stat(filePath)
       if (stat.isDirectory()) {
-        if (force) {
+        if (removeAlienFiles) {
           await rimraf(filePath)
           globalWarn(`An alien directory has been removed from the store: ${filePath}`)
           fileCounter++
