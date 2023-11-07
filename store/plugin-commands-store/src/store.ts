@@ -93,7 +93,7 @@ export async function handler (opts: StoreCommandOptions, params: string[]) {
     const storePruneOptions = Object.assign(opts, {
       storeController: store.ctrl,
       storeDir: store.dir,
-      force: opts.force,
+      removeAlienFiles: opts.force,
     })
     return storePrune(storePruneOptions)
   }
