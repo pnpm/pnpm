@@ -1,4 +1,5 @@
 import { createReadStream, promises as fs } from 'fs'
+import os from 'os'
 import path from 'path'
 import {
   type FileType,
@@ -97,7 +98,7 @@ export function createPackageRequester (
   } {
   opts = opts || {}
 
-  const networkConcurrency = opts.networkConcurrency ?? 16
+  const networkConcurrency = opts.networkConcurrency ?? os.cpus().length
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
   })
