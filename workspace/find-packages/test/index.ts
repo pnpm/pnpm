@@ -72,7 +72,7 @@ test('findWorkspacePackagesNoCheck() throws on numeric package', async () => {
 })
 
 test('findWorkspacePackagesNoCheck() works when no workspace file is present', async () => {
-  const pkgs = await findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/no-workspace-file'))
+  const pkgs = await findWorkspacePackagesNoCheck(path.join(__dirname, '__fixtures__/bad-workspace-manifests/no-workspace-file'))
 
   expect(pkgs.length).toBe(1)
   expect(pkgs[0].manifest).toStrictEqual({
