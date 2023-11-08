@@ -98,7 +98,7 @@ export function createPackageRequester (
   } {
   opts = opts || {}
 
-  const networkConcurrency = opts.networkConcurrency ?? os.cpus().length
+  const networkConcurrency = opts.networkConcurrency ?? Math.max(os.cpus().length, 16)
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
   })
