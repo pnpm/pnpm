@@ -1638,31 +1638,16 @@ test('installation should work with packages that have () in the scope name', as
   await install(manifest, opts)
 })
 
-test('A package with an optional dependency that requires build has requiresBuild=true when fetching requiresBuild from registryFS', async () => {
+test('A lockfile only update with the useExperimentalNpmjsFilesIndex flag set returns requiresBuild=true without full tarball being fetched', async () => {
   prepareEmpty()
-  const manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/foo'], await testDefaults({ save: true, useExperimentalNpmjsFilesIndex: true }))
-  await addDependenciesToPackage(manifest, ['@pnpm.e2e/independent-and-requires-build'], await testDefaults({ targetDependenciesField: 'optionalDependencies', useExperimentalNpmjsFilesIndex: true, lockfileOnly: true }))
-  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  expect(lockfile.packages!['/@pnpm.e2e/independent-and-requires-build@1.0.0'].requiresBuild).toBeTruthy()
-})
-
-test('A package with an optional dependency that does not require build has no requiresBuildFlag when fetching requiresBuild from registryFS', async () => {
-  prepareEmpty()
-  await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ registries: { default: 'https://registry.npmjs.org/' }, targetDependenciesField: 'optionalDependencies', useExperimentalNpmjsFilesIndex: true, lockfileOnly: true }))
-  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  expect(lockfile.packages!['/is-positive@1.0.0'].requiresBuild).toBeUndefined()
-})
-
-test('A package with an optional dependency build with bindings.gyp has requiresBuild=true when fetching requiresBuild from registryFS', async () => {
-  prepareEmpty()
-  await addDependenciesToPackage({}, ['nodecv@1.1.2'], await testDefaults({ registries: { default: 'https://registry.npmjs.org/' }, targetDependenciesField: 'optionalDependencies', useExperimentalNpmjsFilesIndex: true, lockfileOnly: true }))
+  await addDependenciesToPackage({}, ['nodecv@1.1.2'], await testDefaults({ registries: { default: 'https://registry.npmjs.org/' }, useExperimentalNpmjsFilesIndex: true, lockfileOnly: true }))
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
   expect(lockfile.packages!['/nodecv@1.1.2'].requiresBuild).toBeTruthy()
 })
 
-test('A package with an optional dependency with file details that cannot be fetched defaults to requiresBuild=true when fetching requiresBuild from registryFS', async () => {
+test('A lockfile only update with the useExperimentalNpmjsFilesIndex flag set returns requiresBuild=false without full tarball being fetched', async () => {
   prepareEmpty()
-  await addDependenciesToPackage({}, ['@pnpm.e2e/has-binding-gyp@1.0.0'], await testDefaults({ targetDependenciesField: 'optionalDependencies', useExperimentalNpmjsFilesIndex: true, lockfileOnly: true }))
+  await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ registries: { default: 'https://registry.npmjs.org/' }, useExperimentalNpmjsFilesIndex: true, lockfileOnly: true }))
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  expect(lockfile.packages!['/@pnpm.e2e/has-binding-gyp@1.0.0'].requiresBuild).toBeTruthy()
+  expect(lockfile.packages!['/is-positive@1.0.0'].requiresBuild).toBeUndefined()
 })

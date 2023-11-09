@@ -393,7 +393,7 @@ async function fetchBuildFromRegistryFS (pkgName: string, pkgVersion: string, pk
     }
   } catch (e) {
     if (e instanceof Error) {
-      throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVersion}`, e.message)
+      throw new PnpmError('REG_FS_PARSE', `Failed to fetch ${pkgName}@${pkgVersion}: ${e.message}`)
     }
   }
   return false
@@ -411,23 +411,24 @@ async function finishLockfileUpdates (
     try {
       let requiresBuild!: boolean
       if (depNode.optional) {
+        // We assume that all optional dependencies have to be built.
+        // Optional dependencies are not always downloaded, so there is no way to know whether they need to be built or not.
+        requiresBuild = true
+      } else {
         if (useExperimentalNpmjsFilesIndex) {
-        // Attempt to use NPM's file list to determine if the package requiresBuild
           requiresBuild = await fetchBuildFromRegistryFS(depNode.name, depNode.version, depNode.id, useExperimentalNpmjsFilesIndex)
         } else {
-          requiresBuild = true
-        }
-      } else {
         // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-        const { files, bundledManifest: pkgJson } = await depNode.fetching()
-        requiresBuild = Boolean(
-          pkgJson?.scripts != null && (
-            Boolean(pkgJson.scripts.preinstall) ||
+          const { files, bundledManifest: pkgJson } = await depNode.fetching()
+          requiresBuild = Boolean(
+            pkgJson?.scripts != null && (
+              Boolean(pkgJson.scripts.preinstall) ||
             Boolean(pkgJson.scripts.install) ||
             Boolean(pkgJson.scripts.postinstall)
-          ) ||
+            ) ||
           filesIncludeInstallScripts(files.filesIndex)
-        )
+          )
+        }
       }
       if (typeof depNode.requiresBuild === 'function') {
         depNode.requiresBuild['resolve'](requiresBuild)
