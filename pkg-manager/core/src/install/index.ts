@@ -1036,7 +1036,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       workspacePackages: opts.workspacePackages,
       patchedDependencies: opts.patchedDependencies,
       lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
-      useExperimentalNpmjsFilesIndex: opts.useExperimentalNpmjsFilesIndex,
+      useExperimentalNpmjsFilesIndex: opts.lockfileOnly && opts.useExperimentalNpmjsFilesIndex,
       resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       supportedArchitectures: opts.supportedArchitectures,
     }

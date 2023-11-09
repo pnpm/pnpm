@@ -337,41 +337,27 @@ interface RegistryFileList {
   }
 }
 
-async function fetchRegistryFS (pkgName: string, pkgVer: string): Promise<RegistryFileList> {
-  const url = `https://npmjs.com/package/${pkgName}/v/${pkgVer}/index`
-  try {
-    const fetchResult = await fetch(url)
-    if (!fetchResult.ok) {
-      throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVer}`, `Status: ${fetchResult.statusText}`)
-    }
-
-    const fetchJSON = await fetchResult.json() as RegistryFileList
-    if (fetchJSON.files == null) {
-      throw new PnpmError(`Unable to parse file list for ${pkgName}@${pkgVer}`, `Status: ${fetchResult.statusText}`)
-    }
-    return fetchJSON
-  } catch (e) {
-    if (e instanceof Error) {
-      throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVer}`, e.message)
-    }
+async function fetchPkgIndex (pkgName: string, pkgVersion: string): Promise<RegistryFileList> {
+  const url = `https://npmjs.com/package/${pkgName}/v/${pkgVersion}/index`
+  const fetchResult = await fetch(url)
+  if (!fetchResult.ok) {
+    throw new PnpmError('PKG_INDEX_FETCH', `Failed to fetch ${pkgName}@${pkgVersion} Status: ${fetchResult.statusText}`)
   }
-  throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVer}`, 'Unknown Error')
+
+  const fetchJSON = await fetchResult.json() as RegistryFileList
+  if (fetchJSON.files == null) {
+    throw new PnpmError('PKG_INDEX_FILE_PARSE', `Unable to parse file list for ${pkgName}@${pkgVersion} Status: ${fetchResult.statusText}`)
+  }
+  return fetchJSON
 }
 
-async function fetchSpecificFileFromRegistryFS (pkgName: string, pkgVer: string, fileHex: string): Promise<string> {
+async function fetchSpecificFileFromRegistryFS (pkgName: string, pkgVersion: string, fileHex: string): Promise<string> {
   const url = `https://npmjs.com/package/${pkgName}/file/${fileHex}`
-  try {
-    const fetchResult = await fetch(url)
-    if (!fetchResult.ok) {
-      throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVer}, file: ${fileHex}`, `Status: ${fetchResult.statusText}`)
-    }
-    return await fetchResult.text()
-  } catch (e) {
-    if (e instanceof Error) {
-      throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVer}, file ${fileHex}`, e.message)
-    }
+  const fetchResult = await fetch(url)
+  if (!fetchResult.ok) {
+    throw new PnpmError('REG_FS_ERROR', `Failed to fetch ${pkgName}@${pkgVersion}, file: ${fileHex} Status: ${fetchResult.statusText}`)
   }
-  throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVer}, file ${fileHex}`, 'Unknown Error')
+  return fetchResult.text()
 }
 
 function pkgJsonFromRegFSHasInstallScripts (pkgJson: ProjectManifest): boolean {
@@ -381,7 +367,7 @@ function pkgJsonFromRegFSHasInstallScripts (pkgJson: ProjectManifest): boolean {
     Boolean(pkgJson.scripts.postinstall)
 }
 
-async function fetchBuildFromRegistryFS (pkgName: string, pkgVer: string, pkgUrl: string, useExperimentalNpmjsFilesIndex: boolean | string[]): Promise<boolean> {
+async function fetchBuildFromRegistryFS (pkgName: string, pkgVersion: string, pkgUrl: string, useExperimentalNpmjsFilesIndex: boolean | string[]): Promise<boolean> {
   let registryUrls = ['registry.npmjs.org/', 'registry.npmjs.com/']
   if (Array.isArray(useExperimentalNpmjsFilesIndex)) {
     registryUrls = useExperimentalNpmjsFilesIndex
@@ -389,25 +375,25 @@ async function fetchBuildFromRegistryFS (pkgName: string, pkgVer: string, pkgUrl
   // check if any of the registryUrls are contained in the pkgUrl
   const registryUrl = registryUrls.find((url) => pkgUrl.startsWith(url))
   if (!registryUrl) {
-    globalWarn(`${pkgName}@${pkgVer} (${pkgUrl}) is not in NPMJS Files Index URL Allow List: Fallback to requiresBuild=true`)
+    globalWarn(`${pkgName}@${pkgVersion} (${pkgUrl}) is not in NPMJS Files Index URL Allow List: Fallback to requiresBuild=true`)
     return true
   }
   try {
-    const regFS = await fetchRegistryFS(pkgName, pkgVer)
+    const regFS = await fetchPkgIndex(pkgName, pkgVersion)
 
     if (regFS.files['/binding.gyp'] || regFS.files['/hooks'] || regFS.files['/hooks/']) {
       return true
     }
 
     const pkgJsonHex = regFS.files['/package.json'].hex
-    const pkgJsonContent = await fetchSpecificFileFromRegistryFS(pkgName, pkgVer, pkgJsonHex)
+    const pkgJsonContent = await fetchSpecificFileFromRegistryFS(pkgName, pkgVersion, pkgJsonHex)
     const pkgJson = JSON.parse(pkgJsonContent) as ProjectManifest
     if (pkgJson?.scripts != null) {
       return pkgJsonFromRegFSHasInstallScripts(pkgJson)
     }
   } catch (e) {
     if (e instanceof Error) {
-      throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVer}`, e.message)
+      throw new PnpmError(`Failed to fetch ${pkgName}@${pkgVersion}`, e.message)
     }
   }
   return false
