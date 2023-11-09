@@ -17,6 +17,7 @@ export function cliOptionsTypes () {
     'registry',
     'store',
     'store-dir',
+    'force',
   ], allTypes)
 }
 
@@ -48,6 +49,11 @@ Visit the documentation for more information on unreferenced packages and why th
             name: 'prune',
           },
           {
+            description: 'If there are alien directories in the store, this command removes them. \
+Alien directories are directories/files that were not created by the package manager.',
+            name: 'prune --force',
+          },
+          {
             description: 'Returns the path to the active store directory.',
             name: 'path',
           },
@@ -67,7 +73,7 @@ class StoreStatusError extends PnpmError {
   }
 }
 
-export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir'> & CreateStoreControllerOptions & {
+export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir' | 'force'> & CreateStoreControllerOptions & {
   reporter?: (logObj: LogBase) => void
 }
 
@@ -87,6 +93,7 @@ export async function handler (opts: StoreCommandOptions, params: string[]) {
     const storePruneOptions = Object.assign(opts, {
       storeController: store.ctrl,
       storeDir: store.dir,
+      removeAlienFiles: opts.force,
     })
     return storePrune(storePruneOptions)
   }

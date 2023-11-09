@@ -340,6 +340,38 @@ test('throw error when accessing private package w/o authorization', async () =>
   expect(scope.isDone()).toBeTruthy()
 })
 
+test('do not retry when package does not exist', async () => {
+  const scope = nock(registry)
+    .get('/foo.tgz')
+    .reply(404)
+
+  process.chdir(tempy.directory())
+
+  const resolution = {
+    integrity: tarballIntegrity,
+    tarball: 'http://example.com/foo.tgz',
+  }
+
+  await expect(
+    fetch.remoteTarball(cafs, resolution, {
+      filesIndexFile,
+      lockfileDir: process.cwd(),
+      pkg: {},
+    })
+  ).rejects.toThrow(
+    new FetchError(
+      {
+        url: resolution.tarball,
+      },
+      {
+        status: 404,
+        statusText: '',
+      }
+    )
+  )
+  expect(scope.isDone()).toBeTruthy()
+})
+
 test('accessing private packages', async () => {
   const scope = nock(
     registry,

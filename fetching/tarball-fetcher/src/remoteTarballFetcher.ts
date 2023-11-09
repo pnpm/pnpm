@@ -75,6 +75,7 @@ export function createDownloader (
           if (
             error.response?.status === 401 ||
             error.response?.status === 403 ||
+            error.response?.status === 404 ||
             error.code === 'ERR_PNPM_PREPARE_PKG_FAILURE'
           ) {
             reject(error)
