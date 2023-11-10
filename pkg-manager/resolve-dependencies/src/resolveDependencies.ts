@@ -1086,9 +1086,7 @@ async function resolveDependency (
         ? ctx.lockfileDir
         : options.parentPkg.rootDir,
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.pref) || ctx.registries.default,
-      // Unfortunately, even when run with --lockfile-only, we need the *real* package.json
-      // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
-      skipFetch: false,
+      skipFetch: ctx.dryRun,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
@@ -1247,7 +1245,6 @@ async function resolveDependency (
       pkg.deprecated = currentPkg.dependencyLockfile.deprecated
     }
     hasBin = Boolean((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin)
-    /* eslint-enable @typescript-eslint/dot-notation */
   }
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest

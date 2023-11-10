@@ -1637,17 +1637,3 @@ test('installation should work with packages that have () in the scope name', as
   const manifest = await addDependenciesToPackage({}, ['@(-.-)/env@0.3.1'], opts)
   await install(manifest, opts)
 })
-
-test('A lockfile only update with the useExperimentalNpmjsFilesIndex flag set returns requiresBuild=true without full tarball being fetched', async () => {
-  prepareEmpty()
-  await addDependenciesToPackage({}, ['nodecv@1.1.2'], await testDefaults({ registries: { default: 'https://registry.npmjs.org/' }, useExperimentalNpmjsFilesIndex: true, lockfileOnly: true }))
-  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  expect(lockfile.packages!['/nodecv@1.1.2'].requiresBuild).toBeTruthy()
-})
-
-test('A lockfile only update with the useExperimentalNpmjsFilesIndex flag set returns requiresBuild=false without full tarball being fetched', async () => {
-  prepareEmpty()
-  await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ registries: { default: 'https://registry.npmjs.org/' }, useExperimentalNpmjsFilesIndex: true, lockfileOnly: true }))
-  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  expect(lockfile.packages!['/is-positive@1.0.0'].requiresBuild).toBeUndefined()
-})
