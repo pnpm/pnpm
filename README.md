@@ -180,6 +180,12 @@ Benchmarks on an app with lots of dependencies:
 
 ![](https://pnpm.io/img/benchmarks/alotta-files.svg)
 
+## Usage Trend
+
+[Usage Trend of pnpm](https://npm-compare.com/pnpm/#timeRange=THREE_YEARS)
+
+![image](https://github.com/pnpm/pnpm/assets/3455798/ee2513db-7a98-43dc-8561-7f4d62635912)
+
 ## Backers
 
 Thank you to all our backers! [Become a backer](https://opencollective.com/pnpm#backer)

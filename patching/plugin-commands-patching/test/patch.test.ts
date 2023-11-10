@@ -658,6 +658,69 @@ describe('patch and commit in workspaces', () => {
     expect(fs.existsSync('../project-2/node_modules/is-positive/license')).toBe(true)
   })
 
+  test('reusing existing patch file should work with shared-workspace-lockfile=false', async () => {
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      allProjects,
+      allProjectsGraph,
+      dir: process.cwd(),
+      lockfileDir: undefined,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+      saveLockfile: true,
+      sharedWorkspaceLockfile: false,
+    })
+
+    // patch project-1
+    process.chdir('./project-1')
+    let output = await patch.handler({
+      ...defaultPatchOption,
+      dir: process.cwd(),
+    }, ['is-positive@1.0.0'])
+    let patchDir = getPatchDirFromPatchOutput(output)
+
+    // modify index.js and remove license
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '// test patching', 'utf8')
+    fs.unlinkSync(path.join(patchDir, 'license'))
+
+    // patch-commit
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      dir: process.cwd(),
+      rootProjectManifestDir: process.cwd(),
+      cacheDir,
+      storeDir,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+      saveLockfile: true,
+      frozenLockfile: false,
+      fixLockfile: true,
+      sharedWorkspaceLockfile: false,
+    }, [patchDir])
+
+    // verify committed patch
+    expect(fs.readFileSync('./node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
+    expect(fs.existsSync('./node_modules/is-positive/license')).toBe(false)
+
+    // re-patch project-1
+    output = await patch.handler({
+      ...defaultPatchOption,
+      dir: process.cwd(),
+    }, ['is-positive@1.0.0'])
+    patchDir = getPatchDirFromPatchOutput(output)
+    expect(fs.existsSync(patchDir)).toBe(true)
+
+    // verify temporary patch is reusing last committed patch
+    expect(fs.readFileSync(path.join(patchDir, 'index.js'), 'utf8')).toContain('// test patching')
+    expect(fs.existsSync(path.join(patchDir, 'license'))).toBe(false)
+  })
+
   test('patch and patch-commit for git hosted dependency', async () => {
     const { allProjects, allProjectsGraph, selectedProjectsGraph } = await readProjects(process.cwd(), [])
     await install.handler({
