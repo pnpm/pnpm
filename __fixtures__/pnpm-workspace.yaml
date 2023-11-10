@@ -16,3 +16,4 @@ packages:
   - '!workspace-has-shared-yarn-lock'
   - '!workspace-has-shared-package-lock-json'
   - '!workspace-has-shared-npm-shrinkwrap-json'
+  - '!has-package-lock-json-same-dep-multi-version'  
