@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/workspace.find-packages",
-  "version": "1.1.1",
-  "description": "Finds packages inside a workspace",
+  "name": "@pnpm/workspace.read-manifest",
+  "version": "0.0.0",
+  "description": "Reads a workspace manifest file",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
@@ -18,7 +18,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/find-packages",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/read-manifest",
   "keywords": [
     "pnpm8",
     "pnpm"
@@ -27,20 +27,15 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/find-packages#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/workspace/read-manifest#readme",
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:*",
-    "@pnpm/fs.find-packages": "workspace:*",
-    "@pnpm/types": "workspace:*",
-    "@pnpm/util.lex-comparator": "1.0.0",
-    "@pnpm/workspace.read-manifest": "workspace:*"
+    "@pnpm/error": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "read-yaml-file": "^2.1.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/workspace.find-packages": "workspace:*"
-  },
-  "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
+    "@pnpm/workspace.read-manifest": "workspace:*"
   },
   "exports": {
     ".": "./lib/index.js"

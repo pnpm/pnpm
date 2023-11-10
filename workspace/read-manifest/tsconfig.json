@@ -10,16 +10,10 @@
   ],
   "references": [
     {
-      "path": "../../cli/cli-utils"
+      "path": "../../packages/constants"
     },
     {
-      "path": "../../fs/find-packages"
-    },
-    {
-      "path": "../../packages/types"
-    },
-    {
-      "path": "../read-manifest"
+      "path": "../../packages/error"
     }
   ],
   "composite": true

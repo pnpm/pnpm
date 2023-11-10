@@ -6168,9 +6168,6 @@ importers:
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: link:../../cli/cli-utils
-      '@pnpm/constants':
-        specifier: workspace:*
-        version: link:../../packages/constants
       '@pnpm/fs.find-packages':
         specifier: workspace:*
         version: link:../../fs/find-packages
@@ -6183,9 +6180,9 @@ importers:
       '@pnpm/util.lex-comparator':
         specifier: 1.0.0
         version: 1.0.0
-      read-yaml-file:
-        specifier: ^2.1.0
-        version: 2.1.0
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: link:../read-manifest
     devDependencies:
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
@@ -6228,6 +6225,22 @@ importers:
       better-path-resolve:
         specifier: 1.0.0
         version: 1.0.0
+
+  workspace/read-manifest:
+    dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
+      read-yaml-file:
+        specifier: ^2.1.0
+        version: 2.1.0
+    devDependencies:
+      '@pnpm/workspace.read-manifest':
+        specifier: workspace:*
+        version: 'link:'
 
   workspace/resolve-workspace-range:
     dependencies:
@@ -8991,7 +9004,7 @@ packages:
   /@types/byline@4.2.35:
     resolution: {integrity: sha512-YRfEGhvLQrA1/ixrJ95/vqin4J+hc0OIHH89rWGE2q0Tn9Jy6BhPZTiCLV1X39VJMOoq8UCUUFN+WD+gnmBjhw==}
     dependencies:
-      '@types/node': 20.8.8
+      '@types/node': 16.18.59
     dev: true
 
   /@types/cacache@17.0.1:
@@ -9005,7 +9018,7 @@ packages:
     dependencies:
       '@types/http-cache-semantics': 4.0.3
       '@types/keyv': 3.1.4
-      '@types/node': 20.8.8
+      '@types/node': 16.18.59
       '@types/responselike': 1.0.2
 
   /@types/cross-spawn@6.0.4:
@@ -9111,7 +9124,7 @@ packages:
   /@types/keyv@3.1.4:
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
     dependencies:
-      '@types/node': 20.8.8
+      '@types/node': 16.18.59
 
   /@types/lodash.clonedeep@4.5.8:
     resolution: {integrity: sha512-I5toZLLfTvhnuAnejjVgSpBSLSC316bVURbI0sCYI0dKY3jaJgOg2arfPC6miTNnHRi/Tk/J6BB+kzT3iB5mcw==}
@@ -9267,7 +9280,7 @@ packages:
   /@types/responselike@1.0.2:
     resolution: {integrity: sha512-/4YQT5Kp6HxUDb4yhRkm0bJ7TbjvTddqX7PZ5hz6qV3pxSo72f/6YPRo+Mu2DU307tm9IioO69l7uAwn5XNcFA==}
     dependencies:
-      '@types/node': 20.8.8
+      '@types/node': 16.18.59
 
   /@types/retry@0.12.4:
     resolution: {integrity: sha512-l1YzFLj8Y6OhLdt7HKXlz56DoEmksB7qR8KVk+MpFsS4duwnoszLgDlLxJB0vgSqtg/rAS5gmYg5Bjw2sMJ8Ew==}
@@ -9664,7 +9677,7 @@ packages:
     resolution: {integrity: sha512-YmG+oTBCyrAoMIx5g2I9CfyurSpHyoan+9SCj7laaFKseOe3lFEyIVKvwRBQMmSt8uzh+eY5RWeQnoyyOs6AbA==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
-      '@yarnpkg/fslib': 3.0.0-rc.25
+      '@yarnpkg/fslib': ^3.0.0-rc.25
     dependencies:
       '@types/emscripten': 1.39.9
       '@yarnpkg/fslib': 3.0.0-rc.25

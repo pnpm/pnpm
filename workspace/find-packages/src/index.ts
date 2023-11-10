@@ -1,11 +1,9 @@
-import path from 'path'
 import { packageIsInstallable } from '@pnpm/cli-utils'
-import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { type ProjectManifest, type Project, type SupportedArchitectures } from '@pnpm/types'
+import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { findPackages } from '@pnpm/fs.find-packages'
 import { logger } from '@pnpm/logger'
-import readYamlFile from 'read-yaml-file'
 
 export type { Project }
 
@@ -40,8 +38,8 @@ export async function findWorkspacePackages (
 export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?: { patterns?: string[] }): Promise<Project[]> {
   let patterns = opts?.patterns
   if (patterns == null) {
-    const packagesManifest = await requirePackagesManifest(workspaceRoot)
-    patterns = packagesManifest?.packages ?? undefined
+    const workspaceManifest = await readWorkspaceManifest(workspaceRoot)
+    patterns = workspaceManifest?.packages
   }
   const pkgs = await findPackages(workspaceRoot, {
     ignore: [
@@ -53,17 +51,6 @@ export async function findWorkspacePackagesNoCheck (workspaceRoot: string, opts?
   })
   pkgs.sort((pkg1: { dir: string }, pkg2: { dir: string }) => lexCompare(pkg1.dir, pkg2.dir))
   return pkgs
-}
-
-async function requirePackagesManifest (dir: string): Promise<{ packages?: string[] } | null> {
-  try {
-    return await readYamlFile<{ packages?: string[] }>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
-  } catch (err: any) { // eslint-disable-line
-    if (err['code'] === 'ENOENT') {
-      return null
-    }
-    throw err
-  }
 }
 
 type ArrayOfWorkspacePackagesToMapResult = Record<string, Record<string, Pick<Project, 'manifest'>>>
