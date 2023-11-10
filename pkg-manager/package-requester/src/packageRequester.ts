@@ -98,6 +98,9 @@ export function createPackageRequester (
   } {
   opts = opts || {}
 
+  // A lower bound of 16 is enforced to prevent performance degradation,
+  // especially in CI environments. Tests with a threshold lower than 16
+  // have shown consistent underperformance.
   const networkConcurrency = opts.networkConcurrency ?? Math.max(os.cpus().length, 16)
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
