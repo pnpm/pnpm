@@ -3,8 +3,6 @@ import { PnpmError } from '@pnpm/error'
 import path from 'node:path'
 import readYamlFile from 'read-yaml-file'
 
-const ERR_CODE = 'INVALID_WORKSPACE_CONFIGURATION'
-
 export interface WorkspaceManifest {
   packages?: string[]
 }
@@ -28,7 +26,7 @@ async function readManifestRaw (dir: string): Promise<unknown> {
     }
 
     // Any other error (missing perm, invalid yaml, etc.) fails the process
-    throw new PnpmError(ERR_CODE, `\n${err.message}`)
+    throw err
   }
 }
 
@@ -40,15 +38,15 @@ function validateWorkspaceManifest (manifest: any): manifest is WorkspaceManifes
   }
 
   if (manifest === null) {
-    throw new PnpmError(ERR_CODE, 'Expected object but found - null')
+    throw new InvalidWorkspaceManifestError('Expected object but found - null')
   }
 
   if (typeof manifest !== 'object') {
-    throw new PnpmError(ERR_CODE, `Expected object but found - ${typeof manifest}`)
+    throw new InvalidWorkspaceManifestError(`Expected object but found - ${typeof manifest}`)
   }
 
   if (Array.isArray(manifest)) {
-    throw new PnpmError(ERR_CODE, 'Expected object but found - array')
+    throw new InvalidWorkspaceManifestError('Expected object but found - array')
   }
 
   if (Object.keys(manifest).length === 0) {
@@ -57,23 +55,29 @@ function validateWorkspaceManifest (manifest: any): manifest is WorkspaceManifes
   }
 
   if (!manifest.packages) {
-    throw new PnpmError(ERR_CODE, 'packages field missing or empty')
+    throw new InvalidWorkspaceManifestError('packages field missing or empty')
   }
 
   if (!Array.isArray(manifest.packages)) {
-    throw new PnpmError(ERR_CODE, 'packages field is not an array')
+    throw new InvalidWorkspaceManifestError('packages field is not an array')
   }
 
-  manifest.packages.forEach((pkg: unknown) => {
+  for (const pkg of manifest.packages) {
     if (!pkg) {
-      throw new PnpmError(ERR_CODE, 'Missing or empty package')
+      throw new InvalidWorkspaceManifestError('Missing or empty package')
     }
 
     const type = typeof pkg
     if (type !== 'string') {
-      throw new PnpmError(ERR_CODE, `Invalid package type - ${type}`)
+      throw new InvalidWorkspaceManifestError(`Invalid package type - ${type}`)
     }
-  })
+  }
 
   return true
+}
+
+class InvalidWorkspaceManifestError extends PnpmError {
+  constructor (message: string) {
+    super('INVALID_WORKSPACE_CONFIGURATION', message)
+  }
 }
