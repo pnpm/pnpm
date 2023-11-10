@@ -151,3 +151,18 @@ test('import from package-lock.json v3', async () => {
   await project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
   await project.hasNot('@pnpm.e2e/pkg-with-1-dep')
 })
+
+test('has package-lock.json that has two dependencies with the same dependency but different versions', async () => {
+  f.prepare('has-package-lock-json-same-dep-multi-version')
+
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, [])
+
+  const project = assertProject(process.cwd())
+  const lockfile = await project.readLockfile()
+  console.log(lockfile.packages)
+  expect(lockfile.packages['/@pnpm.e2e/has-foo-100.0.0-range-dep@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.0.0')
+  expect(lockfile.packages['/@pnpm.e2e/has-foo-100.1.0-dep-1@1.0.0'].dependencies?.['@pnpm.e2e/foo']).toBe('100.1.0')
+})
