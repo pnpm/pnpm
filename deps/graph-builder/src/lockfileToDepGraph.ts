@@ -133,8 +133,8 @@ export async function lockfileToDepGraph (
         const depIsPresent = !refIsLocalDirectory(depPath) &&
           currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies)
         if (
-          depIsPresent && isEmpty(currentPackages[depPath].optionalDependencies) &&
-          isEmpty(lockfile.packages![depPath].optionalDependencies)
+          depIsPresent && isEmpty(currentPackages[depPath].optionalDependencies ?? {}) &&
+          isEmpty(lockfile.packages![depPath].optionalDependencies ?? {})
         ) {
           if (await pathExists(dir)) {
             return
