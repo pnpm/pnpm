@@ -145,6 +145,19 @@ test('no dependencies (lodash)', async () => {
   expect(typeof m.clone).toBe('function')
 })
 
+test('only the new packages are added', async () => {
+  prepareEmpty()
+  const manifest = await addDependenciesToPackage({}, ['@pnpm/x'], await testDefaults())
+  const reporter = sinon.spy()
+  await addDependenciesToPackage(manifest, ['@pnpm/y'], await testDefaults({ reporter }))
+
+  expect(reporter.calledWithMatch({
+    added: 1,
+    level: 'debug',
+    name: 'pnpm:stats',
+  } as StatsLog)).toBeTruthy()
+})
+
 test('scoped modules without version spec', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@zkochan/foo'], await testDefaults())
