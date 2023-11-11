@@ -76,6 +76,20 @@ test('installing a simple project', async () => {
     requester: prefix,
     status: 'resolved',
   })).toBeTruthy()
+
+  reporter.resetHistory()
+  await headlessInstall(await testDefaults({
+    lockfileDir: prefix,
+    reporter,
+  }))
+  // On repeat install no new packages should be added
+  // covers https://github.com/pnpm/pnpm/issues/7297
+  expect(reporter.calledWithMatch({
+    added: 0,
+    level: 'debug',
+    name: 'pnpm:stats',
+    prefix,
+  } as StatsLog)).toBeTruthy()
 })
 
 test('installing only prod deps', async () => {
