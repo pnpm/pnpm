@@ -1087,7 +1087,8 @@ async function resolveDependency (
         ? ctx.lockfileDir
         : options.parentPkg.rootDir,
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.pref) || ctx.registries.default,
-      skipFetch: !!ctx.useExperimentalNpmjsFilesIndex,
+      // we can skip fetching only if we use the NPMJS Files Index, and we don't need the full tarball
+      skipFetch: (ctx.dryRun && !!ctx.useExperimentalNpmjsFilesIndex),
       update: options.update,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,
