@@ -403,7 +403,7 @@ async function finishLockfileUpdates (
   dependenciesGraph: DependenciesGraph,
   pendingRequiresBuilds: string[],
   newLockfile: Lockfile,
-  useExperimentalNpmjsFilesIndex?: boolean | string[]
+  useExperimentalNpmjsFilesIndex: boolean | string[]
 ) {
   return Promise.all(pendingRequiresBuilds.map(async (depPath) => {
     const depNode = dependenciesGraph[depPath]

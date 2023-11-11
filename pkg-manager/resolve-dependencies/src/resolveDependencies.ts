@@ -158,6 +158,7 @@ export interface ResolutionContext {
   pnpmVersion: string
   registries: Registries
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
+  useExperimentalNpmjsFilesIndex: boolean | string []
   virtualStoreDir: string
   workspacePackages?: WorkspacePackages
   missingPeersOfChildrenByPkgId: Record<string, { parentImporterId: string, missingPeersOfChildren: MissingPeersOfChildren }>
@@ -1086,7 +1087,7 @@ async function resolveDependency (
         ? ctx.lockfileDir
         : options.parentPkg.rootDir,
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias, wantedDependency.pref) || ctx.registries.default,
-      skipFetch: ctx.dryRun,
+      skipFetch: !!ctx.useExperimentalNpmjsFilesIndex,
       update: options.update,
       workspacePackages: ctx.workspacePackages,
       supportedArchitectures: options.supportedArchitectures,

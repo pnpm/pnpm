@@ -1010,7 +1010,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: opts.depth,
       dedupePeerDependents: opts.dedupePeerDependents,
-      dryRun: !!(opts.lockfileOnly && opts.useExperimentalNpmjsFilesIndex),
+      dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
       force: opts.force,
@@ -1036,7 +1036,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       workspacePackages: opts.workspacePackages,
       patchedDependencies: opts.patchedDependencies,
       lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
-      useExperimentalNpmjsFilesIndex: opts.lockfileOnly && opts.useExperimentalNpmjsFilesIndex,
+      useExperimentalNpmjsFilesIndex: opts.useExperimentalNpmjsFilesIndex,
       resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       supportedArchitectures: opts.supportedArchitectures,
     }
