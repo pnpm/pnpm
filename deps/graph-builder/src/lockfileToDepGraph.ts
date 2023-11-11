@@ -132,11 +132,13 @@ export async function lockfileToDepGraph (
         const dir = path.join(modules, pkgName)
         const depIsPresent = !refIsLocalDirectory(depPath) &&
           currentPackages[depPath] && equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies)
+        let dirExists: boolean | undefined
         if (
           depIsPresent && isEmpty(currentPackages[depPath].optionalDependencies) &&
           isEmpty(lockfile.packages![depPath].optionalDependencies)
         ) {
-          if (await pathExists(dir)) {
+          dirExists = await pathExists(dir)
+          if (dirExists) {
             return
           }
 
@@ -146,7 +148,7 @@ export async function lockfileToDepGraph (
         }
         let fetchResponse!: Partial<ReturnType<FetchPackageToStoreFunction>>
         if (depIsPresent && equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)) {
-          if (await pathExists(dir)) {
+          if (dirExists ?? await pathExists(dir)) {
             fetchResponse = {}
           } else {
             brokenModulesLogger.debug({
