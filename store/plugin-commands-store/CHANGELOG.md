@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-store
 
+## 8.1.4
+
+### Patch Changes
+
+- 291607c5a: When using `pnpm store prune --force` alien directories are removed from the store [#7272](https://github.com/pnpm/pnpm/pull/7272).
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/store.cafs@2.0.9
+  - @pnpm/store-connection-manager@7.0.14
+  - @pnpm/config@20.1.2
+  - @pnpm/cli-utils@2.1.2
+
 ## 8.1.3
 
 ### Patch Changes

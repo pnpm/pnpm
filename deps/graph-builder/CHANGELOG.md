@@ -1,5 +1,13 @@
 # @pnpm/deps.graph-builder
 
+## 0.2.2
+
+### Patch Changes
+
+- fe1f0f734: Fixed a performance regression on running installation on a project with an up to date lockfile [#7297](https://github.com/pnpm/pnpm/issues/7297).
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+
 ## 0.2.1
 
 ### Patch Changes

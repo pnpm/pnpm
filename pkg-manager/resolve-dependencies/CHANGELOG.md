@@ -1,5 +1,14 @@
 # @pnpm/resolve-dependencies
 
+## 31.2.2
+
+### Patch Changes
+
+- 4da7b463f: (Important) Increased the default amount of allowed concurrent network request on systems that have more than 16 CPUs [#7285](https://github.com/pnpm/pnpm/pull/7285).
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/npm-resolver@17.0.0
+
 ## 31.2.1
 
 ### Patch Changes

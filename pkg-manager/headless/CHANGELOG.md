@@ -1,5 +1,21 @@
 # @pnpm/headless
 
+## 22.3.6
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+- Updated dependencies [fe1f0f734]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/deps.graph-builder@0.2.2
+  - @pnpm/build-modules@11.2.5
+  - @pnpm/lifecycle@16.0.8
+  - @pnpm/modules-cleaner@14.0.18
+  - @pnpm/package-requester@24.1.2
+  - @pnpm/worker@0.3.8
+  - @pnpm/symlink-dependency@7.1.2
+  - @pnpm/link-bins@9.0.10
+
 ## 22.3.5
 
 ### Patch Changes

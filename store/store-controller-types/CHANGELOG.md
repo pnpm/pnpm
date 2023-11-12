@@ -1,5 +1,11 @@
 # @pnpm/store-controller-types
 
+## 17.1.2
+
+### Patch Changes
+
+- 291607c5a: When using `pnpm store prune --force` alien directories are removed from the store [#7272](https://github.com/pnpm/pnpm/pull/7272).
+
 ## 17.1.1
 
 ### Patch Changes

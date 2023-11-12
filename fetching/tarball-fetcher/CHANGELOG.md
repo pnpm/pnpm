@@ -1,5 +1,13 @@
 # @pnpm/tarball-fetcher
 
+## 18.0.12
+
+### Patch Changes
+
+- abdf1f2b6: Don't retry fetching missing packages, since the retries will never work [#7276](https://github.com/pnpm/pnpm/pull/7276).
+  - @pnpm/prepare-package@5.0.20
+  - @pnpm/worker@0.3.8
+
 ## 18.0.11
 
 ### Patch Changes

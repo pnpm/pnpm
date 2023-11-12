@@ -1,5 +1,23 @@
 # @pnpm/core
 
+## 13.1.6
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+- Updated dependencies [4da7b463f]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/resolve-dependencies@31.2.2
+  - @pnpm/build-modules@11.2.5
+  - @pnpm/lifecycle@16.0.8
+  - @pnpm/headless@22.3.6
+  - @pnpm/modules-cleaner@14.0.18
+  - @pnpm/package-requester@24.1.2
+  - @pnpm/worker@0.3.8
+  - @pnpm/symlink-dependency@7.1.2
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/link-bins@9.0.10
+
 ## 13.1.5
 
 ### Patch Changes

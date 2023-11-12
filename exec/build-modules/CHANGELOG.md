@@ -1,5 +1,17 @@
 # @pnpm/build-modules
 
+## 11.2.5
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/lifecycle@16.0.8
+  - @pnpm/worker@0.3.8
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/link-bins@9.0.10
+
 ## 11.2.4
 
 ### Patch Changes

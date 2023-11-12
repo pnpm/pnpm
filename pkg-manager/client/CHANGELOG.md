@@ -1,5 +1,14 @@
 # @pnpm/client
 
+## 10.0.35
+
+### Patch Changes
+
+- Updated dependencies [abdf1f2b6]
+  - @pnpm/tarball-fetcher@18.0.12
+  - @pnpm/directory-fetcher@7.0.7
+  - @pnpm/git-fetcher@12.0.12
+
 ## 10.0.34
 
 ### Patch Changes

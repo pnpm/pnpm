@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-patching
 
+## 5.0.6
+
+### Patch Changes
+
+- 2dfc8c80a: `pnpm patch` should reuse existing patch when `shared-workspace-file=false` [#7252](https://github.com/pnpm/pnpm/pull/7252).
+- Updated dependencies [74432d605]
+  - @pnpm/fs.packlist@1.0.2
+  - @pnpm/plugin-commands-installation@14.0.6
+  - @pnpm/store-connection-manager@7.0.14
+  - @pnpm/config@20.1.2
+  - @pnpm/cli-utils@2.1.2
+  - @pnpm/patching.apply-patch@2.0.5
+
 ## 5.0.5
 
 ### Patch Changes
