@@ -212,3 +212,8 @@ declare module '@pnpm/npm-conf/lib/types' {
   const npmTypes: npmType
   export = npmTypes
 }
+
+declare module 'npm-packlist' {
+  function npmPacklist (opts: { path: string }): Promise<string[]>
+  export = npmPacklist
+}
