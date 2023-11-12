@@ -142,6 +142,12 @@
       "path": "../../worker"
     },
     {
+      "path": "../../workspace/filter-packages-from-dir"
+    },
+    {
+      "path": "../../workspace/find-packages"
+    },
+    {
       "path": "../client"
     },
     {
