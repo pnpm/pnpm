@@ -183,6 +183,7 @@
         "is-port-reachable",
         "load-json-file",
         "mem",
+        "npm-packlist",
         "node-fetch",
         "normalize-newline",
         "p-any",
