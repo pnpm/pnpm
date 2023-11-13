@@ -78,7 +78,6 @@ async function _lockfileToHoistedDepGraph (
   const tree = hoist(lockfile, {
     hoistingLimits: opts.hoistingLimits,
     externalDependencies: opts.externalDependencies,
-    autoInstallPeers: opts.autoInstallPeers,
   })
   const graph: DependenciesGraph = {}
   const modulesDir = path.join(opts.lockfileDir, 'node_modules')
