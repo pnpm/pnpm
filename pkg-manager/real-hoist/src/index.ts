@@ -21,13 +21,20 @@ export function hoist (
   }
 ): HoisterResult {
   const nodes = new Map<string, HoisterTree>()
+  const ctx = {
+    autoInstallPeers: opts?.autoInstallPeers,
+    nodes,
+    lockfile,
+    depPathByPkgId: new Map<string, string>(),
+  }
+  const _toTree = toTree.bind(null, ctx)
   const node: HoisterTree = {
     name: '.',
     identName: '.',
     reference: '',
     peerNames: new Set<string>([]),
     dependencyKind: HoisterDependencyKind.WORKSPACE,
-    dependencies: toTree(nodes, lockfile, {
+    dependencies: _toTree({
       ...lockfile.importers['.']?.dependencies,
       ...lockfile.importers['.']?.devDependencies,
       ...lockfile.importers['.']?.optionalDependencies,
@@ -38,7 +45,7 @@ export function hoist (
         acc[dep] = 'link:'
         return acc
       }, {} as Record<string, string>),
-    }, opts?.autoInstallPeers),
+    }),
   }
   for (const [importerId, importer] of Object.entries(lockfile.importers)) {
     if (importerId === '.') continue
@@ -48,11 +55,11 @@ export function hoist (
       reference: `workspace:${importerId}`,
       peerNames: new Set<string>([]),
       dependencyKind: HoisterDependencyKind.WORKSPACE,
-      dependencies: toTree(nodes, lockfile, {
+      dependencies: _toTree({
         ...importer.dependencies,
         ...importer.devDependencies,
         ...importer.optionalDependencies,
-      }, opts?.autoInstallPeers),
+      }),
     }
     node.dependencies.add(importerNode)
   }
@@ -69,10 +76,13 @@ export function hoist (
 }
 
 function toTree (
-  nodes: Map<string, HoisterTree>,
-  lockfile: Lockfile,
-  deps: Record<string, string>,
-  autoInstallPeers?: boolean
+  { nodes, lockfile, depPathByPkgId, autoInstallPeers }: {
+    autoInstallPeers?: boolean
+    depPathByPkgId: Map<string, string>
+    lockfile: Lockfile
+    nodes: Map<string, HoisterTree>
+  },
+  deps: Record<string, string>
 ): Set<HoisterTree> {
   return new Set(Object.entries(deps).map(([alias, ref]) => {
     const depPath = dp.refToRelative(ref, alias)!
@@ -99,11 +109,15 @@ function toTree (
       if (!pkgSnapshot) {
         throw new LockfileMissingDependencyError(depPath)
       }
-      const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
+      const { name: pkgName, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      const id = `${pkgName}@${version}`
+      if (!depPathByPkgId.has(id)) {
+        depPathByPkgId.set(id, depPath)
+      }
       node = {
         name: alias,
         identName: pkgName,
-        reference: depPath,
+        reference: depPathByPkgId.get(id)!,
         dependencyKind: HoisterDependencyKind.REGULAR,
         dependencies: new Set(),
         peerNames: new Set(autoInstallPeers
@@ -114,7 +128,9 @@ function toTree (
           ]),
       }
       nodes.set(key, node)
-      node.dependencies = toTree(nodes, lockfile, { ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
+      node.dependencies = toTree(
+        { nodes, lockfile, depPathByPkgId, autoInstallPeers },
+        { ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
     }
     return node
   }))
