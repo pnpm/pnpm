@@ -1,7 +1,7 @@
 import type * as logs from '@pnpm/core-loggers'
 import { type PackageManifest } from '@pnpm/types'
 import * as Rx from 'rxjs'
-import { filter, map, mapTo, reduce, scan, startWith, take } from 'rxjs/operators'
+import { map, mapTo, reduce, scan, startWith, take } from 'rxjs/operators'
 import mergeRight from 'ramda/src/mergeRight'
 import difference from 'ramda/src/difference'
 
@@ -13,10 +13,19 @@ export interface PackageDiff {
   version?: string
   deprecated?: boolean
   latest?: string
+  prefix: string
 }
 
 export interface Map<T> {
   [index: string]: T
+}
+
+export interface PkgDiffs {
+  dev: Map<PackageDiff>
+  nodeModulesOnly: Map<PackageDiff>
+  optional: Map<PackageDiff>
+  prod: Map<PackageDiff>
+  peer: Map<PackageDiff>
 }
 
 export const propertyByDependencyType = {
@@ -33,14 +42,10 @@ export function getPkgsDiff (
     summary: Rx.Observable<logs.SummaryLog>
     root: Rx.Observable<logs.RootLog>
     packageManifest: Rx.Observable<logs.PackageManifestLog>
-  },
-  opts: {
-    prefix: string
   }
 ) {
   const deprecationSet$ = log$.deprecation
     .pipe(
-      filter((log) => log.prefix === opts.prefix),
       scan((acc, log) => {
         acc.add(log.pkgId)
         return acc
@@ -48,9 +53,8 @@ export function getPkgsDiff (
       startWith(new Set())
     )
 
-  const filterPrefix = filter((log: { prefix: string }) => log.prefix === opts.prefix)
   const pkgsDiff$ = Rx.combineLatest(
-    log$.root.pipe(filterPrefix),
+    log$.root,
     deprecationSet$
   ).pipe(
     scan((pkgsDiff, args) => {
@@ -82,6 +86,7 @@ export function getPkgsDiff (
         name: log.name,
         realName: log.realName,
         version: log.version,
+        prefix: rootLog.prefix,
       }
       return pkgsDiff
     }, {
@@ -90,11 +95,6 @@ export function getPkgsDiff (
       optional: {},
       peer: {},
       prod: {},
-    } as {
-      dev: Map<PackageDiff>
-      nodeModulesOnly: Map<PackageDiff>
-      optional: Map<PackageDiff>
-      prod: Map<PackageDiff>
     }),
     startWith({
       dev: {},
@@ -106,8 +106,8 @@ export function getPkgsDiff (
   )
 
   const packageManifest$ = Rx.merge(
-    log$.packageManifest.pipe(filterPrefix),
-    log$.summary.pipe(filterPrefix, mapTo({}))
+    log$.packageManifest,
+    log$.summary.pipe(mapTo({}))
   )
     .pipe(
       take(2),
