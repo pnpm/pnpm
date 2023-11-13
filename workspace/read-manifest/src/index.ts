@@ -32,13 +32,9 @@ async function readManifestRaw (dir: string): Promise<unknown> {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function validateWorkspaceManifest (manifest: any): manifest is WorkspaceManifest | undefined {
-  if (manifest === undefined) {
-    // Empty manifest is ok
+  if (manifest === undefined || manifest === null) {
+    // Empty or null manifest is ok
     return true
-  }
-
-  if (manifest === null) {
-    throw new InvalidWorkspaceManifestError('Expected object but found - null')
   }
 
   if (typeof manifest !== 'object') {

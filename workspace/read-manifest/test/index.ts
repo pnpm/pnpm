@@ -50,3 +50,15 @@ test('readWorkspaceManifest() works when no workspace file is present', async ()
 
   expect(manifest).toBeUndefined()
 })
+
+test('readWorkspaceManifest() works when workspace file is empty', async () => {
+  const manifest = await readWorkspaceManifest(path.join(__dirname, '__fixtures__/empty'))
+
+  expect(manifest).toBeUndefined()
+})
+
+test('readWorkspaceManifest() works when workspace file is null', async () => {
+  const manifest = await readWorkspaceManifest(path.join(__dirname, '__fixtures__/null'))
+
+  expect(manifest).toBeNull()
+})
