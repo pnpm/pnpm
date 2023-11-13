@@ -1094,7 +1094,7 @@ test('when using a different registry, add -g to the error report according to o
     err = _err
   }
   expect(err.code).toBe('ERR_PNPM_REGISTRIES_MISMATCH')
-  expect(err.message).toContain('pnpm install -g')
+  expect(err.hint).toContain('pnpm install -g')
 })
 
 test('broken lockfile is fixed even if it seems like up to date at first. Unless frozenLockfile option is set to true', async () => {
