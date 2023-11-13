@@ -258,7 +258,7 @@ test('prints summary without the filtered out entries', (done) => {
     added: {
       dependencyType: 'prod',
       id: 'registry.npmjs.org/bar/2.0.0',
-      latest: '1.0.0', // this won't be printed in summary because latest is less than current version
+      latest: '1.0.0', // this won't be printed in summary because opts.filterPkgsDiff
       name: 'bar',
       realName: 'bar',
       version: '2.0.0',
@@ -269,7 +269,7 @@ test('prints summary without the filtered out entries', (done) => {
     added: {
       dependencyType: 'dev',
       id: 'registry.npmjs.org/qar/2.0.0',
-      latest: '1.0.0', // this won't be printed in summary because latest is less than current version
+      latest: '1.0.0',
       name: 'qar',
       realName: 'qar',
       version: '2.0.0',
@@ -298,6 +298,9 @@ test('prints summary without the filtered out entries', (done) => {
       expect(output).toBe(EOL + `\
 ${h1('dependencies:')}
 ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
+` + EOL + `\
+${h1('devDependencies:')}
+${ADD} qar ${versionColor('2.0.0')}
 `)
     },
   })
