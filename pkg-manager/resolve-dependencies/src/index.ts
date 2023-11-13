@@ -101,7 +101,7 @@ export async function resolveDependencies (
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
     allowNonAppliedPatches?: boolean
-    useExperimentalNpmjsFilesIndex?: boolean | string[]
+    useExperimentalNpmjsFilesIndex?: boolean
   }
 ) {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -367,17 +367,7 @@ function pkgJsonFromRegFSHasInstallScripts (pkgJson: ProjectManifest): boolean {
     Boolean(pkgJson.scripts.postinstall)
 }
 
-async function fetchBuildFromRegistryFS (pkgName: string, pkgVersion: string, pkgUrl: string, useExperimentalNpmjsFilesIndex: boolean | string[]): Promise<boolean> {
-  let registryUrls = ['registry.npmjs.org/', 'registry.npmjs.com/']
-  if (Array.isArray(useExperimentalNpmjsFilesIndex)) {
-    registryUrls = useExperimentalNpmjsFilesIndex
-  }
-  // check if any of the registryUrls are contained in the pkgUrl
-  const registryUrl = registryUrls.find((url) => pkgUrl.startsWith(url))
-  if (!registryUrl) {
-    globalWarn(`${pkgName}@${pkgVersion} (${pkgUrl}) is not in NPMJS Files Index URL Allow List: Fallback to requiresBuild=true`)
-    return true
-  }
+async function fetchBuildFromRegistryFS (pkgName: string, pkgVersion: string): Promise<boolean> {
   try {
     const regFS = await fetchPkgIndex(pkgName, pkgVersion)
 
@@ -403,7 +393,7 @@ async function finishLockfileUpdates (
   dependenciesGraph: DependenciesGraph,
   pendingRequiresBuilds: string[],
   newLockfile: Lockfile,
-  useExperimentalNpmjsFilesIndex: boolean | string[]
+  useExperimentalNpmjsFilesIndex: boolean
 ) {
   return Promise.all(pendingRequiresBuilds.map(async (depPath) => {
     const depNode = dependenciesGraph[depPath]
@@ -416,7 +406,7 @@ async function finishLockfileUpdates (
         requiresBuild = true
       } else {
         if (useExperimentalNpmjsFilesIndex) {
-          requiresBuild = await fetchBuildFromRegistryFS(depNode.name, depNode.version, depNode.id, useExperimentalNpmjsFilesIndex)
+          requiresBuild = await fetchBuildFromRegistryFS(depNode.name, depNode.version)
         } else {
         // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
           const { files, bundledManifest: pkgJson } = await depNode.fetching()

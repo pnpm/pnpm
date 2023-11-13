@@ -158,7 +158,7 @@ export interface ResolutionContext {
   pnpmVersion: string
   registries: Registries
   resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
-  useExperimentalNpmjsFilesIndex: boolean | string []
+  useExperimentalNpmjsFilesIndex: boolean
   virtualStoreDir: string
   workspacePackages?: WorkspacePackages
   missingPeersOfChildrenByPkgId: Record<string, { parentImporterId: string, missingPeersOfChildren: MissingPeersOfChildren }>

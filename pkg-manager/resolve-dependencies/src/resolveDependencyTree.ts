@@ -85,7 +85,7 @@ export interface ResolveDependenciesOptions {
   lockfileDir: string
   storeController: StoreController
   tag: string
-  useExperimentalNpmjsFilesIndex: boolean | string[]
+  useExperimentalNpmjsFilesIndex: boolean
   virtualStoreDir: string
   wantedLockfile: Lockfile
   workspacePackages: WorkspacePackages

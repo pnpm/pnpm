@@ -48,7 +48,7 @@ export interface StrictInstallOptions {
   lockfileIncludeTarballUrl: boolean
   preferWorkspacePackages: boolean
   preserveWorkspaceProtocol: boolean
-  useExperimentalNpmjsFilesIndex: boolean | string[]
+  useExperimentalNpmjsFilesIndex: boolean
   scriptsPrependNodePath: boolean | 'warn-only'
   scriptShell?: string
   shellEmulator: boolean
