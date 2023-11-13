@@ -1,5 +1,6 @@
 ---
 "@pnpm/real-hoist": patch
+"@pnpm/lockfile-utils": patch
 "pnpm": patch
 ---
 
