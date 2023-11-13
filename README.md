@@ -136,7 +136,7 @@ To quote the [Rush](https://rushjs.io/) team:
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/macpaw.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/macpaw_light.svg" />
-            <img src="https://pnpm.io/img/users/thinkmill.svg" width="200" />
+            <img src="https://pnpm.io/img/users/macpaw.svg" width="200" />
           </picture>
         </a>
       </td>
