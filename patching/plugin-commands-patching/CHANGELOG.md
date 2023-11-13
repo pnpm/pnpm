@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-patching
 
+## 5.0.7
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+  - @pnpm/plugin-commands-installation@14.0.7
+
 ## 5.0.6
 
 ### Patch Changes

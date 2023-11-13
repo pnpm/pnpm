@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-store
 
+## 8.1.5
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+
 ## 8.1.4
 
 ### Patch Changes

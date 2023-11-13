@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 9.0.1
+
+### Patch Changes
+
+- b4194fe52: Fixed out-of-memory exception that was happening on dependencies with many peer dependencies, when `node-linker` was set to `hoisted` [#6227](https://github.com/pnpm/pnpm/issues/6227).
+
 ## 9.0.0
 
 ### Major Changes

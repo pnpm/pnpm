@@ -1,5 +1,18 @@
 # @pnpm/core
 
+## 13.1.7
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+  - @pnpm/headless@22.3.7
+  - @pnpm/filter-lockfile@8.1.2
+  - @pnpm/lockfile-to-pnp@3.0.13
+  - @pnpm/hoist@8.1.2
+  - @pnpm/modules-cleaner@14.0.19
+  - @pnpm/resolve-dependencies@31.2.3
+
 ## 13.1.6
 
 ### Patch Changes

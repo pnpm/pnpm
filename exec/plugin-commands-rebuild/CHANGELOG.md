@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-rebuild
 
+## 10.0.5
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+
 ## 10.0.4
 
 ### Patch Changes
