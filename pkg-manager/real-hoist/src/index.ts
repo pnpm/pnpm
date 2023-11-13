@@ -17,10 +17,12 @@ export function hoist (
     // This option was added for Bit CLI in order to prevent pnpm from overwriting dependencies linked by Bit.
     // However, in the future it might be useful to use it in pnpm for skipping any dependencies added by external tools.
     externalDependencies?: Set<string>
+    autoInstallPeers?: boolean
   }
 ): HoisterResult {
   const nodes = new Map<string, HoisterTree>()
   const ctx = {
+    autoInstallPeers: opts?.autoInstallPeers,
     nodes,
     lockfile,
     depPathByPkgId: new Map<string, string>(),
@@ -74,10 +76,11 @@ export function hoist (
 }
 
 function toTree (
-  { nodes, lockfile, depPathByPkgId }: {
-    nodes: Map<string, HoisterTree>
-    lockfile: Lockfile
+  { nodes, lockfile, depPathByPkgId, autoInstallPeers }: {
+    autoInstallPeers?: boolean
     depPathByPkgId: Map<string, string>
+    lockfile: Lockfile
+    nodes: Map<string, HoisterTree>
   },
   deps: Record<string, string>
 ): Set<HoisterTree> {
@@ -117,13 +120,17 @@ function toTree (
         reference: depPathByPkgId.get(id)!,
         dependencyKind: HoisterDependencyKind.REGULAR,
         dependencies: new Set(),
-        peerNames: new Set([
-          ...Object.keys(pkgSnapshot.peerDependencies ?? {}),
-          ...(pkgSnapshot.transitivePeerDependencies ?? []),
-        ]),
+        peerNames: new Set(autoInstallPeers
+          ? []
+          : [
+            ...Object.keys(pkgSnapshot.peerDependencies ?? {}),
+            ...(pkgSnapshot.transitivePeerDependencies ?? []),
+          ]),
       }
       nodes.set(key, node)
-      node.dependencies = toTree({ nodes, lockfile, depPathByPkgId }, { ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
+      node.dependencies = toTree(
+        { nodes, lockfile, depPathByPkgId, autoInstallPeers },
+        { ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
     }
     return node
   }))
