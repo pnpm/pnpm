@@ -102,7 +102,7 @@ export function createPackageRequester (
   // especially in CI environments. Tests with a threshold lower than 16
   // have shown consistent underperformance.
   // @ts-expect-error - `availableParallelism` is not exist until update @types/node to v18.14.5
-  const networkConcurrency = opts.networkConcurrency ?? Math.max(os?.availableParallelism() ?? os.cpus().length, 16)
+  const networkConcurrency = opts.networkConcurrency ?? Math.max(os.availableParallelism?.() ?? os.cpus().length, 16)
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
   })
