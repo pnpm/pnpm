@@ -291,7 +291,9 @@ async function validateModules (
       await purgeModulesDirsOfImporters(opts, projects)
       return { purged: true }
     }
-    throw new PnpmError('REGISTRIES_MISMATCH', `This modules directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}. To recreate the modules directory using the new settings, run "pnpm install${opts.global ? ' -g' : ''}".`)
+    throw new PnpmError('REGISTRIES_MISMATCH', `This modules directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}.`, {
+      hint: `To recreate the modules directory using the new settings, run "pnpm install${opts.global ? ' -g' : ''}".`,
+    })
   }
   if (purged && (rootProject == null)) {
     await purgeModulesDirsOfImporter(opts, {
