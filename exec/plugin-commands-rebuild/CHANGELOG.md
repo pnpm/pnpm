@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-rebuild
 
+## 10.0.6
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+- Updated dependencies [2143a9388]
+  - @pnpm/worker@0.3.9
+  - @pnpm/get-context@10.0.6
+  - @pnpm/workspace.find-packages@1.1.3
+  - @pnpm/store-connection-manager@7.0.15
+
 ## 10.0.5
 
 ### Patch Changes

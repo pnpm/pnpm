@@ -1,5 +1,11 @@
 # @pnpm/worker
 
+## 0.3.9
+
+### Patch Changes
+
+- 1e7bd4af3: Use availableParallelism, when available.
+
 ## 0.3.8
 
 ### Patch Changes

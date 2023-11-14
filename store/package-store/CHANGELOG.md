@@ -1,5 +1,13 @@
 # @pnpm/package-store
 
+## 19.0.10
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/package-requester@24.1.3
+  - @pnpm/worker@0.3.9
+
 ## 19.0.9
 
 ### Patch Changes

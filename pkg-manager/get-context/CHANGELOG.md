@@ -1,5 +1,11 @@
 # @pnpm/get-context
 
+## 10.0.6
+
+### Patch Changes
+
+- 2143a9388: Improve the error message when `node_modules` should be recreated.
+
 ## 10.0.5
 
 ### Patch Changes

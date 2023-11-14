@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-store
 
+## 8.1.6
+
+### Patch Changes
+
+- Updated dependencies [2143a9388]
+  - @pnpm/get-context@10.0.6
+  - @pnpm/store-connection-manager@7.0.15
+
 ## 8.1.5
 
 ### Patch Changes

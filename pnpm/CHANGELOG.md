@@ -1,5 +1,11 @@
 # pnpm
 
+## 8.10.5
+
+### Patch Changes
+
+- Don't fail on an empty `pnpm-workspace.yaml` file [#7307](https://github.com/pnpm/pnpm/issues/7307).
+
 ## 8.10.4
 
 ### Patch Changes

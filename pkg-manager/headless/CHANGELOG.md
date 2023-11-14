@@ -1,5 +1,14 @@
 # @pnpm/headless
 
+## 22.3.8
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/package-requester@24.1.3
+  - @pnpm/worker@0.3.9
+  - @pnpm/build-modules@11.2.6
+
 ## 22.3.7
 
 ### Patch Changes
