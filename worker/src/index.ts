@@ -26,6 +26,7 @@ export async function finishWorkers () {
 }
 
 function createTarballWorkerPool (): WorkerPool {
+  // @ts-expect-error - `availableParallelism` is not exist until update @types/node to v18.14.5
   const maxWorkers = Math.max(2, (os.availableParallelism?.() ?? os.cpus().length) - Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)) - 1
   const workerPool = new WorkerPool({
     id: 'pnpm',
