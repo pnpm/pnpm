@@ -370,10 +370,8 @@ function pkgJsonFromRegFSHasInstallScripts (pkgJson: ProjectManifest): boolean {
 async function fetchBuildFromRegistryFS (pkgName: string, pkgVersion: string): Promise<boolean> {
   try {
     const regFS = await fetchPkgIndex(pkgName, pkgVersion)
-
-    if (regFS.files['/binding.gyp'] || regFS.files['/hooks'] || regFS.files['/hooks/']) {
-      return true
-    }
+    const hasInstall = filesIncludeInstallScripts(regFS.files)
+    if (hasInstall) return true
 
     const pkgJsonHex = regFS.files['/package.json'].hex
     const pkgJsonContent = await fetchSpecificFileFromRegistryFS(pkgName, pkgVersion, pkgJsonHex)
