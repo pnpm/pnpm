@@ -1736,7 +1736,7 @@ test('request to metadata is retried if the received JSON is broken', async () =
     registry,
   })!
 
-  expect(resolveResult?.id).toBe('registry.npmjs.org/is-positive/1.0.0')
+  expect(resolveResult?.id).toBe('registry1.com/is-positive/1.0.0')
 })
 
 test('request to a package with unpublished versions', async () => {
@@ -1835,7 +1835,7 @@ test('resolveFromNpm() should normalize the registry', async () => {
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive/1.0.0')
+  expect(resolveResult!.id).toBe('reg.com/is-positive/1.0.0')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',

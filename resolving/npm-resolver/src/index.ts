@@ -219,7 +219,7 @@ async function resolveNpm (
     }
   }
 
-  const id = createPkgId(pickedPackage.dist.tarball, pickedPackage.name, pickedPackage.version)
+  const id = createPkgId(opts.registry, pickedPackage.name, pickedPackage.version)
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
     tarball: pickedPackage.dist.tarball,

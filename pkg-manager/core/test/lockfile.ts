@@ -1174,20 +1174,18 @@ test('tarball domain differs from registry domain', async () => {
     dependencies: {
       'is-positive': {
         specifier: '^3.1.0',
-        version: 'registry.npmjs.org/is-positive@3.1.0',
+        version: '3.1.0',
       },
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      'registry.npmjs.org/is-positive@3.1.0': {
+      '/is-positive@3.1.0': {
         dev: false,
         engines: { node: '>=0.10.0' },
-        name: 'is-positive',
         resolution: {
           integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
           tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
         },
-        version: '3.1.0',
       },
     },
   })
