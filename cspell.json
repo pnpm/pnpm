@@ -198,7 +198,6 @@
     "reka",
     "relinks",
     "reqheaders",
-    "requiresbuild",
     "rpmdevtools",
     "rpmlint",
     "rstacruz",
@@ -255,6 +254,6 @@
     "xmarw",
     "zkochan",
     "zoli",
-    "zoltan" 
+    "zoltan"
   ]
 }

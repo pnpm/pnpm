@@ -91,9 +91,9 @@ test('do not update the lockfile when lockfileOnly and frozenLockfile are both u
   }))).rejects.toThrow(/is not up to date/)
 })
 
-test('A lockfile only update with the useExperimentalNpmjsFilesIndex flag resolves without packages being fetched', async () => {
+test('a lockfile only update with the useExperimentalNpmjsFilesIndex flag resolves without packages being fetched', async () => {
   const project = prepareEmpty()
-  const opts = await testDefaults({ registries: { default: 'https://registry.npmjs.org/' }, useExperimentalNpmjsFilesIndex: true, lockfileOnly: true })
+  const opts = await testDefaults({ useExperimentalNpmjsFilesIndex: true, lockfileOnly: true })
   await addDependenciesToPackage({}, ['nodecv@1.1.2'], opts)
   const lockfile = await project.readLockfile()
   expect(lockfile.packages!['/nodecv@1.1.2'].requiresBuild).toBeTruthy()
