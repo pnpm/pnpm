@@ -286,15 +286,6 @@ async function validateModules (
       purged = true
     }
   }))
-  if ((modules.registries != null) && !equals(opts.registries, modules.registries)) {
-    if (opts.forceNewModules) {
-      await purgeModulesDirsOfImporters(opts, projects)
-      return { purged: true }
-    }
-    throw new PnpmError('REGISTRIES_MISMATCH', `This modules directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}.`, {
-      hint: `To recreate the modules directory using the new settings, run "pnpm install${opts.global ? ' -g' : ''}".`,
-    })
-  }
   if (purged && (rootProject == null)) {
     await purgeModulesDirsOfImporter(opts, {
       modulesDir: path.join(opts.lockfileDir, opts.modulesDir),
