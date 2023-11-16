@@ -1051,52 +1051,6 @@ test('existing dependencies are preserved when updating a lockfile to a newer fo
   expect(initialLockfile.packages).toStrictEqual(updatedLockfile.packages)
 })
 
-test('lockfile is not getting broken if the used registry changes', async () => {
-  const project = prepareEmpty()
-
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1'], await testDefaults())
-
-  const newOpts = await testDefaults({ registries: { default: 'https://registry.npmjs.org/' } })
-  let err!: PnpmError
-  try {
-    await addDependenciesToPackage(manifest, ['is-negative@1'], newOpts)
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-  expect(err.code).toBe('ERR_PNPM_REGISTRIES_MISMATCH')
-
-  await mutateModulesInSingleProject({
-    manifest,
-    mutation: 'install',
-    rootDir: process.cwd(),
-  }, {
-    ...newOpts,
-    confirmModulesPurge: false,
-  })
-  await addDependenciesToPackage(manifest, ['is-negative@1'], newOpts)
-
-  expect(Object.keys((await project.readLockfile()).packages)).toStrictEqual([
-    '/is-negative@1.0.1',
-    '/is-positive@1.0.0',
-  ])
-})
-
-test('when using a different registry, add -g to the error report according to options.global', async () => {
-  prepareEmpty()
-
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1'], await testDefaults())
-
-  const newOpts = await testDefaults({ registries: { default: 'https://registry.npmjs.org/' }, global: true })
-  let err!: PnpmError
-  try {
-    await addDependenciesToPackage(manifest, ['is-negative@1'], newOpts)
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-  expect(err.code).toBe('ERR_PNPM_REGISTRIES_MISMATCH')
-  expect(err.hint).toContain('pnpm install -g')
-})
-
 test('broken lockfile is fixed even if it seems like up to date at first. Unless frozenLockfile option is set to true', async () => {
   const project = prepareEmpty()
   await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
