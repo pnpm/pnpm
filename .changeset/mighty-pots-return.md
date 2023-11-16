@@ -1,5 +1,4 @@
 ---
-"@pnpm/get-context": patch
 "pnpm": patch
 ---
 

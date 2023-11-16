@@ -1,5 +1,4 @@
 ---
-"@pnpm/npm-resolver": major
 "pnpm": minor
 ---
 

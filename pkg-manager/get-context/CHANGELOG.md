@@ -1,5 +1,11 @@
 # @pnpm/get-context
 
+## 10.0.7
+
+### Patch Changes
+
+- b1fd38cca: The modules directory should not be removed if the registry configuration has changed.
+
 ## 10.0.6
 
 ### Patch Changes

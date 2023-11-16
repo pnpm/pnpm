@@ -1,5 +1,15 @@
 # @pnpm/core
 
+## 13.1.9
+
+### Patch Changes
+
+- Updated dependencies [b1fd38cca]
+  - @pnpm/get-context@10.0.7
+  - @pnpm/resolve-dependencies@31.2.4
+  - @pnpm/headless@22.3.8
+  - @pnpm/package-requester@24.1.3
+
 ## 13.1.8
 
 ### Patch Changes
