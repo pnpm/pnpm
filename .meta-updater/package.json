@@ -9,7 +9,7 @@
   "dependencies": {
     "@pnpm/lockfile-file": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@types/normalize-path": "^3.0.1",
+    "@types/normalize-path": "^3.0.2",
     "is-subdir": "^1.2.0",
     "load-json-file": "^6.2.0",
     "normalize-path": "^3.0.0",

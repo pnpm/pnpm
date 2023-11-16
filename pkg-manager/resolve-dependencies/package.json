@@ -49,7 +49,7 @@
     "@yarnpkg/core": "4.0.0-rc.45",
     "encode-registry": "^3.0.1",
     "filenamify": "^4.3.0",
-    "get-npm-tarball-url": "^2.0.3",
+    "get-npm-tarball-url": "^2.1.0",
     "is-inner-link": "^4.0.0",
     "is-subdir": "^1.2.0",
     "normalize-path": "^3.0.0",
@@ -65,7 +65,7 @@
   },
   "devDependencies": {
     "@pnpm/resolve-dependencies": "workspace:*",
-    "@types/normalize-path": "^3.0.1",
+    "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.5.3"
   },

@@ -30,9 +30,9 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-server#readme",
   "devDependencies": {
     "@pnpm/plugin-commands-server": "workspace:*",
-    "@types/is-windows": "^1.0.1",
+    "@types/is-windows": "^1.0.2",
     "@types/ramda": "0.28.20",
-    "@types/signal-exit": "^3.0.3"
+    "@types/signal-exit": "^3.0.4"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:*",

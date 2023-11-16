@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@pnpm/remove-bins": "workspace:*",
-    "@types/is-windows": "^1.0.1",
+    "@types/is-windows": "^1.0.2",
     "@types/ramda": "0.28.20"
   },
   "bugs": {

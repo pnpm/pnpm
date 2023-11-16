@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@pnpm/mount-modules": "workspace:*",
-    "@types/normalize-path": "^3.0.1",
+    "@types/normalize-path": "^3.0.2",
     "rimraf": "^3.0.2"
   },
   "dependencies": {

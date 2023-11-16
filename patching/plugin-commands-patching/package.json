@@ -36,7 +36,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.16.0",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/normalize-path": "^3.0.1",
+    "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.5.3",
     "write-yaml-file": "^5.0.0"
@@ -60,7 +60,7 @@
     "@pnpm/store-connection-manager": "workspace:*",
     "enquirer": "^2.4.1",
     "escape-string-regexp": "^4.0.0",
-    "fast-glob": "^3.3.1",
+    "fast-glob": "^3.3.2",
     "normalize-path": "^3.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
     "realpath-missing": "^1.1.0",
