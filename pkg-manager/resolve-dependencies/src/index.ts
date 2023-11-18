@@ -26,6 +26,7 @@ import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
 import zipWith from 'ramda/src/zipWith'
 import isSubdir from 'is-subdir'
+import { checkViaRegistryIfPkgRequiresBuild, pkgManifestHasInstallScripts } from './checkViaRegistryIfPkgRequiresBuild'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
 import { depPathToRef } from './depPathToRef'
 import { createNodeIdForLinkedLocalPkg, type UpdateMatchingFunction } from './resolveDependencies'
@@ -45,7 +46,6 @@ import {
 import { toResolveImporter } from './toResolveImporter'
 import { updateLockfile } from './updateLockfile'
 import { updateProjectManifest } from './updateProjectManifest'
-import { fetch } from '@pnpm/fetch'
 
 export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
 
@@ -321,72 +321,6 @@ function verifyPatches (
   })
 }
 
-interface RegistryFileFields {
-  size: number
-  type: 'File'
-  path: string
-  contentType: string
-  hex: string
-  isBinary: boolean
-  linesCount: number
-}
-
-interface RegistryFileList {
-  files: {
-    [path: string]: RegistryFileFields
-  }
-}
-
-async function fetchPkgIndex (pkgName: string, pkgVersion: string): Promise<RegistryFileList> {
-  const url = `https://npmjs.com/package/${pkgName}/v/${pkgVersion}/index`
-  const fetchResult = await fetch(url)
-  if (!fetchResult.ok) {
-    throw new PnpmError('PKG_INDEX_FETCH', `Failed to fetch ${pkgName}@${pkgVersion} Status: ${fetchResult.statusText}`)
-  }
-
-  const fetchJSON = await fetchResult.json() as RegistryFileList
-  if (fetchJSON.files == null) {
-    throw new PnpmError('PKG_INDEX_FILE_PARSE', `Unable to parse file list for ${pkgName}@${pkgVersion} Status: ${fetchResult.statusText}`)
-  }
-  return fetchJSON
-}
-
-async function fetchSpecificFileFromRegistryFS (pkgName: string, pkgVersion: string, fileHex: string): Promise<string> {
-  const url = `https://npmjs.com/package/${pkgName}/file/${fileHex}`
-  const fetchResult = await fetch(url)
-  if (!fetchResult.ok) {
-    throw new PnpmError('REG_FS_ERROR', `Failed to fetch ${pkgName}@${pkgVersion}, file: ${fileHex} Status: ${fetchResult.statusText}`)
-  }
-  return fetchResult.text()
-}
-
-function pkgJsonFromRegFSHasInstallScripts (pkgJson: ProjectManifest): boolean {
-  if (!pkgJson.scripts) return false
-  return Boolean(pkgJson.scripts.preinstall) ||
-    Boolean(pkgJson.scripts.install) ||
-    Boolean(pkgJson.scripts.postinstall)
-}
-
-async function fetchBuildFromRegistryFS (pkgName: string, pkgVersion: string): Promise<boolean> {
-  try {
-    const regFS = await fetchPkgIndex(pkgName, pkgVersion)
-    const hasInstall = filesIncludeInstallScripts(regFS.files)
-    if (hasInstall) return true
-
-    const pkgJsonHex = regFS.files['/package.json'].hex
-    const pkgJsonContent = await fetchSpecificFileFromRegistryFS(pkgName, pkgVersion, pkgJsonHex)
-    const pkgJson = JSON.parse(pkgJsonContent) as ProjectManifest
-    if (pkgJson?.scripts != null) {
-      return pkgJsonFromRegFSHasInstallScripts(pkgJson)
-    }
-  } catch (e) {
-    if (e instanceof Error) {
-      throw new PnpmError('REG_FS_PARSE', `Failed to fetch ${pkgName}@${pkgVersion}: ${e.message}`)
-    }
-  }
-  return false
-}
-
 async function finishLockfileUpdates (
   dependenciesGraph: DependenciesGraph,
   pendingRequiresBuilds: string[],
@@ -402,21 +336,12 @@ async function finishLockfileUpdates (
         // We assume that all optional dependencies have to be built.
         // Optional dependencies are not always downloaded, so there is no way to know whether they need to be built or not.
         requiresBuild = true
+      } else if (useExperimentalNpmjsFilesIndex) {
+        requiresBuild = await checkViaRegistryIfPkgRequiresBuild(depNode.name, depNode.version)
       } else {
-        if (useExperimentalNpmjsFilesIndex) {
-          requiresBuild = await fetchBuildFromRegistryFS(depNode.name, depNode.version)
-        } else {
         // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-          const { files, bundledManifest: pkgJson } = await depNode.fetching()
-          requiresBuild = Boolean(
-            pkgJson?.scripts != null && (
-              Boolean(pkgJson.scripts.preinstall) ||
-            Boolean(pkgJson.scripts.install) ||
-            Boolean(pkgJson.scripts.postinstall)
-            ) ||
-          filesIncludeInstallScripts(files.filesIndex)
-          )
-        }
+        const { files, bundledManifest: pkgJson } = await depNode.fetching()
+        requiresBuild = pkgManifestHasInstallScripts(pkgJson) || filesIncludeInstallScripts(files.filesIndex)
       }
       if (typeof depNode.requiresBuild === 'function') {
         depNode.requiresBuild['resolve'](requiresBuild)

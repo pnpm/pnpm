@@ -5,5 +5,4 @@
 "@pnpm/resolve-dependencies": patch
 ---
 
-When `use-experimental-npmjs-files-index` is set to `true` requiresBuild in the lockfile from NPM's beta file index feature. This will resolve optional modules being copied rather than linked. 
-`use-experimental-npmjs-files-index` can also accept an array of strings, which can be used if a registry proxy is being used.
+(EXPERIMENTAL) When the `use-experimental-npmjs-files-index` option is set to `true` and `--lockfile-only` installation is performed, package tarballs are not downloaded. npm's beta file index feature is used to populate the lockfile [#7117](https://github.com/pnpm/pnpm/pull/7177).
