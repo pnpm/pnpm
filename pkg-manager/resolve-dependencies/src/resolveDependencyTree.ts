@@ -85,6 +85,7 @@ export interface ResolveDependenciesOptions {
   lockfileDir: string
   storeController: StoreController
   tag: string
+  useExperimentalNpmjsFilesIndex: boolean
   virtualStoreDir: string
   wantedLockfile: Lockfile
   workspacePackages: WorkspacePackages
@@ -123,6 +124,7 @@ export async function resolveDependencyTree<T> (
     resolutionMode: opts.resolutionMode,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
+    useExperimentalNpmjsFilesIndex: opts.useExperimentalNpmjsFilesIndex,
     virtualStoreDir: opts.virtualStoreDir,
     wantedLockfile: opts.wantedLockfile,
     appliedPatches: new Set<string>(),

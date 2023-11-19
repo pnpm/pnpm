@@ -1,4 +1,5 @@
 import path from 'path'
+import { promises as fs } from 'fs'
 import { assertStore } from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
@@ -88,4 +89,13 @@ test('do not update the lockfile when lockfileOnly and frozenLockfile are both u
     lockfileOnly: true,
     frozenLockfile: true,
   }))).rejects.toThrow(/is not up to date/)
+})
+
+test('a lockfile only update with the useExperimentalNpmjsFilesIndex flag resolves without packages being fetched', async () => {
+  const project = prepareEmpty()
+  const opts = await testDefaults({ useExperimentalNpmjsFilesIndex: true, lockfileOnly: true })
+  await addDependenciesToPackage({}, ['nodecv@1.1.2'], opts)
+  const lockfile = await project.readLockfile()
+  expect(lockfile.packages!['/nodecv@1.1.2'].requiresBuild).toBeTruthy()
+  expect(await fs.readdir(opts.storeDir)).toStrictEqual([])
 })

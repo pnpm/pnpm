@@ -26,6 +26,7 @@ import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
 import zipWith from 'ramda/src/zipWith'
 import isSubdir from 'is-subdir'
+import { checkViaRegistryIfPkgRequiresBuild, pkgManifestHasInstallScripts } from './checkViaRegistryIfPkgRequiresBuild'
 import { getWantedDependencies, type WantedDependency } from './getWantedDependencies'
 import { depPathToRef } from './depPathToRef'
 import { createNodeIdForLinkedLocalPkg, type UpdateMatchingFunction } from './resolveDependencies'
@@ -100,6 +101,7 @@ export async function resolveDependencies (
     saveWorkspaceProtocol: 'rolling' | boolean
     lockfileIncludeTarballUrl?: boolean
     allowNonAppliedPatches?: boolean
+    useExperimentalNpmjsFilesIndex?: boolean
   }
 ) {
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -286,7 +288,7 @@ export async function resolveDependencies (
   return {
     dependenciesByProjectId,
     dependenciesGraph,
-    finishLockfileUpdates: promiseShare(finishLockfileUpdates(dependenciesGraph, pendingRequiresBuilds, newLockfile)),
+    finishLockfileUpdates: promiseShare(finishLockfileUpdates(dependenciesGraph, pendingRequiresBuilds, newLockfile, opts.useExperimentalNpmjsFilesIndex)),
     outdatedDependencies,
     linkedDependenciesByProjectId,
     newLockfile,
@@ -322,7 +324,8 @@ function verifyPatches (
 async function finishLockfileUpdates (
   dependenciesGraph: DependenciesGraph,
   pendingRequiresBuilds: string[],
-  newLockfile: Lockfile
+  newLockfile: Lockfile,
+  useExperimentalNpmjsFilesIndex: boolean
 ) {
   return Promise.all(pendingRequiresBuilds.map(async (depPath) => {
     const depNode = dependenciesGraph[depPath]
@@ -333,17 +336,12 @@ async function finishLockfileUpdates (
         // We assume that all optional dependencies have to be built.
         // Optional dependencies are not always downloaded, so there is no way to know whether they need to be built or not.
         requiresBuild = true
+      } else if (useExperimentalNpmjsFilesIndex) {
+        requiresBuild = await checkViaRegistryIfPkgRequiresBuild(depNode.name, depNode.version)
       } else {
         // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
         const { files, bundledManifest: pkgJson } = await depNode.fetching()
-        requiresBuild = Boolean(
-          pkgJson?.scripts != null && (
-            Boolean(pkgJson.scripts.preinstall) ||
-            Boolean(pkgJson.scripts.install) ||
-            Boolean(pkgJson.scripts.postinstall)
-          ) ||
-          filesIncludeInstallScripts(files.filesIndex)
-        )
+        requiresBuild = pkgManifestHasInstallScripts(pkgJson) || filesIncludeInstallScripts(files.filesIndex)
       }
       if (typeof depNode.requiresBuild === 'function') {
         depNode.requiresBuild['resolve'](requiresBuild)

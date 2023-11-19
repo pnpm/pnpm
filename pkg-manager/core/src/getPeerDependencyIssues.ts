@@ -17,6 +17,7 @@ export type ListMissingPeersOptions = Partial<GetContextOptions>
 | 'preferWorkspacePackages'
 | 'saveWorkspaceProtocol'
 | 'storeController'
+| 'useExperimentalNpmjsFilesIndex'
 | 'useGitBranchLockfile'
 | 'workspacePackages'
 >
@@ -82,6 +83,7 @@ export async function getPeerDependencyIssues (
       saveWorkspaceProtocol: false, // this doesn't matter in our case. We won't write changes to package.json files
       storeController: opts.storeController,
       tag: 'latest',
+      useExperimentalNpmjsFilesIndex: opts.useExperimentalNpmjsFilesIndex ?? false,
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages ?? {},
