@@ -73,7 +73,7 @@ export function reportSummary (
             msg += EOL
             if (depType === 'dev' && opts.pnpmConfig?.saveDev === false) {
               msg += EOL
-              msg += 'was already in devDependencies but wasn\'t moved automatically to dependencies. Please move it manually if needed. '
+              msg += `The dependency was already listed in devDependencies.${EOL}If you want to make it a prod dependency, then move it manually.`
               msg += EOL
             }
           } else if (opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
