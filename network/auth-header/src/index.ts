@@ -24,6 +24,9 @@ function getMaxParts (uris: string[]) {
 }
 
 function getAuthHeaderByURI (authHeaders: Record<string, string>, maxParts: number, uri: string): string | undefined {
+  if (!uri.endsWith('/')) {
+    uri += '/'
+  }
   const nerfed = nerfDart(uri)
   const parts = nerfed.split('/')
   for (let i = Math.min(parts.length, maxParts) - 1; i >= 3; i--) {
