@@ -28,7 +28,6 @@ function getAuthHeaderByURI (authHeaders: Record<string, string>, maxParts: numb
     uri += '/'
   }
   const nerfed = nerfDart(uri)
-  console.log(uri, nerfed)
   const parts = nerfed.split('/')
   for (let i = Math.min(parts.length, maxParts) - 1; i >= 3; i--) {
     const key = `${parts.slice(0, i).join('/')}/`
