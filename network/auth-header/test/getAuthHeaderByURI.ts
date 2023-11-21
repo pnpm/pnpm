@@ -43,3 +43,21 @@ test('getAuthHeaderByURI() when default ports are specified', () => {
 test('returns undefined when the auth header is not found', () => {
   expect(createGetAuthHeaderByURI({ allSettings: {}, userSettings: {} })('http://reg.com')).toBe(undefined)
 })
+
+test('getAuthHeaderByURI() when the registry has pathnames', () => {
+  const getAuthHeaderByURI = createGetAuthHeaderByURI({
+    allSettings: {
+      '//npm.pkg.github.com/pnpm/:_authToken': 'abc123',
+    },
+    userSettings: {},
+  })
+  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm')).toBe('Bearer abc123')
+  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/')).toBe('Bearer abc123')
+  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo')).toBe('Bearer abc123')
+  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/')).toBe('Bearer abc123')
+  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
+  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
+  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
+  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
+  expect(getAuthHeaderByURI('https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz')).toBe('Bearer abc123')
+})

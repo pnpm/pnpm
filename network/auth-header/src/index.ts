@@ -24,6 +24,17 @@ function getMaxParts (uris: string[]) {
 }
 
 function getAuthHeaderByURI (authHeaders: Record<string, string>, maxParts: number, uri: string): string | undefined {
+  const url = new URL(uri)
+  const domain = url.host
+
+  // Add a trailing slash to the path, so that we can match it with the auth headers structure
+  const path = url.pathname + '/'
+
+  const fullPathKey = `//${domain}${path}`
+  if (authHeaders[fullPathKey]) {
+    return authHeaders[fullPathKey]
+  }
+
   const nerfed = nerfDart(uri)
   const parts = nerfed.split('/')
   for (let i = Math.min(parts.length, maxParts) - 1; i >= 3; i--) {
