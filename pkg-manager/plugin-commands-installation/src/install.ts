@@ -270,7 +270,6 @@ export type InstallCommandOptions = Pick<Config,
 | 'preferFrozenLockfile'
 | 'production'
 | 'registries'
-| 'useExperimentalNpmjsFilesIndex'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
 | 'save'

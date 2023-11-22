@@ -1036,7 +1036,6 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages,
       patchedDependencies: opts.patchedDependencies,
-      useExperimentalNpmjsFilesIndex: opts.lockfileOnly && opts.useExperimentalNpmjsFilesIndex,
       lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
       resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
       supportedArchitectures: opts.supportedArchitectures,

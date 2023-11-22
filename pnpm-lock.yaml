@@ -4065,9 +4065,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/fetch':
-        specifier: workspace:*
-        version: link:../../network/fetch
       '@pnpm/exec.files-include-install-scripts':
         specifier: workspace:*
         version: link:../../exec/files-include-install-scripts

@@ -68,7 +68,6 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'saveProd'
 | 'saveWorkspaceProtocol'
 | 'lockfileIncludeTarballUrl'
-| 'useExperimentalNpmjsFilesIndex'
 | 'sharedWorkspaceLockfile'
 | 'tag'
 > & {

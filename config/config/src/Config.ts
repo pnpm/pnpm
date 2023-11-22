@@ -162,7 +162,6 @@ export interface Config {
   ignoreWorkspaceCycles?: boolean
   disallowWorkspaceCycles?: boolean
   packGzipLevel?: number
-  useExperimentalNpmjsFilesIndex?: boolean
 
   registries: Registries
   ignoreWorkspaceRootCheck: boolean
