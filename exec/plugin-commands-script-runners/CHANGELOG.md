@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-script-runners
 
+## 8.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+- @pnpm/plugin-commands-installation@14.0.10
+
 ## 8.0.9
 
 ### Patch Changes

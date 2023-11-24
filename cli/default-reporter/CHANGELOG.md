@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 12.4.7
+
+### Patch Changes
+
+- 45bdc79b1: `pnpm add a-module-already-in-dev-deps` will show a message to notice the user that the package was not moved to "dependencies" [#926](https://github.com/pnpm/pnpm/issues/926).
+
 ## 12.4.6
 
 ### Patch Changes

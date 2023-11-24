@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-audit
 
+## 9.0.4
+
+### Patch Changes
+
+- Updated dependencies [23039a6d6]
+  - @pnpm/network.auth-header@2.0.6
+  - @pnpm/cli-utils@2.1.3
+
 ## 9.0.3
 
 ### Patch Changes

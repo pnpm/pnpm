@@ -1,5 +1,11 @@
 # @pnpm/network.auth-header
 
+## 2.0.6
+
+### Patch Changes
+
+- 23039a6d6: Fix missing auth tokens in registries with paths specified (e.g. //npm.pkg.github.com/pnpm). #5970 #2933
+
 ## 2.0.5
 
 ### Patch Changes
