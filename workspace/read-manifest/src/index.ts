@@ -47,6 +47,7 @@ function validateWorkspaceManifest (manifest: unknown): asserts manifest is Work
   }
 
   assertValidWorkspaceManifestPackages(manifest)
+  checkWorkspaceManifestAssignability(manifest)
 }
 
 function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown }): asserts manifest is { packages: string[] } {
@@ -69,6 +70,14 @@ function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown })
     }
   }
 }
+
+/**
+ * Empty function to ensure TypeScript has narrowed the manifest object to
+ * something assignable to the {@see WorkspaceManifest} interface. This helps
+ * make sure the validation logic in this file is correct as it's refactored in
+ * the future.
+ */
+function checkWorkspaceManifestAssignability (_manifest: WorkspaceManifest) {}
 
 class InvalidWorkspaceManifestError extends PnpmError {
   constructor (message: string) {
