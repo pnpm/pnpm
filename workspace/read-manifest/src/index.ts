@@ -9,11 +9,8 @@ export interface WorkspaceManifest {
 
 export async function readWorkspaceManifest (dir: string): Promise<WorkspaceManifest | undefined> {
   const manifest = await readManifestRaw(dir)
-  if (validateWorkspaceManifest(manifest)) {
-    return manifest
-  }
-
-  return undefined
+  validateWorkspaceManifest(manifest)
+  return manifest
 }
 
 async function readManifestRaw (dir: string): Promise<unknown> {
@@ -30,10 +27,10 @@ async function readManifestRaw (dir: string): Promise<unknown> {
   }
 }
 
-function validateWorkspaceManifest (manifest: unknown): manifest is WorkspaceManifest | undefined {
+function validateWorkspaceManifest (manifest: unknown): asserts manifest is WorkspaceManifest | undefined {
   if (manifest === undefined || manifest === null) {
     // Empty or null manifest is ok
-    return true
+    return
   }
 
   if (typeof manifest !== 'object') {
@@ -46,12 +43,10 @@ function validateWorkspaceManifest (manifest: unknown): manifest is WorkspaceMan
 
   if (Object.keys(manifest).length === 0) {
     // manifest content `{}` is ok
-    return true
+    return
   }
 
   assertValidWorkspaceManifestPackages(manifest)
-
-  return true
 }
 
 function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown }): asserts manifest is { packages: string[] } {
