@@ -50,6 +50,12 @@ function validateWorkspaceManifest (manifest: any): manifest is WorkspaceManifes
     return true
   }
 
+  assertValidWorkspaceManifestPackages(manifest)
+
+  return true
+}
+
+function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown }): asserts manifest is { packages: string[] } {
   if (!manifest.packages) {
     throw new InvalidWorkspaceManifestError('packages field missing or empty')
   }
@@ -68,8 +74,6 @@ function validateWorkspaceManifest (manifest: any): manifest is WorkspaceManifes
       throw new InvalidWorkspaceManifestError(`Invalid package type - ${type}`)
     }
   }
-
-  return true
 }
 
 class InvalidWorkspaceManifestError extends PnpmError {
