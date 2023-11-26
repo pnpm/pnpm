@@ -835,37 +835,34 @@ test('`pnpm recursive run` should fail when no script in package with requiredSc
 })
 
 test('`pnpm -r --resume-from run` should executed from given package', async () => {
+  // Using backticks in scripts for better readability. Otherwise single quotes need to be escaped.
+  /* eslint-disable @typescript-eslint/quotes */
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json',
-      },
-      dependencies: {
-        'json-append': '1',
+        build: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
       },
     },
     {
       name: 'project-2',
       version: '1.0.0',
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
+        build: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
       },
       dependencies: {
         'project-1': '1',
-        'json-append': '1',
       },
     },
     {
       name: 'project-3',
       version: '1.0.0',
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output1.json',
+        build: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
       },
       dependencies: {
         'project-1': '1',
-        'json-append': '1',
       },
     },
   ])
@@ -877,6 +874,14 @@ test('`pnpm -r --resume-from run` should executed from given package', async () 
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
+
+  // Ensure none of these files exist before the build script runs.
+  await Promise.all([
+    expect(fs.access(path.resolve('project-1', 'output.txt'))).rejects.toThrow(),
+    expect(fs.access(path.resolve('project-2', 'output.txt'))).rejects.toThrow(),
+    expect(fs.access(path.resolve('project-3', 'output.txt'))).rejects.toThrow(),
+  ])
+
   await run.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), [{ namePattern: '*' }]),
@@ -886,10 +891,12 @@ test('`pnpm -r --resume-from run` should executed from given package', async () 
     workspaceDir: process.cwd(),
   }, ['build'])
 
-  const { default: output1 } = await import(path.resolve('output1.json'))
-  expect(output1).not.toContain('project-1')
-  expect(output1).toContain('project-2')
-  expect(output1).toContain('project-3')
+  // Expecting project-2 and project-3 to run, but not project-1.
+  await Promise.all([
+    expect(fs.access(path.resolve('project-1', 'output.txt'))).rejects.toThrow(),
+    expect(fs.access(path.resolve('project-2', 'output.txt'))).resolves.not.toThrow(),
+    expect(fs.access(path.resolve('project-3', 'output.txt'))).resolves.not.toThrow(),
+  ])
 })
 
 test('pnpm run with RegExp script selector should work on recursive', async () => {
