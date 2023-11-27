@@ -71,11 +71,6 @@ export function reportSummary (
             msg += EOL
             msg += _printDiffs(diffs)
             msg += EOL
-            if (depType === 'dev' && opts.pnpmConfig?.saveDev === false) {
-              msg += EOL
-              msg += `The dependency was already listed in devDependencies.${EOL}If you want to make it a prod dependency, then move it manually.`
-              msg += EOL
-            }
           } else if (opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
             msg += EOL
             msg += `${chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)} skipped`
