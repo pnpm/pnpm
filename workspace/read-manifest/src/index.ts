@@ -9,11 +9,8 @@ export interface WorkspaceManifest {
 
 export async function readWorkspaceManifest (dir: string): Promise<WorkspaceManifest | undefined> {
   const manifest = await readManifestRaw(dir)
-  if (validateWorkspaceManifest(manifest)) {
-    return manifest
-  }
-
-  return undefined
+  validateWorkspaceManifest(manifest)
+  return manifest
 }
 
 async function readManifestRaw (dir: string): Promise<unknown> {
@@ -30,11 +27,10 @@ async function readManifestRaw (dir: string): Promise<unknown> {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function validateWorkspaceManifest (manifest: any): manifest is WorkspaceManifest | undefined {
+function validateWorkspaceManifest (manifest: unknown): asserts manifest is WorkspaceManifest | undefined {
   if (manifest === undefined || manifest === null) {
     // Empty or null manifest is ok
-    return true
+    return
   }
 
   if (typeof manifest !== 'object') {
@@ -47,9 +43,14 @@ function validateWorkspaceManifest (manifest: any): manifest is WorkspaceManifes
 
   if (Object.keys(manifest).length === 0) {
     // manifest content `{}` is ok
-    return true
+    return
   }
 
+  assertValidWorkspaceManifestPackages(manifest)
+  checkWorkspaceManifestAssignability(manifest)
+}
+
+function assertValidWorkspaceManifestPackages (manifest: { packages?: unknown }): asserts manifest is { packages: string[] } {
   if (!manifest.packages) {
     throw new InvalidWorkspaceManifestError('packages field missing or empty')
   }
@@ -68,9 +69,15 @@ function validateWorkspaceManifest (manifest: any): manifest is WorkspaceManifes
       throw new InvalidWorkspaceManifestError(`Invalid package type - ${type}`)
     }
   }
-
-  return true
 }
+
+/**
+ * Empty function to ensure TypeScript has narrowed the manifest object to
+ * something assignable to the {@see WorkspaceManifest} interface. This helps
+ * make sure the validation logic in this file is correct as it's refactored in
+ * the future.
+ */
+function checkWorkspaceManifestAssignability (_manifest: WorkspaceManifest) {}
 
 class InvalidWorkspaceManifestError extends PnpmError {
   constructor (message: string) {
