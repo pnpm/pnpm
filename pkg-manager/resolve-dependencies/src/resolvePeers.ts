@@ -108,8 +108,22 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   })
 
   const dependenciesByProjectId: { [id: string]: Record<string, string> } = {}
+  const rootProject = opts.projects.find(({ id }) => id === '.')
+  if (rootProject) {
+    dependenciesByProjectId['.'] = mapValues((nodeId) => pathsByNodeId.get(nodeId)!, rootProject.directNodeIdsByAlias)
+  }
+  const rootDeps = dependenciesByProjectId['.'] ?? {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
-    dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId.get(nodeId)!, directNodeIdsByAlias)
+    if (id !== '.') {
+      const deps: Record<string, string> = {}
+      for (const [alias, nodeId] of Object.entries(directNodeIdsByAlias)) {
+        const depPath = pathsByNodeId.get(nodeId)!
+        if (rootDeps[alias] !== depPath) {
+          deps[alias] = depPath
+        }
+      }
+      dependenciesByProjectId[id] = deps
+    }
   }
   if (opts.dedupePeerDependents) {
     const duplicates = Array.from(depPathsByPkgId.values()).filter((item) => item.size > 1)

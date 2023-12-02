@@ -26,7 +26,7 @@ import difference from 'ramda/src/difference'
 import equals from 'ramda/src/equals'
 import mergeAll from 'ramda/src/mergeAll'
 import pickAll from 'ramda/src/pickAll'
-import { removeDirectDependency } from './removeDirectDependency'
+import { removeDirectDependency, removeIfEmpty } from './removeDirectDependency'
 
 export async function prune (
   importers: Array<{
@@ -58,6 +58,8 @@ export async function prune (
     include: opts.include,
     skipped: opts.skipped,
   })
+  const rootImporter = wantedLockfile.importers['.'] ?? {} as ProjectSnapshot
+  const wantedRootPkgs = mergeDependencies(rootImporter)
   await Promise.all(importers.map(async ({ binsDir, id, modulesDir, pruneDirectDependencies, removePackages, rootDir }) => {
     const currentImporter = opts.currentLockfile.importers[id] || {} as ProjectSnapshot
     const currentPkgs = Object.entries(mergeDependencies(currentImporter))
@@ -72,7 +74,7 @@ export async function prune (
       (removePackages ?? []).filter((removePackage) => allCurrentPackages.has(removePackage))
     )
     currentPkgs.forEach(([depName, depVersion]) => {
-      if (!wantedPkgs[depName] || wantedPkgs[depName] !== depVersion) {
+      if (!wantedPkgs[depName] || wantedPkgs[depName] !== depVersion || id !== '.' && wantedPkgs[depName] === wantedRootPkgs[depName]) {
         depsToRemove.add(depName)
       }
     })
@@ -87,7 +89,12 @@ export async function prune (
       }
     }
 
-    return Promise.all(Array.from(depsToRemove).map(async (depName) => {
+    const removedFromScopes = new Set<string>()
+    await Promise.all(Array.from(depsToRemove).map(async (depName) => {
+      const scope = getScopeFromPackageName(depName)
+      if (scope) {
+        removedFromScopes.add(scope)
+      }
       return removeDirectDependency({
         dependenciesField: currentImporter.devDependencies?.[depName] != null && 'devDependencies' ||
           currentImporter.optionalDependencies?.[depName] != null && 'optionalDependencies' ||
@@ -101,6 +108,8 @@ export async function prune (
         rootDir,
       })
     }))
+    await Promise.all(Array.from(removedFromScopes).map((scope) => removeIfEmpty(path.join(modulesDir, scope))))
+    await removeIfEmpty(modulesDir)
   }))
 
   const selectedImporterIds = importers.map((importer) => importer.id).sort()
@@ -170,6 +179,13 @@ export async function prune (
   }
 
   return new Set(orphanDepPaths)
+}
+
+function getScopeFromPackageName (pkgName: string): string | undefined {
+  if (pkgName[0] === '@') {
+    return pkgName.substring(0, pkgName.indexOf('/'))
+  }
+  return undefined
 }
 
 async function readVirtualStoreDir (virtualStoreDir: string, lockfileDir: string) {

@@ -58,7 +58,7 @@ test('dedupe direct dependencies', async () => {
         version: '1.0.0',
 
         dependencies: {
-          'is-negative': '1.0.0',
+          '@pnpm.e2e/hello-world-js-bin': '1.0.0',
         },
       },
       rootDir: path.resolve('project-2'),
@@ -70,37 +70,39 @@ test('dedupe direct dependencies', async () => {
         version: '1.0.0',
 
         dependencies: {
-          'is-negative': '1.0.0',
+          '@pnpm.e2e/hello-world-js-bin': '1.0.0',
         },
       },
       rootDir: path.resolve('project-3'),
     },
   ]
   await mutateModules(importers, await testDefaults({ allProjects, dedupeDirectDeps: true }))
-  await projects['project-2'].has('is-negative')
-  await projects['project-3'].has('is-negative')
+  await projects['project-2'].has('@pnpm.e2e/hello-world-js-bin')
+  await projects['project-3'].has('@pnpm.e2e/hello-world-js-bin')
 
-  allProjects[0].manifest.dependencies['is-negative'] = '1.0.0'
+  allProjects[0].manifest.dependencies['@pnpm.e2e/hello-world-js-bin'] = '1.0.0'
   allProjects[1].manifest.dependencies['is-positive'] = '1.0.0'
   allProjects[1].manifest.dependencies['is-odd'] = '2.0.0'
   await mutateModules(importers, await testDefaults({ allProjects, dedupeDirectDeps: true }))
 
   expect(Array.from(fs.readdirSync('node_modules').sort())).toEqual([
+    '.bin',
     '.modules.yaml',
     '.pnpm',
+    '@pnpm.e2e',
     'foo',
-    'is-negative',
     'is-odd',
     'is-positive',
   ])
+  expect(Array.from(fs.readdirSync('node_modules/@pnpm.e2e'))).toEqual(['hello-world-js-bin'])
   expect(fs.readdirSync('project-2/node_modules').sort()).toEqual(['is-odd'])
-  await projects['project-3'].hasNot('is-negative')
+  await projects['project-3'].hasNot('@pnpm.e2e/hello-world-js-bin')
   expect(fs.existsSync('project-3/node_modules')).toBeFalsy()
 
   // Test the same with headless install
   await mutateModules(importers, await testDefaults({ allProjects, dedupeDirectDeps: true, frozenLockfile: true }))
   expect(fs.readdirSync('project-2/node_modules').sort()).toEqual(['is-odd'])
-  await projects['project-3'].hasNot('is-negative')
+  await projects['project-3'].hasNot('@pnpm.e2e/hello-world-js-bin')
   expect(fs.existsSync('project-3/node_modules')).toBeFalsy()
 })
 
