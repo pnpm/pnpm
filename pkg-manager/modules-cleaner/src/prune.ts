@@ -38,6 +38,7 @@ export async function prune (
     rootDir: string
   }>,
   opts: {
+    dedupeDirectDeps?: boolean
     dryRun?: boolean
     include: { [dependenciesField in DependenciesField]: boolean }
     hoistedDependencies: HoistedDependencies
@@ -74,7 +75,11 @@ export async function prune (
       (removePackages ?? []).filter((removePackage) => allCurrentPackages.has(removePackage))
     )
     currentPkgs.forEach(([depName, depVersion]) => {
-      if (!wantedPkgs[depName] || wantedPkgs[depName] !== depVersion || id !== '.' && wantedPkgs[depName] === wantedRootPkgs[depName]) {
+      if (
+        !wantedPkgs[depName] ||
+        wantedPkgs[depName] !== depVersion ||
+        id !== '.' && wantedPkgs[depName] === wantedRootPkgs[depName] && opts.dedupeDirectDeps
+      ) {
         depsToRemove.add(depName)
       }
     })

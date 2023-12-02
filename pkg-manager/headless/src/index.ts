@@ -235,6 +235,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         selectedProjects,
         {
           currentLockfile,
+          dedupeDirectDeps: opts.dedupeDirectDeps,
           dryRun: false,
           hoistedDependencies: opts.hoistedDependencies,
           hoistedModulesDir: (opts.hoistPattern == null) ? undefined : hoistedModulesDir,
@@ -522,7 +523,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   })
 
   if (opts.enableModulesDir !== false) {
-    const rootProjectDeps = directDependenciesByImporterId['.'] ?? []
+    const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (directDependenciesByImporterId['.'] ?? {})
     /** Skip linking and due to no project manifest */
     if (!opts.ignorePackageManifest) {
       await Promise.all(selectedProjects.map(async (project) => {
@@ -682,7 +683,7 @@ async function symlinkDirectDependencies (
     }]))
   ))
   const rootProject = projectsToLink['.']
-  if (rootProject) {
+  if (rootProject && dedupe) {
     const rootDeps = Object.fromEntries(rootProject.dependencies.map((dep: LinkedDirectDep) => [dep.alias, dep.dir]))
     for (const project of Object.values(omit(['.'], projectsToLink))) {
       project.dependencies = project.dependencies.filter((dep: LinkedDirectDep) => dep.dir !== rootDeps[dep.alias])
