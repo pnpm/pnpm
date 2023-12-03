@@ -95,6 +95,7 @@ export async function resolveDependencies (
   opts: ResolveDependenciesOptions & {
     defaultUpdateDepth: number
     dedupePeerDependents?: boolean
+    dedupeDirectDeps?: boolean
     excludeLinksFromLockfile?: boolean
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: 'rolling' | boolean
@@ -220,6 +221,7 @@ export async function resolveDependencies (
   } = resolvePeers({
     dependenciesTree,
     dedupePeerDependents: opts.dedupePeerDependents,
+    dedupeDirectDeps: opts.dedupeDirectDeps,
     lockfileDir: opts.lockfileDir,
     projects: projectsToLink,
     virtualStoreDir: opts.virtualStoreDir,

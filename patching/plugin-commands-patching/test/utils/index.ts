@@ -11,6 +11,7 @@ export const DEFAULT_OPTS = {
   ca: undefined,
   cacheDir: '../cache',
   cert: undefined,
+  dedupeDirectDeps: false,
   extraEnv: {},
   cliOptions: {},
   fetchRetries: 2,
