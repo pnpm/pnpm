@@ -45,7 +45,7 @@ export async function envUse (opts: NvmNodeCommandOptions, params: string[]) {
   } catch (err: any) { // eslint-disable-line
     // ignore
   }
-  return `Node.js ${nodeVersion as string} is activated
+  return `Node.js ${nodeVersion as string} was activated
 ${dest} -> ${src}`
 }
 
