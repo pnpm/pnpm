@@ -42,7 +42,7 @@ async function removeNodeVersion (opts: NvmNodeCommandOptions, version: string):
   const { nodePath, nodeLink } = await getNodeExecPathAndTargetDir(opts.pnpmHomeDir)
 
   if (nodeLink?.includes(versionDir)) {
-    globalInfo(`Node.js version ${nodeVersion as string} was detected as the default one, removing ...`)
+    globalInfo(`Node.js ${nodeVersion as string} was detected as the default one, removing ...`)
 
     const npmPath = path.resolve(opts.pnpmHomeDir, 'npm')
     const npxPath = path.resolve(opts.pnpmHomeDir, 'npx')
