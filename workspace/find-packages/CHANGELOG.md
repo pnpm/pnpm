@@ -1,5 +1,13 @@
 # @pnpm/find-workspace-packages
 
+## 1.1.5
+
+### Patch Changes
+
+- Updated dependencies [e8926e920]
+  - @pnpm/workspace.read-manifest@1.0.2
+  - @pnpm/cli-utils@2.1.4
+
 ## 1.1.4
 
 ### Patch Changes

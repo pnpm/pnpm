@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-server
 
+## 6.0.49
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.4
+- @pnpm/server@17.0.4
+- @pnpm/store-connection-manager@7.0.18
+
 ## 6.0.48
 
 ### Patch Changes

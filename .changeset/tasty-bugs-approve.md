@@ -1,9 +1,4 @@
 ---
-"@pnpm/plugin-commands-installation": patch
-"@pnpm/resolve-dependencies": patch
-"@pnpm/modules-cleaner": patch
-"@pnpm/headless": patch
-"@pnpm/core": patch
 "pnpm": patch
 ---
 

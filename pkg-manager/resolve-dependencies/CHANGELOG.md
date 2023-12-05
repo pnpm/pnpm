@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 31.2.5
+
+### Patch Changes
+
+- 6558d1865: When `dedupe-direct-deps` is set to `true`, commands of dependencies should be deduplicated [#7359](https://github.com/pnpm/pnpm/pull/7359).
+
 ## 31.2.4
 
 ### Patch Changes

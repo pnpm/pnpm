@@ -1,5 +1,20 @@
 # @pnpm/plugin-commands-installation
 
+## 14.0.11
+
+### Patch Changes
+
+- 6558d1865: When `dedupe-direct-deps` is set to `true`, commands of dependencies should be deduplicated [#7359](https://github.com/pnpm/pnpm/pull/7359).
+- Updated dependencies [6558d1865]
+  - @pnpm/core@13.1.10
+  - @pnpm/cli-utils@2.1.4
+  - @pnpm/workspace.find-packages@1.1.5
+  - @pnpm/outdated@13.0.35
+  - @pnpm/package-store@19.0.10
+  - @pnpm/store-connection-manager@7.0.18
+  - @pnpm/plugin-commands-rebuild@10.0.9
+  - @pnpm/filter-workspace-packages@7.2.6
+
 ## 14.0.10
 
 ### Patch Changes
