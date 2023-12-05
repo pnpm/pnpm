@@ -89,26 +89,37 @@ function getChangelogEntry (changelog: string, version: string) {
           </picture>
         </a>
       </td>
-      <tr>
-        <td align="center" valign="middle">
-          <a href="https://discord.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-            <picture>
-              <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/discord.svg" />
-              <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/discord_light.svg" />
-              <img src="https://pnpm.io/img/users/discord.svg" width="220" />
-            </picture>
-          </a>
-        </td>
-        <td align="center" valign="middle">
-          <a href="https://uscreen.de/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
-            <picture>
-              <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/uscreen.svg" />
-              <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/uscreen_light.svg" />
-              <img src="https://pnpm.io/img/users/uscreen.svg" width="180" />
-            </picture>
-          </a>
-        </td>
-      </tr>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://discord.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/discord.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/discord_light.svg" />
+            <img src="https://pnpm.io/img/users/discord.svg" width="220" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://uscreen.de/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/uscreen.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/uscreen_light.svg" />
+            <img src="https://pnpm.io/img/users/uscreen.svg" width="180" />
+          </picture>
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://nx.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/nx.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/nx_light.svg" />
+            <img src="https://pnpm.io/img/users/nx.svg" width="120" />
+          </picture>
+        </a>
+      </td>
     </tr>
   </tbody>
 </table>
