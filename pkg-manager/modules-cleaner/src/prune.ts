@@ -78,7 +78,7 @@ export async function prune (
       if (
         !wantedPkgs[depName] ||
         wantedPkgs[depName] !== depVersion ||
-        id !== '.' && wantedPkgs[depName] === wantedRootPkgs[depName] && opts.dedupeDirectDeps
+        opts.dedupeDirectDeps && id !== '.' && wantedPkgs[depName] === wantedRootPkgs[depName]
       ) {
         depsToRemove.add(depName)
       }
