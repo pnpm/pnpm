@@ -342,6 +342,7 @@ test('auto install peer deps in a workspace. test #1', async () => {
         rootDir: path.resolve('project'),
       },
     ],
+    dedupeDirectDeps: false,
   }))
 })
 
@@ -381,6 +382,7 @@ test('auto install peer deps in a workspace. test #2', async () => {
         rootDir: path.resolve('project'),
       },
     ],
+    dedupeDirectDeps: false,
   }))
 })
 
