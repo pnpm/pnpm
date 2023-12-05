@@ -12,7 +12,7 @@ export function createGetAuthHeaderByURI (
     allSettings: opts.allSettings,
     userSettings: opts.userSettings ?? {},
   })
-  if (Object.keys(authHeaders).length === 0) return () => undefined
+  if (Object.keys(authHeaders).length === 0) return basicAuth
   return getAuthHeaderByURI.bind(null, authHeaders, getMaxParts(Object.keys(authHeaders)))
 }
 
@@ -27,6 +27,8 @@ function getAuthHeaderByURI (authHeaders: Record<string, string>, maxParts: numb
   if (!uri.endsWith('/')) {
     uri += '/'
   }
+  const basic = basicAuth(uri)
+  if (basic) return basic
   const nerfed = nerfDart(uri)
   const parts = nerfed.split('/')
   for (let i = Math.min(parts.length, maxParts) - 1; i >= 3; i--) {
@@ -38,4 +40,11 @@ function getAuthHeaderByURI (authHeaders: Record<string, string>, maxParts: numb
     return getAuthHeaderByURI(authHeaders, maxParts, urlWithoutPort)
   }
   return undefined
+}
+
+function basicAuth (uri: string): string | undefined {
+  const { username = '', password = '' } = new URL(uri)
+  if (!username && !password) return undefined
+  const auth64 = btoa(username + ':' + password)
+  return `Basic ${auth64}`
 }
