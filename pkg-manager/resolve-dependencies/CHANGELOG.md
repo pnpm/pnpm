@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 31.2.6
+
+### Patch Changes
+
+- 5462cb6d4: Fix dependencies deduplication.
+
 ## 31.2.5
 
 ### Patch Changes
