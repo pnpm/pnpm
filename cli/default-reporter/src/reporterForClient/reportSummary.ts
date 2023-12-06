@@ -69,13 +69,8 @@ export function reportSummary (
               msg += chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)
             }
             msg += EOL
-            msg += _printDiffs(diffs)
+            msg += _printDiffs(diffs, depType, opts.pnpmConfig)
             msg += EOL
-            if (depType === 'dev' && opts.pnpmConfig?.saveDev === false && opts.pnpmConfig?.extraEnv?.npm_command === 'add') {
-              msg += EOL
-              msg += `The dependency was already listed in devDependencies.${EOL}If you want to make it a prod dependency, then move it manually.`
-              msg += EOL
-            }
           } else if (opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
             msg += EOL
             msg += `${chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)} skipped`
@@ -96,7 +91,9 @@ function printDiffs (
   opts: {
     prefix: string
   },
-  pkgsDiff: PackageDiff[]
+  pkgsDiff: PackageDiff[],
+  depType: string,
+  pnpmConfig?: Config
 ) {
   // Sorts by alphabet then by removed/added
   // + ava 0.10.0
@@ -123,6 +120,9 @@ function printDiffs (
     }
     if (pkg.from) {
       result += ` ${chalk.grey(`<- ${pkg.from && path.relative(opts.prefix, pkg.from) || '???'}`)}`
+    }
+    if (pkg.added === true && depType === 'dev' && pnpmConfig?.saveDev === false && pnpmConfig?.extraEnv?.npm_command === 'add') {
+      result += `${chalk.yellow(` was already listed in devDependencies, If you want to make it a prod dependency, then move it manually.`)}`
     }
     return result
   }).join(EOL)
