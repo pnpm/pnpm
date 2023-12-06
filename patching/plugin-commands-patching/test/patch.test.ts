@@ -601,7 +601,6 @@ describe('patch and commit in workspaces', () => {
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
-      dedupeDirectDeps: true,
       storeDir,
       allProjects,
       allProjectsGraph,
@@ -634,7 +633,6 @@ describe('patch and commit in workspaces', () => {
       allProjects,
       allProjectsGraph,
       selectedProjectsGraph,
-      dedupeDirectDeps: true,
       dir: process.cwd(),
       rootProjectManifestDir: process.cwd(),
       cacheDir,

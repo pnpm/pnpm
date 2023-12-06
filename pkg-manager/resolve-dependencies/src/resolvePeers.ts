@@ -63,7 +63,6 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     lockfileDir: string
     resolvePeersFromWorkspaceRoot?: boolean
     dedupePeerDependents?: boolean
-    dedupeDirectDeps?: boolean
   }
 ): {
     dependenciesGraph: GenericDependenciesGraph<T>
@@ -109,28 +108,8 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   })
 
   const dependenciesByProjectId: { [id: string]: Record<string, string> } = {}
-  if (opts.dedupeDirectDeps) {
-    const rootProject = opts.projects.find(({ id }) => id === '.')
-    if (rootProject) {
-      dependenciesByProjectId['.'] = mapValues((nodeId) => pathsByNodeId.get(nodeId)!, rootProject.directNodeIdsByAlias)
-    }
-    const rootDeps = dependenciesByProjectId['.'] ?? {}
-    for (const { directNodeIdsByAlias, id } of opts.projects) {
-      if (id !== '.') {
-        const deps: Record<string, string> = {}
-        for (const [alias, nodeId] of Object.entries(directNodeIdsByAlias)) {
-          const depPath = pathsByNodeId.get(nodeId)!
-          if (rootDeps[alias] !== depPath) {
-            deps[alias] = depPath
-          }
-        }
-        dependenciesByProjectId[id] = deps
-      }
-    }
-  } else {
-    for (const { directNodeIdsByAlias, id } of opts.projects) {
-      dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId.get(nodeId)!, directNodeIdsByAlias)
-    }
+  for (const { directNodeIdsByAlias, id } of opts.projects) {
+    dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId.get(nodeId)!, directNodeIdsByAlias)
   }
   if (opts.dedupePeerDependents) {
     const duplicates = Array.from(depPathsByPkgId.values()).filter((item) => item.size > 1)
