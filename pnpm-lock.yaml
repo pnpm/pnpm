@@ -6174,10 +6174,16 @@ importers:
       '@pnpm/workspace.read-manifest':
         specifier: workspace:*
         version: link:../read-manifest
+      lodash.isequal:
+        specifier: 4.5.0
+        version: 4.5.0
     devDependencies:
       '@pnpm/workspace.find-packages':
         specifier: workspace:*
         version: 'link:'
+      '@types/lodash.isequal':
+        specifier: 4.5.8
+        version: 4.5.8
 
   workspace/find-workspace-dir:
     dependencies:
@@ -8782,7 +8788,7 @@ packages:
   /@types/byline@4.2.36:
     resolution: {integrity: sha512-dO55KDSaOSE+3T8TwP66mzn0u/PM/aSedVMr1tby7WBNjfLIuS6IbYXi1mlau49sVSVB+gXKJscWE0JO3tlXDw==}
     dependencies:
-      '@types/node': 20.9.0
+      '@types/node': 16.18.61
     dev: true
 
   /@types/cacheable-request@6.0.3:
@@ -8890,10 +8896,16 @@ packages:
   /@types/keyv@3.1.4:
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
     dependencies:
-      '@types/node': 20.9.0
+      '@types/node': 16.18.61
 
   /@types/lodash.clonedeep@4.5.9:
     resolution: {integrity: sha512-19429mWC+FyaAhOLzsS8kZUsI+/GmBAQ0HFiCPsKGU+7pBXOQWhyrY6xNNDwUSX8SMZMJvuFVMF9O5dQOlQK9Q==}
+    dependencies:
+      '@types/lodash': 4.14.201
+    dev: true
+
+  /@types/lodash.isequal@4.5.8:
+    resolution: {integrity: sha512-uput6pg4E/tj2LGxCZo9+y27JNyB2OZuuI/T5F+ylVDYuqICLG2/ktjxx0v6GvVntAf8TvEzeQLcV0ffRirXuA==}
     dependencies:
       '@types/lodash': 4.14.201
     dev: true
@@ -9383,7 +9395,7 @@ packages:
     resolution: {integrity: sha512-YmG+oTBCyrAoMIx5g2I9CfyurSpHyoan+9SCj7laaFKseOe3lFEyIVKvwRBQMmSt8uzh+eY5RWeQnoyyOs6AbA==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
-      '@yarnpkg/fslib': 3.0.0-rc.25
+      '@yarnpkg/fslib': ^3.0.0-rc.25
     dependencies:
       '@types/emscripten': 1.39.10
       '@yarnpkg/fslib': 3.0.0-rc.25
@@ -13866,6 +13878,10 @@ packages:
   /lodash.get@4.4.2:
     resolution: {integrity: sha512-z+Uw/vLuy6gQe8cfaFWD7p0wVv8fJl3mbzXh33RS+0oW2wvUqiRXiQ69gLWSLpgB5/6sU+r6BlQR0MBILadqTQ==}
     dev: true
+
+  /lodash.isequal@4.5.0:
+    resolution: {integrity: sha512-pDo3lu8Jhfjqls6GkMgpahsF9kCyayhgykjyLMNFTKWrpVdAQtYyB4muAMWozBB4ig/dtWAmsMxLEI8wuz+DYQ==}
+    dev: false
 
   /lodash.isfunction@3.0.9:
     resolution: {integrity: sha512-AirXNj15uRIMMPihnkInB4i3NHeb4iBtNg9WRWuK2o31S+ePwwNmDPaTL3o7dTJ+VXNZim7rFs4rxN4YU1oUJw==}

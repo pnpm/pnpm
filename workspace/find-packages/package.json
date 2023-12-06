@@ -33,11 +33,13 @@
     "@pnpm/fs.find-packages": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "1.0.0",
-    "@pnpm/workspace.read-manifest": "workspace:*"
+    "@pnpm/workspace.read-manifest": "workspace:*",
+    "lodash.isequal": "4.5.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {
-    "@pnpm/workspace.find-packages": "workspace:*"
+    "@pnpm/workspace.find-packages": "workspace:*",
+    "@types/lodash.isequal": "4.5.8"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"
