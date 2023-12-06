@@ -122,7 +122,7 @@ function printDiffs (
       result += ` ${chalk.grey(`<- ${pkg.from && path.relative(opts.prefix, pkg.from) || '???'}`)}`
     }
     if (pkg.added && depType === 'dev' && pnpmConfig?.saveDev === false && pnpmConfig?.extraEnv?.npm_command === 'add') {
-      result += `${chalk.yellow(' was already listed in devDependencies, If you want to make it a prod dependency, then move it manually.')}`
+      result += `${chalk.yellow(' already in devDependencies, was not moved to dependencies.')}`
     }
     return result
   }).join(EOL)
