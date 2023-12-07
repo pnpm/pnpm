@@ -1,5 +1,17 @@
 # @pnpm/network.auth-header
 
+## 2.1.0
+
+### Minor Changes
+
+- 3ac0487b3: Add support for basic authorization header [#7371](https://github.com/pnpm/pnpm/issues/7371).
+
+## 2.0.6
+
+### Patch Changes
+
+- 23039a6d6: Fix missing auth tokens in registries with paths specified (e.g. //npm.pkg.github.com/pnpm). #5970 #2933
+
 ## 2.0.5
 
 ### Patch Changes

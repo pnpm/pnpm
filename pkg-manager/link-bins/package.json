@@ -51,9 +51,9 @@
   "devDependencies": {
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/is-windows": "^1.0.1",
-    "@types/node": "^16.18.59",
-    "@types/normalize-path": "^3.0.1",
+    "@types/is-windows": "^1.0.2",
+    "@types/node": "^16.18.61",
+    "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.28.20",
     "cmd-extension": "^1.0.2",
     "path-exists": "^4.0.0",

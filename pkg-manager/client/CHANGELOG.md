@@ -1,5 +1,32 @@
 # @pnpm/client
 
+## 10.0.39
+
+### Patch Changes
+
+- Updated dependencies [3ac0487b3]
+  - @pnpm/network.auth-header@2.1.0
+
+## 10.0.38
+
+### Patch Changes
+
+- Updated dependencies [23039a6d6]
+  - @pnpm/network.auth-header@2.0.6
+
+## 10.0.37
+
+### Patch Changes
+
+- @pnpm/default-resolver@18.0.19
+
+## 10.0.36
+
+### Patch Changes
+
+- @pnpm/git-fetcher@12.0.13
+- @pnpm/tarball-fetcher@18.0.13
+
 ## 10.0.35
 
 ### Patch Changes

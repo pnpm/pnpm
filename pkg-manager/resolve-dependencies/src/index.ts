@@ -95,6 +95,7 @@ export async function resolveDependencies (
   opts: ResolveDependenciesOptions & {
     defaultUpdateDepth: number
     dedupePeerDependents?: boolean
+    dedupeDirectDeps?: boolean
     excludeLinksFromLockfile?: boolean
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: 'rolling' | boolean
@@ -247,6 +248,19 @@ export async function resolveDependencies (
         projectSnapshot.devDependencies[alias] = ref
       } else if (projectSnapshot.optionalDependencies?.[alias]) {
         projectSnapshot.optionalDependencies[alias] = ref
+      }
+    }
+  }
+  if (opts.dedupeDirectDeps) {
+    const rootDeps = dependenciesByProjectId['.']
+    if (rootDeps) {
+      for (const [id, deps] of Object.entries(dependenciesByProjectId)) {
+        if (id === '.') continue
+        for (const [alias, depPath] of Object.entries(deps)) {
+          if (depPath === rootDeps[alias]) {
+            delete deps[alias]
+          }
+        }
       }
     }
   }

@@ -1,5 +1,23 @@
 # @pnpm/headless
 
+## 22.3.9
+
+### Patch Changes
+
+- 6558d1865: When `dedupe-direct-deps` is set to `true`, commands of dependencies should be deduplicated [#7359](https://github.com/pnpm/pnpm/pull/7359).
+- Updated dependencies [6558d1865]
+  - @pnpm/modules-cleaner@14.0.20
+  - @pnpm/package-requester@24.1.3
+
+## 22.3.8
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/package-requester@24.1.3
+  - @pnpm/worker@0.3.9
+  - @pnpm/build-modules@11.2.6
+
 ## 22.3.7
 
 ### Patch Changes

@@ -1,5 +1,42 @@
 # @pnpm/plugin-commands-patching
 
+## 5.0.12
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.12
+
+## 5.0.11
+
+### Patch Changes
+
+- Updated dependencies [6558d1865]
+  - @pnpm/plugin-commands-installation@14.0.11
+  - @pnpm/cli-utils@2.1.4
+  - @pnpm/store-connection-manager@7.0.18
+
+## 5.0.10
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+- @pnpm/plugin-commands-installation@14.0.10
+- @pnpm/store-connection-manager@7.0.17
+
+## 5.0.9
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.9
+- @pnpm/store-connection-manager@7.0.16
+
+## 5.0.8
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.8
+- @pnpm/store-connection-manager@7.0.15
+
 ## 5.0.7
 
 ### Patch Changes

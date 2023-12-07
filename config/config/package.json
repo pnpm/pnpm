@@ -59,7 +59,7 @@
     "@pnpm/config": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
-    "@types/is-windows": "^1.0.1",
+    "@types/is-windows": "^1.0.2",
     "@types/ramda": "0.28.20",
     "@types/which": "^2.0.2",
     "symlink-dir": "^5.2.0"

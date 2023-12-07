@@ -1,5 +1,45 @@
 # @pnpm/core
 
+## 13.1.11
+
+### Patch Changes
+
+- Updated dependencies [5462cb6d4]
+  - @pnpm/resolve-dependencies@31.2.6
+
+## 13.1.10
+
+### Patch Changes
+
+- 6558d1865: When `dedupe-direct-deps` is set to `true`, commands of dependencies should be deduplicated [#7359](https://github.com/pnpm/pnpm/pull/7359).
+- Updated dependencies [6558d1865]
+  - @pnpm/resolve-dependencies@31.2.5
+  - @pnpm/modules-cleaner@14.0.20
+  - @pnpm/headless@22.3.9
+  - @pnpm/package-requester@24.1.3
+
+## 13.1.9
+
+### Patch Changes
+
+- Updated dependencies [b1fd38cca]
+  - @pnpm/get-context@10.0.7
+  - @pnpm/resolve-dependencies@31.2.4
+  - @pnpm/headless@22.3.8
+  - @pnpm/package-requester@24.1.3
+
+## 13.1.8
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+- Updated dependencies [2143a9388]
+  - @pnpm/package-requester@24.1.3
+  - @pnpm/worker@0.3.9
+  - @pnpm/get-context@10.0.6
+  - @pnpm/headless@22.3.8
+  - @pnpm/build-modules@11.2.6
+
 ## 13.1.7
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 11.2.6
+
+### Patch Changes
+
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/worker@0.3.9
+
 ## 11.2.5
 
 ### Patch Changes

@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-env
 
+## 4.1.14
+
+### Patch Changes
+
+- b9c7fb91f: chore: unify expressions
+  - @pnpm/cli-utils@2.1.4
+
+## 4.1.13
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.3
+
+## 4.1.12
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.33
+- @pnpm/node.resolver@2.0.34
+
 ## 4.1.11
 
 ### Patch Changes

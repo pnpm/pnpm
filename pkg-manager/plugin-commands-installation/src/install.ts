@@ -250,6 +250,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'bail'
 | 'bin'
 | 'cliOptions'
+| 'dedupeDirectDeps'
 | 'dedupePeerDependents'
 | 'deployAllFiles'
 | 'depth'

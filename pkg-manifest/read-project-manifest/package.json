@@ -46,9 +46,9 @@
   },
   "devDependencies": {
     "@pnpm/read-project-manifest": "workspace:*",
-    "@types/is-windows": "^1.0.1",
-    "@types/lodash.clonedeep": "^4.5.8",
-    "@types/parse-json": "^4.0.1",
+    "@types/is-windows": "^1.0.2",
+    "@types/lodash.clonedeep": "^4.5.9",
+    "@types/parse-json": "^4.0.2",
     "tempy": "^1.0.1"
   },
   "funding": "https://opencollective.com/pnpm",

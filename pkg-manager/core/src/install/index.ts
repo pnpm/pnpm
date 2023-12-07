@@ -430,7 +430,6 @@ Note that in CI environments, this setting is enabled by default.`,
     Failure reason:
     ${detailedReason ?? ''}`,
               })
-            /* eslint-enable @typescript-eslint/restrict-template-expressions */
           }
         }
       }
@@ -1010,6 +1009,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       autoInstallPeers: opts.autoInstallPeers,
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: opts.depth,
+      dedupeDirectDeps: opts.dedupeDirectDeps,
       dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,

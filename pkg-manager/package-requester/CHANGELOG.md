@@ -1,5 +1,13 @@
 # @pnpm/package-requester
 
+## 24.1.3
+
+### Patch Changes
+
+- 1e7bd4af3: Use availableParallelism, when available.
+- Updated dependencies [1e7bd4af3]
+  - @pnpm/worker@0.3.9
+
 ## 24.1.2
 
 ### Patch Changes

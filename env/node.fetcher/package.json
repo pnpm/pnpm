@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.fetcher",
-  "version": "3.0.32",
+  "version": "3.0.33",
   "description": "Node.js artifacts fetcher",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -43,14 +43,14 @@
     "@pnpm/tarball-fetcher": "workspace:*",
     "adm-zip": "^0.5.10",
     "detect-libc": "^2.0.2",
-    "rename-overwrite": "^4.0.3",
+    "rename-overwrite": "^4.0.4",
     "tempy": "^1.0.1"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
     "@pnpm/node.fetcher": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@types/adm-zip": "^0.5.3",
+    "@types/adm-zip": "^0.5.4",
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0"
   }
 }

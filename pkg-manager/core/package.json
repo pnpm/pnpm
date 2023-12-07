@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "13.1.7",
+  "version": "13.1.11",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -86,8 +86,8 @@
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/fs-extra": "^9.0.13",
-    "@types/is-windows": "^1.0.1",
-    "@types/normalize-path": "^3.0.1",
+    "@types/is-windows": "^1.0.2",
+    "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.5.3",
     "@types/sinon": "^10.0.20",
