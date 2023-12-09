@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-script-runners
 
+## 8.0.13
+
+### Patch Changes
+
+- 1474bfd89: Fix a bug where pnpm incorrectly passes a flag to a run handler as a fallback command [#7244](https://github.com/pnpm/pnpm/issues/7244).
+
+## 8.0.12
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.0.12
+
+## 8.0.11
+
+### Patch Changes
+
+- Updated dependencies [6558d1865]
+  - @pnpm/plugin-commands-installation@14.0.11
+  - @pnpm/cli-utils@2.1.4
+
 ## 8.0.10
 
 ### Patch Changes

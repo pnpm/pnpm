@@ -9332,8 +9332,8 @@ packages:
       '@types/lodash': 4.14.197
       '@types/semver': 7.5.3
       '@types/treeify': 1.0.3
-      '@yarnpkg/fslib': 3.0.0-rc.45
-      '@yarnpkg/libzip': 3.0.0-rc.45(@yarnpkg/fslib@3.0.0-rc.45)
+      '@yarnpkg/fslib': 3.0.0-rc.25
+      '@yarnpkg/libzip': 3.0.0-rc.25(@yarnpkg/fslib@3.0.0-rc.25)
       '@yarnpkg/parsers': 3.0.0-rc.45
       '@yarnpkg/shell': 4.0.0-rc.45(typanion@3.14.0)
       camelcase: 5.3.1
@@ -9371,22 +9371,22 @@ packages:
     engines: {node: '>=14.15.0'}
     dependencies:
       tslib: 2.6.2
-    dev: false
 
   /@yarnpkg/fslib@3.0.0-rc.45:
     resolution: {integrity: sha512-XarEtHTbeO4+rgZQObn16+uFzb1dXiVHuoqDNGoMywwBm/FF7DeCqSANeKiNYbi79WMgoLk8l3lO4g0vRYkJBg==}
     engines: {node: '>=14.15.0'}
     dependencies:
       tslib: 2.6.2
+    dev: false
 
-  /@yarnpkg/libzip@3.0.0-rc.45(@yarnpkg/fslib@3.0.0-rc.45):
-    resolution: {integrity: sha512-ZsYi6Y01yMJOLnJ5ISZgOFvCEXzp4EScrM91D7bvCx0lIfH3DZ40H4M5nGNeVFk7jXUHOXuJkNYlNoXixSconA==}
+  /@yarnpkg/libzip@3.0.0-rc.25(@yarnpkg/fslib@3.0.0-rc.25):
+    resolution: {integrity: sha512-YmG+oTBCyrAoMIx5g2I9CfyurSpHyoan+9SCj7laaFKseOe3lFEyIVKvwRBQMmSt8uzh+eY5RWeQnoyyOs6AbA==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
-      '@yarnpkg/fslib': 3.0.0-rc.45
+      '@yarnpkg/fslib': 3.0.0-rc.25
     dependencies:
       '@types/emscripten': 1.39.10
-      '@yarnpkg/fslib': 3.0.0-rc.45
+      '@yarnpkg/fslib': 3.0.0-rc.25
       tslib: 2.6.2
 
   /@yarnpkg/lockfile@1.1.0:
@@ -9459,7 +9459,7 @@ packages:
     engines: {node: '>=14.15.0'}
     hasBin: true
     dependencies:
-      '@yarnpkg/fslib': 3.0.0-rc.45
+      '@yarnpkg/fslib': 3.0.0-rc.25
       '@yarnpkg/parsers': 3.0.0-rc.45
       chalk: 3.0.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)

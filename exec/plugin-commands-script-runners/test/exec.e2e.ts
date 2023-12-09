@@ -900,3 +900,25 @@ test('pnpm exec command not found (explicit call, with a near name package)', as
   expect(error?.message).toBe('Command "cwsay" not found')
   expect(error?.hint).toBe('Did you mean "pnpm exec cowsay"?')
 })
+
+test('pnpm exec --workspace-root when command not found', async () => {
+  prepare({})
+
+  let error!: any // eslint-disable-line
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      argv: {
+        original: ['pnpm', '--workspace-root', 'command-that-does-not-exist'],
+      },
+      dir: process.cwd(),
+      fallbackCommandUsed: true,
+      recursive: false,
+      selectedProjectsGraph: {},
+    }, ['command-that-does-not-exist'])
+  } catch (err: any) { // eslint-disable-line
+    error = err
+  }
+
+  expect(error?.failures[0].message).toBe('Command "command-that-does-not-exist" not found')
+})

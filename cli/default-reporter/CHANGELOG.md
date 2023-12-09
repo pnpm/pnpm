@@ -1,5 +1,11 @@
 # @pnpm/default-reporter
 
+## 12.4.8
+
+### Patch Changes
+
+- 633c0d6f8: Revert warning about type of dependency.
+
 ## 12.4.7
 
 ### Patch Changes

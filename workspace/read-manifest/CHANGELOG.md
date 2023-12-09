@@ -1,5 +1,11 @@
 # @pnpm/workspace.read-manifest
 
+## 1.0.2
+
+### Patch Changes
+
+- e8926e920: Minor refactors to improve the type safety of the workspace manifest validation logic in the `readWorkspaceManifest` function.
+
 ## 1.0.1
 
 ### Patch Changes

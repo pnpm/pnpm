@@ -235,6 +235,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         selectedProjects,
         {
           currentLockfile,
+          dedupeDirectDeps: opts.dedupeDirectDeps,
           dryRun: false,
           hoistedDependencies: opts.hoistedDependencies,
           hoistedModulesDir: (opts.hoistPattern == null) ? undefined : hoistedModulesDir,
@@ -522,6 +523,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   })
 
   if (opts.enableModulesDir !== false) {
+    const rootProjectDeps = !opts.dedupeDirectDeps ? {} : (directDependenciesByImporterId['.'] ?? {})
     /** Skip linking and due to no project manifest */
     if (!opts.ignorePackageManifest) {
       await Promise.all(selectedProjects.map(async (project) => {
@@ -531,7 +533,17 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
             preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
           })
         } else {
-          const directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
+          let directPkgDirs: string[]
+          if (project.id === '.') {
+            directPkgDirs = Object.values(directDependenciesByImporterId[project.id])
+          } else {
+            directPkgDirs = []
+            for (const [alias, dir] of Object.entries(directDependenciesByImporterId[project.id])) {
+              if (rootProjectDeps[alias] !== dir) {
+                directPkgDirs.push(dir)
+              }
+            }
+          }
           await linkBinsOfPackages(
             (
               await Promise.all(
@@ -670,6 +682,13 @@ async function symlinkDirectDependencies (
       }),
     }]))
   ))
+  const rootProject = projectsToLink['.']
+  if (rootProject && dedupe) {
+    const rootDeps = Object.fromEntries(rootProject.dependencies.map((dep: LinkedDirectDep) => [dep.alias, dep.dir]))
+    for (const project of Object.values(omit(['.'], projectsToLink))) {
+      project.dependencies = project.dependencies.filter((dep: LinkedDirectDep) => dep.dir !== rootDeps[dep.alias])
+    }
+  }
   return linkDirectDeps(projectsToLink, { dedupe: Boolean(dedupe) })
 }
 

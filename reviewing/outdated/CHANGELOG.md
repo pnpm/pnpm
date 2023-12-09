@@ -1,5 +1,11 @@
 # @pnpm/outdated
 
+## 13.0.35
+
+### Patch Changes
+
+- @pnpm/client@10.0.39
+
 ## 13.0.34
 
 ### Patch Changes

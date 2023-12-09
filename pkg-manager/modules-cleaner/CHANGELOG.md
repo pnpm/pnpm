@@ -1,5 +1,11 @@
 # @pnpm/modules-cleaner
 
+## 14.0.20
+
+### Patch Changes
+
+- 6558d1865: When `dedupe-direct-deps` is set to `true`, commands of dependencies should be deduplicated [#7359](https://github.com/pnpm/pnpm/pull/7359).
+
 ## 14.0.19
 
 ### Patch Changes

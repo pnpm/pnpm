@@ -1,5 +1,16 @@
 # pnpm
 
+## 8.12.0
+
+### Minor Changes
+
+- Add support for basic authorization header [#7371](https://github.com/pnpm/pnpm/issues/7371).
+
+### Patch Changes
+
+- Fix a bug where pnpm incorrectly passes a flag to a run handler as a fallback command [#7244](https://github.com/pnpm/pnpm/issues/7244).
+- When `dedupe-direct-deps` is set to `true`, commands of dependencies should be deduplicated [#7359](https://github.com/pnpm/pnpm/pull/7359).
+
 ## 8.11.0
 
 ### Minor Changes

@@ -191,11 +191,23 @@ export async function handler (
     if (opts.ifPresent) return
     if (opts.fallbackCommandUsed) {
       if (opts.argv == null) throw new Error('Could not fallback because opts.argv.original was not passed to the script runner')
+      const params = opts.argv.original.slice(1)
+      while (params.length > 0 && params[0].startsWith('-') && params[0] !== '--') {
+        params.shift()
+      }
+      if (params.length > 0 && params[0] === '--') {
+        params.shift()
+      }
+      if (params.length === 0) {
+        throw new PnpmError('UNEXPECTED_BEHAVIOR', 'Params should not be an empty array', {
+          hint: 'This was a bug caused by programmer error. Please report it',
+        })
+      }
       return exec({
         selectedProjectsGraph: {},
         implicitlyFellbackFromRun: true,
         ...opts,
-      }, opts.argv.original.slice(1))
+      }, params)
     }
     if (opts.workspaceDir) {
       const { manifest: rootManifest } = await tryReadProjectManifest(opts.workspaceDir, opts)
