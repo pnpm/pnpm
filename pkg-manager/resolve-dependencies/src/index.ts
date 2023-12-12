@@ -134,8 +134,59 @@ export async function resolveDependencies (
     })
   }
 
+  const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project) => {
+    const resolvedImporter = resolvedImporters[project.id]
+
+    const topParents: Array<{ name: string, version: string, alias?: string, linkedDir?: string }> = project.manifest
+      ? await getTopParents(
+        difference(
+          Object.keys(getAllDependenciesFromManifest(project.manifest)),
+          resolvedImporter.directDependencies.map(({ alias }) => alias) || []
+        ),
+        project.modulesDir
+      )
+      : []
+    resolvedImporter.linkedDependencies.forEach((linkedDependency) => {
+      // The location of the external link may vary on different machines, so it is better not to include it in the lockfile.
+      // As a workaround, we symlink to the root of node_modules, which is a symlink to the actual location of the external link.
+      const target = !opts.excludeLinksFromLockfile || isSubdir(opts.lockfileDir, linkedDependency.resolution.directory)
+        ? linkedDependency.resolution.directory
+        : path.join(project.modulesDir, linkedDependency.alias)
+      const linkedDir = createNodeIdForLinkedLocalPkg(opts.lockfileDir, target)
+      topParents.push({
+        name: linkedDependency.alias,
+        version: linkedDependency.version,
+        linkedDir,
+      })
+    })
+
+    return {
+      binsDir: project.binsDir,
+      directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
+      id: project.id,
+      linkedDependencies: resolvedImporter.linkedDependencies,
+      manifest: project.manifest,
+      modulesDir: project.modulesDir,
+      rootDir: project.rootDir,
+      topParents,
+    }
+  }))
+
+  const {
+    dependenciesGraph,
+    dependenciesByProjectId,
+    peerDependencyIssuesByProjects,
+  } = resolvePeers({
+    dependenciesTree,
+    dedupePeerDependents: opts.dedupePeerDependents,
+    lockfileDir: opts.lockfileDir,
+    projects: projectsToLink,
+    virtualStoreDir: opts.virtualStoreDir,
+    resolvePeersFromWorkspaceRoot: Boolean(opts.resolvePeersFromWorkspaceRoot),
+  })
+
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
-  const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project, index) => {
+  await Promise.all<void>(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
     linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
     let updatedManifest: ProjectManifest | undefined = project.manifest
@@ -177,55 +228,9 @@ export async function resolveDependencies (
       )
     }
 
-    const topParents: Array<{ name: string, version: string, alias?: string, linkedDir?: string }> = project.manifest
-      ? await getTopParents(
-        difference(
-          Object.keys(getAllDependenciesFromManifest(project.manifest)),
-          resolvedImporter.directDependencies.map(({ alias }) => alias) || []
-        ),
-        project.modulesDir
-      )
-      : []
-    resolvedImporter.linkedDependencies.forEach((linkedDependency) => {
-      // The location of the external link may vary on different machines, so it is better not to include it in the lockfile.
-      // As a workaround, we symlink to the root of node_modules, which is a symlink to the actual location of the external link.
-      const target = !opts.excludeLinksFromLockfile || isSubdir(opts.lockfileDir, linkedDependency.resolution.directory)
-        ? linkedDependency.resolution.directory
-        : path.join(project.modulesDir, linkedDependency.alias)
-      const linkedDir = createNodeIdForLinkedLocalPkg(opts.lockfileDir, target)
-      topParents.push({
-        name: linkedDependency.alias,
-        version: linkedDependency.version,
-        linkedDir,
-      })
-    })
-
     const manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
     importers[index].manifest = manifest
-    return {
-      binsDir: project.binsDir,
-      directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
-      id: project.id,
-      linkedDependencies: resolvedImporter.linkedDependencies,
-      manifest: project.manifest,
-      modulesDir: project.modulesDir,
-      rootDir: project.rootDir,
-      topParents,
-    }
   }))
-
-  const {
-    dependenciesGraph,
-    dependenciesByProjectId,
-    peerDependencyIssuesByProjects,
-  } = resolvePeers({
-    dependenciesTree,
-    dedupePeerDependents: opts.dedupePeerDependents,
-    lockfileDir: opts.lockfileDir,
-    projects: projectsToLink,
-    virtualStoreDir: opts.virtualStoreDir,
-    resolvePeersFromWorkspaceRoot: Boolean(opts.resolvePeersFromWorkspaceRoot),
-  })
 
   for (const { id, manifest } of projectsToLink) {
     for (const [alias, depPath] of Object.entries(dependenciesByProjectId[id])) {
