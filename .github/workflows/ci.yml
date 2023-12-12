@@ -73,4 +73,5 @@ jobs:
       if: github.ref != 'refs/heads/main'
       run: pnpm run test-branch
       env:
-        PNPM_WORKERS: 3
+        # If it's for Windows, we need to set the number of workers to 1
+        PNPM_WORKERS: ${{ matrix.platform == 'windows-latest' && '1' || '3' }}
