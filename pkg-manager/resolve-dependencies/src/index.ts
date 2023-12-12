@@ -186,7 +186,7 @@ export async function resolveDependencies (
   })
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}
-  await Promise.all<void>(projectsToResolve.map(async (project, index) => {
+  await Promise.all(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
     linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
     let updatedManifest: ProjectManifest | undefined = project.manifest
@@ -228,15 +228,12 @@ export async function resolveDependencies (
       )
     }
 
-    const manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
-    importers[index].manifest = manifest
-  }))
+    importers[index].manifest = updatedOriginalManifest ?? project.originalManifest ?? project.manifest
 
-  for (const { id, manifest } of projectsToLink) {
-    for (const [alias, depPath] of Object.entries(dependenciesByProjectId[id])) {
-      const projectSnapshot = opts.wantedLockfile.importers[id]
-      if (manifest.dependenciesMeta != null) {
-        projectSnapshot.dependenciesMeta = manifest.dependenciesMeta
+    for (const [alias, depPath] of Object.entries(dependenciesByProjectId[project.id])) {
+      const projectSnapshot = opts.wantedLockfile.importers[project.id]
+      if (project.manifest.dependenciesMeta != null) {
+        projectSnapshot.dependenciesMeta = project.manifest.dependenciesMeta
       }
 
       const depNode = dependenciesGraph[depPath]
@@ -255,7 +252,8 @@ export async function resolveDependencies (
         projectSnapshot.optionalDependencies[alias] = ref
       }
     }
-  }
+  }))
+
   if (opts.dedupeDirectDeps) {
     const rootDeps = dependenciesByProjectId['.']
     if (rootDeps) {
