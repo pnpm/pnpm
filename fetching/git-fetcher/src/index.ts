@@ -42,6 +42,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.repo}": ${err.message}`
       throw err
     }
+    console.log('!!!!!!!!!!!!!!!!!!!!!!!!!!!')
     // removing /.git to make directory integrity calculation faster
     await rimraf(path.join(tempLocation, '.git'))
     // Important! We cannot remove the temp location at this stage.

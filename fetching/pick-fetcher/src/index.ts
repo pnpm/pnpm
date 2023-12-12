@@ -7,7 +7,7 @@ export function pickFetcher (fetcherByHostingType: Partial<Fetchers>, resolution
   if (resolution.type == null) {
     if (resolution.tarball.startsWith('file:')) {
       fetcherType = 'localTarball'
-    } else if (isGitHostedPkgUrl(resolution.tarball)) {
+    } else if (isGitHostedPkgUrl(resolution.tarball)) { //! this check can be done inside the worker
       fetcherType = 'gitHostedTarball'
     } else {
       fetcherType = 'remoteTarball'

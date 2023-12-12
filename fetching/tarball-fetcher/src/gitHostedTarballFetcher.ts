@@ -18,7 +18,11 @@ export interface CreateGitHostedTarballFetcher {
 
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
-    const { filesIndex, manifest } = await fetchRemoteTarball(cafs, resolution, opts)
+    //(not sure) This should just extract the tarball to a temp directory. No need to fetch it to the store?!
+    const { filesIndex, manifest } = await fetchRemoteTarball(cafs, resolution, {
+      ...opts,
+      filesIndexFile: opts.filesIndexFile + 'z'
+    })
     try {
       const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, opts.filesIndexFile, fetcherOpts, opts)
       if (prepareResult.ignoredBuild) {
