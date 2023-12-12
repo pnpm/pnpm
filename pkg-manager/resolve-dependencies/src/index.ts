@@ -189,17 +189,17 @@ export async function resolveDependencies (
   await Promise.all(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
     linkedDependenciesByProjectId[project.id] = resolvedImporter.linkedDependencies
-    let updatedManifest: ProjectManifest | undefined = project.manifest
-    let updatedOriginalManifest: ProjectManifest | undefined = project.originalManifest
+    let updatedManifest: ProjectManifest | undefined
+    let updatedOriginalManifest: ProjectManifest | undefined
     if (project.updatePackageManifest) {
-      const manifests = await updateProjectManifest(project, {
+      [updatedManifest, updatedOriginalManifest] = await updateProjectManifest(project, {
         directDependencies: resolvedImporter.directDependencies,
         preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
         saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       })
-      updatedManifest = manifests[0]
-      updatedOriginalManifest = manifests[1]
     } else {
+      updatedManifest = project.manifest
+      updatedOriginalManifest = project.originalManifest
       packageManifestLogger.debug({
         prefix: project.rootDir,
         updated: project.manifest,
