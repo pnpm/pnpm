@@ -42,8 +42,11 @@ export async function removeDirectDependency (
 }
 
 export async function removeIfEmpty (dir: string) {
-  if (await dirIsEmpty(dir)) {
-    await rimraf(dir)
+  try {
+    if (await dirIsEmpty(dir)) {
+      await rimraf(dir)
+    }
+  } catch {
   }
 }
 
