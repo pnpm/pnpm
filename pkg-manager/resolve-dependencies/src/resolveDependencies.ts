@@ -220,8 +220,8 @@ export interface ResolvedPackage {
   requiresBuild: boolean | SafePromiseDefer<boolean>
   additionalInfo: {
     deprecated?: string
-    bundleDependencies?: string[]
-    bundledDependencies?: string[]
+    bundleDependencies?: string[] | boolean
+    bundledDependencies?: string[] | boolean
     engines?: {
       node?: string
       npm?: string

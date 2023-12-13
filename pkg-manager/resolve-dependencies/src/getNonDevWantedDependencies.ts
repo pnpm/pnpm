@@ -10,7 +10,10 @@ export interface WantedDependency {
 }
 
 export function getNonDevWantedDependencies (pkg: Pick<DependencyManifest, 'bundleDependencies' | 'bundledDependencies' | 'optionalDependencies' | 'dependencies' | 'dependenciesMeta'>) {
-  const bd = pkg.bundledDependencies ?? pkg.bundleDependencies
+  let bd = pkg.bundledDependencies ?? pkg.bundleDependencies
+  if (bd === true) {
+    bd = pkg.dependencies != null ? Object.keys(pkg.dependencies) : []
+  }
   const bundledDeps = new Set(Array.isArray(bd) ? bd : [])
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
   return getWantedDependenciesFromGivenSet(
