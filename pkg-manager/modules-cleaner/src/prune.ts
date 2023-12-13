@@ -114,7 +114,12 @@ export async function prune (
       })
     }))
     await Promise.all(Array.from(removedFromScopes).map((scope) => removeIfEmpty(path.join(modulesDir, scope))))
-    await removeIfEmpty(modulesDir)
+    try {
+      await removeIfEmpty(modulesDir)
+    } catch {
+      // On some server setups we might not have permission to remove the node_modules directory.
+      // That's fine, just proceed.
+    }
   }))
 
   const selectedImporterIds = importers.map((importer) => importer.id).sort()

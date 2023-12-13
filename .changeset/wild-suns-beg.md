@@ -1,5 +1,6 @@
 ---
-"@pnpm/modules-cleaner": major
+"@pnpm/modules-cleaner": patch
+"pnpm": patch
 ---
 
-Enhance program robustness to prevent dependencies from being installed normally without permission.
+Installation should not fail if an empty `node_modules` directory cannot be removed [#7405](https://github.com/pnpm/pnpm/issues/7405).
