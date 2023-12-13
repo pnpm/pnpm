@@ -1,9 +1,10 @@
-import { packageIsInstallable } from '@pnpm/cli-utils'
+import { packageIsInstallable, readProjectManifest } from '@pnpm/cli-utils'
 import { type ProjectManifest, type Project, type SupportedArchitectures } from '@pnpm/types'
 import { readWorkspaceManifest } from '@pnpm/workspace.read-manifest'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import { findPackages } from '@pnpm/fs.find-packages'
 import { logger } from '@pnpm/logger'
+import isEqual from 'lodash.isequal'
 
 export type { Project }
 
@@ -18,6 +19,7 @@ export async function findWorkspacePackages (
   }
 ): Promise<Project[]> {
   const pkgs = await findWorkspacePackagesNoCheck(workspaceRoot, opts)
+  const { manifest: rootProjectManifest } = await readProjectManifest(workspaceRoot)
   for (const pkg of pkgs) {
     packageIsInstallable(pkg.dir, pkg.manifest, opts ?? {
       supportedArchitectures: {
@@ -28,7 +30,7 @@ export async function findWorkspacePackages (
     })
     // When setting shared-workspace-lockfile=false, `pnpm` can be set in sub-project's package.json.
     if (opts?.sharedWorkspaceLockfile && pkg.dir !== workspaceRoot) {
-      checkNonRootProjectManifest(pkg)
+      checkNonRootProjectManifest(pkg, rootProjectManifest)
     }
   }
 
@@ -68,9 +70,10 @@ export function arrayOfWorkspacePackagesToMap (
   }, {} as ArrayOfWorkspacePackagesToMapResult)
 }
 
-function checkNonRootProjectManifest ({ manifest, dir }: Project) {
+function checkNonRootProjectManifest ({ manifest, dir }: Project, rootProjectManifest: ProjectManifest) {
   for (const rootOnlyField of ['pnpm', 'resolutions']) {
-    if (manifest?.[rootOnlyField as keyof ProjectManifest]) {
+    const workspaceProjectField = manifest?.[rootOnlyField as keyof ProjectManifest]
+    if (workspaceProjectField && !isEqual(workspaceProjectField, rootProjectManifest?.[rootOnlyField as keyof ProjectManifest])) {
       logger.warn({
         message: `The field "${rootOnlyField}" was found in ${dir}/package.json. This will not take effect. You should configure "${rootOnlyField}" at the root of the workspace instead.`,
         prefix: dir,

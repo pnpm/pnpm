@@ -88,6 +88,7 @@
     "idempotency",
     "imurmurhash",
     "ionicons",
+    "isequal",
     "isexe",
     "istvan",
     "italiano",
@@ -166,7 +167,6 @@
     "postshrinkwrap",
     "poststart",
     "poststop",
-    "poststop",
     "posttest",
     "postuninstall",
     "postversion",
@@ -178,7 +178,6 @@
     "prereleases",
     "prerestart",
     "preshrinkwrap",
-    "prestart",
     "prestart",
     "prestop",
     "preuninstall",
@@ -255,6 +254,6 @@
     "xmarw",
     "zkochan",
     "zoli",
-    "zoltan" 
+    "zoltan"
   ]
 }
