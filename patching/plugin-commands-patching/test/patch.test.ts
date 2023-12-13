@@ -317,7 +317,7 @@ describe('patch and commit', () => {
     expect(JSON.parse(fs.readFileSync(path.join(patchDir, 'package.json'), 'utf8')).version).toBe('1.0.0')
   })
 
-  test('should skip empty patch content', async () => {
+  test('should skip empty patch content and not create patches dir', async () => {
     const output = await patch.handler(defaultPatchOption, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
     const result = await patchCommit.handler({
@@ -331,6 +331,7 @@ describe('patch and commit', () => {
     }, [patchDir])
     expect(result).toBe(`No changes were found to the following directory: ${patchDir}`)
     expect(fs.existsSync('patches/is-positive@1.0.0.patch')).toBe(false)
+    expect(fs.existsSync('patches')).toBe(false)
   })
 })
 
