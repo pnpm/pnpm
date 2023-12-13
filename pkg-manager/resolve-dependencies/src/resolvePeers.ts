@@ -114,7 +114,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     node.children = mapValues((childNodeId) => pathsByNodeId.get(childNodeId) ?? childNodeId, node.children)
   })
 
-  const injectedDeps: Map<string, Map<string, { depPath: string, id: string }> > = new Map()
+  const injectedDeps = new Map<string, Map<string, { depPath: string, id: string }>>()
   for (const project of opts.projects) {
     for (const [alias, nodeId] of Object.entries(project.directNodeIdsByAlias)) {
       const depPath = pathsByNodeId.get(nodeId)!
