@@ -183,6 +183,7 @@ export async function resolveDependencies (
     projects: projectsToLink,
     virtualStoreDir: opts.virtualStoreDir,
     resolvePeersFromWorkspaceRoot: Boolean(opts.resolvePeersFromWorkspaceRoot),
+    resolvedImporters,
   })
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}

@@ -17,6 +17,9 @@ import {
   type DependenciesTreeNode,
   type ResolvedPackage,
 } from './resolveDependencies'
+import {
+  type ResolvedImporters,
+} from './resolveDependencyTree'
 import { mergePeers } from './mergePeers'
 import { createNodeId, splitNodeId } from './nodeIdUtils'
 
@@ -63,6 +66,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     lockfileDir: string
     resolvePeersFromWorkspaceRoot?: boolean
     dedupePeerDependents?: boolean
+    resolvedImporters: ResolvedImporters
   }
 ): {
     dependenciesGraph: GenericDependenciesGraph<T>
@@ -107,9 +111,48 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     node.children = mapValues((childNodeId) => pathsByNodeId.get(childNodeId) ?? childNodeId, node.children)
   })
 
+  const injectedDeps: { [id: string]: Record<string, { depPath: string, nodeId: string, id: string }> } = {}
+  for (const project of opts.projects) {
+    injectedDeps[project.id] = Object.fromEntries(
+      Object.entries(project.directNodeIdsByAlias)
+        .map(([alias, nodeId]) => [alias, { nodeId, depPath: pathsByNodeId.get(nodeId)! }])
+        .filter(([_, { depPath }]: any) => depPath.startsWith('file:'))
+        .map(([alias, inj]: any) => {
+          return [alias, { ...inj, id: (depGraph[inj.depPath] as any).id.substring(5) }]
+        })
+        .filter(([_, { id }]: any) => opts.projects.some((project) => project.id === id))
+    )
+  }
   const dependenciesByProjectId: { [id: string]: Record<string, string> } = {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
     dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId.get(nodeId)!, directNodeIdsByAlias)
+  }
+  for (const id of Object.keys(injectedDeps)) {
+    for (const [alias, dep] of Object.entries(injectedDeps[id])) {
+      // CHECK FOR SUBGROUP NOT EQUAL
+      // THE ONE IN ROOT MAY HAVE DEV DEPS
+      const isSubset = Object.entries(depGraph[dep.depPath].children)
+        .every(([alias, depPath]) => dependenciesByProjectId[dep.id][alias] === depPath)
+      if (isSubset) {
+        console.log('DELETE', alias, 'from', id)
+        delete dependenciesByProjectId[id][alias]
+        const index = opts.resolvedImporters[id].directDependencies.findIndex((dep) => dep.alias === alias)
+        const prev = opts.resolvedImporters[id].directDependencies[index]
+        const linkedDep = {
+          ...prev,
+          isLinkedDependency: true,
+          depPath: `link:../${dep.id}`,
+          resolution: {
+            type: 'directory',
+            directory: `../${dep.id}`, // this should be full path
+          },
+          pkgId: `link:../${dep.id}`,
+          alias,
+        }
+        opts.resolvedImporters[id].directDependencies[index] = linkedDep
+        opts.resolvedImporters[id].linkedDependencies.push(linkedDep as any)
+      }
+    }
   }
   if (opts.dedupePeerDependents) {
     const duplicates = Array.from(depPathsByPkgId.values()).filter((item) => item.size > 1)
