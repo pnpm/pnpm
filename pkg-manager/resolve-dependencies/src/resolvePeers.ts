@@ -113,15 +113,15 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     node.children = mapValues((childNodeId) => pathsByNodeId.get(childNodeId) ?? childNodeId, node.children)
   })
 
-  const injectedDeps: { [id: string]: Record<string, { depPath: string, id: string }> } = {}
+  const injectedDeps: Map<string, Map<string, { depPath: string, id: string }> > = new Map()
   for (const project of opts.projects) {
     for (const [alias, nodeId] of Object.entries(project.directNodeIdsByAlias)) {
       const depPath = pathsByNodeId.get(nodeId)!
       if (!depPath.startsWith('file:')) continue
       const id = depGraph[depPath].id.substring(5)
       if (opts.projects.some((project) => project.id === id)) {
-        if (!injectedDeps[project.id]) injectedDeps[project.id] = {}
-        injectedDeps[project.id][alias] = { depPath, id }
+        if (!injectedDeps.has(project.id)) injectedDeps.set(project.id, new Map())
+        injectedDeps.get(project.id)!.set(alias, { depPath, id })
       }
     }
   }
@@ -130,9 +130,9 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId.get(nodeId)!, directNodeIdsByAlias)
   }
   const toDedupe: Record<string, string[]> = {}
-  for (const id of Object.keys(injectedDeps)) {
+  for (const [id, deps] of injectedDeps.entries()) {
     toDedupe[id] = []
-    for (const [alias, dep] of Object.entries(injectedDeps[id])) {
+    for (const [alias, dep] of deps.entries()) {
       // CHECK FOR SUBGROUP NOT EQUAL
       // THE ONE IN ROOT MAY HAVE DEV DEPS
       const isSubset = Object.entries(depGraph[dep.depPath].children)
@@ -144,7 +144,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   }
   for (const [id, aliases] of Object.entries(toDedupe)) {
     for (const alias of aliases) {
-      const dep = injectedDeps[id][alias]
+      const dep = injectedDeps.get(id)!.get(alias)!
       delete dependenciesByProjectId[id][alias]
       const index = opts.resolvedImporters[id].directDependencies.findIndex((dep) => dep.alias === alias)
       const prev = opts.resolvedImporters[id].directDependencies[index]
