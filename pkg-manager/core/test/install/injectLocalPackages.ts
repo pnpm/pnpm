@@ -1825,6 +1825,36 @@ test('injected local packages are deduped', async () => {
       },
     },
   }
+  const project4Manifest = {
+    name: 'project-4',
+    version: '1.0.0',
+    dependencies: {
+      'project-2': 'workspace:1.0.0',
+    },
+    devDependencies: {
+      'is-positive': '1.0.0',
+    },
+    dependenciesMeta: {
+      'project-2': {
+        injected: true,
+      },
+    },
+  }
+  const project5Manifest = {
+    name: 'project-5',
+    version: '1.0.0',
+    dependencies: {
+      'project-4': 'workspace:1.0.0',
+    },
+    devDependencies: {
+      'is-positive': '1.0.0',
+    },
+    dependenciesMeta: {
+      'project-4': {
+        injected: true,
+      },
+    },
+  }
   const projects = preparePackages([
     {
       location: 'project-1',
@@ -1837,6 +1867,14 @@ test('injected local packages are deduped', async () => {
     {
       location: 'project-3',
       package: project3Manifest,
+    },
+    {
+      location: 'project-4',
+      package: project4Manifest,
+    },
+    {
+      location: 'project-5',
+      package: project5Manifest,
     },
   ])
 
@@ -1852,6 +1890,14 @@ test('injected local packages are deduped', async () => {
     {
       mutation: 'install',
       rootDir: path.resolve('project-3'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-4'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-5'),
     },
   ]
   const allProjects: ProjectOptions[] = [
@@ -1870,6 +1916,16 @@ test('injected local packages are deduped', async () => {
       manifest: project3Manifest,
       rootDir: path.resolve('project-3'),
     },
+    {
+      buildIndex: 0,
+      manifest: project4Manifest,
+      rootDir: path.resolve('project-4'),
+    },
+    {
+      buildIndex: 0,
+      manifest: project5Manifest,
+      rootDir: path.resolve('project-5'),
+    },
   ]
   const workspacePackages = {
     'project-1': {
@@ -1887,7 +1943,13 @@ test('injected local packages are deduped', async () => {
     'project-3': {
       '1.0.0': {
         dir: path.resolve('project-3'),
-        manifest: project2Manifest,
+        manifest: project3Manifest,
+      },
+    },
+    'project-4': {
+      '1.0.0': {
+        dir: path.resolve('project-4'),
+        manifest: project4Manifest,
       },
     },
   }

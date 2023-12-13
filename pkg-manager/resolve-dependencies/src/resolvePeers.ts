@@ -111,14 +111,14 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     node.children = mapValues((childNodeId) => pathsByNodeId.get(childNodeId) ?? childNodeId, node.children)
   })
 
-  const injectedDeps: { [id: string]: Record<string, { depPath: string, nodeId: string, id: string }> } = {}
+  const injectedDeps: { [id: string]: Record<string, { depPath: string, id: string }> } = {}
   for (const project of opts.projects) {
     injectedDeps[project.id] = Object.fromEntries(
       Object.entries(project.directNodeIdsByAlias)
-        .map(([alias, nodeId]) => [alias, { nodeId, depPath: pathsByNodeId.get(nodeId)! }])
-        .filter(([_, { depPath }]: any) => depPath.startsWith('file:'))
-        .map(([alias, inj]: any) => {
-          return [alias, { ...inj, id: (depGraph[inj.depPath] as any).id.substring(5) }]
+        .map(([alias, nodeId]) => ({ alias, depPath: pathsByNodeId.get(nodeId)! }))
+        .filter(({ depPath }) => depPath.startsWith('file:'))
+        .map(({ alias, depPath }) => {
+          return [alias, { depPath, id: (depGraph[depPath] as any).id.substring(5) }]
         })
         .filter(([_, { id }]: any) => opts.projects.some((project) => project.id === id))
     )
@@ -127,31 +127,38 @@ export function resolvePeers<T extends PartialResolvedPackage> (
   for (const { directNodeIdsByAlias, id } of opts.projects) {
     dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId.get(nodeId)!, directNodeIdsByAlias)
   }
+  const toDedupe: Record<string, string[]> = {}
   for (const id of Object.keys(injectedDeps)) {
+    toDedupe[id] = []
     for (const [alias, dep] of Object.entries(injectedDeps[id])) {
       // CHECK FOR SUBGROUP NOT EQUAL
       // THE ONE IN ROOT MAY HAVE DEV DEPS
       const isSubset = Object.entries(depGraph[dep.depPath].children)
         .every(([alias, depPath]) => dependenciesByProjectId[dep.id][alias] === depPath)
       if (isSubset) {
-        console.log('DELETE', alias, 'from', id)
-        delete dependenciesByProjectId[id][alias]
-        const index = opts.resolvedImporters[id].directDependencies.findIndex((dep) => dep.alias === alias)
-        const prev = opts.resolvedImporters[id].directDependencies[index]
-        const linkedDep = {
-          ...prev,
-          isLinkedDependency: true,
-          depPath: `link:../${dep.id}`,
-          resolution: {
-            type: 'directory',
-            directory: `../${dep.id}`, // this should be full path
-          },
-          pkgId: `link:../${dep.id}`,
-          alias,
-        }
-        opts.resolvedImporters[id].directDependencies[index] = linkedDep
-        opts.resolvedImporters[id].linkedDependencies.push(linkedDep as any)
+        toDedupe[id].push(alias)
       }
+    }
+  }
+  for (const [id, aliases] of Object.entries(toDedupe)) {
+    for (const alias of aliases) {
+      const dep = injectedDeps[id][alias]
+      delete dependenciesByProjectId[id][alias]
+      const index = opts.resolvedImporters[id].directDependencies.findIndex((dep) => dep.alias === alias)
+      const prev = opts.resolvedImporters[id].directDependencies[index]
+      const linkedDep = {
+        ...prev,
+        isLinkedDependency: true,
+        depPath: `link:../${dep.id}`,
+        resolution: {
+          type: 'directory',
+          directory: `../${dep.id}`, // this should be full path
+        },
+        pkgId: `link:../${dep.id}`,
+        alias,
+      }
+      opts.resolvedImporters[id].directDependencies[index] = linkedDep
+      opts.resolvedImporters[id].linkedDependencies.push(linkedDep as any)
     }
   }
   if (opts.dedupePeerDependents) {
