@@ -114,54 +114,56 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     node.children = mapValues((childNodeId) => pathsByNodeId.get(childNodeId) ?? childNodeId, node.children)
   })
 
-  const injectedDeps = new Map<string, Map<string, { depPath: string, id: string }>>()
-  for (const project of opts.projects) {
-    for (const [alias, nodeId] of Object.entries(project.directNodeIdsByAlias)) {
-      const depPath = pathsByNodeId.get(nodeId)!
-      if (!depPath.startsWith('file:')) continue
-      const id = depGraph[depPath].id.substring(5)
-      if (opts.projects.some((project) => project.id === id)) {
-        if (!injectedDeps.has(project.id)) injectedDeps.set(project.id, new Map())
-        injectedDeps.get(project.id)!.set(alias, { depPath, id })
-      }
-    }
-  }
   const dependenciesByProjectId: { [id: string]: Record<string, string> } = {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
     dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId.get(nodeId)!, directNodeIdsByAlias)
   }
-  const toDedupe: Record<string, string[]> = {}
-  for (const [id, deps] of injectedDeps.entries()) {
-    toDedupe[id] = []
-    for (const [alias, dep] of deps.entries()) {
-      // CHECK FOR SUBGROUP NOT EQUAL
-      // THE ONE IN ROOT MAY HAVE DEV DEPS
-      const isSubset = Object.entries(depGraph[dep.depPath].children)
-        .every(([alias, depPath]) => dependenciesByProjectId[dep.id][alias] === depPath)
-      if (isSubset) {
-        toDedupe[id].push(alias)
+  if (opts.dedupeInjectedDeps) {
+    const injectedDeps = new Map<string, Map<string, { depPath: string, id: string }>>()
+    for (const project of opts.projects) {
+      for (const [alias, nodeId] of Object.entries(project.directNodeIdsByAlias)) {
+        const depPath = pathsByNodeId.get(nodeId)!
+        if (!depPath.startsWith('file:')) continue
+        const id = depGraph[depPath].id.substring(5)
+        if (opts.projects.some((project) => project.id === id)) {
+          if (!injectedDeps.has(project.id)) injectedDeps.set(project.id, new Map())
+          injectedDeps.get(project.id)!.set(alias, { depPath, id })
+        }
       }
     }
-  }
-  for (const [id, aliases] of Object.entries(toDedupe)) {
-    for (const alias of aliases) {
-      const dep = injectedDeps.get(id)!.get(alias)!
-      delete dependenciesByProjectId[id][alias]
-      const index = opts.resolvedImporters[id].directDependencies.findIndex((dep) => dep.alias === alias)
-      const prev = opts.resolvedImporters[id].directDependencies[index]
-      const linkedDep: LinkedDependency = {
-        ...prev,
-        isLinkedDependency: true,
-        depPath: `link:../${dep.id}`,
-        resolution: {
-          type: 'directory',
-          directory: `../${dep.id}`, // this should be full path
-        },
-        pkgId: `link:../${dep.id}`,
-        alias,
+    const toDedupe: Record<string, string[]> = {}
+    for (const [id, deps] of injectedDeps.entries()) {
+      toDedupe[id] = []
+      for (const [alias, dep] of deps.entries()) {
+        // CHECK FOR SUBGROUP NOT EQUAL
+        // THE ONE IN ROOT MAY HAVE DEV DEPS
+        const isSubset = Object.entries(depGraph[dep.depPath].children)
+          .every(([alias, depPath]) => dependenciesByProjectId[dep.id][alias] === depPath)
+        if (isSubset) {
+          toDedupe[id].push(alias)
+        }
       }
-      opts.resolvedImporters[id].directDependencies[index] = linkedDep
-      opts.resolvedImporters[id].linkedDependencies.push(linkedDep)
+    }
+    for (const [id, aliases] of Object.entries(toDedupe)) {
+      for (const alias of aliases) {
+        const dep = injectedDeps.get(id)!.get(alias)!
+        delete dependenciesByProjectId[id][alias]
+        const index = opts.resolvedImporters[id].directDependencies.findIndex((dep) => dep.alias === alias)
+        const prev = opts.resolvedImporters[id].directDependencies[index]
+        const linkedDep: LinkedDependency = {
+          ...prev,
+          isLinkedDependency: true,
+          depPath: `link:../${dep.id}`,
+          resolution: {
+            type: 'directory',
+            directory: `../${dep.id}`, // this should be full path
+          },
+          pkgId: `link:../${dep.id}`,
+          alias,
+        }
+        opts.resolvedImporters[id].directDependencies[index] = linkedDep
+        opts.resolvedImporters[id].linkedDependencies.push(linkedDep)
+      }
     }
   }
   if (opts.dedupePeerDependents) {
