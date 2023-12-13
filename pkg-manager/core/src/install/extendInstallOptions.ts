@@ -212,7 +212,7 @@ const defaults = (opts: InstallOptions) => {
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||
       !process.setgid ||
-      process.getuid() !== 0,
+      process.getuid?.() !== 0,
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,
