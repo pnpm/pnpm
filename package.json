@@ -43,7 +43,7 @@
     "@pnpm/tsconfig": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@types/jest": "^29.5.8",
-    "@types/node": "^16.18.61",
+    "@types/node": "^18.14.6",
     "c8": "^7.14.0",
     "concurrently": "8.2.1",
     "cross-env": "^7.0.3",
