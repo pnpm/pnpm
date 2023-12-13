@@ -1,5 +1,11 @@
 # @pnpm/lockfile-utils
 
+## 9.0.2
+
+### Patch Changes
+
+- d5a176af7: Fix a bug where `--fix-lockfile` crashes on tarballs [#7368](https://github.com/pnpm/pnpm/issues/7368).
+
 ## 9.0.1
 
 ### Patch Changes

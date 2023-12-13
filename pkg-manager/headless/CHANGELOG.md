@@ -1,5 +1,23 @@
 # @pnpm/headless
 
+## 22.3.10
+
+### Patch Changes
+
+- e3b983295: Don't report dependencies with optional dependencies as being added on repeat install. This was a bug in reporting [#7384](https://github.com/pnpm/pnpm/issues/7384).
+- Updated dependencies [d5a176af7]
+- Updated dependencies [f3cd0a61d]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/modules-cleaner@14.0.21
+  - @pnpm/deps.graph-builder@0.2.4
+  - @pnpm/filter-lockfile@8.1.3
+  - @pnpm/lockfile-to-pnp@3.0.14
+  - @pnpm/hoist@8.1.3
+  - @pnpm/real-hoist@2.0.16
+  - @pnpm/package-requester@24.1.4
+  - @pnpm/worker@0.3.10
+  - @pnpm/build-modules@11.2.7
+
 ## 22.3.9
 
 ### Patch Changes

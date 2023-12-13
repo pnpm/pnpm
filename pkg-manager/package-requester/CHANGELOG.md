@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 24.1.4
+
+### Patch Changes
+
+- @pnpm/worker@0.3.10
+
 ## 24.1.3
 
 ### Patch Changes

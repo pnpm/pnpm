@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/audit",
-  "version": "7.0.20",
+  "version": "7.0.21",
   "description": "Audit a lockfile",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

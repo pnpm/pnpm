@@ -1,5 +1,11 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 5.0.9
+
+### Patch Changes
+
+- 418866ac0: Bump version of `@reflink/reflink` that avoids empty cloned files when using Copy-on-Write on Windows Dev Drives. (#7186)
+
 ## 5.0.8
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/deps.graph-builder
 
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+
 ## 0.2.3
 
 ### Patch Changes

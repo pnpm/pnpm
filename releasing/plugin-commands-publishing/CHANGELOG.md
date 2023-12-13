@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.4.9
+
+### Patch Changes
+
+- @pnpm/client@10.0.40
+
 ## 7.4.8
 
 ### Patch Changes

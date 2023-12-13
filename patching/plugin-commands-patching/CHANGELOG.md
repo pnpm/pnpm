@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-patching
 
+## 5.0.13
+
+### Patch Changes
+
+- 9a53179e3: Do not create empty patch directory.
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/plugin-commands-installation@14.0.13
+  - @pnpm/store-connection-manager@7.0.19
+
 ## 5.0.12
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/modules-cleaner
 
+## 14.0.21
+
+### Patch Changes
+
+- f3cd0a61d: Installation should not fail if an empty `node_modules` directory cannot be removed [#7405](https://github.com/pnpm/pnpm/issues/7405).
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/filter-lockfile@8.1.3
+
 ## 14.0.20
 
 ### Patch Changes

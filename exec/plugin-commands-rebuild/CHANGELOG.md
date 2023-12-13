@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-rebuild
 
+## 10.0.10
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/worker@0.3.10
+  - @pnpm/store-connection-manager@7.0.19
+
 ## 10.0.9
 
 ### Patch Changes
