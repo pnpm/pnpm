@@ -68,6 +68,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     lockfileDir: string
     resolvePeersFromWorkspaceRoot?: boolean
     dedupePeerDependents?: boolean
+    dedupeInjectedDeps?: boolean
     resolvedImporters: ResolvedImporters
   }
 ): {

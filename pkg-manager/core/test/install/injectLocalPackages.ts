@@ -1956,6 +1956,7 @@ test('injected local packages are deduped', async () => {
   await mutateModules(importers, await testDefaults({
     autoInstallPeers: true,
     allProjects,
+    dedupeInjectedDeps: true,
     workspacePackages,
   }))
 
@@ -2007,6 +2008,7 @@ test('injected local packages are deduped', async () => {
   await mutateModules(importers, await testDefaults({
     autoInstallPeers: true,
     allProjects,
+    dedupeInjectedDeps: true,
     frozenLockfile: true,
     workspacePackages,
   }))
@@ -2025,7 +2027,7 @@ test('injected local packages are deduped', async () => {
 
   // The injected project is updated when one of its dependencies needs to be updated
   allProjects[0].manifest.dependencies!['is-negative'] = '2.0.0'
-  await mutateModules(importers, await testDefaults({ autoInstallPeers: true, allProjects, workspacePackages }))
+  await mutateModules(importers, await testDefaults({ autoInstallPeers: true, allProjects, dedupeInjectedDeps: true, workspacePackages }))
   {
     const lockfile = await rootModules.readLockfile()
     expect(lockfile.importers['project-2'].dependenciesMeta).toEqual({

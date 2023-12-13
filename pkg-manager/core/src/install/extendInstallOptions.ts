@@ -123,6 +123,7 @@ export interface StrictInstallOptions {
   allProjects: ProjectOptions[]
   resolveSymlinksInInjectedDirs: boolean
   dedupeDirectDeps: boolean
+  dedupeInjectedDeps: boolean
   dedupePeerDependents: boolean
   extendNodePath: boolean
   excludeLinksFromLockfile: boolean

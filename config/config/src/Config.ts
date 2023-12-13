@@ -184,6 +184,7 @@ export interface Config {
   gitBranchLockfile?: boolean
   globalDir?: string
   lockfile?: boolean
+  dedupeInjectedDeps?: boolean
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
