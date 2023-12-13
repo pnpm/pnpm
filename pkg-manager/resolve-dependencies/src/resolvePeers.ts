@@ -13,6 +13,7 @@ import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
 import scan from 'ramda/src/scan'
 import {
+  type LinkedDependency,
   type DependenciesTree,
   type DependenciesTreeNode,
   type ResolvedPackage,
@@ -38,6 +39,7 @@ export interface GenericDependenciesGraphNode {
 }
 
 export type PartialResolvedPackage = Pick<ResolvedPackage,
+| 'id'
 | 'depPath'
 | 'name'
 | 'peerDependencies'
@@ -113,15 +115,15 @@ export function resolvePeers<T extends PartialResolvedPackage> (
 
   const injectedDeps: { [id: string]: Record<string, { depPath: string, id: string }> } = {}
   for (const project of opts.projects) {
-    injectedDeps[project.id] = Object.fromEntries(
-      Object.entries(project.directNodeIdsByAlias)
-        .map(([alias, nodeId]) => ({ alias, depPath: pathsByNodeId.get(nodeId)! }))
-        .filter(({ depPath }) => depPath.startsWith('file:'))
-        .map(({ alias, depPath }) => {
-          return [alias, { depPath, id: (depGraph[depPath] as any).id.substring(5) }]
-        })
-        .filter(([_, { id }]: any) => opts.projects.some((project) => project.id === id))
-    )
+    for (const [alias, nodeId] of Object.entries(project.directNodeIdsByAlias)) {
+      const depPath = pathsByNodeId.get(nodeId)!
+      if (!depPath.startsWith('file:')) continue
+      const id = depGraph[depPath].id.substring(5)
+      if (opts.projects.some((project) => project.id === id)) {
+        if (!injectedDeps[project.id]) injectedDeps[project.id] = {}
+        injectedDeps[project.id][alias] = { depPath, id }
+      }
+    }
   }
   const dependenciesByProjectId: { [id: string]: Record<string, string> } = {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
@@ -146,7 +148,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
       delete dependenciesByProjectId[id][alias]
       const index = opts.resolvedImporters[id].directDependencies.findIndex((dep) => dep.alias === alias)
       const prev = opts.resolvedImporters[id].directDependencies[index]
-      const linkedDep = {
+      const linkedDep: LinkedDependency = {
         ...prev,
         isLinkedDependency: true,
         depPath: `link:../${dep.id}`,
@@ -158,7 +160,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
         alias,
       }
       opts.resolvedImporters[id].directDependencies[index] = linkedDep
-      opts.resolvedImporters[id].linkedDependencies.push(linkedDep as any)
+      opts.resolvedImporters[id].linkedDependencies.push(linkedDep)
     }
   }
   if (opts.dedupePeerDependents) {
