@@ -9,16 +9,28 @@ import {
   type ProjectToResolve,
 } from './resolvePeers'
 
+export interface DedupeInjectedDepsOptions<T extends PartialResolvedPackage> {
+  depGraph: GenericDependenciesGraph<T>
+  dependenciesByProjectId: DependenciesByProjectId
+  lockfileDir: string
+  pathsByNodeId: Map<string, string>
+  projects: ProjectToResolve[]
+  resolvedImporters: ResolvedImporters
+}
+
 export function dedupeInjectedDeps<T extends PartialResolvedPackage> (
-  opts: {
-    depGraph: GenericDependenciesGraph<T>
-    dependenciesByProjectId: DependenciesByProjectId
-    lockfileDir: string
-    pathsByNodeId: Map<string, string>
-    projects: ProjectToResolve[]
-    resolvedImporters: ResolvedImporters
-  }
+  opts: DedupeInjectedDepsOptions<T>
 ) {
+  const injectedDepsByProjects = getInjectedDepsByProjects(opts)
+  const dedupeMap = getDedupeMap(injectedDepsByProjects, opts)
+  applyDedupeMap(dedupeMap, opts)
+}
+
+type InjectedDepsByProjects = Map<string, Map<string, { depPath: string, id: string }>>
+
+function getInjectedDepsByProjects<T extends PartialResolvedPackage> (
+  opts: Pick<DedupeInjectedDepsOptions<T>, 'projects' | 'pathsByNodeId' | 'depGraph'>
+): InjectedDepsByProjects {
   const injectedDepsByProjects = new Map<string, Map<string, { depPath: string, id: string }>>()
   for (const project of opts.projects) {
     for (const [alias, nodeId] of Object.entries(project.directNodeIdsByAlias)) {
@@ -31,6 +43,15 @@ export function dedupeInjectedDeps<T extends PartialResolvedPackage> (
       }
     }
   }
+  return injectedDepsByProjects
+}
+
+type DedupeMap = Map<string, Map<string, string>>
+
+function getDedupeMap<T extends PartialResolvedPackage> (
+  injectedDepsByProjects: InjectedDepsByProjects,
+  opts: Pick<DedupeInjectedDepsOptions<T>, 'depGraph' | 'dependenciesByProjectId'>
+): DedupeMap {
   const toDedupe = new Map<string, Map<string, string>>()
   for (const [id, deps] of injectedDepsByProjects.entries()) {
     const dedupedInjectedDeps = new Map<string, string>()
@@ -45,7 +66,14 @@ export function dedupeInjectedDeps<T extends PartialResolvedPackage> (
     }
     toDedupe.set(id, dedupedInjectedDeps)
   }
-  for (const [id, aliases] of toDedupe.entries()) {
+  return toDedupe
+}
+
+function applyDedupeMap<T extends PartialResolvedPackage> (
+  dedupeMap: DedupeMap,
+  opts: Pick<DedupeInjectedDepsOptions<T>, 'dependenciesByProjectId' | 'resolvedImporters' | 'lockfileDir'>
+) {
+  for (const [id, aliases] of dedupeMap.entries()) {
     for (const [alias, dedupedProjectId] of aliases.entries()) {
       delete opts.dependenciesByProjectId[id][alias]
       const index = opts.resolvedImporters[id].directDependencies.findIndex((dep) => dep.alias === alias)
