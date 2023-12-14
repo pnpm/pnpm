@@ -1,5 +1,35 @@
 # @pnpm/headless
 
+## 22.3.11
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/filter-lockfile@8.1.4
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/calc-dep-state@4.1.4
+  - @pnpm/hoist@8.1.4
+  - @pnpm/modules-cleaner@14.0.22
+  - @pnpm/package-is-installable@8.1.1
+  - @pnpm/deps.graph-builder@0.2.5
+  - @pnpm/build-modules@11.2.8
+  - @pnpm/lifecycle@16.0.9
+  - @pnpm/symlink-dependency@7.1.3
+  - @pnpm/lockfile-to-pnp@3.0.15
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/link-bins@9.0.11
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/package-requester@24.1.5
+  - @pnpm/read-package-json@8.0.6
+  - @pnpm/read-project-manifest@5.0.9
+  - @pnpm/store-controller-types@17.1.3
+  - @pnpm/worker@0.3.11
+  - @pnpm/real-hoist@2.0.17
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.8
+
 ## 22.3.10
 
 ### Patch Changes

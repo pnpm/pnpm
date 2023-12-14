@@ -1,7 +1,4 @@
 ---
-"@pnpm/resolve-dependencies": minor
-"@pnpm/core": minor
-"@pnpm/config": minor
 "pnpm": minor
 ---
 

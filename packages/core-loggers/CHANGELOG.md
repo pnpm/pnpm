@@ -1,5 +1,12 @@
 # @pnpm/core-loggers
 
+## 9.0.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+
 ## 9.0.4
 
 ### Patch Changes
