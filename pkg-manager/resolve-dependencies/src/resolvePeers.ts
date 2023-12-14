@@ -8,6 +8,7 @@ import type {
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
 import { depPathToFilename, createPeersFolderSuffix } from '@pnpm/dependency-path'
+import normalize from 'normalize-path'
 import mapValues from 'ramda/src/map'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
@@ -150,16 +151,16 @@ export function resolvePeers<T extends PartialResolvedPackage> (
         delete dependenciesByProjectId[id][alias]
         const index = opts.resolvedImporters[id].directDependencies.findIndex((dep) => dep.alias === alias)
         const prev = opts.resolvedImporters[id].directDependencies[index]
+        const depPath = `link:${normalize(path.relative(id, dep.id))}`
         const linkedDep: LinkedDependency = {
           ...prev,
           isLinkedDependency: true,
-          depPath: `link:../${dep.id}`,
+          depPath,
+          pkgId: depPath,
           resolution: {
             type: 'directory',
-            directory: `../${dep.id}`, // this should be full path
+            directory: path.join(opts.lockfileDir, dep.id),
           },
-          pkgId: `link:../${dep.id}`,
-          alias,
         }
         opts.resolvedImporters[id].directDependencies[index] = linkedDep
         opts.resolvedImporters[id].linkedDependencies.push(linkedDep)
