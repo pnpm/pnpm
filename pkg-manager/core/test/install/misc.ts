@@ -523,6 +523,28 @@ test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async () => {
   ).toStrictEqual(
     ['@pnpm.e2e/hello-world-js-bin']
   )
+
+  expect(
+    lockfile.packages['/@pnpm.e2e/hello-world-js-bin@1.0.0']
+  ).toBeUndefined()
+})
+
+// covers https://github.com/pnpm/pnpm/issues/7411
+test('local tarball with bundledDependencies', async () => {
+  const project = prepareEmpty()
+
+  f.copy('pkg-with-bundled-dependencies/pkg-with-bundled-dependencies-1.0.0.tgz', 'pkg.tgz')
+  await addDependenciesToPackage({}, ['file:pkg.tgz'], await testDefaults({ fastUnpack: false }))
+
+  const lockfile = await project.readLockfile()
+  expect(
+    lockfile.packages['file:pkg.tgz'].bundledDependencies
+  ).toStrictEqual(
+    ['@pnpm.e2e/hello-world-js-bin']
+  )
+  expect(
+    lockfile.packages['/@pnpm.e2e/hello-world-js-bin@1.0.0']
+  ).toBeUndefined()
 })
 
 test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async () => {
@@ -538,6 +560,9 @@ test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async () => {
   ).toStrictEqual(
     ['@pnpm.e2e/hello-world-js-bin']
   )
+  expect(
+    lockfile.packages['/@pnpm.e2e/hello-world-js-bin@1.0.0']
+  ).toBeUndefined()
 })
 
 test('installing a package with bundleDependencies set to false (pkg-with-bundle-dependencies-false)', async () => {
@@ -549,6 +574,29 @@ test('installing a package with bundleDependencies set to false (pkg-with-bundle
   expect(
     typeof lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies-false@1.0.0'].bundledDependencies
   ).toEqual('undefined')
+})
+
+test('installing a package with bundleDependencies set to true (pkg-with-bundle-dependencies-true)', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundle-dependencies-true@1.0.0'], await testDefaults({ fastUnpack: false }))
+
+  const lockfile = await project.readLockfile()
+  expect(
+    lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies-true@1.0.0'].bundledDependencies
+  ).toStrictEqual(
+    true
+  )
+
+  expect(
+    lockfile.packages['/@pnpm/x@1.0.0']
+  ).toBeUndefined()
+  expect(
+    lockfile.packages['/@pnpm/y@1.0.0']
+  ).toBeUndefined()
+  expect(
+    lockfile.packages['/@pnpm/z@1.0.0']
+  ).toBeUndefined()
 })
 
 test('compiled modules (ursa@0.9.1)', async () => {
