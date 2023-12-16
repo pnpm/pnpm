@@ -14,7 +14,7 @@ export async function renderParseable (
     search: boolean
   }
 ) {
-  return pkgs.map((pkg) => renderParseableForPackage(pkg, opts)).filter(p => p.length !== 0).join('\n')
+  return [...new Set(pkgs.map((pkg) => renderParseableForPackage(pkg, opts)))].filter(p => p.length !== 0).join('\n')
 }
 
 function renderParseableForPackage (
