@@ -145,7 +145,7 @@ export async function outdated (
             return
           }
 
-          if (current !== wanted || semver.lt(current, latestManifest.version) || latestManifest.deprecated) {
+          if (current !== wanted || (semver.valid(current) && semver.lt(current, latestManifest.version)) || latestManifest.deprecated) {
             outdated.push({
               alias,
               belongsTo: depType,
