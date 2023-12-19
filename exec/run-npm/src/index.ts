@@ -51,8 +51,5 @@ function createEnv (
   if (opts.userAgent) {
     env.npm_config_user_agent = opts.userAgent
   }
-
-  console.log('env', env)
-
   return env
 }
