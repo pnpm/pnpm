@@ -5,6 +5,7 @@ import PATH from 'path-name'
 
 export interface RunNPMOptions {
   cwd?: string
+  env?: Record<string, string>
 }
 
 export function runNpm (npmPath: string | undefined, args: string[], options?: RunNPMOptions) {
@@ -13,6 +14,7 @@ export function runNpm (npmPath: string | undefined, args: string[], options?: R
     cwd: options?.cwd ?? process.cwd(),
     stdio: 'inherit',
     userAgent: undefined,
+    env: options?.env,
   })
 }
 
@@ -23,11 +25,12 @@ export function runScriptSync (
     cwd: string
     stdio: childProcess.StdioOptions
     userAgent?: string
+    env?: Record<string, string>
   }
 ) {
   opts = Object.assign({}, opts)
   const result = spawn.sync(command, args, Object.assign({}, opts, {
-    env: createEnv(opts),
+    env: { ...createEnv(opts), ...opts.env },
   }))
   if (result.error) throw result.error
   return result
@@ -39,7 +42,9 @@ function createEnv (
     userAgent?: string
   }
 ) {
-  const env = Object.create(process.env)
+  const env = Object.create({
+    ...process.env,
+  })
 
   env[PATH] = [
     path.join(opts.cwd, 'node_modules', '.bin'),
