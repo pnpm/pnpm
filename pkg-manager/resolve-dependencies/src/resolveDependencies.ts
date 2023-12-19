@@ -1248,7 +1248,6 @@ async function resolveDependency (
       pkg.deprecated = currentPkg.dependencyLockfile.deprecated
     }
     hasBin = Boolean((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin)
-    /* eslint-enable @typescript-eslint/dot-notation */
   }
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest

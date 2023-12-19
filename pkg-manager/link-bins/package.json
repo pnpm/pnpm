@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "9.0.10",
+  "version": "9.0.11",
   "description": "Link bins to node_modules/.bin",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -52,7 +52,7 @@
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/is-windows": "^1.0.2",
-    "@types/node": "^16.18.61",
+    "@types/node": "^18.14.6",
     "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.28.20",
     "cmd-extension": "^1.0.2",

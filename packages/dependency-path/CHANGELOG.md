@@ -1,5 +1,13 @@
 # @pnpm/dependency-path
 
+## 2.1.6
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/crypto.base32-hash@2.0.0
+
 ## 2.1.5
 
 ### Patch Changes

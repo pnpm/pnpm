@@ -1,5 +1,13 @@
 # @pnpm/fetcher-base
 
+## 15.0.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/resolver-base@11.0.1
+
 ## 15.0.4
 
 ### Patch Changes

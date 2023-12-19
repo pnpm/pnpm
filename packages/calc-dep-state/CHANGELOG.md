@@ -1,5 +1,13 @@
 # @pnpm/calc-dep-state
 
+## 4.1.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/dependency-path@2.1.6
+
 ## 4.1.3
 
 ### Patch Changes

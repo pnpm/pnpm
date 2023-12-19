@@ -11,6 +11,7 @@ test('resolve peer dependencies of cyclic dependencies', () => {
       qar: '1.0.0',
       zoo: '1.0.0',
     },
+    id: '',
   }
   const barPkg = {
     name: 'bar',
@@ -20,6 +21,7 @@ test('resolve peer dependencies of cyclic dependencies', () => {
       foo: '1.0.0',
       zoo: '1.0.0',
     } as Record<string, string>,
+    id: '',
   }
   const { dependenciesGraph } = resolvePeers({
     projects: [
@@ -32,6 +34,7 @@ test('resolve peer dependencies of cyclic dependencies', () => {
         id: '',
       },
     ],
+    resolvedImporters: {},
     dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
       ['>foo/1.0.0>', {
         children: {
@@ -62,6 +65,7 @@ test('resolve peer dependencies of cyclic dependencies', () => {
             foo: '1.0.0',
             bar: '1.0.0',
           },
+          id: '',
         },
         depth: 2,
       }],
@@ -78,6 +82,7 @@ test('resolve peer dependencies of cyclic dependencies', () => {
           peerDependencies: {
             qar: '1.0.0',
           },
+          id: '',
         },
         depth: 3,
       }],
@@ -115,18 +120,21 @@ test('when a package is referenced twice in the dependencies graph and one of th
     peerDependencies: {
       qar: '1.0.0',
     },
+    id: '',
   }
   const barPkg = {
     name: 'bar',
     depPath: 'bar/1.0.0',
     version: '1.0.0',
     peerDependencies: {} as Record<string, string>,
+    id: '',
   }
   const zooPkg = {
     name: 'zoo',
     depPath: 'zoo/1.0.0',
     version: '1.0.0',
     peerDependencies: {} as Record<string, string>,
+    id: '',
   }
   const { dependenciesGraph } = resolvePeers({
     projects: [
@@ -140,6 +148,7 @@ test('when a package is referenced twice in the dependencies graph and one of th
         id: '',
       },
     ],
+    resolvedImporters: {},
     dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
       ['>zoo/1.0.0>', {
         children: {
@@ -186,6 +195,7 @@ test('when a package is referenced twice in the dependencies graph and one of th
           depPath: 'qar/1.0.0',
           version: '1.0.0',
           peerDependencies: {},
+          id: '',
         },
         depth: 1,
       }],
@@ -211,6 +221,7 @@ describe('peer dependency issues', () => {
     peerDependencies: {
       peer: '1',
     },
+    id: '',
   }
   const fooWithOptionalPeer = {
     name: 'foo',
@@ -224,6 +235,7 @@ describe('peer dependency issues', () => {
         optional: true,
       },
     },
+    id: '',
   }
   const barPkg = {
     name: 'bar',
@@ -232,6 +244,7 @@ describe('peer dependency issues', () => {
     peerDependencies: {
       peer: '2',
     },
+    id: '',
   }
   const barWithOptionalPeer = {
     name: 'bar',
@@ -245,6 +258,7 @@ describe('peer dependency issues', () => {
         optional: true,
       },
     },
+    id: '',
   }
   const qarPkg = {
     name: 'qar',
@@ -253,6 +267,7 @@ describe('peer dependency issues', () => {
     peerDependencies: {
       peer: '^2.2.0',
     },
+    id: '',
   }
   const { peerDependencyIssuesByProjects } = resolvePeers({
     projects: [
@@ -309,6 +324,7 @@ describe('peer dependency issues', () => {
         id: 'project6',
       },
     ],
+    resolvedImporters: {},
     dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
       ['>project1>foo/1.0.0>', {
         children: {},
@@ -409,6 +425,7 @@ describe('unmet peer dependency issues', () => {
         id: 'project1',
       },
     ],
+    resolvedImporters: {},
     dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
       ['>project1>foo/1.0.0>', {
         children: {},
@@ -421,6 +438,7 @@ describe('unmet peer dependency issues', () => {
             peer1: '*',
             peer2: '>=1',
           },
+          id: '',
         },
         depth: 0,
       }],
@@ -432,6 +450,7 @@ describe('unmet peer dependency issues', () => {
           version: '1.0.0-rc.0',
           depPath: 'peer/1.0.0-rc.0',
           peerDependencies: {},
+          id: '',
         },
         depth: 0,
       }],
@@ -443,6 +462,7 @@ describe('unmet peer dependency issues', () => {
           version: '1.1.0-rc.0',
           depPath: 'peer/1.1.0-rc.0',
           peerDependencies: {},
+          id: '',
         },
         depth: 0,
       }],
@@ -470,6 +490,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
         id: 'project',
       },
     ],
+    resolvedImporters: {},
     dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
       ['>project>foo/1.0.0>', {
         children: {
@@ -482,6 +503,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
           depPath: 'foo/1.0.0',
           version: '1.0.0',
           peerDependencies: {},
+          id: '',
         },
         depth: 0,
       }],
@@ -493,6 +515,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
           depPath: 'dep/1.0.0',
           version: '1.0.0',
           peerDependencies: {},
+          id: '',
         },
         depth: 1,
       }],
@@ -506,6 +529,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
           peerDependencies: {
             dep: '10',
           },
+          id: '',
         },
         depth: 1,
       }],
@@ -526,6 +550,7 @@ test('resolve peer dependencies with npm aliases', () => {
     peerDependencies: {
       bar: '1.0.0',
     },
+    id: '',
   }
   const fooAliasPkg = {
     name: 'foo',
@@ -534,18 +559,21 @@ test('resolve peer dependencies with npm aliases', () => {
     peerDependencies: {
       bar: '2.0.0',
     },
+    id: '',
   }
   const barPkg = {
     name: 'bar',
     depPath: 'bar/1.0.0',
     version: '1.0.0',
     peerDependencies: {},
+    id: '',
   }
   const barAliasPkg = {
     name: 'bar',
     depPath: 'bar/2.0.0',
     version: '2.0.0',
     peerDependencies: {},
+    id: '',
   }
   const { dependenciesGraph } = resolvePeers({
     projects: [
@@ -561,6 +589,7 @@ test('resolve peer dependencies with npm aliases', () => {
         id: '',
       },
     ],
+    resolvedImporters: {},
     dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>([
       ['>foo/1.0.0>', {
         children: {

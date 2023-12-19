@@ -1,5 +1,18 @@
 # @pnpm/config
 
+## 20.2.0
+
+### Minor Changes
+
+- 672c559e4: A new setting added for symlinking [injected dependencies](https://pnpm.io/package_json#dependenciesmetainjected) from the workspace, if their dependencies use the same peer dependencies as the dependent package. The setting is called `dedupe-injected-deps` [#7416](https://github.com/pnpm/pnpm/pull/7416).
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/pnpmfile@5.0.18
+  - @pnpm/read-project-manifest@5.0.9
+
 ## 20.1.2
 
 ### Patch Changes

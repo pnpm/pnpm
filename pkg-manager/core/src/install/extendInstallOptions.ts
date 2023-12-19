@@ -123,6 +123,7 @@ export interface StrictInstallOptions {
   allProjects: ProjectOptions[]
   resolveSymlinksInInjectedDirs: boolean
   dedupeDirectDeps: boolean
+  dedupeInjectedDeps: boolean
   dedupePeerDependents: boolean
   extendNodePath: boolean
   excludeLinksFromLockfile: boolean
@@ -212,7 +213,7 @@ const defaults = (opts: InstallOptions) => {
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||
       !process.setgid ||
-      process.getuid() !== 0,
+      process.getuid?.() !== 0,
     useLockfile: true,
     saveLockfile: true,
     useGitBranchLockfile: false,

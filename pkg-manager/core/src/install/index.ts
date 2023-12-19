@@ -1010,6 +1010,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: opts.depth,
       dedupeDirectDeps: opts.dedupeDirectDeps,
+      dedupeInjectedDeps: opts.dedupeInjectedDeps,
       dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
