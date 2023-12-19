@@ -14,8 +14,7 @@ export function runNpm (npmPath: string | undefined, args: string[], options?: R
     cwd: options?.cwd ?? process.cwd(),
     stdio: 'inherit',
     userAgent: undefined,
-    env: options?.env,
-  })
+  }, options?.env ?? {})
 }
 
 export function runScriptSync (
@@ -25,13 +24,12 @@ export function runScriptSync (
     cwd: string
     stdio: childProcess.StdioOptions
     userAgent?: string
-    env?: Record<string, string>
-  }
+  },
+  env: Record<string, string>
 ) {
-  opts = Object.assign({}, opts)
-  const result = spawn.sync(command, args, Object.assign({}, opts, {
-    env: { ...createEnv(opts), ...opts.env },
-  }))
+  const defaultEnv = createEnv(opts)
+  const options = { ...opts, env: Object.assign({}, defaultEnv, env) }
+  const result = spawn.sync(command, args, options)
   if (result.error) throw result.error
   return result
 }
@@ -42,7 +40,7 @@ function createEnv (
     userAgent?: string
   }
 ) {
-  const env = Object.create(process.env)
+  const env = { ...process.env }
 
   env[PATH] = [
     path.join(opts.cwd, 'node_modules', '.bin'),
@@ -53,6 +51,8 @@ function createEnv (
   if (opts.userAgent) {
     env.npm_config_user_agent = opts.userAgent
   }
+
+  console.log('env', env)
 
   return env
 }
