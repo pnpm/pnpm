@@ -42,9 +42,7 @@ function createEnv (
     userAgent?: string
   }
 ) {
-  const env = Object.create({
-    ...process.env,
-  })
+  const env = Object.create(process.env)
 
   env[PATH] = [
     path.join(opts.cwd, 'node_modules', '.bin'),
