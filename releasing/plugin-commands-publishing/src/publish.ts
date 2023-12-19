@@ -269,7 +269,6 @@ Do you want to continue?`,
   const registryKey = 'NPM_CONFIG_' + registry.replace(/https?:/, '') + ':_authToken'
 
   const env = Object.assign({}, {
-    NPM_CONFIG_REGISTRY: registry,
     [registryKey]: suitableToken as string,
   })
 
