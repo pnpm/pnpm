@@ -1,5 +1,5 @@
 import { existsSync, promises as fs } from 'fs'
-import path from 'path'
+import path, { join } from 'path'
 import execa from 'execa'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
@@ -737,5 +737,25 @@ test('publish: provenance', async () => {
     ...DEFAULT_OPTS,
     argv: { original: ['publish', '--provenance'] },
     dir: process.cwd(),
+  }, [])
+})
+
+test('publish: use token helper for authentication', async () => {
+  prepare({
+    name: 'test-publish-package.json',
+    version: '0.0.2',
+  })
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: {
+      original: [
+        'publish',
+        CREDENTIALS[0],
+        `--//localhost:${REGISTRY_MOCK_PORT}/:tokenHelper=${join(__dirname, 'utils', 'token-helper.js')}`,
+      ],
+    },
+    dir: process.cwd(),
+    gitChecks: false,
   }, [])
 })
