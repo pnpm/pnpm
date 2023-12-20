@@ -22,7 +22,7 @@
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",
-    "@pnpm/registry-mock": "3.16.0",
+    "@pnpm/registry-mock": "3.17.1",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
@@ -59,7 +59,7 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "runPrepareFixtures": "node ../../pnpm/bin/pnpm.cjs i -r -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force --no-strict-peer-dependencies",
-    "prepareFixtures": "registry-mock prepare && concurrently --success=first --kill-others registry-mock \"pnpm run runPrepareFixtures\"",
+    "prepareFixtures": "git clean -fdx test/fixtures && rm -rf \"test/fixtures/*/pnpm-lock.yaml\" && registry-mock prepare && concurrently --success=first --kill-others registry-mock \"pnpm run runPrepareFixtures\"",
     "compile": "tsc --build && pnpm run lint --fix"
   },
   "dependencies": {

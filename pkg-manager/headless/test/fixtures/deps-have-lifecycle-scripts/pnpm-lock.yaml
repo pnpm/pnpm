@@ -7,7 +7,7 @@ settings:
 dependencies:
   '@pnpm.e2e/pre-and-postinstall-scripts-example':
     specifier: '*'
-    version: 1.0.0
+    version: 2.0.0
   json-append:
     specifier: 1.1.1
     version: 1.1.1
@@ -15,12 +15,12 @@ dependencies:
 packages:
 
   /@pnpm.e2e/hello-world-js-bin@1.0.0:
-    resolution: {integrity: sha512-3f6ugQfqFW9GR36OSeTfsSNlup7hIslT23haX3dvT/e5GyU3iInat3+0GI+MqvRcwcNzsBrTJq7yDWp3wk7O/Q==}
+    resolution: {integrity: sha512-EDvJzSLCEMnUnrrIGdV+IUWP/8w+nUjOuay2u0KW20Mnfnm3lyrdquQ+gKPNAOUfAsKL1y21np1nQN0PyP+57A==}
     hasBin: true
     dev: false
 
-  /@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0:
-    resolution: {integrity: sha512-p2L5hqNZFiWX/4tQiuawjhh4xVy2QObs21HzZa6DdGZfWlgzdKiMN5MLuwh5ehI0GxuNWSrq0+/T+DEEr7kWVw==}
+  /@pnpm.e2e/pre-and-postinstall-scripts-example@2.0.0:
+    resolution: {integrity: sha512-o1ULljloNzGcHI+k0NuY7aZigV5F551GpY9prYIrhMjIVNyMsERQMxLYZeKQJUnhZO5VKJNtGZlrUYkmJ1qDbw==}
     requiresBuild: true
     dependencies:
       '@pnpm.e2e/hello-world-js-bin': 1.0.0
@@ -36,7 +36,7 @@ packages:
     dependencies:
       buffer-from: 1.1.2
       inherits: 2.0.4
-      readable-stream: 2.3.7
+      readable-stream: 2.3.8
       typedarray: 0.0.6
     dev: false
 
@@ -49,11 +49,11 @@ packages:
     dev: false
 
   /isarray@1.0.0:
-    resolution: {integrity: sha1-u5NdSFgsuhaMBoNJV6VKPgcSTxE=}
+    resolution: {integrity: sha512-VLghIWNM6ELQzo7zwmcg0NmTVyWKYjvIeM83yjp0wRDTmUnrM678fQbcKBo6n2CJEF0szoG//ytg+TKla89ALQ==}
     dev: false
 
   /json-append@1.1.1:
-    resolution: {integrity: sha1-Pnu6YqBHvzHJjexDGaU5uyhrsQQ=}
+    resolution: {integrity: sha512-UiS6F4XN66/WfXnyhlMUtcYMfcEo1CfoOWITo+4NJODqbaoEWvKDk85heyxJd0IQuVt5MhSndpdurY/A1VamyA==}
     hasBin: true
     dependencies:
       concat-stream: 1.6.2
@@ -63,8 +63,8 @@ packages:
     resolution: {integrity: sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==}
     dev: false
 
-  /readable-stream@2.3.7:
-    resolution: {integrity: sha512-Ebho8K4jIbHAxnuxi7o42OrZgF/ZTNcsZj6nRKyUmkhLFq8CHItp/fy6hQZuZmP/n3yZ9VBUbp4zz/mX8hmYPw==}
+  /readable-stream@2.3.8:
+    resolution: {integrity: sha512-8p0AUk4XODgIewSi0l8Epjs+EVnWiK7NoDIEGU0HhE7+ZyY8D1IMY7odu5lRrFXGg71L15KG8QrPmum45RTtdA==}
     dependencies:
       core-util-is: 1.0.3
       inherits: 2.0.4
@@ -86,9 +86,9 @@ packages:
     dev: false
 
   /typedarray@0.0.6:
-    resolution: {integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=}
+    resolution: {integrity: sha512-/aCDEGatGvZ2BIk+HmLf4ifCJFwvKFNb9/JeZPMulfgFracn9QFcAf5GO8B/mweUjSoblS5In0cWhqpfs/5PQA==}
     dev: false
 
   /util-deprecate@1.0.2:
-    resolution: {integrity: sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=}
+    resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
     dev: false
