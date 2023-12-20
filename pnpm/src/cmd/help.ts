@@ -132,6 +132,14 @@ function getHelpText () {
           {
             name: 'root',
           },
+          {
+            description: 'Prints the store index file',
+            name: 'cat-index',
+          },
+          {
+            description: 'Prints the contents of a file based on the hash value stored in the index file',
+            name: 'cat-file',
+          },
         ],
       },
       {
