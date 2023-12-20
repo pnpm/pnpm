@@ -4,6 +4,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { run } from '@pnpm/plugin-commands-script-runners'
 import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspace-packages'
 import { type PnpmError } from '@pnpm/error'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import writeYamlFile from 'write-yaml-file'
@@ -835,21 +836,21 @@ test('`pnpm recursive run` should fail when no script in package with requiredSc
 })
 
 test('`pnpm -r --resume-from run` should executed from given package', async () => {
-  // Using backticks in scripts for better readability. Otherwise single quotes need to be escaped.
-  /* eslint-disable @typescript-eslint/quotes */
+  await using server = await createTestIpcServer()
+
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
       scripts: {
-        build: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
+        build: server.sendLineScript('project-1'),
       },
     },
     {
       name: 'project-2',
       version: '1.0.0',
       scripts: {
-        build: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
+        build: server.sendLineScript('project-2'),
       },
       dependencies: {
         'project-1': '1',
@@ -859,7 +860,7 @@ test('`pnpm -r --resume-from run` should executed from given package', async () 
       name: 'project-3',
       version: '1.0.0',
       scripts: {
-        build: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
+        build: server.sendLineScript('project-3'),
       },
       dependencies: {
         'project-1': '1',
@@ -875,13 +876,6 @@ test('`pnpm -r --resume-from run` should executed from given package', async () 
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
 
-  // Ensure none of these files exist before the build script runs.
-  await Promise.all([
-    expect(fs.access(path.resolve('project-1', 'output.txt'))).rejects.toThrow(),
-    expect(fs.access(path.resolve('project-2', 'output.txt'))).rejects.toThrow(),
-    expect(fs.access(path.resolve('project-3', 'output.txt'))).rejects.toThrow(),
-  ])
-
   await run.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), [{ namePattern: '*' }]),
@@ -891,12 +885,7 @@ test('`pnpm -r --resume-from run` should executed from given package', async () 
     workspaceDir: process.cwd(),
   }, ['build'])
 
-  // Expecting project-2 and project-3 to run, but not project-1.
-  await Promise.all([
-    expect(fs.access(path.resolve('project-1', 'output.txt'))).rejects.toThrow(),
-    expect(fs.access(path.resolve('project-2', 'output.txt'))).resolves.not.toThrow(),
-    expect(fs.access(path.resolve('project-3', 'output.txt'))).resolves.not.toThrow(),
-  ])
+  expect(server.getLines().sort()).toEqual(['project-2', 'project-3'])
 })
 
 test('pnpm run with RegExp script selector should work on recursive', async () => {

@@ -1,5 +1,5 @@
 // cspell:ignore buildscript
-import { promises as fs, existsSync } from 'fs'
+import { promises as fs } from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
@@ -21,6 +21,7 @@ import symlink from 'symlink-dir'
 import writeYamlFile from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from '../utils'
 import { addDistTag } from '@pnpm/registry-mock'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { type ProjectManifest } from '@pnpm/types'
 
 test('no projects matched the filters', async () => {
@@ -346,8 +347,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
 })
 
 test('test-pattern is respected by the test script', async () => {
-  // Using backticks in scripts for better readability. Otherwise single quotes need to be escaped.
-  /* eslint-disable @typescript-eslint/quotes */
+  await using server = await createTestIpcServer()
 
   const remote = tempy.directory()
 
@@ -357,7 +357,7 @@ test('test-pattern is respected by the test script', async () => {
       version: '1.0.0',
       dependencies: { 'project-2': 'workspace:*', 'project-3': 'workspace:*' },
       scripts: {
-        test: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
+        test: server.sendLineScript('project-1'),
       },
     },
     {
@@ -365,7 +365,7 @@ test('test-pattern is respected by the test script', async () => {
       version: '1.0.0',
       dependencies: {},
       scripts: {
-        test: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
+        test: server.sendLineScript('project-2'),
       },
     },
     {
@@ -373,7 +373,7 @@ test('test-pattern is respected by the test script', async () => {
       version: '1.0.0',
       dependencies: { 'project-2': 'workspace:*' },
       scripts: {
-        test: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
+        test: server.sendLineScript('project-3'),
       },
     },
     {
@@ -381,7 +381,7 @@ test('test-pattern is respected by the test script', async () => {
       version: '1.0.0',
       dependencies: {},
       scripts: {
-        test: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
+        test: server.sendLineScript('project-4'),
       },
     },
   ]
@@ -406,23 +406,10 @@ test('test-pattern is respected by the test script', async () => {
 
   await execPnpm(['install'])
 
-  // Ensure none of these files exist before the test script runs.
-  for (const project of projects) {
-    expect(existsSync(path.resolve(project.name, 'output.txt'))).toBeFalsy()
-  }
-
   await execPnpm(['recursive', 'test', '--filter', '...[origin/main]'])
 
   // Expecting only project-2 and project-4 to run since they were changed above.
-  const expected = new Set(['project-2', 'project-4'])
-
-  for (const project of projects) {
-    if (expected.has(project.name)) {
-      expect(existsSync(path.resolve(project.name, 'output.txt'))).toBeTruthy()
-    } else {
-      expect(existsSync(path.resolve(project.name, 'output.txt'))).toBeFalsy()
-    }
-  }
+  expect(server.getLines().sort()).toEqual(['project-2', 'project-4'])
 })
 
 test('changed-files-ignore-pattern is respected', async () => {

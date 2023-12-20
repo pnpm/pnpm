@@ -1427,6 +1427,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 3.17.1
         version: 3.17.1(typanion@3.14.0)
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/is-windows':
         specifier: ^1.0.2
         version: 1.0.2
@@ -3122,6 +3125,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/fs-extra':
         specifier: ^9.0.13
         version: 9.0.13
@@ -4499,6 +4505,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../__utils__/test-ipc-server
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types

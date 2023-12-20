@@ -4,6 +4,7 @@ import { type PnpmError } from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { exec, run } from '@pnpm/plugin-commands-script-runners'
 import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import rimraf from '@zkochan/rimraf'
 import execa from 'execa'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
@@ -554,14 +555,14 @@ testOnPosixOnly('pnpm recursive exec works with PnP', async () => {
 })
 
 test('pnpm recursive exec --resume-from should work', async () => {
-  // Using backticks in scripts for better readability. Otherwise single quotes need to be escaped.
-  /* eslint-disable @typescript-eslint/quotes */
+  await using server = await createTestIpcServer()
+
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
       scripts: {
-        build: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
+        build: server.sendLineScript('project-1'),
       },
     },
     {
@@ -571,7 +572,7 @@ test('pnpm recursive exec --resume-from should work', async () => {
         'project-1': '1',
       },
       scripts: {
-        build: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
+        build: server.sendLineScript('project-2'),
       },
     },
     {
@@ -581,14 +582,14 @@ test('pnpm recursive exec --resume-from should work', async () => {
         'project-1': '1',
       },
       scripts: {
-        build: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
+        build: server.sendLineScript('project-3'),
       },
     },
     {
       name: 'project-4',
       version: '1.0.0',
       scripts: {
-        build: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
+        build: server.sendLineScript('project-4'),
       },
     },
   ])
@@ -603,14 +604,6 @@ test('pnpm recursive exec --resume-from should work', async () => {
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
 
-  // Ensure none of these files exist before the build script runs.
-  await Promise.all([
-    expect(fs.access(path.resolve('project-1', 'output.txt'))).rejects.toThrow(),
-    expect(fs.access(path.resolve('project-2', 'output.txt'))).rejects.toThrow(),
-    expect(fs.access(path.resolve('project-3', 'output.txt'))).rejects.toThrow(),
-    expect(fs.access(path.resolve('project-4', 'output.txt'))).rejects.toThrow(),
-  ])
-
   await exec.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
@@ -620,13 +613,7 @@ test('pnpm recursive exec --resume-from should work', async () => {
     resumeFrom: 'project-3',
   }, ['npm', 'run', 'build'])
 
-  // Expecting project-2 and project-3 to run, but not project-1 or project-4.
-  await Promise.all([
-    expect(fs.access(path.resolve('project-1', 'output.txt'))).rejects.toThrow(),
-    expect(fs.access(path.resolve('project-4', 'output.txt'))).rejects.toThrow(),
-    expect(fs.access(path.resolve('project-2', 'output.txt'))).resolves.not.toThrow(),
-    expect(fs.access(path.resolve('project-3', 'output.txt'))).resolves.not.toThrow(),
-  ])
+  expect(server.getLines().sort()).toEqual(['project-2', 'project-3'])
 })
 
 test('should throw error when the package specified by resume-from does not exist', async () => {

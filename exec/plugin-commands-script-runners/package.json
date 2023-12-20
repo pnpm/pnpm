@@ -35,6 +35,7 @@
     "@pnpm/plugin-commands-script-runners": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.17.1",
+    "@pnpm/test-ipc-server": "workspace:*",
     "@types/is-windows": "^1.0.2",
     "@types/ramda": "0.28.20",
     "@types/which": "^2.0.2",
