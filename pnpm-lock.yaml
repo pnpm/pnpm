@@ -5888,9 +5888,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
-      '@pnpm/logger':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
