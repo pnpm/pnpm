@@ -37,6 +37,7 @@
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/plugin-commands-store-search": "workspace:*",
     "load-json-file": "^6.2.0"
   },
   "dependencies": {

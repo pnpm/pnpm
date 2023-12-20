@@ -4,20 +4,8 @@
     "outDir": "lib",
     "rootDir": "src"
   },
-  "include": [
-    "src/**/*.ts",
-    "../../__typings__/**/*.d.ts"
-  ],
+  "include": ["src/**/*.ts", "../../__typings__/**/*.d.ts"],
   "references": [
-    {
-      "path": "../../__utils__/prepare"
-    },
-    {
-      "path": "../../cli/cli-utils"
-    },
-    {
-      "path": "../../cli/common-cli-options-help"
-    },
     {
       "path": "../../config/config"
     },
@@ -25,8 +13,12 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
-      "path": "../../packages/constants"
+      "path": "../../fs/graceful-fs"
     },
+    {
+      "path": "../../lockfile/lockfile-types"
+    },
+
     {
       "path": "../../packages/error"
     },
@@ -40,22 +32,10 @@
       "path": "../../pkg-manager/client"
     },
     {
-      "path": "../../pkg-manager/plugin-commands-installation"
-    },
-    {
-      "path": "../../reviewing/list"
-    },
-    {
-      "path": "../../reviewing/plugin-commands-listing"
-    },
-    {
-      "path": "../../workspace/filter-workspace-packages"
-    },
-    {
       "path": "../cafs"
     },
     {
-      "path": "../store-connection-manager"
+      "path": "../store-path"
     }
   ],
   "composite": true
