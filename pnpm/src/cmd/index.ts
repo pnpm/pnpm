@@ -23,7 +23,7 @@ import {
 import { server } from '@pnpm/plugin-commands-server'
 import { setup } from '@pnpm/plugin-commands-setup'
 import { store } from '@pnpm/plugin-commands-store'
-import { catFile, catIndex } from '@pnpm/plugin-commands-store-search';
+import { catFile, catIndex } from '@pnpm/plugin-commands-store-search'
 import { init } from '@pnpm/plugin-commands-init'
 import pick from 'ramda/src/pick'
 import { type PnpmOptions } from '../types'
