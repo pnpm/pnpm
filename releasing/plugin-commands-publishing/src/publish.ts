@@ -17,7 +17,6 @@ import tempy from 'tempy'
 import * as pack from './pack'
 import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish'
 import { spawnSync } from 'child_process'
-import npmConf from '@pnpm/npm-conf'
 
 export function rcOptionsTypes () {
   return pick([
@@ -139,22 +138,12 @@ export async function publish (
   } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>,
   params: string[]
 ) {
-  const { config } = npmConf()
-
-  const tokenHelpers = config.list.filter((i: {
-    [key: string]: string
-  }) => {
-    return Object.keys(i)[0]?.endsWith(':tokenHelper')
-  })
+  const tokenHelpers = Object.entries(opts.rawConfig).filter(([key]) => key.endsWith(':tokenHelper'))
 
   const parsedTokenHelpers: Array<{
     registry: string
     token: string
-  }> = tokenHelpers.map((i: {
-    [key: string]: string
-  }) => {
-    const key = Object.keys(i)[0]
-    const value = i[key]
+  }> = tokenHelpers.map(([key, value]) => {
     return {
       registry: key.split(':')[0],
       token: loadToken(value, key),
@@ -259,7 +248,7 @@ Do you want to continue?`,
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
 
   const { publishConfig } = manifest
-  const registry = publishConfig?.registry ?? config.get('registry')
+  const registry = publishConfig?.registry ?? opts.registries.default
 
   const suitableToken = findSuitableToken({
     registry,

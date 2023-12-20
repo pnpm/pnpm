@@ -4753,9 +4753,6 @@ importers:
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
-      '@pnpm/npm-conf':
-        specifier: ^2.2.2
-        version: 2.2.2
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/package-bins
