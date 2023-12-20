@@ -87,8 +87,6 @@ export async function handler (opts: catIndexCommandOptions, params: string[]) {
   try {
     const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
     return JSON.stringify(pkgFilesIndex, null, 2)
-
-    // console.log(pkgFilesIndex)
   } catch {
     throw new PnpmError(
       'INVALID_PACKAGE',

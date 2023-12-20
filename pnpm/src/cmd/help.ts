@@ -140,6 +140,10 @@ function getHelpText () {
             description: 'Prints the contents of a file based on the hash value stored in the index file',
             name: 'cat-file',
           },
+          {
+            description: 'Print the contained packages according to the hash',
+            name: 'find-hash',
+          },
         ],
       },
       {
