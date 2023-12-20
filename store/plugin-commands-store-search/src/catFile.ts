@@ -2,7 +2,6 @@ import path from 'path'
 
 import { type Config } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
-import { logger } from '@pnpm/logger'
 import gfs from '@pnpm/graceful-fs'
 import { getStorePath } from '@pnpm/store-path'
 
@@ -46,15 +45,8 @@ export async function handler (opts: catFileCommandOptions, params: string[]) {
   const filePath = path.resolve(cafsDir, toHex.slice(0, 2), toHex.slice(2))
 
   try {
-    const fileContent = await gfs.readFile(filePath, 'utf8')
-
-    logger.info({
-      message: fileContent,
-      prefix: process.cwd(),
-    })
+    return await gfs.readFile(filePath, 'utf8')
   } catch {
-    logger.error(
-      new PnpmError('INVALID_HASH', 'Corresponding hash file not found')
-    )
+    throw new PnpmError('INVALID_HASH', 'Corresponding hash file not found')
   }
 }

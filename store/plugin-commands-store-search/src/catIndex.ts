@@ -1,11 +1,10 @@
 import path from 'path'
 
 import { type Config } from '@pnpm/config'
-import { createResolver, type ClientOptions } from '@pnpm/client'
+import { createResolver } from '@pnpm/client'
 import { type TarballResolution } from '@pnpm/lockfile-types'
 
 import { PnpmError } from '@pnpm/error'
-import { logger } from '@pnpm/logger'
 import { getStorePath } from '@pnpm/store-path'
 import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
@@ -39,8 +38,8 @@ Config,
 | 'lockfileDir'
 | 'dir'
 | 'registries'
-> &
-ClientOptions
+| 'cacheDir'
+>
 
 export async function handler (opts: catIndexCommandOptions, params: string[]) {
   if (!params || params.length === 0) {
@@ -85,16 +84,15 @@ export async function handler (opts: catIndexCommandOptions, params: string[]) {
     (pkgSnapshot.resolution as TarballResolution).integrity!.toString(),
     'index'
   )
-
   try {
     const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
-    console.log(pkgFilesIndex)
+    return JSON.stringify(pkgFilesIndex, null, 2)
+
+    // console.log(pkgFilesIndex)
   } catch {
-    logger.error(
-      new PnpmError(
-        'INVALID_PACKAGE',
-        'No corresponding index file found. You can use pnpm list to see if the package is installed.'
-      )
+    throw new PnpmError(
+      'INVALID_PACKAGE',
+      'No corresponding index file found. You can use pnpm list to see if the package is installed.'
     )
   }
 }

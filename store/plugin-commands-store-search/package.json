@@ -38,15 +38,14 @@
     "@pnpm/store-path": "workspace:*",
     "@pnpm/graceful-fs": "workspace:*",
     "@pnpm/plugin-commands-store-search": "workspace:*",
-    "load-json-file": "^6.2.0"
+    "@pnpm/prepare": "workspace:*",
+    "load-json-file": "^6.2.0",
+    "execa": "npm:safe-execa@0.1.2"
   },
   "dependencies": {
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
     "render-help": "^1.0.3"
-  },
-  "peerDependencies": {
-    "@pnpm/logger": "^5.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
