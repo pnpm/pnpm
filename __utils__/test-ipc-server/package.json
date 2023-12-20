@@ -1,0 +1,21 @@
+{
+  "name": "@pnpm/test-ipc-server",
+  "version": "0.0.0",
+  "private": true,
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "bin": {
+    "test-ipc-server-client": "./bin/test-ipc-server-client.js"
+  },
+  "devDependencies": {
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
+    "@types/node": "^18.14.6",
+    "execa": "npm:safe-execa@0.1.2"
+  },
+  "scripts": {
+    "lint": "eslint src/**/*.ts test/**/*.ts",
+    "compile": "rimraf tsconfig.tsbuildinfo lib && tsc --build",
+    "test": "pnpm run compile && jest"
+  }
+}

@@ -387,6 +387,21 @@ importers:
         specifier: ^9.0.13
         version: 9.0.13
 
+  __utils__/test-ipc-server:
+    devDependencies:
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../prepare
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/node':
+        specifier: ^18.14.6
+        version: 18.14.6
+      execa:
+        specifier: npm:safe-execa@0.1.2
+        version: /safe-execa@0.1.2
+
   __utils__/tsconfig:
     devDependencies:
       '@pnpm/tsconfig':
