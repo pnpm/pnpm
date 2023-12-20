@@ -3,7 +3,7 @@ import path from 'path'
 
 import { prepare } from '@pnpm/prepare'
 import { getConfig } from '@pnpm/config'
-import { catIndex,catFile } from '@pnpm/plugin-commands-store-search'
+import { catIndex, catFile } from '@pnpm/plugin-commands-store-search'
 import { type PnpmError } from '@pnpm/error'
 
 import execa from 'execa'
@@ -131,7 +131,7 @@ $ npm install bytes
 ## Usage
 
 \`\`\`js
-var bytes = require(\'bytes\');
+var bytes = require('bytes');
 \`\`\`
 
 #### bytes(number｜string value, [options]): number｜string｜null
@@ -155,9 +155,9 @@ Default export function. Delegates to either \`bytes.format\` or \`bytes.parse\`
 
 \`\`\`js
 bytes(1024);
-// output: \'1KB\'
+// output: '1KB'
 
-bytes(\'1KB\');
+bytes('1KB');
 // output: 1024
 \`\`\`
 
@@ -179,9 +179,9 @@ Format the given value in bytes into a string. If the value is negative, it is k
 |-------------------|--------|-----------------------------------------------------------------------------------------|
 | decimalPlaces | \`number\`｜\`null\` | Maximum number of decimal places to include in output. Default value to \`2\`. |
 | fixedDecimals | \`boolean\`｜\`null\` | Whether to always display the maximum number of decimal places. Default value to \`false\` |
-| thousandsSeparator | \`string\`｜\`null\` | Example of values: \`\' \'\`, \`\',\'\` and \`\'.\'\`... Default value to \`\'\'\`. |
-| unit | \`string\`｜\`null\` | The unit in which the result will be returned (B/KB/MB/GB/TB). Default value to \`\'\'\` (which means auto detect). |
-| unitSeparator | \`string\`｜\`null\` | Separator to use between number and unit. Default value to \`\'\'\`. |
+| thousandsSeparator | \`string\`｜\`null\` | Example of values: \`' '\`, \`','\` and \`'.'\`... Default value to \`''\`. |
+| unit | \`string\`｜\`null\` | The unit in which the result will be returned (B/KB/MB/GB/TB). Default value to \`''\` (which means auto detect). |
+| unitSeparator | \`string\`｜\`null\` | Separator to use between number and unit. Default value to \`''\`. |
 
 **Returns**
 
@@ -193,19 +193,19 @@ Format the given value in bytes into a string. If the value is negative, it is k
 
 \`\`\`js
 bytes.format(1024);
-// output: \'1KB\'
+// output: '1KB'
 
 bytes.format(1000);
-// output: \'1000B\'
+// output: '1000B'
 
-bytes.format(1000, {thousandsSeparator: \' \'});
-// output: \'1 000B\'
+bytes.format(1000, {thousandsSeparator: ' '});
+// output: '1 000B'
 
 bytes.format(1024 * 1.7, {decimalPlaces: 0});
-// output: \'2KB\'
+// output: '2KB'
 
-bytes.format(1024, {unitSeparator: \' \'});
-// output: \'1 KB\'
+bytes.format(1024, {unitSeparator: ' '});
+// output: '1 KB'
 \`\`\`
 
 #### bytes.parse(string｜number value): number｜null
@@ -239,10 +239,10 @@ The units are in powers of two, not ten. This means 1kb = 1024b according to thi
 **Example**
 
 \`\`\`js
-bytes.parse(\'1KB\');
+bytes.parse('1KB');
 // output: 1024
 
-bytes.parse(\'1024\');
+bytes.parse('1024');
 // output: 1024
 
 bytes.parse(1024);
@@ -276,7 +276,6 @@ test('print hash file content error', async () => {
       },
     })
     await catFile.handler(config as catFile.catFileCommandOptions, ['sha512-ZF9Q82J2KaXGIXWxGC0iecrQmfa08'])
-
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
