@@ -41,11 +41,7 @@ export async function hoist (opts: HoistOpts) {
   })
 
   if (opts.hoistWorkspaceProjects) {
-    const allProjects = opts.lockfile.importers['.'].specifiers
-      ? Object.keys(opts.lockfile.importers)
-      : opts.lockfile.packages
-        ? Object.keys(opts.lockfile.packages)
-        : []
+    const allProjects = Object.keys(opts.lockfile.importers)
 
     const workspaceDir = path.dirname(opts.publicHoistedModulesDir)
 
