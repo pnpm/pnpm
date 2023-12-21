@@ -161,6 +161,7 @@ export interface HeadlessOptions {
   useGitBranchLockfile?: boolean
   useLockfile?: boolean
   supportedArchitectures?: SupportedArchitectures
+  hoistWorkspaceProjects?: boolean
 }
 
 export interface InstallationResultStats {
@@ -424,6 +425,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         publicHoistedModulesDir,
         publicHoistPattern: opts.publicHoistPattern ?? [],
         virtualStoreDir,
+        hoistWorkspaceProjects: opts.hoistWorkspaceProjects,
       })
     } else {
       newHoistedDependencies = {}

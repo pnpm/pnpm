@@ -74,6 +74,7 @@ export async function linkPackages (
     virtualStoreDir: string
     wantedLockfile: Lockfile
     wantedToBeSkippedPackageIds: Set<string>
+    hoistWorkspaceProjects?: boolean
   }
 ): Promise<{
     currentLockfile: Lockfile
@@ -225,6 +226,7 @@ export async function linkPackages (
       publicHoistedModulesDir: opts.rootModulesDir,
       publicHoistPattern: opts.publicHoistPattern ?? [],
       virtualStoreDir: opts.virtualStoreDir,
+      hoistWorkspaceProjects: opts.hoistWorkspaceProjects,
     })
   } else {
     newHoistedDependencies = opts.hoistedDependencies

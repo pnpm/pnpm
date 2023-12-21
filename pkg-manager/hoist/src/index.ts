@@ -17,6 +17,7 @@ import isSubdir from 'is-subdir'
 import mapObjIndexed from 'ramda/src/mapObjIndexed'
 import resolveLinkTarget from 'resolve-link-target'
 import symlinkDir from 'symlink-dir'
+import { readPackageJsonFromDir } from '@pnpm/read-package-json'
 
 const hoistLogger = logger('hoist')
 
@@ -24,6 +25,7 @@ export interface HoistOpts extends GetHoistedDependenciesOpts {
   extraNodePath?: string[]
   preferSymlinkedExecutables?: boolean
   virtualStoreDir: string
+  hoistWorkspaceProjects?: boolean
 }
 
 export async function hoist (opts: HoistOpts) {
@@ -37,6 +39,40 @@ export async function hoist (opts: HoistOpts) {
     publicHoistedModulesDir: opts.publicHoistedModulesDir,
     virtualStoreDir: opts.virtualStoreDir,
   })
+
+  if (opts.hoistWorkspaceProjects) {
+    const allProjects = opts.lockfile.importers['.'].specifiers
+      ? Object.keys(opts.lockfile.importers)
+      : opts.lockfile.packages
+        ? Object.keys(opts.lockfile.packages)
+        : []
+
+    const workspaceDir = path.dirname(opts.publicHoistedModulesDir)
+
+    const hoistedWorkspaceProjects =
+      await Promise.all(
+        allProjects
+          // Ignore the "." project because it is the root project
+          .filter((projectPath) => projectPath !== '.')
+          .map(async (projectPath) => {
+            const manifest = await readPackageJsonFromDir(path.join(workspaceDir, projectPath))
+            return {
+              projectPath,
+              hoistedProjectPath: path.join(opts.virtualStoreDir, 'node_modules', manifest.name),
+            }
+          })
+      )
+
+    await Promise.all(
+      hoistedWorkspaceProjects.map((hoistedWorkspaceProject) => {
+        const exists = fs.existsSync(hoistedWorkspaceProject.hoistedProjectPath)
+        if (!exists) {
+          return symlinkDir(hoistedWorkspaceProject.projectPath, hoistedWorkspaceProject.hoistedProjectPath, { overwrite: false })
+        }
+        return true
+      })
+    )
+  }
 
   // Here we only link the bins of the privately hoisted modules.
   // The bins of the publicly hoisted modules will be linked together with
