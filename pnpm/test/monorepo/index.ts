@@ -1,5 +1,5 @@
 // cspell:ignore buildscript
-import { promises as fs } from 'fs'
+import { promises as fs, existsSync } from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
@@ -21,6 +21,7 @@ import symlink from 'symlink-dir'
 import writeYamlFile from 'write-yaml-file'
 import { execPnpm, execPnpmSync } from '../utils'
 import { addDistTag } from '@pnpm/registry-mock'
+import { type ProjectManifest } from '@pnpm/types'
 
 test('no projects matched the filters', async () => {
   preparePackages([
@@ -340,46 +341,46 @@ test('topological order of packages with self-dependencies in monorepo is correc
 })
 
 test('test-pattern is respected by the test script', async () => {
+  // Using backticks in scripts for better readability. Otherwise single quotes need to be escaped.
+  /* eslint-disable @typescript-eslint/quotes */
+
   const remote = tempy.directory()
 
-  preparePackages([
+  const projects: Array<ProjectManifest & { name: string }> = [
     {
       name: 'project-1',
       version: '1.0.0',
       dependencies: { 'project-2': 'workspace:*', 'project-3': 'workspace:*' },
-      devDependencies: { 'json-append': '1.1.1' },
       scripts: {
-        test: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output.json',
+        test: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
       },
     },
     {
       name: 'project-2',
       version: '1.0.0',
       dependencies: {},
-      devDependencies: { 'json-append': '1.1.1' },
       scripts: {
-        test: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output.json',
+        test: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
       },
     },
     {
       name: 'project-3',
       version: '1.0.0',
       dependencies: { 'project-2': 'workspace:*' },
-      devDependencies: { 'json-append': '1.1.1' },
       scripts: {
-        test: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output.json',
+        test: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
       },
     },
     {
       name: 'project-4',
       version: '1.0.0',
       dependencies: {},
-      devDependencies: { 'json-append': '1.1.1' },
       scripts: {
-        test: 'node -e "process.stdout.write(\'project-4\')" | json-append ../output.json',
+        test: `node -e "require('fs').writeFileSync('./output.txt', '')"`,
       },
     },
-  ])
+  ]
+  preparePackages(projects)
 
   await execa('git', ['init', '--initial-branch=main'])
   await execa('git', ['config', 'user.email', 'x@y.z'])
@@ -398,14 +399,25 @@ test('test-pattern is respected by the test script', async () => {
   await execa('git', ['add', '.'])
   await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'])
 
-  process.chdir('project-1')
-
   await execPnpm(['install'])
+
+  // Ensure none of these files exist before the test script runs.
+  for (const project of projects) {
+    expect(existsSync(path.resolve(project.name, 'output.txt'))).toBeFalsy()
+  }
 
   await execPnpm(['recursive', 'test', '--filter', '...[origin/main]'])
 
-  const { default: output } = await import(path.resolve('..', 'output.json'))
-  expect(output.sort()).toStrictEqual(['project-2', 'project-4'])
+  // Expecting only project-2 and project-4 to run since they were changed above.
+  const expected = new Set(['project-2', 'project-4'])
+
+  for (const project of projects) {
+    if (expected.has(project.name)) {
+      expect(existsSync(path.resolve(project.name, 'output.txt'))).toBeTruthy()
+    } else {
+      expect(existsSync(path.resolve(project.name, 'output.txt'))).toBeFalsy()
+    }
+  }
 })
 
 test('changed-files-ignore-pattern is respected', async () => {
