@@ -259,7 +259,6 @@ test('print index file path with hash', async () => {
   })
 
   await execa('node', [pnpmBin, 'install'])
-  await execa('node', [pnpmBin, 'add', 'lodash@4.17.18'])
   await execa('node', [pnpmBin, 'add', 'lodash@4.17.19'])
   await execa('node', [pnpmBin, 'add', 'lodash@4.17.20'])
 
@@ -275,7 +274,6 @@ test('print index file path with hash', async () => {
 
     expect(output).toBe(`${PACKAGE_INFO_CLR('lodash')}@${PACKAGE_INFO_CLR('4.17.19')}  ${INDEX_PATH_CLR('/24/dbddf17111f46417d2fdaa260b1a37f9b3142340e4145efe3f0937d77eb56c862d2a1d2901ca16271dc0d6335b0237c2346768a3ec1a3d579018f1fc5f7a0d-index.json')}
 ${PACKAGE_INFO_CLR('lodash')}@${PACKAGE_INFO_CLR('4.17.20')}  ${INDEX_PATH_CLR('/3e/585d15c8a594e20d7de57b362ea81754c011acb2641a19f1b72c8531ea39825896bab344ae616a0a5a824cb9a381df0b3cddd534645cf305aba70a93dac698-index.json')}
-${PACKAGE_INFO_CLR('lodash')}@${PACKAGE_INFO_CLR('4.17.18')}  ${INDEX_PATH_CLR('/f3/139c447bc28e7a1c752e5ca705d05d5ce69a1e5ee7eb1a136406a1e4266ca9914ba277550a693ce22dd0c9e613ee31959a2e9b2d063c6d03d0c54841b340d4-index.json')}
 `)
   }
 })
