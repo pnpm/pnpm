@@ -37,6 +37,11 @@ test('no projects matched the filters', async () => {
     expect(stdout.toString()).toMatch(/^No projects matched the filters in/)
   }
   {
+    const { stdout, status } = execPnpmSync(['list', '--filter=not-exists', '--fail'])
+    expect(stdout.toString()).toMatch(/^No projects matched the filters in/)
+    expect(status).toBe(1)
+  }
+  {
     const { stdout } = execPnpmSync(['list', '--filter=not-exists', '--parseable'])
     expect(stdout.toString()).toBe('') // don't print anything if --parseable is used
   }

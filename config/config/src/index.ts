@@ -144,7 +144,8 @@ export const types = Object.assign({
   'embed-readme': Boolean,
   'update-notifier': Boolean,
   'registry-supports-time-field': Boolean,
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+  fail: Boolean,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as Partial<Record<keyof KebabCaseConfig, any>>, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string }
