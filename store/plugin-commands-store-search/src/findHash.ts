@@ -8,8 +8,8 @@ import { getStorePath } from '@pnpm/store-path'
 
 import renderHelp from 'render-help'
 
-const PACKAGE_INFO_CLR = chalk.greenBright
-const INDEX_PATH_CLR = chalk.hex('#078487')
+export const PACKAGE_INFO_CLR = chalk.greenBright
+export const INDEX_PATH_CLR = chalk.hex('#078487')
 
 export const commandNames = ['find-hash']
 
