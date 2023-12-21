@@ -3,6 +3,7 @@ import { assertProject } from '@pnpm/assert-project'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { preparePackages } from '@pnpm/prepare'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { type PackageManifest } from '@pnpm/types'
 import execa from 'execa'
 import writeYamlFile from 'write-yaml-file'
@@ -149,16 +150,16 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
 
 // TODO: make this test pass
 test.skip('rebuild multiple packages in correct order', async () => {
+  await using server1 = await createTestIpcServer()
+  await using server2 = await createTestIpcServer()
+
   const pkgs = [
     {
       name: 'project-1',
       version: '1.0.0',
 
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        postinstall: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json && node -e "process.stdout.write(\'project-1\')" | json-append ../output2.json',
+        postinstall: `${server1.sendLineScript('project-1')} && ${server2.sendLineScript('project-1')}`,
       },
     },
     {
@@ -166,11 +167,10 @@ test.skip('rebuild multiple packages in correct order', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        postinstall: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
+        postinstall: server1.sendLineScript('project-2'),
       },
     },
     {
@@ -178,11 +178,10 @@ test.skip('rebuild multiple packages in correct order', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        postinstall: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output2.json',
+        postinstall: server2.sendLineScript('project-3'),
       },
     },
     {
@@ -216,11 +215,8 @@ test.skip('rebuild multiple packages in correct order', async () => {
     workspaceDir: process.cwd(),
   }, [])
 
-  const outputs1 = await import(path.resolve('output1.json')) as string[]
-  const outputs2 = await import(path.resolve('output2.json')) as string[]
-
-  expect(outputs1).toStrictEqual(['project-1', 'project-2'])
-  expect(outputs2).toStrictEqual(['project-1', 'project-3'])
+  expect(server1.getLines()).toStrictEqual(['project-1', 'project-2'])
+  expect(server2.getLines()).toStrictEqual(['project-1', 'project-3'])
 })
 
 test('never build neverBuiltDependencies', async () => {

@@ -6,6 +6,7 @@ import isWindows from 'is-windows'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import exists from 'path-exists'
 import crossSpawn from 'cross-spawn'
 import writeYamlFile from 'write-yaml-file'
@@ -332,6 +333,8 @@ test('publish: package with publishConfig.directory', async () => {
 })
 
 test.skip('publish package that calls executable from the workspace .bin folder in prepublishOnly script', async () => {
+  await using server = await createTestIpcServer()
+
   preparePackages([
     {
       location: '.',
@@ -339,9 +342,6 @@ test.skip('publish package that calls executable from the workspace .bin folder 
         name: 'project-100',
         version: '1.0.0',
 
-        dependencies: {
-          'json-append': '1',
-        },
       },
     },
     {
@@ -349,19 +349,19 @@ test.skip('publish package that calls executable from the workspace .bin folder 
       version: '1.0.0',
 
       scripts: {
-        prepublish: 'node -e "process.stdout.write(\'prepublish\')" | json-append ./output.json',
+        prepublish: server.sendLineScript('prepublish'),
 
-        prepare: 'node -e "process.stdout.write(\'prepare\')" | json-append ./output.json',
+        prepare: server.sendLineScript('prepare'),
 
-        prepublishOnly: 'node -e "process.stdout.write(\'prepublishOnly\')" | json-append ./output.json',
+        prepublishOnly: server.sendLineScript('prepublishOnly'),
 
-        prepack: 'node -e "process.stdout.write(\'prepack\')" | json-append ./output.json',
+        prepack: server.sendLineScript('prepack'),
 
-        postpack: 'node -e "process.stdout.write(\'postpack\')" | json-append ./output.json',
+        postpack: server.sendLineScript('postpack'),
 
-        publish: 'node -e "process.stdout.write(\'publish\')" | json-append ./output.json',
+        publish: server.sendLineScript('publish'),
 
-        postpublish: 'node -e "process.stdout.write(\'postpublish\')" | json-append ./output.json',
+        postpublish: server.sendLineScript('postpublish'),
       },
     },
   ])
@@ -378,7 +378,7 @@ test.skip('publish package that calls executable from the workspace .bin folder 
   }, [])
 
   expect(
-    (await import(path.resolve('output.json'))).default
+    server.getLines()
   ).toStrictEqual(
     [
       'prepublish',
@@ -615,22 +615,20 @@ test.skip('convert specs with relative workspace protocols to regular version ra
 })
 
 test('publish: runs all the lifecycle scripts', async () => {
+  await using server = await createTestIpcServer()
+
   prepare({
     name: 'test-publish-with-scripts',
     version: '0.0.0',
 
-    dependencies: {
-      'json-append': '1.1.1',
-    },
-
     scripts: {
       // eslint-disable:object-literal-sort-keys
-      prepublish: 'node -e "process.stdout.write(\'prepublish\')" | json-append output.json',
-      prepare: 'node -e "process.stdout.write(\'prepare\')" | json-append output.json',
-      prepublishOnly: 'node -e "process.stdout.write(\'prepublishOnly\')" | json-append output.json',
-      prepack: 'node -e "process.stdout.write(\'prepack\')" | json-append output.json',
-      publish: 'node -e "process.stdout.write(\'publish\')" | json-append output.json',
-      postpublish: 'node -e "process.stdout.write(\'postpublish\')" | json-append output.json',
+      prepublish: server.sendLineScript('prepublish'),
+      prepare: server.sendLineScript('prepare'),
+      prepublishOnly: server.sendLineScript('prepublishOnly'),
+      prepack: server.sendLineScript('prepack'),
+      publish: server.sendLineScript('publish'),
+      postpublish: server.sendLineScript('postpublish'),
       // eslint-enable:object-literal-sort-keys
     },
   })
@@ -643,8 +641,7 @@ test('publish: runs all the lifecycle scripts', async () => {
     dir: process.cwd(),
   }, [])
 
-  const { default: outputs } = await import(path.resolve('output.json'))
-  expect(outputs).toStrictEqual([
+  expect(server.getLines()).toStrictEqual([
     'prepublishOnly',
     'prepublish',
     'prepack',
@@ -655,22 +652,20 @@ test('publish: runs all the lifecycle scripts', async () => {
 })
 
 test('publish: ignores all the lifecycle scripts when --ignore-scripts is used', async () => {
+  await using server = await createTestIpcServer()
+
   prepare({
     name: 'test-publish-with-ignore-scripts',
     version: '0.0.0',
 
-    dependencies: {
-      'json-append': '1.1.1',
-    },
-
     scripts: {
       // eslint-disable:object-literal-sort-keys
-      prepublish: 'node -e "process.stdout.write(\'prepublish\')" | json-append output.json',
-      prepare: 'node -e "process.stdout.write(\'prepare\')" | json-append output.json',
-      prepublishOnly: 'node -e "process.stdout.write(\'prepublishOnly\')" | json-append output.json',
-      prepack: 'node -e "process.stdout.write(\'prepack\')" | json-append output.json',
-      publish: 'node -e "process.stdout.write(\'publish\')" | json-append output.json',
-      postpublish: 'node -e "process.stdout.write(\'postpublish\')" | json-append output.json',
+      prepublish: server.sendLineScript('prepublish'),
+      prepare: server.sendLineScript('prepare'),
+      prepublishOnly: server.sendLineScript('prepublishOnly'),
+      prepack: server.sendLineScript('prepack'),
+      publish: server.sendLineScript('publish'),
+      postpublish: server.sendLineScript('postpublish'),
       // eslint-enable:object-literal-sort-keys
     },
   })
@@ -685,7 +680,7 @@ test('publish: ignores all the lifecycle scripts when --ignore-scripts is used',
   }, [])
 
   expect(await exists('package.json')).toBeTruthy()
-  expect(await exists('output.json')).toBeFalsy()
+  expect(server.getLines()).toStrictEqual([])
 })
 
 test('publish: with specified publish branch name', async () => {

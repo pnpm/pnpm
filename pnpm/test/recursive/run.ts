@@ -1,16 +1,18 @@
-import { promises as fs } from 'fs'
-import path from 'path'
 import { preparePackages } from '@pnpm/prepare'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import writeYamlFile from 'write-yaml-file'
 import { execPnpm } from '../utils'
 
 test('pnpm recursive run finds bins from the root of the workspace', async () => {
+  await using serverForBuild = await createTestIpcServer()
+  await using serverForPostInstall = await createTestIpcServer()
+  await using serverForTestBinPriority = await createTestIpcServer()
+
   preparePackages([
     {
       location: '.',
       package: {
         dependencies: {
-          'json-append': '1',
           '@pnpm.e2e/print-version': '2',
         },
       },
@@ -23,9 +25,9 @@ test('pnpm recursive run finds bins from the root of the workspace', async () =>
         '@pnpm.e2e/print-version': '1',
       },
       scripts: {
-        build: 'node -e "process.stdout.write(\'project-build\')" | json-append ../build-output.json',
-        postinstall: 'node -e "process.stdout.write(\'project-postinstall\')" | json-append ../postinstall-output.json',
-        testBinPriority: 'print-version | json-append ../testBinPriority.json',
+        build: serverForBuild.sendLineScript('project-build'),
+        postinstall: serverForPostInstall.sendLineScript('project-postinstall'),
+        testBinPriority: `print-version | ${serverForTestBinPriority.generateSendStdinScript()}`,
       },
     },
   ])
@@ -34,43 +36,23 @@ test('pnpm recursive run finds bins from the root of the workspace', async () =>
 
   await execPnpm(['-r', 'install'])
 
-  expect(
-    JSON.parse(await fs.readFile(path.resolve('postinstall-output.json'), 'utf8'))
-  ).toStrictEqual(
-    ['project-postinstall']
-  )
+  expect(serverForPostInstall.getLines()).toStrictEqual(['project-postinstall'])
 
   await execPnpm(['-r', 'run', 'build'])
 
-  expect(
-    JSON.parse(await fs.readFile(path.resolve('build-output.json'), 'utf8'))
-  ).toStrictEqual(
-    ['project-build']
-  )
+  expect(serverForBuild.getLines()).toStrictEqual(['project-build'])
 
   process.chdir('project')
   await execPnpm(['run', 'build'])
   process.chdir('..')
 
-  expect(
-    JSON.parse(await fs.readFile(path.resolve('build-output.json'), 'utf8'))
-  ).toStrictEqual(
-    ['project-build', 'project-build']
-  )
+  expect(serverForBuild.getLines()).toStrictEqual(['project-build', 'project-build'])
 
   await execPnpm(['recursive', 'rebuild'])
 
-  expect(
-    JSON.parse(await fs.readFile(path.resolve('postinstall-output.json'), 'utf8'))
-  ).toStrictEqual(
-    ['project-postinstall', 'project-postinstall']
-  )
+  expect(serverForPostInstall.getLines()).toStrictEqual(['project-postinstall', 'project-postinstall'])
 
   await execPnpm(['recursive', 'run', 'testBinPriority'])
 
-  expect(
-    JSON.parse(await fs.readFile(path.resolve('testBinPriority.json'), 'utf8'))
-  ).toStrictEqual(
-    ['1.0.0\n']
-  )
+  expect(serverForTestBinPriority.getLines()).toStrictEqual(['1.0.0'])
 })

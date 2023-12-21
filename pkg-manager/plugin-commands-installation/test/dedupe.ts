@@ -6,6 +6,7 @@ import { type Lockfile } from '@pnpm/lockfile-types'
 import { dedupe, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { diff } from 'jest-diff'
 import readYamlFile from 'read-yaml-file'
 import { DEFAULT_OPTS } from './utils'
@@ -75,19 +76,17 @@ describe('pnpm dedupe', () => {
   })
 
   test('dedupe: ignores all the lifecycle scripts when --ignore-scripts is used', async () => {
+    await using server = await createTestIpcServer()
+
     const project = prepare({
       name: 'test-dedupe-with-ignore-scripts',
       version: '0.0.0',
 
-      dependencies: {
-        'json-append': '1.1.1',
-      },
-
       scripts: {
         // eslint-disable:object-literal-sort-keys
-        preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
-        prepare: 'node -e "process.stdout.write(\'prepare\')" | json-append output.json',
-        postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
+        preinstall: server.sendLineScript('preinstall'),
+        prepare: server.sendLineScript('prepare'),
+        postinstall: server.sendLineScript('postinstall'),
         // eslint-enable:object-literal-sort-keys
       },
     })
@@ -106,7 +105,7 @@ describe('pnpm dedupe', () => {
     await dedupe.handler(opts)
 
     expect(fs.existsSync('package.json')).toBeTruthy()
-    expect(fs.existsSync('output.json')).toBeFalsy()
+    expect(server.getLines()).toStrictEqual([])
   })
 })
 
