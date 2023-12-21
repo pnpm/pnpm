@@ -163,7 +163,7 @@ export async function list (
         } as PackageDependencyHierarchy
       })
   )
-console.log(pkgs,'pkgs')
+
   const print = getPrinter(opts.reportAs)
   return print(pkgs, {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
