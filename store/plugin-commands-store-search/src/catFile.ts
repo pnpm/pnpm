@@ -26,11 +26,13 @@ export function help () {
   })
 }
 
-export type catFileCommandOptions = Pick<Config, 'storeDir' | 'pnpmHomeDir'>
+export type CatFileCommandOptions = Pick<Config, 'storeDir' | 'pnpmHomeDir'>
 
-export async function handler (opts: catFileCommandOptions, params: string[]) {
+export async function handler (opts: CatFileCommandOptions, params: string[]) {
   if (!params || params.length === 0) {
-    throw new PnpmError('MISSING_HASH', '`pnpm cat-file` requires the hash')
+    throw new PnpmError('MISSING_HASH', 'Missing file hash', {
+      hint: help(),
+    })
   }
 
   const [, , integrityHash] = params[0].match(INTEGRITY_REGEX)!
@@ -45,8 +47,11 @@ export async function handler (opts: catFileCommandOptions, params: string[]) {
   const filePath = path.resolve(cafsDir, toHex.slice(0, 2), toHex.slice(2))
 
   try {
-    return await gfs.readFile(filePath, 'utf8')
-  } catch {
-    throw new PnpmError('INVALID_HASH', 'Corresponding hash file not found')
+    return gfs.readFileSync(filePath, 'utf8')
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'ENOENT') {
+      throw new PnpmError('INVALID_HASH', 'Corresponding hash file not found')
+    }
+    throw err
   }
 }

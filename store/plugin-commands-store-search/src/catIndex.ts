@@ -30,7 +30,7 @@ export function help () {
   })
 }
 
-export type catIndexCommandOptions = Pick<
+export type CatIndexCommandOptions = Pick<
 Config,
 | 'rawConfig'
 | 'pnpmHomeDir'
@@ -41,11 +41,14 @@ Config,
 | 'cacheDir'
 >
 
-export async function handler (opts: catIndexCommandOptions, params: string[]) {
+export async function handler (opts: CatIndexCommandOptions, params: string[]) {
   if (!params || params.length === 0) {
     throw new PnpmError(
       'MISSING_PACKAGE_NAME',
-      '`pnpm cat-index` requires the package name'
+      'Specify a package',
+      {
+        hint: help(),
+      }
     )
   }
 
