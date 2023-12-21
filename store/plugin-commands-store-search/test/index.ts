@@ -28,7 +28,7 @@ test('print cat index file content', async () => {
         version: '8.12.1',
       },
     })
-    const output = await catIndex.handler(config as catIndex.catIndexCommandOptions, ['bytes@3.1.2'])
+    const output = await catIndex.handler(config as catIndex.CatIndexCommandOptions, ['bytes@3.1.2'])
 
     expect(output).toBeTruthy()
     expect(typeof JSON.parse(output).files['package.json'].checkedAt).toBeTruthy()
@@ -45,7 +45,7 @@ test('prints index file error', async () => {
         version: '8.12.1',
       },
     })
-    await catIndex.handler(config as catIndex.catIndexCommandOptions, ['bytes@3.1.1'])
+    await catIndex.handler(config as catIndex.CatIndexCommandOptions, ['bytes@3.1.1'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -72,7 +72,7 @@ test('print hash file content', async () => {
         version: '8.12.1',
       },
     })
-    const output = await catFile.handler(config as catFile.catFileCommandOptions, ['sha512-ZF9Q82J2KaXGIXWxGC0iecrQmfa08Cs/D+e2BPzGSnOn5aCyWiJbwlMm3HqKMK6qKrBg+/u6LduS/a1mc8IsNQ=='])
+    const output = await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-ZF9Q82J2KaXGIXWxGC0iecrQmfa08Cs/D+e2BPzGSnOn5aCyWiJbwlMm3HqKMK6qKrBg+/u6LduS/a1mc8IsNQ=='])
 
     expect(output).toBe(`# Bytes utility
 
@@ -240,7 +240,7 @@ test('print hash file content error', async () => {
         version: '8.12.1',
       },
     })
-    await catFile.handler(config as catFile.catFileCommandOptions, ['sha512-ZF9Q82J2KaXGIXWxGC0iecrQmfa08'])
+    await catFile.handler(config as catFile.CatFileCommandOptions, ['sha512-ZF9Q82J2KaXGIXWxGC0iecrQmfa08'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
@@ -270,7 +270,7 @@ test('print index file path with hash', async () => {
         version: '8.12.1',
       },
     })
-    const output = await findHash.handler(config as findHash.findHashCommandOptions, ['sha512-fXs1pWlUdqT2jkeoEJW/+odKZ2NwAyYkWea+plJKZI2xmhRKQi2e+nKGcClyDblgLwCLD912oMaua0+sTwwIrw=='])
+    const output = await findHash.handler(config as findHash.FindHashCommandOptions, ['sha512-fXs1pWlUdqT2jkeoEJW/+odKZ2NwAyYkWea+plJKZI2xmhRKQi2e+nKGcClyDblgLwCLD912oMaua0+sTwwIrw=='])
 
     expect(output).toBe(`${PACKAGE_INFO_CLR('lodash')}@${PACKAGE_INFO_CLR('4.17.19')}  ${INDEX_PATH_CLR('/24/dbddf17111f46417d2fdaa260b1a37f9b3142340e4145efe3f0937d77eb56c862d2a1d2901ca16271dc0d6335b0237c2346768a3ec1a3d579018f1fc5f7a0d-index.json')}
 ${PACKAGE_INFO_CLR('lodash')}@${PACKAGE_INFO_CLR('4.17.20')}  ${INDEX_PATH_CLR('/3e/585d15c8a594e20d7de57b362ea81754c011acb2641a19f1b72c8531ea39825896bab344ae616a0a5a824cb9a381df0b3cddd534645cf305aba70a93dac698-index.json')}
@@ -288,7 +288,7 @@ test('print index file path with hash error', async () => {
         version: '8.12.1',
       },
     })
-    await findHash.handler(config as findHash.findHashCommandOptions, ['sha512-fXs1pWlUdqT2j'])
+    await findHash.handler(config as findHash.FindHashCommandOptions, ['sha512-fXs1pWlUdqT2j'])
   } catch (_err: any) { // eslint-disable-line
     err = _err
   }
