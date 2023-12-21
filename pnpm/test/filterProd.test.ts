@@ -1,4 +1,4 @@
-import fs from 'fs/promises'
+import fs from 'fs'
 import path from 'path'
 import writeYamlFile from 'write-yaml-file'
 import { execPnpm } from './utils'
@@ -54,17 +54,17 @@ test.each([
   await execPnpm(['install'])
 
   // Ensure none of these files exist before the build script runs.
-  await Promise.all(projects.map(async project => {
-    await expect(fs.access(path.resolve(project.name, 'output.txt'))).rejects.toThrow()
-  }))
+  for (const project of projects) {
+    expect(fs.existsSync(path.resolve(project.name, 'output.txt'))).toBeFalsy()
+  }
 
   await execPnpm(['recursive', 'test', filter, '...project-3'])
 
-  await Promise.all(projects.map(async project => {
+  for (const project of projects) {
     if (expected.has(project.name)) {
-      await expect(fs.access(path.resolve(project.name, 'output.txt'))).resolves.not.toThrow()
+      expect(fs.existsSync(path.resolve(project.name, 'output.txt'))).toBeTruthy()
     } else {
-      await expect(fs.access(path.resolve(project.name, 'output.txt'))).rejects.toThrow()
+      expect(fs.existsSync(path.resolve(project.name, 'output.txt'))).toBeFalsy()
     }
-  }))
+  }
 })

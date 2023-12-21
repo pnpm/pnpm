@@ -1,5 +1,5 @@
 // cspell:ignore buildscript
-import { promises as fs } from 'fs'
+import { promises as fs, existsSync } from 'fs'
 import path from 'path'
 import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
@@ -402,22 +402,22 @@ test('test-pattern is respected by the test script', async () => {
   await execPnpm(['install'])
 
   // Ensure none of these files exist before the test script runs.
-  await Promise.all(projects.map(async project => {
-    await expect(fs.access(path.resolve(project.name, 'output.txt'))).rejects.toThrow()
-  }))
+  for (const project of projects) {
+    expect(existsSync(path.resolve(project.name, 'output.txt'))).toBeFalsy()
+  }
 
   await execPnpm(['recursive', 'test', '--filter', '...[origin/main]'])
 
   // Expecting only project-2 and project-4 to run since they were changed above.
   const expected = new Set(['project-2', 'project-4'])
 
-  await Promise.all(projects.map(async project => {
+  for (const project of projects) {
     if (expected.has(project.name)) {
-      await expect(fs.access(path.resolve(project.name, 'output.txt'))).resolves.not.toThrow()
+      expect(existsSync(path.resolve(project.name, 'output.txt'))).toBeTruthy()
     } else {
-      await expect(fs.access(path.resolve(project.name, 'output.txt'))).rejects.toThrow()
+      expect(existsSync(path.resolve(project.name, 'output.txt'))).toBeFalsy()
     }
-  }))
+  }
 })
 
 test('changed-files-ignore-pattern is respected', async () => {
