@@ -148,12 +148,11 @@ test('pnpm recursive rebuild with hoisted node linker', async () => {
   await projects['project-4'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 })
 
-// TODO: make this test pass
-test.skip('rebuild multiple packages in correct order', async () => {
+test('rebuild multiple packages in correct order', async () => {
   await using server1 = await createTestIpcServer()
   await using server2 = await createTestIpcServer()
 
-  const pkgs = [
+  const pkgs: Array<PackageManifest & { name: string }> = [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -190,9 +189,9 @@ test.skip('rebuild multiple packages in correct order', async () => {
 
       dependencies: {},
     },
-  ] as PackageManifest[]
+  ]
   preparePackages(pkgs)
-  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
+  await writeYamlFile('pnpm-workspace.yaml', { packages: pkgs.map(pkg => pkg.name) })
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await execa('node', [
