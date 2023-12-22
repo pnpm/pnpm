@@ -64,8 +64,6 @@ export async function handler (opts: FindHashCommandOptions, params: string[]) {
   indexFiles.forEach(filesIndexFile => {
     const pkgFilesIndex = loadJsonFile.sync<PackageFilesIndex>(filesIndexFile)
 
-    // TODO: match name empty case
-
     for (const [, file] of Object.entries(pkgFilesIndex.files)) {
       if (file?.integrity === hash) {
         result.push({ name: pkgFilesIndex.name ?? 'unknown', version: pkgFilesIndex?.version ?? 'unknown', filesIndexFile: filesIndexFile.replace(cafsDir, '') })

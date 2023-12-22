@@ -40,6 +40,7 @@
     "@pnpm/plugin-commands-store-search": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "load-json-file": "^6.2.0",
+    "tempy": "^1.0.1",
     "execa": "npm:safe-execa@0.1.2"
   },
   "dependencies": {

@@ -3,56 +3,12 @@ import path from 'path'
 
 import { prepare } from '@pnpm/prepare'
 import { getConfig } from '@pnpm/config'
-import { catIndex, catFile, findHash } from '@pnpm/plugin-commands-store-search'
+import { catFile } from '@pnpm/plugin-commands-store-search'
 import { type PnpmError } from '@pnpm/error'
 
 import execa from 'execa'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
-
-// cat-index
-test('print cat index file content', async () => {
-  prepare({
-    dependencies: {
-      bytes: '3.1.2',
-    },
-  })
-
-  await execa('node', [pnpmBin, 'install'])
-
-  {
-    const { config } = await getConfig({
-      cliOptions: {},
-      packageManager: {
-        name: 'pnpm',
-        version: '8.12.1',
-      },
-    })
-    const output = await catIndex.handler(config as catIndex.CatIndexCommandOptions, ['bytes@3.1.2'])
-
-    expect(output).toBeTruthy()
-    expect(typeof JSON.parse(output).files['package.json'].checkedAt).toBeTruthy()
-  }
-})
-
-test('prints index file error', async () => {
-  let err!: PnpmError
-  try {
-    const { config } = await getConfig({
-      cliOptions: {},
-      packageManager: {
-        name: 'pnpm',
-        version: '8.12.1',
-      },
-    })
-    await catIndex.handler(config as catIndex.CatIndexCommandOptions, ['bytes@3.1.1'])
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-
-  expect(err.code).toBe('ERR_PNPM_INVALID_PACKAGE')
-  expect(err.message).toBe('No corresponding index file found. You can use pnpm list to see if the package is installed.')
-})
 
 // cat-file
 test('print hash file content', async () => {
@@ -247,52 +203,4 @@ test('print hash file content error', async () => {
 
   expect(err.code).toBe('ERR_PNPM_INVALID_HASH')
   expect(err.message).toBe('Corresponding hash file not found')
-})
-
-// find-hash
-test('print index file path with hash', async () => {
-  const { PACKAGE_INFO_CLR, INDEX_PATH_CLR } = findHash
-  prepare({
-    dependencies: {
-      lodash: '4.17.20',
-    },
-  })
-
-  await execa('node', [pnpmBin, 'install'])
-  await execa('node', [pnpmBin, 'add', 'lodash@4.17.19'])
-  await execa('node', [pnpmBin, 'add', 'lodash@4.17.20'])
-
-  {
-    const { config } = await getConfig({
-      cliOptions: {},
-      packageManager: {
-        name: 'pnpm',
-        version: '8.12.1',
-      },
-    })
-    const output = await findHash.handler(config as findHash.FindHashCommandOptions, ['sha512-fXs1pWlUdqT2jkeoEJW/+odKZ2NwAyYkWea+plJKZI2xmhRKQi2e+nKGcClyDblgLwCLD912oMaua0+sTwwIrw=='])
-
-    expect(output).toBe(`${PACKAGE_INFO_CLR('lodash')}@${PACKAGE_INFO_CLR('4.17.19')}  ${INDEX_PATH_CLR('/24/dbddf17111f46417d2fdaa260b1a37f9b3142340e4145efe3f0937d77eb56c862d2a1d2901ca16271dc0d6335b0237c2346768a3ec1a3d579018f1fc5f7a0d-index.json')}
-${PACKAGE_INFO_CLR('lodash')}@${PACKAGE_INFO_CLR('4.17.20')}  ${INDEX_PATH_CLR('/3e/585d15c8a594e20d7de57b362ea81754c011acb2641a19f1b72c8531ea39825896bab344ae616a0a5a824cb9a381df0b3cddd534645cf305aba70a93dac698-index.json')}
-`)
-  }
-})
-
-test('print index file path with hash error', async () => {
-  let err!: PnpmError
-  try {
-    const { config } = await getConfig({
-      cliOptions: {},
-      packageManager: {
-        name: 'pnpm',
-        version: '8.12.1',
-      },
-    })
-    await findHash.handler(config as findHash.FindHashCommandOptions, ['sha512-fXs1pWlUdqT2j'])
-  } catch (_err: any) { // eslint-disable-line
-    err = _err
-  }
-
-  expect(err.code).toBe('ERR_PNPM_INVALID_FILE_HASH')
-  expect(err.message).toBe('No package or index file matching this hash was found.')
 })
