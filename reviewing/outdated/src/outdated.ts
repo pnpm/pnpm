@@ -56,7 +56,7 @@ export async function outdated (
     throw new PnpmError('OUTDATED_NO_LOCKFILE', `No lockfile in directory "${opts.lockfileDir}". Run \`pnpm install\` to generate one.`)
   }
 
-  async function getOverriddenManifest() {
+  async function getOverriddenManifest () {
     const overrides = opts.currentLockfile?.overrides ?? opts.wantedLockfile?.overrides
     if (overrides) {
       const readPackageHook = createReadPackageHook({
