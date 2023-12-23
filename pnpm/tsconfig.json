@@ -131,7 +131,7 @@
       "path": "../store/plugin-commands-store"
     },
     {
-      "path": "../store/plugin-commands-store-search"
+      "path": "../store/plugin-commands-store-inspecting"
     },
     {
       "path": "../worker"

@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/plugin-commands-store-search",
-  "version": "0.0.1",
-  "description": "The visualization store commands of pnpm",
+  "name": "@pnpm/plugin-commands-store-inspecting",
+  "version": "0.0.0",
+  "description": "The inspecting store commands of pnpm",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
@@ -18,7 +18,7 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-store-search",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-store-inspecting",
   "keywords": [
     "pnpm8",
     "pnpm"
@@ -27,25 +27,25 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-store-search#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/store/plugin-commands-store-inspecting#readme",
   "devDependencies": {
-    "@pnpm/config": "workspace:*",
-    "@pnpm/parse-wanted-dependency": "workspace:*",
-    "@pnpm/pick-registry-for-package": "workspace:*",
-    "@pnpm/client": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
-    "@pnpm/store-path": "workspace:*",
-    "@pnpm/graceful-fs": "workspace:*",
-    "@pnpm/plugin-commands-store-search": "workspace:*",
+    "@pnpm/plugin-commands-store-inspecting": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "load-json-file": "^6.2.0",
     "tempy": "^1.0.1",
     "execa": "npm:safe-execa@0.1.2"
   },
   "dependencies": {
+    "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/client": "workspace:*",
+    "@pnpm/parse-wanted-dependency": "workspace:*",
+    "@pnpm/pick-registry-for-package": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:*",
+    "@pnpm/store-path": "workspace:*",
+    "@pnpm/graceful-fs": "workspace:*",
+    "load-json-file": "^6.2.0",
     "render-help": "^1.0.3",
     "chalk": "^4.1.2"
   },

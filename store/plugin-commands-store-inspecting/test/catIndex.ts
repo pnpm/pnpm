@@ -3,7 +3,7 @@ import path from 'path'
 
 import { prepare } from '@pnpm/prepare'
 import { getConfig } from '@pnpm/config'
-import { catIndex } from '@pnpm/plugin-commands-store-search'
+import { catIndex } from '@pnpm/plugin-commands-store-inspecting'
 import { type PnpmError } from '@pnpm/error'
 
 import execa from 'execa'
