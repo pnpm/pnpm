@@ -3437,9 +3437,6 @@ importers:
       '@pnpm/matcher':
         specifier: workspace:*
         version: link:../../config/matcher
-      '@pnpm/read-package-json':
-        specifier: workspace:*
-        version: link:../../pkg-manifest/read-package-json
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
