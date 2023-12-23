@@ -23,8 +23,7 @@ export function cliOptionsTypes () {
 
 export function help () {
   return renderHelp({
-    description:
-      'Prints the corresponding index file based on package name and version.',
+    description: 'Prints the index file of a specific package from the store.',
     descriptionLists: [],
     usages: ['pnpm cat-index <pkg name>@<pkg version>'],
   })

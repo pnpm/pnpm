@@ -133,7 +133,7 @@ function getHelpText () {
             name: 'root',
           },
           {
-            description: 'Prints the store index file',
+            description: 'Prints the index file of a specific package from the store',
             name: 'cat-index',
           },
           {
@@ -141,7 +141,7 @@ function getHelpText () {
             name: 'cat-file',
           },
           {
-            description: 'Print the contained packages according to the hash',
+            description: 'Prints the contained packages according to the hash',
             name: 'find-hash',
           },
         ],

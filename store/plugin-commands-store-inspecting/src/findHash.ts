@@ -24,7 +24,7 @@ export function cliOptionsTypes () {
 export function help () {
   return renderHelp({
     description:
-      'Print the contained packages according to the hash.',
+      'Prints the contained packages according to the hash.',
     descriptionLists: [],
     usages: ['pnpm find-hash <hash>'],
   })
