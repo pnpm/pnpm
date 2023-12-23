@@ -4,10 +4,7 @@
     "outDir": "lib",
     "rootDir": "src"
   },
-  "include": [
-    "src/**/*.ts",
-    "../../__typings__/**/*.d.ts"
-  ],
+  "include": ["src/**/*.ts", "../../__typings__/**/*.d.ts"],
   "references": [
     {
       "path": "../../config/matcher"
@@ -32,9 +29,6 @@
     },
     {
       "path": "../../packages/types"
-    },
-    {
-      "path": "../../pkg-manifest/read-package-json"
     },
     {
       "path": "../link-bins"
