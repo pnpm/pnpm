@@ -118,7 +118,7 @@ export const FILTERING = {
     },
     {
       description: 'If has no matched package , the command will fail',
-      name: '--filter <pattern> --fail',
+      name: '--filter <pattern> --fail-if-no-match',
     },
   ],
   title: 'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
