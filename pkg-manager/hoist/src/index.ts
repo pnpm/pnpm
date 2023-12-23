@@ -16,7 +16,7 @@ import * as dp from '@pnpm/dependency-path'
 import isSubdir from 'is-subdir'
 import mapObjIndexed from 'ramda/src/mapObjIndexed'
 import resolveLinkTarget from 'resolve-link-target'
-import symlinkDir, { sync as symlinkdirSync } from 'symlink-dir'
+import symlinkDir, { sync } from 'symlink-dir'
 
 const hoistLogger = logger('hoist')
 
@@ -107,7 +107,7 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
     hoistedWorkspaceProjects.map((hoistedWorkspaceProject) => {
       const exists = fs.existsSync(hoistedWorkspaceProject.hoistedProjectPath)
       if (!exists) {
-        return symlinkdirSync(hoistedWorkspaceProject.projectPath, hoistedWorkspaceProject.hoistedProjectPath, { overwrite: false })
+        return sync(hoistedWorkspaceProject.projectPath, hoistedWorkspaceProject.hoistedProjectPath, { overwrite: false })
       }
       return true
     })
