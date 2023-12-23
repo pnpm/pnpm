@@ -4454,9 +4454,9 @@ importers:
       '@pnpm/plugin-commands-store':
         specifier: workspace:*
         version: link:../store/plugin-commands-store
-      '@pnpm/plugin-commands-store-search':
+      '@pnpm/plugin-commands-store-inspecting':
         specifier: workspace:*
-        version: link:../store/plugin-commands-store-search
+        version: link:../store/plugin-commands-store-inspecting
       '@pnpm/prepare':
         specifier: workspace:*
         version: link:../__utils__/prepare
@@ -5883,27 +5883,17 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
 
-  store/plugin-commands-store-search:
+  store/plugin-commands-store-inspecting:
     dependencies:
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../packages/error
-      '@pnpm/types':
-        specifier: workspace:*
-        version: link:../../packages/types
-      chalk:
-        specifier: ^4.1.2
-        version: 4.1.2
-      render-help:
-        specifier: ^1.0.3
-        version: 1.0.3
-    devDependencies:
       '@pnpm/client':
         specifier: workspace:*
         version: link:../../pkg-manager/client
       '@pnpm/config':
         specifier: workspace:*
         version: link:../../config/config
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/graceful-fs':
         specifier: workspace:*
         version: link:../../fs/graceful-fs
@@ -5916,24 +5906,34 @@ importers:
       '@pnpm/pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
-      '@pnpm/plugin-commands-store-search':
-        specifier: workspace:*
-        version: 'link:'
-      '@pnpm/prepare':
-        specifier: workspace:*
-        version: link:../../__utils__/prepare
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../store-path
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../cafs
-      execa:
-        specifier: npm:safe-execa@0.1.2
-        version: /safe-execa@0.1.2
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      chalk:
+        specifier: ^4.1.2
+        version: 4.1.2
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
+      render-help:
+        specifier: ^1.0.3
+        version: 1.0.3
+    devDependencies:
+      '@pnpm/plugin-commands-store-inspecting':
+        specifier: workspace:*
+        version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
+      execa:
+        specifier: npm:safe-execa@0.1.2
+        version: /safe-execa@0.1.2
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -9736,6 +9736,7 @@ packages:
     resolution: {integrity: sha512-TIGnTpdo+E3+pCyAluZvtED5p5wCqLdezCyhPZzKPcxvFplEt4i+W7OONCKgeZFT3+y5NZZfOOS/Bdcanm1MYA==, tarball: https://registry.npmmirror.com/ansi-regex/-/ansi-regex-2.1.1.tgz}
     engines: {node: '>=0.10.0'}
     requiresBuild: true
+    optional: true
 
   /ansi-regex@3.0.1:
     resolution: {integrity: sha512-+O9Jct8wf++lXxxFc4hc8LsjaSq0HFzzL7cVsw8pRDIPdjKD2mT4ytDZlLuSBZ4cLKZFXIrMGO7DbQCtMJJMKw==}
@@ -10526,6 +10527,7 @@ packages:
     resolution: {integrity: sha512-RpAVKQA5T63xEj6/giIbUEtZwJ4UFIc3ZtvEkiaUERylqe8xb5IvqcgOurZLahv93CLKfxcw5YI+DZcUBRyLXA==, tarball: https://registry.npmmirror.com/code-point-at/-/code-point-at-1.1.0.tgz}
     engines: {node: '>=0.10.0'}
     requiresBuild: true
+    optional: true
 
   /collect-v8-coverage@1.0.2:
     resolution: {integrity: sha512-lHl4d5/ONEbLlJvaJNtsF/Lz+WvB07u2ycqTYbdrq7UypDXailES4valYb2eWiJFxZlVmpGekfqoxQhzyFdT4Q==}
@@ -12986,6 +12988,7 @@ packages:
     requiresBuild: true
     dependencies:
       number-is-nan: 1.0.1
+    optional: true
 
   /is-fullwidth-code-point@2.0.0:
     resolution: {integrity: sha512-VHskAKYM8RfSFXwee5t5cbN5PZeq1Wrh6qd5bkyiXIf6UQcN6w/A0eXM9r6t8d+GYOh+o6ZhiEnb88LN/Y8m2w==, tarball: https://registry.npmmirror.com/is-fullwidth-code-point/-/is-fullwidth-code-point-2.0.0.tgz}
@@ -13058,7 +13061,7 @@ packages:
     dev: true
 
   /is-path-cwd@2.2.0:
-    resolution: {integrity: sha512-w942bTcih8fdJPJmQHFzkS76NEP8Kzzvmw92cXsazb8intwLqPibPPdXf4ANdKV3rYMuuQYGIWtvz9JilB3NFQ==}
+    resolution: {integrity: sha512-w942bTcih8fdJPJmQHFzkS76NEP8Kzzvmw92cXsazb8intwLqPibPPdXf4ANdKV3rYMuuQYGIWtvz9JilB3NFQ==, tarball: https://registry.npmmirror.com/is-path-cwd/-/is-path-cwd-2.2.0.tgz}
     engines: {node: '>=6'}
 
   /is-path-inside@3.0.3:
@@ -14822,6 +14825,7 @@ packages:
     resolution: {integrity: sha512-4jbtZXNAsfZbAHiiqjLPBiCl16dES1zI4Hpzzxw61Tk+loF+sBDBKx1ICKKKwIqQ7M0mFn1TmkN7euSncWgHiQ==, tarball: https://registry.npmmirror.com/number-is-nan/-/number-is-nan-1.0.1.tgz}
     engines: {node: '>=0.10.0'}
     requiresBuild: true
+    optional: true
 
   /oauth-sign@0.9.0:
     resolution: {integrity: sha512-fexhUFFPTGV8ybAtSIGbV6gOkSv8UtRbDBnAyLQw4QPKkgNlsH2ByPGtMUqdWkos6YCRmAqViwgZrJc/mRDzZQ==, tarball: https://registry.npmmirror.com/oauth-sign/-/oauth-sign-0.9.0.tgz}
@@ -15045,7 +15049,7 @@ packages:
     engines: {node: '>=6'}
 
   /p-map@4.0.0:
-    resolution: {integrity: sha512-/bjOqmgETBYB5BoEeGVea8dmvHb2m9GLy1E9W43yeyfP6QQCZGFNa+XRceJEuDB6zqr+gKpIAmlLebMpykw/MQ==}
+    resolution: {integrity: sha512-/bjOqmgETBYB5BoEeGVea8dmvHb2m9GLy1E9W43yeyfP6QQCZGFNa+XRceJEuDB6zqr+gKpIAmlLebMpykw/MQ==, tarball: https://registry.npmmirror.com/p-map/-/p-map-4.0.0.tgz}
     engines: {node: '>=10'}
     dependencies:
       aggregate-error: 3.1.0
@@ -16242,7 +16246,7 @@ packages:
     dev: false
 
   /slash@3.0.0:
-    resolution: {integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==}
+    resolution: {integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==, tarball: https://registry.npmmirror.com/slash/-/slash-3.0.0.tgz}
     engines: {node: '>=8'}
 
   /slice-ansi@3.0.0:
@@ -16501,6 +16505,7 @@ packages:
       code-point-at: 1.1.0
       is-fullwidth-code-point: 1.0.0
       strip-ansi: 3.0.1
+    optional: true
 
   /string-width@2.1.1:
     resolution: {integrity: sha512-nOqH59deCq9SRHlxq1Aw85Jnt4w6KvLKqWVik6oA9ZklXLNIOlqg4F2yrT1MVaTjAqvVwdfeZ7w7aCvJD7ugkw==}
@@ -16569,6 +16574,7 @@ packages:
     requiresBuild: true
     dependencies:
       ansi-regex: 2.1.1
+    optional: true
 
   /strip-ansi@4.0.0:
     resolution: {integrity: sha512-4XaJ2zQdCzROZDivEVIDPkcQn8LMFSa8kj8Gxb/Lnwzv9A8VctNZ+lfivC/sV3ivW8ElJTERXZoPBRrZKkNKow==, tarball: https://registry.npmmirror.com/strip-ansi/-/strip-ansi-4.0.0.tgz}
@@ -17618,7 +17624,7 @@ packages:
     resolution: {integrity: sha512-eDMORYaPNZ4sQIuuYPDHdQvf4gyCF9rEEV/yPxGfwPkRodwEgiMUUXTx/dex+Me0wxx53S+NgUHaP7y3MGlDmg==, tarball: https://registry.npmmirror.com/wide-align/-/wide-align-1.1.5.tgz}
     requiresBuild: true
     dependencies:
-      string-width: 1.0.2
+      string-width: 4.2.3
 
   /widest-line@3.1.0:
     resolution: {integrity: sha512-NsmoXalsWVDMGupxZ5R08ka9flZjjiLvHVAWYOKtiKM8ujtZWr9cRffak+uSE48+Ob8ObalXpwyeUiyDD6QFgg==}
