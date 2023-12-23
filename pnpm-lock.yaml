@@ -5261,6 +5261,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
+      '@pnpm/hooks.read-package-hook':
+        specifier: workspace:*
+        version: link:../../hooks/read-package-hook
       '@pnpm/lockfile-file':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-file
@@ -9377,7 +9380,7 @@ packages:
     resolution: {integrity: sha512-YmG+oTBCyrAoMIx5g2I9CfyurSpHyoan+9SCj7laaFKseOe3lFEyIVKvwRBQMmSt8uzh+eY5RWeQnoyyOs6AbA==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
-      '@yarnpkg/fslib': ^3.0.0-rc.25
+      '@yarnpkg/fslib': 3.0.0-rc.25
     dependencies:
       '@types/emscripten': 1.39.10
       '@yarnpkg/fslib': 3.0.0-rc.25
