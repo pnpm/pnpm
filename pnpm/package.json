@@ -104,7 +104,7 @@
     "semver": "^7.5.4",
     "split-cmd": "^1.0.1",
     "strip-ansi": "^6.0.1",
-    "symlink-dir": "^5.2.0",
+    "symlink-dir": "^5.2.1",
     "tempy": "^1.0.1",
     "tree-kill": "^1.2.2",
     "which": "^4.0.0",
