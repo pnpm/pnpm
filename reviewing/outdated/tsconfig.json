@@ -16,6 +16,9 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
+      "path": "../../hooks/read-package-hook"
+    },
+    {
       "path": "../../lockfile/lockfile-file"
     },
     {
