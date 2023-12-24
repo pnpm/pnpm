@@ -920,8 +920,8 @@ importers:
         specifier: ^2.0.2
         version: 2.0.2
       rename-overwrite:
-        specifier: ^4.0.4
-        version: 4.0.4
+        specifier: ^5.0.0
+        version: 5.0.0
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
@@ -1746,8 +1746,8 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       rename-overwrite:
-        specifier: ^4.0.4
-        version: 4.0.4
+        specifier: ^5.0.0
+        version: 5.0.0
       sanitize-filename:
         specifier: ^1.6.3
         version: 1.6.3
@@ -2575,8 +2575,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       rename-overwrite:
-        specifier: ^4.0.4
-        version: 4.0.4
+        specifier: ^5.0.0
+        version: 5.0.0
     devDependencies:
       '@pnpm/make-dedicated-lockfile':
         specifier: workspace:*
@@ -4141,8 +4141,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       rename-overwrite:
-        specifier: ^4.0.4
-        version: 4.0.4
+        specifier: ^5.0.0
+        version: 5.0.0
       safe-promise-defer:
         specifier: ^1.0.1
         version: 1.0.1
@@ -5019,8 +5019,8 @@ importers:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
       rename-overwrite:
-        specifier: ^4.0.4
-        version: 4.0.4
+        specifier: ^5.0.0
+        version: 5.0.0
       semver:
         specifier: ^7.5.4
         version: 7.5.4
@@ -5560,8 +5560,8 @@ importers:
         specifier: ^3.1.0
         version: 3.1.0
       rename-overwrite:
-        specifier: ^4.0.4
-        version: 4.0.4
+        specifier: ^5.0.0
+        version: 5.0.0
       ssri:
         specifier: 10.0.5
         version: 10.0.5
@@ -9329,8 +9329,8 @@ packages:
       '@types/lodash': 4.14.197
       '@types/semver': 7.5.3
       '@types/treeify': 1.0.3
-      '@yarnpkg/fslib': 3.0.0-rc.25
-      '@yarnpkg/libzip': 3.0.0-rc.25(@yarnpkg/fslib@3.0.0-rc.25)
+      '@yarnpkg/fslib': 3.0.0-rc.45
+      '@yarnpkg/libzip': 3.0.0-rc.45(@yarnpkg/fslib@3.0.0-rc.45)
       '@yarnpkg/parsers': 3.0.0-rc.45
       '@yarnpkg/shell': 4.0.0-rc.45(typanion@3.14.0)
       camelcase: 5.3.1
@@ -9368,22 +9368,22 @@ packages:
     engines: {node: '>=14.15.0'}
     dependencies:
       tslib: 2.6.2
+    dev: false
 
   /@yarnpkg/fslib@3.0.0-rc.45:
     resolution: {integrity: sha512-XarEtHTbeO4+rgZQObn16+uFzb1dXiVHuoqDNGoMywwBm/FF7DeCqSANeKiNYbi79WMgoLk8l3lO4g0vRYkJBg==}
     engines: {node: '>=14.15.0'}
     dependencies:
       tslib: 2.6.2
-    dev: false
 
-  /@yarnpkg/libzip@3.0.0-rc.25(@yarnpkg/fslib@3.0.0-rc.25):
-    resolution: {integrity: sha512-YmG+oTBCyrAoMIx5g2I9CfyurSpHyoan+9SCj7laaFKseOe3lFEyIVKvwRBQMmSt8uzh+eY5RWeQnoyyOs6AbA==}
+  /@yarnpkg/libzip@3.0.0-rc.45(@yarnpkg/fslib@3.0.0-rc.45):
+    resolution: {integrity: sha512-ZsYi6Y01yMJOLnJ5ISZgOFvCEXzp4EScrM91D7bvCx0lIfH3DZ40H4M5nGNeVFk7jXUHOXuJkNYlNoXixSconA==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
-      '@yarnpkg/fslib': 3.0.0-rc.25
+      '@yarnpkg/fslib': 3.0.0-rc.45
     dependencies:
       '@types/emscripten': 1.39.10
-      '@yarnpkg/fslib': 3.0.0-rc.25
+      '@yarnpkg/fslib': 3.0.0-rc.45
       tslib: 2.6.2
 
   /@yarnpkg/lockfile@1.1.0:
@@ -9456,7 +9456,7 @@ packages:
     engines: {node: '>=14.15.0'}
     hasBin: true
     dependencies:
-      '@yarnpkg/fslib': 3.0.0-rc.25
+      '@yarnpkg/fslib': 3.0.0-rc.45
       '@yarnpkg/parsers': 3.0.0-rc.45
       chalk: 3.0.0
       clipanion: 3.2.0-rc.6(typanion@3.14.0)
@@ -15710,6 +15710,14 @@ packages:
     dependencies:
       '@zkochan/rimraf': 2.1.3
       fs-extra: 10.1.0
+
+  /rename-overwrite@5.0.0:
+    resolution: {integrity: sha512-vSxE5Ww7Jnyotvaxi3Dj0vOMoojH8KMkBfs9xYeW/qNfJiLTcC1fmwTjrbGUq3mQSOCxkG0DbdcvwTUrpvBN4w==}
+    engines: {node: '>=12.10'}
+    dependencies:
+      '@zkochan/rimraf': 2.1.3
+      fs-extra: 10.1.0
+    dev: false
 
   /render-help@1.0.3:
     resolution: {integrity: sha512-oC1+EZEeVpinZDtG0j7Frby2HRGUtU+x62/0QRH/1FcZR9U/OgsI7HKpy/a36iXdI9by0SouWTHm8CDaOeqx3A==}
