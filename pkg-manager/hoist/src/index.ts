@@ -16,7 +16,7 @@ import * as dp from '@pnpm/dependency-path'
 import isSubdir from 'is-subdir'
 import mapObjIndexed from 'ramda/src/mapObjIndexed'
 import resolveLinkTarget from 'resolve-link-target'
-import symlinkDir, { sync } from 'symlink-dir'
+import symlinkDir from 'symlink-dir'
 
 const hoistLogger = logger('hoist')
 
@@ -86,6 +86,8 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
 
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
+  const hoistedDependencies: Dependency[] = []
+
   if (opts.hoistWorkspaceProjects) {
     const allProjects = Object.keys(opts.lockfile.importers)
 
@@ -104,16 +106,21 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
             }
           })
 
-    hoistedWorkspaceProjects.map((hoistedWorkspaceProject) => {
+    hoistedWorkspaceProjects.forEach((hoistedWorkspaceProject) => {
       const exists = fs.existsSync(hoistedWorkspaceProject.hoistedProjectPath)
       if (!exists) {
-        return sync(hoistedWorkspaceProject.projectPath, hoistedWorkspaceProject.hoistedProjectPath, { overwrite: false })
+        hoistedDependencies.push({
+          children: {
+            [hoistedWorkspaceProject.projectPath]: hoistedWorkspaceProject.hoistedProjectPath,
+          },
+          depPath: '',
+          depth: -1,
+        })
       }
-      return true
     })
   }
 
-  return hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
+  return hoistGraph(deps.concat(hoistedDependencies), opts.lockfile.importers['.']?.specifiers ?? {}, {
     getAliasHoistType,
     lockfile: opts.lockfile,
   })
