@@ -1,4 +1,4 @@
-import { existsSync, promises as fs } from 'fs'
+import { chmodSync, existsSync, promises as fs } from 'fs'
 import path, { join } from 'path'
 import execa from 'execa'
 import { isCI } from 'ci-info'
@@ -742,9 +742,13 @@ test('publish: provenance', async () => {
 
 test('publish: use token helper for authentication', async () => {
   prepare({
-    name: 'test-publish-package.json',
+    name: 'test-publish-helper-token.json',
     version: '0.0.2',
   })
+
+  const tokenHelper = join(__dirname, 'utils', 'tokenHelper.js')
+
+  chmodSync(tokenHelper, 0o755)
 
   await publish.handler({
     ...DEFAULT_OPTS,
@@ -752,7 +756,7 @@ test('publish: use token helper for authentication', async () => {
       original: [
         'publish',
         CREDENTIALS[0],
-        `--//localhost:${REGISTRY_MOCK_PORT}/:tokenHelper=${join(__dirname, 'utils', 'token-helper.js')}`,
+        `--//localhost:${REGISTRY_MOCK_PORT}/:tokenHelper=${join(__dirname, 'utils', 'tokenHelper.js')}`,
       ],
     },
     dir: process.cwd(),

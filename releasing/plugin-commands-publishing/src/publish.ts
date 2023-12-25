@@ -139,14 +139,23 @@ export async function publish (
   params: string[]
 ) {
   const tokenHelpers = Object.entries(opts.rawConfig).filter(([key]) => key.endsWith(':tokenHelper'))
+  const tokenHelpersFromArgs = opts.argv.original.filter(arg => arg.includes(':tokenHelper=')).map(arg => [arg.split('=')[0], arg.split('=')[1]] as [string, string])
 
-  const parsedTokenHelpers: Array<{
-    registry: string
-    token: string
-  }> = tokenHelpers.map(([key, value]) => {
+  const parsedTokenHelpers = tokenHelpers.concat(tokenHelpersFromArgs).map(([key, value]) => {
+    // Extracting the registry and port from the npm configuration key
+    const registryMatch = key.match(/\/\/(.*?):(\d+)\/:/)
+    if (!registryMatch) {
+      throw new Error(`Invalid registry format in key: ${key}`)
+    }
+
+    const [, registryHost, registryPort] = registryMatch
+    const registry = registryPort ? `//${registryHost}:${registryPort}/` : `//${registryHost}/`
+
+    const parsedToken = loadToken(value, key)
+
     return {
-      registry: key.split(':')[0],
-      token: loadToken(value, key),
+      registryKey: `NPM_CONFIG_${registry}:_authToken`,
+      token: parsedToken,
     }
   })
 
@@ -247,19 +256,13 @@ Do you want to continue?`,
   })
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
 
-  const { publishConfig } = manifest
-  const registry = publishConfig?.registry ?? opts.registries.default
+  const env = Object.assign({})
 
-  const suitableToken = findSuitableToken({
-    registry,
-    tokens: parsedTokenHelpers,
-  })
-
-  const registryKey = 'NPM_CONFIG_' + registry.replace(/https?:/, '') + ':_authToken'
-
-  const env = Object.assign({}, {
-    [registryKey]: suitableToken as string,
-  })
+  for (const { registryKey, token } of parsedTokenHelpers) {
+    if (token) {
+      env[registryKey] = token
+    }
+  }
 
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballName), ...args], {
     cwd: packDestination,
@@ -314,39 +317,14 @@ function loadToken (helperPath: string, settingName: string) {
     throw new PnpmError('BAD_TOKEN_HELPER_PATH', `${settingName} must be an absolute path, without arguments`)
   }
 
-  const spawnResult = spawnSync(helperPath, { shell: true })
+  const isNode = helperPath.endsWith('.js')
+  const isWin = process.platform === 'win32'
+
+  // If it's windows and expected node, run with node
+  const spawnResult = spawnSync(isWin && isNode ? 'node' : helperPath, isWin && isNode ? [helperPath] : [], { shell: true })
 
   if (spawnResult.status !== 0) {
     throw new PnpmError('TOKEN_HELPER_ERROR_STATUS', `Error running "${helperPath}" as a token helper, configured as ${settingName}. Exit code ${spawnResult.status?.toString() ?? ''}`)
   }
   return spawnResult.stdout.toString('utf8').trimEnd()
-}
-
-function findSuitableToken ({
-  tokens,
-  registry,
-}: {
-  tokens: Array<{
-    registry: string
-    token: string
-  }>
-  registry: string
-}): string | undefined {
-  const registryWithoutProtocol = registry.replace(/https?:/, '')
-  const registryParts = registryWithoutProtocol.split(':')
-  const registryHost = registryParts[0]
-  const registryPort = registryParts[1]
-
-  for (const token of tokens) {
-    const tokenRegistry = token.registry.replace(/https?:/, '')
-    const tokenRegistryParts = tokenRegistry.split(':')
-    const tokenRegistryHost = tokenRegistryParts[0]
-    const tokenRegistryPort = tokenRegistryParts[1]
-
-    if (tokenRegistryHost === registryHost && tokenRegistryPort === registryPort) {
-      return token.token.replace(/"/g, '')
-    }
-  }
-
-  return undefined
 }
