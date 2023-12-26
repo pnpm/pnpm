@@ -1,5 +1,6 @@
 ---
 "@pnpm/list": patch
+"pnpm": patch
 ---
 
-Should not print more than one of the same dependency package information.
+`pnpm list --parseable` should not print the same dependency multiple times [#7429](https://github.com/pnpm/pnpm/issues/7429).
