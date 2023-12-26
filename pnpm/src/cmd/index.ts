@@ -23,6 +23,7 @@ import {
 import { server } from '@pnpm/plugin-commands-server'
 import { setup } from '@pnpm/plugin-commands-setup'
 import { store } from '@pnpm/plugin-commands-store'
+import { catFile, catIndex, findHash } from '@pnpm/plugin-commands-store-inspecting'
 import { init } from '@pnpm/plugin-commands-init'
 import pick from 'ramda/src/pick'
 import { type PnpmOptions } from '../types'
@@ -139,6 +140,9 @@ const commands: CommandDefinition[] = [
   server,
   setup,
   store,
+  catFile,
+  catIndex,
+  findHash,
   test,
   unlink,
   update,

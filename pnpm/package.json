@@ -59,6 +59,7 @@
     "@pnpm/plugin-commands-server": "workspace:*",
     "@pnpm/plugin-commands-setup": "workspace:*",
     "@pnpm/plugin-commands-store": "workspace:*",
+    "@pnpm/plugin-commands-store-inspecting": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
