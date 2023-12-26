@@ -53,6 +53,7 @@ export const GLOBAL_OPTIONS = pick([
   'workspace-packages',
   'workspace-root',
   'include-workspace-root',
+  'fail-if-no-match',
 ], allTypes)
 
 export type CommandResponse = string | { output?: string, exitCode: number }

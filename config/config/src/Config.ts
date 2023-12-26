@@ -22,6 +22,7 @@ export interface Config {
   excludeLinksFromLockfile: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
+  failIfNoMatch: boolean
   filter: string[]
   filterProd: string[]
   rawLocalConfig: Record<string, any>, // eslint-disable-line
