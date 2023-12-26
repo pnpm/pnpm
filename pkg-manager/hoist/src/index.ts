@@ -99,7 +99,7 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
           .filter((projectPath) => projectPath !== '.')
           .map((projectPath) => {
             // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-            const manifest = require(path.join(workspaceDir, projectPath))
+            const manifest = require(path.join(workspaceDir, projectPath, 'package.json'))
             return {
               projectPath,
               hoistedProjectPath: path.join(opts.privateHoistedModulesDir, 'node_modules', manifest.name),
