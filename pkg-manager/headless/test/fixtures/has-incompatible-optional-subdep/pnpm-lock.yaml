@@ -12,12 +12,13 @@ dependencies:
 packages:
 
   /@pnpm.e2e/dep-of-optional-pkg@1.0.0:
-    resolution: {integrity: sha512-ouCWx8q98JzIJ/Ef2Ny6uvHYWxe+T2irzTBhntx/31Jd+1QxbGVETO8yJXrDZyuD3rBGaZULj78gIcwa068fAA==}
+    resolution: {integrity: sha512-TBIWnj5MFb8i1cG4vh1WSaRHUsgrGXAuXH1QgKxc0D46l6c/o9bjiwTPZZb7a+CGolS9gNxIzZvc/D1XLCDStg==}
+    requiresBuild: true
     dev: false
     optional: true
 
   /@pnpm.e2e/not-compatible-with-any-os@1.0.0:
-    resolution: {integrity: sha512-8sAm2PvHtibzjUYOXrmvmHXhthl7mD582GNDjhQ7CrQblo084OiAjNGaLka4vXXWF93LVaJ91btIRCECJPFLXw==}
+    resolution: {integrity: sha512-2g2bPBv7vBuBUbZH0DOWUkc9nKa0E7IHI4QyRUZGxr7R1TAG/oCj4Qrn3kK/XJKjhHwIZRUqaf0Kl3REgzQxSw==}
     os: [this-os-does-not-exist]
     requiresBuild: true
     dependencies:
@@ -26,7 +27,7 @@ packages:
     optional: true
 
   /@pnpm.e2e/pkg-with-optional@1.0.0:
-    resolution: {integrity: sha512-Er5ld8foGmtV7tEzjy8NPYoA9MkUfAe7iU4dx/5wpPYhX32+SUqML8iG2RmjqrVdCDFzRepG3zSP6RcCTVaMPQ==}
+    resolution: {integrity: sha512-RzAje0bEtf/XhAXgrTNYuXbpRfnkxHlXIGtfmLkK34B0yPnKXNL8qC/jZYv6LOo7bR0+rBSU6nrVb9qzNHIUmA==}
     optionalDependencies:
       '@pnpm.e2e/not-compatible-with-any-os': 1.0.0
     dev: false

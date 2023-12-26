@@ -103,7 +103,7 @@ async function _read (
   }
   if (lockfile) {
     const lockfileSemver = comverToSemver((lockfile.lockfileVersion ?? 0).toString())
-    /* eslint-enable @typescript-eslint/dot-notation */
+
     if (
       !opts.wantedVersions ||
       opts.wantedVersions.length === 0 ||

@@ -47,7 +47,7 @@ export function parsePref (
     err['pref'] = wd.pref
     // @ts-expect-error
     err['protocol'] = 'path:'
-    /* eslint-enable @typescript-eslint/dot-notation */
+
     throw err
   }
   return null
