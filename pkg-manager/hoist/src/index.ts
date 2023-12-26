@@ -86,7 +86,7 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
 
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
-  const hoistedDependencies: Dependency[] = []
+  const hoistedProjects: Dependency[] = []
 
   if (opts.hoistWorkspaceProjects) {
     const allProjects = Object.keys(opts.lockfile.importers)
@@ -109,7 +109,7 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
     hoistedWorkspaceProjects.forEach((hoistedWorkspaceProject) => {
       const exists = fs.existsSync(hoistedWorkspaceProject.hoistedProjectPath)
       if (!exists) {
-        hoistedDependencies.push({
+        hoistedProjects.push({
           children: {
             [hoistedWorkspaceProject.projectPath]: hoistedWorkspaceProject.hoistedProjectPath,
           },
@@ -120,7 +120,7 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
     })
   }
 
-  return hoistGraph(deps.concat(hoistedDependencies), opts.lockfile.importers['.']?.specifiers ?? {}, {
+  return hoistGraph(deps.concat(hoistedProjects), opts.lockfile.importers['.']?.specifiers ?? {}, {
     getAliasHoistType,
     lockfile: opts.lockfile,
   })
