@@ -14,5 +14,6 @@ New commands added for inspecting the store:
   ```
   pnpm find-hash sha512-mvavhfVcEREI7d8dfvfvIkuBLnx7+rrkHHnPi8mpEDUlNpY4CUY+CvJ5mrrLl18iQYo1odFwBV7z/cOypG7xxQ==
   ```
+  This command is **experimental**. We might change how it behaves.
 
 Related issue: [#7413](https://github.com/pnpm/pnpm/issues/7413).

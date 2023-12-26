@@ -141,7 +141,7 @@ function getHelpText () {
             name: 'cat-file',
           },
           {
-            description: 'Lists the packages that include the file with the specified hash.',
+            description: 'Experimental! Lists the packages that include the file with the specified hash.',
             name: 'find-hash',
           },
         ],

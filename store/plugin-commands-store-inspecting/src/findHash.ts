@@ -24,7 +24,7 @@ export function cliOptionsTypes () {
 export function help () {
   return renderHelp({
     description:
-      'Lists the packages that include the file with the specified hash.',
+      'Experimental! Lists the packages that include the file with the specified hash.',
     descriptionLists: [],
     usages: ['pnpm find-hash <hash>'],
   })
