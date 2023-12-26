@@ -2,13 +2,14 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { dedupeDiffCheck } from '@pnpm/dedupe.check'
 import renderHelp from 'render-help'
-import { type InstallCommandOptions } from './install'
+import { type InstallCommandOptions, rcOptionsTypes as installCommandRcOptionsTypes } from './install'
 import { installDeps } from './installDeps'
-import { types as allTypes } from '@pnpm/config'
-import pick from 'ramda/src/pick'
+import omit from 'ramda/src/omit'
 
+// In general, the "pnpm dedupe" command should use .npmrc options that "pnpm install" would also accept.
 export function rcOptionsTypes () {
-  return pick(['ignore-scripts'], allTypes)
+  // Some options on pnpm install (like --frozen-lockfile) don't make sense on pnpm dedupe.
+  return omit(['frozen-lockfile'], installCommandRcOptionsTypes())
 }
 
 export function cliOptionsTypes () {
@@ -33,6 +34,11 @@ export function help () {
             name: '--check',
           },
           OPTIONS.ignoreScripts,
+          OPTIONS.offline,
+          OPTIONS.preferOffline,
+          OPTIONS.storeDir,
+          OPTIONS.virtualStoreDir,
+          OPTIONS.globalDir,
         ],
       },
     ],
@@ -54,7 +60,6 @@ export async function handler (opts: DedupeCommandOptions) {
   return installDeps({
     ...opts,
     dedupe: true,
-    ignoreScripts: opts.ignoreScripts ?? false,
     include,
     includeDirect: include,
     lockfileCheck: opts.check ? dedupeDiffCheck : undefined,
