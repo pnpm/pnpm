@@ -4,4 +4,5 @@
 "pnpm": minor
 ---
 
-feat(pnpm): add parameter --fail-if-no-match to get exit code as 1
+Use `--fail-if-no-match` if you want the CLI fail if no packages were matched by the command [#7403](https://github.com/pnpm/pnpm/issues/7403).
+

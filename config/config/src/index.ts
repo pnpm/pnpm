@@ -209,6 +209,7 @@ export async function getConfig (
     'enable-modules-dir': true,
     'exclude-links-from-lockfile': false,
     'extend-node-path': true,
+    'fail-if-no-match': false,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,

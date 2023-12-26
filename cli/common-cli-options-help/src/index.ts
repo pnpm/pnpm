@@ -117,8 +117,8 @@ export const FILTERING = {
       name: '--filter-prod <pattern>',
     },
     {
-      description: 'If has no matched package , the command will fail',
-      name: '--filter <pattern> --fail-if-no-match',
+      description: 'If no projects are matched by the command, exit with exit code 1 (fail)',
+      name: '--fail-if-no-match',
     },
   ],
   title: 'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
