@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/license-scanner",
-  "version": "2.2.7",
+  "version": "2.2.8",
   "description": "Check for licenses packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

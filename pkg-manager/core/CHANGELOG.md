@@ -1,5 +1,45 @@
 # @pnpm/core
 
+## 13.2.1
+
+### Patch Changes
+
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/resolve-dependencies@31.3.1
+  - @pnpm/types@9.4.2
+  - @pnpm/headless@22.3.12
+  - @pnpm/package-requester@24.1.6
+  - @pnpm/worker@0.3.12
+  - @pnpm/hooks.types@1.0.6
+  - @pnpm/filter-lockfile@8.1.5
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/lockfile-walker@7.0.8
+  - @pnpm/prune-lockfile@5.0.9
+  - @pnpm/calc-dep-state@4.1.5
+  - @pnpm/hoist@8.1.5
+  - @pnpm/modules-cleaner@14.0.23
+  - @pnpm/normalize-registries@5.0.6
+  - @pnpm/build-modules@11.2.9
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/symlink-dependency@7.1.4
+  - @pnpm/hooks.read-package-hook@3.0.10
+  - @pnpm/lockfile-to-pnp@3.0.16
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/get-context@10.0.9
+  - @pnpm/link-bins@9.0.12
+  - @pnpm/modules-yaml@12.1.6
+  - @pnpm/remove-bins@5.0.7
+  - @pnpm/manifest-utils@5.0.7
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/read-project-manifest@5.0.10
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/store-controller-types@17.1.4
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/pkg-manager.direct-dep-linker@2.1.9
+
 ## 13.2.0
 
 ### Minor Changes

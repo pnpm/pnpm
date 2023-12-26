@@ -1,5 +1,27 @@
 # @pnpm/resolve-dependencies
 
+## 31.3.1
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+- 4d34684f1: Added support for boolean values in 'bundleDependencies' package.json fields when installing a dependency. Fix to properly handle 'bundledDependencies' alias [#7411](https://github.com/pnpm/pnpm/issues/7411).
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/npm-resolver@18.0.2
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/prune-lockfile@5.0.9
+  - @pnpm/pick-registry-for-package@5.0.6
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/manifest-utils@5.0.7
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/store-controller-types@17.1.4
+  - @pnpm/pick-fetcher@2.0.1
+
 ## 31.3.0
 
 ### Minor Changes

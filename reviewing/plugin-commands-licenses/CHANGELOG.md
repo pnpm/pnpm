@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-licenses
 
+## 3.0.10
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/config@20.3.0
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/license-scanner@2.2.8
+  - @pnpm/lockfile-file@8.1.6
+
 ## 3.0.9
 
 ### Patch Changes

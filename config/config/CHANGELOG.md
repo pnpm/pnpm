@@ -1,5 +1,18 @@
 # @pnpm/config
 
+## 20.3.0
+
+### Minor Changes
+
+- 4e71066dd: Use `--fail-if-no-match` if you want the CLI fail if no packages were matched by the command [#7403](https://github.com/pnpm/pnpm/issues/7403).
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/pnpmfile@5.0.19
+  - @pnpm/read-project-manifest@5.0.10
+
 ## 20.2.0
 
 ### Minor Changes

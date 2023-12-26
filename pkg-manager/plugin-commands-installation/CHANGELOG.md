@@ -1,5 +1,33 @@
 # @pnpm/plugin-commands-installation
 
+## 14.0.15
+
+### Patch Changes
+
+- 619e9ed6f: Better support for light themed terminals by the `pnpm update --interactive` command [#7439](https://github.com/pnpm/pnpm/issues/7439).
+- Updated dependencies [4e71066dd]
+- Updated dependencies [8fd4e349a]
+- Updated dependencies [4d34684f1]
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/config@20.3.0
+  - @pnpm/outdated@13.0.38
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/plugin-commands-rebuild@10.0.12
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/store-connection-manager@7.0.21
+  - @pnpm/core@13.2.1
+  - @pnpm/workspace.pkgs-graph@2.0.13
+  - @pnpm/package-store@19.0.13
+  - @pnpm/dedupe.check@1.0.7
+  - @pnpm/pnpmfile@5.0.19
+  - @pnpm/manifest-utils@5.0.7
+  - @pnpm/read-project-manifest@5.0.10
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/filter-workspace-packages@7.2.8
+  - @pnpm/workspace.find-packages@1.1.7
+  - @pnpm/sort-packages@5.0.9
+
 ## 14.0.14
 
 ### Patch Changes

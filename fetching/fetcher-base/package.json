@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetcher-base",
-  "version": "15.0.5",
+  "version": "15.0.6",
   "description": "Types for pnpm-compatible fetchers",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

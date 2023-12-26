@@ -1,5 +1,16 @@
 # @pnpm/list
 
+## 9.1.8
+
+### Patch Changes
+
+- 09f610349: `pnpm list --parseable` should not print the same dependency multiple times [#7429](https://github.com/pnpm/pnpm/issues/7429).
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/read-project-manifest@5.0.10
+  - @pnpm/reviewing.dependencies-hierarchy@2.1.7
+
 ## 9.1.7
 
 ### Patch Changes
