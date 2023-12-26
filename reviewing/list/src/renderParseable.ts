@@ -71,7 +71,7 @@ function flatten (
 ): PackageInfo[] {
   let packages: PackageInfo[] = []
   for (const node of nodes) {
-    // The content output by renderParseable is flat, 
+    // The content output by renderParseable is flat,
     // so we can deduplicate packages that are repeatedly dependent on multiple packages.
     if (!deps.has(node.path)) {
       deps.set(node.path, true)
