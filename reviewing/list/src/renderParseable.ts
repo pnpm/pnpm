@@ -4,7 +4,7 @@ import prop from 'ramda/src/prop'
 import { type PackageDependencyHierarchy } from './types'
 
 const sortPackages = sortBy(prop('name'))
-
+const deps = new Map()
 export async function renderParseable (
   pkgs: PackageDependencyHierarchy[],
   opts: {
@@ -14,7 +14,8 @@ export async function renderParseable (
     search: boolean
   }
 ) {
-  return [...new Set(pkgs.map((pkg) => renderParseableForPackage(pkg, opts)))].filter(p => p.length !== 0).join('\n')
+  deps.clear()
+  return pkgs.map((pkg) => renderParseableForPackage(pkg, opts)).filter(p => p.length !== 0).join('\n')
 }
 
 function renderParseableForPackage (
@@ -70,7 +71,12 @@ function flatten (
 ): PackageInfo[] {
   let packages: PackageInfo[] = []
   for (const node of nodes) {
-    packages.push(node)
+    // The content output by renderParseable is flat, 
+    // so we can deduplicate packages that are repeatedly dependent on multiple packages.
+    if (!deps.has(node.path)) {
+      deps.set(node.path, true)
+      packages.push(node)
+    }
     if (node.dependencies?.length) {
       packages = packages.concat(flatten(node.dependencies))
     }
