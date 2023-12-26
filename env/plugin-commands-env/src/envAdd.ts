@@ -1,11 +1,11 @@
 /* eslint-disable no-await-in-loop */
 import { PnpmError } from '@pnpm/error'
-import { type NvmNodeCommandOptions } from './node'
 import { downloadNodeVersion } from './downloadNodeVersion'
+import { type NvmNodeCommandOptions } from './node'
 
 export async function envAdd (opts: NvmNodeCommandOptions, params: string[]) {
   if (!opts.global) {
-    throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
+    throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env add <version>" can only be used with the "--global" option currently')
   }
   const failed: string[] = []
   for (const envSpecifier of params) {

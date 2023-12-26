@@ -1,10 +1,10 @@
-import fs from 'fs'
-import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { tempDir } from '@pnpm/prepare'
 import { env } from '@pnpm/plugin-commands-env'
+import { tempDir } from '@pnpm/prepare'
 import * as execa from 'execa'
+import fs from 'fs'
 import nock from 'nock'
+import path from 'path'
 import PATH from 'path-name'
 import semver from 'semver'
 
@@ -147,7 +147,7 @@ describe('env add/remove', () => {
         pnpmHomeDir: process.cwd(),
         rawConfig: {},
       }, ['remove', 'lts'])
-    ).rejects.toEqual(new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently'))
+    ).rejects.toEqual(new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env remove <version>" can only be used with the "--global" option currently'))
   })
 
   test('fail if can not resolve Node.js version', async () => {
