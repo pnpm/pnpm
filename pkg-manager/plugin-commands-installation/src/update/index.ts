@@ -238,9 +238,9 @@ async function interactiveUpdate (
       return this.styles.primary(this.selected.name)
     },
     styles: {
-      dark: chalk.white,
+      dark: chalk.reset,
       em: chalk.bgBlack.whiteBright,
-      success: chalk.white,
+      success: chalk.reset,
     },
     type: 'multiselect',
     validate (value: string[]) {

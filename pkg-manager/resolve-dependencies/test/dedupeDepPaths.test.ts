@@ -6,6 +6,7 @@ test('packages are not deduplicated when versions do not match', () => {
     name: 'foo',
     version: '1.0.0',
     depPath: 'foo/1.0.0',
+    id: '',
     peerDependencies: {
       bar: '1.0.0 || 2.0.0',
       baz: '1.0.0 || 2.0.0',
@@ -30,6 +31,7 @@ test('packages are not deduplicated when versions do not match', () => {
         version,
         depPath: `${name}/${version}`,
         peerDependencies: {},
+        id: '',
       } satisfies PartialResolvedPackage,
     ])
   )
@@ -75,6 +77,7 @@ test('packages are not deduplicated when versions do not match', () => {
         id: 'project4',
       },
     ],
+    resolvedImporters: {},
     dependenciesTree: new Map<string, DependenciesTreeNode<PartialResolvedPackage>>(([
       ['>project1>foo/1.0.0>', fooPkg],
       ['>project1>bar/1.0.0>', peers.bar_1_0_0],

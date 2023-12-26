@@ -96,6 +96,7 @@ export async function resolveDependencies (
     defaultUpdateDepth: number
     dedupePeerDependents?: boolean
     dedupeDirectDeps?: boolean
+    dedupeInjectedDeps?: boolean
     excludeLinksFromLockfile?: boolean
     preserveWorkspaceProtocol: boolean
     saveWorkspaceProtocol: 'rolling' | boolean
@@ -179,10 +180,12 @@ export async function resolveDependencies (
   } = resolvePeers({
     dependenciesTree,
     dedupePeerDependents: opts.dedupePeerDependents,
+    dedupeInjectedDeps: opts.dedupeInjectedDeps,
     lockfileDir: opts.lockfileDir,
     projects: projectsToLink,
     virtualStoreDir: opts.virtualStoreDir,
     resolvePeersFromWorkspaceRoot: Boolean(opts.resolvePeersFromWorkspaceRoot),
+    resolvedImporters,
   })
 
   const linkedDependenciesByProjectId: Record<string, LinkedDependency[]> = {}

@@ -1,5 +1,11 @@
 # @pnpm/types
 
+## 9.4.1
+
+### Patch Changes
+
+- Added support for boolean values in 'bundleDependencies' package.json fields when installing a dependency. Fix to properly handle 'bundledDependencies' alias [#7411](https://github.com/pnpm/pnpm/issues/7411).
+
 ## 9.4.0
 
 ### Minor Changes

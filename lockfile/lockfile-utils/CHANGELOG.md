@@ -1,5 +1,16 @@
 # @pnpm/lockfile-utils
 
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/pick-fetcher@2.0.1
+
 ## 9.0.2
 
 ### Patch Changes

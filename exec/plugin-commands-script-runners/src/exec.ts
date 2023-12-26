@@ -248,7 +248,7 @@ export async function handler (
             dir: opts.lockfileDir ?? opts.dir,
             summary: result,
           })
-          /* eslint-enable @typescript-eslint/dot-notation */
+
           throw err
         }
       }
