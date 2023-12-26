@@ -7,13 +7,14 @@ import {
 } from '@pnpm/core-loggers'
 import { type Config } from '@pnpm/config'
 import * as Rx from 'rxjs'
-import { map, take } from 'rxjs/operators'
+import { map } from 'rxjs/operators'
 import chalk from 'chalk'
 import semver from 'semver'
 import { EOL } from '../constants'
 import {
   getPkgsDiff,
   type PackageDiff,
+  type PkgDiffs,
   propertyByDependencyType,
 } from './pkgsDiff'
 import {
@@ -41,9 +42,9 @@ export function reportSummary (
     pnpmConfig?: Config
   }
 ) {
-  const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
+  const pkgsDiff$ = getPkgsDiff(log$)
 
-  const summaryLog$ = log$.summary.pipe(take(1))
+  const summaryLog$ = log$.summary
   const _printDiffs = printDiffs.bind(null, { prefix: opts.cwd })
 
   return Rx.combineLatest(
@@ -51,36 +52,48 @@ export function reportSummary (
     summaryLog$
   )
     .pipe(
-      take(1),
       map(([pkgsDiff]) => {
-        let msg = ''
-        for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly'] as const) {
-          let diffs: PackageDiff[] = Object.values(pkgsDiff[depType as keyof typeof pkgsDiff])
-          if (opts.filterPkgsDiff) {
-            // This filtering is only used by Bit CLI currently.
-            // Related PR: https://github.com/teambit/bit/pull/7176
-            diffs = diffs.filter((pkgDiff) => opts.filterPkgsDiff!(pkgDiff))
-          }
-          if (diffs.length > 0) {
-            msg += EOL
-            if (opts.pnpmConfig?.global) {
-              msg += chalk.cyanBright(`${opts.cwd}:`)
-            } else {
-              msg += chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)
+        const pkgDiffsWithPrefix = groupPkgsDiffByPrefix(pkgsDiff)
+        const isWorkspaces = opts.pnpmConfig?.workspaceDir
+        const formattedMsg = Object.entries(pkgDiffsWithPrefix)
+          .sort(([a], [b]) => a.length - b.length)
+          .map(([prefix, _pkgsDiff]) => {
+            let msg = ''
+            for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly'] as const) {
+              let diffs: PackageDiff[] = Object.values(_pkgsDiff[depType as keyof typeof _pkgsDiff])
+              if (opts.filterPkgsDiff) {
+                // This filtering is only used by Bit CLI currently.
+                // Related PR: https://github.com/teambit/bit/pull/7176
+                diffs = diffs.filter((pkgDiff) => opts.filterPkgsDiff!(pkgDiff))
+              }
+              if (diffs.length > 0) {
+                msg += EOL
+                if (opts.pnpmConfig?.global) {
+                  msg += chalk.cyanBright(`${opts.cwd}:`)
+                } else {
+                  msg += chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)
+                }
+                msg += EOL
+                msg += _printDiffs(diffs)
+                msg += EOL
+              } else if (opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
+                msg += EOL
+                msg += `${chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)} skipped`
+                if (opts.env.NODE_ENV === 'production' && depType === 'dev') {
+                  msg += ' because NODE_ENV is set to production'
+                }
+                msg += EOL
+              }
             }
-            msg += EOL
-            msg += _printDiffs(diffs)
-            msg += EOL
-          } else if (opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
-            msg += EOL
-            msg += `${chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)} skipped`
-            if (opts.env.NODE_ENV === 'production' && depType === 'dev') {
-              msg += ' because NODE_ENV is set to production'
+            const lockfileDir = opts.pnpmConfig?.lockfileDir ?? opts.pnpmConfig?.workspaceDir ?? opts.cwd
+            const relativePath = path.relative(lockfileDir, prefix) || '.'
+            // We only print prefix for pnpm workspaces
+            if (msg.length && isWorkspaces) {
+              msg = `${chalk.bold(chalk.cyanBright(relativePath))}${msg.split(EOL).map(segment => `\u0020\u0020${segment}`).join(EOL)}`
             }
-            msg += EOL
-          }
-        }
-        return Rx.of({ msg })
+            return msg
+          }).join(EOL)
+        return Rx.of({ msg: formattedMsg.length && isWorkspaces ? EOL + formattedMsg : formattedMsg })
       })
     )
 }
@@ -122,4 +135,23 @@ function printDiffs (
     return result
   }).join(EOL)
   return msg
+}
+
+function groupPkgsDiffByPrefix (pkgsDiff: PkgDiffs) {
+  const pkgsDiffWithPrefix: Record<string, PkgDiffs> = {}
+  for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly'] as const) {
+    for (const [action, pkgDiff] of Object.entries(pkgsDiff[depType])) {
+      if (!pkgsDiffWithPrefix[pkgDiff.prefix]) {
+        pkgsDiffWithPrefix[pkgDiff.prefix] = {
+          dev: {},
+          nodeModulesOnly: {},
+          optional: {},
+          peer: {},
+          prod: {},
+        }
+      }
+      pkgsDiffWithPrefix[pkgDiff.prefix][depType][action] = pkgDiff
+    }
+  }
+  return pkgsDiffWithPrefix
 }
