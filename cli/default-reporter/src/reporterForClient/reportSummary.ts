@@ -35,6 +35,7 @@ export function reportSummary (
     packageManifest: Rx.Observable<PackageManifestLog>
   },
   opts: {
+    cmd: string
     cwd: string
     env: NodeJS.ProcessEnv
     filterPkgsDiff?: FilterPkgsDiff
@@ -44,7 +45,7 @@ export function reportSummary (
   const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
 
   const summaryLog$ = log$.summary.pipe(take(1))
-  const _printDiffs = printDiffs.bind(null, { prefix: opts.cwd })
+  const _printDiffs = printDiffs.bind(null, { cmd: opts.cmd, prefix: opts.cwd, pnpmConfig: opts.pnpmConfig })
 
   return Rx.combineLatest(
     pkgsDiff$,
@@ -69,7 +70,7 @@ export function reportSummary (
               msg += chalk.cyanBright(`${propertyByDependencyType[depType] as string}:`)
             }
             msg += EOL
-            msg += _printDiffs(diffs)
+            msg += _printDiffs(diffs, depType)
             msg += EOL
           } else if (opts.pnpmConfig?.[CONFIG_BY_DEP_TYPE[depType]] === false) {
             msg += EOL
@@ -89,9 +90,12 @@ export type FilterPkgsDiff = (pkgsDiff: PackageDiff) => boolean
 
 function printDiffs (
   opts: {
+    cmd: string
     prefix: string
+    pnpmConfig?: Config
   },
-  pkgsDiff: PackageDiff[]
+  pkgsDiff: PackageDiff[],
+  depType: string
 ) {
   // Sorts by alphabet then by removed/added
   // + ava 0.10.0
@@ -118,6 +122,9 @@ function printDiffs (
     }
     if (pkg.from) {
       result += ` ${chalk.grey(`<- ${pkg.from && path.relative(opts.prefix, pkg.from) || '???'}`)}`
+    }
+    if (pkg.added && depType === 'dev' && opts.pnpmConfig?.saveDev === false && opts.cmd === 'add') {
+      result += `${chalk.yellow(' already in devDependencies, was not moved to dependencies.')}`
     }
     return result
   }).join(EOL)

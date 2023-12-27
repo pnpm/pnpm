@@ -159,7 +159,7 @@ export async function runRecursive (
             dir: opts.workspaceDir ?? opts.dir,
             summary: result,
           })
-          /* eslint-enable @typescript-eslint/dot-notation */
+
           throw err
         }
       }

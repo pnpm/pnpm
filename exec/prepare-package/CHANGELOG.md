@@ -1,5 +1,23 @@
 # @pnpm/prepare-package
 
+## 5.0.22
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/read-package-json@8.0.7
+
+## 5.0.21
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/lifecycle@16.0.9
+  - @pnpm/read-package-json@8.0.6
+
 ## 5.0.20
 
 ### Patch Changes

@@ -116,7 +116,7 @@ export interface PackageSnapshot {
     }
   }
   transitivePeerDependencies?: string[]
-  bundledDependencies?: string[]
+  bundledDependencies?: string[] | boolean
   engines?: Record<string, string> & {
     node: string
   }

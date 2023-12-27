@@ -1,5 +1,26 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 5.0.11
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/store-controller-types@17.1.4
+
+## 5.0.10
+
+### Patch Changes
+
+- @pnpm/core-loggers@9.0.5
+- @pnpm/store-controller-types@17.1.3
+
+## 5.0.9
+
+### Patch Changes
+
+- 418866ac0: Bump version of `@reflink/reflink` that avoids empty cloned files when using Copy-on-Write on Windows Dev Drives. (#7186)
+
 ## 5.0.8
 
 ### Patch Changes

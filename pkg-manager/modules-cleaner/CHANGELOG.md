@@ -1,5 +1,42 @@
 # @pnpm/modules-cleaner
 
+## 14.0.23
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/filter-lockfile@8.1.5
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/remove-bins@5.0.7
+  - @pnpm/store-controller-types@17.1.4
+
+## 14.0.22
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/filter-lockfile@8.1.4
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/remove-bins@5.0.6
+  - @pnpm/store-controller-types@17.1.3
+
+## 14.0.21
+
+### Patch Changes
+
+- f3cd0a61d: Installation should not fail if an empty `node_modules` directory cannot be removed [#7405](https://github.com/pnpm/pnpm/issues/7405).
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/filter-lockfile@8.1.3
+
 ## 14.0.20
 
 ### Patch Changes

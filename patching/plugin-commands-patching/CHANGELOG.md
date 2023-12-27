@@ -1,5 +1,52 @@
 # @pnpm/plugin-commands-patching
 
+## 5.0.15
+
+### Patch Changes
+
+- Updated dependencies [619e9ed6f]
+- Updated dependencies [4e71066dd]
+  - @pnpm/plugin-commands-installation@14.0.15
+  - @pnpm/config@20.3.0
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/store-connection-manager@7.0.21
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/pick-registry-for-package@5.0.6
+  - @pnpm/modules-yaml@12.1.6
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/read-project-manifest@5.0.10
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/pick-fetcher@2.0.1
+
+## 5.0.14
+
+### Patch Changes
+
+- Updated dependencies [672c559e4]
+  - @pnpm/config@20.2.0
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/plugin-commands-installation@14.0.14
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/pick-registry-for-package@5.0.5
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/read-package-json@8.0.6
+  - @pnpm/read-project-manifest@5.0.9
+  - @pnpm/store-connection-manager@7.0.20
+  - @pnpm/patching.apply-patch@2.0.5
+  - @pnpm/pick-fetcher@2.0.1
+
+## 5.0.13
+
+### Patch Changes
+
+- 9a53179e3: Do not create empty patch directory.
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/plugin-commands-installation@14.0.13
+  - @pnpm/store-connection-manager@7.0.19
+
 ## 5.0.12
 
 ### Patch Changes
