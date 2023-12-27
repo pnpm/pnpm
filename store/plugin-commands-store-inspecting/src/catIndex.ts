@@ -9,6 +9,7 @@ import { getStorePath } from '@pnpm/store-path'
 import { getFilePathInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { pickRegistryForPackage } from '@pnpm/pick-registry-for-package'
 import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
+import sortKeys from 'sort-keys'
 
 import loadJsonFile from 'load-json-file'
 import renderHelp from 'render-help'
@@ -88,7 +89,7 @@ export async function handler (opts: CatIndexCommandOptions, params: string[]) {
   )
   try {
     const pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
-    return JSON.stringify(pkgFilesIndex, null, 2)
+    return JSON.stringify(sortKeys(pkgFilesIndex, { deep: true }), null, 2)
   } catch {
     throw new PnpmError(
       'INVALID_PACKAGE',

@@ -31,23 +31,24 @@
   "devDependencies": {
     "@pnpm/plugin-commands-store-inspecting": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "tempy": "^1.0.1",
-    "execa": "npm:safe-execa@0.1.2"
+    "execa": "npm:safe-execa@0.1.2",
+    "tempy": "^1.0.1"
   },
   "dependencies": {
+    "@pnpm/client": "workspace:*",
     "@pnpm/config": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/types": "workspace:*",
-    "@pnpm/client": "workspace:*",
+    "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/parse-wanted-dependency": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
-    "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/store-path": "workspace:*",
-    "@pnpm/graceful-fs": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "chalk": "^4.1.2",
     "load-json-file": "^6.2.0",
     "render-help": "^1.0.3",
-    "chalk": "^4.1.2"
+    "sort-keys": "^4.2.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
