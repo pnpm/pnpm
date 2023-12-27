@@ -46,7 +46,7 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
-    "@yarnpkg/core": "4.0.0-rc.45",
+    "@yarnpkg/core": "4.0.2",
     "encode-registry": "^3.0.1",
     "filenamify": "^4.3.0",
     "get-npm-tarball-url": "^2.1.0",
