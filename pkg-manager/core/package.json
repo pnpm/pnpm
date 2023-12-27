@@ -92,7 +92,7 @@
     "@types/ramda": "0.28.20",
     "@types/semver": "7.5.3",
     "@types/sinon": "^10.0.20",
-    "@yarnpkg/core": "4.0.0-rc.45",
+    "@yarnpkg/core": "4.0.2",
     "ci-info": "^3.9.0",
     "deep-require-cwd": "1.0.0",
     "execa": "npm:safe-execa@0.1.2",

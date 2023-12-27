@@ -68,8 +68,6 @@
   "packageManager": "pnpm@8.6.10",
   "pnpm": {
     "overrides": {
-      "@yarnpkg/fslib": "3.0.0-rc.25",
-      "@yarnpkg/libzip": "3.0.0-rc.25",
       "clipanion": "3.2.0-rc.6",
       "debug@<3.1.0": ">=3.1.0",
       "glob-parent@<5.1.2": ">=5.1.2",
@@ -82,53 +80,12 @@
       "verdaccio": "5.20.1",
       "yaml@<2.2.2": ">=2.2.2",
       "semver@<7.5.2": ">=7.5.2",
-      "@yarnpkg/core": "4.0.0-rc.45",
-      "@yarnpkg/extensions": "2.0.0-rc.22",
-      "@yarnpkg/fslib@^3.0.0-rc.45": "3.0.0-rc.45",
-      "@yarnpkg/libui@^3.0.0-rc.42": "3.0.0-rc.42",
-      "@yarnpkg/libzip@^3.0.0-rc.42": "3.0.0-rc.45",
-      "@yarnpkg/libzip@^3.0.0-rc.45": "3.0.0-rc.45",
-      "@yarnpkg/nm": "4.0.0-rc.45",
-      "@yarnpkg/parsers@^3.0.0-rc.45": "3.0.0-rc.45",
-      "@yarnpkg/plugin-compat@^4.0.0-rc.42": "4.0.0-rc.42",
-      "@yarnpkg/plugin-compat@^4.0.0-rc.45": "4.0.0-rc.42",
-      "@yarnpkg/plugin-constraints@^4.0.0-rc.42": "4.0.0-rc.42",
-      "@yarnpkg/plugin-dlx@^4.0.0-rc.42": "4.0.0-rc.42",
-      "@yarnpkg/plugin-essentials@^4.0.0-rc.42": "4.0.0-rc.42",
-      "@yarnpkg/plugin-exec@^3.0.0-rc.42": "3.0.0-rc.42",
-      "@yarnpkg/plugin-file@^3.0.0-rc.42": "3.0.0-rc.42",
-      "@yarnpkg/plugin-git@^3.0.0-rc.42": "3.0.0-rc.42",
-      "@yarnpkg/plugin-github@^3.0.0-rc.42": "3.0.0-rc.42",
-      "@yarnpkg/plugin-http@^3.0.0-rc.42": "3.0.0-rc.42",
-      "@yarnpkg/plugin-init@^4.0.0-rc.42": "4.0.0-rc.42",
-      "@yarnpkg/plugin-interactive-tools@^4.0.0-rc.42": "4.0.0-rc.42",
-      "@yarnpkg/plugin-link@^3.0.0-rc.42": "3.0.0-rc.42",
-      "@yarnpkg/plugin-nm@^4.0.0-rc.42": "4.0.0-rc.42",
-      "@yarnpkg/plugin-npm": "3.0.0-rc.42",
-      "@yarnpkg/plugin-npm-cli@^4.0.0-rc.42": "4.0.0-rc.42",
-      "@yarnpkg/plugin-pack": "4.0.0-rc.42",
-      "@yarnpkg/plugin-patch@^4.0.0-rc.42": "4.0.0-rc.42",
-      "@yarnpkg/plugin-pnp@^4.0.0-rc.42": "4.0.0-rc.42",
-      "@yarnpkg/plugin-pnpm@^2.0.0-rc.42": "2.0.0-rc.42",
-      "@yarnpkg/plugin-stage@^4.0.0-rc.42": "4.0.0-rc.42",
-      "@yarnpkg/plugin-typescript@^4.0.0-rc.42": "4.0.0-rc.42",
-      "@yarnpkg/plugin-version@^4.0.0-rc.42": "4.0.0-rc.42",
-      "@yarnpkg/plugin-workspace-tools@^4.0.0-rc.42": "4.0.0-rc.42",
-      "@yarnpkg/pnp@^4.0.0-rc.42": "4.0.0-rc.45",
-      "@yarnpkg/pnp@^4.0.0-rc.45": "4.0.0-rc.45",
-      "@yarnpkg/shell@^4.0.0-rc.42": "4.0.0-rc.45",
-      "@yarnpkg/shell@^4.0.0-rc.45": "4.0.0-rc.45",
       "tough-cookie@<4.1.3": ">=4.1.3"
     },
     "packageExtensions": {
       "@babel/parser": {
         "peerDependencies": {
           "@babel/types": "*"
-        }
-      },
-      "@yarnpkg/core": {
-        "dependencies": {
-          "@types/lodash": "4.14.197"
         }
       },
       "jest-circus": {
@@ -145,11 +102,6 @@
         "peerDependencies": {
           "unified": "*"
         }
-      },
-      "@yarnpkg/nm": {
-        "dependencies": {
-          "@yarnpkg/pnp": "^4.0.0-rc.25"
-        }
       }
     },
     "neverBuiltDependencies": [
@@ -158,11 +110,9 @@
     ],
     "peerDependencyRules": {
       "allowedVersions": {
-        "eslint": "*",
-        "@yarnpkg/core": "*"
+        "eslint": "*"
       },
       "ignoreMissing": [
-        "@yarnpkg/plugin-patch"
       ]
     },
     "patchedDependencies": {
