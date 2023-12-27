@@ -158,7 +158,7 @@ export async function publish (
 
     return {
       registryKey: `NPM_CONFIG_${registry}:${type}`,
-      token: type === '_authToken' ? parsedToken.slice('Bearer '.length) : parsedToken,
+      token: type === '_authToken' ? parsedToken.slice('Bearer '.length) : parsedToken.replace(/Basic /i, ''),
     }
   })
 
