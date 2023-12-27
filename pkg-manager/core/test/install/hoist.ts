@@ -814,6 +814,7 @@ test('hoistWorkspaceProjects should hoist all workspace projects', async () => {
   }
   const workspacePackageManifest = {
     name: 'package',
+    version: '1.0.0',
 
     dependencies: {
       '@pnpm.e2e/foobar': '100.0.0',
@@ -821,6 +822,7 @@ test('hoistWorkspaceProjects should hoist all workspace projects', async () => {
   }
   const workspacePackageManifest2 = {
     name: 'package2',
+    version: '1.0.0',
 
     dependencies: {
       package: 'workspace:*',
@@ -878,7 +880,26 @@ test('hoistWorkspaceProjects should hoist all workspace projects', async () => {
       rootDir: path.resolve('package2'),
     },
   ]
-  await mutateModules(mutatedProjects, await testDefaults({ allProjects, hoistPattern: '*', hoistWorkspaceProjects: true }))
+  const workspacePackages = {
+    [workspacePackageManifest.name]: {
+      [workspacePackageManifest.version]: {
+        dir: path.resolve('package'),
+        manifest: workspacePackageManifest,
+      },
+    },
+    [workspacePackageManifest2.name]: {
+      [workspacePackageManifest2.version]: {
+        dir: path.resolve('package2'),
+        manifest: workspacePackageManifest2,
+      },
+    },
+  }
+  await mutateModules(mutatedProjects, await testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspaceProjects: true,
+    workspacePackages,
+  }))
 
   await projects['root'].has('@pnpm.e2e/pkg-with-1-dep')
   await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
