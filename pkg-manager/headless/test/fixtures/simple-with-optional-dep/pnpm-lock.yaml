@@ -17,11 +17,11 @@ optionalDependencies:
 packages:
 
   /@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0:
-    resolution: {integrity: sha512-v/FQPTv+Y6j/J5a7ymlifFIhJa28wROyiTfg1vcAVKdJ9S94E32CHVUbzgvdcu9pAkLqe7INiwJ2ynqmgiTiiw==}
+    resolution: {integrity: sha512-KS9eCiX1F0DF+YHrpQDGkUkIPcZFhz6NhOh5amLnTUpR0Dcd6Mv96YOf01PBw1pINWs+Jo5KhXYp0L58mebTgw==}
     dev: false
 
   /@pnpm.e2e/pkg-with-good-optional@1.0.0:
-    resolution: {integrity: sha512-nHI1OeIwd3u8wEhHBIgbJmK6ryrums0YrxVB3RHkpbXXeI3YFsxiv0T0+MuQc7ajXT5/pwUvkyo2g2n37cWuRA==}
+    resolution: {integrity: sha512-KfshZeGJiii1oEMjabBfxZ/rB14oJfE7wtFIRHmElIIZZHZlDtP1u4m8nBYrFKs4b8Dku4BCMV6pO0uMIVwHpQ==}
     dependencies:
       '@pnpm.e2e/dep-of-pkg-with-1-dep': 101.0.0
     optionalDependencies:

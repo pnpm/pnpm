@@ -149,6 +149,7 @@ export function reporterForClient (
 
   if (!opts.isRecursive) {
     outputs.push(reportSummary(log$, {
+      cmd: opts.cmd,
       cwd,
       env: opts.env,
       filterPkgsDiff: opts.filterPkgsDiff,

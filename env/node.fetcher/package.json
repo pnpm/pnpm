@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/node.fetcher",
-  "version": "3.0.33",
+  "version": "3.0.36",
   "description": "Node.js artifacts fetcher",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -43,7 +43,7 @@
     "@pnpm/tarball-fetcher": "workspace:*",
     "adm-zip": "^0.5.10",
     "detect-libc": "^2.0.2",
-    "rename-overwrite": "^4.0.4",
+    "rename-overwrite": "^5.0.0",
     "tempy": "^1.0.1"
   },
   "devDependencies": {

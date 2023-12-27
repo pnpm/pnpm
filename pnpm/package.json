@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "8.11.0",
+  "version": "8.13.1",
   "bin": {
     "pnpm": "bin/pnpm.cjs",
     "pnpx": "bin/pnpx.cjs"
@@ -59,10 +59,11 @@
     "@pnpm/plugin-commands-server": "workspace:*",
     "@pnpm/plugin-commands-setup": "workspace:*",
     "@pnpm/plugin-commands-store": "workspace:*",
+    "@pnpm/plugin-commands-store-inspecting": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
-    "@pnpm/registry-mock": "3.16.0",
+    "@pnpm/registry-mock": "3.17.1",
     "@pnpm/run-npm": "workspace:*",
     "@pnpm/tabtab": "^0.1.2",
     "@pnpm/test-fixtures": "workspace:*",
@@ -104,7 +105,7 @@
     "semver": "^7.5.4",
     "split-cmd": "^1.0.1",
     "strip-ansi": "^6.0.1",
-    "symlink-dir": "^5.2.0",
+    "symlink-dir": "^5.2.1",
     "tempy": "^1.0.1",
     "tree-kill": "^1.2.2",
     "which": "^4.0.0",

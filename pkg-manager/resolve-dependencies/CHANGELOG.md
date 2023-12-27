@@ -1,5 +1,59 @@
 # @pnpm/resolve-dependencies
 
+## 31.3.1
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+- 4d34684f1: Added support for boolean values in 'bundleDependencies' package.json fields when installing a dependency. Fix to properly handle 'bundledDependencies' alias [#7411](https://github.com/pnpm/pnpm/issues/7411).
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/npm-resolver@18.0.2
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/prune-lockfile@5.0.9
+  - @pnpm/pick-registry-for-package@5.0.6
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/manifest-utils@5.0.7
+  - @pnpm/read-package-json@8.0.7
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/store-controller-types@17.1.4
+  - @pnpm/pick-fetcher@2.0.1
+
+## 31.3.0
+
+### Minor Changes
+
+- 672c559e4: A new setting added for symlinking [injected dependencies](https://pnpm.io/package_json#dependenciesmetainjected) from the workspace, if their dependencies use the same peer dependencies as the dependent package. The setting is called `dedupe-injected-deps` [#7416](https://github.com/pnpm/pnpm/pull/7416).
+
+### Patch Changes
+
+- Added support for boolean values in 'bundleDependencies' package.json fields when installing a dependency. Fix to properly handle 'bundledDependencies' alias [#7411](https://github.com/pnpm/pnpm/issues/7411).
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/prune-lockfile@5.0.8
+  - @pnpm/pick-registry-for-package@5.0.5
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/manifest-utils@5.0.6
+  - @pnpm/read-package-json@8.0.6
+  - @pnpm/npm-resolver@18.0.1
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/store-controller-types@17.1.3
+  - @pnpm/pick-fetcher@2.0.1
+
+## 31.2.7
+
+### Patch Changes
+
+- d5a176af7: Fix a bug where `--fix-lockfile` crashes on tarballs [#7368](https://github.com/pnpm/pnpm/issues/7368).
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+
 ## 31.2.6
 
 ### Patch Changes

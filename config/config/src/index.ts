@@ -52,6 +52,7 @@ export const types = Object.assign({
   'deploy-all-files': Boolean,
   'dedupe-peer-dependents': Boolean,
   'dedupe-direct-deps': Boolean,
+  'dedupe-injected-deps': Boolean,
   dev: [null, true],
   dir: String,
   'disallow-workspace-cycles': Boolean,
@@ -144,7 +145,8 @@ export const types = Object.assign({
   'embed-readme': Boolean,
   'update-notifier': Boolean,
   'registry-supports-time-field': Boolean,
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+  'fail-if-no-match': Boolean,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as Partial<Record<keyof KebabCaseConfig, any>>, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string }
@@ -204,10 +206,12 @@ export async function getConfig (
     'deploy-all-files': false,
     'dedupe-peer-dependents': true,
     'dedupe-direct-deps': false,
+    'dedupe-injected-deps': false,
     'disallow-workspace-cycles': false,
     'enable-modules-dir': true,
     'exclude-links-from-lockfile': false,
     'extend-node-path': true,
+    'fail-if-no-match': false,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,

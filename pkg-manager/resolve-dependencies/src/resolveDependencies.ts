@@ -220,8 +220,8 @@ export interface ResolvedPackage {
   requiresBuild: boolean | SafePromiseDefer<boolean>
   additionalInfo: {
     deprecated?: string
-    bundleDependencies?: string[]
-    bundledDependencies?: string[]
+    bundleDependencies?: string[] | boolean
+    bundledDependencies?: string[] | boolean
     engines?: {
       node?: string
       npm?: string
@@ -1039,12 +1039,13 @@ async function resolveDependency (
     currentLockfileContainsTheDep &&
     currentPkg.depPath &&
     currentPkg.dependencyLockfile &&
+    currentPkg.name &&
     await exists(
       path.join(
         ctx.virtualStoreDir,
         dp.depPathToFilename(currentPkg.depPath),
         'node_modules',
-        currentPkg.name!,
+        currentPkg.name,
         'package.json'
       )
     )
@@ -1247,7 +1248,6 @@ async function resolveDependency (
       pkg.deprecated = currentPkg.dependencyLockfile.deprecated
     }
     hasBin = Boolean((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin)
-    /* eslint-enable @typescript-eslint/dot-notation */
   }
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest

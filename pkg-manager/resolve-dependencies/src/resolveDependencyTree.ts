@@ -31,6 +31,16 @@ import {
 export * from './nodeIdUtils'
 export type { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 
+export interface ResolvedImporters {
+  [id: string]: {
+    directDependencies: ResolvedDirectDependency[]
+    directNodeIdsByAlias: {
+      [alias: string]: string
+    }
+    linkedDependencies: LinkedDependency[]
+  }
+}
+
 export interface ResolvedDirectDependency {
   alias: string
   optional: boolean
@@ -180,15 +190,7 @@ export async function resolveDependencyTree<T> (
     })
   })
 
-  const resolvedImporters = {} as {
-    [id: string]: {
-      directDependencies: ResolvedDirectDependency[]
-      directNodeIdsByAlias: {
-        [alias: string]: string
-      }
-      linkedDependencies: LinkedDependency[]
-    }
-  }
+  const resolvedImporters: ResolvedImporters = {}
 
   for (const { id, wantedDependencies } of importers) {
     const directDeps = dedupeSameAliasDirectDeps(directDepsByImporterId[id], wantedDependencies)

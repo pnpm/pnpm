@@ -343,7 +343,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }
   const depNodes = Object.values(graph)
 
-  const added = depNodes.length
+  const added = depNodes.filter(({ fetching }) => fetching).length
   statsLogger.debug({
     added,
     prefix: lockfileDir,
