@@ -18,7 +18,7 @@
   "repository": "https://github.com/pnpm/pnpm/blob/main/workspace/pkgs-graph",
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -31,8 +31,8 @@
   },
   "dependencies": {
     "@pnpm/npm-package-arg": "^1.0.0",
-    "@pnpm/resolve-workspace-range": "workspace:*",
     "@pnpm/npm-resolver": "workspace:*",
+    "@pnpm/resolve-workspace-range": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1"
   },
   "funding": "https://opencollective.com/pnpm",
