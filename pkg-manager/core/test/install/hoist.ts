@@ -803,3 +803,94 @@ test('should not add extra node paths to command shims, when extend-node-path is
   console.log(cmdShim)
   expect(cmdShim).not.toContain('node_modules/.pnpm/node_modules')
 })
+
+test('hoistWorkspaceProjects should hoist all workspace projects', async () => {
+  const workspaceRootManifest = {
+    name: 'root',
+
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  }
+  const workspacePackageManifest = {
+    name: 'package',
+
+    dependencies: {
+      '@pnpm.e2e/foobar': '100.0.0',
+    },
+  }
+  const workspacePackageManifest2 = {
+    name: 'package2',
+
+    dependencies: {
+      package: 'workspace:*',
+    },
+    dependenciesMeta: {
+      package: {
+        injected: true,
+      },
+    },
+  }
+
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: workspaceRootManifest,
+    },
+    {
+      location: 'package',
+      package: workspacePackageManifest,
+    },
+    {
+      location: 'package2',
+      package: workspacePackageManifest2,
+    },
+  ])
+
+  const mutatedProjects: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('package'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('package2'),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: workspaceRootManifest,
+      rootDir: process.cwd(),
+    },
+    {
+      buildIndex: 0,
+      manifest: workspacePackageManifest,
+      rootDir: path.resolve('package'),
+    },
+    {
+      buildIndex: 0,
+      manifest: workspacePackageManifest2,
+      rootDir: path.resolve('package2'),
+    },
+  ]
+  await mutateModules(mutatedProjects, await testDefaults({ allProjects, hoistPattern: '*', hoistWorkspaceProjects: true }))
+
+  await projects['root'].has('@pnpm.e2e/pkg-with-1-dep')
+  await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
+  await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/foobar')
+  await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/foo')
+  await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/bar')
+  await projects['root'].has('.pnpm/node_modules/package')
+  await projects['root'].hasNot('@pnpm.e2e/foobar')
+  await projects['root'].hasNot('@pnpm.e2e/foo')
+  await projects['root'].hasNot('@pnpm.e2e/bar')
+
+  await projects['package'].has('@pnpm.e2e/foobar')
+  await projects['package'].hasNot('@pnpm.e2e/foo')
+  await projects['package'].hasNot('@pnpm.e2e/bar')
+})
