@@ -242,7 +242,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       url: 'https://github.com/pnpm/pnpm/issues',
     },
     engines: {
-      node: '>=16.14',
+      node: '>=18.12',
     },
     files,
     funding: 'https://opencollective.com/pnpm',

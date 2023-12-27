@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\"",
@@ -28,8 +28,6 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/files-include-install-scripts#readme",
-  "peerDependencies": {},
-  "dependencies": {},
   "devDependencies": {
     "@pnpm/exec.files-include-install-scripts": "workspace:*"
   },

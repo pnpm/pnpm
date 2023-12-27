@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -36,8 +36,8 @@
   "dependencies": {
     "@pnpm/calc-dep-state": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
-    "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/deps.graph-sequencer": "workspace:*",
+    "@pnpm/fs.hard-link-dir": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/link-bins": "workspace:*",
     "@pnpm/patching.apply-patch": "workspace:*",
