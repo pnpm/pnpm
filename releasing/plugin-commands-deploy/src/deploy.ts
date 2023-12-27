@@ -75,8 +75,7 @@ export async function handler (
   const deployDirParam = params[0]
   const deployDir = path.isAbsolute(deployDirParam) ? deployDirParam : path.join(opts.dir, deployDirParam)
 
-  const isDeployDirEmpty = await isEmptyDirOrNothing(deployDir)
-  if (!isDeployDirEmpty) {
+  if (!isEmptyDirOrNothing(deployDir)) {
     if (!opts.force) {
       throw new PnpmError('DEPLOY_DIR_NOT_EMPTY', `Deploy path ${deployDir} is not empty`)
     }
