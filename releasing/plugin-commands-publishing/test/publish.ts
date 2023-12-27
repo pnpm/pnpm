@@ -740,13 +740,13 @@ test('publish: provenance', async () => {
   }, [])
 })
 
-test('publish: use token helper for authentication', async () => {
+test('publish: use basic token helper for authentication', async () => {
   prepare({
-    name: 'test-publish-helper-token.json',
+    name: 'test-publish-helper-token-basic.json',
     version: '0.0.2',
   })
 
-  const tokenHelper = join(__dirname, 'utils', 'tokenHelper.js')
+  const tokenHelper = join(__dirname, 'utils', 'tokenHelperBasic.js')
 
   chmodSync(tokenHelper, 0o755)
 
@@ -756,7 +756,31 @@ test('publish: use token helper for authentication', async () => {
       original: [
         'publish',
         CREDENTIALS[0],
-        `--//localhost:${REGISTRY_MOCK_PORT}/:tokenHelper=${join(__dirname, 'utils', 'tokenHelper.js')}`,
+        `--//localhost:${REGISTRY_MOCK_PORT}/:tokenHelper=${tokenHelper}`,
+      ],
+    },
+    dir: process.cwd(),
+    gitChecks: false,
+  }, [])
+})
+
+test('publish: use bearer token helper for authentication', async () => {
+  prepare({
+    name: 'test-publish-helper-token-bearer.json',
+    version: '0.0.2',
+  })
+
+  const tokenHelper = join(__dirname, 'utils', 'tokenHelperBearer.js')
+
+  chmodSync(tokenHelper, 0o755)
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: {
+      original: [
+        'publish',
+        CREDENTIALS[0],
+        `--//localhost:${REGISTRY_MOCK_PORT}/:tokenHelper=${tokenHelper}`,
       ],
     },
     dir: process.cwd(),

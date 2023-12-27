@@ -152,10 +152,13 @@ export async function publish (
     const registry = registryPort ? `//${registryHost}:${registryPort}/` : `//${registryHost}/`
 
     const parsedToken = loadToken(value, key)
+    const type = parsedToken.startsWith('Bearer')
+      ? '_authToken'
+      : '_auth'
 
     return {
-      registryKey: `NPM_CONFIG_${registry}:_authToken`,
-      token: parsedToken,
+      registryKey: `NPM_CONFIG_${registry}:${type}`,
+      token: type === '_authToken' ? parsedToken.slice('Bearer '.length) : parsedToken,
     }
   })
 
