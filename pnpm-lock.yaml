@@ -1762,9 +1762,9 @@ importers:
         specifier: ^9.0.13
         version: 9.0.13
 
-  fs/is-path-empty:
+  fs/is-empty-dir-or-nothing:
     devDependencies:
-      '@pnpm/is-path-empty':
+      '@pnpm/fs.is-empty-dir-or-nothing':
         specifier: workspace:*
         version: 'link:'
 
@@ -4692,9 +4692,9 @@ importers:
       '@pnpm/fs.indexed-pkg-importer':
         specifier: workspace:*
         version: link:../../fs/indexed-pkg-importer
-      '@pnpm/is-path-empty':
+      '@pnpm/fs.is-empty-dir-or-nothing':
         specifier: workspace:*
-        version: link:../../fs/is-path-empty
+        version: link:../../fs/is-empty-dir-or-nothing
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -8791,7 +8791,7 @@ packages:
   /@types/byline@4.2.36:
     resolution: {integrity: sha512-dO55KDSaOSE+3T8TwP66mzn0u/PM/aSedVMr1tby7WBNjfLIuS6IbYXi1mlau49sVSVB+gXKJscWE0JO3tlXDw==}
     dependencies:
-      '@types/node': 20.9.0
+      '@types/node': 16.18.61
     dev: true
 
   /@types/cacheable-request@6.0.3:
@@ -8899,7 +8899,7 @@ packages:
   /@types/keyv@3.1.4:
     resolution: {integrity: sha512-BQ5aZNSCpj7D6K2ksrRCTmKRLEpnPvWDiLPfoGyhZ++8YtiK9d/3DBKPJgry359X/P1PfruyYwvnvwFjuEiEIg==}
     dependencies:
-      '@types/node': 20.9.0
+      '@types/node': 16.18.61
 
   /@types/lodash.clonedeep@4.5.9:
     resolution: {integrity: sha512-19429mWC+FyaAhOLzsS8kZUsI+/GmBAQ0HFiCPsKGU+7pBXOQWhyrY6xNNDwUSX8SMZMJvuFVMF9O5dQOlQK9Q==}
@@ -9392,7 +9392,7 @@ packages:
     resolution: {integrity: sha512-YmG+oTBCyrAoMIx5g2I9CfyurSpHyoan+9SCj7laaFKseOe3lFEyIVKvwRBQMmSt8uzh+eY5RWeQnoyyOs6AbA==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
-      '@yarnpkg/fslib': 3.0.0-rc.25
+      '@yarnpkg/fslib': ^3.0.0-rc.25
     dependencies:
       '@types/emscripten': 1.39.10
       '@yarnpkg/fslib': 3.0.0-rc.25

@@ -5,7 +5,7 @@ const isDirEmpty = async (path: string) => {
   return files.length === 0
 }
 
-export const isPathEmpty = async (path: string) => {
+export const isEmptyDirOrNothing = async (path: string) => {
   try {
     const pathStat = await fs.stat(path)
 

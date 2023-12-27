@@ -28,7 +28,7 @@
       "path": "../../fs/indexed-pkg-importer"
     },
     {
-      "path": "../../fs/is-path-empty"
+      "path": "../../fs/is-empty-dir-or-nothing"
     },
     {
       "path": "../../lockfile/lockfile-types"

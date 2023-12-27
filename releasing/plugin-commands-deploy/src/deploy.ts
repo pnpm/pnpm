@@ -3,7 +3,7 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
-import { isPathEmpty } from '@pnpm/is-path-empty'
+import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 import { install } from '@pnpm/plugin-commands-installation'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { PnpmError } from '@pnpm/error'
@@ -75,7 +75,7 @@ export async function handler (
   const deployDirParam = params[0]
   const deployDir = path.isAbsolute(deployDirParam) ? deployDirParam : path.join(opts.dir, deployDirParam)
 
-  const isDeployDirEmpty = await isPathEmpty(deployDir)
+  const isDeployDirEmpty = await isEmptyDirOrNothing(deployDir)
   if (!isDeployDirEmpty) {
     if (!opts.force) {
       throw new PnpmError('DEPLOY_DIR_NOT_EMPTY', `Deploy path ${deployDir} is not empty`)
