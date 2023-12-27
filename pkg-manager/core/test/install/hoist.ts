@@ -827,11 +827,6 @@ test('hoistWorkspaceProjects should hoist all workspace projects', async () => {
     dependencies: {
       package: 'workspace:*',
     },
-    dependenciesMeta: {
-      package: {
-        injected: true,
-      },
-    },
   }
 
   const projects = preparePackages([
@@ -907,6 +902,7 @@ test('hoistWorkspaceProjects should hoist all workspace projects', async () => {
   await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/foo')
   await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/bar')
   await projects['root'].has('.pnpm/node_modules/package')
+  await projects['root'].has('.pnpm/node_modules/package2')
   await projects['root'].hasNot('@pnpm.e2e/foobar')
   await projects['root'].hasNot('@pnpm.e2e/foo')
   await projects['root'].hasNot('@pnpm.e2e/bar')
