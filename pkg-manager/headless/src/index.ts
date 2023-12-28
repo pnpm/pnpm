@@ -426,6 +426,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         publicHoistPattern: opts.publicHoistPattern ?? [],
         virtualStoreDir,
         hoistWorkspaceProjects: opts.hoistWorkspaceProjects,
+        allProjects: opts.allProjects,
       })
     } else {
       newHoistedDependencies = {}

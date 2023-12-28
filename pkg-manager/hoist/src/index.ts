@@ -10,7 +10,7 @@ import {
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
-import { type HoistedDependencies } from '@pnpm/types'
+import { type ProjectManifest, type HoistedDependencies } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import * as dp from '@pnpm/dependency-path'
 import isSubdir from 'is-subdir'
@@ -20,10 +20,21 @@ import symlinkDir from 'symlink-dir'
 
 const hoistLogger = logger('hoist')
 
+interface Project {
+  binsDir: string
+  buildIndex: number
+  manifest: ProjectManifest
+  modulesDir: string
+  id: string
+  pruneDirectDependencies?: boolean
+  rootDir: string
+}
+
 export interface HoistOpts extends GetHoistedDependenciesOpts {
   extraNodePath?: string[]
   preferSymlinkedExecutables?: boolean
   virtualStoreDir: string
+  allProjects: Record<string, Project>
 }
 
 export async function hoist (opts: HoistOpts) {
@@ -61,6 +72,7 @@ export interface GetHoistedDependenciesOpts {
   publicHoistPattern: string[]
   publicHoistedModulesDir: string
   hoistWorkspaceProjects?: boolean
+  allProjects: Record<string, Project>
 }
 
 export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
@@ -89,34 +101,22 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
 
   const hoistedProjects: Dependency[] = []
 
-  if (opts.hoistWorkspaceProjects) {
-    const allProjects = Object.keys(opts.lockfile.importers)
-
-    const workspaceDir = path.dirname(opts.publicHoistedModulesDir)
-
-    const hoistedWorkspaceProjects =
-        allProjects
-          // Ignore the "." project because it is the root project
-          .filter((projectPath) => projectPath !== '.')
-          .map((projectPath) => {
-            // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-            const manifest = require(path.join(workspaceDir, projectPath, 'package.json'))
-
-            return {
-              projectPath,
-              name: manifest.name,
-            }
-          })
-
-    hoistedWorkspaceProjects.forEach((hoistedWorkspaceProject) => {
-      hoistedProjects.push({
-        children: {
-          [hoistedWorkspaceProject.name]: hoistedWorkspaceProject.projectPath,
-        },
-        depPath: '',
-        depth: -1,
+  if (opts.hoistWorkspaceProjects && opts.allProjects) {
+    const { allProjects } = opts
+    const hoistedWorkspaceProjects = Object.entries(allProjects)
+    const workspace = allProjects['.']
+    hoistedWorkspaceProjects
+    // Ignore the project "." because it is the root project
+      .filter(([, project]) => project.id !== '.')
+      .forEach(([, project]) => {
+        hoistedProjects.push({
+          children: {
+            [project.id]: path.normalize(path.relative(workspace.rootDir, project.rootDir)),
+          },
+          depPath: '',
+          depth: -1,
+        })
       })
-    })
   }
 
   return hoistGraph(deps.concat(hoistedProjects), opts.lockfile.importers['.']?.specifiers ?? {}, {
