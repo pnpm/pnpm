@@ -33,7 +33,11 @@ export function pickPackageFromMeta (
       version = spec.fetchSpec
       break
     case 'tag':
-      version = meta['dist-tags'][spec.fetchSpec]
+      if (preferredVersionSelectors && spec.fetchSpec === 'latest') {
+        version = pickLatestVersionToUpdate(meta, preferredVersionSelectors)
+      } else {
+        version = meta['dist-tags'][spec.fetchSpec]
+      }
       break
     case 'range':
       version = pickVersionByVersionRangeFn(meta, spec.fetchSpec, preferredVersionSelectors, publishedBy)
@@ -56,6 +60,15 @@ export function pickPackageFromMeta (
       { hint: 'This might mean that the package was unpublished from the registry' }
     )
   }
+}
+
+function pickLatestVersionToUpdate (meta: PackageMeta, preferredVersionSelectors: VersionSelectors): string | null {
+  const latestStable = meta['dist-tags'].latest
+
+  const preferredVersions = prioritizePreferredVersions(meta, 'latest', preferredVersionSelectors)[0]
+  if (!preferredVersions) return latestStable
+
+  return preferredVersions.reduce((a, b) => semver.gt(a, b) ? a : b, latestStable)
 }
 
 const semverRangeCache = new Map<string, semver.Range | null>()
