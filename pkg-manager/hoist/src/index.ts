@@ -34,7 +34,6 @@ export interface HoistOpts extends GetHoistedDependenciesOpts {
   extraNodePath?: string[]
   preferSymlinkedExecutables?: boolean
   virtualStoreDir: string
-  allProjects: Record<string, Project>
 }
 
 export async function hoist (opts: HoistOpts) {
@@ -48,6 +47,7 @@ export async function hoist (opts: HoistOpts) {
     publicHoistedModulesDir: opts.publicHoistedModulesDir,
     virtualStoreDir: opts.virtualStoreDir,
     hoistWorkspaceProjects: opts.hoistWorkspaceProjects,
+    allProjects: opts.allProjects,
   })
 
   // Here we only link the bins of the privately hoisted modules.
@@ -72,7 +72,7 @@ export interface GetHoistedDependenciesOpts {
   publicHoistPattern: string[]
   publicHoistedModulesDir: string
   hoistWorkspaceProjects?: boolean
-  allProjects: Record<string, Project>
+  allProjects?: Record<string, Project>
 }
 
 export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
@@ -108,10 +108,10 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
     hoistedWorkspaceProjects
     // Ignore the project "." because it is the root project
       .filter(([, project]) => project.id !== '.')
-      .forEach(([, project]) => {
+      .forEach(([depPath, project]) => {
         hoistedProjects.push({
           children: {
-            [project.id]: path.normalize(path.relative(workspace.rootDir, project.rootDir)),
+            [depPath]: path.normalize(path.relative(workspace.rootDir, project.rootDir)),
           },
           depPath: '',
           depth: -1,
@@ -278,14 +278,14 @@ async function symlinkHoistedDependencies (
         }
         const pkgName = !isProject
           ? nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
-          : opts.allProjects![depPath].id
+          : opts.allProjects![depPath].manifest.name
 
         const modules = !isProject
           ? path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
-          : path.join(path.dirname(opts.publicHoistedModulesDir), depPath)
+          : opts.allProjects![depPath].rootDir
 
         const depLocation = !isProject
-          ? path.join(modules, pkgName)
+          ? path.join(modules, pkgName as string)
           : modules
         await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
           const targetDir = hoistType === 'public'
