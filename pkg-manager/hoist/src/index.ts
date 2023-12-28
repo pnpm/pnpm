@@ -46,7 +46,6 @@ export async function hoist (opts: HoistOpts) {
     privateHoistedModulesDir: opts.privateHoistedModulesDir,
     publicHoistedModulesDir: opts.publicHoistedModulesDir,
     virtualStoreDir: opts.virtualStoreDir,
-    hoistWorkspaceProjects: opts.hoistWorkspaceProjects,
     allProjects: opts.allProjects,
   })
 
@@ -75,7 +74,7 @@ export interface GetHoistedDependenciesOpts {
   allProjects?: Record<string, Project>
 }
 
-export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
+export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): HoistGraphResult | null {
   if (opts.lockfile.packages == null) return null
 
   const { directDeps, step } = lockfileWalker(
@@ -260,7 +259,6 @@ async function symlinkHoistedDependencies (
     privateHoistedModulesDir: string
     publicHoistedModulesDir: string
     virtualStoreDir: string
-    hoistWorkspaceProjects?: boolean
     allProjects?: Record<string, Project>
   }
 ) {
@@ -269,24 +267,19 @@ async function symlinkHoistedDependencies (
     Object.entries(hoistedDependencies)
       .map(async ([depPath, pkgAliases]) => {
         const pkgSnapshot = opts.lockfile.packages![depPath]
-        // Only get the projects if hoistWorkspaceProjects is true
-        const isProject = opts.hoistWorkspaceProjects ? opts.lockfile.importers[depPath] : false
-        if (!pkgSnapshot && !isProject) {
-          // This dependency is probably a skipped optional dependency.
-          hoistLogger.debug({ hoistFailedFor: depPath })
-          return
+        let depLocation!: string
+        if (pkgSnapshot) {
+          const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
+          const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
+          depLocation = path.join(modules, pkgName as string)
+        } else {
+          if (!opts.lockfile.importers[depPath]) {
+            // This dependency is probably a skipped optional dependency.
+            hoistLogger.debug({ hoistFailedFor: depPath })
+            return
+          }
+          depLocation = opts.allProjects![depPath].rootDir
         }
-        const pkgName = !isProject
-          ? nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
-          : opts.allProjects![depPath].manifest.name
-
-        const modules = !isProject
-          ? path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
-          : opts.allProjects![depPath].rootDir
-
-        const depLocation = !isProject
-          ? path.join(modules, pkgName as string)
-          : modules
         await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
           const targetDir = hoistType === 'public'
             ? opts.publicHoistedModulesDir
