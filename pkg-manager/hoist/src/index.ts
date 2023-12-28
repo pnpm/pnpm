@@ -261,6 +261,7 @@ async function symlinkHoistedDependencies (
     publicHoistedModulesDir: string
     virtualStoreDir: string
     hoistWorkspaceProjects?: boolean
+    allProjects?: Record<string, Project>
   }
 ) {
   const symlink = symlinkHoistedDependency.bind(null, opts)
@@ -277,7 +278,7 @@ async function symlinkHoistedDependencies (
         }
         const pkgName = !isProject
           ? nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
-          : depPath
+          : opts.allProjects![depPath].id
 
         const modules = !isProject
           ? path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
