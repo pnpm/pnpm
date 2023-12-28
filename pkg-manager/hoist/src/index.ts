@@ -101,16 +101,17 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts) {
           .map((projectPath) => {
             // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
             const manifest = require(path.join(workspaceDir, projectPath, 'package.json'))
+
             return {
               projectPath,
-              hoistedProjectPath: manifest.name,
+              name: manifest.name,
             }
           })
 
     hoistedWorkspaceProjects.forEach((hoistedWorkspaceProject) => {
       hoistedProjects.push({
         children: {
-          [hoistedWorkspaceProject.hoistedProjectPath]: hoistedWorkspaceProject.projectPath,
+          [hoistedWorkspaceProject.name]: hoistedWorkspaceProject.projectPath,
         },
         depPath: '',
         depth: -1,
@@ -276,7 +277,7 @@ async function symlinkHoistedDependencies (
         }
         const pkgName = !isProject
           ? nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
-          : nameVerFromPath(depPath, opts.publicHoistedModulesDir).name
+          : depPath
 
         const modules = !isProject
           ? path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
@@ -329,13 +330,4 @@ async function symlinkHoistedDependency (
   await fs.promises.unlink(dest)
   await symlinkDir(depLocation, dest)
   linkLogger.debug({ target: dest, link: depLocation })
-}
-
-function nameVerFromPath (depPath: string, publicHoistedModulesDir: string) {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-  const manifest = require(path.join(path.dirname(publicHoistedModulesDir), depPath, 'package.json'))
-  return {
-    name: manifest.name,
-    version: manifest.version,
-  }
 }
