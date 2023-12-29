@@ -1,5 +1,5 @@
 /// <reference path="../../../__typings__/index.d.ts" />
-import { promises as fs } from 'fs'
+import fsSync, { promises as fs } from 'fs'
 import path from 'path'
 import { type PnpmError } from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
@@ -412,12 +412,13 @@ test('if a script is not found but is present in the root, print an info message
 test('scripts work with PnP', async () => {
   prepare({
     scripts: {
-      foo: 'node -e "process.stdout.write(\'foo\')" | json-append ./output.json',
+      foo: 'hello-world-js-bin > ./output.txt',
     },
   })
 
-  await execa(pnpmBin, ['add', 'json-append@1'], {
+  await execa(pnpmBin, ['add', '@pnpm.e2e/hello-world-js-bin@1.0.0'], {
     env: {
+      NPM_CONFIG_REGISTRY: REGISTRY_URL,
       NPM_CONFIG_NODE_LINKER: 'pnp',
       NPM_CONFIG_SYMLINK: 'false',
     },
@@ -429,8 +430,11 @@ test('scripts work with PnP', async () => {
     rawConfig: {},
   }, ['foo'])
 
-  const { default: scriptsRan } = await import(path.resolve('output.json'))
-  expect(scriptsRan).toStrictEqual(['foo'])
+  // https://github.com/pnpm/registry-mock/blob/ac2e129eb262009d2e7cd43ed869c31097793073/packages/hello-world-js-bin%401.0.0/index.js#L2
+  const helloWorldJsBinOutput = 'Hello world!\n'
+
+  const fooOutput = fsSync.readFileSync(path.resolve('output.txt')).toString()
+  expect(fooOutput).toStrictEqual(helloWorldJsBinOutput)
 })
 
 test('pnpm run with custom shell', async () => {
