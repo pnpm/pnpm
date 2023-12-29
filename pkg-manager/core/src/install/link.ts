@@ -10,8 +10,8 @@ import {
   filterLockfileByImporters,
 } from '@pnpm/filter-lockfile'
 import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
-import { type Project, type InstallationResultStats } from '@pnpm/headless'
-import { hoist } from '@pnpm/hoist'
+import { type InstallationResultStats } from '@pnpm/headless'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import { logger } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
@@ -218,11 +218,6 @@ export async function linkPackages (
       packages: omit(Array.from(opts.skipped), currentLockfile.packages),
     }
 
-    const allProjects: Record<string, Project> = {}
-    for (const project of projects) {
-      allProjects[project.id] = project
-    }
-
     newHoistedDependencies = await hoist({
       extraNodePath: opts.extraNodePaths,
       lockfile: hoistLockfile,
@@ -232,8 +227,17 @@ export async function linkPackages (
       publicHoistedModulesDir: opts.rootModulesDir,
       publicHoistPattern: opts.publicHoistPattern ?? [],
       virtualStoreDir: opts.virtualStoreDir,
-      hoistWorkspaceProjects: opts.hoistWorkspaceProjects,
-      allProjects,
+      hoistedWorkspaceProjects: opts.hoistWorkspaceProjects
+        ? projects.reduce((hoistedWorkspaceProjects, project) => {
+          if (project.manifest.name) {
+            hoistedWorkspaceProjects[project.id] = {
+              dir: project.rootDir,
+              name: project.manifest.name,
+            }
+          }
+          return hoistedWorkspaceProjects
+        }, {} as Record<string, HoistedWorkspaceProject>)
+        : undefined,
     })
   } else {
     newHoistedDependencies = opts.hoistedDependencies

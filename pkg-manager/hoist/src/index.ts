@@ -10,7 +10,7 @@ import {
 import { lockfileWalker, type LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import { logger } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
-import { type ProjectManifest, type HoistedDependencies } from '@pnpm/types'
+import { type HoistedDependencies } from '@pnpm/types'
 import { lexCompare } from '@pnpm/util.lex-comparator'
 import * as dp from '@pnpm/dependency-path'
 import isSubdir from 'is-subdir'
@@ -19,16 +19,6 @@ import resolveLinkTarget from 'resolve-link-target'
 import symlinkDir from 'symlink-dir'
 
 const hoistLogger = logger('hoist')
-
-interface Project {
-  binsDir: string
-  buildIndex: number
-  manifest: ProjectManifest
-  modulesDir: string
-  id: string
-  pruneDirectDependencies?: boolean
-  rootDir: string
-}
 
 export interface HoistOpts extends GetHoistedDependenciesOpts {
   extraNodePath?: string[]
@@ -46,7 +36,7 @@ export async function hoist (opts: HoistOpts) {
     privateHoistedModulesDir: opts.privateHoistedModulesDir,
     publicHoistedModulesDir: opts.publicHoistedModulesDir,
     virtualStoreDir: opts.virtualStoreDir,
-    allProjects: opts.allProjects,
+    hoistedWorkspaceProjects: opts.hoistedWorkspaceProjects,
   })
 
   // Here we only link the bins of the privately hoisted modules.
@@ -70,8 +60,12 @@ export interface GetHoistedDependenciesOpts {
   privateHoistedModulesDir: string
   publicHoistPattern: string[]
   publicHoistedModulesDir: string
-  hoistWorkspaceProjects?: boolean
-  allProjects?: Record<string, Project>
+  hoistedWorkspaceProjects?: Record<string, HoistedWorkspaceProject>
+}
+
+export interface HoistedWorkspaceProject {
+  name: string
+  dir: string
 }
 
 export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): HoistGraphResult | null {
@@ -98,27 +92,19 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): Hoist
 
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
-  const hoistedProjects: Dependency[] = []
-
-  if (opts.hoistWorkspaceProjects && opts.allProjects) {
-    const { allProjects } = opts
-    const hoistedWorkspaceProjects = Object.entries(allProjects)
-    const workspace = allProjects['.']
-    hoistedWorkspaceProjects
-    // Ignore the project "." because it is the root project
-      .filter(([, project]) => project.id !== '.')
-      .forEach(([depPath, project]) => {
-        hoistedProjects.push({
-          children: {
-            [depPath]: path.normalize(path.relative(workspace.rootDir, project.rootDir)),
-          },
-          depPath: '',
-          depth: -1,
-        })
+  if (opts.hoistedWorkspaceProjects) {
+    for (const [id, { name }] of Object.entries(opts.hoistedWorkspaceProjects)) {
+      deps.push({
+        children: {
+          [name]: id,
+        },
+        depPath: '',
+        depth: -1,
       })
+    }
   }
 
-  return hoistGraph(deps.concat(hoistedProjects), opts.lockfile.importers['.']?.specifiers ?? {}, {
+  return hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
     getAliasHoistType,
     lockfile: opts.lockfile,
   })
@@ -259,7 +245,7 @@ async function symlinkHoistedDependencies (
     privateHoistedModulesDir: string
     publicHoistedModulesDir: string
     virtualStoreDir: string
-    allProjects?: Record<string, Project>
+    hoistedWorkspaceProjects?: Record<string, HoistedWorkspaceProject>
   }
 ) {
   const symlink = symlinkHoistedDependency.bind(null, opts)
@@ -278,7 +264,7 @@ async function symlinkHoistedDependencies (
             hoistLogger.debug({ hoistFailedFor: depPath })
             return
           }
-          depLocation = opts.allProjects![depPath].rootDir
+          depLocation = opts.hoistedWorkspaceProjects![depPath].dir
         }
         await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
           const targetDir = hoistType === 'public'

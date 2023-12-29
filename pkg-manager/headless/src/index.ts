@@ -18,7 +18,7 @@ import {
   filterLockfileByEngine,
   filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
-import { hoist } from '@pnpm/hoist'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import {
   runLifecycleHooksConcurrently,
   makeNodeRequireOption,
@@ -425,8 +425,17 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         publicHoistedModulesDir,
         publicHoistPattern: opts.publicHoistPattern ?? [],
         virtualStoreDir,
-        hoistWorkspaceProjects: opts.hoistWorkspaceProjects,
-        allProjects: opts.allProjects,
+        hoistedWorkspaceProjects: opts.hoistWorkspaceProjects
+          ? Object.entries(opts.allProjects).reduce((hoistedWorkspaceProjects, [id, project]) => {
+            if (project.manifest.name) {
+              hoistedWorkspaceProjects[id] = {
+                dir: project.rootDir,
+                name: project.manifest.name,
+              }
+            }
+            return hoistedWorkspaceProjects
+          }, {} as Record<string, HoistedWorkspaceProject>)
+          : undefined,
       })
     } else {
       newHoistedDependencies = {}
