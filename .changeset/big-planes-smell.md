@@ -1,7 +1,7 @@
 ---
 "@pnpm/plugin-commands-installation": minor
 "@pnpm/resolve-dependencies": minor
-"@pnpm/package-requester": minor
+"@pnpm/package-requester": patch
 "@pnpm/store-controller-types": minor
 "@pnpm/resolver-base": minor
 "@pnpm/npm-resolver": minor
