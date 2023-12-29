@@ -42,6 +42,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
     "@types/ramda": "0.28.20",
     "load-json-file": "^6.2.0"
   },

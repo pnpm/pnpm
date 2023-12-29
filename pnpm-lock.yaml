@@ -1482,6 +1482,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
