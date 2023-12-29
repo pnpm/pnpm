@@ -91,6 +91,7 @@ export interface StrictInstallOptions {
   unsafePerm: boolean
   registries: Registries
   tag: string
+  cmdFullName?: string
   overrides: Record<string, string>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'
   workspacePackages: WorkspacePackages

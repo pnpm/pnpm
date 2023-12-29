@@ -85,17 +85,19 @@ export interface PickPackageOptions {
   pickLowestVersion?: boolean
   registry: string
   dryRun: boolean
+  cmdFullName?: string
 }
 
 function pickPackageFromMetaUsingTime (
   spec: RegistryPackageSpec,
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
-  publishedBy?: Date
+  publishedBy?: Date,
+  cmdFullName?: string,
 ) {
-  const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
+  const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy, cmdFullName)
   if (pickedPackage) return pickedPackage
-  return pickPackageFromMeta(pickLowestVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy)
+  return pickPackageFromMeta(pickLowestVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy, cmdFullName)
 }
 
 export async function pickPackage (
@@ -123,7 +125,7 @@ export async function pickPackage (
   if (cachedMeta != null) {
     return {
       meta: cachedMeta,
-      pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, cachedMeta, opts.publishedBy),
+      pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, cachedMeta, opts.publishedBy, opts.cmdFullName),
     }
   }
 
@@ -138,14 +140,14 @@ export async function pickPackage (
       if (ctx.offline) {
         if (metaCachedInStore != null) return {
           meta: metaCachedInStore,
-          pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy),
+          pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy, opts.cmdFullName),
         }
 
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
       }
 
       if (metaCachedInStore != null) {
-        const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
+        const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy, opts.cmdFullName)
         if (pickedPackage) {
           return {
             meta: metaCachedInStore,
@@ -169,7 +171,7 @@ export async function pickPackage (
     if (opts.publishedBy) {
       metaCachedInStore = metaCachedInStore ?? await limit(async () => loadMeta(pkgMirror))
       if (metaCachedInStore?.cachedAt && new Date(metaCachedInStore.cachedAt) >= opts.publishedBy) {
-        const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy)
+        const pickedPackage = _pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore, opts.publishedBy, opts.cmdFullName)
         if (pickedPackage) {
           return {
             meta: metaCachedInStore,
@@ -199,7 +201,7 @@ export async function pickPackage (
       }
       return {
         meta,
-        pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy),
+        pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy, opts.cmdFullName),
       }
     } catch (err: any) { // eslint-disable-line
       err.spec = spec
@@ -209,7 +211,7 @@ export async function pickPackage (
       logger.debug({ message: `Using cached meta from ${pkgMirror}` })
       return {
         meta,
-        pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy),
+        pickedPackage: _pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta, opts.publishedBy, opts.cmdFullName),
       }
     }
   })

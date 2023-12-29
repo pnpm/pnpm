@@ -134,6 +134,7 @@ export interface RequestPackageOptions {
   forceResolve?: boolean
   supportedArchitectures?: SupportedArchitectures
   onFetchError?: OnFetchError
+  cmdFullName?: string
 }
 
 export type BundledManifestFunction = () => Promise<BundledManifest | undefined>

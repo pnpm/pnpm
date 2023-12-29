@@ -255,6 +255,7 @@ interface ResolvedDependenciesOptions {
   updateDepth: number
   prefix: string
   supportedArchitectures?: SupportedArchitectures
+  cmdFullName?: string
 }
 
 interface PostponedResolutionOpts {
@@ -677,6 +678,7 @@ async function resolveDependenciesOfDependency (
     updateDepth,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
+    cmdFullName: options.cmdFullName,
   }
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
@@ -713,6 +715,7 @@ async function resolveDependenciesOfDependency (
     prefix: options.prefix,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
+    cmdFullName: options.cmdFullName,
   })
   return {
     resolveDependencyResult,
@@ -761,6 +764,7 @@ async function resolveChildren (
     updateMatching,
     prefix,
     supportedArchitectures,
+    cmdFullName,
   }: {
     parentPkg: PkgAddress
     dependencyLockfile: PackageSnapshot | undefined
@@ -769,6 +773,7 @@ async function resolveChildren (
     prefix: string
     updateMatching?: UpdateMatchingFunction
     supportedArchitectures?: SupportedArchitectures
+    cmdFullName?: string
   },
   {
     parentPkgAliases,
@@ -815,6 +820,7 @@ async function resolveChildren (
       updateDepth,
       updateMatching,
       supportedArchitectures,
+      cmdFullName,
     }
   )
   ctx.childrenByParentDepPath[parentPkg.depPath] = pkgAddresses.map((child) => ({
@@ -1019,6 +1025,7 @@ interface ResolveDependencyOptions {
   updateDepth: number
   updateMatching?: UpdateMatchingFunction
   supportedArchitectures?: SupportedArchitectures
+  cmdFullName?: string
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null
@@ -1098,6 +1105,7 @@ async function resolveDependency (
         err.pkgsStack = nodeIdToParents(options.parentPkg.nodeId, ctx.resolvedPackagesByDepPath)
         return err
       },
+      cmdFullName: options.cmdFullName,
     })
   } catch (err: any) { // eslint-disable-line
     if (wantedDependency.optional) {

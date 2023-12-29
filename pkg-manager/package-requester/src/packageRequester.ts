@@ -184,6 +184,7 @@ async function resolveAndFetch (
       projectDir: options.projectDir,
       registry: options.registry,
       workspacePackages: options.workspacePackages,
+      cmdFullName: options.cmdFullName,
     }), { priority: options.downloadPriority })
 
     manifest = resolveResult.manifest

@@ -99,6 +99,7 @@ export interface ResolveDependenciesOptions {
   wantedLockfile: Lockfile
   workspacePackages: WorkspacePackages
   supportedArchitectures?: SupportedArchitectures
+  cmdFullName?: string
 }
 
 export async function resolveDependencyTree<T> (
@@ -166,6 +167,7 @@ export async function resolveDependencyTree<T> (
       updateMatching: importer.updateMatching,
       prefix: importer.rootDir,
       supportedArchitectures: opts.supportedArchitectures,
+      cmdFullName: opts.cmdFullName,
     }
     return {
       updatePackageManifest: importer.updatePackageManifest,
