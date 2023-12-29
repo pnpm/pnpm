@@ -3407,6 +3407,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/fs-extra':
         specifier: ^9.0.13
         version: 9.0.13
