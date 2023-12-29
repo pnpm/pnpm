@@ -581,7 +581,8 @@ test('testing the bail config with "pnpm recursive run"', async () => {
       recursive: true,
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
-    }, ['build', '--no-bail'])
+      bail: false,
+    }, ['build'])
   } catch (_err: any) { // eslint-disable-line
     err1 = _err
   }
