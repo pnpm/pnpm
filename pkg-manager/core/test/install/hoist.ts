@@ -910,4 +910,15 @@ test('hoistWorkspaceProjects should hoist all workspace projects', async () => {
   await projects['package'].has('@pnpm.e2e/foobar')
   await projects['package'].hasNot('@pnpm.e2e/foo')
   await projects['package'].hasNot('@pnpm.e2e/bar')
+
+  await rimraf('node_modules')
+  await mutateModules(mutatedProjects, await testDefaults({
+    allProjects,
+    frozenLockfile: true,
+    hoistPattern: '*',
+    hoistWorkspaceProjects: true,
+    workspacePackages,
+  }))
+  await projects['root'].has('.pnpm/node_modules/package')
+  await projects['root'].has('.pnpm/node_modules/package2')
 })

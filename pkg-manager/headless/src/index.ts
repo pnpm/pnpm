@@ -426,9 +426,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         publicHoistPattern: opts.publicHoistPattern ?? [],
         virtualStoreDir,
         hoistedWorkspaceProjects: opts.hoistWorkspaceProjects
-          ? Object.entries(opts.allProjects).reduce((hoistedWorkspaceProjects, [id, project]) => {
+          ? Object.values(opts.allProjects).reduce((hoistedWorkspaceProjects, project) => {
             if (project.manifest.name) {
-              hoistedWorkspaceProjects[id] = {
+              hoistedWorkspaceProjects[project.id] = {
                 dir: project.rootDir,
                 name: project.manifest.name,
               }
