@@ -628,8 +628,8 @@ test('lifecycle scripts run after linking root dependencies', async () => {
 })
 
 test('ignore-dep-scripts', async () => {
-  await using server1 = await createTestEchoServer()
-  await using server2 = await createTestEchoServer()
+  await using server1 = await createTestIpcServer()
+  await using server2 = await createTestIpcServer()
   prepareEmpty()
   const manifest = {
     scripts: {
