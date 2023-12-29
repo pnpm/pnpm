@@ -93,7 +93,7 @@ function pickPackageFromMetaUsingTime (
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
   publishedBy?: Date,
-  cmdFullName?: string,
+  cmdFullName?: string
 ) {
   const pickedPackage = pickPackageFromMeta(pickVersionByVersionRange, spec, preferredVersionSelectors, meta, publishedBy, cmdFullName)
   if (pickedPackage) return pickedPackage

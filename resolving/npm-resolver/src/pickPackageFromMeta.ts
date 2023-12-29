@@ -17,7 +17,7 @@ export function pickPackageFromMeta (
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
   publishedBy?: Date,
-  cmdFullName?: string,
+  cmdFullName?: string
 ): PackageInRegistry | null {
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
     // Unfortunately, the npm registry doesn't return the time field in the abbreviated metadata.
