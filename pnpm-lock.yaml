@@ -1762,6 +1762,12 @@ importers:
         specifier: ^9.0.13
         version: 9.0.13
 
+  fs/is-empty-dir-or-nothing:
+    devDependencies:
+      '@pnpm/fs.is-empty-dir-or-nothing':
+        specifier: workspace:*
+        version: 'link:'
+
   fs/packlist:
     dependencies:
       npm-packlist:
@@ -4689,6 +4695,9 @@ importers:
       '@pnpm/fs.indexed-pkg-importer':
         specifier: workspace:*
         version: link:../../fs/indexed-pkg-importer
+      '@pnpm/fs.is-empty-dir-or-nothing':
+        specifier: workspace:*
+        version: link:../../fs/is-empty-dir-or-nothing
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
@@ -7813,14 +7822,14 @@ packages:
       '@jest/test-result': 29.7.0
       '@jest/transform': 29.7.0(@babel/types@7.23.3)
       '@jest/types': 29.6.3
-      '@types/node': 18.14.6
+      '@types/node': 18.19.3
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       ci-info: 3.9.0
       exit: 0.1.2
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jest-changed-files: 29.7.0
-      jest-config: 29.7.0(@babel/types@7.23.3)(@types/node@18.14.6)(ts-node@10.9.2)
+      jest-config: 29.7.0(@babel/types@7.23.3)(@types/node@18.19.3)(ts-node@10.9.2)
       jest-haste-map: 29.7.0
       jest-message-util: 29.7.0
       jest-regex-util: 29.6.3
@@ -7999,7 +8008,7 @@ packages:
       '@jest/schemas': 29.6.3
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 18.14.6
+      '@types/node': 18.19.3
       '@types/yargs': 17.0.32
       chalk: 4.1.2
     dev: true
@@ -10570,6 +10579,7 @@ packages:
   /color-support@1.1.3:
     resolution: {integrity: sha512-qiBjkpbMLO/HL68y+lh4q0/O1MZFj2RX6X/KmMa3+gJD3z+WwI1ZzDHysvqHGS3mP6mznPckpXmw1nI9cJjyRg==}
     hasBin: true
+    requiresBuild: true
     dev: false
 
   /colors@0.6.2:
@@ -10848,7 +10858,7 @@ packages:
     dev: true
 
   /cross-spawn@5.1.0:
-    resolution: {integrity: sha512-pTgQJ5KC0d2hcY8eyL1IzlBPYjTkyH72XRZPnLyKus2mBfNjQs3klqbJU2VILqZryAZUt9JOb3h/mWMy23/f5A==, tarball: https://registry.npmmirror.com/cross-spawn/-/cross-spawn-5.1.0.tgz}
+    resolution: {integrity: sha512-pTgQJ5KC0d2hcY8eyL1IzlBPYjTkyH72XRZPnLyKus2mBfNjQs3klqbJU2VILqZryAZUt9JOb3h/mWMy23/f5A==}
     dependencies:
       lru-cache: 4.1.5
       shebang-command: 1.2.0
@@ -13125,7 +13135,7 @@ packages:
       call-bind: 1.0.5
 
   /is-stream@2.0.1:
-    resolution: {integrity: sha512-hFoiJiTl63nn+kstHGBtewWSKnQLpyb155KHheA1l39uvtO9nWIop1p3udqPcUd/xbF1VLMO4n7OI6p7RbngDg==, tarball: https://registry.npmmirror.com/is-stream/-/is-stream-2.0.1.tgz}
+    resolution: {integrity: sha512-hFoiJiTl63nn+kstHGBtewWSKnQLpyb155KHheA1l39uvtO9nWIop1p3udqPcUd/xbF1VLMO4n7OI6p7RbngDg==}
     engines: {node: '>=8'}
 
   /is-string@1.0.7:
@@ -13351,6 +13361,48 @@ packages:
       '@jest/test-sequencer': 29.7.0
       '@jest/types': 29.6.3
       '@types/node': 18.14.6
+      babel-jest: 29.7.0(@babel/core@7.23.3)(@babel/types@7.23.3)
+      chalk: 4.1.2
+      ci-info: 3.9.0
+      deepmerge: 4.3.1
+      glob: 7.2.3
+      graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
+      jest-circus: 29.7.0(@babel/types@7.23.3)
+      jest-environment-node: 29.7.0
+      jest-get-type: 29.6.3
+      jest-regex-util: 29.6.3
+      jest-resolve: 29.7.0
+      jest-runner: 29.7.0(@babel/types@7.23.3)
+      jest-util: 29.7.0
+      jest-validate: 29.7.0
+      micromatch: 4.0.5
+      parse-json: 5.2.0
+      pretty-format: 29.7.0
+      slash: 3.0.0
+      strip-json-comments: 3.1.1
+      ts-node: 10.9.2(@types/node@18.14.6)(typescript@5.3.3)
+    transitivePeerDependencies:
+      - '@babel/types'
+      - babel-plugin-macros
+      - supports-color
+    dev: true
+
+  /jest-config@29.7.0(@babel/types@7.23.3)(@types/node@18.19.3)(ts-node@10.9.2):
+    resolution: {integrity: sha512-uXbpfeQ7R6TZBqI3/TxCU4q4ttk3u0PJeC+E0zbfSoSjq6bJ7buBPxzQPL0ifrkY4DNu4JUdk0ImlBUYi840eQ==}
+    engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
+    peerDependencies:
+      '@types/node': '*'
+      ts-node: '>=9.0.0'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+      ts-node:
+        optional: true
+    dependencies:
+      '@babel/core': 7.23.3
+      '@jest/test-sequencer': 29.7.0
+      '@jest/types': 29.6.3
+      '@types/node': 18.19.3
       babel-jest: 29.7.0(@babel/core@7.23.3)(@babel/types@7.23.3)
       chalk: 4.1.2
       ci-info: 3.9.0
@@ -13619,7 +13671,7 @@ packages:
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 18.14.6
+      '@types/node': 18.19.3
       chalk: 4.1.2
       ci-info: 3.9.0
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
@@ -14058,7 +14110,7 @@ packages:
     dev: false
 
   /lru-cache@7.14.1:
-    resolution: {integrity: sha512-ysxwsnTKdAx96aTRdhDOCQfDgbHnt8SK0KY8SEjO0wHinhWOFTESbjVCMPbU1uGXg/ch4lifqx0wfjOawU2+WA==, tarball: https://registry.npmmirror.com/lru-cache/-/lru-cache-7.14.1.tgz}
+    resolution: {integrity: sha512-ysxwsnTKdAx96aTRdhDOCQfDgbHnt8SK0KY8SEjO0wHinhWOFTESbjVCMPbU1uGXg/ch4lifqx0wfjOawU2+WA==}
     engines: {node: '>=12'}
 
   /lru-cache@7.18.3:
@@ -15525,7 +15577,7 @@ packages:
     engines: {node: '>=10'}
 
   /ramda@0.29.1:
-    resolution: {integrity: sha512-OfxIeWzd4xdUNxlWhgFazxsA/nl3mS4/jGZI5n00uWOoSSFRhC1b6gl6xvmzUamgmqELraWp0J/qqVlXYPDPyA==, tarball: https://registry.npmmirror.com/ramda/-/ramda-0.29.1.tgz}
+    resolution: {integrity: sha512-OfxIeWzd4xdUNxlWhgFazxsA/nl3mS4/jGZI5n00uWOoSSFRhC1b6gl6xvmzUamgmqELraWp0J/qqVlXYPDPyA==}
     dev: true
 
   /range-parser@1.2.1:
@@ -17851,4 +17903,3 @@ time:
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@9.4.1: '2023-10-27T17:30:56.146Z'
   /safe-execa@0.1.2: '2022-07-18T01:09:17.517Z'
-  /sort-keys@4.2.0: '2020-12-30T07:11:45.350Z'
