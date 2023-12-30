@@ -74,7 +74,7 @@ export async function linkPackages (
     virtualStoreDir: string
     wantedLockfile: Lockfile
     wantedToBeSkippedPackageIds: Set<string>
-    hoistWorkspaceProjects?: boolean
+    hoistWorkspacePackages?: boolean
   }
 ): Promise<{
     currentLockfile: Lockfile
@@ -227,15 +227,15 @@ export async function linkPackages (
       publicHoistedModulesDir: opts.rootModulesDir,
       publicHoistPattern: opts.publicHoistPattern ?? [],
       virtualStoreDir: opts.virtualStoreDir,
-      hoistedWorkspaceProjects: opts.hoistWorkspaceProjects
-        ? projects.reduce((hoistedWorkspaceProjects, project) => {
+      hoistedWorkspacePackages: opts.hoistWorkspacePackages
+        ? projects.reduce((hoistedWorkspacePackages, project) => {
           if (project.manifest.name) {
-            hoistedWorkspaceProjects[project.id] = {
+            hoistedWorkspacePackages[project.id] = {
               dir: project.rootDir,
               name: project.manifest.name,
             }
           }
-          return hoistedWorkspaceProjects
+          return hoistedWorkspacePackages
         }, {} as Record<string, HoistedWorkspaceProject>)
         : undefined,
     })

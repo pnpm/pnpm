@@ -804,7 +804,7 @@ test('should not add extra node paths to command shims, when extend-node-path is
   expect(cmdShim).not.toContain('node_modules/.pnpm/node_modules')
 })
 
-test('hoistWorkspaceProjects should hoist all workspace projects', async () => {
+test('hoistWorkspacePackages should hoist all workspace projects', async () => {
   const workspaceRootManifest = {
     name: 'root',
 
@@ -892,7 +892,7 @@ test('hoistWorkspaceProjects should hoist all workspace projects', async () => {
   await mutateModules(mutatedProjects, await testDefaults({
     allProjects,
     hoistPattern: '*',
-    hoistWorkspaceProjects: true,
+    hoistWorkspacePackages: true,
     workspacePackages,
   }))
 
@@ -916,7 +916,7 @@ test('hoistWorkspaceProjects should hoist all workspace projects', async () => {
     allProjects,
     frozenLockfile: true,
     hoistPattern: '*',
-    hoistWorkspaceProjects: true,
+    hoistWorkspacePackages: true,
     workspacePackages,
   }))
   await projects['root'].has('.pnpm/node_modules/package')

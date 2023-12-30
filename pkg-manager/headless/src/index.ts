@@ -161,7 +161,7 @@ export interface HeadlessOptions {
   useGitBranchLockfile?: boolean
   useLockfile?: boolean
   supportedArchitectures?: SupportedArchitectures
-  hoistWorkspaceProjects?: boolean
+  hoistWorkspacePackages?: boolean
 }
 
 export interface InstallationResultStats {
@@ -425,15 +425,15 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         publicHoistedModulesDir,
         publicHoistPattern: opts.publicHoistPattern ?? [],
         virtualStoreDir,
-        hoistedWorkspaceProjects: opts.hoistWorkspaceProjects
-          ? Object.values(opts.allProjects).reduce((hoistedWorkspaceProjects, project) => {
+        hoistedWorkspacePackages: opts.hoistWorkspacePackages
+          ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
             if (project.manifest.name) {
-              hoistedWorkspaceProjects[project.id] = {
+              hoistedWorkspacePackages[project.id] = {
                 dir: project.rootDir,
                 name: project.manifest.name,
               }
             }
-            return hoistedWorkspaceProjects
+            return hoistedWorkspacePackages
           }, {} as Record<string, HoistedWorkspaceProject>)
           : undefined,
       })

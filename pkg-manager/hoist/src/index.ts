@@ -36,7 +36,7 @@ export async function hoist (opts: HoistOpts) {
     privateHoistedModulesDir: opts.privateHoistedModulesDir,
     publicHoistedModulesDir: opts.publicHoistedModulesDir,
     virtualStoreDir: opts.virtualStoreDir,
-    hoistedWorkspaceProjects: opts.hoistedWorkspaceProjects,
+    hoistedWorkspacePackages: opts.hoistedWorkspacePackages,
   })
 
   // Here we only link the bins of the privately hoisted modules.
@@ -60,7 +60,7 @@ export interface GetHoistedDependenciesOpts {
   privateHoistedModulesDir: string
   publicHoistPattern: string[]
   publicHoistedModulesDir: string
-  hoistedWorkspaceProjects?: Record<string, HoistedWorkspaceProject>
+  hoistedWorkspacePackages?: Record<string, HoistedWorkspaceProject>
 }
 
 export interface HoistedWorkspaceProject {
@@ -75,8 +75,9 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): Hoist
     opts.lockfile,
     opts.importerIds ?? Object.keys(opts.lockfile.importers)
   )
+  console.log(opts.hoistedWorkspacePackages)
   const hoistedWorkspaceDeps = Object.fromEntries(
-    Object.entries(opts.hoistedWorkspaceProjects ?? {})
+    Object.entries(opts.hoistedWorkspacePackages ?? {})
       .map(([id, { name }]) => [name, id])
   )
   const deps = [
@@ -240,7 +241,7 @@ async function symlinkHoistedDependencies (
     privateHoistedModulesDir: string
     publicHoistedModulesDir: string
     virtualStoreDir: string
-    hoistedWorkspaceProjects?: Record<string, HoistedWorkspaceProject>
+    hoistedWorkspacePackages?: Record<string, HoistedWorkspaceProject>
   }
 ) {
   const symlink = symlinkHoistedDependency.bind(null, opts)
@@ -259,7 +260,7 @@ async function symlinkHoistedDependencies (
             hoistLogger.debug({ hoistFailedFor: depPath })
             return
           }
-          depLocation = opts.hoistedWorkspaceProjects![depPath].dir
+          depLocation = opts.hoistedWorkspacePackages![depPath].dir
         }
         await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
           const targetDir = hoistType === 'public'

@@ -140,7 +140,7 @@ export interface StrictInstallOptions {
   disableRelinkLocalDirDeps: boolean
 
   supportedArchitectures?: SupportedArchitectures
-  hoistWorkspaceProjects?: boolean
+  hoistWorkspacePackages?: boolean
 }
 
 export type InstallOptions =
