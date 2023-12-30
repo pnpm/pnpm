@@ -217,7 +217,6 @@ export async function linkPackages (
       ...currentLockfile,
       packages: omit(Array.from(opts.skipped), currentLockfile.packages),
     }
-
     newHoistedDependencies = await hoist({
       extraNodePath: opts.extraNodePaths,
       lockfile: hoistLockfile,
