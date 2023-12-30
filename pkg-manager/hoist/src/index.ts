@@ -75,32 +75,27 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): Hoist
     opts.lockfile,
     opts.importerIds ?? Object.keys(opts.lockfile.importers)
   )
+  const hoistedWorkspaceDeps = Object.fromEntries(
+    Object.entries(opts.hoistedWorkspaceProjects ?? {})
+      .map(([id, { name }]) => [name, id])
+  )
   const deps = [
     {
-      children: directDeps
-        .reduce((acc, { alias, depPath }) => {
-          if (!acc[alias]) {
-            acc[alias] = depPath
-          }
-          return acc
-        }, {} as Record<string, string>),
+      children: {
+        ...hoistedWorkspaceDeps,
+        ...directDeps
+          .reduce((acc, { alias, depPath }) => {
+            if (!acc[alias]) {
+              acc[alias] = depPath
+            }
+            return acc
+          }, {} as Record<string, string>),
+      },
       depPath: '',
       depth: -1,
     },
     ...getDependencies(0, step),
   ]
-
-  if (opts.hoistedWorkspaceProjects) {
-    const children = Object.fromEntries(
-      Object.entries(opts.hoistedWorkspaceProjects)
-        .map(([id, { name }]) => [name, id])
-    )
-    deps.push({
-      children,
-      depPath: '',
-      depth: -1,
-    })
-  }
 
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
