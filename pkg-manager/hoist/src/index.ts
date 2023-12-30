@@ -90,19 +90,19 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): Hoist
     ...getDependencies(0, step),
   ]
 
-  const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
-
   if (opts.hoistedWorkspaceProjects) {
-    for (const [id, { name }] of Object.entries(opts.hoistedWorkspaceProjects)) {
-      deps.push({
-        children: {
-          [name]: id,
-        },
-        depPath: '',
-        depth: -1,
-      })
-    }
+    const children = Object.fromEntries(
+      Object.entries(opts.hoistedWorkspaceProjects)
+        .map(([id, { name }]) => [name, id])
+    )
+    deps.push({
+      children,
+      depPath: '',
+      depth: -1,
+    })
   }
+
+  const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
 
   return hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
     getAliasHoistType,
