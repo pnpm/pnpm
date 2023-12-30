@@ -75,7 +75,6 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): Hoist
     opts.lockfile,
     opts.importerIds ?? Object.keys(opts.lockfile.importers)
   )
-  console.log(opts.hoistedWorkspacePackages)
   const hoistedWorkspaceDeps = Object.fromEntries(
     Object.entries(opts.hoistedWorkspacePackages ?? {})
       .map(([id, { name }]) => [name, id])
@@ -247,20 +246,20 @@ async function symlinkHoistedDependencies (
   const symlink = symlinkHoistedDependency.bind(null, opts)
   await Promise.all(
     Object.entries(hoistedDependencies)
-      .map(async ([depPath, pkgAliases]) => {
-        const pkgSnapshot = opts.lockfile.packages![depPath]
+      .map(async ([hoistedDepId, pkgAliases]) => {
+        const pkgSnapshot = opts.lockfile.packages![hoistedDepId]
         let depLocation!: string
         if (pkgSnapshot) {
-          const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
-          const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
+          const pkgName = nameVerFromPkgSnapshot(hoistedDepId, pkgSnapshot).name
+          const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(hoistedDepId), 'node_modules')
           depLocation = path.join(modules, pkgName as string)
         } else {
-          if (!opts.lockfile.importers[depPath]) {
+          if (!opts.lockfile.importers[hoistedDepId]) {
             // This dependency is probably a skipped optional dependency.
-            hoistLogger.debug({ hoistFailedFor: depPath })
+            hoistLogger.debug({ hoistFailedFor: hoistedDepId })
             return
           }
-          depLocation = opts.hoistedWorkspacePackages![depPath].dir
+          depLocation = opts.hoistedWorkspacePackages![hoistedDepId].dir
         }
         await Promise.all(Object.entries(pkgAliases).map(async ([pkgAlias, hoistType]) => {
           const targetDir = hoistType === 'public'
