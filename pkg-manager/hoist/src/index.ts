@@ -75,6 +75,10 @@ export function getHoistedDependencies (opts: GetHoistedDependenciesOpts): Hoist
     opts.lockfile,
     opts.importerIds ?? Object.keys(opts.lockfile.importers)
   )
+  // We want to hoist all the workspace packages, not only those that are in the dependencies
+  // of any other workspace packages.
+  // That is why we can't just simply use the lockfile walker to include links to local workspace packages too.
+  // We have to explicitly include all the workspace packages.
   const hoistedWorkspaceDeps = Object.fromEntries(
     Object.entries(opts.hoistedWorkspacePackages ?? {})
       .map(([id, { name }]) => [name, id])
