@@ -40,9 +40,9 @@ test('deploy', async () => {
         'is-odd': '1.0.0',
       },
     },
-  ]);
+  ])
 
-  ['project-1', 'project-2', 'project-3'].forEach(name => {
+  ; ['project-1', 'project-2', 'project-3'].forEach(name => {
     fs.writeFileSync(`${name}/test.js`, '', 'utf8')
     fs.writeFileSync(`${name}/index.js`, '', 'utf8')
   })
@@ -76,7 +76,7 @@ test('deploy', async () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
 
-test('deploy fail when out dir exists', async () => {
+test('deploy fails when the destination directory exists and is not empty', async () => {
   preparePackages([
     {
       name: 'project',
@@ -112,7 +112,7 @@ test('deploy fail when out dir exists', async () => {
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 })
 
-test('deploy succeeds with warning when out dir exists with --force', async () => {
+test('forced deploy succeeds with a warning when destination directory exists and is not empty', async () => {
   const warnMock = jest.spyOn(logger, 'warn')
 
   preparePackages([
