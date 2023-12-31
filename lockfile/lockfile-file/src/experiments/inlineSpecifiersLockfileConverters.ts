@@ -14,11 +14,8 @@ export function isExperimentalInlineSpecifiersFormat (
 }
 
 export function convertToInlineSpecifiersFormat (lockfile: Lockfile): InlineSpecifiersLockfile {
-  let importers = lockfile.importers
-  let packages = lockfile.packages
   const newLockfile = {
     ...lockfile,
-    packages,
     lockfileVersion: lockfile.lockfileVersion.toString().startsWith('6.')
       ? lockfile.lockfileVersion.toString()
       : (
@@ -26,7 +23,7 @@ export function convertToInlineSpecifiersFormat (lockfile: Lockfile): InlineSpec
           ? lockfile.lockfileVersion.toString()
           : `${lockfile.lockfileVersion}${INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX}`
       ),
-    importers: mapValues(importers, convertProjectSnapshotToInlineSpecifiersFormat),
+    importers: mapValues(lockfile.importers, convertProjectSnapshotToInlineSpecifiersFormat),
   }
   return newLockfile
 }
@@ -46,13 +43,10 @@ export function revertFromInlineSpecifiersFormat (lockfile: InlineSpecifiersLock
     throw new Error(`Unable to revert lockfile from inline specifiers format. Invalid version parsed: ${originalVersionStr}`)
   }
 
-  let revertedImporters = mapValues(importers, revertProjectSnapshot)
-  let packages = lockfile.packages
   const newLockfile = {
     ...rest,
     lockfileVersion: lockfileVersion.endsWith(INLINE_SPECIFIERS_FORMAT_LOCKFILE_VERSION_SUFFIX) ? originalVersion : lockfileVersion,
-    packages,
-    importers: revertedImporters,
+    importers: mapValues(importers, revertProjectSnapshot),
   }
   return newLockfile
 }
