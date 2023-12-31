@@ -110,7 +110,7 @@ test('skipIfHasSideEffectsCache', async () => {
 
   let modules = await project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
-    '/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0',
+    '/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
   ])
 
   const modulesManifest = await project.readModulesManifest()
@@ -224,7 +224,7 @@ test('rebuild with pending option', async () => {
 
   let modules = await project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
-    '/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0',
+    '/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
     'github.com/pnpm-e2e/install-scripts-example/b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b',
   ])
 

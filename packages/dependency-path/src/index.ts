@@ -172,6 +172,7 @@ function depPathToFilenameUnescaped (depPath: string) {
       depPath = depPath.substring(1)
     }
     const index = depPath.indexOf('@', 1)
+    if (index === -1) return depPath
     return `${depPath.substring(0, index)}@${depPath.slice(index + 1)}`
   }
   return depPath.replace(':', '+')
