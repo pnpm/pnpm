@@ -72,7 +72,7 @@ test('installing a simple project', async () => {
   } as StageLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative@2.1.0`,
     requester: prefix,
     status: 'resolved',
   })).toBeTruthy()
