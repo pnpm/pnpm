@@ -123,7 +123,6 @@ export function parse (dependencyPath: string) {
   }
   const name = dependencyPath.substring(1, sepIndex)
   let version = dependencyPath.substring(sepIndex + 1)
-  console.log(name, version)
   if (version) {
     let peerSepIndex!: number
     let peersSuffix: string | undefined

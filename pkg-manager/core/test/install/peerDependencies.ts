@@ -551,7 +551,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   const pkgVariation1 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`/@pnpm.e2e/abc/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`/@pnpm.e2e/abc@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
     'node_modules'
   )
   await okFile(path.join(pkgVariation1, '@pnpm.e2e/abc'))
@@ -562,7 +562,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   const pkgVariation2 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`/@pnpm.e2e/abc/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`/@pnpm.e2e/abc@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
     'node_modules'
   )
   await okFile(path.join(pkgVariation2, '@pnpm.e2e/abc'))
@@ -590,7 +590,7 @@ test('peer dependencies are linked when running two separate named installations
 
   const pkgVariation1 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`/@pnpm.e2e/abc/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`/@pnpm.e2e/abc@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
     'node_modules'
   )
   await okFile(path.join(pkgVariation1, '@pnpm.e2e/abc'))
@@ -601,7 +601,7 @@ test('peer dependencies are linked when running two separate named installations
 
   const pkgVariation2 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`/@pnpm.e2e/abc/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '2.0.0' }])}`),
+    depPathToFilename(`/@pnpm.e2e/abc@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '2.0.0' }])}`),
     'node_modules'
   )
   await okFile(path.join(pkgVariation2, '@pnpm.e2e/abc'))
@@ -662,7 +662,7 @@ test('peer bins are linked', async () => {
   await addDependenciesToPackage({}, ['@pnpm.e2e/for-testing-peers-having-bins'], await testDefaults({ fastUnpack: false }))
 
   const suffix = createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-with-bin', version: '1.0.0' }])
-  const pkgVariation = path.join('.pnpm', depPathToFilename(`/@pnpm.e2e/pkg-with-peer-having-bin/1.0.0${suffix}`), 'node_modules')
+  const pkgVariation = path.join('.pnpm', depPathToFilename(`/@pnpm.e2e/pkg-with-peer-having-bin@1.0.0${suffix}`), 'node_modules')
 
   await project.isExecutable(path.join(pkgVariation, '@pnpm.e2e/pkg-with-peer-having-bin/node_modules/.bin', 'peer-with-bin'))
 
