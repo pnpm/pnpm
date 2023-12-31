@@ -147,7 +147,7 @@ describe('pnpm dedupe', () => {
     })
   })
 
-  describe('respects cli args from install command', () => {
+  describe('respects (most) cli args from install command', () => {
     test('uses --store-dir arg', async () => {
       const project = prepare({
         dependencies: {
@@ -179,6 +179,18 @@ describe('pnpm dedupe', () => {
         '--store-dir=local-store-dir',
       ])
       expect(fs.existsSync(storeDir)).toBeTruthy()
+    })
+
+    test('does not accept --frozen-lockfile', async () => {
+      prepare()
+      await expect(execa('node', [
+        pnpmBin,
+        'dedupe',
+        `--registry=${REGISTRY}`,
+        `--store-dir=${path.resolve(DEFAULT_OPTS.storeDir)}`,
+        `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
+        '--frozen-lockfile',
+      ])).rejects.toThrow("Unknown option: 'frozen-lockfile'")
     })
   })
 })
