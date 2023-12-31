@@ -132,12 +132,6 @@ export function parse (dependencyPath: string) {
         peersSuffix = version.substring(peerSepIndex)
         version = version.substring(0, peerSepIndex)
       }
-    } else {
-      peerSepIndex = version.indexOf('_')
-      if (peerSepIndex !== -1) {
-        peersSuffix = version.substring(peerSepIndex + 1)
-        version = version.substring(0, peerSepIndex)
-      }
     }
     if (semver.valid(version)) {
       return {

@@ -91,7 +91,7 @@ test('redundant fields are removed from "time"', () => {
           bar: '1.0.0',
         },
         devDependencies: {
-          foo: '1.0.0_react@18.0.0',
+          foo: '1.0.0(react@18.0.0)',
         },
         optionalDependencies: {
           qar: '1.0.0',
@@ -120,7 +120,7 @@ test('redundant fields are removed from "time"', () => {
           bar: '1.0.0',
         },
         devDependencies: {
-          foo: '1.0.0_react@18.0.0',
+          foo: '1.0.0(react@18.0.0)',
         },
         optionalDependencies: {
           qar: '1.0.0',

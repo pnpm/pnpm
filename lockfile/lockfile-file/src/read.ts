@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 import {
-  LOCKFILE_VERSION_V6,
+  LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -149,7 +149,7 @@ export function createLockfileObject (
   }, {} as Lockfile['importers'])
   return {
     importers,
-    lockfileVersion: opts.lockfileVersion || LOCKFILE_VERSION_V6,
+    lockfileVersion: opts.lockfileVersion || LOCKFILE_VERSION,
     settings: {
       autoInstallPeers: opts.autoInstallPeers,
       excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
