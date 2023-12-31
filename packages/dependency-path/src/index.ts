@@ -50,10 +50,6 @@ export function tryGetPackageId (registries: Registries, relDepPath: string) {
   if (sepIndex !== -1) {
     return resolve(registries, relDepPath.substring(0, sepIndex))
   }
-  const underscoreIndex = relDepPath.indexOf('_', relDepPath.lastIndexOf('/'))
-  if (underscoreIndex !== -1) {
-    return resolve(registries, relDepPath.slice(0, underscoreIndex))
-  }
   return resolve(registries, relDepPath)
 }
 
