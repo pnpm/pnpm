@@ -1,5 +1,5 @@
 import { docsUrl } from '@pnpm/cli-utils'
-import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
+import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { dedupeDiffCheck } from '@pnpm/dedupe.check'
 import renderHelp from 'render-help'
 import { type InstallCommandOptions } from './install'
@@ -32,10 +32,7 @@ export function help () {
             description: 'Check if running dedupe would result in changes without installing packages or editing the lockfile. Exits with a non-zero status code if changes are possible.',
             name: '--check',
           },
-          {
-            description: "Don't run lifecycle scripts",
-            name: '--ignore-scripts',
-          },
+          OPTIONS.ignoreScripts,
         ],
       },
     ],
