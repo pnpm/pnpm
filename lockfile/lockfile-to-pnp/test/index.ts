@@ -178,7 +178,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
     importers: {
       importer: {
         dependencies: {
-          haspeer: '2.0.0_peer@1.0.0',
+          haspeer: '2.0.0(peer@1.0.0)',
           peer: '1.0.0',
         },
         specifiers: {},
@@ -186,7 +186,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
     },
     lockfileVersion: 5,
     packages: {
-      '/haspeer@2.0.0_peer@1.0.0': {
+      '/haspeer@2.0.0(peer@1.0.0)': {
         dependencies: {
           peer: '1.0.0',
         },
@@ -244,7 +244,7 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
           {
             packageDependencies: [
               ['importer', 'importer'],
-              ['haspeer', 'virtual:2.0.0_peer@1.0.0#2.0.0'],
+              ['haspeer', 'virtual:2.0.0(peer@1.0.0)#2.0.0'],
               ['peer', '1.0.0'],
             ],
             packageLocation: './importer',
@@ -256,10 +256,10 @@ test('lockfileToPackageRegistry packages that have peer deps', () => {
       'haspeer',
       [
         [
-          'virtual:2.0.0_peer@1.0.0#2.0.0',
+          'virtual:2.0.0(peer@1.0.0)#2.0.0',
           {
             packageDependencies: [
-              ['haspeer', 'virtual:2.0.0_peer@1.0.0#2.0.0'],
+              ['haspeer', 'virtual:2.0.0(peer@1.0.0)#2.0.0'],
               ['peer', '1.0.0'],
             ],
             packageLocation: './node_modules/.pnpm/haspeer@2.0.0_peer@1.0.0/node_modules/haspeer',
