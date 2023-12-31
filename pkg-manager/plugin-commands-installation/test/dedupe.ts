@@ -146,6 +146,41 @@ describe('pnpm dedupe', () => {
       expect(fs.existsSync(storeDir)).toBeTruthy()
     })
   })
+
+  describe('respects cli args from install command', () => {
+    test('uses --store-dir arg', async () => {
+      const project = prepare({
+        dependencies: {
+          'is-positive': '3.1.0',
+        },
+      })
+
+      // Sanity check that the first "pnpm install" creates the store in the expected location.
+      await execa('node', [
+        pnpmBin,
+        'install',
+        `--registry=${REGISTRY}`,
+        `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
+        '--store-dir=local-store-dir',
+      ])
+      const storeDir = path.join(project.dir(), 'local-store-dir')
+      expect(fs.existsSync(storeDir)).toBeTruthy()
+
+      // Running "pnpm dedupe" should recreate the store dir. Clear it to ensure this happens.
+      await rimraf(storeDir)
+      await rimraf(path.join(project.dir(), 'node_modules'))
+      expect(fs.existsSync(storeDir)).toBeFalsy()
+
+      await execa('node', [
+        pnpmBin,
+        'dedupe',
+        `--registry=${REGISTRY}`,
+        `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
+        '--store-dir=local-store-dir',
+      ])
+      expect(fs.existsSync(storeDir)).toBeTruthy()
+    })
+  })
 })
 
 const noColor = (str: string) => str
