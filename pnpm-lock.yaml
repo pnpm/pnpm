@@ -227,8 +227,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manager/modules-yaml
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -264,8 +264,8 @@ importers:
   __utils__/assert-store:
     dependencies:
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@pnpm/store.cafs':
         specifier: workspace:*
         version: link:../../store/cafs
@@ -1292,8 +1292,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -1410,8 +1410,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@types/is-windows':
         specifier: ^1.0.2
         version: 1.0.2
@@ -2833,8 +2833,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -3090,8 +3090,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -3366,8 +3366,8 @@ importers:
         specifier: workspace:*
         version: link:../read-projects-context
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@pnpm/store-path':
         specifier: workspace:*
         version: link:../../store/store-path
@@ -3720,8 +3720,8 @@ importers:
         specifier: workspace:*
         version: 'link:'
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -3913,8 +3913,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -4467,8 +4467,8 @@ importers:
         specifier: workspace:*
         version: link:../pkg-manifest/read-project-manifest
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@pnpm/run-npm':
         specifier: workspace:*
         version: link:../exec/run-npm
@@ -4721,8 +4721,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
 
   releasing/plugin-commands-publishing:
     dependencies:
@@ -4818,8 +4818,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@types/cross-spawn':
         specifier: ^6.0.5
         version: 6.0.5
@@ -5369,8 +5369,8 @@ importers:
         specifier: workspace:*
         version: link:../../pkg-manifest/read-package-json
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5433,8 +5433,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -5527,8 +5527,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
@@ -5859,8 +5859,8 @@ importers:
         specifier: workspace:*
         version: link:../../__utils__/prepare
       '@pnpm/registry-mock':
-        specifier: 3.17.1
-        version: 3.17.1(typanion@3.14.0)
+        specifier: 3.18.0
+        version: 3.18.0(typanion@3.14.0)
       '@types/archy':
         specifier: 0.0.33
         version: 0.0.33
@@ -8580,24 +8580,6 @@ packages:
       strip-bom: 4.0.0
     dev: true
 
-  /@pnpm/registry-mock@3.17.1(typanion@3.14.0):
-    resolution: {integrity: sha512-rlqq9VQ8BgLlaV8JIb3V61YUixCN+06u9TxATX6hrfckHZB/QDL//+j8ijGa8U9Fg72mnrBFRlS4hxrm2VDhwg==}
-    engines: {node: '>=10.13'}
-    hasBin: true
-    dependencies:
-      anonymous-npm-registry-client: 0.2.0
-      execa: 5.1.1
-      fs-extra: 11.2.0
-      read-yaml-file: 2.1.0
-      rimraf: 3.0.2
-      tempy: 1.0.1
-      verdaccio: 5.20.1(typanion@3.14.0)
-      write-yaml-file: 4.2.0
-    transitivePeerDependencies:
-      - encoding
-      - supports-color
-      - typanion
-
   /@pnpm/registry-mock@3.18.0(typanion@3.14.0):
     resolution: {integrity: sha512-Zyr2pe9gld5OcuUAF69hzAs2ZBzUy/jwoS0kRgzt4mtvMns5WaPgH4GZmOaJkeIJg7hUYfXd4dCTAjAHqmx1oA==}
     engines: {node: '>=10.13'}
@@ -8615,7 +8597,6 @@ packages:
       - encoding
       - supports-color
       - typanion
-    dev: true
 
   /@pnpm/render-peer-issues@4.0.1:
     resolution: {integrity: sha512-+SsNmbBHH7lBsFrs6dQCEWRtT+Bmq9MYxu+xgkXRplyvjSEQmM0h/UduIw5s8ZAlUuQcxNVTvl0b7ul6OPEIwg==}
@@ -9733,7 +9714,7 @@ packages:
     dev: true
 
   /anonymous-npm-registry-client@0.2.0:
-    resolution: {integrity: sha512-ym3GCDQU8B6PZrswCvanRiWoSg2QrrlPwoRlMr4oCpGvyK2KlwTujdCZfxrGapqxrqEY3TpxEqLf+7PhFnyaLA==, tarball: https://registry.npmmirror.com/anonymous-npm-registry-client/-/anonymous-npm-registry-client-0.2.0.tgz}
+    resolution: {integrity: sha512-ym3GCDQU8B6PZrswCvanRiWoSg2QrrlPwoRlMr4oCpGvyK2KlwTujdCZfxrGapqxrqEY3TpxEqLf+7PhFnyaLA==}
     dependencies:
       concat-stream: 1.6.2
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
@@ -12195,7 +12176,7 @@ packages:
       universalify: 2.0.1
 
   /fs-extra@4.0.3:
-    resolution: {integrity: sha512-q6rbdDd1o2mAnQreO7YADIxf/Whx4AHBiRf6d+/cVT8h44ss+lHgxf1FemcqDnQt9X3ct4McHr+JMGlYSsK7Cg==, tarball: https://registry.npmmirror.com/fs-extra/-/fs-extra-4.0.3.tgz}
+    resolution: {integrity: sha512-q6rbdDd1o2mAnQreO7YADIxf/Whx4AHBiRf6d+/cVT8h44ss+lHgxf1FemcqDnQt9X3ct4McHr+JMGlYSsK7Cg==}
     dependencies:
       graceful-fs: 4.2.11(patch_hash=ivtm2a2cfr5pomcfbedhmr5v2q)
       jsonfile: 4.0.0
@@ -12475,7 +12456,7 @@ packages:
     dev: true
 
   /glob@6.0.4:
-    resolution: {integrity: sha512-MKZeRNyYZAVVVG1oZeLaWie1uweH40m9AZwIwxyPbTSX4hHrVYSzLg0Ro5Z5R7XKkIX+Cc6oD1rqeDJnwsB8/A==, tarball: https://registry.npmmirror.com/glob/-/glob-6.0.4.tgz}
+    resolution: {integrity: sha512-MKZeRNyYZAVVVG1oZeLaWie1uweH40m9AZwIwxyPbTSX4hHrVYSzLg0Ro5Z5R7XKkIX+Cc6oD1rqeDJnwsB8/A==}
     dependencies:
       inflight: 1.0.6
       inherits: 2.0.4
@@ -15949,7 +15930,7 @@ packages:
     dev: true
 
   /rimraf@2.4.5:
-    resolution: {integrity: sha512-J5xnxTyqaiw06JjMftq7L9ouA448dw/E7dKghkP9WpKNuwmARNNg+Gk8/u5ryb9N/Yo2+z3MCwuqFK/+qPOPfQ==, tarball: https://registry.npmmirror.com/rimraf/-/rimraf-2.4.5.tgz}
+    resolution: {integrity: sha512-J5xnxTyqaiw06JjMftq7L9ouA448dw/E7dKghkP9WpKNuwmARNNg+Gk8/u5ryb9N/Yo2+z3MCwuqFK/+qPOPfQ==}
     hasBin: true
     dependencies:
       glob: 6.0.4
