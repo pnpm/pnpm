@@ -44,7 +44,7 @@ test('fall back to a newer version if there is no version published by the given
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/bad-dates/1.0.0')
+  expect(resolveResult!.id).toBe('registry.npmjs.org/bad-dates@1.0.0')
 })
 
 test('request metadata when the one in cache does not have a version satisfying the range', async () => {
@@ -73,5 +73,5 @@ test('request metadata when the one in cache does not have a version satisfying 
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/bad-dates/1.0.0')
+  expect(resolveResult!.id).toBe('registry.npmjs.org/bad-dates@1.0.0')
 })

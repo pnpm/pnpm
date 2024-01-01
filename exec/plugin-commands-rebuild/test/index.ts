@@ -36,7 +36,7 @@ test('rebuilds dependencies', async () => {
 
   let modules = await project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
-    '/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0',
+    '/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
     'github.com/pnpm/test-git-fetch/299c6d89507571462b992b92407a8a07663e32ee',
   ])
 
@@ -78,7 +78,7 @@ test('rebuilds dependencies', async () => {
   const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
   const cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin/1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
   delete cacheIntegrity!.sideEffects[sideEffectsKey]['generated-by-postinstall.js']
 })
@@ -110,7 +110,7 @@ test('skipIfHasSideEffectsCache', async () => {
 
   let modules = await project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
-    '/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0',
+    '/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
   ])
 
   const modulesManifest = await project.readModulesManifest()
@@ -224,7 +224,7 @@ test('rebuild with pending option', async () => {
 
   let modules = await project.readModulesManifest()
   expect(modules!.pendingBuilds).toStrictEqual([
-    '/@pnpm.e2e/pre-and-postinstall-scripts-example/1.0.0',
+    '/@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
     'github.com/pnpm-e2e/install-scripts-example/b6cfdb8af6f8d5ebc5e7de6831af9d38084d765b',
   ])
 

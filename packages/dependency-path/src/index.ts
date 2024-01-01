@@ -50,10 +50,6 @@ export function tryGetPackageId (registries: Registries, relDepPath: string) {
   if (sepIndex !== -1) {
     return resolve(registries, relDepPath.substring(0, sepIndex))
   }
-  const underscoreIndex = relDepPath.indexOf('_', relDepPath.lastIndexOf('/'))
-  if (underscoreIndex !== -1) {
-    return resolve(registries, relDepPath.slice(0, underscoreIndex))
-  }
   return resolve(registries, relDepPath)
 }
 
@@ -104,7 +100,7 @@ export function refToRelative (
     return reference
   }
   if (!reference.includes('/') || reference.includes('(') && reference.lastIndexOf('/', reference.indexOf('(')) === -1) {
-    return `/${pkgName}/${reference}`
+    return `/${pkgName}@${reference}`
   }
   return reference
 }
@@ -117,18 +113,12 @@ export function parse (dependencyPath: string) {
       dependencyPath === null ? 'null' : typeof dependencyPath
     }\``)
   }
-  const _isAbsolute = isAbsolute(dependencyPath)
-  const parts = dependencyPath.split('/')
-  if (!_isAbsolute) parts.shift()
-  const host = _isAbsolute ? parts.shift() : undefined
-  if (parts.length === 0) return {
-    host,
-    isAbsolute: _isAbsolute,
+  const sepIndex = dependencyPath.indexOf('@', 2)
+  if (sepIndex === -1) {
+    return {}
   }
-  const name = parts[0][0] === '@'
-    ? `${parts.shift()}/${parts.shift()}`
-    : parts.shift()
-  let version = parts.join('/')
+  const name = dependencyPath.substring(1, sepIndex)
+  let version = dependencyPath.substring(sepIndex + 1)
   if (version) {
     let peerSepIndex!: number
     let peersSuffix: string | undefined
@@ -138,27 +128,16 @@ export function parse (dependencyPath: string) {
         peersSuffix = version.substring(peerSepIndex)
         version = version.substring(0, peerSepIndex)
       }
-    } else {
-      peerSepIndex = version.indexOf('_')
-      if (peerSepIndex !== -1) {
-        peersSuffix = version.substring(peerSepIndex + 1)
-        version = version.substring(0, peerSepIndex)
-      }
     }
     if (semver.valid(version)) {
       return {
-        host,
-        isAbsolute: _isAbsolute,
         name,
         peersSuffix,
         version,
       }
     }
   }
-  if (!_isAbsolute) throw new Error(`${dependencyPath} is an invalid relative dependency path`)
   return {
-    host,
-    isAbsolute: _isAbsolute,
   }
 }
 
@@ -182,7 +161,8 @@ function depPathToFilenameUnescaped (depPath: string) {
     if (depPath[0] === '/') {
       depPath = depPath.substring(1)
     }
-    const index = depPath.lastIndexOf('/', depPath.includes('(') ? depPath.indexOf('(') - 1 : depPath.length)
+    const index = depPath.indexOf('@', 1)
+    if (index === -1) return depPath
     return `${depPath.substring(0, index)}@${depPath.slice(index + 1)}`
   }
   return depPath.replace(':', '+')

@@ -293,7 +293,7 @@ test('should not update when adding unrelated dependency', async () => {
   let manifest = JSON.parse(fs.readFileSync('./package.json', 'utf8'))
   await install(manifest, await testDefaults({ preferFrozenLockfile: false, dir: withGitProtocolDepFixture, lockfileDir: withGitProtocolDepFixture }))
 
-  expect(fs.existsSync('./node_modules/.pnpm/github.com+kevva+is-negative@219c424611ff4a2af15f7deeff4f93c62558c43d')).toBe(true)
+  expect(fs.existsSync('./node_modules/.pnpm/github.com+kevva+is-negative+219c424611ff4a2af15f7deeff4f93c62558c43d')).toBe(true)
 
   manifest = await addDependenciesToPackage(manifest, ['is-number'], await testDefaults({ preferFrozenLockfile: false }))
 
@@ -302,7 +302,7 @@ test('should not update when adding unrelated dependency', async () => {
 
   const project = assertProject(withGitProtocolDepFixture)
   await project.has('is-number')
-  expect(fs.existsSync('./node_modules/.pnpm/github.com+kevva+is-negative@219c424611ff4a2af15f7deeff4f93c62558c43d')).toBe(true)
+  expect(fs.existsSync('./node_modules/.pnpm/github.com+kevva+is-negative+219c424611ff4a2af15f7deeff4f93c62558c43d')).toBe(true)
   expect((await project.readLockfile()).dependencies).toEqual({
     'is-negative': {
       specifier: 'github:kevva/is-negative#master',

@@ -73,7 +73,7 @@ test('installing a simple project', async () => {
   } as StageLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative@2.1.0`,
     requester: prefix,
     status: 'resolved',
   })).toBeTruthy()
@@ -360,7 +360,7 @@ test('run pre/postinstall scripts', async () => {
   const nmPath = path.join(prefix, 'node_modules')
   const modulesYaml = await readModulesManifest(nmPath)
   expect(modulesYaml).toBeTruthy()
-  expect(modulesYaml!.pendingBuilds).toStrictEqual(['.', '/@pnpm.e2e/pre-and-postinstall-scripts-example/2.0.0'])
+  expect(modulesYaml!.pendingBuilds).toStrictEqual(['.', '/@pnpm.e2e/pre-and-postinstall-scripts-example@2.0.0'])
 })
 
 test('orphan packages are removed', async () => {
@@ -425,13 +425,13 @@ test('available packages are used when node_modules is not clean', async () => {
 
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.2`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/balanced-match@1.0.2`,
     requester: projectDir,
     status: 'resolved',
   })).toBeFalsy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/rimraf/2.7.1`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/rimraf@2.7.1`,
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
@@ -462,13 +462,13 @@ test('available packages are relinked during forced install', async () => {
 
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.2`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/balanced-match@1.0.2`,
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/rimraf/2.7.1`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/rimraf@2.7.1`,
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
@@ -585,14 +585,14 @@ test('installing with hoistPattern=*', async () => {
   } as StageLog))
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative@2.1.0`,
     requester: prefix,
     status: 'resolved',
   }))
 
   const modules = await project.readModulesManifest()
 
-  expect(modules!.hoistedDependencies['/balanced-match/1.0.2']).toStrictEqual({ 'balanced-match': 'private' })
+  expect(modules!.hoistedDependencies['/balanced-match@1.0.2']).toStrictEqual({ 'balanced-match': 'private' })
 })
 
 test('installing with publicHoistPattern=*', async () => {
@@ -641,14 +641,14 @@ test('installing with publicHoistPattern=*', async () => {
   } as StageLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative@2.1.0`,
     requester: prefix,
     status: 'resolved',
   })).toBeTruthy()
 
   const modules = await project.readModulesManifest()
 
-  expect(modules!.hoistedDependencies['/balanced-match/1.0.2']).toStrictEqual({ 'balanced-match': 'public' })
+  expect(modules!.hoistedDependencies['/balanced-match@1.0.2']).toStrictEqual({ 'balanced-match': 'public' })
 })
 
 test('installing with publicHoistPattern=* in a project with external lockfile', async () => {
@@ -685,7 +685,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
   const cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin/1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
   delete cacheIntegrity!.sideEffects[sideEffectsKey]['generated-by-postinstall.js']
 

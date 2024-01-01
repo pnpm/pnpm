@@ -11,7 +11,7 @@ import {
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import resolveLinkTarget from 'resolve-link-target'
-import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
 import symlinkDir from 'symlink-dir'
 import writeYamlFile from 'write-yaml-file'
@@ -159,7 +159,7 @@ test('should rehoist when uninstalling a package', async () => {
 
   const modules = await project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.hoistedDependencies['/debug/2.6.9']).toStrictEqual({ debug: 'private' })
+  expect(modules!.hoistedDependencies['/debug@2.6.9']).toStrictEqual({ debug: 'private' })
 })
 
 test('should rehoist after running a general install', async () => {
@@ -248,7 +248,7 @@ test('hoist by alias', async () => {
 
   const modules = await project.readModulesManifest()
   expect(modules).toBeTruthy()
-  expect(modules!.hoistedDependencies).toStrictEqual({ '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.1.0': { dep: 'private' } })
+  expect(modules!.hoistedDependencies).toStrictEqual({ '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': { dep: 'private' } })
 })
 
 test('should remove aliased hoisted dependencies', async () => {
@@ -481,8 +481,8 @@ test('hoist when updating in one of the workspace projects', async () => {
   {
     const modulesManifest = await rootModules.readModulesManifest()
     expect(modulesManifest?.hoistedDependencies).toStrictEqual({
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0': { '@pnpm.e2e/dep-of-pkg-with-1-dep': 'private' },
-      '/@pnpm.e2e/foo/100.0.0': { '@pnpm.e2e/foo': 'private' },
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': { '@pnpm.e2e/dep-of-pkg-with-1-dep': 'private' },
+      '/@pnpm.e2e/foo@100.0.0': { '@pnpm.e2e/foo': 'private' },
     })
   }
 
@@ -510,7 +510,7 @@ test('hoist when updating in one of the workspace projects', async () => {
   {
     const modulesManifest = await rootModules.readModulesManifest()
     expect(modulesManifest?.hoistedDependencies).toStrictEqual({
-      '/@pnpm.e2e/dep-of-pkg-with-1-dep/100.0.0': { '@pnpm.e2e/dep-of-pkg-with-1-dep': 'private' },
+      '/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0': { '@pnpm.e2e/dep-of-pkg-with-1-dep': 'private' },
     })
   }
 })
