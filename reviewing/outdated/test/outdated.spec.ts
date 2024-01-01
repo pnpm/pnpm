@@ -47,13 +47,13 @@ test('outdated()', async () => {
       },
       lockfileVersion: 5,
       packages: {
-        '/is-negative/2.1.0': {
+        '/is-negative@2.1.0': {
           dev: true,
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
-        '/is-positive/1.0.0': {
+        '/is-positive@1.0.0': {
           dev: true,
           resolution: {
             integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
@@ -110,12 +110,12 @@ test('outdated()', async () => {
       },
       lockfileVersion: 5,
       packages: {
-        '/is-negative/1.1.0': {
+        '/is-negative@1.1.0': {
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
-        '/is-positive/3.1.0': {
+        '/is-positive@3.1.0': {
           resolution: {
             integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
@@ -202,7 +202,7 @@ test('outdated() should return deprecated package even if its current version is
     },
     lockfileVersion: 5,
     packages: {
-      '/deprecated-pkg/1.0.0': {
+      '/deprecated-pkg@1.0.0': {
         dev: false,
         resolution: {
           integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
@@ -265,12 +265,12 @@ test('using a matcher', async () => {
       },
       lockfileVersion: 5,
       packages: {
-        '/is-negative/2.1.0': {
+        '/is-negative@2.1.0': {
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
-        '/is-positive/1.0.0': {
+        '/is-positive@1.0.0': {
           resolution: {
             integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
@@ -317,12 +317,12 @@ test('using a matcher', async () => {
       },
       lockfileVersion: 5,
       packages: {
-        '/is-negative/1.1.0': {
+        '/is-negative@1.1.0': {
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
-        '/is-positive/3.1.0': {
+        '/is-positive@3.1.0': {
           resolution: {
             integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
@@ -371,7 +371,7 @@ test('outdated() aliased dependency', async () => {
       importers: {
         '.': {
           dependencies: {
-            positive: '/is-positive/1.0.0',
+            positive: '/is-positive@1.0.0',
           },
           specifiers: {
             positive: 'npm:is-positive@^1.0.0',
@@ -380,7 +380,7 @@ test('outdated() aliased dependency', async () => {
       },
       lockfileVersion: 5,
       packages: {
-        '/is-positive/1.0.0': {
+        '/is-positive@1.0.0': {
           resolution: {
             integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           },
@@ -402,7 +402,7 @@ test('outdated() aliased dependency', async () => {
       importers: {
         '.': {
           dependencies: {
-            positive: '/is-positive/3.1.0',
+            positive: '/is-positive@3.1.0',
           },
           specifiers: {
             positive: 'npm:is-positive@^3.1.0',
@@ -411,7 +411,7 @@ test('outdated() aliased dependency', async () => {
       },
       lockfileVersion: 5,
       packages: {
-        '/is-positive/3.1.0': {
+        '/is-positive@3.1.0': {
           resolution: {
             integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },
@@ -456,19 +456,19 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
     },
     lockfileVersion: 5,
     packages: {
-      '/foo/1.0.0': {
+      '/foo@1.0.0': {
         dev: false,
         resolution: {
           integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
         },
       },
-      '/foo2/2.0.0-0': {
+      '/foo2@2.0.0-0': {
         dev: false,
         resolution: {
           integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
         },
       },
-      '/foo3/2.0.0': {
+      '/foo3@2.0.0': {
         dev: false,
         resolution: {
           integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
@@ -563,13 +563,13 @@ test('should ignore dependencies as expected', async () => {
       },
       lockfileVersion: 5,
       packages: {
-        '/is-negative/2.1.0': {
+        '/is-negative@2.1.0': {
           dev: true,
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
-        '/is-positive/1.0.0': {
+        '/is-positive@1.0.0': {
           dev: true,
           resolution: {
             integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
@@ -626,12 +626,12 @@ test('should ignore dependencies as expected', async () => {
       },
       lockfileVersion: 5,
       packages: {
-        '/is-negative/1.1.0': {
+        '/is-negative@1.1.0': {
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
-        '/is-positive/3.1.0': {
+        '/is-positive@3.1.0': {
           resolution: {
             integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
           },

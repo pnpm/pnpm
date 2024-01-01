@@ -54,7 +54,7 @@ test('request package', async () => {
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`)
+  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
   expect(pkgResponse.body.resolvedVia).toBe('npm-registry')
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
@@ -96,7 +96,7 @@ test('request package but skip fetching', async () => {
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`)
+  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest?.name).toBe('is-positive')
@@ -148,7 +148,7 @@ test('request package but skip fetching, when resolution is already available', 
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`)
+  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest.name).toBe('is-positive')
@@ -764,7 +764,7 @@ test('do not fetch an optional package that is not installable', async () => {
   expect(pkgResponse.body).toBeTruthy()
 
   expect(pkgResponse.body.isInstallable).toBe(false)
-  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/not-compatible-with-any-os/1.0.0`)
+  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/not-compatible-with-any-os@1.0.0`)
 
   expect(pkgResponse.fetching).toBeFalsy()
 })

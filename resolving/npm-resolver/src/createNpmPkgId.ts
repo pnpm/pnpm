@@ -6,5 +6,5 @@ export function createPkgId (
   pkgVersion: string
 ): string {
   const escapedRegistryHost = encodeRegistry(registry)
-  return `${escapedRegistryHost}/${pkgName}/${pkgVersion}`
+  return `${escapedRegistryHost}/${pkgName}@${pkgVersion}`
 }

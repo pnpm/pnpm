@@ -91,7 +91,7 @@ test('redundant fields are removed from "time"', () => {
           bar: '1.0.0',
         },
         devDependencies: {
-          foo: '1.0.0_react@18.0.0',
+          foo: '1.0.0(react@18.0.0)',
         },
         optionalDependencies: {
           qar: '1.0.0',
@@ -104,10 +104,10 @@ test('redundant fields are removed from "time"', () => {
       },
     },
     time: {
-      '/bar/1.0.0': '2021-02-11T22:54:29.120Z',
-      '/foo/1.0.0': '2021-02-11T22:54:29.120Z',
-      '/qar/1.0.0': '2021-02-11T22:54:29.120Z',
-      '/zoo/1.0.0': '2021-02-11T22:54:29.120Z',
+      '/bar@1.0.0': '2021-02-11T22:54:29.120Z',
+      '/foo@1.0.0': '2021-02-11T22:54:29.120Z',
+      '/qar@1.0.0': '2021-02-11T22:54:29.120Z',
+      '/zoo@1.0.0': '2021-02-11T22:54:29.120Z',
     },
   }, {
     forceSharedFormat: false,
@@ -120,7 +120,7 @@ test('redundant fields are removed from "time"', () => {
           bar: '1.0.0',
         },
         devDependencies: {
-          foo: '1.0.0_react@18.0.0',
+          foo: '1.0.0(react@18.0.0)',
         },
         optionalDependencies: {
           qar: '1.0.0',
@@ -133,9 +133,9 @@ test('redundant fields are removed from "time"', () => {
       },
     },
     time: {
-      '/bar/1.0.0': '2021-02-11T22:54:29.120Z',
-      '/foo/1.0.0': '2021-02-11T22:54:29.120Z',
-      '/qar/1.0.0': '2021-02-11T22:54:29.120Z',
+      '/bar@1.0.0': '2021-02-11T22:54:29.120Z',
+      '/foo@1.0.0': '2021-02-11T22:54:29.120Z',
+      '/qar@1.0.0': '2021-02-11T22:54:29.120Z',
     },
   })
 })

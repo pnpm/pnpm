@@ -29,7 +29,7 @@ test('writeLockfiles()', async () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-negative/1.0.0': {
+      '/is-negative@1.0.0': {
         os: ['darwin'],
         dependencies: {
           'is-positive': '2.0.0',
@@ -44,12 +44,12 @@ test('writeLockfiles()', async () => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive/1.0.0': {
+      '/is-positive@1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive/2.0.0': {
+      '/is-positive@2.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -109,7 +109,7 @@ test('write does not use yaml anchors/aliases', async () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: yaml`
-      /react-dnd/2.5.4/react@15.6.1:
+      /react-dnd@2.5.4(react@15.6.1):
         dependencies:
           disposables: 1.0.2
           dnd-core: 2.5.4
@@ -124,7 +124,7 @@ test('write does not use yaml anchors/aliases', async () => {
           react: '1'
         resolution:
           integrity: sha512-y9YmnusURc+3KPgvhYKvZ9oCucj51MSZWODyaeV0KFU0cquzA7dCD1g/OIYUKtNoZ+MXtacDngkdud2TklMSjw==
-      /react-dnd/2.5.4/react@15.6.2:
+      /react-dnd@2.5.4(react@15.6.2):
         dependencies:
           disposables: 1.0.2
           dnd-core: 2.5.4
@@ -169,19 +169,19 @@ test('writeLockfiles() does not fail if the lockfile has undefined properties', 
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/is-negative/1.0.0': {
+      '/is-negative@1.0.0': {
         // eslint-disable-next-line
         dependencies: undefined as any,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive/1.0.0': {
+      '/is-positive@1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/is-positive/2.0.0': {
+      '/is-positive@2.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -213,7 +213,7 @@ test('writeLockfiles() when useGitBranchLockfile', async () => {
     },
     lockfileVersion: LOCKFILE_VERSION,
     packages: {
-      '/foo/1.0.0': {
+      '/foo@1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },

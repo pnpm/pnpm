@@ -84,8 +84,8 @@ function takeChangedValue<T> (ourValue: T, theirValue: T): T {
 function mergeVersions (ourValue: string, theirValue: string) {
   if (ourValue === theirValue || !theirValue) return ourValue
   if (!ourValue) return theirValue
-  const [ourVersion] = ourValue.split('_')
-  const [theirVersion] = theirValue.split('_')
+  const [ourVersion] = ourValue.split('(')
+  const [theirVersion] = theirValue.split('(')
   if (semver.gt(ourVersion, theirVersion)) {
     return ourValue
   }

@@ -32,7 +32,7 @@ test('fail if none of the available resolvers support a version spec', async () 
   expect(err.pkgsStack).toStrictEqual(
     [
       {
-        id: `localhost+${REGISTRY_MOCK_PORT}/@types/plotly.js/1.44.29`,
+        id: `localhost+${REGISTRY_MOCK_PORT}/@types/plotly.js@1.44.29`,
         name: '@types/plotly.js',
         version: '1.44.29',
       },
@@ -70,7 +70,7 @@ test('fail if a package cannot be fetched', async () => {
   expect(err.pkgsStack).toStrictEqual(
     [
       {
-        id: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/100.0.0`,
+        id: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep@100.0.0`,
         name: '@pnpm.e2e/pkg-with-1-dep',
         version: '100.0.0',
       },
