@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "22.3.11",
+  "version": "22.3.12",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -26,6 +26,7 @@
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
     "@types/fs-extra": "^9.0.13",
     "@types/ramda": "0.28.20",
     "@types/rimraf": "^3.0.2",

@@ -214,7 +214,7 @@ export async function main (inputArgv: string[]) {
       if (printLogs) {
         console.log(`No projects found in "${wsDir}"`)
       }
-      process.exitCode = 0
+      process.exitCode = config.failIfNoMatch ? 1 : 0
       return
     }
     config.allProjectsGraph = filterResults.allProjectsGraph
@@ -223,7 +223,7 @@ export async function main (inputArgv: string[]) {
       if (printLogs) {
         console.log(`No projects matched the filters in "${wsDir}"`)
       }
-      process.exitCode = 0
+      process.exitCode = config.failIfNoMatch ? 1 : 0
       return
     }
     if (filterResults.unmatchedFilters.length !== 0 && printLogs) {

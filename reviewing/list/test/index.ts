@@ -261,8 +261,7 @@ test('parseable list in workspace with private package', async () => {
     lockfileDir: workspaceWithPrivatePkgs,
   })).toBe(`${path.join(workspaceWithPrivatePkgs, 'packages/private')}
 ${path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')}
-${path.join(workspaceWithPrivatePkgs, 'packages/public')}
-${path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')}`)
+${path.join(workspaceWithPrivatePkgs, 'packages/public')}`)
 })
 
 test('long parseable list in workspace with private package', async () => {
@@ -275,8 +274,7 @@ test('long parseable list in workspace with private package', async () => {
     lockfileDir: workspaceWithPrivatePkgs,
   })).toBe(`${path.join(workspaceWithPrivatePkgs, 'packages/private')}:private@1.0.0:PRIVATE
 ${path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')}:is-positive@1.0.0
-${path.join(workspaceWithPrivatePkgs, 'packages/public')}:public@1.0.0
-${path.join(workspaceWithPrivatePkgs, 'node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')}:is-positive@1.0.0`)
+${path.join(workspaceWithPrivatePkgs, 'packages/public')}:public@1.0.0`)
 })
 
 test('JSON list in workspace with private package', async () => {

@@ -74,6 +74,7 @@ export const types = Object.assign({
   'git-branch-lockfile': Boolean,
   hoist: Boolean,
   'hoist-pattern': Array,
+  'hoist-workspace-packages': Boolean,
   'ignore-compatibility-db': Boolean,
   'ignore-dep-scripts': Boolean,
   'ignore-pnpmfile': Boolean,
@@ -145,7 +146,8 @@ export const types = Object.assign({
   'embed-readme': Boolean,
   'update-notifier': Boolean,
   'registry-supports-time-field': Boolean,
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+  'fail-if-no-match': Boolean,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as Partial<Record<keyof KebabCaseConfig, any>>, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string }
@@ -210,6 +212,7 @@ export async function getConfig (
     'enable-modules-dir': true,
     'exclude-links-from-lockfile': false,
     'extend-node-path': true,
+    'fail-if-no-match': false,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,
@@ -227,6 +230,7 @@ export async function getConfig (
     'git-branch-lockfile': false,
     hoist: true,
     'hoist-pattern': ['*'],
+    'hoist-workspace-packages': false,
     'ignore-workspace-cycles': false,
     'ignore-workspace-root-check': false,
     'link-workspace-packages': true,

@@ -22,6 +22,7 @@ export interface Config {
   excludeLinksFromLockfile: boolean
   extraBinPaths: string[]
   extraEnv: Record<string, string>
+  failIfNoMatch: boolean
   filter: string[]
   filterProd: string[]
   rawLocalConfig: Record<string, any>, // eslint-disable-line
@@ -126,6 +127,7 @@ export interface Config {
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   hoistPattern?: string[]
   publicHoistPattern?: string[] | string
+  hoistWorkspacePackages?: boolean
   useStoreServer?: boolean
   useRunningStoreServer?: boolean
   workspaceConcurrency: number

@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-env
 
+## 4.1.17
+
+### Patch Changes
+
+- 4d2923858: Fix error message texts in the `pnpm env` commands [#7456](https://github.com/pnpm/pnpm/pull/7456).
+- Updated dependencies [4e71066dd]
+- Updated dependencies [33313d2fd]
+  - @pnpm/config@20.3.0
+  - @pnpm/node.fetcher@3.0.36
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/node.resolver@2.0.37
+  - @pnpm/remove-bins@5.0.7
+  - @pnpm/fetch@7.0.7
+
 ## 4.1.16
 
 ### Patch Changes

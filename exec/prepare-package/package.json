@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/prepare-package",
-  "version": "5.0.21",
+  "version": "5.0.22",
   "description": "Prepares a Git-hosted package",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -42,6 +42,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
     "@types/ramda": "0.28.20",
     "load-json-file": "^6.2.0"
   },

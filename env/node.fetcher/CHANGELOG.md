@@ -1,5 +1,15 @@
 # @pnpm/node.fetcher
 
+## 3.0.36
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+  - @pnpm/create-cafs-store@6.0.11
+  - @pnpm/fetcher-base@15.0.6
+  - @pnpm/tarball-fetcher@18.0.16
+  - @pnpm/pick-fetcher@2.0.1
+
 ## 3.0.35
 
 ### Patch Changes

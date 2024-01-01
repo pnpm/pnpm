@@ -1,5 +1,17 @@
 # @pnpm/make-dedicated-lockfile
 
+## 0.5.13
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/prune-lockfile@5.0.9
+  - @pnpm/exportable-manifest@5.0.11
+  - @pnpm/read-project-manifest@5.0.10
+
 ## 0.5.12
 
 ### Patch Changes

@@ -18,7 +18,7 @@ import {
   filterLockfileByEngine,
   filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
-import { hoist } from '@pnpm/hoist'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import {
   runLifecycleHooksConcurrently,
   makeNodeRequireOption,
@@ -161,6 +161,7 @@ export interface HeadlessOptions {
   useGitBranchLockfile?: boolean
   useLockfile?: boolean
   supportedArchitectures?: SupportedArchitectures
+  hoistWorkspacePackages?: boolean
 }
 
 export interface InstallationResultStats {
@@ -424,6 +425,17 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         publicHoistedModulesDir,
         publicHoistPattern: opts.publicHoistPattern ?? [],
         virtualStoreDir,
+        hoistedWorkspacePackages: opts.hoistWorkspacePackages
+          ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
+            if (project.manifest.name) {
+              hoistedWorkspacePackages[project.id] = {
+                dir: project.rootDir,
+                name: project.manifest.name,
+              }
+            }
+            return hoistedWorkspacePackages
+          }, {} as Record<string, HoistedWorkspaceProject>)
+          : undefined,
       })
     } else {
       newHoistedDependencies = {}

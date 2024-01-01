@@ -1,5 +1,15 @@
 # @pnpm/npm-resolver
 
+## 18.0.2
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/resolver-base@11.0.2
+
 ## 18.0.1
 
 ### Patch Changes

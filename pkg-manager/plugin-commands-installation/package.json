@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "14.0.14",
+  "version": "14.0.15",
   "description": "Commands for installation",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -36,6 +36,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.17.1",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
     "@types/proxyquire": "^1.3.31",
     "@types/ramda": "0.28.20",
     "@types/sinon": "^10.0.20",
