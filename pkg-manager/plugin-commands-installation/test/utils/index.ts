@@ -1,6 +1,6 @@
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 
-export const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 export const DEFAULT_OPTS = {
   argv: {

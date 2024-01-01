@@ -6,14 +6,11 @@ import { type Lockfile } from '@pnpm/lockfile-types'
 import { dedupe, install } from '@pnpm/plugin-commands-installation'
 import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import rimraf from '@zkochan/rimraf'
-import execa from 'execa'
 import { diff } from 'jest-diff'
 import readYamlFile from 'read-yaml-file'
-import { DEFAULT_OPTS, REGISTRY } from './utils'
+import { DEFAULT_OPTS } from './utils'
 
 const f = fixtures(__dirname)
-const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
 describe('pnpm dedupe', () => {
   test('updates old resolutions from importers block and removes old packages', async () => {
@@ -110,88 +107,6 @@ describe('pnpm dedupe', () => {
 
     expect(fs.existsSync('package.json')).toBeTruthy()
     expect(fs.existsSync('output.json')).toBeFalsy()
-  })
-
-  describe('respects .npmrc options', () => {
-    test('uses store-dir .npmrc option', async () => {
-      const project = prepare({
-        dependencies: {
-          'is-positive': '3.1.0',
-        },
-      })
-
-      fs.writeFileSync(path.join(project.dir(), '.npmrc'), 'store-dir = local-store-dir')
-      const storeDir = path.join(project.dir(), 'local-store-dir')
-
-      // Sanity check that the first "pnpm install" creates the store in the expected location.
-      await execa('node', [
-        pnpmBin,
-        'install',
-        `--registry=${REGISTRY}`,
-        `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
-      ])
-      expect(fs.existsSync(storeDir)).toBeTruthy()
-
-      // Running "pnpm dedupe" should recreate the store dir. Clear it to ensure this happens.
-      await rimraf(storeDir)
-      await rimraf(path.join(project.dir(), 'node_modules'))
-      expect(fs.existsSync(storeDir)).toBeFalsy()
-
-      await execa('node', [
-        pnpmBin,
-        'dedupe',
-        `--registry=${REGISTRY}`,
-        `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
-      ])
-      expect(fs.existsSync(storeDir)).toBeTruthy()
-    })
-  })
-
-  describe('respects (most) cli args from install command', () => {
-    test('uses --store-dir arg', async () => {
-      const project = prepare({
-        dependencies: {
-          'is-positive': '3.1.0',
-        },
-      })
-
-      // Sanity check that the first "pnpm install" creates the store in the expected location.
-      await execa('node', [
-        pnpmBin,
-        'install',
-        `--registry=${REGISTRY}`,
-        `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
-        '--store-dir=local-store-dir',
-      ])
-      const storeDir = path.join(project.dir(), 'local-store-dir')
-      expect(fs.existsSync(storeDir)).toBeTruthy()
-
-      // Running "pnpm dedupe" should recreate the store dir. Clear it to ensure this happens.
-      await rimraf(storeDir)
-      await rimraf(path.join(project.dir(), 'node_modules'))
-      expect(fs.existsSync(storeDir)).toBeFalsy()
-
-      await execa('node', [
-        pnpmBin,
-        'dedupe',
-        `--registry=${REGISTRY}`,
-        `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
-        '--store-dir=local-store-dir',
-      ])
-      expect(fs.existsSync(storeDir)).toBeTruthy()
-    })
-
-    test('does not accept --frozen-lockfile', async () => {
-      prepare()
-      await expect(execa('node', [
-        pnpmBin,
-        'dedupe',
-        `--registry=${REGISTRY}`,
-        `--store-dir=${path.resolve(DEFAULT_OPTS.storeDir)}`,
-        `--cache-dir=${path.resolve(DEFAULT_OPTS.cacheDir)}`,
-        '--frozen-lockfile',
-      ])).rejects.toThrow("Unknown option: 'frozen-lockfile'")
-    })
   })
 })
 

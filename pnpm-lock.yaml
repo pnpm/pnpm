@@ -3942,9 +3942,6 @@ importers:
       delay:
         specifier: ^5.0.0
         version: 5.0.0
-      execa:
-        specifier: npm:safe-execa@0.1.2
-        version: /safe-execa@0.1.2
       jest-diff:
         specifier: ^29.7.0
         version: 29.7.0
