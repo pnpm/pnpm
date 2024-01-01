@@ -131,6 +131,7 @@
 "@pnpm/plugin-commands-store-inspecting": minor
 "@pnpm/make-dedicated-lockfile": minor
 "@pnpm/mount-modules": minor
+"@pnpm/fs.is-empty-dir-or-nothing": major
 ---
 
 Node.js v16 support dropped. Use at least Node.js v18.12.
