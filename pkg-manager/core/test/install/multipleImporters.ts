@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
-import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'

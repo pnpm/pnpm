@@ -8,7 +8,7 @@ import {
   type StageLog,
   type StatsLog,
 } from '@pnpm/core-loggers'
-import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectManifest } from '@pnpm/types'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'

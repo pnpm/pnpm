@@ -11,7 +11,7 @@ import {
 } from '@pnpm/core'
 import rimraf from '@zkochan/rimraf'
 import resolveLinkTarget from 'resolve-link-target'
-import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { addDistTag } from '@pnpm/registry-mock'
 import symlinkDir from 'symlink-dir'
 import writeYamlFile from 'write-yaml-file'
