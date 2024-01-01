@@ -11,18 +11,6 @@ export function resolve (
   registries: Registries,
   resolutionLocation: string
 ) {
-  if (!isAbsolute(resolutionLocation)) {
-    let registryUrl!: string
-    if (resolutionLocation[1] === '@') {
-      const slashIndex = resolutionLocation.indexOf('/', 1)
-      const scope = resolutionLocation.slice(1, slashIndex !== -1 ? slashIndex : 0)
-      registryUrl = registries[scope] || registries.default
-    } else {
-      registryUrl = registries.default
-    }
-    const registryDirectory = encodeRegistry(registryUrl)
-    return `${registryDirectory}${resolutionLocation}`
-  }
   return resolutionLocation
 }
 

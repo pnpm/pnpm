@@ -29,7 +29,7 @@ test("don't fail when peer dependency is fetched from GitHub", async () => {
   await addDependenciesToPackage({}, ['@pnpm.e2e/test-pnpm-peer-deps'], await testDefaults())
 })
 
-test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async () => {
+test('peer dependency is grouped with dependency when peer is resolved not from a top dependency 1', async () => {
   const project = prepareEmpty()
   const opts = await testDefaults()
   let manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/using-ajv'], opts)
@@ -1239,7 +1239,7 @@ test('peer dependency that is resolved by a dev dependency', async () => {
   await project.hasNot('@types/mongoose')
 })
 
-test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async () => {
+test('peer dependency is grouped with dependency when peer is resolved not from a top dependency 2', async () => {
   const project1Manifest = {
     name: 'project-1',
     version: '1.0.0',

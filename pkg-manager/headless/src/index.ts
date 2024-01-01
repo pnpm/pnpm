@@ -245,7 +245,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           pruneStore: opts.pruneStore,
           pruneVirtualStore: opts.pruneVirtualStore,
           publicHoistedModulesDir: (opts.publicHoistPattern == null) ? undefined : publicHoistedModulesDir,
-          registries: opts.registries,
           skipped,
           storeController: opts.storeController,
           virtualStoreDir,

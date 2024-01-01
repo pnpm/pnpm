@@ -106,7 +106,7 @@ export async function lockfileToDepGraph (
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         const modules = path.join(opts.virtualStoreDir, dp.depPathToFilename(depPath), 'node_modules')
-        const packageId = packageIdFromSnapshot(depPath, pkgSnapshot, opts.registries)
+        const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
 
         const pkg = {
           name: pkgName,
