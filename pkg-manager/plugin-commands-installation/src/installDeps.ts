@@ -105,6 +105,7 @@ export type InstallDepsOptions = Pick<Config,
    */
   lockfileCheck?: (prev: Lockfile, next: Lockfile) => void
   update?: boolean
+  preventDowngrade?: boolean
   updateMatching?: (pkgName: string) => boolean
   updatePackageManifest?: boolean
   useBetaCli?: boolean

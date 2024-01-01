@@ -126,7 +126,6 @@ export async function recursive (
   const rootManifestDir = opts.lockfileDir ?? opts.dir
   const installOpts = Object.assign(opts, {
     ...getOptionsFromRootManifest(rootManifestDir, manifestsByPath[rootManifestDir]?.manifest ?? {}),
-    preventDowngrade: cmdFullName === 'update',
     allProjects: getAllProjects(manifestsByPath, opts.allProjectsGraph, opts.sort),
     linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     ownLifecycleHooksStdio: 'pipe',
