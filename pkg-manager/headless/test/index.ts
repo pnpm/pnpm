@@ -16,6 +16,7 @@ import { readModulesManifest } from '@pnpm/modules-yaml'
 import { tempDir } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
@@ -336,6 +337,7 @@ test('skipping optional dependency if it cannot be fetched', async () => {
 
 test('run pre/postinstall scripts', async () => {
   let prefix = f.prepare('deps-have-lifecycle-scripts')
+  await using server = await createTestIpcServer(path.join(prefix, 'test.sock'))
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix }))
 
@@ -346,13 +348,14 @@ test('run pre/postinstall scripts', async () => {
   const generatedByPostinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
   expect(typeof generatedByPostinstall).toBe('function')
 
-  expect(require(path.join(prefix, 'output.json'))).toStrictEqual(['install', 'postinstall']) // eslint-disable-line
+  expect(server.getLines()).toStrictEqual(['install', 'postinstall'])
 
   prefix = f.prepare('deps-have-lifecycle-scripts')
+  server.clear()
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix, ignoreScripts: true }))
 
-  expect(await exists(path.join(prefix, 'output.json'))).toBeFalsy()
+  expect(server.getLines()).toStrictEqual([])
 
   const nmPath = path.join(prefix, 'node_modules')
   const modulesYaml = await readModulesManifest(nmPath)

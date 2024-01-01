@@ -2,6 +2,6 @@
   "name": "gyp-with-preinstall",
   "version": "1.0.0",
   "scripts": {
-    "preinstall": "node -e \"process.stdout.write('preinstall')\" | json-append output.json"
+    "preinstall": "node -e \"process.stdout.write('preinstall')\" | test-ipc-server-client ./test.sock"
   }
 }

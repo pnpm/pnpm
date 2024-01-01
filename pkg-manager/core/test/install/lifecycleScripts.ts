@@ -10,6 +10,7 @@ import {
   type MutatedProject,
   mutateModules,
 } from '@pnpm/core'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { restartWorkerPool } from '@pnpm/worker'
 import rimraf from '@zkochan/rimraf'
 import isWindows from 'is-windows'
@@ -98,38 +99,47 @@ test('run install scripts', async () => {
 })
 
 test('run install scripts in the current project', async () => {
+  await using server = await createTestIpcServer()
+  await using serverForDevPreinstall = await createTestIpcServer()
   prepareEmpty()
   const manifest = await addDependenciesToPackage({
     scripts: {
-      'pnpm:devPreinstall': 'node -e "require(\'fs\').writeFileSync(\'test.txt\', \'\', \'utf-8\')"',
-      install: 'node -e "process.stdout.write(\'install\')" | json-append output.json',
-      postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
-      preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
+      'pnpm:devPreinstall': `node -e "console.log('pnpm:devPreinstall-' + process.cwd())" | ${serverForDevPreinstall.generateSendStdinScript()}`,
+      install: `node -e "console.log('install-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      postinstall: `node -e "console.log('postinstall-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      preinstall: `node -e "console.log('preinstall-' + process.cwd())" | ${server.generateSendStdinScript()}`,
     },
-  }, ['json-append@1.1.1'], await testDefaults({ fastUnpack: false }))
+  }, [], await testDefaults({ fastUnpack: false }))
   await install(manifest, await testDefaults({ fastUnpack: false }))
 
-  const output = await loadJsonFile<string[]>('output.json')
-
-  expect(output).toStrictEqual(['preinstall', 'install', 'postinstall'])
-  expect(await exists('test.txt')).toBeTruthy()
+  expect(server.getLines()).toStrictEqual([`preinstall-${process.cwd()}`, `install-${process.cwd()}`, `postinstall-${process.cwd()}`])
+  expect(serverForDevPreinstall.getLines()).toStrictEqual([
+    // The pnpm:devPreinstall script runs twice in this test. Once for the
+    // initial "addDependenciesToPackage" test setup stage and again for the
+    // dedicated install afterwards.
+    `pnpm:devPreinstall-${process.cwd()}`,
+    `pnpm:devPreinstall-${process.cwd()}`,
+  ])
 })
 
 test('run install scripts in the current project when its name is different than its directory', async () => {
+  await using server = await createTestIpcServer()
   prepareEmpty()
   const manifest = await addDependenciesToPackage({
     name: 'different-name',
     scripts: {
-      install: 'node -e "process.stdout.write(\'install\')" | json-append output.json',
-      postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
-      preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
+      install: `node -e "console.log('install-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      postinstall: `node -e "console.log('postinstall-' + process.cwd())" | ${server.generateSendStdinScript()}`,
+      preinstall: `node -e "console.log('preinstall-' + process.cwd())" | ${server.generateSendStdinScript()}`,
     },
-  }, ['json-append@1.1.1'], await testDefaults({ fastUnpack: false }))
+  }, [], await testDefaults({ fastUnpack: false }))
   await install(manifest, await testDefaults({ fastUnpack: false }))
 
-  const output = await loadJsonFile('output.json')
-
-  expect(output).toStrictEqual(['preinstall', 'install', 'postinstall'])
+  expect(server.getLines()).toStrictEqual([
+    `preinstall-${process.cwd()}`,
+    `install-${process.cwd()}`,
+    `postinstall-${process.cwd()}`,
+  ])
 })
 
 test('installation fails if lifecycle script fails', async () => {
@@ -153,11 +163,10 @@ test('INIT_CWD is always set to lockfile directory', async () => {
     mutation: 'install',
     manifest: {
       dependencies: {
-        'json-append': '1.1.1',
         '@pnpm.e2e/write-lifecycle-env': '1.0.0',
       },
       scripts: {
-        install: 'node -e "process.stdout.write(process.env.INIT_CWD)" | json-append output.json',
+        install: 'node -e "fs.writeFileSync(\'output.json\', JSON.stringify(process.env.INIT_CWD))"',
       },
     },
     rootDir,
@@ -170,7 +179,7 @@ test('INIT_CWD is always set to lockfile directory', async () => {
   expect(childEnv.INIT_CWD).toBe(rootDir)
 
   const output = await loadJsonFile(path.join(rootDir, 'output.json'))
-  expect(output).toStrictEqual([process.cwd()])
+  expect(output).toStrictEqual(process.cwd())
 })
 
 // TODO: duplicate this test to @pnpm/lifecycle
@@ -619,41 +628,36 @@ test('lifecycle scripts run after linking root dependencies', async () => {
 })
 
 test('ignore-dep-scripts', async () => {
+  await using server1 = await createTestIpcServer()
+  await using server2 = await createTestIpcServer()
   prepareEmpty()
   const manifest = {
     scripts: {
-      'pnpm:devPreinstall': 'node -e "require(\'fs\').writeFileSync(\'test.txt\', \'\', \'utf-8\')"',
-      install: 'node -e "process.stdout.write(\'install\')" | json-append output.json',
-      postinstall: 'node -e "process.stdout.write(\'postinstall\')" | json-append output.json',
-      preinstall: 'node -e "process.stdout.write(\'preinstall\')" | json-append output.json',
+      'pnpm:devPreinstall': server2.sendLineScript('pnpm:devPreinstall'),
+      install: server1.sendLineScript('install'),
+      postinstall: server1.sendLineScript('postinstall'),
+      preinstall: server1.sendLineScript('preinstall'),
     },
     dependencies: {
-      'json-append': '1.1.1',
       '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
     },
   }
   await install(manifest, await testDefaults({ fastUnpack: false, ignoreDepScripts: true }))
 
-  {
-    const output = await loadJsonFile<string[]>('output.json')
+  expect(server1.getLines()).toStrictEqual(['preinstall', 'install', 'postinstall'])
+  expect(server2.getLines()).toStrictEqual(['pnpm:devPreinstall'])
 
-    expect(output).toStrictEqual(['preinstall', 'install', 'postinstall'])
-    expect(await exists('test.txt')).toBeTruthy()
-
-    expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
-  }
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
 
   await rimraf('node_modules')
-  await rimraf('output.json')
+  server1.clear()
+  server2.clear()
   await install(manifest, await testDefaults({ fastUnpack: false, ignoreDepScripts: true }))
-  {
-    const output = await loadJsonFile<string[]>('output.json')
 
-    expect(output).toStrictEqual(['preinstall', 'install', 'postinstall'])
-    expect(await exists('test.txt')).toBeTruthy()
+  expect(server1.getLines()).toStrictEqual(['preinstall', 'install', 'postinstall'])
+  expect(server2.getLines()).toStrictEqual(['pnpm:devPreinstall'])
 
-    expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
-  }
+  expect(await exists('node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-preinstall.js')).toBeFalsy()
 })
 
 test('run pre/postinstall scripts in a workspace that uses node-linker=hoisted', async () => {

@@ -387,6 +387,21 @@ importers:
         specifier: ^9.0.13
         version: 9.0.13
 
+  __utils__/test-ipc-server:
+    devDependencies:
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../prepare
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/node':
+        specifier: ^18.14.6
+        version: 18.14.6
+      execa:
+        specifier: npm:safe-execa@0.1.2
+        version: /safe-execa@0.1.2
+
   __utils__/tsconfig:
     devDependencies:
       '@pnpm/tsconfig':
@@ -1161,15 +1176,15 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/rimraf':
         specifier: ^3.0.2
         version: 3.0.2
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3
-      json-append:
-        specifier: 1.1.1
-        version: 1.1.1
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -1297,6 +1312,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -1412,6 +1430,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 3.17.1
         version: 3.17.1(typanion@3.14.0)
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/is-windows':
         specifier: ^1.0.2
         version: 1.0.2
@@ -1461,6 +1482,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -3107,6 +3131,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/fs-extra':
         specifier: ^9.0.13
         version: 9.0.13
@@ -3383,6 +3410,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/fs-extra':
         specifier: ^9.0.13
         version: 9.0.13
@@ -3924,6 +3954,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/proxyquire':
         specifier: ^1.3.31
         version: 1.3.31
@@ -4484,6 +4517,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../__utils__/test-ipc-server
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
@@ -4829,6 +4865,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 3.17.1
         version: 3.17.1(typanion@3.14.0)
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/cross-spawn':
         specifier: ^6.0.5
         version: 6.0.5
@@ -13753,13 +13792,6 @@ packages:
     resolution: {integrity: sha512-OYu7XEzjkCQ3C5Ps3QIZsQfNpqoJyZZA99wd9aWd05NCtC5pWOkShK2mkL6HXQR6/Cy2lbNdPlZBpuQHXE63gA==}
     engines: {node: '>=4'}
     hasBin: true
-    dev: true
-
-  /json-append@1.1.1:
-    resolution: {integrity: sha512-UiS6F4XN66/WfXnyhlMUtcYMfcEo1CfoOWITo+4NJODqbaoEWvKDk85heyxJd0IQuVt5MhSndpdurY/A1VamyA==}
-    hasBin: true
-    dependencies:
-      concat-stream: 1.6.2
     dev: true
 
   /json-buffer@3.0.1:

@@ -67,6 +67,7 @@
     "@pnpm/run-npm": "workspace:*",
     "@pnpm/tabtab": "^0.1.2",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
