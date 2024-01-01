@@ -764,7 +764,7 @@ async function resolveChildren (
     updateMatching,
     prefix,
     supportedArchitectures,
-    cmdFullName,
+    preventDowngrade,
   }: {
     parentPkg: PkgAddress
     dependencyLockfile: PackageSnapshot | undefined
@@ -820,7 +820,7 @@ async function resolveChildren (
       updateDepth,
       updateMatching,
       supportedArchitectures,
-      cmdFullName,
+      preventDowngrade,
     }
   )
   ctx.childrenByParentDepPath[parentPkg.depPath] = pkgAddresses.map((child) => ({
