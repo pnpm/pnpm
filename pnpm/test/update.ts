@@ -609,7 +609,7 @@ test('deep update', async function () {
   await project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
 })
 
-test('update recursive latest without downgrading already defined prerelease (#7436)', async function () {
+test('update to latest without downgrading already defined prerelease (#7436)', async function () {
   prepare()
 
   await addDistTag('@pnpm.e2e/has-prerelease', '2.0.0', 'latest')
@@ -626,7 +626,7 @@ test('update recursive latest without downgrading already defined prerelease (#7
   expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
   expect(lockfile1).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
 
-  await execPnpm(['update', '-r', '--latest'])
+  await execPnpm(['update', '--latest'])
 
   const manifest2 = await readPackageJsonFromDir('.')
   expect(manifest2).toMatchObject({
@@ -638,4 +638,17 @@ test('update recursive latest without downgrading already defined prerelease (#7
   const lockfile2 = await readYamlFile('pnpm-lock.yaml')
   expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
   expect(lockfile2).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
+
+  await execPnpm(['update', '-r', '--latest'])
+
+  const manifest3 = await readPackageJsonFromDir('.')
+  expect(manifest3).toMatchObject({
+    dependencies: {
+      '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+    },
+  })
+
+  const lockfile3 = await readYamlFile('pnpm-lock.yaml')
+  expect(lockfile3).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+  expect(lockfile3).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
 })
