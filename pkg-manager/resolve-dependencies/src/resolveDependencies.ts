@@ -255,7 +255,7 @@ interface ResolvedDependenciesOptions {
   updateDepth: number
   prefix: string
   supportedArchitectures?: SupportedArchitectures
-  cmdFullName?: string
+  preventDowngrade?: boolean
 }
 
 interface PostponedResolutionOpts {
@@ -678,7 +678,7 @@ async function resolveDependenciesOfDependency (
     updateDepth,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
-    cmdFullName: options.cmdFullName,
+    preventDowngrade: options.preventDowngrade,
   }
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
@@ -715,7 +715,7 @@ async function resolveDependenciesOfDependency (
     prefix: options.prefix,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
-    cmdFullName: options.cmdFullName,
+    preventDowngrade: options.preventDowngrade,
   })
   return {
     resolveDependencyResult,
@@ -773,7 +773,7 @@ async function resolveChildren (
     prefix: string
     updateMatching?: UpdateMatchingFunction
     supportedArchitectures?: SupportedArchitectures
-    cmdFullName?: string
+    preventDowngrade?: boolean
   },
   {
     parentPkgAliases,
@@ -1025,7 +1025,7 @@ interface ResolveDependencyOptions {
   updateDepth: number
   updateMatching?: UpdateMatchingFunction
   supportedArchitectures?: SupportedArchitectures
-  cmdFullName?: string
+  preventDowngrade?: boolean
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null
@@ -1105,7 +1105,7 @@ async function resolveDependency (
         err.pkgsStack = nodeIdToParents(options.parentPkg.nodeId, ctx.resolvedPackagesByDepPath)
         return err
       },
-      cmdFullName: options.cmdFullName,
+      preventDowngrade: options.preventDowngrade,
     })
   } catch (err: any) { // eslint-disable-line
     if (wantedDependency.optional) {

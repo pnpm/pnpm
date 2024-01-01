@@ -1033,7 +1033,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       storeController: opts.storeController,
       tag: opts.tag,
-      cmdFullName: opts.cmdFullName,
+      preventDowngrade: opts.preventDowngrade,
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages,
