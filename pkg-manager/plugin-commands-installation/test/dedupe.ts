@@ -107,6 +107,21 @@ describe('pnpm dedupe', () => {
     expect(fs.existsSync('package.json')).toBeTruthy()
     expect(server.getLines()).toStrictEqual([])
   })
+
+  describe('cliOptionsTypes', () => {
+    test('trivially contains command line arguments from install command', () => {
+      // Using --store-dir and --registry as a gut check to ensure the "pnpm
+      // dedupe" command accepts most CLI options that "pnpm install" accepts.
+      expect(dedupe.cliOptionsTypes()).toHaveProperty('store-dir')
+      expect(dedupe.cliOptionsTypes()).toHaveProperty('registry')
+    })
+
+    test('does not accept --frozen-lockfile', () => {
+      // This option doesn't make sense on pnpm dedupe. Ensure it's not
+      // accidentally inherited from the install command after future refactors.
+      expect(dedupe.cliOptionsTypes()).not.toHaveProperty('--frozen-lockfile')
+    })
+  })
 })
 
 const noColor = (str: string) => str
