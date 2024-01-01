@@ -13,6 +13,7 @@
 "@pnpm/outdated": major
 "@pnpm/make-dedicated-lockfile": minor
 "@pnpm/mount-modules": minor
+"@pnpm/constants": major
 ---
 
 Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
