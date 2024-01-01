@@ -7,13 +7,6 @@ export function isAbsolute (dependencyPath: string) {
   return dependencyPath[0] !== '/'
 }
 
-export function resolve (
-  registries: Registries,
-  resolutionLocation: string
-) {
-  return resolutionLocation
-}
-
 export function indexOfPeersSuffix (depPath: string) {
   if (!depPath.endsWith(')')) return -1
   let open = true
@@ -30,15 +23,15 @@ export function indexOfPeersSuffix (depPath: string) {
   return -1
 }
 
-export function tryGetPackageId (registries: Registries, relDepPath: string) {
+export function tryGetPackageId (relDepPath: string) {
   if (relDepPath[0] !== '/') {
     return null
   }
   const sepIndex = indexOfPeersSuffix(relDepPath)
   if (sepIndex !== -1) {
-    return resolve(registries, relDepPath.substring(0, sepIndex))
+    return relDepPath.substring(0, sepIndex)
   }
-  return resolve(registries, relDepPath)
+  return relDepPath
 }
 
 export function refToAbsolute (

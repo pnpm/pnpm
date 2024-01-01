@@ -23,7 +23,6 @@ export async function storeStatus (maybeOpts: StoreStatusOptions) {
   }
   const opts = await extendStoreStatusOptions(maybeOpts)
   const {
-    registries,
     storeDir,
     skipped,
     virtualStoreDir,
@@ -42,7 +41,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions) {
         depPath,
         id,
         integrity: (pkgSnapshot.resolution as TarballResolution).integrity,
-        pkgPath: dp.resolve(registries, depPath),
+        pkgPath: depPath,
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
       }
     })

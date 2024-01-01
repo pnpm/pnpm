@@ -6,7 +6,6 @@ import {
   refToAbsolute,
   refToRelative,
   relative,
-  resolve,
   tryGetPackageId,
 } from '@pnpm/dependency-path'
 
@@ -89,17 +88,6 @@ test('relative()', () => {
   expect(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw')).toEqual('/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw')
 })
 
-test('resolve()', () => {
-  const registries = {
-    '@bar': 'https://bar.com/',
-    default: 'https://foo.com/',
-  }
-  expect(resolve(registries, '/foo/1.0.0')).toEqual('foo.com/foo/1.0.0')
-  expect(resolve(registries, '/@bar/bar/1.0.0')).toEqual('bar.com/@bar/bar/1.0.0')
-  expect(resolve(registries, '/@qar/qar/1.0.0')).toEqual('foo.com/@qar/qar/1.0.0')
-  expect(resolve(registries, 'qar.com/foo/1.0.0')).toEqual('qar.com/foo/1.0.0')
-})
-
 test('depPathToFilename()', () => {
   expect(depPathToFilename('/foo@1.0.0')).toBe('foo@1.0.0')
   expect(depPathToFilename('/@foo/bar@1.0.0')).toBe('@foo+bar@1.0.0')
@@ -116,6 +104,6 @@ test('depPathToFilename()', () => {
 })
 
 test('tryGetPackageId', () => {
-  expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('registry.npmjs.org/foo@1.0.0')
-  expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('registry.npmjs.org/@(-.-)/foo@1.0.0')
+  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('/foo@1.0.0')
+  expect(tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('/@(-.-)/foo@1.0.0')
 })

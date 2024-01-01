@@ -6,5 +6,5 @@ export function packageIdFromSnapshot (
   pkgSnapshot: PackageSnapshot
 ) {
   if (pkgSnapshot.id) return pkgSnapshot.id
-  return dp.tryGetPackageId({ default: '' }, depPath) ?? depPath
+  return dp.tryGetPackageId(depPath) ?? depPath
 }
