@@ -36,7 +36,7 @@
     "@pnpm/plugin-commands-licenses": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
-    "@pnpm/registry-mock": "3.17.1",
+    "@pnpm/registry-mock": "3.18.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.20",
     "@types/wrap-ansi": "8.0.2",
