@@ -893,6 +893,7 @@ type InstallFunction = (
     pruneVirtualStore: boolean
     scriptsOpts: RunLifecycleHooksConcurrentlyOptions
     currentLockfileIsUpToDate: boolean
+    hoistWorkspacePackages?: boolean
   }
 ) => Promise<InstallFunctionResult>
 
@@ -1119,6 +1120,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         virtualStoreDir: ctx.virtualStoreDir,
         wantedLockfile: newLockfile,
         wantedToBeSkippedPackageIds,
+        hoistWorkspacePackages: opts.hoistWorkspacePackages,
       }
     )
     stats = result.stats
@@ -1386,6 +1388,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         prunedAt: ctx.modulesFile?.prunedAt,
         wantedLockfile: result.newLockfile,
         useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
+        hoistWorkspacePackages: opts.hoistWorkspacePackages,
       })
       return {
         ...result,

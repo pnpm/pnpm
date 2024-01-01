@@ -47,6 +47,7 @@
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
+    "@pnpm/fs.is-empty-dir-or-nothing": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.3",

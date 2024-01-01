@@ -3,12 +3,14 @@ import path from 'path'
 import { docsUrl } from '@pnpm/cli-utils'
 import { fetchFromDir } from '@pnpm/directory-fetcher'
 import { createIndexedPkgImporter } from '@pnpm/fs.indexed-pkg-importer'
+import { isEmptyDirOrNothing } from '@pnpm/fs.is-empty-dir-or-nothing'
 import { install } from '@pnpm/plugin-commands-installation'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { PnpmError } from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import renderHelp from 'render-help'
 import { deployHook } from './deployHook'
+import { logger } from '@pnpm/logger'
 
 export const shorthands = install.shorthands
 
@@ -72,6 +74,15 @@ export async function handler (
   const deployedDir = selectedDirs[0]
   const deployDirParam = params[0]
   const deployDir = path.isAbsolute(deployDirParam) ? deployDirParam : path.join(opts.dir, deployDirParam)
+
+  if (!isEmptyDirOrNothing(deployDir)) {
+    if (!opts.force) {
+      throw new PnpmError('DEPLOY_DIR_NOT_EMPTY', `Deploy path ${deployDir} is not empty`)
+    }
+
+    logger.warn({ message: 'using --force, deleting deploy path', prefix: deployDir })
+  }
+
   await rimraf(deployDir)
   await fs.promises.mkdir(deployDir, { recursive: true })
   const includeOnlyPackageFiles = !opts.deployAllFiles

@@ -3,6 +3,7 @@ import path from 'path'
 import { deploy } from '@pnpm/plugin-commands-deploy'
 import { assertProject } from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
+import { logger } from '@pnpm/logger'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { DEFAULT_OPTS } from './utils'
 
@@ -73,6 +74,95 @@ test('deploy', async () => {
   expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-3/node_modules/project-3/index.js')).toBeTruthy()
   expect(fs.existsSync('deploy/node_modules/.pnpm/file+project-3/node_modules/project-3/test.js')).toBeFalsy()
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
+})
+
+test('deploy fails when the destination directory exists and is not empty', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {},
+      devDependencies: {},
+    },
+  ])
+  fs.writeFileSync('project/index.js', '', 'utf8')
+
+  const deployPath = 'deploy'
+  fs.writeFileSync(deployPath, 'aaa', 'utf8')
+  const deployFullPath = path.resolve(deployPath)
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project' }])
+
+  await expect(() =>
+    deploy.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      dev: false,
+      production: true,
+      recursive: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: true,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+    }, [deployPath])).rejects.toThrow(`Deploy path ${deployFullPath} is not empty`)
+
+  expect(fs.existsSync(`${deployPath}/index.js`)).toBeFalsy() // no changes to the deploy path are made
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
+})
+
+test('forced deploy succeeds with a warning when destination directory exists and is not empty', async () => {
+  const warnMock = jest.spyOn(logger, 'warn')
+
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+  fs.writeFileSync('project/index.js', '', 'utf8')
+
+  const deployPath = 'deploy'
+  fs.writeFileSync(deployPath, 'aaa', 'utf8')
+  const deployFullPath = path.resolve(deployPath)
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    production: true,
+    recursive: true,
+    force: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, [deployPath])
+
+  expect(warnMock).toHaveBeenCalledWith({
+    message: expect.stringMatching(/^using --force, deleting deploy pat/),
+    prefix: deployFullPath,
+  })
+
+  // deployed successfully
+  const project = assertProject(deployFullPath)
+  await project.has('is-positive')
+  await project.hasNot('is-negative')
+  expect(fs.existsSync('deploy/index.js')).toBeTruthy()
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
+
+  warnMock.mockRestore()
 })
 
 test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDependents', async () => {
