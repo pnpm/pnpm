@@ -37,7 +37,7 @@ export async function storeStatus (maybeOpts: StoreStatusOptions) {
   const pkgs = Object.entries(wantedLockfile.packages ?? {})
     .filter(([depPath]) => !skipped.has(depPath))
     .map(([depPath, pkgSnapshot]) => {
-      const id = packageIdFromSnapshot(depPath, pkgSnapshot, registries)
+      const id = packageIdFromSnapshot(depPath, pkgSnapshot)
       return {
         depPath,
         id,
