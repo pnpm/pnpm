@@ -34,17 +34,16 @@ export function pickPackageFromMeta (
       version = spec.fetchSpec
       break
     case 'tag':
-      if (preventDowngrade && preferredVersionSelectors && spec.fetchSpec === 'latest') {
-        version = pickLatestVersionToUpdate(meta, preferredVersionSelectors)
-      } else {
-        version = meta['dist-tags'][spec.fetchSpec]
-      }
+      version = meta['dist-tags'][spec.fetchSpec]
       break
     case 'range':
       version = pickVersionByVersionRangeFn(meta, spec.fetchSpec, preferredVersionSelectors, publishedBy)
       break
     }
     if (!version) return null
+    if (preventDowngrade && preferredVersionSelectors) {
+      version = pickVersionWithoutDowngrade(meta, spec.fetchSpec, preferredVersionSelectors, version)
+    }
     const manifest = meta.versions[version]
     if (manifest && meta['name']) {
       // Packages that are published to the GitHub registry are always published with a scope.
@@ -63,13 +62,10 @@ export function pickPackageFromMeta (
   }
 }
 
-function pickLatestVersionToUpdate (meta: PackageMeta, preferredVersionSelectors: VersionSelectors): string | null {
-  const latestStable = meta['dist-tags'].latest
-
-  const preferredVersions = prioritizePreferredVersions(meta, 'latest', preferredVersionSelectors)[0]
-  if (!preferredVersions) return latestStable
-
-  return preferredVersions.reduce((a, b) => semver.gt(a, b) ? a : b, latestStable)
+function pickVersionWithoutDowngrade (meta: PackageMeta, fetchSpec: string, preferredVersionSelectors: VersionSelectors, otherVersion: string): string {
+  const preferredVersions = prioritizePreferredVersions(meta, fetchSpec, preferredVersionSelectors)[0]
+  if (!preferredVersions) return otherVersion
+  return preferredVersions.reduce((a, b) => semver.gt(a, b) ? a : b, otherVersion)
 }
 
 const semverRangeCache = new Map<string, semver.Range | null>()
