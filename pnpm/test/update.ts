@@ -686,7 +686,7 @@ test('update to latest recursive workspace (outdated, updated, prerelease, outda
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['install', '-r'])
 
-  const lockfile1 = await readYamlFile<any>('pnpm-lock.yaml')
+  const lockfile1 = await readYamlFile('pnpm-lock.yaml')
   expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@1.0.0'])
   expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
   expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
@@ -726,7 +726,7 @@ test('update to latest recursive workspace (outdated, updated, prerelease, outda
     },
   })
 
-  const lockfile2 = await readYamlFile<any>('pnpm-lock.yaml')
+  const lockfile2 = await readYamlFile('pnpm-lock.yaml')
   expect(lockfile2).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@1.0.0'])
   expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
   expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
@@ -753,7 +753,7 @@ test('update to latest recursive workspace (prerelease, outdated)', async functi
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['install', '-r'])
 
-  const lockfile1 = await readYamlFile<any>('pnpm-lock.yaml')
+  const lockfile1 = await readYamlFile('pnpm-lock.yaml')
   expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@1.0.0'])
   expect(lockfile1).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
   expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
@@ -779,7 +779,7 @@ test('update to latest recursive workspace (prerelease, outdated)', async functi
     },
   })
 
-  const lockfile2 = await readYamlFile<any>('pnpm-lock.yaml')
+  const lockfile2 = await readYamlFile('pnpm-lock.yaml')
   expect(lockfile2).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@1.0.0'])
   expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
   expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
