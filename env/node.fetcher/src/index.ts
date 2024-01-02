@@ -22,10 +22,6 @@ export interface FetchNodeOptions {
 }
 
 export async function fetchNode (fetch: FetchFromRegistry, version: string, targetDir: string, opts: FetchNodeOptions) {
-  if ('webcontainer' in process.versions) {
-    console.warn('Automatic installation of different Node.js versions is not supported in WebContainer')
-    return
-  }
   if (await isNonGlibcLinux()) {
     throw new PnpmError('MUSL', 'The current system uses the "MUSL" C standard library. Node.js currently has prebuilt artifacts only for the "glibc" libc, so we can install Node.js only for glibc')
   }
