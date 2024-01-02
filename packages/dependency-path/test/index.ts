@@ -3,7 +3,6 @@ import {
   depPathToFilename,
   isAbsolute,
   parse,
-  refToAbsolute,
   refToRelative,
   relative,
   tryGetPackageId,
@@ -49,22 +48,6 @@ test('parse()', () => {
     peersSuffix: '(@types/babel__core@7.1.14)(foo@1.0.0)',
     version: '1.0.0',
   })
-})
-
-test('refToAbsolute()', () => {
-  const registries = {
-    '@foo': 'http://foo.com/',
-    default: 'https://registry.npmjs.org/',
-  }
-  expect(refToAbsolute('1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
-  expect(refToAbsolute('1.0.0', '@foo/foo', registries)).toEqual('foo.com/@foo/foo/1.0.0')
-  expect(refToAbsolute('registry.npmjs.org/foo/1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
-  expect(refToAbsolute('/foo/1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
-  expect(refToAbsolute('/@foo/foo/1.0.0', '@foo/foo', registries)).toEqual('foo.com/@foo/foo/1.0.0')
-  expect(refToAbsolute('/@foo/foo@1.0.0(@foo/bar@1.0.0)', '@foo/foo', registries)).toEqual('foo.com/@foo/foo@1.0.0(@foo/bar@1.0.0)')
-  expect(refToAbsolute('/@foo/foo@1.0.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@foo/foo', registries)).toEqual('foo.com/@foo/foo@1.0.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
-  // linked dependencies don't have an absolute path
-  expect(refToAbsolute('link:../foo', 'foo', registries)).toBeNull()
 })
 
 test('refToRelative()', () => {

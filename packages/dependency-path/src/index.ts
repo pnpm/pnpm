@@ -34,23 +34,6 @@ export function tryGetPackageId (relDepPath: string) {
   return relDepPath
 }
 
-export function refToAbsolute (
-  reference: string,
-  pkgName: string,
-  registries: Registries
-) {
-  if (reference.startsWith('link:')) {
-    return null
-  }
-  if (!reference.includes('/') || reference.includes('(') && reference.lastIndexOf('/', reference.indexOf('(')) === -1) {
-    const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
-    return `${registryName}/${pkgName}/${reference}`
-  }
-  if (reference[0] !== '/') return reference
-  const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
-  return `${registryName}${reference}`
-}
-
 export function getRegistryByPackageName (registries: Registries, packageName: string) {
   if (packageName[0] !== '@') return registries.default
   const scope = packageName.substring(0, packageName.indexOf('/'))

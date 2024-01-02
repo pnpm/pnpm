@@ -256,7 +256,7 @@ function getChildrenPaths (
 ) {
   const children: { [alias: string]: string } = {}
   for (const [alias, ref] of Object.entries(allDeps)) {
-    const childDepPath = dp.refToAbsolute(ref, alias, ctx.registries)
+    const childDepPath = dp.refToRelative(ref, alias)
     if (childDepPath === null) {
       children[alias] = path.resolve(ctx.lockfileDir, importerId, ref.slice(5))
       continue
