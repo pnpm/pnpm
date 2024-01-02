@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.4.12
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
 ## 7.4.11
 
 ### Patch Changes

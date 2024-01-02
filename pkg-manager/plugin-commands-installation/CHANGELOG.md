@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-installation
 
+## 14.1.0
+
+### Minor Changes
+
+- 064aeb681: The `pnpm dedupe` command now accepts more command line options that the `pnpm install` command also accepts. Example: `pnpm dedupe --store-dir=local-store-dir`
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/core@13.3.0
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+  - @pnpm/plugin-commands-rebuild@10.0.13
+  - @pnpm/store-connection-manager@7.0.22
+  - @pnpm/workspace.find-packages@1.1.8
+  - @pnpm/filter-workspace-packages@7.2.9
+
 ## 14.0.15
 
 ### Patch Changes

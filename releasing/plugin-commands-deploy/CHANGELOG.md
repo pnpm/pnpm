@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-deploy
 
+## 4.0.16
+
+### Patch Changes
+
+- 693944b66: `pnpm deploy` should not touch the target directory if it already exists and isn't empty [#7351](https://github.com/pnpm/pnpm/issues/7351).
+- Updated dependencies [064aeb681]
+- Updated dependencies [693944b66]
+  - @pnpm/plugin-commands-installation@14.1.0
+  - @pnpm/fs.is-empty-dir-or-nothing@1.0.0
+  - @pnpm/cli-utils@2.1.7
+
 ## 4.0.15
 
 ### Patch Changes

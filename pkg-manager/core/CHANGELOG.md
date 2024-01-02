@@ -1,5 +1,17 @@
 # @pnpm/core
 
+## 13.3.0
+
+### Minor Changes
+
+- c597f72ec: A new option added for hoisting packages from the workspace. When `hoist-workspace-packages` is set to `true`, packages from the workspace are symlinked to either `<workspace_root>/node_modules/.pnpm/node_modules` or to `<workspace_root>/node_modules` depending on other hoisting settings (`hoist-pattern` and `public-hoist-pattern`) [#7451](https://github.com/pnpm/pnpm/pull/7451).
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/headless@22.4.0
+  - @pnpm/hoist@8.2.0
+
 ## 13.2.1
 
 ### Patch Changes

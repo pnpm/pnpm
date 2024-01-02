@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.is-empty-dir-or-nothing",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Checks if a path is empty (Not a file or directory with content)",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
