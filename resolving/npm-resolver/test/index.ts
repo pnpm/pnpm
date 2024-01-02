@@ -73,7 +73,7 @@ test('resolveFromNpm()', async () => {
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@1.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@1.0.0')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
@@ -105,7 +105,7 @@ test('resolveFromNpm() should save metadata to a unique file when the package na
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/JSON@1.0.0')
+  expect(resolveResult!.id).toBe('/JSON@1.0.0')
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
@@ -142,7 +142,7 @@ test('dry run', async () => {
     registry,
   })
 
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@1.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@1.0.0')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
@@ -169,7 +169,7 @@ test('resolve to latest when no pref specified', async () => {
   const resolveResult = await resolveFromNpm({ alias: 'is-positive' }, {
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.1.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.1.0')
 })
 
 test('resolve to defaultTag when no pref specified', async () => {
@@ -184,7 +184,7 @@ test('resolve to defaultTag when no pref specified', async () => {
     defaultTag: 'stable',
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.0.0')
 })
 
 test('resolve to biggest non-deprecated version that satisfies the range', async () => {
@@ -198,7 +198,7 @@ test('resolve to biggest non-deprecated version that satisfies the range', async
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '3' }, {
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.0.0')
 })
 
 test('resolve to a deprecated version if there are no non-deprecated ones that satisfy the range', async () => {
@@ -212,7 +212,7 @@ test('resolve to a deprecated version if there are no non-deprecated ones that s
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '2' }, {
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@2.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@2.0.0')
 })
 
 test('can resolve aliased dependency', async () => {
@@ -226,7 +226,7 @@ test('can resolve aliased dependency', async () => {
   const resolveResult = await resolveFromNpm({ alias: 'positive', pref: 'npm:is-positive@1.0.0' }, {
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@1.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@1.0.0')
 })
 
 test('can resolve aliased dependency w/o version specifier', async () => {
@@ -240,7 +240,7 @@ test('can resolve aliased dependency w/o version specifier', async () => {
   const resolveResult = await resolveFromNpm({ alias: 'positive', pref: 'npm:is-positive' }, {
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.1.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.1.0')
 })
 
 test('can resolve aliased dependency w/o version specifier to default tag', async () => {
@@ -255,7 +255,7 @@ test('can resolve aliased dependency w/o version specifier to default tag', asyn
     defaultTag: 'stable',
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.0.0')
 })
 
 test('can resolve aliased scoped dependency', async () => {
@@ -269,7 +269,7 @@ test('can resolve aliased scoped dependency', async () => {
   const resolveResult = await resolveFromNpm({ alias: 'is', pref: 'npm:@sindresorhus/is@0.6.0' }, {
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/@sindresorhus/is@0.6.0')
+  expect(resolveResult!.id).toBe('/@sindresorhus/is@0.6.0')
 })
 
 test('can resolve aliased scoped dependency w/o version specifier', async () => {
@@ -283,7 +283,7 @@ test('can resolve aliased scoped dependency w/o version specifier', async () => 
   const resolveResult = await resolveFromNpm({ alias: 'is', pref: 'npm:@sindresorhus/is' }, {
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/@sindresorhus/is@0.7.0')
+  expect(resolveResult!.id).toBe('/@sindresorhus/is@0.7.0')
 })
 
 test('can resolve package with version prefixed with v', async () => {
@@ -297,7 +297,7 @@ test('can resolve package with version prefixed with v', async () => {
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: 'v1.0.0' }, {
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@1.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@1.0.0')
 })
 
 test('can resolve package version loosely', async () => {
@@ -311,7 +311,7 @@ test('can resolve package version loosely', async () => {
   const resolveResult = await resolveFromNpm({ alias: 'is-positive', pref: '= 1.0.0' }, {
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@1.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@1.0.0')
 })
 
 test("resolves to latest if it's inside the wanted range. Even if there are newer versions available inside the range", async () => {
@@ -333,7 +333,7 @@ test("resolves to latest if it's inside the wanted range. Even if there are newe
   })
 
   // 3.1.0 is available but latest is 3.0.0, so preferring it
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.0.0')
 })
 
 test("resolves to latest if it's inside the preferred range. Even if there are newer versions available inside the preferred range", async () => {
@@ -358,7 +358,7 @@ test("resolves to latest if it's inside the preferred range. Even if there are n
   })
 
   // 3.1.0 is available but latest is 3.0.0, so preferring it
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.0.0')
 })
 
 test("resolve using the wanted range, when it doesn't intersect with the preferred range. Even if the preferred range contains the latest version", async () => {
@@ -382,7 +382,7 @@ test("resolve using the wanted range, when it doesn't intersect with the preferr
     registry,
   })
 
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.1.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.1.0')
 })
 
 test("use the preferred version if it's inside the wanted range", async () => {
@@ -407,7 +407,7 @@ test("use the preferred version if it's inside the wanted range", async () => {
   })
 
   // 3.1.0 is the latest but we prefer the 3.0.0
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.0.0')
 })
 
 test("ignore the preferred version if it's not inside the wanted range", async () => {
@@ -430,7 +430,7 @@ test("ignore the preferred version if it's not inside the wanted range", async (
     },
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.1.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.1.0')
 })
 
 test('use the preferred range if it intersects with the wanted range', async () => {
@@ -455,7 +455,7 @@ test('use the preferred range if it intersects with the wanted range', async () 
   })
 
   // 1.0.0 is the latest but we prefer a version that is also in the preferred range
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.1.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.1.0')
 })
 
 test('use the preferred range if it intersects with the wanted range (an array of preferred versions is passed)', async () => {
@@ -483,7 +483,7 @@ test('use the preferred range if it intersects with the wanted range (an array o
   })
 
   // 1.0.0 is the latest but we prefer a version that is also in the preferred range
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.1.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.1.0')
 })
 
 test("ignore the preferred range if it doesn't intersect with the wanted range", async () => {
@@ -506,7 +506,7 @@ test("ignore the preferred range if it doesn't intersect with the wanted range",
     },
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.1.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.1.0')
 })
 
 test("use the preferred dist-tag if it's inside the wanted range", async () => {
@@ -532,7 +532,7 @@ test("use the preferred dist-tag if it's inside the wanted range", async () => {
     },
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.0.0')
 })
 
 test("ignore the preferred dist-tag if it's not inside the wanted range", async () => {
@@ -558,7 +558,7 @@ test("ignore the preferred dist-tag if it's not inside the wanted range", async 
     },
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.1.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.1.0')
 })
 
 test("prefer a version that is both inside the wanted and preferred ranges. Even if it's not the latest of any of them", async () => {
@@ -583,7 +583,7 @@ test("prefer a version that is both inside the wanted and preferred ranges. Even
     },
     registry,
   })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@1.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@1.0.0')
 })
 
 test('prefer the version that is matched by more preferred selectors', async () => {
@@ -604,7 +604,7 @@ test('prefer the version that is matched by more preferred selectors', async () 
     registry,
   })
 
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.0.0')
 })
 
 test('prefer the version that has bigger weight in preferred selectors', async () => {
@@ -629,7 +629,7 @@ test('prefer the version that has bigger weight in preferred selectors', async (
     registry,
   })
 
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.0.0')
 })
 
 test('offline resolution fails when package meta not found in the store', async () => {
@@ -669,7 +669,7 @@ test('offline resolution succeeds when package meta is found in the store', asyn
     })
 
     const resolveResult = await resolve({ alias: 'is-positive', pref: '1.0.0' }, { registry })
-    expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@1.0.0')
+    expect(resolveResult!.id).toBe('/is-positive@1.0.0')
   }
 })
 
@@ -684,7 +684,7 @@ test('prefer offline resolution does not fail when package meta not found in the
   })
 
   const resolveResult = await resolve({ alias: 'is-positive', pref: '1.0.0' }, { registry })
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@1.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@1.0.0')
 })
 
 test('when prefer offline is used, meta from store is used, where latest might be out-of-date', async () => {
@@ -720,7 +720,7 @@ test('when prefer offline is used, meta from store is used, where latest might b
     })
 
     const resolveResult = await resolve({ alias: 'is-positive', pref: '^3.0.0' }, { registry })
-    expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.0.0')
+    expect(resolveResult!.id).toBe('/is-positive@3.0.0')
   }
 
   nock.cleanAll()
@@ -914,7 +914,7 @@ test('resolve when tarball URL is requested from the registry', async () => {
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@1.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@1.0.0')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
@@ -947,7 +947,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@1.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@1.0.0')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
@@ -1068,7 +1068,7 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@1.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@1.0.0')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
@@ -1176,7 +1176,7 @@ test('use version from the registry if it is newer than the local one', async ()
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.1.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.1.0')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9Qa5b+9n69IEuxk4FiNcavXqkixb9lD03BLtdTeu2bbORnLZQrw+pR/exiSg7SoODeu08yxS47mdZa9ddodNwQ==',
@@ -1592,7 +1592,7 @@ test("workspace protocol: don't resolve from local package that has a pre-releas
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@2.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@2.0.0')
   expect(resolveResult!.latest).toBeTruthy()
   expect(resolveResult!.manifest).toBeTruthy()
   expect(resolveResult!.manifest!.name).toBe('is-positive')
@@ -1699,7 +1699,7 @@ test('resolveFromNpm() should always return the name of the package that is spec
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@3.1.0')
+  expect(resolveResult!.id).toBe('/is-positive@3.1.0')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9Qa5b+9n69IEuxk4FiNcavXqkixb9lD03BLtdTeu2bbORnLZQrw+pR/exiSg7SoODeu08yxS47mdZa9ddodNwQ==',
@@ -1736,7 +1736,7 @@ test('request to metadata is retried if the received JSON is broken', async () =
     registry,
   })!
 
-  expect(resolveResult?.id).toBe('registry1.com/is-positive@1.0.0')
+  expect(resolveResult?.id).toBe('/is-positive@1.0.0')
 })
 
 test('request to a package with unpublished versions', async () => {
@@ -1796,7 +1796,7 @@ test('resolveFromNpm() does not fail if the meta file contains no integrity info
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@2.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@2.0.0')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: undefined,
@@ -1835,7 +1835,7 @@ test('resolveFromNpm() should normalize the registry', async () => {
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('reg.com/is-positive@1.0.0')
+  expect(resolveResult!.id).toBe('/is-positive@1.0.0')
   expect(resolveResult!.latest!.split('.').length).toBe(3)
   expect(resolveResult!.resolution).toStrictEqual({
     integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
@@ -1874,7 +1874,7 @@ test('pick lowest version by * when there are only prerelease versions', async (
   })
 
   expect(resolveResult!.resolvedVia).toBe('npm-registry')
-  expect(resolveResult!.id).toBe('registry.npmjs.org/is-positive@1.0.0-alpha.1')
+  expect(resolveResult!.id).toBe('/is-positive@1.0.0-alpha.1')
   expect(resolveResult!.manifest!.name).toBe('is-positive')
   expect(resolveResult!.manifest!.version).toBe('1.0.0-alpha.1')
 })
