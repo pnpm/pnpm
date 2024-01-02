@@ -1,5 +1,11 @@
 # @pnpm/worker
 
+## 0.3.13
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.12
+
 ## 0.3.12
 
 ### Patch Changes

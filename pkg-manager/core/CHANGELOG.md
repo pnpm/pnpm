@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 13.3.1
+
+### Patch Changes
+
+- @pnpm/package-requester@24.1.7
+- @pnpm/worker@0.3.13
+- @pnpm/headless@22.4.1
+- @pnpm/build-modules@11.2.10
+
 ## 13.3.0
 
 ### Minor Changes
