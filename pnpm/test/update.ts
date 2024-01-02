@@ -652,3 +652,135 @@ test('update to latest without downgrading already defined prerelease (#7436)', 
   expect(lockfile3).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
   expect(lockfile3).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
 })
+
+test('update to latest recursive workspace (outdated, updated, prerelease, outdated)', async function () {
+  await addDistTag('@pnpm.e2e/has-prerelease', '2.0.0', 'latest')
+
+  preparePackages([
+    {
+      name: 'project-1',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '2.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+      },
+    },
+    {
+      name: 'project-4',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '1.0.0',
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['install', '-r'])
+
+  const lockfile1 = await readYamlFile<any>('pnpm-lock.yaml')
+  expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@1.0.0'])
+  expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
+  expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+
+  await execPnpm(['update', '-r', '--latest'])
+
+  const manifests = {
+    'project-1': await readPackageJsonFromDir('project-1'),
+    'project-2': await readPackageJsonFromDir('project-2'),
+    'project-3': await readPackageJsonFromDir('project-3'),
+    'project-4': await readPackageJsonFromDir('project-4'),
+  }
+  expect(manifests).toMatchObject({
+    'project-1': {
+      name: 'project-1',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '2.0.0',
+      },
+    },
+    'project-2': {
+      name: 'project-2',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '2.0.0',
+      },
+    },
+    'project-3': {
+      name: 'project-3',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+      },
+    },
+    'project-4': {
+      name: 'project-4',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '2.0.0',
+      },
+    },
+  })
+
+  const lockfile2 = await readYamlFile<any>('pnpm-lock.yaml')
+  expect(lockfile2).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@1.0.0'])
+  expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
+  expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+})
+
+test('update to latest recursive workspace (prerelease, outdated)', async function () {
+  await addDistTag('@pnpm.e2e/has-prerelease', '2.0.0', 'latest')
+
+  preparePackages([
+    {
+      name: 'project-1',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+      },
+    },
+    {
+      name: 'project-2',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '1.0.0',
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['install', '-r'])
+
+  const lockfile1 = await readYamlFile<any>('pnpm-lock.yaml')
+  expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@1.0.0'])
+  expect(lockfile1).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
+  expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+
+  await execPnpm(['update', '-r', '--latest'])
+
+  const manifests = {
+    'project-1': await readPackageJsonFromDir('project-1'),
+    'project-2': await readPackageJsonFromDir('project-2'),
+  }
+  expect(manifests).toMatchObject({
+    'project-1': {
+      name: 'project-1',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+      },
+    },
+    'project-2': {
+      name: 'project-2',
+      dependencies: {
+        '@pnpm.e2e/has-prerelease': '2.0.0',
+      },
+    },
+  })
+
+  const lockfile2 = await readYamlFile<any>('pnpm-lock.yaml')
+  expect(lockfile2).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@1.0.0'])
+  expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
+  expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+})
