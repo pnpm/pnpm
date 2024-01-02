@@ -10,7 +10,7 @@ import {
 } from '@pnpm/config'
 import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
 import { filterPackagesFromDir } from '@pnpm/filter-workspace-packages'
-import { logger } from '@pnpm/logger'
+import { globalWarn, logger } from '@pnpm/logger'
 import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { node } from '@pnpm/plugin-commands-env'
 import { finishWorkers } from '@pnpm/worker'
@@ -271,9 +271,13 @@ export async function main (inputArgv: string[]) {
     })
 
     if (config.useNodeVersion != null) {
-      const nodePath = await node.getNodeBinDir(config)
-      config.extraBinPaths.push(nodePath)
-      config.nodeVersion = config.useNodeVersion
+      if ('webcontainer' in process.versions) {
+        globalWarn('Automatic installation of different Node.js versions is not supported in WebContainer')
+      } else {
+        const nodePath = await node.getNodeBinDir(config)
+        config.extraBinPaths.push(nodePath)
+        config.nodeVersion = config.useNodeVersion
+      }
     }
     let result = pnpmCmds[cmd ?? 'help'](
       // TypeScript doesn't currently infer that the type of config
