@@ -1,6 +1,5 @@
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { type Registries } from '@pnpm/types'
-import encodeRegistry from 'encode-registry'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string) {
@@ -38,19 +37,6 @@ export function getRegistryByPackageName (registries: Registries, packageName: s
   if (packageName[0] !== '@') return registries.default
   const scope = packageName.substring(0, packageName.indexOf('/'))
   return registries[scope] || registries.default
-}
-
-export function relative (
-  registries: Registries,
-  packageName: string,
-  absoluteResolutionLoc: string
-) {
-  const registryName = encodeRegistry(getRegistryByPackageName(registries, packageName))
-
-  if (absoluteResolutionLoc.startsWith(`${registryName}/`)) {
-    return absoluteResolutionLoc.slice(absoluteResolutionLoc.indexOf('/'))
-  }
-  return absoluteResolutionLoc
 }
 
 export function refToRelative (
