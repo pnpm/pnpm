@@ -1,29 +1,9 @@
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { type Registries } from '@pnpm/types'
-import encodeRegistry from 'encode-registry'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string) {
   return dependencyPath[0] !== '/'
-}
-
-export function resolve (
-  registries: Registries,
-  resolutionLocation: string
-) {
-  if (!isAbsolute(resolutionLocation)) {
-    let registryUrl!: string
-    if (resolutionLocation[1] === '@') {
-      const slashIndex = resolutionLocation.indexOf('/', 1)
-      const scope = resolutionLocation.slice(1, slashIndex !== -1 ? slashIndex : 0)
-      registryUrl = registries[scope] || registries.default
-    } else {
-      registryUrl = registries.default
-    }
-    const registryDirectory = encodeRegistry(registryUrl)
-    return `${registryDirectory}${resolutionLocation}`
-  }
-  return resolutionLocation
 }
 
 export function indexOfPeersSuffix (depPath: string) {
@@ -42,51 +22,21 @@ export function indexOfPeersSuffix (depPath: string) {
   return -1
 }
 
-export function tryGetPackageId (registries: Registries, relDepPath: string) {
+export function tryGetPackageId (relDepPath: string) {
   if (relDepPath[0] !== '/') {
     return null
   }
   const sepIndex = indexOfPeersSuffix(relDepPath)
   if (sepIndex !== -1) {
-    return resolve(registries, relDepPath.substring(0, sepIndex))
+    return relDepPath.substring(0, sepIndex)
   }
-  return resolve(registries, relDepPath)
-}
-
-export function refToAbsolute (
-  reference: string,
-  pkgName: string,
-  registries: Registries
-) {
-  if (reference.startsWith('link:')) {
-    return null
-  }
-  if (!reference.includes('/') || reference.includes('(') && reference.lastIndexOf('/', reference.indexOf('(')) === -1) {
-    const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
-    return `${registryName}/${pkgName}/${reference}`
-  }
-  if (reference[0] !== '/') return reference
-  const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
-  return `${registryName}${reference}`
+  return relDepPath
 }
 
 export function getRegistryByPackageName (registries: Registries, packageName: string) {
   if (packageName[0] !== '@') return registries.default
   const scope = packageName.substring(0, packageName.indexOf('/'))
   return registries[scope] || registries.default
-}
-
-export function relative (
-  registries: Registries,
-  packageName: string,
-  absoluteResolutionLoc: string
-) {
-  const registryName = encodeRegistry(getRegistryByPackageName(registries, packageName))
-
-  if (absoluteResolutionLoc.startsWith(`${registryName}/`)) {
-    return absoluteResolutionLoc.slice(absoluteResolutionLoc.indexOf('/'))
-  }
-  return absoluteResolutionLoc
 }
 
 export function refToRelative (

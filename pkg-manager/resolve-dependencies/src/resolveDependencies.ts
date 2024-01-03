@@ -985,7 +985,7 @@ function getInfoFromLockfile (
       ...nameVerFromPkgSnapshot(depPath, dependencyLockfile),
       dependencyLockfile,
       depPath,
-      pkgId: packageIdFromSnapshot(depPath, dependencyLockfile, registries),
+      pkgId: packageIdFromSnapshot(depPath, dependencyLockfile),
       // resolution may not exist if lockfile is broken, and an unexpected error will be thrown
       // if resolution does not exist, return undefined so it can be autofixed later
       resolution: dependencyLockfile.resolution && pkgSnapshotToResolution(depPath, dependencyLockfile, registries),
@@ -993,7 +993,7 @@ function getInfoFromLockfile (
   } else {
     return {
       depPath,
-      pkgId: dp.tryGetPackageId(registries, depPath) ?? depPath, // Does it make sense to set pkgId when we're not sure?
+      pkgId: dp.tryGetPackageId(depPath) ?? depPath, // Does it make sense to set pkgId when we're not sure?
     }
   }
 }
@@ -1187,7 +1187,7 @@ async function resolveDependency (
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
-  let depPath = dp.relative(ctx.registries, pkg.name, pkgResponse.body.id)
+  let depPath = pkgResponse.body.id
   const nameAndVersion = `${pkg.name}@${pkg.version}`
   const patchFile = ctx.patchedDependencies?.[nameAndVersion]
   if (patchFile) {

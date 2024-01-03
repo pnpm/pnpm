@@ -115,7 +115,6 @@ export async function linkPackages (
     pruneStore: opts.pruneStore,
     pruneVirtualStore: opts.pruneVirtualStore,
     publicHoistedModulesDir: (opts.publicHoistPattern != null) ? opts.rootModulesDir : undefined,
-    registries: opts.registries,
     skipped: opts.skipped,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,

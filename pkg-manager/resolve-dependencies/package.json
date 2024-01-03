@@ -47,7 +47,6 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
     "@yarnpkg/core": "4.0.2",
-    "encode-registry": "^3.0.1",
     "filenamify": "^4.3.0",
     "get-npm-tarball-url": "^2.1.0",
     "is-inner-link": "^4.0.0",

@@ -245,7 +245,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           pruneStore: opts.pruneStore,
           pruneVirtualStore: opts.pruneVirtualStore,
           publicHoistedModulesDir: (opts.publicHoistPattern == null) ? undefined : publicHoistedModulesDir,
-          registries: opts.registries,
           skipped,
           storeController: opts.storeController,
           virtualStoreDir,
@@ -787,7 +786,7 @@ async function getRootPackagesToLink (
         if (depPath === null) return
         const pkgSnapshot = lockfile.packages?.[depPath]
         if (pkgSnapshot == null) return // this won't ever happen. Just making typescript happy
-        const pkgId = pkgSnapshot.id ?? dp.refToAbsolute(ref, alias, opts.registries) ?? undefined
+        const pkgId = pkgSnapshot.id ?? dp.refToRelative(ref, alias) ?? undefined
         const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         return {
           alias,
