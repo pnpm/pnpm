@@ -2,9 +2,9 @@
   "name": "with-many-scripts",
   "version": "1.0.0",
   "scripts": {
-    "prepare": "node -e \"process.stdout.write('prepare')\" | json-append output.json",
-    "preinstall": "node -e \"process.stdout.write('preinstall')\" | json-append output.json",
-    "install": "node -e \"process.stdout.write('install')\" | json-append output.json",
-    "postinstall": "node -e \"process.stdout.write('postinstall')\" | json-append output.json"
+    "prepare": "node -e \"console.log('prepare')\" | test-ipc-server-client ./test.sock",
+    "preinstall": "node -e \"console.log('preinstall')\" | test-ipc-server-client ./test.sock",
+    "install": "node -e \"console.log('install')\" | test-ipc-server-client ./test.sock",
+    "postinstall": "node -e \"console.log('postinstall')\" | test-ipc-server-client ./test.sock"
   }
 }

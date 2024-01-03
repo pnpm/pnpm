@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-store-inspecting
 
+## 0.1.2
+
+### Patch Changes
+
+- @pnpm/client@10.0.43
+
+## 0.1.1
+
+### Patch Changes
+
+- 459945292: The package information output by cat-index should be sorted by key.
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+
 ## 0.1.0
 
 ### Minor Changes

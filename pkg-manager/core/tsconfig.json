@@ -22,6 +22,9 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
       "path": "../../config/matcher"
     },
     {

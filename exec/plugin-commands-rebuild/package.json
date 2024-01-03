@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-rebuild",
-  "version": "10.0.12",
+  "version": "10.0.14",
   "description": "Commands for rebuilding dependencies",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -36,6 +36,7 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.17.1",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.5.3",
     "@types/sinon": "^10.0.20",

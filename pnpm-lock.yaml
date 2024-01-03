@@ -349,6 +349,21 @@ importers:
         specifier: ^9.0.13
         version: 9.0.13
 
+  __utils__/test-ipc-server:
+    devDependencies:
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../prepare
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/node':
+        specifier: ^18.14.6
+        version: 18.14.6
+      execa:
+        specifier: npm:safe-execa@0.1.2
+        version: /safe-execa@0.1.2
+
   __utils__/tsconfig:
     devDependencies:
       '@pnpm/tsconfig':
@@ -1123,15 +1138,15 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/rimraf':
         specifier: ^3.0.2
         version: 3.0.2
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3
-      json-append:
-        specifier: 1.1.1
-        version: 1.1.1
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
@@ -1259,6 +1274,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -1374,6 +1392,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 3.17.1
         version: 3.17.1(typanion@3.14.0)
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/is-windows':
         specifier: ^1.0.2
         version: 1.0.2
@@ -1423,6 +1444,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -1687,8 +1711,8 @@ importers:
         specifier: workspace:*
         version: link:../../store/store-controller-types
       '@reflink/reflink':
-        specifier: 0.1.15
-        version: 0.1.15
+        specifier: 0.1.16
+        version: 0.1.16
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3
@@ -3066,6 +3090,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/fs-extra':
         specifier: ^9.0.13
         version: 9.0.13
@@ -3342,6 +3369,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/fs-extra':
         specifier: ^9.0.13
         version: 9.0.13
@@ -3883,6 +3913,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/proxyquire':
         specifier: ^1.3.31
         version: 1.3.31
@@ -4440,6 +4473,9 @@ importers:
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../__utils__/test-fixtures
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../__utils__/test-ipc-server
       '@pnpm/types':
         specifier: workspace:*
         version: link:../packages/types
@@ -4785,6 +4821,9 @@ importers:
       '@pnpm/registry-mock':
         specifier: 3.17.1
         version: 3.17.1(typanion@3.14.0)
+      '@pnpm/test-ipc-server':
+        specifier: workspace:*
+        version: link:../../__utils__/test-ipc-server
       '@types/cross-spawn':
         specifier: ^6.0.5
         version: 6.0.5
@@ -8658,8 +8697,8 @@ packages:
       write-yaml-file: 5.0.0
     dev: true
 
-  /@reflink/reflink-darwin-arm64@0.1.15:
-    resolution: {integrity: sha512-RBZnHSinkDiyh1jTdAMwiczaJx78oVpabhCcy+KfsQawHZnNKExyLQVSCxjnjX2A7z6l15duJvnjK7Lu1CyihQ==}
+  /@reflink/reflink-darwin-arm64@0.1.16:
+    resolution: {integrity: sha512-s61AeZ0br2LtqOl2Rbq0k833hQ00sXJ+l9LGJmjM53dupWft3HEX9C5WUIMDDiU2Scx7f7UKAE4DvIvv7XjBWQ==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
@@ -8667,8 +8706,8 @@ packages:
     dev: false
     optional: true
 
-  /@reflink/reflink-darwin-x64@0.1.15:
-    resolution: {integrity: sha512-pVzOdbHh0BmRseqzyetrMtBVqF/Nd5gVQThF2UQ47btwz4OG/Oh68F39w06KCp1F4h9cWJDz0k7nLiAMMZkqhw==}
+  /@reflink/reflink-darwin-x64@0.1.16:
+    resolution: {integrity: sha512-ssrJj3K0Euua2LAkA4ff5y693wGKUHfznrGeWWtMw2aoLZRAH+C9Ne5oQvmcPPEK6wa929nRhA0ABrvhUa9mvA==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
@@ -8676,8 +8715,8 @@ packages:
     dev: false
     optional: true
 
-  /@reflink/reflink-win32-arm64-msvc@0.1.15:
-    resolution: {integrity: sha512-rfKFqHHrs2JyyO+pgkuRcMrKdOoQMFw9gESyantVan2g8A46xNLPxcEnGp6lMP9gSZNtNjdeVNma7ttErNgoPQ==}
+  /@reflink/reflink-win32-arm64-msvc@0.1.16:
+    resolution: {integrity: sha512-N7r+6YB3vXijs7PF3eg306B5s82hGS2TzsMM4+B9DNN9sbvN2yV5HQw29zyCXHY9c9SLe5kEzERp0rsDtN+6TA==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [win32]
@@ -8685,8 +8724,8 @@ packages:
     dev: false
     optional: true
 
-  /@reflink/reflink-win32-x64-msvc@0.1.15:
-    resolution: {integrity: sha512-uBBiXYbNo0OSFjFn7s0UaIJTDBR6omBz2d1qdaAP4+g6nu8wSCfd4p+EAC2kd1IrAYnuSmnZfdqEpUnl+2EeyA==}
+  /@reflink/reflink-win32-x64-msvc@0.1.16:
+    resolution: {integrity: sha512-CaslGjfhpvtjHqr8Cw1MhkYZAkcLWFiL1pMXOPv4fwngtLC5/OlcL/Y4Rw2QEZwDvPG3gaeY7pjF1NYEGnDrZA==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
@@ -8694,14 +8733,14 @@ packages:
     dev: false
     optional: true
 
-  /@reflink/reflink@0.1.15:
-    resolution: {integrity: sha512-ZE/cZfF6WZmHAAnquNjPkkLkRYh7Dvd/mqkZVLI5OY1r4CQqdKpJbOiXCgTBBqLEjPsn9qEsZLRr6wsKrnhz/A==}
+  /@reflink/reflink@0.1.16:
+    resolution: {integrity: sha512-i2zYt2FH1CE/1HUwK96HcwiahGhaS4wSCgaUnlIrl/4bxTnaZ0T/sYcLJ5VNSrbuczWjtyJ4WUROB+qMcRI9jA==}
     engines: {node: '>= 10'}
     optionalDependencies:
-      '@reflink/reflink-darwin-arm64': 0.1.15
-      '@reflink/reflink-darwin-x64': 0.1.15
-      '@reflink/reflink-win32-arm64-msvc': 0.1.15
-      '@reflink/reflink-win32-x64-msvc': 0.1.15
+      '@reflink/reflink-darwin-arm64': 0.1.16
+      '@reflink/reflink-darwin-x64': 0.1.16
+      '@reflink/reflink-win32-arm64-msvc': 0.1.16
+      '@reflink/reflink-win32-x64-msvc': 0.1.16
     dev: false
 
   /@rushstack/worker-pool@0.4.9(@types/node@18.14.6):
@@ -13721,13 +13760,6 @@ packages:
     hasBin: true
     dev: true
 
-  /json-append@1.1.1:
-    resolution: {integrity: sha512-UiS6F4XN66/WfXnyhlMUtcYMfcEo1CfoOWITo+4NJODqbaoEWvKDk85heyxJd0IQuVt5MhSndpdurY/A1VamyA==}
-    hasBin: true
-    dependencies:
-      concat-stream: 1.6.2
-    dev: true
-
   /json-buffer@3.0.1:
     resolution: {integrity: sha512-4bV5BfR2mqfQTJm+V5tPPdf+ZpuhiIvTuAB5g8kcrXOZpTT/QwwVRWBywX1ozr6lEuPdbHxwaJlm9G6mI2sfSQ==}
 
@@ -17862,6 +17894,7 @@ time:
   /@pnpm/node-fetch@1.0.0: '2023-04-19T11:13:43.487Z'
   /@pnpm/ramda@0.28.1: '2022-08-03T13:56:59.597Z'
   /@pnpm/which@3.0.1: '2023-05-14T22:08:27.551Z'
+  /@reflink/reflink@0.1.16: '2024-01-02T17:41:22.200Z'
   /@types/byline@4.2.36: '2023-11-07T00:13:37.410Z'
   /@types/table@6.0.0: '2020-09-17T17:56:44.787Z'
   /@yarnpkg/core@4.0.2: '2023-11-14T09:21:22.875Z'

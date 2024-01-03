@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "8.13.1",
+  "version": "8.14.0",
   "bin": {
     "pnpm": "bin/pnpm.cjs",
     "pnpx": "bin/pnpx.cjs"
@@ -67,6 +67,7 @@
     "@pnpm/run-npm": "workspace:*",
     "@pnpm/tabtab": "^0.1.2",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/worker": "workspace:*",
     "@pnpm/workspace.find-packages": "workspace:*",
