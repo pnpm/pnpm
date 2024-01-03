@@ -4,7 +4,6 @@ import {
   isAbsolute,
   parse,
   refToRelative,
-  relative,
   tryGetPackageId,
 } from '@pnpm/dependency-path'
 
@@ -59,16 +58,6 @@ test('refToRelative()', () => {
   expect(refToRelative('file:../tarball.tgz', 'foo')).toEqual('file:../tarball.tgz')
   expect(refToRelative('1.3.0(@foo/bar@1.0.0)', '@qar/bar')).toEqual('/@qar/bar@1.3.0(@foo/bar@1.0.0)')
   expect(refToRelative('1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@qar/bar')).toEqual('/@qar/bar@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
-})
-
-test('relative()', () => {
-  const registries = {
-    '@foo': 'http://localhost:4873/',
-    default: 'https://registry.npmjs.org/',
-  }
-  expect(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0')).toEqual('/foo/1.0.0')
-  expect(relative(registries, '@foo/foo', 'localhost+4873/@foo/foo/1.0.0')).toEqual('/@foo/foo/1.0.0')
-  expect(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw')).toEqual('/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw')
 })
 
 test('depPathToFilename()', () => {
