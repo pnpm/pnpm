@@ -207,7 +207,7 @@ export async function getConfig (
     'deploy-all-files': false,
     'dedupe-peer-dependents': true,
     'dedupe-direct-deps': false,
-    'dedupe-injected-deps': false,
+    'dedupe-injected-deps': true,
     'disallow-workspace-cycles': false,
     'enable-modules-dir': true,
     'exclude-links-from-lockfile': false,

@@ -1593,6 +1593,7 @@ test('injected package is kept up-to-date when it is hoisted to multiple places'
   }
   await mutateModules(importers, await testDefaults({
     allProjects,
+    dedupeInjectedDeps: false,
     nodeLinker: 'hoisted',
     workspacePackages,
   }))
@@ -1667,6 +1668,7 @@ test('relink injected dependency on install by default', async () => {
   }
   await mutateModules(importers, await testDefaults({
     allProjects,
+    dedupeInjectedDeps: false,
     workspacePackages,
     packageImportMethod: 'hardlink',
     fastUnpack: false,
@@ -1684,6 +1686,7 @@ test('relink injected dependency on install by default', async () => {
 
   await mutateModules(importers, await testDefaults({
     allProjects,
+    dedupeInjectedDeps: false,
     workspacePackages,
     packageImportMethod: 'hardlink',
     fastUnpack: false,
