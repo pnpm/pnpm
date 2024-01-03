@@ -1306,7 +1306,7 @@ test("linking the package's bin to another workspace package in a monorepo", asy
       version: '2.0.0',
 
       dependencies: {
-        hello: '1.0.0',
+        hello: 'workspace:*',
       },
     },
   ], { manifestFormat: 'YAML' })
