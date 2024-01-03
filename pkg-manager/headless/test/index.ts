@@ -14,7 +14,7 @@ import { headlessInstall } from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { tempDir } from '@pnpm/prepare'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { getIntegrity } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import rimraf from '@zkochan/rimraf'
@@ -73,7 +73,7 @@ test('installing a simple project', async () => {
   } as StageLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative@2.1.0`,
+    packageId: '/is-negative@2.1.0',
     requester: prefix,
     status: 'resolved',
   })).toBeTruthy()
@@ -425,13 +425,13 @@ test('available packages are used when node_modules is not clean', async () => {
 
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/balanced-match@1.0.2`,
+    packageId: '/balanced-match@1.0.2',
     requester: projectDir,
     status: 'resolved',
   })).toBeFalsy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/rimraf@2.7.1`,
+    packageId: '/rimraf@2.7.1',
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
@@ -462,13 +462,13 @@ test('available packages are relinked during forced install', async () => {
 
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/balanced-match@1.0.2`,
+    packageId: '/balanced-match@1.0.2',
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/rimraf@2.7.1`,
+    packageId: '/rimraf@2.7.1',
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
@@ -585,7 +585,7 @@ test('installing with hoistPattern=*', async () => {
   } as StageLog))
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative@2.1.0`,
+    packageId: '/is-negative@2.1.0',
     requester: prefix,
     status: 'resolved',
   }))
@@ -641,7 +641,7 @@ test('installing with publicHoistPattern=*', async () => {
   } as StageLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative@2.1.0`,
+    packageId: '/is-negative@2.1.0',
     requester: prefix,
     status: 'resolved',
   })).toBeTruthy()
@@ -724,7 +724,7 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
   const project = assertProject(lockfileDir)
   await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 
-  const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage@1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(opts.storeDir, `diskusage@1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf(path.join(lockfileDir, 'node_modules'))

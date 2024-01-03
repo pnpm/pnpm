@@ -81,13 +81,11 @@ function toLockfileDependency (
   const newResolvedDeps = updateResolvedDeps(
     opts.prevSnapshot?.dependencies ?? {},
     opts.updatedDeps,
-    opts.registries,
     opts.depGraph
   )
   const newResolvedOptionalDeps = updateResolvedDeps(
     opts.prevSnapshot?.optionalDependencies ?? {},
     opts.updatedOptionalDeps,
-    opts.registries,
     opts.depGraph
   )
   const result = {
@@ -197,7 +195,6 @@ function toLockfileDependency (
 function updateResolvedDeps (
   prevResolvedDeps: ResolvedDependencies,
   updatedDeps: Array<{ alias: string, depPath: string }>,
-  registries: Registries,
   depGraph: DependenciesGraph
 ) {
   const newResolvedDeps = Object.fromEntries(
@@ -212,7 +209,6 @@ function updateResolvedDeps (
           depPathToRef(depNode.depPath, {
             alias,
             realName: depNode.name,
-            registries,
             resolution: depNode.resolution,
           }),
         ]

@@ -2497,9 +2497,6 @@ importers:
       '@pnpm/types':
         specifier: workspace:*
         version: link:../types
-      encode-registry:
-        specifier: ^3.0.1
-        version: 3.0.1
       semver:
         specifier: ^7.5.4
         version: 7.5.4
@@ -4111,9 +4108,6 @@ importers:
       '@yarnpkg/core':
         specifier: 4.0.2
         version: 4.0.2(typanion@3.14.0)
-      encode-registry:
-        specifier: ^3.0.1
-        version: 3.0.1
       filenamify:
         specifier: ^4.3.0
         version: 4.3.0

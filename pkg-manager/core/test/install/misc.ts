@@ -695,13 +695,13 @@ test('lockfile locks npm dependencies', async () => {
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:progress',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep@100.0.0`,
+    packageId: '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'resolved',
   } as ProgressLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep@100.0.0`,
+    packageId: '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'fetched',
   } as ProgressLog)).toBeTruthy()
@@ -717,13 +717,13 @@ test('lockfile locks npm dependencies', async () => {
 
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep@100.0.0`,
+    packageId: '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'resolved',
   } as ProgressLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep@100.0.0`,
+    packageId: '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'found_in_store',
   } as ProgressLog)).toBeTruthy()

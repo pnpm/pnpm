@@ -54,7 +54,7 @@ test('request package', async () => {
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
+  expect(pkgResponse.body.id).toBe('/is-positive@1.0.0')
   expect(pkgResponse.body.resolvedVia).toBe('npm-registry')
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
@@ -96,7 +96,7 @@ test('request package but skip fetching', async () => {
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
+  expect(pkgResponse.body.id).toBe('/is-positive@1.0.0')
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest?.name).toBe('is-positive')
@@ -125,7 +125,7 @@ test('request package but skip fetching, when resolution is already available', 
   const projectDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     currentPkg: {
-      id: `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`,
+      id: '/is-positive/1.0.0',
       resolution: {
         integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
@@ -148,7 +148,7 @@ test('request package but skip fetching, when resolution is already available', 
   expect(pkgResponse).toBeTruthy()
   expect(pkgResponse.body).toBeTruthy()
 
-  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
+  expect(pkgResponse.body.id).toBe('/is-positive@1.0.0')
   expect(pkgResponse.body.isLocal).toBe(false)
   expect(typeof pkgResponse.body.latest).toBe('string')
   expect(pkgResponse.body.manifest.name).toBe('is-positive')
@@ -356,7 +356,7 @@ test('fetchPackageToStore()', async () => {
     verifyStoreIntegrity: true,
   })
 
-  const pkgId = `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`
+  const pkgId = '/is-positive/1.0.0'
   const fetchResult = packageRequester.fetchPackageToStore({
     force: false,
     lockfileDir: tempy.directory(),
@@ -421,7 +421,7 @@ test('fetchPackageToStore() concurrency check', async () => {
     verifyStoreIntegrity: true,
   })
 
-  const pkgId = `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`
+  const pkgId = '/is-positive/1.0.0'
   const projectDir1 = tempy.directory()
   const projectDir2 = tempy.directory()
   const fetchResults = await Promise.all([
@@ -506,7 +506,7 @@ test('fetchPackageToStore() does not cache errors', async () => {
     verifyStoreIntegrity: true,
   })
 
-  const pkgId = `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`
+  const pkgId = '/is-positive/1.0.0'
 
   const badRequest = packageRequester.fetchPackageToStore({
     force: false,
@@ -575,7 +575,7 @@ test('always return a package manifest in the response', async () => {
   {
     const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
       currentPkg: {
-        id: `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`,
+        id: '/is-positive/1.0.0',
         resolution: {
           integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
           tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
@@ -619,7 +619,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
     verifyStoreIntegrity: true,
   })
 
-  const pkgId = `localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`
+  const pkgId = '/is-positive/1.0.0'
   const resolution = {
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
   }
@@ -656,7 +656,7 @@ test('refetch package to store if it has been modified', async () => {
   const storeDir = tempy.directory()
   const lockfileDir = tempy.directory()
 
-  const pkgId = `localhost+${REGISTRY_MOCK_PORT}/magic-hook/2.0.0`
+  const pkgId = '/magic-hook/2.0.0'
   const resolution = {
     tarball: `http://localhost:${REGISTRY_MOCK_PORT}/magic-hook/-/magic-hook-2.0.0.tgz`,
   }
@@ -764,7 +764,7 @@ test('do not fetch an optional package that is not installable', async () => {
   expect(pkgResponse.body).toBeTruthy()
 
   expect(pkgResponse.body.isInstallable).toBe(false)
-  expect(pkgResponse.body.id).toBe(`localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/not-compatible-with-any-os@1.0.0`)
+  expect(pkgResponse.body.id).toBe('/@pnpm.e2e/not-compatible-with-any-os@1.0.0')
 
   expect(pkgResponse.fetching).toBeFalsy()
 })

@@ -3,10 +3,7 @@ import {
   depPathToFilename,
   isAbsolute,
   parse,
-  refToAbsolute,
   refToRelative,
-  relative,
-  resolve,
   tryGetPackageId,
 } from '@pnpm/dependency-path'
 
@@ -52,22 +49,6 @@ test('parse()', () => {
   })
 })
 
-test('refToAbsolute()', () => {
-  const registries = {
-    '@foo': 'http://foo.com/',
-    default: 'https://registry.npmjs.org/',
-  }
-  expect(refToAbsolute('1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
-  expect(refToAbsolute('1.0.0', '@foo/foo', registries)).toEqual('foo.com/@foo/foo/1.0.0')
-  expect(refToAbsolute('registry.npmjs.org/foo/1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
-  expect(refToAbsolute('/foo/1.0.0', 'foo', registries)).toEqual('registry.npmjs.org/foo/1.0.0')
-  expect(refToAbsolute('/@foo/foo/1.0.0', '@foo/foo', registries)).toEqual('foo.com/@foo/foo/1.0.0')
-  expect(refToAbsolute('/@foo/foo@1.0.0(@foo/bar@1.0.0)', '@foo/foo', registries)).toEqual('foo.com/@foo/foo@1.0.0(@foo/bar@1.0.0)')
-  expect(refToAbsolute('/@foo/foo@1.0.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@foo/foo', registries)).toEqual('foo.com/@foo/foo@1.0.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
-  // linked dependencies don't have an absolute path
-  expect(refToAbsolute('link:../foo', 'foo', registries)).toBeNull()
-})
-
 test('refToRelative()', () => {
   expect(refToRelative('/@most/multicast/1.3.0/most@1.7.3', '@most/multicast')).toEqual('/@most/multicast/1.3.0/most@1.7.3')
   expect(refToRelative('/@most/multicast/1.3.0/most@1.7.3(@foo/bar@1.0.0)', '@most/multicast')).toEqual('/@most/multicast/1.3.0/most@1.7.3(@foo/bar@1.0.0)')
@@ -77,27 +58,6 @@ test('refToRelative()', () => {
   expect(refToRelative('file:../tarball.tgz', 'foo')).toEqual('file:../tarball.tgz')
   expect(refToRelative('1.3.0(@foo/bar@1.0.0)', '@qar/bar')).toEqual('/@qar/bar@1.3.0(@foo/bar@1.0.0)')
   expect(refToRelative('1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)', '@qar/bar')).toEqual('/@qar/bar@1.3.0(@foo/bar@1.0.0)(@foo/qar@1.0.0)')
-})
-
-test('relative()', () => {
-  const registries = {
-    '@foo': 'http://localhost:4873/',
-    default: 'https://registry.npmjs.org/',
-  }
-  expect(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0')).toEqual('/foo/1.0.0')
-  expect(relative(registries, '@foo/foo', 'localhost+4873/@foo/foo/1.0.0')).toEqual('/@foo/foo/1.0.0')
-  expect(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw')).toEqual('/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw')
-})
-
-test('resolve()', () => {
-  const registries = {
-    '@bar': 'https://bar.com/',
-    default: 'https://foo.com/',
-  }
-  expect(resolve(registries, '/foo/1.0.0')).toEqual('foo.com/foo/1.0.0')
-  expect(resolve(registries, '/@bar/bar/1.0.0')).toEqual('bar.com/@bar/bar/1.0.0')
-  expect(resolve(registries, '/@qar/qar/1.0.0')).toEqual('foo.com/@qar/qar/1.0.0')
-  expect(resolve(registries, 'qar.com/foo/1.0.0')).toEqual('qar.com/foo/1.0.0')
 })
 
 test('depPathToFilename()', () => {
@@ -116,6 +76,6 @@ test('depPathToFilename()', () => {
 })
 
 test('tryGetPackageId', () => {
-  expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('registry.npmjs.org/foo@1.0.0')
-  expect(tryGetPackageId({ default: 'https://registry.npmjs.org/' }, '/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('registry.npmjs.org/@(-.-)/foo@1.0.0')
+  expect(tryGetPackageId('/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('/foo@1.0.0')
+  expect(tryGetPackageId('/@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)')).toEqual('/@(-.-)/foo@1.0.0')
 })

@@ -1,12 +1,10 @@
 import { type PackageSnapshot } from '@pnpm/lockfile-types'
-import { type Registries } from '@pnpm/types'
 import * as dp from '@pnpm/dependency-path'
 
 export function packageIdFromSnapshot (
   depPath: string,
-  pkgSnapshot: PackageSnapshot,
-  registries: Registries
+  pkgSnapshot: PackageSnapshot
 ) {
   if (pkgSnapshot.id) return pkgSnapshot.id
-  return dp.tryGetPackageId(registries, depPath) ?? depPath
+  return dp.tryGetPackageId(depPath) ?? depPath
 }
