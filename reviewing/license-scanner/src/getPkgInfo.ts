@@ -159,6 +159,7 @@ async function readLicenseFileFromCafs (cafsDir: string, { integrity, mode }: Pa
 export async function readPackageIndexFile (
   packageResolution: Resolution,
   depPath: string,
+  id: string | undefined,
   opts: { cafsDir: string, storeDir: string, lockfileDir: string }
 ): Promise<
   | {
@@ -195,10 +196,7 @@ export async function readPackageIndexFile (
       'index'
     )
   } else if (!packageResolution.type && packageResolution.tarball) {
-    // If the package resolution has a tarball then we need to clean up
-    // the return value to depPathToFilename as it adds peer deps(e.g. a@1.0.0_peer-foo@18.0.0_peer-bar@18.0.0) or patch hash(a@1.0.0_patch_hash=xxxx) part to the
-    // directory for the package in the content-addressable store
-    const packageDirInStore = depPathToFilename(depPath).split('_')[0]
+    const packageDirInStore = depPathToFilename(id ?? depPath)
     pkgIndexFilePath = path.join(
       opts.storeDir,
       packageDirInStore,
@@ -230,6 +228,7 @@ export async function readPackageIndexFile (
 }
 
 export interface PackageInfo {
+  id?: string
   name?: string
   version?: string
   depPath: string
@@ -271,6 +270,7 @@ export async function getPkgInfo (
   const packageFileIndexInfo = await readPackageIndexFile(
     packageResolution as Resolution,
     pkg.depPath,
+    pkg.id,
     {
       cafsDir,
       storeDir: opts.storeDir,
