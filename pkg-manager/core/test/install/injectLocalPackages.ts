@@ -1755,6 +1755,7 @@ test('do not relink injected dependency on install when disableRelinkLocalDirDep
   }
   await mutateModules(importers, await testDefaults({
     allProjects,
+    dedupeInjectedDeps: false,
     workspacePackages,
     packageImportMethod: 'hardlink',
     fastUnpack: false,
@@ -1775,6 +1776,7 @@ test('do not relink injected dependency on install when disableRelinkLocalDirDep
 
   await mutateModules(importers, await testDefaults({
     allProjects,
+    dedupeInjectedDeps: false,
     workspacePackages,
     packageImportMethod: 'hardlink',
     fastUnpack: false,
