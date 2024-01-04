@@ -159,6 +159,7 @@ const defaults = (opts: InstallOptions) => {
     childConcurrency: 5,
     confirmModulesPurge: !opts.force,
     depth: 0,
+    dedupeInjectedDeps: true,
     enablePnp: false,
     engineStrict: false,
     force: false,
