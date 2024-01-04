@@ -16,7 +16,7 @@ test.each([
     {
       name: 'project-1',
       version: '1.0.0',
-      dependencies: { 'project-2': '1.0.0', 'project-3': '1.0.0' },
+      dependencies: { 'project-2': 'workspace:*', 'project-3': 'workspace:*' },
       scripts: {
         test: server.sendLineScript('project-1'),
       },
@@ -32,7 +32,7 @@ test.each([
     {
       name: 'project-3',
       version: '1.0.0',
-      dependencies: { 'project-2': '1.0.0' },
+      dependencies: { 'project-2': 'workspace:*' },
       scripts: {
         test: server.sendLineScript('project-3'),
       },
@@ -41,7 +41,7 @@ test.each([
       name: 'project-4',
       version: '1.0.0',
       dependencies: {},
-      devDependencies: { 'project-3': '1.0.0' },
+      devDependencies: { 'project-3': 'workspace:*' },
       scripts: {
         test: server.sendLineScript('project-4'),
       },
