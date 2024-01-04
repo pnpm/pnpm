@@ -170,6 +170,7 @@ export async function recursive (
     const calculatedRepositoryRoot = await fs.realpath(calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir)))
     const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
     importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
+    importers = await Promise.all(importers.map(async ({ rootDir, ...rest }) => ({ rootDir: await fs.realpath(rootDir), ...rest })))
     if (importers.length === 0) return true
     let mutation!: string
     switch (cmdFullName) {
