@@ -288,7 +288,7 @@ test('recursive command with filter from config', async () => {
 
       dependencies: {
         'is-positive': '1.0.0',
-        'project-2': '1.0.0',
+        'project-2': 'workspace:*',
       },
     },
     {

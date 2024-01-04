@@ -233,7 +233,7 @@ export async function getConfig (
     'hoist-workspace-packages': false,
     'ignore-workspace-cycles': false,
     'ignore-workspace-root-check': false,
-    'link-workspace-packages': true,
+    'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'node-linker': 'isolated',
