@@ -49,7 +49,9 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
     // the linking of files to the store is in progress.
     return addFilesFromDir({
       cafsDir: cafs.cafsDir,
-      dir: tempLocation,
+      dir: resolution.path
+        ? path.join(tempLocation, resolution.path)
+        : tempLocation,
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
       pkg: opts.pkg,

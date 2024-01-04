@@ -47,6 +47,24 @@ test('fetch', async () => {
   expect(manifest?.name).toEqual('is-positive')
 })
 
+test('fetch a package from Git sub folder', async () => {
+  const cafsDir = tempy.directory()
+  const fetch = createGitFetcher({ rawConfig: {} }).git
+  const { filesIndex } = await fetch(
+    createCafsStore(cafsDir),
+    {
+      commit: '2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22',
+      repo: 'https://github.com/RexSkz/test-git-subfolder-fetch.git',
+      path: '/packages/simple-react-app',
+      type: 'git',
+    },
+    {
+      filesIndexFile: path.join(cafsDir, 'index.json'),
+    }
+  )
+  expect(filesIndex[`public${path.sep}index.html`]).toBeTruthy()
+})
+
 test('fetch a package from Git that has a prepare script', async () => {
   const cafsDir = tempy.directory()
   const fetch = createGitFetcher({ rawConfig: {} }).git

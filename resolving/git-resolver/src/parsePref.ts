@@ -17,6 +17,7 @@ export interface HostedPackageSpec {
   normalizedPref: string
   gitCommittish: string | null
   gitRange?: string
+  path?: string
 }
 
 const gitProtocols = new Set([
@@ -55,6 +56,7 @@ export async function parsePref (pref: string): Promise<HostedPackageSpec | null
 
 function urlToFetchSpec (url: URL) {
   url.hash = ''
+  url.search = ''
   const fetchSpec = urlLib.format(url)
   if (fetchSpec.startsWith('git+')) {
     return fetchSpec.slice(4)
@@ -143,14 +145,26 @@ async function accessRepository (repository: string) {
   }
 }
 
-function setGitCommittish (committish: string | null) {
-  if (committish !== null && committish.length >= 7 && committish.slice(0, 7) === 'semver:') {
-    return {
-      gitCommittish: null,
-      gitRange: committish.slice(7),
+function setGitCommittish (committish: string | null): Pick<HostedPackageSpec, 'gitCommittish' | 'gitRange' | 'path'> {
+  const result = { gitCommittish: null }
+  if (!committish) {
+    return result
+  }
+
+  const params = committish.split('#')
+  for (const param of params) {
+    if (param.length >= 7 && param.slice(0, 7) === 'semver:') {
+      Object.assign(result, {
+        gitCommittish: null,
+        gitRange: param.slice(7),
+      })
+    } else if (param.slice(0, 5) === 'path:') {
+      Object.assign(result, { path: param.slice(5) })
+    } else {
+      Object.assign(result, { gitCommittish: param })
     }
   }
-  return { gitCommittish: committish }
+  return result
 }
 
 // handle SCP-like URLs

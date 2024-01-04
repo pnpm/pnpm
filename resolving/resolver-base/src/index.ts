@@ -20,6 +20,7 @@ export interface DirectoryResolution {
 export interface GitResolution {
   commit: string
   repo: string
+  path?: string
   type: 'git'
 }
 

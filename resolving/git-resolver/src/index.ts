@@ -1,4 +1,4 @@
-import { type ResolveResult } from '@pnpm/resolver-base'
+import { type GitResolution, type ResolveResult } from '@pnpm/resolver-base'
 import git from 'graceful-git'
 import semver from 'semver'
 import { parsePref, type HostedPackageSpec } from './parsePref'
@@ -38,7 +38,11 @@ export function createGitResolver (
         commit,
         repo: parsedSpec.fetchSpec,
         type: 'git',
-      } as ({ type: string } & object)
+      } as GitResolution
+
+      if (parsedSpec.path) {
+        resolution.path = parsedSpec.path
+      }
     }
 
     return {
