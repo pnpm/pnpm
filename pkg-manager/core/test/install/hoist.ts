@@ -903,6 +903,7 @@ test('hoistWorkspacePackages should hoist all workspace projects', async () => {
   await projects['root'].has('.pnpm/node_modules/@pnpm.e2e/bar')
   await projects['root'].has('.pnpm/node_modules/package')
   await projects['root'].has('.pnpm/node_modules/package2')
+  await projects['root'].hasNot('.pnpm/node_modules/root')
   await projects['root'].hasNot('@pnpm.e2e/foobar')
   await projects['root'].hasNot('@pnpm.e2e/foo')
   await projects['root'].hasNot('@pnpm.e2e/bar')
@@ -921,4 +922,5 @@ test('hoistWorkspacePackages should hoist all workspace projects', async () => {
   }))
   await projects['root'].has('.pnpm/node_modules/package')
   await projects['root'].has('.pnpm/node_modules/package2')
+  await projects['root'].hasNot('.pnpm/node_modules/root')
 })
