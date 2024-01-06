@@ -228,7 +228,7 @@ export async function linkPackages (
       virtualStoreDir: opts.virtualStoreDir,
       hoistedWorkspacePackages: opts.hoistWorkspacePackages
         ? projects.reduce((hoistedWorkspacePackages, project) => {
-          if (project.manifest.name) {
+          if (project.manifest.name && project.id !== '.') {
             hoistedWorkspacePackages[project.id] = {
               dir: project.rootDir,
               name: project.manifest.name,
