@@ -259,7 +259,7 @@ Do you want to continue?`,
   })
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
 
-  const env = Object.assign({})
+  const env = {}
 
   for (const { registryKey, token } of parsedTokenHelpers) {
     if (token) {
