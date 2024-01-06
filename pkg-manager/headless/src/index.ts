@@ -427,7 +427,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         virtualStoreDir,
         hoistedWorkspacePackages: opts.hoistWorkspacePackages
           ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
-            if (project.manifest.name) {
+            if (project.manifest.name && project.id !== '.') {
               hoistedWorkspacePackages[project.id] = {
                 dir: project.rootDir,
                 name: project.manifest.name,
