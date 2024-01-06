@@ -230,7 +230,7 @@ export async function getConfig (
     'git-branch-lockfile': false,
     hoist: true,
     'hoist-pattern': ['*'],
-    'hoist-workspace-packages': false,
+    'hoist-workspace-packages': true,
     'ignore-workspace-cycles': false,
     'ignore-workspace-root-check': false,
     'link-workspace-packages': false,
