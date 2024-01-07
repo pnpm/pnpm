@@ -138,30 +138,6 @@ export async function publish (
   } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'embedReadme' | 'packGzipLevel'>,
   params: string[]
 ) {
-  const tokenHelpers = Object.entries(opts.rawConfig).filter(([key]) => key.endsWith(':tokenHelper'))
-  const tokenHelpersFromArgs = opts.argv.original.filter(arg => arg.includes(':tokenHelper=')).map(arg => [arg.split('=')[0], arg.split('=')[1]] as [string, string])
-
-  const parsedTokenHelpers = tokenHelpers.concat(tokenHelpersFromArgs).map(([key, value]) => {
-    // Extracting the registry and port from the npm configuration key
-    const registryMatch = key.match(/\/\/(.*?):(\d+)\/:/)
-    if (!registryMatch) {
-      throw new Error(`Invalid registry format in key: ${key}`)
-    }
-
-    const [, registryHost, registryPort] = registryMatch
-    const registry = registryPort ? `//${registryHost}:${registryPort}/` : `//${registryHost}/`
-
-    const parsedToken = loadToken(value, key)
-    const type = parsedToken.startsWith('Bearer')
-      ? '_authToken'
-      : '_auth'
-
-    return {
-      registryKey: `NPM_CONFIG_${registry}:${type}`,
-      token: type === '_authToken' ? parsedToken.slice('Bearer '.length) : parsedToken.replace(/Basic /i, ''),
-    }
-  })
-
   if (opts.gitChecks !== false && await isGitRepo()) {
     if (!(await isWorkingTreeClean())) {
       throw new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.', {
@@ -259,19 +235,9 @@ Do you want to continue?`,
   })
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
 
-  const env: {
-    [key: string]: string
-  } = {}
-
-  for (const { registryKey, token } of parsedTokenHelpers) {
-    if (token) {
-      env[registryKey] = token
-    }
-  }
-
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballName), ...args], {
     cwd: packDestination,
-    env,
+    env: getEnvWithTokens(opts),
   })
   await rimraf(packDestination)
 
@@ -285,6 +251,31 @@ Do you want to continue?`,
     ], manifest)
   }
   return { manifest }
+}
+
+/**
+ * The npm CLI doesn't support token helpers, so we transform the token helper settings
+ * to regular auth token settings that the npm CLI can understand.
+ */
+function getEnvWithTokens (opts: Pick<PublishRecursiveOpts, 'rawConfig' | 'argv'>) {
+  const tokenHelpers = Object.entries(opts.rawConfig).filter(([key]) => key.endsWith(':tokenHelper'))
+  const tokenHelpersFromArgs = opts.argv.original
+    .filter(arg => arg.includes(':tokenHelper='))
+    .map(arg => arg.split('=', 2) as [string, string])
+
+  const env: Record<string, string> = {}
+  for (const [key, helperPath] of tokenHelpers.concat(tokenHelpersFromArgs)) {
+    const authHeader = loadToken(helperPath, key)
+    const authType = authHeader.startsWith('Bearer')
+      ? '_authToken'
+      : '_auth'
+
+    const registry = key.replace(/:tokenHelper$/, '')
+    env[`NPM_CONFIG_${registry}:${authType}`] = authType === '_authToken'
+      ? authHeader.slice('Bearer '.length)
+      : authHeader.replace(/Basic /i, '')
+  }
+  return env
 }
 
 async function copyNpmrc (

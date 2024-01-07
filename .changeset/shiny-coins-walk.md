@@ -1,6 +1,6 @@
 ---
-"@pnpm/plugin-commands-publishing": patch
-"@pnpm/run-npm": patch
+"@pnpm/plugin-commands-publishing": minor
+"@pnpm/run-npm": minor
 "pnpm": patch
 ---
 

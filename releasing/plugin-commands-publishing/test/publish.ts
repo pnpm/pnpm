@@ -1,5 +1,5 @@
 import { chmodSync, existsSync, promises as fs } from 'fs'
-import path, { join } from 'path'
+import path from 'path'
 import execa from 'execa'
 import { isCI } from 'ci-info'
 import isWindows from 'is-windows'
@@ -751,7 +751,7 @@ test('publish: use basic token helper for authentication', async () => {
     ? 'tokenHelperBasic.bat'
     : 'tokenHelperBasic.js'
 
-  const tokenHelper = join(__dirname, 'utils', file)
+  const tokenHelper = path.join(__dirname, 'utils', file)
 
   chmodSync(tokenHelper, 0o755)
 
@@ -779,7 +779,7 @@ test('publish: use bearer token helper for authentication', async () => {
   const file = os === 'win32'
     ? 'tokenHelperBearer.bat'
     : 'tokenHelperBearer.js'
-  const tokenHelper = join(__dirname, 'utils', file)
+  const tokenHelper = path.join(__dirname, 'utils', file)
 
   chmodSync(tokenHelper, 0o755)
 
