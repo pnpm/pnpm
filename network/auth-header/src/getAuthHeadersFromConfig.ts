@@ -62,11 +62,7 @@ export function loadToken (helperPath: string, settingName: string) {
     throw new PnpmError('BAD_TOKEN_HELPER_PATH', `${settingName} must be an absolute path, without arguments`)
   }
 
-  const isNode = helperPath.endsWith('.js')
-  const isWin = process.platform === 'win32'
-
-  // If it's windows and expected node, run with node
-  const spawnResult = spawnSync(isWin && isNode ? 'node' : helperPath, isWin && isNode ? [helperPath] : [], { shell: true })
+  const spawnResult = spawnSync(helperPath, { shell: true })
 
   if (spawnResult.status !== 0) {
     throw new PnpmError('TOKEN_HELPER_ERROR_STATUS', `Error running "${helperPath}" as a token helper, configured as ${settingName}. Exit code ${spawnResult.status?.toString() ?? ''}`)

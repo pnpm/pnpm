@@ -746,7 +746,12 @@ test('publish: use basic token helper for authentication', async () => {
     version: '0.0.2',
   })
 
-  const tokenHelper = join(__dirname, 'utils', 'tokenHelperBasic.js')
+  const os = process.platform
+  const file = os === 'win32'
+    ? 'tokenHelperBasic.cmd'
+    : 'tokenHelperBasic.js'
+
+  const tokenHelper = join(__dirname, 'utils', file)
 
   chmodSync(tokenHelper, 0o755)
 
@@ -770,7 +775,11 @@ test('publish: use bearer token helper for authentication', async () => {
     version: '0.0.2',
   })
 
-  const tokenHelper = join(__dirname, 'utils', 'tokenHelperBearer.js')
+  const os = process.platform
+  const file = os === 'win32'
+    ? 'tokenHelperBearer.cmd'
+    : 'tokenHelperBearer.js'
+  const tokenHelper = join(__dirname, 'utils', file)
 
   chmodSync(tokenHelper, 0o755)
 
