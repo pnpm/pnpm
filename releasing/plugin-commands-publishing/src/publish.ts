@@ -234,7 +234,6 @@ Do you want to continue?`,
     packDestination,
   })
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
-
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballName), ...args], {
     cwd: packDestination,
     env: getEnvWithTokens(opts),
