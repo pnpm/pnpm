@@ -1,5 +1,5 @@
 ---
-"@pnpm/plugin-commands-installation": patch
+"@pnpm/config": patch
 ---
 
-Fetches the local module real path
+Fixes the local package real path
