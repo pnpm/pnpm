@@ -8,6 +8,7 @@ import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { runNpm } from '@pnpm/run-npm'
 import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
+import { loadToken } from '@pnpm/network.auth-header'
 import { prompt } from 'enquirer'
 import rimraf from '@zkochan/rimraf'
 import pick from 'ramda/src/pick'
@@ -16,7 +17,6 @@ import renderHelp from 'render-help'
 import tempy from 'tempy'
 import * as pack from './pack'
 import { recursivePublish, type PublishRecursiveOpts } from './recursivePublish'
-import { spawnSync } from 'child_process'
 
 export function rcOptionsTypes () {
   return pick([
@@ -259,7 +259,9 @@ Do you want to continue?`,
   })
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
 
-  const env = {}
+  const env: {
+    [key: string]: string
+  } = {}
 
   for (const { registryKey, token } of parsedTokenHelpers) {
     if (token) {
@@ -313,21 +315,4 @@ export async function runScriptsIfPresent (
     if (!manifest.scripts?.[scriptName]) continue
     await runLifecycleHook(scriptName, manifest, opts) // eslint-disable-line no-await-in-loop
   }
-}
-
-function loadToken (helperPath: string, settingName: string) {
-  if (!path.isAbsolute(helperPath) || !existsSync(helperPath)) {
-    throw new PnpmError('BAD_TOKEN_HELPER_PATH', `${settingName} must be an absolute path, without arguments`)
-  }
-
-  const isNode = helperPath.endsWith('.js')
-  const isWin = process.platform === 'win32'
-
-  // If it's windows and expected node, run with node
-  const spawnResult = spawnSync(isWin && isNode ? 'node' : helperPath, isWin && isNode ? [helperPath] : [], { shell: true })
-
-  if (spawnResult.status !== 0) {
-    throw new PnpmError('TOKEN_HELPER_ERROR_STATUS', `Error running "${helperPath}" as a token helper, configured as ${settingName}. Exit code ${spawnResult.status?.toString() ?? ''}`)
-  }
-  return spawnResult.stdout.toString('utf8').trimEnd()
 }
