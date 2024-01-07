@@ -748,7 +748,7 @@ test('publish: use basic token helper for authentication', async () => {
 
   const os = process.platform
   const file = os === 'win32'
-    ? 'tokenHelperBasic.cmd'
+    ? 'tokenHelperBasic.bat'
     : 'tokenHelperBasic.js'
 
   const tokenHelper = join(__dirname, 'utils', file)
@@ -777,7 +777,7 @@ test('publish: use bearer token helper for authentication', async () => {
 
   const os = process.platform
   const file = os === 'win32'
-    ? 'tokenHelperBearer.cmd'
+    ? 'tokenHelperBearer.bat'
     : 'tokenHelperBearer.js'
   const tokenHelper = join(__dirname, 'utils', file)
 
