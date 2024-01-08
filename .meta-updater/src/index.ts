@@ -9,7 +9,7 @@ import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import writeJsonFile from 'write-json-file'
 
-const NEXT_TAG = 'next-8'
+const NEXT_TAG = 'next-9'
 const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => {
