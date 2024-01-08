@@ -1,0 +1,5 @@
+{
+  "name": "has-workspaces-in-manifest",
+  "version": "1.0.0",
+  "workspaces": ["test"]
+}

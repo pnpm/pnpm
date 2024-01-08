@@ -178,10 +178,10 @@ test('resolveFromGit() with sub folder', async () => {
 })
 
 test('resolveFromGit() with both sub folder and branch', async () => {
-  const resolveResult = await resolveFromGit({ pref: 'github:RexSkz/test-git-subfolder-fetch.git#beta#path:/packages/simple-react-app' })
+  const resolveResult = await resolveFromGit({ pref: 'github:RexSkz/test-git-subfolder-fetch.git#beta&path:/packages/simple-react-app' })
   expect(resolveResult).toStrictEqual({
     id: 'github.com/RexSkz/test-git-subfolder-fetch/777e8a3e78cc89bbf41fb3fd9f6cf922d5463313',
-    normalizedPref: 'github:RexSkz/test-git-subfolder-fetch#beta#path:/packages/simple-react-app',
+    normalizedPref: 'github:RexSkz/test-git-subfolder-fetch#beta&path:/packages/simple-react-app',
     resolution: {
       tarball: 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/777e8a3e78cc89bbf41fb3fd9f6cf922d5463313',
     },

@@ -151,7 +151,7 @@ function setGitCommittish (committish: string | null): Pick<HostedPackageSpec, '
     return result
   }
 
-  const params = committish.split('#')
+  const params = committish.split('&')
   for (const param of params) {
     if (param.length >= 7 && param.slice(0, 7) === 'semver:') {
       Object.assign(result, { gitRange: param.slice(7) })

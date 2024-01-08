@@ -25,3 +25,16 @@ test('prepare package does not run the prepublish script if the main file is pre
     'prepublish',
   ])
 })
+
+test('prepare package runs the prepublish script when installing from monorepo and workspaces field is present', async () => {
+  const tmp = tempDir()
+  f.copy('has-workspaces-in-manifest', tmp)
+  await expect(preparePackage({ rawConfig: {} }, tmp, true)).resolves.toBeTruthy()
+})
+
+test('prepare package runs the prepublish script when installing from monorepo and pnpm-workspace.yaml exists', async () => {
+  const tmp = tempDir()
+  f.copy('has-workspace-yaml', tmp)
+  await preparePackage({ rawConfig: {} }, tmp)
+  await expect(preparePackage({ rawConfig: {} }, tmp, true)).resolves.toBeTruthy()
+})

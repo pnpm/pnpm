@@ -35,7 +35,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
     }
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
     try {
-      const shouldBeBuilt = await preparePkg(tempLocation)
+      const shouldBeBuilt = await preparePkg(tempLocation, !!resolution.path)
       if (ignoreScripts && shouldBeBuilt) {
         globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
       }

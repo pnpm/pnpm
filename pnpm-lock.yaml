@@ -1413,6 +1413,9 @@ importers:
 
   exec/prepare-package:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../packages/constants
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../lifecycle
