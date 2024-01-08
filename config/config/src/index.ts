@@ -291,7 +291,9 @@ export async function getConfig (
     ...rcOptions.map((configKey) => [camelcase(configKey), npmConfig.get(configKey)]) as any, // eslint-disable-line
     ...Object.entries(cliOptions).filter(([name, value]) => typeof value !== 'undefined').map(([name, value]) => [camelcase(name), value]),
   ]) as unknown as ConfigWithDeprecatedSettings
-  const cwd = betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix)
+  // Resolving the current working directory to its actual location is crucial.
+  // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
+  const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
 
   pnpmConfig.maxSockets = npmConfig.maxsockets
   // @ts-expect-error
