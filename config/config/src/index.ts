@@ -291,7 +291,7 @@ export async function getConfig (
     ...rcOptions.map((configKey) => [camelcase(configKey), npmConfig.get(configKey)]) as any, // eslint-disable-line
     ...Object.entries(cliOptions).filter(([name, value]) => typeof value !== 'undefined').map(([name, value]) => [camelcase(name), value]),
   ]) as unknown as ConfigWithDeprecatedSettings
-  const cwd = await fs.promises.realpath(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
+  const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
 
   pnpmConfig.maxSockets = npmConfig.maxsockets
   // @ts-expect-error
