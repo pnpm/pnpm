@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import type { GitFetcher } from '@pnpm/fetcher-base'
 import { globalWarn } from '@pnpm/logger'
@@ -50,7 +51,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
     return addFilesFromDir({
       cafsDir: cafs.cafsDir,
       dir: resolution.path
-        ? path.join(tempLocation, resolution.path)
+        ? getJoinedPath(tempLocation, resolution.path, resolution.repo)
         : tempLocation,
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
@@ -82,4 +83,17 @@ function prefixGitArgs (): string[] {
 function execGit (args: string[], opts?: object) {
   const fullArgs = prefixGitArgs().concat(args || [])
   return execa('git', fullArgs, opts)
+}
+
+function getJoinedPath (root: string, sub: string, repo: string) {
+  const joined = path.join(root, sub)
+  // prevent the dir traversal attack
+  const relative = path.relative(root, joined)
+  if (relative.startsWith('..')) {
+    throw new Error(`Invalid path "${sub}" from "${repo}"`)
+  }
+  if (!fs.existsSync(joined) || !fs.lstatSync(joined).isDirectory()) {
+    throw new Error(`Path "${sub}" is not a directory from "${repo}"`)
+  }
+  return joined
 }

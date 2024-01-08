@@ -65,6 +65,44 @@ test('fetch a package from Git sub folder', async () => {
   expect(filesIndex[`public${path.sep}index.html`]).toBeTruthy()
 })
 
+test('prevent directory traversal attack when using Git sub folder', async () => {
+  const cafsDir = tempy.directory()
+  const fetch = createGitFetcher({ rawConfig: {} }).git
+  await expect(
+    fetch(
+      createCafsStore(cafsDir),
+      {
+        commit: '2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22',
+        repo: 'https://github.com/RexSkz/test-git-subfolder-fetch.git',
+        path: '../../etc/passwd',
+        type: 'git',
+      },
+      {
+        filesIndexFile: path.join(cafsDir, 'index.json'),
+      }
+    )
+  ).rejects.toThrow('Invalid path "../../etc/passwd" from "https://github.com/RexSkz/test-git-subfolder-fetch.git"')
+})
+
+test('prevent directory traversal attack when using Git sub folder', async () => {
+  const cafsDir = tempy.directory()
+  const fetch = createGitFetcher({ rawConfig: {} }).git
+  await expect(
+    fetch(
+      createCafsStore(cafsDir),
+      {
+        commit: '2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22',
+        repo: 'https://github.com/RexSkz/test-git-subfolder-fetch.git',
+        path: 'not/exists',
+        type: 'git',
+      },
+      {
+        filesIndexFile: path.join(cafsDir, 'index.json'),
+      }
+    )
+  ).rejects.toThrow('Path "not/exists" is not a directory from "https://github.com/RexSkz/test-git-subfolder-fetch.git"')
+})
+
 test('fetch a package from Git that has a prepare script', async () => {
   const cafsDir = tempy.directory()
   const fetch = createGitFetcher({ rawConfig: {} }).git
