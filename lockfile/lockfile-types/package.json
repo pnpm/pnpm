@@ -13,7 +13,7 @@
   ],
   "repository": "https://github.com/pnpm/pnpm/blob/main/lockfile/lockfile-types",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "types"
   ],

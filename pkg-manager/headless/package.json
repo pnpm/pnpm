@@ -43,7 +43,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/headless#readme",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "install",
     "installer"

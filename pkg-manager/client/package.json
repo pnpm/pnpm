@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/client",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "resolver",
     "npm"

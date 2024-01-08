@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "keywords": [
-    "pnpm8"
+    "pnpm9"
   ],
   "license": "MIT",
   "engines": {

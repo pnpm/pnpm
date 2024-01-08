@@ -84,8 +84,8 @@
     "@pnpm/registry-mock": "3.17.1",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
     "@types/fs-extra": "^9.0.13",
     "@types/is-windows": "^1.0.2",
     "@types/normalize-path": "^3.0.2",
@@ -112,7 +112,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core#readme",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "dependency manager",
     "install",
     "installer",

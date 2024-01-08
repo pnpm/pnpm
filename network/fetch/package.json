@@ -20,7 +20,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/network/fetch",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "fetch",
     "npm"
   ],
