@@ -57,7 +57,7 @@ function splitKey (key: string) {
   return [key.slice(0, index), key.slice(index + 1)]
 }
 
-function loadToken (helperPath: string, settingName: string) {
+export function loadToken (helperPath: string, settingName: string) {
   if (!path.isAbsolute(helperPath) || !fs.existsSync(helperPath)) {
     throw new PnpmError('BAD_TOKEN_HELPER_PATH', `${settingName} must be an absolute path, without arguments`)
   }

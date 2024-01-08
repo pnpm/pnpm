@@ -4856,6 +4856,9 @@ importers:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../network/auth-header
       '@pnpm/plugin-commands-publishing':
         specifier: workspace:*
         version: 'link:'

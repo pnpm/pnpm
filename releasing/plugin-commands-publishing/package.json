@@ -34,6 +34,7 @@
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/plugin-commands-publishing": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.17.1",
     "@pnpm/test-ipc-server": "workspace:*",
