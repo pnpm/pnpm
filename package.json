@@ -63,9 +63,9 @@
     "verdaccio": "5.20.1"
   },
   "engines": {
-    "pnpm": ">=8.6.10"
+    "pnpm": ">=9"
   },
-  "packageManager": "pnpm@8.6.10",
+  "packageManager": "pnpm@9.0.0-alpha.0",
   "pnpm": {
     "overrides": {
       "clipanion": "3.2.0-rc.6",
