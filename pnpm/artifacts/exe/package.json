@@ -3,7 +3,7 @@
   "description": "Fast, disk space efficient package manager",
   "version": "8.14.0",
   "publishConfig": {
-    "tag": "next-8",
+    "tag": "next-9",
     "bin": {
       "pnpm": "pnpm"
     }
