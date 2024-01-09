@@ -2,6 +2,6 @@
   "name": "with-git-protocol-caps",
   "version": "1.0.0",
   "dependencies": {
-    "ajv-keywords": "github:Ajv-validator/ajv-keywords"
+    "ajv-keywords": "github:pnpm-e2e/Capitalized-Repo"
   }
 }
