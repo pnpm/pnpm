@@ -255,3 +255,26 @@ test('pnpm licenses should work with git protocol dep that have peerDependencies
 
   expect(exitCode).toBe(0)
 })
+
+test('pnpm licenses should work git repository name containing capital letters', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-git-protocol-caps', workspaceDir)
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+  })
+
+  const { exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    storeDir: path.resolve(storeDir, 'v3'),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+})

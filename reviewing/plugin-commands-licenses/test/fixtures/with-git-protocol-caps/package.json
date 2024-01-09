@@ -1,0 +1,7 @@
+{
+  "name": "with-git-protocol-caps",
+  "version": "1.0.0",
+  "dependencies": {
+    "capitalized-repo": "github:pnpm-e2e/Capitalized-Repo"
+  }
+}
