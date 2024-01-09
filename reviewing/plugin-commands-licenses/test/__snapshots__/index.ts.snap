@@ -64,7 +64,7 @@ exports[`pnpm licenses: should correctly read LICENSE file with executable file 
 │                              │         │ https://github.com/feross/safe-buffer                                                                  │
 ├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ string_decoder               │ MIT     │ The string_decoder module from Node core                                                               │
-│                              │         │ https://github.com/rvagg/string_decoder                                                                │
+│                              │         │ https://github.com/nodejs/string_decoder                                                               │
 ├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ string.fromcodepoint         │ MIT     │ Mathias Bynens                                                                                         │
 │                              │         │ A robust & optimized \`String.fromCodePoint\` polyfill, based on the ECMAScript 6 specification.         │

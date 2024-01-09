@@ -11,6 +11,7 @@ import {
   type LicenseNode,
   lockfileToLicenseNodeTree,
 } from './lockfileToLicenseNodeTree'
+import { gt } from 'semver'
 
 export interface LicensePackage {
   belongsTo: DependenciesField
@@ -101,7 +102,15 @@ export async function findDependencyLicenses (opts: {
     const dependenciesOfNode = getDependenciesFromLicenseNode(licenseNode)
 
     dependenciesOfNode.forEach((dependencyNode) => {
-      licensePackages.set(dependencyNode.name, dependencyNode)
+      const existingVersion = licensePackages.get(dependencyNode.name)?.version
+      // This just ensures that we use a deterministic version of each dependency,
+      // in the event that multiple versions are depended on.
+      if (
+        existingVersion === undefined ||
+        gt(dependencyNode.version, existingVersion)
+      ) {
+        licensePackages.set(dependencyNode.name, dependencyNode)
+      }
     })
   }
 
