@@ -1,6 +1,10 @@
 import nerfDart from 'nerf-dart'
-import { getAuthHeadersFromConfig } from './getAuthHeadersFromConfig'
+import { getAuthHeadersFromConfig, loadToken } from './getAuthHeadersFromConfig'
 import { removePort } from './helpers/removePort'
+
+export {
+  loadToken,
+}
 
 export function createGetAuthHeaderByURI (
   opts: {

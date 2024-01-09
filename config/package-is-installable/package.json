@@ -9,11 +9,11 @@
     "!*.map"
   ],
   "keywords": [
-    "pnpm8"
+    "pnpm9"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"

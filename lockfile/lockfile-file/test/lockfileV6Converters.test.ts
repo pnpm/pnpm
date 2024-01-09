@@ -2,7 +2,7 @@ import { convertToInlineSpecifiersFormat, revertFromInlineSpecifiersFormat } fro
 
 test('convertToInlineSpecifiersFormat()', () => {
   const lockfileV5 = {
-    lockfileVersion: 5.0,
+    lockfileVersion: '6.0',
     importers: {
       project1: {
         specifiers: {
@@ -16,21 +16,21 @@ test('convertToInlineSpecifiersFormat()', () => {
           tarball: '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
         },
         devDependencies: {
-          bar: '/@bar/bar/1.0.0_@babel+core@2.0.0',
+          bar: '/@bar/bar@1.0.0(@babel/core@2.0.0)',
         },
         optionalDependencies: {
-          qar: 'reg.com/qar/1.0.0',
+          qar: 'reg.com/qar@1.0.0',
         },
       },
     },
     packages: {
-      '/foo/1.0.0': {
+      '/foo@1.0.0': {
         resolution: { integrity: '' },
       },
-      '/@bar/bar/1.0.0_@babel+core@2.0.0': {
+      '/@bar/bar@1.0.0(@babel/core@2.0.0)': {
         resolution: { integrity: '' },
       },
-      'reg.com/qar/1.0.0': {
+      'reg.com/qar@1.0.0': {
         resolution: { integrity: '' },
       },
       '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
@@ -39,7 +39,7 @@ test('convertToInlineSpecifiersFormat()', () => {
     },
   }
   const lockfileV6 = {
-    lockfileVersion: '5-inlineSpecifiers',
+    lockfileVersion: '6.0',
     importers: {
       project1: {
         dependencies: {
@@ -55,25 +55,25 @@ test('convertToInlineSpecifiersFormat()', () => {
         devDependencies: {
           bar: {
             specifier: '^1.0.0',
-            version: '/@bar/bar/1.0.0_@babel+core@2.0.0',
+            version: '/@bar/bar@1.0.0(@babel/core@2.0.0)',
           },
         },
         optionalDependencies: {
           qar: {
             specifier: '^1.0.0',
-            version: 'reg.com/qar/1.0.0',
+            version: 'reg.com/qar@1.0.0',
           },
         },
       },
     },
     packages: {
-      '/foo/1.0.0': {
+      '/foo@1.0.0': {
         resolution: { integrity: '' },
       },
-      '/@bar/bar/1.0.0_@babel+core@2.0.0': {
+      '/@bar/bar@1.0.0(@babel/core@2.0.0)': {
         resolution: { integrity: '' },
       },
-      'reg.com/qar/1.0.0': {
+      'reg.com/qar@1.0.0': {
         resolution: { integrity: '' },
       },
       '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
@@ -101,21 +101,21 @@ test('convertToInlineSpecifiersFormat() with lockfile v6', () => {
           tarball: '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
         },
         devDependencies: {
-          bar: '/@bar/bar/1.0.0_@babel+core@2.0.0',
+          bar: '/@bar/bar@1.0.0(@babel/core@2.0.0)',
         },
         optionalDependencies: {
-          qar: 'reg.com/qar/1.0.0',
+          qar: 'reg.com/qar@1.0.0',
         },
       },
     },
     packages: {
-      '/foo/1.0.0': {
+      '/foo@1.0.0': {
         resolution: { integrity: '' },
       },
-      '/@bar/bar/1.0.0_@babel+core@2.0.0': {
+      '/@bar/bar@1.0.0(@babel/core@2.0.0)': {
         resolution: { integrity: '' },
       },
-      'reg.com/qar/1.0.0': {
+      'reg.com/qar@1.0.0': {
         resolution: { integrity: '' },
       },
       '@registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz': {
@@ -140,7 +140,7 @@ test('convertToInlineSpecifiersFormat() with lockfile v6', () => {
         devDependencies: {
           bar: {
             specifier: '^1.0.0',
-            version: '/@bar/bar@1.0.0_@babel+core@2.0.0',
+            version: '/@bar/bar@1.0.0(@babel/core@2.0.0)',
           },
         },
         optionalDependencies: {
@@ -155,7 +155,7 @@ test('convertToInlineSpecifiersFormat() with lockfile v6', () => {
       '/foo@1.0.0': {
         resolution: { integrity: '' },
       },
-      '/@bar/bar@1.0.0_@babel+core@2.0.0': {
+      '/@bar/bar@1.0.0(@babel/core@2.0.0)': {
         resolution: { integrity: '' },
       },
       'reg.com/qar@1.0.0': {

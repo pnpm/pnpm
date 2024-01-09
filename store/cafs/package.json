@@ -12,7 +12,7 @@
     "prepublishOnly": "pnpm run compile"
   },
   "keywords": [
-    "pnpm8"
+    "pnpm9"
   ],
   "license": "MIT",
   "dependencies": {
@@ -39,7 +39,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "files": [
     "lib",

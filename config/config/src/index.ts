@@ -207,7 +207,7 @@ export async function getConfig (
     'deploy-all-files': false,
     'dedupe-peer-dependents': true,
     'dedupe-direct-deps': false,
-    'dedupe-injected-deps': false,
+    'dedupe-injected-deps': true,
     'disallow-workspace-cycles': false,
     'enable-modules-dir': true,
     'exclude-links-from-lockfile': false,
@@ -230,10 +230,10 @@ export async function getConfig (
     'git-branch-lockfile': false,
     hoist: true,
     'hoist-pattern': ['*'],
-    'hoist-workspace-packages': false,
+    'hoist-workspace-packages': true,
     'ignore-workspace-cycles': false,
     'ignore-workspace-root-check': false,
-    'link-workspace-packages': true,
+    'link-workspace-packages': false,
     'lockfile-include-tarball-url': false,
     'modules-cache-max-age': 7 * 24 * 60, // 7 days
     'node-linker': 'isolated',
@@ -291,7 +291,9 @@ export async function getConfig (
     ...rcOptions.map((configKey) => [camelcase(configKey), npmConfig.get(configKey)]) as any, // eslint-disable-line
     ...Object.entries(cliOptions).filter(([name, value]) => typeof value !== 'undefined').map(([name, value]) => [camelcase(name), value]),
   ]) as unknown as ConfigWithDeprecatedSettings
-  const cwd = betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix)
+  // Resolving the current working directory to its actual location is crucial.
+  // This prevents potential inconsistencies in the future, especially when processing or mapping subdirectories.
+  const cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ?? npmConfig.localPrefix))
 
   pnpmConfig.maxSockets = npmConfig.maxsockets
   // @ts-expect-error
