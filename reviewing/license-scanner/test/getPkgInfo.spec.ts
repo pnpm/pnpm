@@ -11,6 +11,7 @@ describe('licences', () => {
         {
           name: 'bogus-package',
           version: '1.0.0',
+          id: '/bogus-package@1.0.0',
           depPath: '/bogus-package@1.0.0',
           snapshot: {
             resolution: {
