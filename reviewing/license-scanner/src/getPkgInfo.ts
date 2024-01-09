@@ -158,8 +158,7 @@ async function readLicenseFileFromCafs (cafsDir: string, { integrity, mode }: Pa
  */
 export async function readPackageIndexFile (
   packageResolution: Resolution,
-  depPath: string,
-  id: string | undefined,
+  id: string,
   opts: { cafsDir: string, storeDir: string, lockfileDir: string }
 ): Promise<
   | {
@@ -196,7 +195,7 @@ export async function readPackageIndexFile (
       'index'
     )
   } else if (!packageResolution.type && packageResolution.tarball) {
-    const packageDirInStore = depPathToFilename(id ?? depPath)
+    const packageDirInStore = depPathToFilename(id)
     pkgIndexFilePath = path.join(
       opts.storeDir,
       packageDirInStore,
@@ -205,7 +204,7 @@ export async function readPackageIndexFile (
   } else {
     throw new PnpmError(
       'UNSUPPORTED_PACKAGE_TYPE',
-      `Unsupported package resolution type for ${depPath}`
+      `Unsupported package resolution type for ${id}`
     )
   }
 
@@ -219,7 +218,7 @@ export async function readPackageIndexFile (
     if (err.code === 'ENOENT') {
       throw new PnpmError(
         'MISSING_PACKAGE_INDEX_FILE',
-        `Failed to find package index file for ${depPath}, please consider running 'pnpm install'`
+        `Failed to find package index file for ${id}, please consider running 'pnpm install'`
       )
     }
 
@@ -228,7 +227,7 @@ export async function readPackageIndexFile (
 }
 
 export interface PackageInfo {
-  id?: string
+  id: string
   name?: string
   version?: string
   depPath: string
@@ -269,7 +268,6 @@ export async function getPkgInfo (
 
   const packageFileIndexInfo = await readPackageIndexFile(
     packageResolution as Resolution,
-    pkg.depPath,
     pkg.id,
     {
       cafsDir,

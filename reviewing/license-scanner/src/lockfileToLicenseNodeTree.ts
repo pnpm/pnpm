@@ -68,7 +68,7 @@ export async function lockfileToLicenseNode (
 
       const packageInfo = await getPkgInfo(
         {
-          id: pkgSnapshot.id,
+          id: pkgSnapshot.id ?? depPath,
           name,
           version,
           depPath,
