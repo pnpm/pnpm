@@ -56,7 +56,6 @@ export async function parsePref (pref: string): Promise<HostedPackageSpec | null
 
 function urlToFetchSpec (url: URL) {
   url.hash = ''
-  url.search = ''
   const fetchSpec = urlLib.format(url)
   if (fetchSpec.startsWith('git+')) {
     return fetchSpec.slice(4)
