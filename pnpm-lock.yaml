@@ -6123,6 +6123,9 @@ importers:
 
   store/store-path:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@zkochan/rimraf':
         specifier: ^2.1.3
         version: 2.1.3
