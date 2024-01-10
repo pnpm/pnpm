@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-installation
 
+## 14.1.2
+
+### Patch Changes
+
+- Updated dependencies [d9564e354]
+- Updated dependencies [ff10acade]
+  - @pnpm/config@20.4.1
+  - @pnpm/core@13.3.2
+  - @pnpm/plugin-commands-rebuild@10.0.15
+  - @pnpm/outdated@13.0.40
+  - @pnpm/store-connection-manager@7.0.24
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/package-store@19.0.14
+  - @pnpm/workspace.find-packages@1.1.9
+  - @pnpm/filter-workspace-packages@7.2.10
+
 ## 14.1.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/network.auth-header",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Gets the authorization header for the given URI",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

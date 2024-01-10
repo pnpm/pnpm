@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-outdated
 
+## 10.0.15
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/outdated@13.0.40
+  - @pnpm/cli-utils@2.1.8
+
 ## 10.0.14
 
 ### Patch Changes
