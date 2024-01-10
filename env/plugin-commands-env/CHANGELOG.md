@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-env
 
+## 4.1.20
+
+### Patch Changes
+
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/node.fetcher@3.0.37
+
 ## 4.1.19
 
 ### Patch Changes
