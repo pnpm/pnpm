@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { PnpmError } from '@pnpm/error'
 import type { GitFetcher } from '@pnpm/fetcher-base'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
@@ -35,7 +36,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
     }
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
     try {
-      const shouldBeBuilt = await preparePkg(tempLocation, !!resolution.path)
+      const shouldBeBuilt = await preparePkg(tempLocation, resolution.path ?? tempLocation)
       if (ignoreScripts && shouldBeBuilt) {
         globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
       }
@@ -90,10 +91,10 @@ function getJoinedPath (root: string, sub: string, repo: string) {
   // prevent the dir traversal attack
   const relative = path.relative(root, joined)
   if (relative.startsWith('..')) {
-    throw new Error(`Invalid path "${sub}" from "${repo}"`)
+    throw new PnpmError('INVALID_PATH', `Path "${sub}" should be a sub directory in Git repository "${repo}"`)
   }
   if (!fs.existsSync(joined) || !fs.lstatSync(joined).isDirectory()) {
-    throw new Error(`Path "${sub}" is not a directory from "${repo}"`)
+    throw new PnpmError('INVALID_PATH', `Path "${sub}" is not a directory in Git repository "${repo}"`)
   }
   return joined
 }

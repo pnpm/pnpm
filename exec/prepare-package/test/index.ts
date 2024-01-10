@@ -26,15 +26,12 @@ test('prepare package does not run the prepublish script if the main file is pre
   ])
 })
 
-test('prepare package runs the prepublish script when installing from monorepo and workspaces field is present', async () => {
+test('prepare package runs the prepublish script in the sub folder if pkgDir is present', async () => {
   const tmp = tempDir()
-  f.copy('has-workspaces-in-manifest', tmp)
-  await expect(preparePackage({ rawConfig: {} }, tmp, true)).resolves.toBeTruthy()
-})
-
-test('prepare package runs the prepublish script when installing from monorepo and pnpm-workspace.yaml exists', async () => {
-  const tmp = tempDir()
-  f.copy('has-workspace-yaml', tmp)
-  await preparePackage({ rawConfig: {} }, tmp)
-  await expect(preparePackage({ rawConfig: {} }, tmp, true)).resolves.toBeTruthy()
+  await using server = await createTestIpcServer(path.join(tmp, 'test.sock'))
+  f.copy('has-prepublish-script-in-workspace', tmp)
+  await preparePackage({ rawConfig: {} }, tmp, path.join(tmp, 'packages', 'foo'))
+  expect(server.getLines()).toStrictEqual([
+    'prepublish',
+  ])
 })

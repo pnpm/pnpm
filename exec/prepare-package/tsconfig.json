@@ -19,9 +19,6 @@
       "path": "../../__utils__/test-ipc-server"
     },
     {
-      "path": "../../packages/constants"
-    },
-    {
       "path": "../../packages/types"
     },
     {

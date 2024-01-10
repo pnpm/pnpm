@@ -1,6 +1,5 @@
 import fs from 'fs'
 import path from 'path'
-import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { safeReadPackageJsonFromDir } from '@pnpm/read-package-json'
 import { type PackageManifest } from '@pnpm/types'
@@ -23,16 +22,11 @@ export interface PreparePackageOptions {
   unsafePerm?: boolean
 }
 
-export async function preparePackage (opts: PreparePackageOptions, pkgDir: string, useSubFolder = false): Promise<boolean> {
+export async function preparePackage (opts: PreparePackageOptions, gitRootDir: string, pkgDir = gitRootDir): Promise<boolean> {
   const manifest = await safeReadPackageJsonFromDir(pkgDir)
-  if (!manifest) return false
-  if (useSubFolder && hasWorkspace(manifest, pkgDir)) {
-    manifest.scripts = manifest.scripts ?? {}
-  } else if (manifest.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) {
-    return false
-  }
+  if (manifest?.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) return false
   if (opts.ignoreScripts) return true
-  const pm = (await preferredPM(pkgDir))?.name ?? 'npm'
+  const pm = (await preferredPM(gitRootDir))?.name ?? 'npm'
   const execOpts: RunLifecycleHookOptions = {
     depPath: `${manifest.name}@${manifest.version}`,
     pkgRoot: pkgDir,
@@ -57,10 +51,6 @@ export async function preparePackage (opts: PreparePackageOptions, pkgDir: strin
   }
   await rimraf(path.join(pkgDir, 'node_modules'))
   return true
-}
-
-function hasWorkspace (manifest: PackageManifest, pkgDir: string) {
-  return fs.existsSync(path.join(pkgDir, WORKSPACE_MANIFEST_FILENAME)) || 'workspaces' in manifest
 }
 
 function packageShouldBeBuilt (manifest: PackageManifest, pkgDir: string): boolean {

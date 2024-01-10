@@ -81,7 +81,7 @@ test('prevent directory traversal attack when using Git sub folder', async () =>
         filesIndexFile: path.join(cafsDir, 'index.json'),
       }
     )
-  ).rejects.toThrow('Invalid path "../../etc/passwd" from "https://github.com/RexSkz/test-git-subfolder-fetch.git"')
+  ).rejects.toThrow('Path "../../etc/passwd" should be a sub directory in Git repository "https://github.com/RexSkz/test-git-subfolder-fetch.git"')
 })
 
 test('prevent directory traversal attack when using Git sub folder', async () => {
@@ -100,7 +100,7 @@ test('prevent directory traversal attack when using Git sub folder', async () =>
         filesIndexFile: path.join(cafsDir, 'index.json'),
       }
     )
-  ).rejects.toThrow('Path "not/exists" is not a directory from "https://github.com/RexSkz/test-git-subfolder-fetch.git"')
+  ).rejects.toThrow('Path "not/exists" is not a directory in Git repository "https://github.com/RexSkz/test-git-subfolder-fetch.git"')
 })
 
 test('fetch a package from Git that has a prepare script', async () => {
