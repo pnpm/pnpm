@@ -44,11 +44,11 @@ export async function parsePref (pref: string): Promise<HostedPackageSpec | null
     const url = new URL(correctPref)
     if (!url?.protocol) return null
 
-    const committish = (url.hash?.length > 1) ? decodeURIComponent(url.hash.slice(1)) : null
+    const hash = (url.hash?.length > 1) ? decodeURIComponent(url.hash.slice(1)) : null
     return {
       fetchSpec: urlToFetchSpec(url),
       normalizedPref: pref,
-      ...setGitCommittish(committish),
+      ...parseGitParams(hash),
     }
   }
   return null
@@ -88,7 +88,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
             tarball: undefined,
           },
           normalizedPref: `git+${httpsUrl}`,
-          ...setGitCommittish(hosted.committish),
+          ...parseGitParams(hosted.committish),
         }
       } else {
         try {
@@ -122,7 +122,7 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // esli
       tarball: hosted.tarball,
     },
     normalizedPref: hosted.shortcut(),
-    ...setGitCommittish(hosted.committish),
+    ...parseGitParams(hosted.committish),
   }
 }
 
@@ -144,8 +144,10 @@ async function accessRepository (repository: string) {
   }
 }
 
-function setGitCommittish (committish: string | null): Pick<HostedPackageSpec, 'gitCommittish' | 'gitRange' | 'path'> {
-  const result = { gitCommittish: null }
+type GitParsedParams = Pick<HostedPackageSpec, 'gitCommittish' | 'gitRange' | 'path'>
+
+function parseGitParams (committish: string | null): GitParsedParams {
+  const result: GitParsedParams = { gitCommittish: null }
   if (!committish) {
     return result
   }
@@ -153,11 +155,11 @@ function setGitCommittish (committish: string | null): Pick<HostedPackageSpec, '
   const params = committish.split('&')
   for (const param of params) {
     if (param.length >= 7 && param.slice(0, 7) === 'semver:') {
-      Object.assign(result, { gitRange: param.slice(7) })
+      result.gitRange = param.slice(7)
     } else if (param.slice(0, 5) === 'path:') {
-      Object.assign(result, { path: param.slice(5) })
+      result.path = param.slice(5)
     } else {
-      Object.assign(result, { gitCommittish: param })
+      result.gitCommittish = param
     }
   }
   return result
