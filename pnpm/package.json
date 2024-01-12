@@ -19,7 +19,7 @@
     "v8-compile-cache": "2.4.0"
   },
   "optionalDependencies": {
-    "node-gyp": "^9.4.1"
+    "node-gyp": "^10.0.1"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
