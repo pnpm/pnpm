@@ -26,7 +26,8 @@ export async function getConfig (
     delete config.reporter // This is a silly workaround because @pnpm/core expects a function as opts.reporter
   }
 
-  if (warnings.length > 0) {
+  // The warning should not be printed when --json is specified
+  if (warnings.length > 0 && !cliOptions.json) {
     console.log(warnings.map((warning) => formatWarn(warning)).join('\n'))
   }
 

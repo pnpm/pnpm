@@ -150,7 +150,7 @@ export const types = Object.assign({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as Partial<Record<keyof KebabCaseConfig, any>>, npmTypes.types)
 
-export type CliOptions = Record<string, unknown> & { dir?: string }
+export type CliOptions = Record<string, unknown> & { dir?: string, json?: string }
 
 export async function getConfig (
   opts: {
@@ -270,7 +270,6 @@ export async function getConfig (
   }
 
   const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, defaultOptions)
-
   const configDir = getConfigDir(process)
   {
     const warn = npmConfig.addFile(path.join(configDir as string, 'rc'), 'pnpm-global')
