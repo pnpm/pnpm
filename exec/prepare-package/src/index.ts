@@ -22,7 +22,7 @@ export interface PreparePackageOptions {
   unsafePerm?: boolean
 }
 
-export async function preparePackage (opts: PreparePackageOptions, gitRootDir: string, pkgDir = gitRootDir): Promise<boolean> {
+export async function preparePackage (opts: PreparePackageOptions, gitRootDir: string, pkgDir: string): Promise<boolean> {
   const manifest = await safeReadPackageJsonFromDir(pkgDir)
   if (manifest?.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) return false
   if (opts.ignoreScripts) return true

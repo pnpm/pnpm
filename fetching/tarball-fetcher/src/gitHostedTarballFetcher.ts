@@ -1,3 +1,6 @@
+import fs from 'fs'
+import path from 'path'
+import { PnpmError } from '@pnpm/error'
 import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import { globalWarn } from '@pnpm/logger'
@@ -8,6 +11,7 @@ interface Resolution {
   integrity?: string
   registry?: string
   tarball: string
+  path?: string
 }
 
 export interface CreateGitHostedTarballFetcher {
@@ -20,7 +24,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     const { filesIndex, manifest } = await fetchRemoteTarball(cafs, resolution, opts)
     try {
-      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, opts.filesIndexFile, fetcherOpts, opts)
+      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, opts.filesIndexFile, fetcherOpts, opts, resolution)
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
@@ -39,7 +43,8 @@ async function prepareGitHostedPkg (
   cafs: Cafs,
   filesIndexFile: string,
   opts: CreateGitHostedTarballFetcher,
-  fetcherOpts: FetchOptions
+  fetcherOpts: FetchOptions,
+  resolution: Resolution
 ) {
   const tempLocation = await cafs.tempDir()
   cafs.importPackage(tempLocation, {
@@ -49,17 +54,32 @@ async function prepareGitHostedPkg (
     },
     force: true,
   })
-  const shouldBeBuilt = await preparePackage(opts, tempLocation)
+  const shouldBeBuilt = await preparePackage(opts, tempLocation, resolution.path ?? tempLocation)
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,
   // the linking of files to the store is in progress.
   return {
     ...await addFilesFromDir({
       cafsDir: cafs.cafsDir,
-      dir: tempLocation,
+      dir: resolution.path
+        ? getJoinedPath(tempLocation, resolution.path)
+        : tempLocation,
       filesIndexFile,
       pkg: fetcherOpts.pkg,
     }),
     ignoredBuild: opts.ignoreScripts && shouldBeBuilt,
   }
+}
+
+function getJoinedPath (root: string, sub: string) {
+  const joined = path.join(root, sub)
+  // prevent the dir traversal attack
+  const relative = path.relative(root, joined)
+  if (relative.startsWith('..')) {
+    throw new PnpmError('INVALID_PATH', `Path "${sub}" should be a sub directory`)
+  }
+  if (!fs.existsSync(joined) || !fs.lstatSync(joined).isDirectory()) {
+    throw new PnpmError('INVALID_PATH', `Path "${sub}" is not a directory`)
+  }
+  return joined
 }
