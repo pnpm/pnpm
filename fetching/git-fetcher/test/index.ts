@@ -83,7 +83,7 @@ test('prevent directory traversal attack when using Git sub folder', async () =>
         filesIndexFile: path.join(cafsDir, 'index.json'),
       }
     )
-  ).rejects.toThrow(`Path "../../etc" should be a sub directory in Git repository "${repo}"`)
+  ).rejects.toThrow(`Failed to prepare git-hosted package fetched from "${repo}": Path "${pkgDir}" should be a sub directory`)
 })
 
 test('prevent directory traversal attack when using Git sub folder', async () => {
@@ -104,7 +104,7 @@ test('prevent directory traversal attack when using Git sub folder', async () =>
         filesIndexFile: path.join(cafsDir, 'index.json'),
       }
     )
-  ).rejects.toThrow(`Path "${pkgDir}" is not a directory in Git repository "${repo}"`)
+  ).rejects.toThrow(`Failed to prepare git-hosted package fetched from "${repo}": Path "${pkgDir}" is not a directory`)
 })
 
 test('fetch a package from Git that has a prepare script', async () => {

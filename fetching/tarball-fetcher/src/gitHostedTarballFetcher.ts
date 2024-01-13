@@ -1,6 +1,3 @@
-import fs from 'fs'
-import path from 'path'
-import { PnpmError } from '@pnpm/error'
 import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import { globalWarn } from '@pnpm/logger'
@@ -54,32 +51,17 @@ async function prepareGitHostedPkg (
     },
     force: true,
   })
-  const shouldBeBuilt = await preparePackage(opts, tempLocation, resolution.path ?? tempLocation)
+  const { shouldBeBuilt, pkgDir } = await preparePackage(opts, tempLocation, resolution.path ?? '')
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,
   // the linking of files to the store is in progress.
   return {
     ...await addFilesFromDir({
       cafsDir: cafs.cafsDir,
-      dir: resolution.path
-        ? getJoinedPath(tempLocation, resolution.path)
-        : tempLocation,
+      dir: pkgDir,
       filesIndexFile,
       pkg: fetcherOpts.pkg,
     }),
     ignoredBuild: opts.ignoreScripts && shouldBeBuilt,
   }
-}
-
-function getJoinedPath (root: string, sub: string) {
-  const joined = path.join(root, sub)
-  // prevent the dir traversal attack
-  const relative = path.relative(root, joined)
-  if (relative.startsWith('..')) {
-    throw new PnpmError('INVALID_PATH', `Path "${sub}" should be a sub directory`)
-  }
-  if (!fs.existsSync(joined) || !fs.lstatSync(joined).isDirectory()) {
-    throw new PnpmError('INVALID_PATH', `Path "${sub}" is not a directory`)
-  }
-  return joined
 }

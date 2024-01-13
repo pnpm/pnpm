@@ -29,6 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/exec/prepare-package#readme",
   "dependencies": {
+    "@pnpm/error": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/types": "workspace:*",

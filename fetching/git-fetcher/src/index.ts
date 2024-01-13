@@ -1,6 +1,4 @@
-import fs from 'fs'
 import path from 'path'
-import { PnpmError } from '@pnpm/error'
 import type { GitFetcher } from '@pnpm/fetcher-base'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
@@ -35,9 +33,11 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
       await execGit(['clone', resolution.repo, tempLocation])
     }
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
+    let pkgDir: string
     try {
-      const shouldBeBuilt = await preparePkg(tempLocation, resolution.path ?? tempLocation)
-      if (ignoreScripts && shouldBeBuilt) {
+      const prepareResult = await preparePkg(tempLocation, resolution.path ?? '')
+      pkgDir = prepareResult.pkgDir
+      if (ignoreScripts && prepareResult.shouldBeBuilt) {
         globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
       }
     } catch (err: any) { // eslint-disable-line
@@ -51,9 +51,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
     // the linking of files to the store is in progress.
     return addFilesFromDir({
       cafsDir: cafs.cafsDir,
-      dir: resolution.path
-        ? getJoinedPath(tempLocation, resolution.path, resolution.repo)
-        : tempLocation,
+      dir: pkgDir,
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
       pkg: opts.pkg,
@@ -84,17 +82,4 @@ function prefixGitArgs (): string[] {
 function execGit (args: string[], opts?: object) {
   const fullArgs = prefixGitArgs().concat(args || [])
   return execa('git', fullArgs, opts)
-}
-
-function getJoinedPath (root: string, sub: string, repo: string) {
-  const joined = path.join(root, sub)
-  // prevent the dir traversal attack
-  const relative = path.relative(root, joined)
-  if (relative.startsWith('..')) {
-    throw new PnpmError('INVALID_PATH', `Path "${sub}" should be a sub directory in Git repository "${repo}"`)
-  }
-  if (!fs.existsSync(joined) || !fs.lstatSync(joined).isDirectory()) {
-    throw new PnpmError('INVALID_PATH', `Path "${sub}" is not a directory in Git repository "${repo}"`)
-  }
-  return joined
 }

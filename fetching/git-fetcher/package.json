@@ -34,7 +34,6 @@
     "@pnpm/worker": "workspace:^"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:*",
     "@pnpm/fetcher-base": "workspace:*",
     "@pnpm/prepare-package": "workspace:*",
     "@zkochan/rimraf": "^2.1.3",
