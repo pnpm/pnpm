@@ -422,6 +422,9 @@ importers:
       '@pnpm/cli-utils':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/prepare':
+        specifier: workspace:*
+        version: link:../../__utils__/prepare
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20

@@ -150,7 +150,7 @@ export const types = Object.assign({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as Partial<Record<keyof KebabCaseConfig, any>>, npmTypes.types)
 
-export type CliOptions = Record<string, unknown> & { dir?: string }
+export type CliOptions = Record<string, unknown> & { dir?: string, json?: boolean }
 
 export async function getConfig (
   opts: {
