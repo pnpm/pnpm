@@ -270,6 +270,7 @@ export async function getConfig (
   }
 
   const { config: npmConfig, warnings, failedToLoadBuiltInConfig } = loadNpmConf(cliOptions, rcOptionsTypes, defaultOptions)
+
   const configDir = getConfigDir(process)
   {
     const warn = npmConfig.addFile(path.join(configDir as string, 'rc'), 'pnpm-global')

@@ -1,6 +1,7 @@
 ---
+"pnpm": patch
 "@pnpm/cli-utils": patch
 "@pnpm/config": patch
 ---
 
-The warning should not be printed when --json is specified
+Warnings are not printed when the `--json` flag is specified [#7514](https://github.com/pnpm/pnpm/issues/7514).
