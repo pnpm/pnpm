@@ -24,7 +24,7 @@ export interface PreparePackageOptions {
 }
 
 export async function preparePackage (opts: PreparePackageOptions, gitRootDir: string, subDir: string): Promise<{ shouldBeBuilt: boolean, pkgDir: string }> {
-  const pkgDir = getJoinedPath(gitRootDir, subDir)
+  const pkgDir = safeJoinPath(gitRootDir, subDir)
   const manifest = await safeReadPackageJsonFromDir(pkgDir)
   if (manifest?.scripts == null || !packageShouldBeBuilt(manifest, pkgDir)) return { shouldBeBuilt: false, pkgDir }
   if (opts.ignoreScripts) return { shouldBeBuilt: true, pkgDir }
@@ -65,7 +65,7 @@ function packageShouldBeBuilt (manifest: PackageManifest, pkgDir: string): boole
   return !fs.existsSync(path.join(pkgDir, mainFile))
 }
 
-function getJoinedPath (root: string, sub: string) {
+function safeJoinPath (root: string, sub: string) {
   const joined = path.join(root, sub)
   // prevent the dir traversal attack
   const relative = path.relative(root, joined)
