@@ -33,7 +33,6 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-publishing#readme",
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:*",
-    "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/plugin-commands-publishing": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-mock": "3.17.1",
@@ -63,6 +62,7 @@
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/package-bins": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
