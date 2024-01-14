@@ -4801,6 +4801,9 @@ importers:
       '@pnpm/logger':
         specifier: ^5.0.0
         version: 5.0.0
+      '@pnpm/network.auth-header':
+        specifier: workspace:*
+        version: link:../../network/auth-header
       '@pnpm/package-bins':
         specifier: workspace:*
         version: link:../../pkg-manager/package-bins
@@ -4856,9 +4859,6 @@ importers:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
-      '@pnpm/network.auth-header':
-        specifier: workspace:*
-        version: link:../../network/auth-header
       '@pnpm/plugin-commands-publishing':
         specifier: workspace:*
         version: 'link:'

@@ -63,6 +63,7 @@
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/lifecycle": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/package-bins": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/resolver-base": "workspace:*",
