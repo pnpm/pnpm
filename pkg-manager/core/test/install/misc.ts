@@ -8,7 +8,7 @@ import {
   type StageLog,
   type StatsLog,
 } from '@pnpm/core-loggers'
-import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { fixtures } from '@pnpm/test-fixtures'
 import { type ProjectManifest } from '@pnpm/types'
 import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -510,47 +510,6 @@ test('big with dependencies and circular deps (babel-preset-2015)', async () => 
   expect(typeof m).toEqual('object')
 })
 
-test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async () => {
-  const project = prepareEmpty()
-
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0'], await testDefaults({ fastUnpack: false }))
-
-  await project.isExecutable('@pnpm.e2e/pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin')
-
-  const lockfile = await project.readLockfile()
-  expect(
-    lockfile.packages['/@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0'].bundledDependencies
-  ).toStrictEqual(
-    ['@pnpm.e2e/hello-world-js-bin']
-  )
-})
-
-test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async () => {
-  const project = prepareEmpty()
-
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0'], await testDefaults({ fastUnpack: false }))
-
-  await project.isExecutable('@pnpm.e2e/pkg-with-bundle-dependencies/node_modules/.bin/hello-world-js-bin')
-
-  const lockfile = await project.readLockfile()
-  expect(
-    lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies@1.0.0'].bundledDependencies
-  ).toStrictEqual(
-    ['@pnpm.e2e/hello-world-js-bin']
-  )
-})
-
-test('installing a package with bundleDependencies set to false (pkg-with-bundle-dependencies-false)', async () => {
-  const project = prepareEmpty()
-
-  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-bundle-dependencies-false'], await testDefaults({ fastUnpack: false }))
-
-  const lockfile = await project.readLockfile()
-  expect(
-    typeof lockfile.packages['/@pnpm.e2e/pkg-with-bundle-dependencies-false@1.0.0'].bundledDependencies
-  ).toEqual('undefined')
-})
-
 test('compiled modules (ursa@0.9.1)', async () => {
   // TODO: fix this for Node.js v7
   if (!isCI || IS_WINDOWS || semver.satisfies(process.version, '>=7.0.0')) {
@@ -736,13 +695,13 @@ test('lockfile locks npm dependencies', async () => {
   expect(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:progress',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/100.0.0`,
+    packageId: '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'resolved',
   } as ProgressLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/100.0.0`,
+    packageId: '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'fetched',
   } as ProgressLog)).toBeTruthy()
@@ -758,13 +717,13 @@ test('lockfile locks npm dependencies', async () => {
 
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/100.0.0`,
+    packageId: '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'resolved',
   } as ProgressLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/100.0.0`,
+    packageId: '/@pnpm.e2e/pkg-with-1-dep@100.0.0',
     requester: process.cwd(),
     status: 'found_in_store',
   } as ProgressLog)).toBeTruthy()

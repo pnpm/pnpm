@@ -26,7 +26,6 @@ export async function finishWorkers () {
 }
 
 function createTarballWorkerPool (): WorkerPool {
-  // @ts-expect-error - `availableParallelism` is not exist until update @types/node to v18.14.5
   const maxWorkers = Math.max(2, (os.availableParallelism?.() ?? os.cpus().length) - Math.abs(process.env.PNPM_WORKERS ? parseInt(process.env.PNPM_WORKERS) : 0)) - 1
   const workerPool = new WorkerPool({
     id: 'pnpm',
@@ -57,7 +56,6 @@ export async function addFilesFromDir (
   }
   const localWorker = await workerPool.checkoutWorkerAsync(true)
   return new Promise<{ filesIndex: Record<string, string>, manifest: DependencyManifest }>((resolve, reject) => {
-    // eslint-disable-next-line
     localWorker.once('message', ({ status, error, value }) => {
       workerPool!.checkinWorker(localWorker)
       if (status === 'error') {

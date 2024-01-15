@@ -112,7 +112,16 @@ function getChangelogEntry (changelog: string, version: string) {
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://nx.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
+        <a href="https://www.jetbrains.com/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/jetbrains.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/jetbrains.svg" />
+            <img src="https://pnpm.io/img/users/jetbrains.svg" width="85" />
+          </picture>
+        </a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://nx.dev/?utm_source=pnpm&utm_medium=release_notes" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/nx.svg" />
             <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/nx_light.svg" />

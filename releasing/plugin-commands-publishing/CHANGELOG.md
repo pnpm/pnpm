@@ -1,5 +1,78 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.5.0
+
+### Minor Changes
+
+- 5a5e42551: Allow using token helpers in `pnpm publish` [#7316](https://github.com/pnpm/pnpm/issues/7316).
+
+### Patch Changes
+
+- Updated dependencies [5a5e42551]
+- Updated dependencies [d9564e354]
+- Updated dependencies [5a5e42551]
+  - @pnpm/run-npm@6.1.0
+  - @pnpm/config@20.4.1
+  - @pnpm/client@10.0.44
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/exportable-manifest@5.0.11
+  - @pnpm/lifecycle@16.0.10
+
+## 7.4.13
+
+### Patch Changes
+
+- @pnpm/client@10.0.43
+
+## 7.4.12
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
+## 7.4.11
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/config@20.3.0
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/pick-registry-for-package@5.0.6
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/package-bins@8.0.6
+  - @pnpm/exportable-manifest@5.0.11
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/sort-packages@5.0.9
+  - @pnpm/client@10.0.42
+
+## 7.4.10
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/pick-registry-for-package@5.0.5
+  - @pnpm/lifecycle@16.0.9
+  - @pnpm/package-bins@8.0.5
+  - @pnpm/exportable-manifest@5.0.10
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/sort-packages@5.0.8
+  - @pnpm/client@10.0.41
+
+## 7.4.9
+
+### Patch Changes
+
+- @pnpm/client@10.0.40
+
 ## 7.4.8
 
 ### Patch Changes

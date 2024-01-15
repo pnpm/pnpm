@@ -1,5 +1,5 @@
 import path from 'path'
-import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   type PackageManifestLog,
   type RootLog,

@@ -9,7 +9,7 @@ import normalizePath from 'normalize-path'
 import exists from 'path-exists'
 import writeJsonFile from 'write-json-file'
 
-const NEXT_TAG = 'next-8'
+const NEXT_TAG = 'next-9'
 const CLI_PKG_NAME = 'pnpm'
 
 export default async (workspaceDir: string) => {
@@ -242,7 +242,7 @@ async function updateManifest (workspaceDir: string, manifest: ProjectManifest, 
       url: 'https://github.com/pnpm/pnpm/issues',
     },
     engines: {
-      node: '>=16.14',
+      node: '>=18.12',
     },
     files,
     funding: 'https://opencollective.com/pnpm',

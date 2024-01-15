@@ -1,5 +1,61 @@
 # @pnpm/outdated
 
+## 13.0.40
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/client@10.0.44
+  - @pnpm/npm-resolver@18.0.2
+
+## 13.0.39
+
+### Patch Changes
+
+- @pnpm/client@10.0.43
+
+## 13.0.38
+
+### Patch Changes
+
+- 8fd4e349a: Fix error as in `update -i -r` with Git specifiers [#7415](https://github.com/pnpm/pnpm/issues/7415).
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/npm-resolver@18.0.2
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/pick-registry-for-package@5.0.6
+  - @pnpm/hooks.read-package-hook@3.0.10
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/modules-yaml@12.1.6
+  - @pnpm/manifest-utils@5.0.7
+  - @pnpm/client@10.0.42
+
+## 13.0.37
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/pick-registry-for-package@5.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/manifest-utils@5.0.6
+  - @pnpm/npm-resolver@18.0.1
+  - @pnpm/client@10.0.41
+
+## 13.0.36
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/client@10.0.40
+
 ## 13.0.35
 
 ### Patch Changes

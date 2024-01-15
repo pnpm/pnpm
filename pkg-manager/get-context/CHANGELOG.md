@@ -1,5 +1,35 @@
 # @pnpm/get-context
 
+## 10.0.10
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/read-projects-context@8.0.11
+
+## 10.0.9
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/modules-yaml@12.1.6
+  - @pnpm/read-projects-context@8.0.10
+
+## 10.0.8
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/read-projects-context@8.0.9
+
 ## 10.0.7
 
 ### Patch Changes

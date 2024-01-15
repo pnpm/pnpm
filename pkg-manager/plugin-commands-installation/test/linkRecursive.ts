@@ -1,5 +1,5 @@
 import path from 'path'
-import { LOCKFILE_VERSION_V6 as LOCKFILE_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { install, unlink } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'

@@ -1,5 +1,56 @@
 # @pnpm/plugin-commands-audit
 
+## 9.0.10
+
+### Patch Changes
+
+- Updated dependencies [5a5e42551]
+- Updated dependencies [d9564e354]
+  - @pnpm/network.auth-header@2.2.0
+  - @pnpm/config@20.4.1
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/audit@7.0.24
+
+## 9.0.9
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
+## 9.0.8
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/config@20.3.0
+  - @pnpm/types@9.4.2
+  - @pnpm/audit@7.0.23
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/read-project-manifest@5.0.10
+
+## 9.0.7
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/audit@7.0.22
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/read-project-manifest@5.0.9
+
+## 9.0.6
+
+### Patch Changes
+
+- @pnpm/audit@7.0.21
+
 ## 9.0.5
 
 ### Patch Changes

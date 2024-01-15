@@ -1,5 +1,11 @@
 # @pnpm/network.auth-header
 
+## 2.2.0
+
+### Minor Changes
+
+- 5a5e42551: Export the loadToken function.
+
 ## 2.1.0
 
 ### Minor Changes

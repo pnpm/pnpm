@@ -1,5 +1,50 @@
 # @pnpm/package-store
 
+## 19.0.14
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.12
+- @pnpm/package-requester@24.1.7
+- @pnpm/worker@0.3.13
+
+## 19.0.13
+
+### Patch Changes
+
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/store.cafs@2.0.11
+  - @pnpm/types@9.4.2
+  - @pnpm/create-cafs-store@6.0.11
+  - @pnpm/package-requester@24.1.6
+  - @pnpm/worker@0.3.12
+  - @pnpm/fetcher-base@15.0.6
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/store-controller-types@17.1.4
+
+## 19.0.12
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/fetcher-base@15.0.5
+  - @pnpm/package-requester@24.1.5
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/store.cafs@2.0.10
+  - @pnpm/store-controller-types@17.1.3
+  - @pnpm/worker@0.3.11
+  - @pnpm/create-cafs-store@6.0.10
+
+## 19.0.11
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.9
+- @pnpm/package-requester@24.1.4
+- @pnpm/worker@0.3.10
+
 ## 19.0.10
 
 ### Patch Changes

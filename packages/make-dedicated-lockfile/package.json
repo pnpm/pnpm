@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/make-dedicated-lockfile",
-  "version": "0.5.11",
+  "version": "0.5.13",
   "description": "Creates a dedicated lockfile for a subset of workspace projects",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -11,7 +11,7 @@
     "bin"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -22,7 +22,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/packages/make-dedicated-lockfile",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "make-dedicated-lockfile"
   ],
@@ -42,7 +42,7 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "rename-overwrite": "^4.0.4"
+    "rename-overwrite": "^5.0.0"
   },
   "funding": "https://opencollective.com/pnpm",
   "devDependencies": {

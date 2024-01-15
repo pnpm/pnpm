@@ -1,7 +1,7 @@
 import { pkgSnapshotToResolution } from '@pnpm/lockfile-utils'
 
 test('pkgSnapshotToResolution()', () => {
-  expect(pkgSnapshotToResolution('/foo/1.0.0', {
+  expect(pkgSnapshotToResolution('/foo@1.0.0', {
     resolution: {
       integrity: 'AAAA',
     },
@@ -10,7 +10,7 @@ test('pkgSnapshotToResolution()', () => {
     tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
   })
 
-  expect(pkgSnapshotToResolution('/@mycompany/mypackage/2.0.0', {
+  expect(pkgSnapshotToResolution('/@mycompany/mypackage@2.0.0', {
     resolution: {
       integrity: 'AAAA',
       tarball: '@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
@@ -20,7 +20,7 @@ test('pkgSnapshotToResolution()', () => {
     tarball: 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local/@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
   })
 
-  expect(pkgSnapshotToResolution('/@mycompany/mypackage/2.0.0', {
+  expect(pkgSnapshotToResolution('/@mycompany/mypackage@2.0.0', {
     resolution: {
       integrity: 'AAAA',
       tarball: '@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
@@ -28,5 +28,13 @@ test('pkgSnapshotToResolution()', () => {
   }, { default: 'https://registry.npmjs.org/', '@mycompany': 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local' })).toEqual({
     integrity: 'AAAA',
     tarball: 'https://mycompany.jfrog.io/mycompany/api/npm/npm-local/@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz',
+  })
+
+  expect(pkgSnapshotToResolution('@cdn.sheetjs.com/xlsx-0.18.9/xlsx-0.18.9.tgz', {
+    resolution: {
+      tarball: 'https://cdn.sheetjs.com/xlsx-0.18.9/xlsx-0.18.9.tgz',
+    },
+  }, { default: 'https://registry.npmjs.org/' })).toEqual({
+    tarball: 'https://cdn.sheetjs.com/xlsx-0.18.9/xlsx-0.18.9.tgz',
   })
 })

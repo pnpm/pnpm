@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
       "path": "../../cli/cli-utils"
     },
     {

@@ -11,7 +11,7 @@ import {
 } from '@pnpm/filter-lockfile'
 import { linkDirectDeps } from '@pnpm/pkg-manager.direct-dep-linker'
 import { type InstallationResultStats } from '@pnpm/headless'
-import { hoist } from '@pnpm/hoist'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import { type Lockfile } from '@pnpm/lockfile-file'
 import { logger } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
@@ -74,6 +74,7 @@ export async function linkPackages (
     virtualStoreDir: string
     wantedLockfile: Lockfile
     wantedToBeSkippedPackageIds: Set<string>
+    hoistWorkspacePackages?: boolean
   }
 ): Promise<{
     currentLockfile: Lockfile
@@ -114,7 +115,6 @@ export async function linkPackages (
     pruneStore: opts.pruneStore,
     pruneVirtualStore: opts.pruneVirtualStore,
     publicHoistedModulesDir: (opts.publicHoistPattern != null) ? opts.rootModulesDir : undefined,
-    registries: opts.registries,
     skipped: opts.skipped,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
@@ -225,6 +225,17 @@ export async function linkPackages (
       publicHoistedModulesDir: opts.rootModulesDir,
       publicHoistPattern: opts.publicHoistPattern ?? [],
       virtualStoreDir: opts.virtualStoreDir,
+      hoistedWorkspacePackages: opts.hoistWorkspacePackages
+        ? projects.reduce((hoistedWorkspacePackages, project) => {
+          if (project.manifest.name && project.id !== '.') {
+            hoistedWorkspacePackages[project.id] = {
+              dir: project.rootDir,
+              name: project.manifest.name,
+            }
+          }
+          return hoistedWorkspacePackages
+        }, {} as Record<string, HoistedWorkspaceProject>)
+        : undefined,
     })
   } else {
     newHoistedDependencies = opts.hoistedDependencies

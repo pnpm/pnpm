@@ -1,17 +1,17 @@
 /* eslint-disable no-await-in-loop */
-import { existsSync } from 'fs'
-import path from 'path'
 import { PnpmError } from '@pnpm/error'
-import { logger, globalInfo } from '@pnpm/logger'
+import { globalInfo, logger } from '@pnpm/logger'
 import { removeBin } from '@pnpm/remove-bins'
 import rimraf from '@zkochan/rimraf'
-import { getNodeExecPathAndTargetDir } from './utils'
-import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
+import { existsSync } from 'fs'
+import path from 'path'
 import { getNodeVersion } from './downloadNodeVersion'
+import { getNodeVersionsBaseDir, type NvmNodeCommandOptions } from './node'
+import { getNodeExecPathAndTargetDir } from './utils'
 
 export async function envRemove (opts: NvmNodeCommandOptions, params: string[]) {
   if (!opts.global) {
-    throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env use <version>" can only be used with the "--global" option currently')
+    throw new PnpmError('NOT_IMPLEMENTED_YET', '"pnpm env remove <version>" can only be used with the "--global" option currently')
   }
 
   let failed = false

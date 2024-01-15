@@ -54,6 +54,7 @@
     "endregion",
     "eneedauth",
     "enten",
+    "eperm",
     "etamponi",
     "exdev",
     "execa",
@@ -212,6 +213,7 @@
     "sels",
     "semistrict",
     "serverjs",
+    "sheetjs",
     "sindresorhus",
     "sirv",
     "soporan",
@@ -249,11 +251,12 @@
     "uuidv",
     "valign",
     "vuln",
+    "webcontainer",
     "winst",
     "wrappy",
     "xmarw",
     "zkochan",
     "zoli",
-    "zoltan" 
+    "zoltan"
   ]
 }

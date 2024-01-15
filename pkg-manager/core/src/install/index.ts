@@ -5,7 +5,6 @@ import { createAllowBuildFunction } from '@pnpm/builder.policy'
 import {
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
-  LOCKFILE_VERSION_V6,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -382,7 +381,6 @@ export async function mutateModules (
         ctx.existsNonEmptyWantedLockfile &&
         (
           ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION ||
-          ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION_V6 ||
           ctx.wantedLockfile.lockfileVersion === '6.1'
         ) &&
         await allProjectsAreUpToDate(Object.values(ctx.projects), {
@@ -895,6 +893,7 @@ type InstallFunction = (
     pruneVirtualStore: boolean
     scriptsOpts: RunLifecycleHooksConcurrentlyOptions
     currentLockfileIsUpToDate: boolean
+    hoistWorkspacePackages?: boolean
   }
 ) => Promise<InstallFunctionResult>
 
@@ -1010,6 +1009,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: opts.depth,
       dedupeDirectDeps: opts.dedupeDirectDeps,
+      dedupeInjectedDeps: opts.dedupeInjectedDeps,
       dedupePeerDependents: opts.dedupePeerDependents,
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
@@ -1076,7 +1076,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     : newLockfile
 
   if (opts.updateLockfileMinorVersion) {
-    newLockfile.lockfileVersion = LOCKFILE_VERSION_V6
+    newLockfile.lockfileVersion = LOCKFILE_VERSION
   }
 
   const depsStateCache: DepsStateCache = {}
@@ -1120,6 +1120,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         virtualStoreDir: ctx.virtualStoreDir,
         wantedLockfile: newLockfile,
         wantedToBeSkippedPackageIds,
+        hoistWorkspacePackages: opts.hoistWorkspacePackages,
       }
     )
     stats = result.stats
@@ -1387,6 +1388,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
         prunedAt: ctx.modulesFile?.prunedAt,
         wantedLockfile: result.newLockfile,
         useLockfile: opts.useLockfile && ctx.wantedLockfileIsModified,
+        hoistWorkspacePackages: opts.hoistWorkspacePackages,
       })
       return {
         ...result,

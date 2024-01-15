@@ -81,13 +81,11 @@ function toLockfileDependency (
   const newResolvedDeps = updateResolvedDeps(
     opts.prevSnapshot?.dependencies ?? {},
     opts.updatedDeps,
-    opts.registries,
     opts.depGraph
   )
   const newResolvedOptionalDeps = updateResolvedDeps(
     opts.prevSnapshot?.optionalDependencies ?? {},
     opts.updatedOptionalDeps,
-    opts.registries,
     opts.depGraph
   )
   const result = {
@@ -152,7 +150,8 @@ function toLockfileDependency (
   if (pkg.additionalInfo.libc != null) {
     result['libc'] = pkg.additionalInfo.libc
   }
-  if (Array.isArray(pkg.additionalInfo.bundledDependencies) || Array.isArray(pkg.additionalInfo.bundleDependencies)) {
+  if (Array.isArray(pkg.additionalInfo.bundledDependencies) || Array.isArray(pkg.additionalInfo.bundleDependencies) ||
+    typeof pkg.additionalInfo.bundledDependencies === 'boolean' || typeof pkg.additionalInfo.bundleDependencies === 'boolean') {
     result['bundledDependencies'] = pkg.additionalInfo.bundledDependencies ?? pkg.additionalInfo.bundleDependencies
   }
   if (pkg.additionalInfo.deprecated) {
@@ -196,7 +195,6 @@ function toLockfileDependency (
 function updateResolvedDeps (
   prevResolvedDeps: ResolvedDependencies,
   updatedDeps: Array<{ alias: string, depPath: string }>,
-  registries: Registries,
   depGraph: DependenciesGraph
 ) {
   const newResolvedDeps = Object.fromEntries(
@@ -211,7 +209,6 @@ function updateResolvedDeps (
           depPathToRef(depNode.depPath, {
             alias,
             realName: depNode.name,
-            registries,
             resolution: depNode.resolution,
           }),
         ]

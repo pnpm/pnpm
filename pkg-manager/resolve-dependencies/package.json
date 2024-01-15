@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "31.2.6",
+  "version": "31.3.1",
   "description": "Resolves dependency graph of a package",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,11 +9,11 @@
     "!*.map"
   ],
   "keywords": [
-    "pnpm8"
+    "pnpm9"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"
@@ -46,8 +46,7 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
-    "@yarnpkg/core": "4.0.0-rc.45",
-    "encode-registry": "^3.0.1",
+    "@yarnpkg/core": "4.0.2",
     "filenamify": "^4.3.0",
     "get-npm-tarball-url": "^2.1.0",
     "is-inner-link": "^4.0.0",
@@ -57,7 +56,7 @@
     "path-exists": "^4.0.0",
     "promise-share": "^1.0.0",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "rename-overwrite": "^4.0.4",
+    "rename-overwrite": "^5.0.0",
     "safe-promise-defer": "^1.0.1",
     "semver": "^7.5.4",
     "semver-range-intersect": "^0.3.1",

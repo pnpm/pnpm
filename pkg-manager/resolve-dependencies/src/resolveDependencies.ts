@@ -220,8 +220,8 @@ export interface ResolvedPackage {
   requiresBuild: boolean | SafePromiseDefer<boolean>
   additionalInfo: {
     deprecated?: string
-    bundleDependencies?: string[]
-    bundledDependencies?: string[]
+    bundleDependencies?: string[] | boolean
+    bundledDependencies?: string[] | boolean
     engines?: {
       node?: string
       npm?: string
@@ -985,7 +985,7 @@ function getInfoFromLockfile (
       ...nameVerFromPkgSnapshot(depPath, dependencyLockfile),
       dependencyLockfile,
       depPath,
-      pkgId: packageIdFromSnapshot(depPath, dependencyLockfile, registries),
+      pkgId: packageIdFromSnapshot(depPath, dependencyLockfile),
       // resolution may not exist if lockfile is broken, and an unexpected error will be thrown
       // if resolution does not exist, return undefined so it can be autofixed later
       resolution: dependencyLockfile.resolution && pkgSnapshotToResolution(depPath, dependencyLockfile, registries),
@@ -993,7 +993,7 @@ function getInfoFromLockfile (
   } else {
     return {
       depPath,
-      pkgId: dp.tryGetPackageId(registries, depPath) ?? depPath, // Does it make sense to set pkgId when we're not sure?
+      pkgId: dp.tryGetPackageId(depPath) ?? depPath, // Does it make sense to set pkgId when we're not sure?
     }
   }
 }
@@ -1039,12 +1039,13 @@ async function resolveDependency (
     currentLockfileContainsTheDep &&
     currentPkg.depPath &&
     currentPkg.dependencyLockfile &&
+    currentPkg.name &&
     await exists(
       path.join(
         ctx.virtualStoreDir,
         dp.depPathToFilename(currentPkg.depPath),
         'node_modules',
-        currentPkg.name!,
+        currentPkg.name,
         'package.json'
       )
     )
@@ -1186,7 +1187,7 @@ async function resolveDependency (
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
-  let depPath = dp.relative(ctx.registries, pkg.name, pkgResponse.body.id)
+  let depPath = pkgResponse.body.id
   const nameAndVersion = `${pkg.name}@${pkg.version}`
   const patchFile = ctx.patchedDependencies?.[nameAndVersion]
   if (patchFile) {
@@ -1247,7 +1248,6 @@ async function resolveDependency (
       pkg.deprecated = currentPkg.dependencyLockfile.deprecated
     }
     hasBin = Boolean((pkg.bin && !(pkg.bin === '' || Object.keys(pkg.bin).length === 0)) ?? pkg.directories?.bin)
-    /* eslint-enable @typescript-eslint/dot-notation */
   }
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest

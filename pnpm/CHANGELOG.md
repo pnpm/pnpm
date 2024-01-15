@@ -1,5 +1,81 @@
 # pnpm
 
+## 9.0.0-alpha.0
+
+### Major Changes
+
+- Node.js v16 support dropped. Use at least Node.js v18.12.
+- Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+- The [`dedupe-injected-deps`](https://pnpm.io/npmrc#dedupe-injected-deps) setting is `true` by default.
+- The default value of the `link-workspace-packages` setting changed from `true` to `false`. This means that by default, dependencies will be linked from workspace packages only when they are specified using the [workspace protocol](https://pnpm.io/workspaces#workspace-protocol-workspace).
+- Use the same directories on macOS as on Linux. Don't use directories inside `~/Library` on macOS [#7321](https://github.com/pnpm/pnpm/issues/7321).
+- The default value of the [hoist-workspace-packages](https://pnpm.io/npmrc#hoist-workspace-packages) is `true`.
+
+## 8.14.1
+
+### Patch Changes
+
+- Resolve the current working directory to its real location before doing any operations [#6524](https://github.com/pnpm/pnpm/issues/6524).
+- Allow using token helpers in `pnpm publish` [#7316](https://github.com/pnpm/pnpm/issues/7316).
+- Handle Git repository names containing capital letters [#7488](https://github.com/pnpm/pnpm/pull/7488).
+- When `hoisted-workspace-packages` is `true` don't hoist the root package even if it has a name. Otherwise we would create a circular symlink.
+
+## 8.14.0
+
+### Minor Changes
+
+- A new option added for hoisting packages from the workspace. When `hoist-workspace-packages` is set to `true`, packages from the workspace are symlinked to either `<workspace_root>/node_modules/.pnpm/node_modules` or to `<workspace_root>/node_modules` depending on other hoisting settings (`hoist-pattern` and `public-hoist-pattern`) [#7451](https://github.com/pnpm/pnpm/pull/7451).
+- The `pnpm dedupe` command now accepts more command line options that the `pnpm install` command also accepts. Example: `pnpm dedupe --store-dir=local-store-dir`
+
+### Patch Changes
+
+- The package information output by cat-index should be sorted by key.
+- `pnpm deploy` should not touch the target directory if it already exists and isn't empty [#7351](https://github.com/pnpm/pnpm/issues/7351).
+- `pnpm add a-module-already-in-dev-deps` will show a message to notice the user that the package was not moved to "dependencies" [#926](https://github.com/pnpm/pnpm/issues/926) and fix [#7319](https://github.com/pnpm/pnpm/pull/7319).
+- Don't install Node.js when use-node-version is set in a WebContainer [#7478](https://github.com/pnpm/pnpm/pull/7478).
+- Fix copy-on-write on Windows Dev Drives [#7468](https://github.com/pnpm/pnpm/issues/7468).
+
+## 8.13.1
+
+### Minor Changes
+
+- New commands added for inspecting the store:
+
+  - **pnpm cat-index**: Prints the index file of a specific package in the store. The package is specified by its name and version: `pnpm cat-index <pkg name>@<pkg version>`
+  - **pnpm cat-file**: Prints the contents of a file based on the hash value stored in the index file. For example:
+    ```
+    pnpm cat-file sha512-mvavhfVcEREI7d8dfvfvIkuBLnx7+rrkHHnPi8mpEDUlNpY4CUY+CvJ5mrrLl18iQYo1odFwBV7z/cOypG7xxQ==
+    ```
+  - **pnpm find-hash**: Lists the packages that include the file with the specified hash. For example:
+    ```
+    pnpm find-hash sha512-mvavhfVcEREI7d8dfvfvIkuBLnx7+rrkHHnPi8mpEDUlNpY4CUY+CvJ5mrrLl18iQYo1odFwBV7z/cOypG7xxQ==
+    ```
+    This command is **experimental**. We might change how it behaves.
+
+  Related issue: [#7413](https://github.com/pnpm/pnpm/issues/7413).
+
+- A new setting added for symlinking [injected dependencies](https://pnpm.io/package_json#dependenciesmetainjected) from the workspace, if their dependencies use the same peer dependencies as the dependent package. The setting is called `dedupe-injected-deps` [#7416](https://github.com/pnpm/pnpm/pull/7416).
+
+- Use `--fail-if-no-match` if you want the CLI fail if no packages were matched by the command [#7403](https://github.com/pnpm/pnpm/issues/7403).
+
+### Patch Changes
+
+- `pnpm list --parseable` should not print the same dependency multiple times [#7429](https://github.com/pnpm/pnpm/issues/7429).
+- Fix error message texts in the `pnpm env` commands [#7456](https://github.com/pnpm/pnpm/pull/7456).
+- Better support for light themed terminals by the `pnpm update --interactive` command [#7439](https://github.com/pnpm/pnpm/issues/7439).
+- Fix EPERM error that occasionally happened on Windows during renames in the store [#7213](https://github.com/pnpm/pnpm/issues/7213).
+- Fix error as in `update -i -r` with Git specifiers [#7415](https://github.com/pnpm/pnpm/issues/7415).
+- Added support for boolean values in 'bundleDependencies' package.json fields when installing a dependency. Fix to properly handle 'bundledDependencies' alias [#7411](https://github.com/pnpm/pnpm/issues/7411).
+
+## 8.12.1
+
+### Patch Changes
+
+- Don't report dependencies with optional dependencies as being added on repeat install. This was a bug in reporting [#7384](https://github.com/pnpm/pnpm/issues/7384).
+- Fix a bug where `--fix-lockfile` crashes on tarballs [#7368](https://github.com/pnpm/pnpm/issues/7368).
+- Do not create empty patch directory.
+- Installation should not fail if an empty `node_modules` directory cannot be removed [#7405](https://github.com/pnpm/pnpm/issues/7405).
+
 ## 8.12.0
 
 ### Minor Changes

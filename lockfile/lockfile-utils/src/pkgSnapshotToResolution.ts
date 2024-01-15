@@ -20,7 +20,15 @@ export function pkgSnapshotToResolution (
     return pkgSnapshot.resolution as Resolution
   }
   const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-  const registry: string = (name[0] === '@' && registries[name.split('/')[0]]) || registries.default
+  let registry: string = ''
+  if (name != null) {
+    if (name.startsWith('@')) {
+      registry = registries[name.split('/')[0]]
+    }
+  }
+  if (!registry) {
+    registry = registries.default
+  }
   let tarball!: string
   if (!(pkgSnapshot.resolution as TarballResolution).tarball) {
     tarball = getTarball(registry)

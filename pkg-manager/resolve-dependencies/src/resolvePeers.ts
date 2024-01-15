@@ -17,8 +17,10 @@ import {
   type DependenciesTreeNode,
   type ResolvedPackage,
 } from './resolveDependencies'
+import { type ResolvedImporters } from './resolveDependencyTree'
 import { mergePeers } from './mergePeers'
 import { createNodeId, splitNodeId } from './nodeIdUtils'
+import { dedupeInjectedDeps } from './dedupeInjectedDeps'
 
 export interface GenericDependenciesGraphNode {
   // at this point the version is really needed only for logging
@@ -35,6 +37,7 @@ export interface GenericDependenciesGraphNode {
 }
 
 export type PartialResolvedPackage = Pick<ResolvedPackage,
+| 'id'
 | 'depPath'
 | 'name'
 | 'peerDependencies'
@@ -55,6 +58,8 @@ export interface ProjectToResolve {
   id: string
 }
 
+export type DependenciesByProjectId = Record<string, Record<string, string>>
+
 export function resolvePeers<T extends PartialResolvedPackage> (
   opts: {
     projects: ProjectToResolve[]
@@ -63,10 +68,12 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     lockfileDir: string
     resolvePeersFromWorkspaceRoot?: boolean
     dedupePeerDependents?: boolean
+    dedupeInjectedDeps?: boolean
+    resolvedImporters: ResolvedImporters
   }
 ): {
     dependenciesGraph: GenericDependenciesGraph<T>
-    dependenciesByProjectId: { [id: string]: { [alias: string]: string } }
+    dependenciesByProjectId: DependenciesByProjectId
     peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   } {
   const depGraph: GenericDependenciesGraph<T> = {}
@@ -107,9 +114,19 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     node.children = mapValues((childNodeId) => pathsByNodeId.get(childNodeId) ?? childNodeId, node.children)
   })
 
-  const dependenciesByProjectId: { [id: string]: Record<string, string> } = {}
+  const dependenciesByProjectId: DependenciesByProjectId = {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
     dependenciesByProjectId[id] = mapValues((nodeId) => pathsByNodeId.get(nodeId)!, directNodeIdsByAlias)
+  }
+  if (opts.dedupeInjectedDeps) {
+    dedupeInjectedDeps({
+      dependenciesByProjectId,
+      projects: opts.projects,
+      depGraph,
+      pathsByNodeId,
+      lockfileDir: opts.lockfileDir,
+      resolvedImporters: opts.resolvedImporters,
+    })
   }
   if (opts.dedupePeerDependents) {
     const duplicates = Array.from(depPathsByPkgId.values()).filter((item) => item.size > 1)

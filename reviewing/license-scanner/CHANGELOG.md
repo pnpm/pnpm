@@ -1,5 +1,53 @@
 # @pnpm/license-scanner
 
+## 2.2.9
+
+### Patch Changes
+
+- fe737aeb4: Output license information for a deterministic version when multiple versions of a single package are depended on
+- dcf3ef7e4: Handle Git repository names containing capital letters [#7488](https://github.com/pnpm/pnpm/pull/7488).
+  - @pnpm/directory-fetcher@7.0.9
+
+## 2.2.8
+
+### Patch Changes
+
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/store.cafs@2.0.11
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/lockfile-walker@7.0.8
+  - @pnpm/package-is-installable@8.1.2
+  - @pnpm/directory-fetcher@7.0.9
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/read-package-json@8.0.7
+
+## 2.2.7
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/lockfile-walker@7.0.7
+  - @pnpm/package-is-installable@8.1.1
+  - @pnpm/directory-fetcher@7.0.8
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/read-package-json@8.0.6
+  - @pnpm/store.cafs@2.0.10
+
+## 2.2.6
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+
 ## 2.2.5
 
 ### Patch Changes

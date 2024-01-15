@@ -1,5 +1,102 @@
 # @pnpm/plugin-commands-rebuild
 
+## 10.0.15
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+- Updated dependencies [d9564e354]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/config@20.4.1
+  - @pnpm/get-context@10.0.10
+  - @pnpm/store-connection-manager@7.0.24
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/workspace.find-packages@1.1.9
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/link-bins@9.0.12
+
+## 10.0.14
+
+### Patch Changes
+
+- @pnpm/worker@0.3.13
+- @pnpm/store-connection-manager@7.0.23
+
+## 10.0.13
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+  - @pnpm/store-connection-manager@7.0.22
+  - @pnpm/workspace.find-packages@1.1.8
+
+## 10.0.12
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/config@20.3.0
+  - @pnpm/store.cafs@2.0.11
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/store-connection-manager@7.0.21
+  - @pnpm/worker@0.3.12
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/lockfile-walker@7.0.8
+  - @pnpm/calc-dep-state@4.1.5
+  - @pnpm/normalize-registries@5.0.6
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/get-context@10.0.9
+  - @pnpm/link-bins@9.0.12
+  - @pnpm/modules-yaml@12.1.6
+  - @pnpm/store-controller-types@17.1.4
+  - @pnpm/workspace.find-packages@1.1.7
+  - @pnpm/sort-packages@5.0.9
+
+## 10.0.11
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/lockfile-walker@7.0.7
+  - @pnpm/calc-dep-state@4.1.4
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/normalize-registries@5.0.5
+  - @pnpm/lifecycle@16.0.9
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/get-context@10.0.8
+  - @pnpm/link-bins@9.0.11
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/store.cafs@2.0.10
+  - @pnpm/store-controller-types@17.1.3
+  - @pnpm/worker@0.3.11
+  - @pnpm/workspace.find-packages@1.1.6
+  - @pnpm/sort-packages@5.0.8
+  - @pnpm/store-connection-manager@7.0.20
+
+## 10.0.10
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/worker@0.3.10
+  - @pnpm/store-connection-manager@7.0.19
+
 ## 10.0.9
 
 ### Patch Changes

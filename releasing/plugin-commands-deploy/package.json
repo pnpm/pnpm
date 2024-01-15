@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-deploy",
-  "version": "4.0.12",
+  "version": "4.0.18",
   "description": "Commands for deploy",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -13,7 +13,7 @@
     ".": "./lib/index.js"
   },
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "start": "tsc --watch",
@@ -25,7 +25,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/releasing/plugin-commands-deploy",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm"
   ],
   "license": "MIT",
@@ -39,7 +39,7 @@
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/plugin-commands-deploy": "workspace:*",
     "@pnpm/prepare": "workspace:*",
-    "@pnpm/registry-mock": "3.16.0"
+    "@pnpm/registry-mock": "3.17.1"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:*",
@@ -47,6 +47,7 @@
     "@pnpm/directory-fetcher": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/fs.indexed-pkg-importer": "workspace:*",
+    "@pnpm/fs.is-empty-dir-or-nothing": "workspace:*",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "^2.1.3",

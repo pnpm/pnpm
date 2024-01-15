@@ -18,7 +18,7 @@ import {
   filterLockfileByEngine,
   filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
-import { hoist } from '@pnpm/hoist'
+import { hoist, type HoistedWorkspaceProject } from '@pnpm/hoist'
 import {
   runLifecycleHooksConcurrently,
   makeNodeRequireOption,
@@ -161,6 +161,7 @@ export interface HeadlessOptions {
   useGitBranchLockfile?: boolean
   useLockfile?: boolean
   supportedArchitectures?: SupportedArchitectures
+  hoistWorkspacePackages?: boolean
 }
 
 export interface InstallationResultStats {
@@ -244,7 +245,6 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
           pruneStore: opts.pruneStore,
           pruneVirtualStore: opts.pruneVirtualStore,
           publicHoistedModulesDir: (opts.publicHoistPattern == null) ? undefined : publicHoistedModulesDir,
-          registries: opts.registries,
           skipped,
           storeController: opts.storeController,
           virtualStoreDir,
@@ -343,7 +343,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
   }
   const depNodes = Object.values(graph)
 
-  const added = depNodes.length
+  const added = depNodes.filter(({ fetching }) => fetching).length
   statsLogger.debug({
     added,
     prefix: lockfileDir,
@@ -424,6 +424,17 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         publicHoistedModulesDir,
         publicHoistPattern: opts.publicHoistPattern ?? [],
         virtualStoreDir,
+        hoistedWorkspacePackages: opts.hoistWorkspacePackages
+          ? Object.values(opts.allProjects).reduce((hoistedWorkspacePackages, project) => {
+            if (project.manifest.name && project.id !== '.') {
+              hoistedWorkspacePackages[project.id] = {
+                dir: project.rootDir,
+                name: project.manifest.name,
+              }
+            }
+            return hoistedWorkspacePackages
+          }, {} as Record<string, HoistedWorkspaceProject>)
+          : undefined,
       })
     } else {
       newHoistedDependencies = {}
@@ -775,7 +786,7 @@ async function getRootPackagesToLink (
         if (depPath === null) return
         const pkgSnapshot = lockfile.packages?.[depPath]
         if (pkgSnapshot == null) return // this won't ever happen. Just making typescript happy
-        const pkgId = pkgSnapshot.id ?? dp.refToAbsolute(ref, alias, opts.registries) ?? undefined
+        const pkgId = pkgSnapshot.id ?? dp.refToRelative(ref, alias) ?? undefined
         const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         return {
           alias,

@@ -1,5 +1,111 @@
 # @pnpm/plugin-commands-installation
 
+## 14.1.2
+
+### Patch Changes
+
+- Updated dependencies [d9564e354]
+- Updated dependencies [ff10acade]
+  - @pnpm/config@20.4.1
+  - @pnpm/core@13.3.2
+  - @pnpm/plugin-commands-rebuild@10.0.15
+  - @pnpm/outdated@13.0.40
+  - @pnpm/store-connection-manager@7.0.24
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/package-store@19.0.14
+  - @pnpm/workspace.find-packages@1.1.9
+  - @pnpm/filter-workspace-packages@7.2.10
+
+## 14.1.1
+
+### Patch Changes
+
+- @pnpm/package-store@19.0.14
+- @pnpm/core@13.3.1
+- @pnpm/store-connection-manager@7.0.23
+- @pnpm/plugin-commands-rebuild@10.0.14
+- @pnpm/outdated@13.0.39
+
+## 14.1.0
+
+### Minor Changes
+
+- 064aeb681: The `pnpm dedupe` command now accepts more command line options that the `pnpm install` command also accepts. Example: `pnpm dedupe --store-dir=local-store-dir`
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/core@13.3.0
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+  - @pnpm/plugin-commands-rebuild@10.0.13
+  - @pnpm/store-connection-manager@7.0.22
+  - @pnpm/workspace.find-packages@1.1.8
+  - @pnpm/filter-workspace-packages@7.2.9
+
+## 14.0.15
+
+### Patch Changes
+
+- 619e9ed6f: Better support for light themed terminals by the `pnpm update --interactive` command [#7439](https://github.com/pnpm/pnpm/issues/7439).
+- Updated dependencies [4e71066dd]
+- Updated dependencies [8fd4e349a]
+- Updated dependencies [4d34684f1]
+  - @pnpm/common-cli-options-help@1.1.0
+  - @pnpm/config@20.3.0
+  - @pnpm/outdated@13.0.38
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/plugin-commands-rebuild@10.0.12
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/store-connection-manager@7.0.21
+  - @pnpm/core@13.2.1
+  - @pnpm/workspace.pkgs-graph@2.0.13
+  - @pnpm/package-store@19.0.13
+  - @pnpm/dedupe.check@1.0.7
+  - @pnpm/pnpmfile@5.0.19
+  - @pnpm/manifest-utils@5.0.7
+  - @pnpm/read-project-manifest@5.0.10
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/filter-workspace-packages@7.2.8
+  - @pnpm/workspace.find-packages@1.1.7
+  - @pnpm/sort-packages@5.0.9
+
+## 14.0.14
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/core@13.2.0
+  - @pnpm/config@20.2.0
+  - @pnpm/dedupe.check@1.0.6
+  - @pnpm/plugin-commands-rebuild@10.0.11
+  - @pnpm/pnpmfile@5.0.18
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/manifest-utils@5.0.6
+  - @pnpm/read-project-manifest@5.0.9
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/outdated@13.0.37
+  - @pnpm/package-store@19.0.12
+  - @pnpm/filter-workspace-packages@7.2.7
+  - @pnpm/workspace.find-packages@1.1.6
+  - @pnpm/sort-packages@5.0.8
+  - @pnpm/store-connection-manager@7.0.20
+  - @pnpm/workspace.pkgs-graph@2.0.12
+
+## 14.0.13
+
+### Patch Changes
+
+- @pnpm/core@13.1.12
+- @pnpm/plugin-commands-rebuild@10.0.10
+- @pnpm/outdated@13.0.36
+- @pnpm/package-store@19.0.11
+- @pnpm/store-connection-manager@7.0.19
+
 ## 14.0.12
 
 ### Patch Changes

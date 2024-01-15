@@ -1,5 +1,77 @@
 # @pnpm/plugin-commands-store
 
+## 8.1.15
+
+### Patch Changes
+
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/get-context@10.0.10
+  - @pnpm/store-connection-manager@7.0.24
+  - @pnpm/cli-utils@2.1.8
+
+## 8.1.14
+
+### Patch Changes
+
+- @pnpm/store-connection-manager@7.0.23
+
+## 8.1.13
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+  - @pnpm/store-connection-manager@7.0.22
+
+## 8.1.12
+
+### Patch Changes
+
+- Updated dependencies [4e71066dd]
+- Updated dependencies [33313d2fd]
+- Updated dependencies [4d34684f1]
+  - @pnpm/config@20.3.0
+  - @pnpm/store.cafs@2.0.11
+  - @pnpm/types@9.4.2
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/store-connection-manager@7.0.21
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/normalize-registries@5.0.6
+  - @pnpm/pick-registry-for-package@5.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/get-context@10.0.9
+  - @pnpm/store-controller-types@17.1.4
+
+## 8.1.11
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [672c559e4]
+  - @pnpm/types@9.4.1
+  - @pnpm/config@20.2.0
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/normalize-registries@5.0.5
+  - @pnpm/pick-registry-for-package@5.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/get-context@10.0.8
+  - @pnpm/store.cafs@2.0.10
+  - @pnpm/store-controller-types@17.1.3
+  - @pnpm/store-connection-manager@7.0.20
+
+## 8.1.10
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+  - @pnpm/store-connection-manager@7.0.19
+
 ## 8.1.9
 
 ### Patch Changes

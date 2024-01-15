@@ -1,5 +1,43 @@
 # @pnpm/config
 
+## 20.4.1
+
+### Patch Changes
+
+- d9564e354: Resolve the current working directory to its real location before doing any operations [#6524](https://github.com/pnpm/pnpm/issues/6524).
+
+## 20.4.0
+
+### Minor Changes
+
+- c597f72ec: A new option added for hoisting packages from the workspace. When `hoist-workspace-packages` is set to `true`, packages from the workspace are symlinked to either `<workspace_root>/node_modules/.pnpm/node_modules` or to `<workspace_root>/node_modules` depending on other hoisting settings (`hoist-pattern` and `public-hoist-pattern`) [#7451](https://github.com/pnpm/pnpm/pull/7451).
+
+## 20.3.0
+
+### Minor Changes
+
+- 4e71066dd: Use `--fail-if-no-match` if you want the CLI fail if no packages were matched by the command [#7403](https://github.com/pnpm/pnpm/issues/7403).
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/pnpmfile@5.0.19
+  - @pnpm/read-project-manifest@5.0.10
+
+## 20.2.0
+
+### Minor Changes
+
+- 672c559e4: A new setting added for symlinking [injected dependencies](https://pnpm.io/package_json#dependenciesmetainjected) from the workspace, if their dependencies use the same peer dependencies as the dependent package. The setting is called `dedupe-injected-deps` [#7416](https://github.com/pnpm/pnpm/pull/7416).
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/pnpmfile@5.0.18
+  - @pnpm/read-project-manifest@5.0.9
+
 ## 20.1.2
 
 ### Patch Changes

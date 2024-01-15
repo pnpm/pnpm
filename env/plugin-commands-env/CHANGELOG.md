@@ -1,5 +1,64 @@
 # @pnpm/plugin-commands-env
 
+## 4.1.20
+
+### Patch Changes
+
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/node.fetcher@3.0.37
+
+## 4.1.19
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.37
+- @pnpm/node.resolver@2.0.38
+
+## 4.1.18
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
+## 4.1.17
+
+### Patch Changes
+
+- 4d2923858: Fix error message texts in the `pnpm env` commands [#7456](https://github.com/pnpm/pnpm/pull/7456).
+- Updated dependencies [4e71066dd]
+- Updated dependencies [33313d2fd]
+  - @pnpm/config@20.3.0
+  - @pnpm/node.fetcher@3.0.36
+  - @pnpm/cli-utils@2.1.6
+  - @pnpm/node.resolver@2.0.37
+  - @pnpm/remove-bins@5.0.7
+  - @pnpm/fetch@7.0.7
+
+## 4.1.16
+
+### Patch Changes
+
+- Updated dependencies [672c559e4]
+  - @pnpm/config@20.2.0
+  - @pnpm/cli-utils@2.1.5
+  - @pnpm/remove-bins@5.0.6
+  - @pnpm/node.fetcher@3.0.35
+  - @pnpm/fetch@7.0.6
+  - @pnpm/node.resolver@2.0.36
+
+## 4.1.15
+
+### Patch Changes
+
+- @pnpm/node.fetcher@3.0.34
+- @pnpm/node.resolver@2.0.35
+
 ## 4.1.14
 
 ### Patch Changes

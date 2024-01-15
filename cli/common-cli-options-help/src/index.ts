@@ -116,6 +116,10 @@ export const FILTERING = {
       description: 'Restricts the scope to package names matching the given pattern similar to --filter, but it ignores devDependencies when searching for dependencies and dependents.',
       name: '--filter-prod <pattern>',
     },
+    {
+      description: 'If no projects are matched by the command, exit with exit code 1 (fail)',
+      name: '--fail-if-no-match',
+    },
   ],
   title: 'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
 }

@@ -48,7 +48,6 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
   const lockfileDir = opts.lockfileDir ?? opts.dir ?? process.cwd()
   const patchesDirName = normalizePath(path.normalize(opts.patchesDir ?? 'patches'))
   const patchesDir = path.join(lockfileDir, patchesDirName)
-  await fs.promises.mkdir(patchesDir, { recursive: true })
   const patchedPkgManifest = await readPackageJsonFromDir(userDir)
   const pkgNameAndVersion = `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
   const gitTarballUrl = await getGitTarballUrlFromLockfile({
@@ -67,6 +66,7 @@ export async function handler (opts: install.InstallCommandOptions & Pick<Config
   if (!patchContent.length) {
     return `No changes were found to the following directory: ${userDir}`
   }
+  await fs.promises.mkdir(patchesDir, { recursive: true })
 
   const patchFileName = pkgNameAndVersion.replace('/', '__')
   await fs.promises.writeFile(path.join(patchesDir, `${patchFileName}.patch`), patchContent, 'utf8')

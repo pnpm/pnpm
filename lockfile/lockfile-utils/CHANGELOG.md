@@ -1,5 +1,33 @@
 # @pnpm/lockfile-utils
 
+## 9.0.4
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/pick-fetcher@2.0.1
+
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/pick-fetcher@2.0.1
+
+## 9.0.2
+
+### Patch Changes
+
+- d5a176af7: Fix a bug where `--fix-lockfile` crashes on tarballs [#7368](https://github.com/pnpm/pnpm/issues/7368).
+
 ## 9.0.1
 
 ### Patch Changes

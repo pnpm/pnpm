@@ -2,22 +2,23 @@ import path from 'path'
 import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspace-packages'
 import { test as testCommand } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import execa from 'execa'
 import { DEFAULT_OPTS, REGISTRY_URL } from './utils'
 
 const pnpmBin = path.join(__dirname, '../../../pnpm/bin/pnpm.cjs')
 
 test('pnpm recursive test', async () => {
+  await using server1 = await createTestIpcServer()
+  await using server2 = await createTestIpcServer()
+
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
 
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        test: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output1.json && node -e "process.stdout.write(\'project-1\')" | json-append ../output2.json',
+        test: `${server1.sendLineScript('project-1')} && ${server2.sendLineScript('project-1')}`,
       },
     },
     {
@@ -25,11 +26,10 @@ test('pnpm recursive test', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        test: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output1.json',
+        test: server1.sendLineScript('project-2'),
       },
     },
     {
@@ -37,11 +37,10 @@ test('pnpm recursive test', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        test: 'node -e "process.stdout.write(\'project-3\')" | json-append ../output2.json',
+        test: server2.sendLineScript('project-3'),
       },
     },
     {
@@ -71,11 +70,8 @@ test('pnpm recursive test', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const { default: outputs1 } = await import(path.resolve('output1.json'))
-  const { default: outputs2 } = await import(path.resolve('output2.json'))
-
-  expect(outputs1).toStrictEqual(['project-1', 'project-2'])
-  expect(outputs2).toStrictEqual(['project-1', 'project-3'])
+  expect(server1.getLines()).toStrictEqual(['project-1', 'project-2'])
+  expect(server2.getLines()).toStrictEqual(['project-1', 'project-3'])
 })
 
 test('`pnpm recursive test` does not fail if none of the packages has a test command', async () => {
@@ -130,16 +126,15 @@ test('`pnpm recursive test` does not fail if none of the packages has a test com
 })
 
 test('pnpm recursive test with filtering', async () => {
+  await using server = await createTestIpcServer()
+
   preparePackages([
     {
       name: 'project-1',
       version: '1.0.0',
 
-      dependencies: {
-        'json-append': '1',
-      },
       scripts: {
-        test: 'node -e "process.stdout.write(\'project-1\')" | json-append ../output.json',
+        test: server.sendLineScript('project-1'),
       },
     },
     {
@@ -147,11 +142,10 @@ test('pnpm recursive test with filtering', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1',
       },
       scripts: {
-        test: 'node -e "process.stdout.write(\'project-2\')" | json-append ../output.json',
+        test: server.sendLineScript('project-2'),
       },
     },
   ])
@@ -180,7 +174,5 @@ test('pnpm recursive test with filtering', async () => {
     workspaceDir: process.cwd(),
   })
 
-  const { default: outputs } = await import(path.resolve('output.json'))
-
-  expect(outputs).toStrictEqual(['project-1'])
+  expect(server.getLines()).toStrictEqual(['project-1'])
 })
