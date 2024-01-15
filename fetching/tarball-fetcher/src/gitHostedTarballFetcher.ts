@@ -63,6 +63,12 @@ async function prepareGitHostedPkg (
       ignoredBuild: false,
     }
   }
+  if (opts.ignoreScripts) {
+    return {
+      filesIndex,
+      ignoredBuild: true,
+    }
+  }
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,
   // the linking of files to the store is in progress.
@@ -73,6 +79,6 @@ async function prepareGitHostedPkg (
       filesIndexFile,
       pkg: fetcherOpts.pkg,
     }),
-    ignoredBuild: opts.ignoreScripts && shouldBeBuilt,
+    ignoredBuild: false,
   }
 }
