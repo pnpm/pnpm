@@ -15,7 +15,6 @@ import {
   type VerifyResult,
 } from '@pnpm/store.cafs'
 import { symlinkDependencySync } from '@pnpm/symlink-dependency'
-import { preparePackage } from '@pnpm/prepare-package'
 import { sync as loadJsonFile } from 'load-json-file'
 import { parentPort } from 'worker_threads'
 import {
@@ -45,7 +44,7 @@ async function handleMessage (
   try {
     switch (message.type) {
     case 'extract': {
-      parentPort!.postMessage(await addTarballToStore(message))
+      parentPort!.postMessage(addTarballToStore(message))
       break
     }
     case 'link': {
@@ -108,7 +107,7 @@ async function handleMessage (
   }
 }
 
-async function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, pkg, readManifest }: TarballExtractMessage) {
+function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, pkg, readManifest }: TarballExtractMessage) {
   if (integrity) {
     const [, algo, integrityHash] = integrity.match(INTEGRITY_REGEX)!
     // Compensate for the possibility of non-uniform Base64 padding
@@ -131,54 +130,10 @@ async function addTarballToStore ({ buffer, cafsDir, integrity, filesIndexFile, 
     cafsCache.set(cafsDir, createCafs(cafsDir))
   }
   const cafs = cafsCache.get(cafsDir)!
-  let { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, readManifest)
-  if (true) {
-    try {
-      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, opts.filesIndexFile, fetcherOpts, opts)
-      if (prepareResult.ignoredBuild) {
-        globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
-      }
-      filesIndex = prepareResult.filesIndex
-      // return { filesIndex: prepareResult.filesIndex, manifest }
-    } catch (err: any) { // eslint-disable-line
-      err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}`
-      throw err
-    }
-  }
-  console.log('!!!!!!!!!!!!!!>>>>>>>>>.', filesIndex)
+  const { filesIndex, manifest } = cafs.addFilesFromTarball(buffer, readManifest)
   const { filesIntegrity, filesMap } = processFilesIndex(filesIndex)
   writeFilesIndexFile(filesIndexFile, { pkg: pkg ?? {}, files: filesIntegrity })
   return { status: 'success', value: { filesIndex: filesMap, manifest } }
-}
-
-async function prepareGitHostedPkg (
-  filesIndex: Record<string, string>,
-  cafs: Cafs,
-  filesIndexFile: string,
-  opts: CreateGitHostedTarballFetcher,
-  fetcherOpts: FetchOptions
-) {
-  const tempLocation = await cafs.tempDir()
-  cafs.importPackage(tempLocation, {
-    filesResponse: {
-      filesIndex,
-      resolvedFrom: 'remote',
-    },
-    force: true,
-  })
-  const shouldBeBuilt = await preparePackage(opts, tempLocation)
-  // Important! We cannot remove the temp location at this stage.
-  // Even though we have the index of the package,
-  // the linking of files to the store is in progress.
-  return {
-    ...await addFilesFromDir({
-      cafsDir: cafs.cafsDir,
-      dir: tempLocation,
-      filesIndexFile,
-      pkg: fetcherOpts.pkg,
-    }),
-    ignoredBuild: opts.ignoreScripts && shouldBeBuilt,
-  }
 }
 
 function addFilesFromDir ({ dir, cafsDir, filesIndexFile, sideEffectsCacheKey, pkg, readManifest }: AddDirToStoreMessage) {

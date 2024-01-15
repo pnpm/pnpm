@@ -3,6 +3,7 @@ import type { Cafs } from '@pnpm/cafs-types'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import { addFilesFromDir } from '@pnpm/worker'
+import renameOverwrite from 'rename-overwrite'
 
 interface Resolution {
   integrity?: string
@@ -19,12 +20,13 @@ export interface CreateGitHostedTarballFetcher {
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
     //(not sure) This should just extract the tarball to a temp directory. No need to fetch it to the store?!
+    const nonBuiltIndexFile = opts.filesIndexFile + 'raw'
     const { filesIndex, manifest } = await fetchRemoteTarball(cafs, resolution, {
       ...opts,
-      filesIndexFile: opts.filesIndexFile + 'z'
+      filesIndexFile: nonBuiltIndexFile
     })
     try {
-      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, opts.filesIndexFile, fetcherOpts, opts)
+      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, nonBuiltIndexFile, opts.filesIndexFile, fetcherOpts, opts)
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
@@ -41,6 +43,7 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
 async function prepareGitHostedPkg (
   filesIndex: Record<string, string>,
   cafs: Cafs,
+  filesIndexFileNonBuilt: string,
   filesIndexFile: string,
   opts: CreateGitHostedTarballFetcher,
   fetcherOpts: FetchOptions
@@ -54,6 +57,13 @@ async function prepareGitHostedPkg (
     force: true,
   })
   const shouldBeBuilt = await preparePackage(opts, tempLocation)
+  if (!shouldBeBuilt) {
+    renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)
+    return {
+      filesIndex,
+      ignoredBuild: false,
+    }
+  }
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,
   // the linking of files to the store is in progress.
@@ -64,6 +74,6 @@ async function prepareGitHostedPkg (
       filesIndexFile,
       pkg: fetcherOpts.pkg,
     }),
-    ignoredBuild: opts.ignoreScripts && shouldBeBuilt,
+    ignoredBuild: opts.ignoreScripts && shouldBeBuilt
   }
 }
