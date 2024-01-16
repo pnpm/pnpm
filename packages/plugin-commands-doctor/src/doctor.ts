@@ -28,7 +28,7 @@ export async function handler (
   if (failedToLoadBuiltInConfig) {
     // If true, means loading npm builtin config failed. Then there may have a prefix error, related: https://github.com/pnpm/pnpm/issues/5404
     logger.warn({
-      message: 'Load npm builtin configs failed. If the prefix builtin config does not work, you can use "pnpm config ls" to show builtin configs. And then use "pnpm config --global set <key> <value>" to migrate configs from builtin to global.',
+      message: 'Load npm builtin configs failed. If the prefix builtin config does not work, you can use "pnpm config list" to show builtin configs. And then use "pnpm config --global set <key> <value>" to migrate configs from builtin to global.',
       prefix: process.cwd(),
     })
   }
