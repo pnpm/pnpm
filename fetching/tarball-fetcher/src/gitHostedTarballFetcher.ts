@@ -4,6 +4,7 @@ import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
 import { addFilesFromDir } from '@pnpm/worker'
 import renameOverwrite from 'rename-overwrite'
+import { fastPathTemp as pathTemp } from 'path-temp'
 
 interface Resolution {
   integrity?: string
@@ -19,7 +20,8 @@ export interface CreateGitHostedTarballFetcher {
 
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
-    const nonBuiltIndexFile = opts.filesIndexFile + 'raw'
+    // This solution is not perfect but we don't currently know the location of the built and non-built index files.
+    const nonBuiltIndexFile = fetcherOpts.ignoreScripts ? opts.filesIndexFile : pathTemp(opts.filesIndexFile)
     const { filesIndex, manifest } = await fetchRemoteTarball(cafs, resolution, {
       ...opts,
       filesIndexFile: nonBuiltIndexFile,
@@ -57,7 +59,9 @@ async function prepareGitHostedPkg (
   })
   const shouldBeBuilt = await preparePackage(opts, tempLocation)
   if (!shouldBeBuilt) {
-    await renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)
+    if (filesIndexFileNonBuilt !== filesIndexFile) {
+      await renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)
+    }
     return {
       filesIndex,
       ignoredBuild: false,
