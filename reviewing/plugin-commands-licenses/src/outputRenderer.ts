@@ -106,10 +106,25 @@ function renderLicensesTable (
   return table(
     [
       columnNames,
-      ...sortLicensesPackages(licensePackages).map((licensePkg) => {
-        return columnFns.map((fn) => fn(licensePkg))
-      }),
+      ...deduplicateTable(
+        sortLicensesPackages(licensePackages)
+          .map((licensePkg) => columnFns.map((fn) => fn(licensePkg)))
+      ),
     ],
     TABLE_OPTIONS
   )
+}
+
+function deduplicateTable (table: string[][]): string[][] {
+  const result: string[][] = []
+  const hasRow = (row: string[]) => result.some((x) => rowEqual(row, x))
+  for (const row of table) {
+    if (!hasRow(row)) result.push(row)
+  }
+  return result
+}
+
+function rowEqual (a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((x, i) => x === b[i])
 }
