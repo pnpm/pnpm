@@ -117,14 +117,10 @@ function renderLicensesTable (
 
 function deduplicateTable (table: string[][]): string[][] {
   const result: string[][] = []
+  const rowEqual = (a: string[], b: string[]) => a[0] === b[0] && a[1] === b[1]
   const hasRow = (row: string[]) => result.some((x) => rowEqual(row, x))
-  for (const row of table) {
-    if (!hasRow(row)) result.push(row)
+  for (const row of table.reverse()) { // reverse + unshift to prioritize latest package description
+    if (!hasRow(row)) result.unshift(row)
   }
   return result
-}
-
-function rowEqual (a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false
-  return a.every((x, i) => x === b[i])
 }
