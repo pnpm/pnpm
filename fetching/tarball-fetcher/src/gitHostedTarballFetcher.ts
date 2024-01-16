@@ -20,7 +20,8 @@ export interface CreateGitHostedTarballFetcher {
 
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
-    // This solution is not perfect but we don't currently know the location of the built and non-built index files.
+    // This solution is not perfect but inside the fetcher we don't currently know the location
+    // of the built and non-built index files.
     const nonBuiltIndexFile = fetcherOpts.ignoreScripts ? opts.filesIndexFile : pathTemp(opts.filesIndexFile)
     const { filesIndex, manifest } = await fetchRemoteTarball(cafs, resolution, {
       ...opts,
