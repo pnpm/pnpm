@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises'
 import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import { globalWarn } from '@pnpm/logger'
@@ -74,6 +75,10 @@ async function prepareGitHostedPkg (
       ignoredBuild: true,
     }
   }
+  try {
+    // The temporary index file may be deleted
+    await fs.unlink(filesIndexFileNonBuilt)
+  } catch {}
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,
   // the linking of files to the store is in progress.
