@@ -39,6 +39,19 @@ const LICENSE_FILES = [
   'MIT-LICENSE',
 ]
 
+/**
+ * @const
+ * List common license names
+*/
+const LICENSE_NAMES = [
+  'LGPL',
+  'Mozilla',
+  'GPL',
+  'BSD',
+  'MIT',
+  'Apache',
+]
+
 export interface LicenseInfo {
   name: string
   licenseFile?: string
@@ -126,10 +139,18 @@ async function parseLicense (
       } else {
         licenseContents = await readLicenseFileFromCafs(opts.cafsDir, licensePackageFileInfo as PackageFileInfo)
       }
+      const licenseContent = licenseContents?.toString('utf-8')
+      let name = 'Unknown'
+      if (licenseContent) {
+        const match = new RegExp(LICENSE_NAMES.join('|'), 'i').exec(licenseContent)
+        if (match) {
+          name = match[0]
+        }
+      }
 
       return {
-        name: 'Unknown',
-        licenseFile: licenseContents?.toString('utf-8'),
+        name,
+        licenseFile: licenseContent,
       }
     }
   }
