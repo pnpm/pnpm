@@ -39,6 +39,7 @@
     "@pnpm/registry-mock": "3.17.1",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/ramda": "0.28.20",
+    "@types/semver": "7.5.3",
     "@types/wrap-ansi": "8.0.2",
     "@types/zkochan__table": "npm:@types/table@6.0.0",
     "strip-ansi": "^6.0.1"
@@ -56,7 +57,8 @@
     "@zkochan/table": "^2.0.1",
     "chalk": "^4.1.2",
     "ramda": "npm:@pnpm/ramda@0.28.1",
-    "render-help": "^1.0.3"
+    "render-help": "^1.0.3",
+    "semver": "^7.5.4"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

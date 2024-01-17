@@ -97,8 +97,8 @@ test('pnpm licenses: output as json', async () => {
   expect(packagesWithMIT.length).toBeGreaterThan(0)
   expect(Object.keys(packagesWithMIT[0])).toEqual([
     'name',
-    'version',
-    'path',
+    'versions',
+    'paths',
     'license',
     'author',
     'homepage',
