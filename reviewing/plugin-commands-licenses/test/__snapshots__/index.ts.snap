@@ -86,7 +86,7 @@ exports[`pnpm licenses: should correctly read LICENSE file with executable file 
 │                              │         │ The Node.js \`util.deprecate()\` function with browser support                                           │
 │                              │         │ https://github.com/TooTallNate/util-deprecate                                                          │
 ├──────────────────────────────┼─────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ varstream                    │ Unknown │ Nicolas Froidure                                                                                       │
+│ varstream                    │ MIT     │ Nicolas Froidure                                                                                       │
 │                              │         │ Stream variables beetween 2 JavaScript threads (client/server, ipc, worker/main thread).               │
 │                              │         │ https://github.com/nfroidure/VarStream#readme                                                          │
 └──────────────────────────────┴─────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────┘
