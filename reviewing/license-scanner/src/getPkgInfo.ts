@@ -44,12 +44,13 @@ const LICENSE_FILES = [
  * List common license names
 */
 const LICENSE_NAMES = [
-  'LGPL',
-  'Mozilla',
-  'GPL',
-  'BSD',
-  'MIT',
   'Apache',
+  'BSD',
+  'ISC',
+  'GPL',
+  'LGPL',
+  'MIT',
+  'Mozilla',
 ]
 
 export interface LicenseInfo {
