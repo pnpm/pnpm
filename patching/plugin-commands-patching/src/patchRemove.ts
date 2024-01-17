@@ -64,6 +64,7 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
       delete rootProjectManifest.pnpm!.patchedDependencies![patch]
       if (!Object.keys(rootProjectManifest.pnpm!.patchedDependencies!).length) {
         delete rootProjectManifest.pnpm!.patchedDependencies
+        await fs.rmdir(patchFile.replace(`${patch}.patch`, ''))
         if (!Object.keys(rootProjectManifest.pnpm!).length) {
           delete rootProjectManifest.pnpm
         }

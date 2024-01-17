@@ -898,6 +898,7 @@ describe('patch-remove', () => {
     const { manifest: newManifest } = await readProjectManifest(process.cwd())
     expect(newManifest!.pnpm!).toBeUndefined()
     expect(fs.existsSync(path.join(process.cwd(), 'patches/is-positive@1.0.0.patch'))).toBe(false)
+    expect(fs.existsSync(path.join(process.cwd(), 'patches'))).toBe(false)
   })
 
   test('prompt to select patches that to be removed', async () => {
