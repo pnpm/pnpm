@@ -1607,9 +1607,15 @@ importers:
       p-map-values:
         specifier: ^1.0.0
         version: 1.0.0
+      path-temp:
+        specifier: ^2.1.0
+        version: 2.1.0
       ramda:
         specifier: npm:@pnpm/ramda@0.28.1
         version: /@pnpm/ramda@0.28.1
+      rename-overwrite:
+        specifier: ^5.0.0
+        version: 5.0.0
     devDependencies:
       '@pnpm/cafs-types':
         specifier: workspace:*

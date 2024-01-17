@@ -44,7 +44,9 @@
     "@zkochan/retry": "^0.2.0",
     "lodash.throttle": "4.1.1",
     "p-map-values": "^1.0.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "path-temp": "^2.1.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
+    "rename-overwrite": "^5.0.0"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",
