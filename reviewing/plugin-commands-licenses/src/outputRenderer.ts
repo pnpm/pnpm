@@ -106,20 +106,18 @@ function renderLicensesTable (
   return table(
     [
       columnNames,
-      ...deduplicateTable(
-        sortLicensesPackages(licensePackages)
-          .map((licensePkg) => columnFns.map((fn) => fn(licensePkg)))
-      ),
+      ...deduplicateLicensesPackages(sortLicensesPackages(licensePackages))
+        .map((licensePkg) => columnFns.map((fn) => fn(licensePkg))),
     ],
     TABLE_OPTIONS
   )
 }
 
-function deduplicateTable (table: string[][]): string[][] {
-  const result: string[][] = []
-  const rowEqual = (a: string[], b: string[]) => a[0] === b[0] && a[1] === b[1]
-  const hasRow = (row: string[]) => result.some((x) => rowEqual(row, x))
-  for (const row of table.reverse()) { // reverse + unshift to prioritize latest package description
+function deduplicateLicensesPackages (licensePackages: LicensePackage[]): LicensePackage[] {
+  const result: LicensePackage[] = []
+  const rowEqual = (a: LicensePackage, b: LicensePackage) => a.name === b.name && a.license === b.license
+  const hasRow = (row: LicensePackage) => result.some((x) => rowEqual(row, x))
+  for (const row of licensePackages.reverse()) { // reverse + unshift to prioritize latest package description
     if (!hasRow(row)) result.unshift(row)
   }
   return result
