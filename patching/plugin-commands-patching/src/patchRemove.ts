@@ -57,9 +57,11 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
     throw new PnpmError('NO_PATCHES_TO_REMOVE', 'There are no patches that need to be removed')
   }
 
+  const patchesDirs = new Set<string>()
   await Promise.all(patchesToRemove.map(async (patch) => {
     if (Object.prototype.hasOwnProperty.call(patchedDependencies, patch)) {
       const patchFile = path.join(lockfileDir, patchedDependencies[patch])
+      patchesDirs.add(path.dirname(patchFile))
       await fs.rm(patchFile, { force: true })
       delete rootProjectManifest.pnpm!.patchedDependencies![patch]
       if (!Object.keys(rootProjectManifest.pnpm!.patchedDependencies!).length) {
@@ -69,6 +71,15 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
         }
       }
     }
+  }))
+
+  await Promise.all(Array.from(patchesDirs).map(async (dir) => {
+    try {
+      const files = await fs.readdir(dir)
+      if (!files.length) {
+        await fs.rmdir(dir)
+      }
+    } catch {}
   }))
 
   await writeProjectManifest(rootProjectManifest)
