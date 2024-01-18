@@ -340,7 +340,7 @@ test('pack: should resolve correct files from publishConfig', async () => {
   await tar.x({ file: 'custom-publish-dir-0.0.0.tgz' })
 
   expect(await exists('./package/bin.js')).toBeFalsy()
-  expect(await exists('./package/index.js')).toBeFalsy()
+  expect(await exists('./package/index.ts')).toBeFalsy()
   expect(await exists('./package/package.json')).toBeTruthy()
   expect(await exists('./package/a.js')).toBeTruthy()
   expect(await exists('./package/dist-index.js')).toBeTruthy()
