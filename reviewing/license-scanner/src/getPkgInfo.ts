@@ -143,7 +143,7 @@ async function parseLicense (
       const licenseContent = licenseContents?.toString('utf-8')
       let name = 'Unknown'
       if (licenseContent) {
-        const match = new RegExp(LICENSE_NAMES.join('|'), 'i').exec(licenseContent)
+        const match = new RegExp(`\b(${LICENSE_NAMES.join('|')})\b`, 'i').exec(licenseContent)
         if (match) {
           name = match[0]
         }
