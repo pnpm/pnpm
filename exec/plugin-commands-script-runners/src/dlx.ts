@@ -125,7 +125,11 @@ export async function handler (
 
 async function getPkgName (pkgDir: string) {
   const manifest = await readPackageJsonFromDir(pkgDir)
-  return Object.keys(manifest.dependencies ?? {})[0]
+  const dependencyNames = Object.keys(manifest.dependencies ?? {})
+  if (dependencyNames.length === 0) {
+    throw new PnpmError('DLX_NO_DEP', 'dlx was unable to find the installed dependency in "dependencies"')
+  }
+  return dependencyNames[0]
 }
 
 async function getBinName (modulesDir: string, pkgName: string): Promise<string> {
