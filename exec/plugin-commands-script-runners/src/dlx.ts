@@ -95,6 +95,10 @@ export async function handler (
     dir: prefix,
     lockfileDir: prefix,
     rootProjectManifestDir: prefix, // This property won't be used as rootProjectManifest will be undefined
+    saveProd: true, // dlx will be looking for the package in the "dependencies" field!
+    saveDev: false,
+    saveOptional: false,
+    savePeer: false,
   }, pkgs)
   const binName = opts.package
     ? command
@@ -119,7 +123,11 @@ export async function handler (
 
 async function getPkgName (pkgDir: string) {
   const manifest = await readPackageJsonFromDir(pkgDir)
-  return Object.keys(manifest.dependencies ?? {})[0]
+  const dependencyNames = Object.keys(manifest.dependencies ?? {})
+  if (dependencyNames.length === 0) {
+    throw new PnpmError('DLX_NO_DEP', 'dlx was unable to find the installed dependency in "dependencies"')
+  }
+  return dependencyNames[0]
 }
 
 async function getBinName (modulesDir: string, pkgName: string): Promise<string> {
