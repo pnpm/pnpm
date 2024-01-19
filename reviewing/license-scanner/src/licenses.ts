@@ -104,7 +104,7 @@ export async function findDependencyLicenses (opts: {
     const dependenciesOfNode = getDependenciesFromLicenseNode(licenseNode)
 
     dependenciesOfNode.forEach((dependencyNode) => {
-      const mapKey = dependencyNode.name + '@' + dependencyNode.version
+      const mapKey = `${dependencyNode.name}@${dependencyNode.version}`
       const existingVersion = licensePackages.get(mapKey)?.version
       if (existingVersion === undefined) {
         licensePackages.set(mapKey, dependencyNode)
