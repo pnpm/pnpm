@@ -143,9 +143,9 @@ async function parseLicense (
       const licenseContent = licenseContents?.toString('utf-8')
       let name = 'Unknown'
       if (licenseContent) {
-        const match = new RegExp(`\\b(${LICENSE_NAMES.join('|')})\\b`, 'i').exec(licenseContent)
+        const match = licenseContent.match(new RegExp(`\\b(${LICENSE_NAMES.join('|')})\\b`, 'igm'))
         if (match) {
-          name = match[0]
+          name = [...new Set(match)].join(' OR ')
         }
       }
 
