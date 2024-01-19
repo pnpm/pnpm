@@ -95,6 +95,12 @@ export async function handler (
     dir: prefix,
     lockfileDir: prefix,
     rootProjectManifestDir: prefix, // This property won't be used as rootProjectManifest will be undefined
+    // Since "npm_config_save_dev" , "npm_config_save_peer" or "npm_config_save_optional" may already exist in environment variables.
+    // Adding "saveProd: true" here to ensure that get correct pkgName in getPkgName(prefix).
+    saveProd: true,
+    saveDev: false,
+    saveOptional: false,
+    savePeer: false,
   }, pkgs)
   const binName = opts.package
     ? command
