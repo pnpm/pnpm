@@ -175,7 +175,7 @@ describe('licences', () => {
     ] as LicensePackage[])
   })
 
-  test('findDependencyLicenses uses most updated version of each package', async () => {
+  test('findDependencyLicenses lists all versions (#7724)', async () => {
     const lockfile: Lockfile = {
       importers: {
         '.': {
@@ -238,6 +238,18 @@ describe('licences', () => {
       {
         belongsTo: 'dependencies',
         description: 'Package Description',
+        version: '1.0.0',
+        name: 'bar',
+        license: 'MIT',
+        licenseContents: undefined,
+        author: 'Package Author',
+        homepage: 'Homepage',
+        repository: 'Repository',
+        path: '/path/to/package/bar@1.0.0/node_modules',
+      },
+      {
+        belongsTo: 'dependencies',
+        description: 'Package Description',
         version: '1.0.1',
         name: 'bar',
         license: 'MIT',
@@ -246,6 +258,18 @@ describe('licences', () => {
         homepage: 'Homepage',
         repository: 'Repository',
         path: '/path/to/package/bar@1.0.1/node_modules',
+      },
+      {
+        belongsTo: 'dependencies',
+        description: 'Package Description',
+        version: '2.0.0',
+        name: 'baz',
+        license: 'Unknown',
+        licenseContents: 'The MIT License',
+        author: 'Package Author',
+        homepage: 'Homepage',
+        repository: 'Repository',
+        path: '/path/to/package/baz@2.0.0/node_modules',
       },
       {
         belongsTo: 'dependencies',

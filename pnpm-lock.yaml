@@ -5374,6 +5374,9 @@ importers:
       render-help:
         specifier: ^1.0.3
         version: 1.0.3
+      semver:
+        specifier: ^7.5.4
+        version: 7.5.4
     devDependencies:
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
@@ -5399,6 +5402,9 @@ importers:
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
+      '@types/semver':
+        specifier: 7.5.3
+        version: 7.5.3
       '@types/wrap-ansi':
         specifier: 8.0.2
         version: 8.0.2
@@ -11498,6 +11504,7 @@ packages:
 
   /err-code@2.0.3:
     resolution: {integrity: sha512-2bmlRpNKBxT/CRmPOlyISQpNj+qSeYvcym/uT0Jx2bMOlKLtSy1ZmLuVxSEKKyor/N5yhvp/ZiG1oE3DEYMSFA==}
+    requiresBuild: true
     dev: false
 
   /error-ex@1.3.2:
