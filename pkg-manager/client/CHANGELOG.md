@@ -1,5 +1,14 @@
 # @pnpm/client
 
+## 10.0.44
+
+### Patch Changes
+
+- Updated dependencies [5a5e42551]
+  - @pnpm/network.auth-header@2.2.0
+  - @pnpm/directory-fetcher@7.0.9
+  - @pnpm/tarball-fetcher@18.0.17
+
 ## 10.0.43
 
 ### Patch Changes

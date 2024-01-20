@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-licenses
 
+## 3.0.12
+
+### Patch Changes
+
+- dcf3ef7e4: Handle Git repository names containing capital letters [#7488](https://github.com/pnpm/pnpm/pull/7488).
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+- Updated dependencies [fe737aeb4]
+- Updated dependencies [dcf3ef7e4]
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/license-scanner@2.2.9
+  - @pnpm/cli-utils@2.1.8
+
 ## 3.0.11
 
 ### Patch Changes

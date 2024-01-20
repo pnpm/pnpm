@@ -1,5 +1,23 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.5.0
+
+### Minor Changes
+
+- 5a5e42551: Allow using token helpers in `pnpm publish` [#7316](https://github.com/pnpm/pnpm/issues/7316).
+
+### Patch Changes
+
+- Updated dependencies [5a5e42551]
+- Updated dependencies [d9564e354]
+- Updated dependencies [5a5e42551]
+  - @pnpm/run-npm@6.1.0
+  - @pnpm/config@20.4.1
+  - @pnpm/client@10.0.44
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/exportable-manifest@5.0.11
+  - @pnpm/lifecycle@16.0.10
+
 ## 7.4.13
 
 ### Patch Changes

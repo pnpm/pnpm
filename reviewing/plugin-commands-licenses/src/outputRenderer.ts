@@ -2,7 +2,8 @@ import { TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { type LicensePackage } from '@pnpm/license-scanner'
 import chalk from 'chalk'
 import { table } from '@zkochan/table'
-import { groupBy, sortWith } from 'ramda'
+import { groupBy, sortWith, omit, pick } from 'ramda'
+import semver from 'semver'
 
 function sortLicensesPackages (licensePackages: readonly LicensePackage[]) {
   return sortWith(
@@ -56,34 +57,40 @@ export function renderLicences (
 }
 
 function renderLicensesJson (licensePackages: readonly LicensePackage[]) {
-  const data = [
-    ...licensePackages.map((licensePkg) => {
-      return {
-        name: licensePkg.name,
-        version: licensePkg.version,
-        path: licensePkg.path,
-        license: licensePkg.license,
-        licenseContents: licensePkg.licenseContents,
-        author: licensePkg.author,
-        homepage: licensePkg.homepage,
-        description: licensePkg.description,
-      } as LicensePackageJson
-    }),
-  ].flat()
+  const data = licensePackages
+    .map((item) => pick(['name', 'version', 'path', 'license', 'author', 'homepage', 'description'], item))
 
-  // Group the package by license
-  const groupByLicense = groupBy((item: LicensePackageJson) => item.license)
-  const groupedByLicense = groupByLicense(data)
+  const output: Record<string, LicensePackageJson[]> = {}
+  const groupedByLicense = groupBy((item) => item.license, data)
+  for (const license in groupedByLicense) {
+    const outputList: LicensePackageJson[] = []
+    const groupedByName = groupBy((item) => item.name, groupedByLicense[license])
+    for (const inputList of Object.values(groupedByName)) {
+      inputList.sort((a, b) => semver.compare(a.version, b.version))
+      const versions = inputList.map((item) => item.version)
+      const paths = inputList.map((item) => item.path ?? null)
+      const lastInputItem = inputList.at(-1)! // last item is chosen for its latest information
+      const outputItem: LicensePackageJson = {
+        name: lastInputItem.name,
+        versions,
+        paths,
+        ...omit(['name', 'version', 'path'], lastInputItem),
+      }
+      outputList.push(outputItem)
+    }
+    output[license] = outputList
+  }
 
-  return JSON.stringify(groupedByLicense, null, 2)
+  return JSON.stringify(output, null, 2)
 }
 
 export interface LicensePackageJson {
   name: string
+  versions: string[]
   license: string
-  author: string
-  homepage: string
-  path: string
+  author?: string
+  homepage?: string
+  paths: Array<string | null>
 }
 
 function renderLicensesTable (
@@ -106,10 +113,19 @@ function renderLicensesTable (
   return table(
     [
       columnNames,
-      ...sortLicensesPackages(licensePackages).map((licensePkg) => {
-        return columnFns.map((fn) => fn(licensePkg))
-      }),
+      ...deduplicateLicensesPackages(sortLicensesPackages(licensePackages))
+        .map((licensePkg) => columnFns.map((fn) => fn(licensePkg))),
     ],
     TABLE_OPTIONS
   )
+}
+
+function deduplicateLicensesPackages (licensePackages: LicensePackage[]): LicensePackage[] {
+  const result: LicensePackage[] = []
+  const rowEqual = (a: LicensePackage, b: LicensePackage) => a.name === b.name && a.license === b.license
+  const hasRow = (row: LicensePackage) => result.some((x) => rowEqual(row, x))
+  for (const row of licensePackages.reverse()) { // reverse + unshift to prioritize latest package description
+    if (!hasRow(row)) result.unshift(row)
+  }
+  return result
 }

@@ -1,5 +1,11 @@
 # @pnpm/config
 
+## 20.4.1
+
+### Patch Changes
+
+- d9564e354: Resolve the current working directory to its real location before doing any operations [#6524](https://github.com/pnpm/pnpm/issues/6524).
+
 ## 20.4.0
 
 ### Minor Changes

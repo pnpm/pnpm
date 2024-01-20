@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "22.4.1",
+  "version": "22.4.2",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -43,7 +43,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/headless#readme",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "install",
     "installer"

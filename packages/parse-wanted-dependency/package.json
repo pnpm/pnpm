@@ -16,7 +16,7 @@
     "@types/validate-npm-package-name": "^4.0.2"
   },
   "keywords": [
-    "pnpm8"
+    "pnpm9"
   ],
   "license": "MIT",
   "engines": {

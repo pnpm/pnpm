@@ -113,3 +113,8 @@ test('readModulesManifest() should create a node_modules directory if makeModule
   await writeModulesManifest(modulesDir, modulesYaml, { makeModulesDir: true })
   expect(await readModulesManifest(modulesDir)).toEqual(modulesYaml)
 })
+
+test('readModulesManifest does not fail on empty file', async () => {
+  const modulesYaml = await readModulesManifest(path.join(__dirname, 'fixtures/empty-modules-yaml'))
+  expect(modulesYaml).toBeUndefined()
+})

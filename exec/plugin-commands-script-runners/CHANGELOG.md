@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-script-runners
 
+## 8.0.19
+
+### Patch Changes
+
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/plugin-commands-installation@14.1.2
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/lifecycle@16.0.10
+
 ## 8.0.18
 
 ### Patch Changes

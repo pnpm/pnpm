@@ -1,5 +1,12 @@
 # @pnpm/deps.graph-builder
 
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+  - @pnpm/modules-yaml@12.1.7
+
 ## 0.2.6
 
 ### Patch Changes

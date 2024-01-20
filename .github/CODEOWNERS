@@ -3,4 +3,6 @@
 /reviewing/dependencies-hierarchy/* @gluxon
 /reviewing/list/* @gluxon
 /reviewing/plugin-commands-listing/* @gluxon
+/reviewing/license-scanner/* @weyert
+/reviewing/plugin-commands-licenses/* @weyert
 /hooks/* @d3lm

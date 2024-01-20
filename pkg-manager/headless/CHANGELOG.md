@@ -1,5 +1,18 @@
 # @pnpm/headless
 
+## 22.4.2
+
+### Patch Changes
+
+- ff10acade: When `hoisted-workspace-packages` is `true` don't hoist the root package even if it has a name. Otherwise we would create a circular symlink.
+- Updated dependencies [d349bc3a2]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/deps.graph-builder@0.2.7
+  - @pnpm/package-requester@24.1.7
+  - @pnpm/symlink-dependency@7.1.4
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/link-bins@9.0.12
+
 ## 22.4.1
 
 ### Patch Changes

@@ -8,6 +8,10 @@
     "src/**/*.ts",
     "../../__typings__/**/*.d.ts"
   ],
-  "references": [],
+  "references": [
+    {
+      "path": "../../packages/error"
+    }
+  ],
   "composite": true
 }
