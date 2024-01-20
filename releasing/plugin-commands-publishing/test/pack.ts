@@ -309,3 +309,40 @@ test('pack: custom pack-gzip-level', async () => {
   const tgz2 = fs.statSync(path.resolve('../big/test-publish-package.json-0.0.0.tgz'))
   expect(tgz1.size).not.toEqual(tgz2.size)
 })
+
+test('pack: should resolve correct files from publishConfig', async () => {
+  prepare({
+    name: 'custom-publish-dir',
+    version: '0.0.0',
+    main: './index.ts',
+    bin: './bin.js',
+    files: [
+      './a.js',
+    ],
+    publishConfig: {
+      main: './dist-index.js',
+      bin: './dist-bin.js',
+    },
+  })
+  fs.writeFileSync('./a.js', 'a', 'utf8')
+  fs.writeFileSync('./index.ts', 'src-index', 'utf8')
+  fs.writeFileSync('./bin.js', 'src-bin-src', 'utf8')
+  fs.writeFileSync('./dist-index.js', 'dist-index', 'utf8')
+  fs.writeFileSync('./dist-bin.js', 'dist-bin', 'utf8')
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: process.cwd(),
+    extraBinPaths: [],
+    packDestination: process.cwd(),
+  })
+  await tar.x({ file: 'custom-publish-dir-0.0.0.tgz' })
+
+  expect(await exists('./package/bin.js')).toBeFalsy()
+  expect(await exists('./package/index.ts')).toBeFalsy()
+  expect(await exists('./package/package.json')).toBeTruthy()
+  expect(await exists('./package/a.js')).toBeTruthy()
+  expect(await exists('./package/dist-index.js')).toBeTruthy()
+  expect(await exists('./package/dist-bin.js')).toBeTruthy()
+})
