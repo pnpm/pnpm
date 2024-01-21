@@ -67,7 +67,7 @@ function calcDepStateObj (
 export function lockfileToDepGraph (lockfile: Lockfile): DepsGraph {
   const graph: DepsGraph = {}
   if (lockfile.packages != null) {
-    Object.entries(lockfile.packages).map(async ([depPath, pkgSnapshot]) => {
+    for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages)) {
       const children = lockfileDepsToGraphChildren({
         ...pkgSnapshot.dependencies,
         ...pkgSnapshot.optionalDependencies,
@@ -76,7 +76,7 @@ export function lockfileToDepGraph (lockfile: Lockfile): DepsGraph {
         children,
         depPath,
       }
-    })
+    }
   }
   return graph
 }
