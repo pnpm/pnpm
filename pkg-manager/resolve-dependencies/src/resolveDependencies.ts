@@ -1,4 +1,5 @@
 import path from 'path'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   deprecationLogger,
   progressLogger,

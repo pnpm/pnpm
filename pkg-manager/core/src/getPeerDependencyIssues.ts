@@ -55,6 +55,7 @@ export async function getPeerDependencyIssues (
   } = await resolveDependencies(
     projectsToResolve,
     {
+      catalogs: ctx.catalogs,
       currentLockfile: ctx.currentLockfile,
       allowedDeprecatedVersions: {},
       allowNonAppliedPatches: false,

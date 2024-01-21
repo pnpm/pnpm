@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import { contextLogger, packageManifestLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { type Lockfile } from '@pnpm/lockfile-file'
@@ -25,11 +26,13 @@ import equals from 'ramda/src/equals'
 import { checkCompatibility } from './checkCompatibility'
 import { UnexpectedStoreError } from './checkCompatibility/UnexpectedStoreError'
 import { UnexpectedVirtualStoreDirError } from './checkCompatibility/UnexpectedVirtualStoreDirError'
+import { readCatalogsFromWorkspaceManifest } from './readCatalogsFromWorkspaceManifest'
 import { readLockfiles } from './readLockfiles'
 
 export { UnexpectedStoreError, UnexpectedVirtualStoreDirError }
 
 export interface PnpmContext {
+  catalogs: Catalogs
   currentLockfile: Lockfile
   currentLockfileIsUpToDate: boolean
   existsCurrentLockfile: boolean
@@ -172,7 +175,26 @@ export async function getContext (
     extraBinPaths.unshift(path.join(hoistedModulesDir, '.bin'))
   }
   const hoistPattern = importersContext.currentHoistPattern ?? opts.hoistPattern
+
+  const [catalogs, lockfiles] = await Promise.all([
+    readCatalogsFromWorkspaceManifest(opts.lockfileDir, opts.useBetaCatalogsFeat ?? false),
+    readLockfiles({
+      autoInstallPeers: opts.autoInstallPeers,
+      excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+      force: opts.force,
+      frozenLockfile: opts.frozenLockfile === true,
+      lockfileDir: opts.lockfileDir,
+      projects: importersContext.projects,
+      registry: opts.registries.default,
+      useLockfile: opts.useLockfile,
+      useGitBranchLockfile: opts.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+      virtualStoreDir,
+    }),
+  ])
+
   const ctx: PnpmContext = {
+    catalogs,
     extraBinPaths,
     extraNodePaths: getExtraNodePaths({ extendNodePath: opts.extendNodePath, nodeLinker: opts.nodeLinker, hoistPattern, virtualStoreDir }),
     hoistedDependencies: importersContext.hoistedDependencies,
@@ -189,19 +211,7 @@ export async function getContext (
     skipped: importersContext.skipped,
     storeDir: opts.storeDir,
     virtualStoreDir,
-    ...await readLockfiles({
-      autoInstallPeers: opts.autoInstallPeers,
-      excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-      force: opts.force,
-      frozenLockfile: opts.frozenLockfile === true,
-      lockfileDir: opts.lockfileDir,
-      projects: importersContext.projects,
-      registry: opts.registries.default,
-      useLockfile: opts.useLockfile,
-      useGitBranchLockfile: opts.useGitBranchLockfile,
-      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-      virtualStoreDir,
-    }),
+    ...lockfiles,
   }
   contextLogger.debug({
     currentLockfileExists: ctx.existsCurrentLockfile,

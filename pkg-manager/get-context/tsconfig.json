@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../lockfile/lockfile-file"
     },
     {
@@ -23,6 +26,9 @@
     },
     {
       "path": "../../packages/types"
+    },
+    {
+      "path": "../../workspace/read-manifest"
     },
     {
       "path": "../modules-yaml"
