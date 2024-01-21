@@ -22,15 +22,13 @@ export interface CreateGitHostedTarballFetcher {
 
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
-    // This solution is not perfect but inside the fetcher we don't currently know the location
-    // of the built and non-built index files.
-    const nonBuiltIndexFile = fetcherOpts.ignoreScripts ? opts.filesIndexFile : pathTemp(opts.filesIndexFile)
+    const tempIndexFile = pathTemp(opts.filesIndexFile)
     const { filesIndex, manifest } = await fetchRemoteTarball(cafs, resolution, {
       ...opts,
-      filesIndexFile: nonBuiltIndexFile,
+      filesIndexFile: tempIndexFile,
     })
     try {
-      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, nonBuiltIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
+      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, tempIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
@@ -62,19 +60,21 @@ async function prepareGitHostedPkg (
     force: true,
   })
   const { shouldBeBuilt, pkgDir } = await preparePackage(opts, tempLocation, resolution.path ?? '')
-  if (!shouldBeBuilt) {
-    if (filesIndexFileNonBuilt !== filesIndexFile) {
-      await renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)
+  if (!resolution.path) {
+    if (!shouldBeBuilt) {
+      if (filesIndexFileNonBuilt !== filesIndexFile) {
+        await renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)
+      }
+      return {
+        filesIndex,
+        ignoredBuild: false,
+      }
     }
-    return {
-      filesIndex,
-      ignoredBuild: false,
-    }
-  }
-  if (opts.ignoreScripts) {
-    return {
-      filesIndex,
-      ignoredBuild: true,
+    if (opts.ignoreScripts) {
+      return {
+        filesIndex,
+        ignoredBuild: true,
+      }
     }
   }
   try {
