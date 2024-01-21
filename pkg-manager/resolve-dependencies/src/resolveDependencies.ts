@@ -57,6 +57,7 @@ import { type NodeId, nextNodeId } from './nextNodeId'
 import { parentIdsContainSequence } from './parentIdsContainSequence'
 import { hoistPeers, getHoistableOptionalPeers } from './hoistPeers'
 import { wantedDepIsLocallyAvailable } from './wantedDepIsLocallyAvailable'
+import { type CatalogLookupMetadata } from './resolveDependencyTree'
 import { replaceVersionInPref } from './replaceVersionInPref'
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
@@ -111,6 +112,7 @@ export interface LinkedDependency {
   name: string
   normalizedPref?: string
   alias: string
+  catalogLookup?: CatalogLookupMetadata
 }
 
 export interface PendingNode {
@@ -198,6 +200,7 @@ export type PkgAddress = {
   missingPeers: MissingPeers
   missingPeersOfChildren?: MissingPeersOfChildren
   publishedAt?: string
+  catalogLookup?: CatalogLookupMetadata
   optional: boolean
 } & ({
   isLinkedDependency: true
@@ -532,7 +535,7 @@ async function resolveDependenciesOfImporterDependency (
     extendedWantedDep.wantedDependency.pref = catalogLookup.specifier
   }
 
-  return resolveDependenciesOfDependency(
+  const result = await resolveDependenciesOfDependency(
     ctx,
     importer.preferredVersions,
     {
@@ -542,6 +545,14 @@ async function resolveDependenciesOfImporterDependency (
     },
     extendedWantedDep
   )
+
+  // If the catalog protocol was used, store metadata about the catalog
+  // lookup to use in the lockfile.
+  if (result.resolveDependencyResult != null && catalogLookup != null) {
+    result.resolveDependencyResult.catalogLookup = catalogLookup
+  }
+
+  return result
 }
 
 function filterMissingPeersFromPkgAddresses (

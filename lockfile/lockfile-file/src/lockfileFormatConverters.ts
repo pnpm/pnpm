@@ -116,6 +116,9 @@ function normalizeLockfile (lockfile: InlineSpecifiersLockfile, opts: NormalizeL
   if (lockfileToSave.time) {
     lockfileToSave.time = pruneTimeInLockfileV6(lockfileToSave.time, lockfile.importers ?? {})
   }
+  if ((lockfileToSave.catalogs != null) && isEmpty(lockfileToSave.catalogs)) {
+    delete lockfileToSave.catalogs
+  }
   if ((lockfileToSave.overrides != null) && isEmpty(lockfileToSave.overrides)) {
     delete lockfileToSave.overrides
   }
