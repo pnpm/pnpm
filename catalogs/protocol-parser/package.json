@@ -1,0 +1,39 @@
+{
+  "name": "@pnpm/catalogs.protocol-parser",
+  "version": "0.1.0",
+  "description": "Parse catalog protocol specifiers and return the catalog name.",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "engines": {
+    "node": ">=18.12"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "repository": "https://github.com/pnpm/pnpm/blob/main/catalogs/protocol-parser",
+  "keywords": [
+    "pnpm9",
+    "pnpm",
+    "types"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/catalogs/protocol-parser#readme",
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "compile": "tsc --build && pnpm run lint --fix",
+    "prepublishOnly": "pnpm run compile",
+    "test": "pnpm run compile && pnpm run _test",
+    "_test": "jest"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "devDependencies": {
+    "@pnpm/catalogs.protocol-parser": "workspace:*"
+  }
+}
