@@ -113,6 +113,7 @@ export type InstallDepsOptions = Pick<Config,
   dedupe?: boolean
   workspace?: boolean
   includeOnlyPackageFiles?: boolean
+  useBetaCatalogsFeat?: boolean
 } & Partial<Pick<Config, 'pnpmHomeDir'>>
 
 export async function installDeps (

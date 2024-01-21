@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/protocol-parser"
+    },
+    {
       "path": "../../catalogs/types"
     },
     {

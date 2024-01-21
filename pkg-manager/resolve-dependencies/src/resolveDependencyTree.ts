@@ -29,6 +29,7 @@ import {
   type ResolvedPackagesByDepPath,
   type ResolutionContext,
 } from './resolveDependencies'
+import { getCatalogResolver } from './getCatalogResolver'
 
 export * from './nodeIdUtils'
 export type { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
@@ -105,6 +106,14 @@ export interface ResolveDependenciesOptions {
   workspacePackages: WorkspacePackages
   supportedArchitectures?: SupportedArchitectures
   updateToLatest?: boolean
+  /**
+   * A temporary feature flag that determines whether or not pnpm catalogs
+   * should be used. This will default to true and be removed when catalogs
+   * development has finished.
+   *
+   * @default false
+   */
+  useBetaCatalogsFeat?: boolean
 }
 
 export interface ResolveDependencyTreeResult {
@@ -130,6 +139,10 @@ export async function resolveDependencyTree<T> (
     autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch === true,
     allowBuild: opts.allowBuild,
     allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
+    // Use a no-op catalog resolver if the temporary feature flag is off.
+    catalogResolver: opts.useBetaCatalogsFeat
+      ? getCatalogResolver(opts.catalogs)
+      : () => undefined,
     childrenByParentDepPath: {} as ChildrenByParentDepPath,
     currentLockfile: opts.currentLockfile,
     defaultTag: opts.tag,

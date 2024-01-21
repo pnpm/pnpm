@@ -29,6 +29,7 @@
     "_test": "jest"
   },
   "dependencies": {
+    "@pnpm/catalogs.protocol-parser": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",

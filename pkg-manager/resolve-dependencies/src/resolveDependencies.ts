@@ -1,5 +1,4 @@
 import path from 'path'
-import { type Catalogs } from '@pnpm/catalogs.types'
 import {
   deprecationLogger,
   progressLogger,
@@ -50,6 +49,7 @@ import omit from 'ramda/src/omit'
 import zipWith from 'ramda/src/zipWith'
 import semver from 'semver'
 import { encodePkgId } from './encodePkgId'
+import { type CatalogResolver } from './getCatalogResolver'
 import { getNonDevWantedDependencies, type WantedDependency } from './getNonDevWantedDependencies'
 import { safeIntersect } from './mergePeers'
 import {
@@ -139,6 +139,7 @@ export interface ResolutionContext {
   allPreferredVersions?: PreferredVersions
   appliedPatches: Set<string>
   updatedSet: Set<string>
+  catalogResolver: CatalogResolver
   defaultTag: string
   dryRun: boolean
   forceFullResolution: boolean
@@ -1124,7 +1125,13 @@ async function resolveDependency (
       optional: true,
     }
   }
+
+  const catalogLookup = ctx.catalogResolver(wantedDependency)
+
   try {
+    if (catalogLookup != null) {
+      wantedDependency.pref = catalogLookup.entrySpecifier
+    }
     if (!options.update && currentPkg.version && currentPkg.pkgId?.endsWith(`@${currentPkg.version}`)) {
       wantedDependency.pref = replaceVersionInPref(wantedDependency.pref, currentPkg.version)
     }

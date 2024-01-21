@@ -144,6 +144,8 @@ export interface StrictInstallOptions {
 
   supportedArchitectures?: SupportedArchitectures
   hoistWorkspacePackages?: boolean
+
+  useBetaCatalogsFeat?: boolean
 }
 
 export type InstallOptions =

@@ -1024,6 +1024,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       autoInstallPeers: opts.autoInstallPeers,
       autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch,
       catalogs: ctx.catalogs,
+      useBetaCatalogsFeat: opts.useBetaCatalogsFeat,
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: opts.depth,
       dedupeDirectDeps: opts.dedupeDirectDeps,
