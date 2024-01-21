@@ -7,6 +7,7 @@ export interface TarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
+  path?: string
 }
 
 /**
