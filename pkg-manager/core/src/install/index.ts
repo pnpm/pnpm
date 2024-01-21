@@ -1043,6 +1043,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       allowNonAppliedPatches: opts.allowNonAppliedPatches,
       autoInstallPeers: opts.autoInstallPeers,
       autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch,
+      catalogs: opts.catalogs,
       currentLockfile: ctx.currentLockfile,
       defaultUpdateDepth: opts.depth,
       dedupeDirectDeps: opts.dedupeDirectDeps,

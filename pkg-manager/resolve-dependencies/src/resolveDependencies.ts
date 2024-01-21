@@ -1,4 +1,5 @@
 import path from 'path'
+import { matchCatalogResolveResult, type CatalogResolver } from '@pnpm/catalogs.resolver'
 import {
   deprecationLogger,
   progressLogger,
@@ -137,6 +138,7 @@ export interface ResolutionContext {
   allPreferredVersions?: PreferredVersions
   appliedPatches: Set<string>
   updatedSet: Set<string>
+  catalogResolver: CatalogResolver
   defaultTag: string
   dryRun: boolean
   forceFullResolution: boolean
@@ -515,6 +517,21 @@ async function resolveDependenciesOfImporterDependency (
   { ctx, importer, pickLowestVersion }: ResolveDependenciesOfImporterDependencyOpts,
   extendedWantedDep: ExtendedWantedDependency
 ): Promise<ResolveDependenciesOfDependency> {
+  // The catalog protocol is only usable in importers (i.e. packages in the
+  // workspace. Replacing catalog protocol while resolving importers here before
+  // resolving dependencies of packages outside of the workspace/monorepo.
+  const catalogLookup = matchCatalogResolveResult(ctx.catalogResolver(extendedWantedDep.wantedDependency), {
+    found: (result) => result.resolution,
+    unused: () => undefined,
+    misconfiguration: (result) => {
+      throw result.error
+    },
+  })
+
+  if (catalogLookup != null) {
+    extendedWantedDep.wantedDependency.pref = catalogLookup.specifier
+  }
+
   return resolveDependenciesOfDependency(
     ctx,
     importer.preferredVersions,

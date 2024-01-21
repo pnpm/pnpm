@@ -10,6 +10,12 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/resolver"
+    },
+    {
+      "path": "../../catalogs/types"
+    },
+    {
       "path": "../../config/pick-registry-for-package"
     },
     {

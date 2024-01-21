@@ -1,3 +1,5 @@
+import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
+import { type Catalogs } from '@pnpm/catalogs.types'
 import { type Lockfile, type PatchFile } from '@pnpm/lockfile-types'
 import { type PreferredVersions, type Resolution, type WorkspacePackages } from '@pnpm/resolver-base'
 import { type StoreController } from '@pnpm/store-controller-types'
@@ -74,6 +76,7 @@ export interface ResolveDependenciesOptions {
   allowBuild?: (pkgName: string) => boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allowNonAppliedPatches: boolean
+  catalogs?: Catalogs
   currentLockfile: Lockfile
   dedupePeerDependents?: boolean
   dryRun: boolean
@@ -129,6 +132,7 @@ export async function resolveDependencyTree<T> (
     autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch === true,
     allowBuild: opts.allowBuild,
     allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
+    catalogResolver: resolveFromCatalog.bind(null, opts.catalogs ?? {}),
     childrenByParentId: {} as ChildrenByParentId,
     currentLockfile: opts.currentLockfile,
     defaultTag: opts.tag,

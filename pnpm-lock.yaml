@@ -3134,6 +3134,9 @@ importers:
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: link:../../packages/calc-dep-state
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
@@ -4321,6 +4324,12 @@ importers:
 
   pkg-manager/resolve-dependencies:
     dependencies:
+      '@pnpm/catalogs.resolver':
+        specifier: workspace:*
+        version: link:../../catalogs/resolver
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../packages/constants
