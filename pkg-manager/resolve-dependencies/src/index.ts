@@ -44,6 +44,7 @@ import {
 import { toResolveImporter } from './toResolveImporter'
 import { updateLockfile } from './updateLockfile'
 import { updateProjectManifest } from './updateProjectManifest'
+import { getCatalogSnapshots } from './getCatalogSnapshots'
 
 export type DependenciesGraph = GenericDependenciesGraph<ResolvedPackage>
 
@@ -295,6 +296,11 @@ export async function resolveDependencies (
       ...time,
     }
   }
+
+  newLockfile.catalogs = getCatalogSnapshots(
+    Object.values(resolvedImporters).flatMap(x => x.directDependencies),
+    opts.catalogs,
+    opts.wantedLockfile.catalogs)
 
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {

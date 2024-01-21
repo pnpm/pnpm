@@ -35,6 +35,7 @@ type RootKey = keyof LockfileFile
 const ROOT_KEYS: readonly RootKey[] = [
   'lockfileVersion',
   'settings',
+  'catalogs',
   'overrides',
   'packageExtensionsChecksum',
   'pnpmfileChecksum',
@@ -82,6 +83,15 @@ export function sortLockfileKeys (lockfile: LockfileFileV9): LockfileFileV9 {
     for (const [pkgId, pkg] of Object.entries(lockfile.snapshots)) {
       lockfile.snapshots[pkgId] = sortKeys(pkg, {
         compare: compareWithPriority.bind(null, ORDERED_KEYS),
+        deep: true,
+      })
+    }
+  }
+  if (lockfile.catalogs != null) {
+    lockfile.catalogs = sortKeys(lockfile.catalogs)
+    for (const [catalogName, catalog] of Object.entries(lockfile.catalogs)) {
+      lockfile.catalogs[catalogName] = sortKeys(catalog, {
+        compare: lexCompare,
         deep: true,
       })
     }

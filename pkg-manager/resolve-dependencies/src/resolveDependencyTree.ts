@@ -53,6 +53,16 @@ export interface ResolvedDirectDependency {
   version: string
   name: string
   normalizedPref?: string
+  catalogLookup?: CatalogLookupMetadata
+}
+
+/**
+ * Information related to the catalog entry for this dependency if it was
+ * requested through the catalog protocol.
+ */
+export interface CatalogLookupMetadata {
+  readonly catalogName: string
+  readonly entrySpecifier: string
 }
 
 export interface Importer<WantedDepExtraProps> {
@@ -239,6 +249,7 @@ export async function resolveDependencyTree<T> (
           const resolvedPackage = ctx.dependenciesTree.get(dep.nodeId)!.resolvedPackage as ResolvedPackage
           return {
             alias: dep.alias,
+            catalogLookup: dep.catalogLookup,
             dev: resolvedPackage.dev,
             name: resolvedPackage.name,
             normalizedPref: dep.normalizedPref,
