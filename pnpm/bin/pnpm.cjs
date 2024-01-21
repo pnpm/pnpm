@@ -6,7 +6,7 @@ const COMPATIBILITY_PAGE = `Visit https://r.pnpm.io/comp to see the list of past
 //  1. it is already bundled to dist/pnpm.cjs, so we would load it twice
 //  2. we want this file to support potentially older Node.js versions than what semver supports
 if (major < 18 || major == 18 && minor < 12) {
-  console.log(`ERROR: This version of pnpm requires at least Node.js v16.14
+  console.log(`ERROR: This version of pnpm requires at least Node.js v18.12
 The current version of Node.js is ${process.version}
 ${COMPATIBILITY_PAGE}`)
   process.exit(1)
