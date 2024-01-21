@@ -1,0 +1,38 @@
+{
+  "name": "@pnpm/catalogs.types",
+  "version": "0.1.0",
+  "description": "Types related to the pnpm catalogs feature.",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "engines": {
+    "node": ">=18.12"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "repository": "https://github.com/pnpm/pnpm/blob/main/catalogs/types",
+  "keywords": [
+    "pnpm9",
+    "pnpm",
+    "types"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/catalogs/types#readme",
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "compile": "tsc --build && pnpm run lint --fix",
+    "prepublishOnly": "pnpm run compile",
+    "test": "pnpm run compile"
+  },
+  "funding": "https://opencollective.com/pnpm",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "devDependencies": {
+    "@pnpm/catalogs.types": "workspace:*"
+  }
+}
