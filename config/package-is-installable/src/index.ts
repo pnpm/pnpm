@@ -44,7 +44,7 @@ export function packageIsInstallable (
     prefix: options.lockfileDir,
   })
 
-  if (options.optional || warn instanceof UnsupportedPlatformError) {
+  if (options.optional) {
     skippedOptionalDependencyLogger.debug({
       details: warn.toString(),
       package: {
