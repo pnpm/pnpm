@@ -653,6 +653,37 @@ test('update to latest without downgrading already defined prerelease (#7436)', 
   expect(lockfile3).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
 })
 
+test('update with tag @latest will downgrade prerelease', async function () {
+  prepare()
+
+  await addDistTag('@pnpm.e2e/has-prerelease', '2.0.0', 'latest')
+  await execPnpm(['add', '@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+
+  const manifest1 = await readPackageJsonFromDir('.')
+  expect(manifest1).toMatchObject({
+    dependencies: {
+      '@pnpm.e2e/has-prerelease': '3.0.0-rc.0',
+    },
+  })
+
+  const lockfile1 = await readYamlFile('pnpm-lock.yaml')
+  expect(lockfile1).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+  expect(lockfile1).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
+
+  await execPnpm(['update', '@pnpm.e2e/has-prerelease@latest'])
+
+  const manifest2 = await readPackageJsonFromDir('.')
+  expect(manifest2).toMatchObject({
+    dependencies: {
+      '@pnpm.e2e/has-prerelease': '2.0.0',
+    },
+  })
+
+  const lockfile2 = await readYamlFile('pnpm-lock.yaml')
+  expect(lockfile2).not.toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@3.0.0-rc.0'])
+  expect(lockfile2).toHaveProperty(['packages', '/@pnpm.e2e/has-prerelease@2.0.0'])
+})
+
 test('update to latest recursive workspace (outdated, updated, prerelease, outdated)', async function () {
   await addDistTag('@pnpm.e2e/has-prerelease', '2.0.0', 'latest')
 
