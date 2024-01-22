@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-rebuild
 
+## 10.0.16
+
+### Patch Changes
+
+- Updated dependencies [60bcc797f]
+  - @pnpm/get-context@10.0.11
+  - @pnpm/store-connection-manager@7.0.25
+  - @pnpm/lifecycle@16.0.11
+
 ## 10.0.15
 
 ### Patch Changes

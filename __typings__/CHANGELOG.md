@@ -1,5 +1,11 @@
 # @pnpm-private/typings
 
+## 0.1.3
+
+### Patch Changes
+
+- 9fb45d0fc: `pnpm publish` should pack "main" file or "bin" files defined in "publishConfig" [#4195](https://github.com/pnpm/pnpm/issues/4195).
+
 ## 0.1.2
 
 ### Patch Changes

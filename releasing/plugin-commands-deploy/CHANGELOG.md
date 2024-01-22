@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-deploy
 
+## 4.0.19
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.10
+- @pnpm/plugin-commands-installation@14.1.3
+
 ## 4.0.18
 
 ### Patch Changes
