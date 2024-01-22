@@ -35,13 +35,14 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/fetching-types": "workspace:*",
-    "@pnpm/network.agent": "0.1.0",
+    "@pnpm/network.agent": "link:D:/code/pnpm-components/node_modules/@pnpm/network.agent",
     "@zkochan/retry": "^0.2.0",
     "node-fetch": "npm:@pnpm/node-fetch@1.0.0"
   },
   "devDependencies": {
     "@pnpm/fetch": "workspace:*",
-    "nock": "13.3.4"
+    "nock": "13.3.4",
+    "https-proxy-server-express": "0.1.2"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {

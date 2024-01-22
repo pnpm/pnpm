@@ -1,6 +1,8 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import { createFetchFromRegistry } from '@pnpm/fetch'
 import nock from 'nock'
+import { ProxyServer } from 'https-proxy-server-express'
+import { readFileSync } from 'fs'
 
 test('fetchFromRegistry', async () => {
   const fetchFromRegistry = createFetchFromRegistry({})
@@ -67,4 +69,79 @@ test('switch to the correct agent for requests on redirect from http: to https:'
   const { status } = await fetchFromRegistry('http://pnpm.io/pnpm.js')
 
   expect(status).toEqual(200)
+})
+
+test('fetch from registry with client certificate authentication', async () => {
+  const randomPort = Math.floor(Math.random() * 10000 + 10000)
+  const proxyServer = new ProxyServer(randomPort, {
+    key: readFileSync('../../test-certs/server-key.pem'),
+    cert: readFileSync('../../test-certs/server-crt.pem'),
+    ca: readFileSync('../../test-certs/ca-crt.pem'),
+    rejectUnauthorized: true,
+    requestCert: true,
+  }, 'https://registry.npmjs.org/')
+
+  await proxyServer.start()
+
+  const rawConfig: {
+    [key: string]: string
+  } = {
+    registry: `https://localhost:${randomPort}/`,
+  }
+
+  rawConfig[`//localhost:${randomPort}/:cafile`] = require.resolve('../../../test-certs/ca-crt.pem')
+  rawConfig[`//localhost:${randomPort}/:certfile`] = require.resolve('../../../test-certs/client-crt.pem')
+  rawConfig[`//localhost:${randomPort}/:keyfile`] = require.resolve('../../../test-certs/client-key.pem')
+
+  const fetchFromRegistry = createFetchFromRegistry({
+    rawConfig,
+    strictSsl: false,
+  })
+
+  try {
+    const res = await fetchFromRegistry(`https://localhost:${randomPort}/is-positive`)
+    const metadata = await res.json() as any // eslint-disable-line
+    expect(metadata.name).toEqual('is-positive')
+  } finally {
+    await proxyServer.stop()
+  }
+})
+
+test('fail if the client certificate is not provided', async () => {
+  const randomPort = Math.floor(Math.random() * 10000 + 10000)
+  const proxyServer = new ProxyServer(randomPort, {
+    key: readFileSync('../../test-certs/server-key.pem'),
+    cert: readFileSync('../../test-certs/server-crt.pem'),
+    ca: readFileSync('../../test-certs/ca-crt.pem'),
+    rejectUnauthorized: true,
+    requestCert: true,
+  }, 'https://registry.npmjs.org/')
+
+  await proxyServer.start()
+
+  const rawConfig: {
+    [key: string]: string
+  } = {
+    registry: `https://localhost:${randomPort}/`,
+  }
+
+  const fetchFromRegistry = createFetchFromRegistry({
+    rawConfig,
+    strictSsl: false,
+  })
+
+  try {
+    await fetchFromRegistry(`https://localhost:${randomPort}/is-positive`, {
+      retry: {
+        retries: 0,
+      },
+    })
+      .then(() => {
+        throw new Error('Should have failed')
+      })
+  } catch (err: any) { // eslint-disable-line
+    expect(err.code).toMatch('ERR_SSL_TLSV13_ALERT_CERTIFICATE_REQUIRED')
+  } finally {
+    await proxyServer.stop()
+  }
 })
