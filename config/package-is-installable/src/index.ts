@@ -2,11 +2,7 @@ import {
   installCheckLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
-import {
-  checkEngine,
-  UnsupportedEngineError,
-  type WantedEngine,
-} from './checkEngine'
+import { checkEngine, UnsupportedEngineError, type WantedEngine } from './checkEngine'
 import { checkPlatform, UnsupportedPlatformError } from './checkPlatform'
 import { getSystemNodeVersion } from './getSystemNodeVersion'
 import { type SupportedArchitectures } from '@pnpm/types'
@@ -14,7 +10,11 @@ import { type SupportedArchitectures } from '@pnpm/types'
 export type { Engine } from './checkEngine'
 export type { Platform, WantedPlatform } from './checkPlatform'
 
-export { UnsupportedEngineError, UnsupportedPlatformError, type WantedEngine }
+export {
+  UnsupportedEngineError,
+  UnsupportedPlatformError,
+  type WantedEngine,
+}
 
 export function packageIsInstallable (
   pkgId: string,
@@ -55,10 +55,7 @@ export function packageIsInstallable (
         version: pkg.version,
       },
       prefix: options.lockfileDir,
-      reason:
-        warn.code === 'ERR_PNPM_UNSUPPORTED_ENGINE'
-          ? 'unsupported_engine'
-          : 'unsupported_platform',
+      reason: warn.code === 'ERR_PNPM_UNSUPPORTED_ENGINE' ? 'unsupported_engine' : 'unsupported_platform',
     })
 
     return false
@@ -83,21 +80,16 @@ export function checkPackage (
     supportedArchitectures?: SupportedArchitectures
   }
 ): null | UnsupportedEngineError | UnsupportedPlatformError {
-  return (
-    checkPlatform(
-      pkgId,
-      {
-        cpu: manifest.cpu ?? ['any'],
-        os: manifest.os ?? ['any'],
-        libc: manifest.libc ?? ['any'],
-      },
-      options.supportedArchitectures
-    ) ??
-    (manifest.engines == null
+  return checkPlatform(pkgId, {
+    cpu: manifest.cpu ?? ['any'],
+    os: manifest.os ?? ['any'],
+    libc: manifest.libc ?? ['any'],
+  }, options.supportedArchitectures) ?? (
+    (manifest.engines == null)
       ? null
       : checkEngine(pkgId, manifest.engines, {
         node: options.nodeVersion ?? getSystemNodeVersion(),
         pnpm: options.pnpmVersion,
-      }))
+      })
   )
 }
