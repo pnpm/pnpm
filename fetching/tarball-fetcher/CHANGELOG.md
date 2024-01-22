@@ -1,5 +1,12 @@
 # @pnpm/tarball-fetcher
 
+## 18.0.18
+
+### Patch Changes
+
+- 342222d20: A git-hosted dependency should not be added to the store if it failed to be built [#7407](https://github.com/pnpm/pnpm/pull/7407).
+  - @pnpm/prepare-package@5.0.23
+
 ## 18.0.17
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-patching
 
+## 5.1.0
+
+### Minor Changes
+
+- 6964eade5: `pnpm patch-remove` removes the directory containing the patch file if it is empty.
+
+### Patch Changes
+
+- Updated dependencies [9fb45d0fc]
+  - @pnpm/fs.packlist@1.0.3
+  - @pnpm/plugin-commands-installation@14.1.3
+  - @pnpm/store-connection-manager@7.0.25
+
 ## 5.0.18
 
 ### Patch Changes

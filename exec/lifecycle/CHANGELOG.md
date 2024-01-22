@@ -1,5 +1,11 @@
 # @pnpm/lifecycle
 
+## 16.0.11
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.10
+
 ## 16.0.10
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.5.1
+
+### Patch Changes
+
+- 7856b9263: `@pnpm/network.auth-header` should be a prod dependency.
+- 9fb45d0fc: `pnpm publish` should pack "main" file or "bin" files defined in "publishConfig" [#4195](https://github.com/pnpm/pnpm/issues/4195).
+- Updated dependencies [9fb45d0fc]
+  - @pnpm/fs.packlist@1.0.3
+  - @pnpm/client@10.0.45
+  - @pnpm/lifecycle@16.0.11
+
 ## 7.5.0
 
 ### Minor Changes

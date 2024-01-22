@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-script-runners
 
+## 8.0.20
+
+### Patch Changes
+
+- be27890ee: Set saveProd to true for getting pkgName from dependencies [7424](https://github.com/pnpm/pnpm/issues/7424).
+  - @pnpm/plugin-commands-installation@14.1.3
+  - @pnpm/lifecycle@16.0.11
+
 ## 8.0.19
 
 ### Patch Changes
