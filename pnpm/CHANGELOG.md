@@ -1,5 +1,11 @@
 # pnpm
 
+## 8.14.3
+
+### Patch Changes
+
+- `pnpm pack` should work as expected when "prepack" modifies the manifest [#7558](https://github.com/pnpm/pnpm/pull/7558).
+
 ## 8.14.2
 
 ### Patch Changes

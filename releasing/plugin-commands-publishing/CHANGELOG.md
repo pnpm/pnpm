@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 7.5.2
+
+### Patch Changes
+
+- 3c6726936: `pnpm pack` should work as expected when "prepack" modifies the manifest [#7558](https://github.com/pnpm/pnpm/pull/7558).
+
 ## 7.5.1
 
 ### Patch Changes
