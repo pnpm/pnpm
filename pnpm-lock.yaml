@@ -1280,6 +1280,9 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
+      '@types/object-hash':
+        specifier: 3.0.6
+        version: 3.0.6
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -1292,6 +1295,9 @@ importers:
       execa:
         specifier: npm:safe-execa@0.1.2
         version: /safe-execa@0.1.2
+      object-hash:
+        specifier: 3.0.0
+        version: 3.0.0
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -15097,7 +15103,6 @@ packages:
   /object-hash@3.0.0:
     resolution: {integrity: sha512-RSn9F68PjH9HqtltsSnqYC1XXoWe9Bju5+213R98cNGttag9q9yAOTzdbsqvIa7aNm5WffBZFpWYr2aWrklWAw==}
     engines: {node: '>= 6'}
-    dev: false
 
   /object-inspect@1.13.1:
     resolution: {integrity: sha512-5qoj1RUiKOMsCCNLV1CBiPYE10sziTsnmNxkAI/rZhiD63CF7IqdFGC/XzjWjpSgLf0LxXX3bDFIh0E18f6UhQ==}
