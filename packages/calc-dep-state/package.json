@@ -32,10 +32,12 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/dependency-path": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
+    "object-hash": "3.0.0",
     "sort-keys": "^4.2.0"
   },
   "devDependencies": {
-    "@pnpm/calc-dep-state": "workspace:*"
+    "@pnpm/calc-dep-state": "workspace:*",
+    "@types/object-hash": "3.0.6"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
