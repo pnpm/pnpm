@@ -6,6 +6,7 @@ import writeYamlFile from 'write-yaml-file'
 import {
   addDistTag,
   execPnpm,
+  execPnpmSync,
 } from './utils'
 
 test('update <dep>', async () => {
@@ -241,6 +242,15 @@ test('update --latest --prod', async function () {
   expect(pkg.dependencies?.['@pnpm.e2e/bar']).toBe('^100.1.0')
 
   await project.has('@pnpm.e2e/dep-of-pkg-with-1-dep') // not pruned
+})
+
+test('update --latest forbids specs', async function () {
+  prepare()
+  const child = execPnpmSync(['update', 'foo@latest', 'bar@next', 'baz', '--latest'])
+  const stdout = child.stdout.toString()
+  expect(stdout).toContain('ERR_PNPM_SPEC_CONFLICT')
+  expect(stdout).toContain('Specs are not allowed to be used with --latest (foo@latest, bar@next)')
+  expect(child.status).not.toBe(0)
 })
 
 test('recursive update --latest on projects that do not share a lockfile', async () => {
