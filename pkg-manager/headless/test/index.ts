@@ -19,6 +19,7 @@ import { fixtures } from '@pnpm/test-fixtures'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
+import objectHash from 'object-hash'
 import exists from 'path-exists'
 import sinon from 'sinon'
 import writeJsonFile from 'write-json-file'
@@ -685,7 +686,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
   const cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME}-${objectHash({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
   delete cacheIntegrity!.sideEffects[sideEffectsKey]['generated-by-postinstall.js']
 

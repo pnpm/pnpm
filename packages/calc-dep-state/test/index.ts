@@ -1,5 +1,6 @@
 import { calcDepState } from '@pnpm/calc-dep-state'
 import { ENGINE_NAME } from '@pnpm/constants'
+import objectHash from 'object-hash'
 
 const depsGraph = {
   'registry/foo@1.0.0': {
@@ -19,7 +20,7 @@ const depsGraph = {
 test('calcDepState()', () => {
   expect(calcDepState(depsGraph, {}, '/registry/foo@1.0.0', {
     isBuilt: true,
-  })).toBe(`${ENGINE_NAME}-{}`)
+  })).toBe(`${ENGINE_NAME}-${objectHash({})}`)
 })
 
 test('calcDepState() when scripts are ignored', () => {

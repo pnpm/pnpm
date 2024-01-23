@@ -7,6 +7,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { ENGINE_NAME } from '@pnpm/constants'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
+import objectHash from 'object-hash'
 import exists from 'path-exists'
 import writeJsonFile from 'write-json-file'
 import { testDefaults } from '../utils'
@@ -86,7 +87,7 @@ test('using side effects cache', async () => {
   const filesIndexFile = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
   const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
-  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME}-${objectHash({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'generated-by-preinstall.js'])
   expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'generated-by-postinstall.js'])
   delete filesIndex.sideEffects![sideEffectsKey]['generated-by-postinstall.js']
@@ -177,7 +178,7 @@ test('a postinstall script does not modify the original sources added to the sto
   const cafsDir = path.join(opts.storeDir, 'files')
   const filesIndexFile = getFilePathInCafs(cafsDir, getIntegrity('@pnpm/postinstall-modifies-source', '1.0.0'), 'index')
   const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
-  const patchedFileIntegrity = filesIndex.sideEffects?.[`${ENGINE_NAME}-{}`]['empty-file.txt']?.integrity
+  const patchedFileIntegrity = filesIndex.sideEffects?.[`${ENGINE_NAME}-${objectHash({})}`]['empty-file.txt']?.integrity
   expect(patchedFileIntegrity).toBeTruthy()
   const originalFileIntegrity = filesIndex.files['empty-file.txt'].integrity
   expect(originalFileIntegrity).toBeTruthy()
@@ -201,7 +202,7 @@ test('a corrupted side-effects cache is ignored', async () => {
   const filesIndexFile = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
   const filesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
   expect(filesIndex.sideEffects).toBeTruthy() // files index has side effects
-  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME}-${objectHash({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   expect(filesIndex.sideEffects).toHaveProperty([sideEffectsKey, 'generated-by-preinstall.js'])
   const sideEffectFileStat = filesIndex.sideEffects![sideEffectsKey]['generated-by-preinstall.js']
   const sideEffectFile = getFilePathByModeInCafs(cafsDir, sideEffectFileStat.integrity, sideEffectFileStat.mode)

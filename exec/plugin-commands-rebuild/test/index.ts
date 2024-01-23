@@ -103,7 +103,7 @@ test('skipIfHasSideEffectsCache', async () => {
   const cafsDir = path.join(storeDir, 'v3/files')
   const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
   let cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
-  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin/1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME}-${objectHash({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   cacheIntegrity.sideEffects = {
     [sideEffectsKey]: { foo: 'bar' },
   }
