@@ -72,6 +72,7 @@ To display the details, pass this option.',
     url: docsUrl('licenses'),
     usages: [
       'pnpm licenses ls',
+      'pnpm licenses ls --long',
       'pnpm licenses list',
       'pnpm licenses list --long',
     ],
