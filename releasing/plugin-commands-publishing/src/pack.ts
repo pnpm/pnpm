@@ -88,7 +88,7 @@ export async function handler (
     ? path.join(opts.dir, entryManifest.publishConfig.directory)
     : opts.dir
   // always read the latest manifest, as "prepack" or "prepare" script may modify package manifest.
-  const manifest = (await readProjectManifest(dir, opts)).manifest
+  const { manifest } = await readProjectManifest(dir, opts)
   if (!manifest.name) {
     throw new PnpmError('PACKAGE_NAME_NOT_FOUND', `Package name is not defined in the ${manifestFileName}.`)
   }
