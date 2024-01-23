@@ -3,6 +3,7 @@ import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
+import { type DependencyManifest } from '@pnpm/types'
 import { addFilesFromDir } from '@pnpm/worker'
 import renameOverwrite from 'rename-overwrite'
 import { fastPathTemp as pathTemp } from 'path-temp'
@@ -32,7 +33,10 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
-      return { filesIndex: prepareResult.filesIndex, manifest }
+      return {
+        filesIndex: prepareResult.filesIndex,
+        manifest: prepareResult.manifest ?? manifest,
+      }
     } catch (err: any) { // eslint-disable-line
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}`
       throw err
@@ -40,6 +44,12 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
   }
 
   return fetch as FetchFunction
+}
+
+interface PrepareGitHostedPkgResult {
+  filesIndex: Record<string, string>
+  manifest?: DependencyManifest
+  ignoredBuild: boolean
 }
 
 async function prepareGitHostedPkg (
@@ -50,7 +60,7 @@ async function prepareGitHostedPkg (
   opts: CreateGitHostedTarballFetcher,
   fetcherOpts: FetchOptions,
   resolution: Resolution
-) {
+): Promise<PrepareGitHostedPkgResult> {
   const tempLocation = await cafs.tempDir()
   cafs.importPackage(tempLocation, {
     filesResponse: {
@@ -90,6 +100,7 @@ async function prepareGitHostedPkg (
       dir: pkgDir,
       filesIndexFile,
       pkg: fetcherOpts.pkg,
+      readManifest: fetcherOpts.readManifest,
     }),
     ignoredBuild: false,
   }

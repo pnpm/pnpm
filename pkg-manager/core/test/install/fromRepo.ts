@@ -326,3 +326,20 @@ test('git-hosted repository is not added to the store if it fails to be built', 
     addDependenciesToPackage({}, ['pnpm-e2e/prepare-script-fails'], await testDefaults())
   ).rejects.toThrow()
 })
+
+test('from subdirectories of a git repo', async () => {
+  const project = prepareEmpty()
+
+  const manifest = await addDependenciesToPackage({}, [
+    'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app',
+    'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-express-server',
+  ], await testDefaults())
+
+  await project.has('@my-namespace/simple-react-app')
+  await project.has('@my-namespace/simple-express-server')
+
+  expect(manifest.dependencies).toStrictEqual({
+    '@my-namespace/simple-express-server': 'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-express-server',
+    '@my-namespace/simple-react-app': 'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app',
+  })
+})
