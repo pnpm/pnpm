@@ -51,6 +51,7 @@ test('linking multiple packages', async () => {
 
 test('link global bin', async function () {
   prepare()
+  const warnMock = jest.spyOn(logger, 'warn')
   process.chdir('..')
 
   const globalDir = path.resolve('global')
@@ -71,12 +72,19 @@ test('link global bin', async function () {
     },
     bin: globalBin,
     dir: globalDir,
+    global: true,
   })
   process.env[PATH] = oldPath
 
   await isExecutable((value) => {
     expect(value).toBeTruthy()
   }, path.join(globalBin, 'package-with-bin'))
+
+  expect(warnMock).not.toHaveBeenCalledWith(expect.objectContaining({
+    message: expect.stringContaining('has no binaries'),
+  }))
+
+  warnMock.mockRestore()
 })
 
 test('link to global bin from the specified directory', async function () {

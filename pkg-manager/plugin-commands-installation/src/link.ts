@@ -44,6 +44,7 @@ type LinkOpts = CreateStoreControllerOptions & Pick<Config,
 | 'saveProd'
 | 'workspaceDir'
 | 'sharedWorkspaceLockfile'
+| 'global'
 > & Partial<Pick<Config, 'linkWorkspacePackages'>>
 
 export const rcOptionsTypes = cliOptionsTypes
@@ -104,10 +105,10 @@ async function checkPeerDeps (linkCwdDir: string, opts: LinkOpts) {
 
     logger.warn({
       message: `The package ${packageName}, which you have just pnpm linked, has the following peerDependencies specified in its package.json:
-      
+
 ${peerDeps}
 
-The linked in dependency will not resolve the peer dependencies from the target node_modules. 
+The linked in dependency will not resolve the peer dependencies from the target node_modules.
 This might cause issues in your project. To resolve this, you may use the "file:" protocol to reference the local dependency.`,
       prefix: opts.dir,
     })

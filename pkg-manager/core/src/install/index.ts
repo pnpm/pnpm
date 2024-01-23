@@ -1260,7 +1260,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       const projectToInstall = projects[index]
       if (opts.global && projectToInstall.mutation.includes('install')) {
         projectToInstall.wantedDependencies.forEach(pkg => {
-          if (!linkedPackages?.includes(pkg.alias)) {
+          // if "pkg.alias" doesn't exist when "pnpm link -g", we can find package name in dependencies.
+          const alias = pkg.alias ?? Object.entries(projectToInstall.manifest.dependencies ?? {}).find(([_, version]) => version === pkg.pref)?.[0]
+          if (!linkedPackages?.includes(alias)) {
             logger.warn({ message: `${pkg.alias ?? pkg.pref} has no binaries`, prefix: opts.lockfileDir })
           }
         })
