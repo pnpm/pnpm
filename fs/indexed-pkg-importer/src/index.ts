@@ -27,12 +27,6 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
     packageImportMethodLogger.debug({ method: 'hardlink' })
     return hardlinkPkg.bind(null, linkOrCopy)
   case 'auto': {
-    // Set default import method to hardlinking on Windows
-    if (process.platform === 'win32') {
-      packageImportMethodLogger.debug({ method: 'hardlink' })
-      return hardlinkPkg.bind(null, linkOrCopy)
-    }
-
     return createAutoImporter()
   }
   case 'clone-or-copy':
@@ -54,14 +48,16 @@ function createAutoImporter (): ImportIndexedPackage {
     to: string,
     opts: ImportOptions
   ): string | undefined {
-    try {
-      const _clonePkg = clonePkg.bind(null, createCloneFunction())
-      if (!_clonePkg(to, opts)) return undefined
-      packageImportMethodLogger.debug({ method: 'clone' })
-      auto = _clonePkg
-      return 'clone'
-    } catch (err: any) { // eslint-disable-line
-      // ignore
+    if (process.platform !== 'win32') {
+      try {
+        const _clonePkg = clonePkg.bind(null, createCloneFunction())
+        if (!_clonePkg(to, opts)) return undefined
+        packageImportMethodLogger.debug({ method: 'clone' })
+        auto = _clonePkg
+        return 'clone'
+      } catch (err: any) { // eslint-disable-line
+        // ignore
+      }
     }
     try {
       if (!hardlinkPkg(fs.linkSync, to, opts)) return undefined
