@@ -48,6 +48,9 @@ function createAutoImporter (): ImportIndexedPackage {
     to: string,
     opts: ImportOptions
   ): string | undefined {
+    // Although reflinks are supported on Windows Dev Drives,
+    // they are 10x slower than hard links.
+    // Hence, we prefer reflinks by default only on Linux and macOS.
     if (process.platform !== 'win32') {
       try {
         const _clonePkg = clonePkg.bind(null, createCloneFunction())
