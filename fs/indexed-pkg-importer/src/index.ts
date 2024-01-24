@@ -48,6 +48,22 @@ function createAutoImporter (): ImportIndexedPackage {
     to: string,
     opts: ImportOptions
   ): string | undefined {
+    // Set default import method to hardlinking on Windows
+    if (process.platform === 'win32') {
+      try {
+        if (!hardlinkPkg(fs.linkSync, to, opts)) return undefined
+        packageImportMethodLogger.debug({ method: 'hardlink' })
+        auto = hardlinkPkg.bind(null, linkOrCopy)
+        return 'hardlink'
+      } catch (err: any) { // eslint-disable-line
+        globalWarn(err.message)
+        globalInfo('Falling back to copying packages from store')
+        packageImportMethodLogger.debug({ method: 'copy' })
+        auto = copyPkg
+        return auto(to, opts)
+      }
+    }
+
     try {
       const _clonePkg = clonePkg.bind(null, createCloneFunction())
       if (!_clonePkg(to, opts)) return undefined
