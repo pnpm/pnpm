@@ -165,6 +165,32 @@ test.skip('resolveFromGit() with range semver (v-prefixed tag)', async () => {
   })
 })
 
+test('resolveFromGit() with sub folder', async () => {
+  const resolveResult = await resolveFromGit({ pref: 'github:RexSkz/test-git-subfolder-fetch.git#path:/packages/simple-react-app' })
+  expect(resolveResult).toStrictEqual({
+    id: 'github.com/RexSkz/test-git-subfolder-fetch/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22#path:/packages/simple-react-app',
+    normalizedPref: 'github:RexSkz/test-git-subfolder-fetch#path:/packages/simple-react-app',
+    resolution: {
+      tarball: 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22',
+      path: '/packages/simple-react-app',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
+test('resolveFromGit() with both sub folder and branch', async () => {
+  const resolveResult = await resolveFromGit({ pref: 'github:RexSkz/test-git-subfolder-fetch.git#beta&path:/packages/simple-react-app' })
+  expect(resolveResult).toStrictEqual({
+    id: 'github.com/RexSkz/test-git-subfolder-fetch/777e8a3e78cc89bbf41fb3fd9f6cf922d5463313#path:/packages/simple-react-app',
+    normalizedPref: 'github:RexSkz/test-git-subfolder-fetch#beta&path:/packages/simple-react-app',
+    resolution: {
+      tarball: 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/777e8a3e78cc89bbf41fb3fd9f6cf922d5463313',
+      path: '/packages/simple-react-app',
+    },
+    resolvedVia: 'git-repository',
+  })
+})
+
 test('resolveFromGit() fails when ref not found', async () => {
   await expect(
     resolveFromGit({ pref: 'zkochan/is-negative#bad-ref' })

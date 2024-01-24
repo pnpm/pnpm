@@ -1416,6 +1416,9 @@ importers:
 
   exec/prepare-package:
     dependencies:
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../packages/error
       '@pnpm/lifecycle':
         specifier: workspace:*
         version: link:../lifecycle
