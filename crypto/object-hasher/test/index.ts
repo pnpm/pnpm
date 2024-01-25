@@ -1,4 +1,4 @@
-import { hashObject, hashObjectWithoutSorting } from './object-hasher'
+import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
 
 describe('hashObject', () => {
   it('creates a hash', () => {
