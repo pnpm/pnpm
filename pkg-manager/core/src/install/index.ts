@@ -73,6 +73,7 @@ import pipeWith from 'ramda/src/pipeWith'
 import props from 'ramda/src/props'
 import unnest from 'ramda/src/unnest'
 import sortKeys from 'sort-keys'
+import normalizePath from 'normalize-path'
 import { parseWantedDependencies } from '../parseWantedDependencies'
 import { removeDeps } from '../uninstall/removeDeps'
 import { allProjectsAreUpToDate } from './allProjectsAreUpToDate'
@@ -1261,8 +1262,11 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       if (opts.global && projectToInstall.mutation.includes('install')) {
         projectToInstall.wantedDependencies.forEach(pkg => {
           // if "pkg.alias" doesn't exist when "pnpm link -g", we can find package name in dependencies.
-          const alias = pkg.alias ?? Object.entries(projectToInstall.manifest.dependencies ?? {}).find(([_, version]) => version === pkg.pref)?.[0]
-          console.log('project to install:::', projectToInstall.manifest.dependencies, pkg, linkedPackages)
+          const alias = pkg.alias ?? (
+            pkg.pref.startsWith('link:')
+              ? Object.entries(projectToInstall.manifest.dependencies ?? {}).find(([_, version]) => version === normalizePath(pkg.pref))?.[0]
+              : undefined
+          )
           if (!linkedPackages?.includes(alias)) {
             logger.warn({ message: `${pkg.alias ?? pkg.pref} has no binaries`, prefix: opts.lockfileDir })
           }
