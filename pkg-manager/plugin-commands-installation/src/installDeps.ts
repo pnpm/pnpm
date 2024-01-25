@@ -25,7 +25,6 @@ import { getPinnedVersion } from './getPinnedVersion'
 import { getSaveType } from './getSaveType'
 import { getNodeExecPath } from './nodeExecPath'
 import { recursive, createMatcher, matchDependencies, makeIgnorePatterns, type UpdateDepsMatcher } from './recursive'
-import { updateToLatestSpecsFromManifest, createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -266,13 +265,6 @@ when running add/update with the --workspace option')
     }
   }
 
-  if (opts.update && opts.latest) {
-    if (!params || (params.length === 0)) {
-      params = updateToLatestSpecsFromManifest(manifest, includeDirect)
-    } else {
-      params = createLatestSpecs(params, manifest)
-    }
-  }
   if (opts.workspace) {
     if (!params || (params.length === 0)) {
       params = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
