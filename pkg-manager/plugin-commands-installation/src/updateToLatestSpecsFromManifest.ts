@@ -7,11 +7,11 @@ export function updateToLatestSpecsFromManifest (manifest: ProjectManifest, incl
   const updateSpecs = []
   for (const [depName, depVersion] of Object.entries(allDeps)) {
     if (depVersion.startsWith('npm:')) {
-      updateSpecs.push(`${depName}@${removeVersionFromSpec(depVersion)}@latest`)
+      updateSpecs.push(`${depName}@${removeVersionFromSpec(depVersion)}`)
     } else {
       const selector = getVerSelType(depVersion)
       if (selector == null) continue
-      updateSpecs.push(`${depName}@latest`)
+      updateSpecs.push(depName)
     }
   }
   return updateSpecs
@@ -29,12 +29,12 @@ export function createLatestSpecs (specs: string[], manifest: ProjectManifest) {
         return selector
       }
       if (allDeps[selector].startsWith('npm:')) {
-        return `${selector}@${removeVersionFromSpec(allDeps[selector])}@latest`
+        return `${selector}@${removeVersionFromSpec(allDeps[selector])}`
       }
       if (getVerSelType(allDeps[selector]) == null) {
         return selector
       }
-      return `${selector}@latest`
+      return selector
     })
 }
 

@@ -16,8 +16,7 @@ export function pickPackageFromMeta (
   spec: RegistryPackageSpec,
   preferredVersionSelectors: VersionSelectors | undefined,
   meta: PackageMeta,
-  publishedBy?: Date,
-  preventDowngrade?: boolean
+  publishedBy?: Date
 ): PackageInRegistry | null {
   if ((!meta.versions || Object.keys(meta.versions).length === 0) && !publishedBy) {
     // Unfortunately, the npm registry doesn't return the time field in the abbreviated metadata.
@@ -41,9 +40,6 @@ export function pickPackageFromMeta (
       break
     }
     if (!version) return null
-    if (preventDowngrade && preferredVersionSelectors) {
-      version = pickVersionWithoutDowngrade(meta, spec.fetchSpec, preferredVersionSelectors, version)
-    }
     const manifest = meta.versions[version]
     if (manifest && meta['name']) {
       // Packages that are published to the GitHub registry are always published with a scope.
@@ -60,12 +56,6 @@ export function pickPackageFromMeta (
       { hint: 'This might mean that the package was unpublished from the registry' }
     )
   }
-}
-
-function pickVersionWithoutDowngrade (meta: PackageMeta, fetchSpec: string, preferredVersionSelectors: VersionSelectors, otherVersion: string): string {
-  const preferredVersions = prioritizePreferredVersions(meta, fetchSpec, preferredVersionSelectors)[0]
-  if (!preferredVersions) return otherVersion
-  return preferredVersions.reduce((a, b) => semver.gt(a, b) ? a : b, otherVersion)
 }
 
 const semverRangeCache = new Map<string, semver.Range | null>()
@@ -163,7 +153,7 @@ export function pickVersionByVersionRange (
   return maxVersion
 }
 
-function prioritizePreferredVersions (
+export function prioritizePreferredVersions (
   meta: PackageMeta,
   versionRange: string,
   preferredVerSelectors?: VersionSelectors

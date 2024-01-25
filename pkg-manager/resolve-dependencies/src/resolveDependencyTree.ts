@@ -99,7 +99,7 @@ export interface ResolveDependenciesOptions {
   wantedLockfile: Lockfile
   workspacePackages: WorkspacePackages
   supportedArchitectures?: SupportedArchitectures
-  preventDowngrade?: boolean
+  updateToLatest?: boolean
 }
 
 export async function resolveDependencyTree<T> (
@@ -167,7 +167,7 @@ export async function resolveDependencyTree<T> (
       updateMatching: importer.updateMatching,
       prefix: importer.rootDir,
       supportedArchitectures: opts.supportedArchitectures,
-      preventDowngrade: opts.preventDowngrade,
+      updateToLatest: opts.updateToLatest,
     }
     return {
       updatePackageManifest: importer.updatePackageManifest,

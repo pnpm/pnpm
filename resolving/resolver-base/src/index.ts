@@ -78,7 +78,7 @@ export interface ResolveOptions {
   preferWorkspacePackages?: boolean
   registry: string
   workspacePackages?: WorkspacePackages
-  preventDowngrade?: boolean
+  updateToLatest?: boolean
 }
 
 export type WantedDependency = {
