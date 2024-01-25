@@ -282,7 +282,7 @@ function aggregateOutput (source: Rx.Observable<LifecycleLog>) {
   return source.pipe(
     // The '\0' is a null character which delimits these strings. This works since JS doesn't use
     // null-terminated strings.
-    groupBy((data) => data.depPath + '\0' + data.stage),
+    groupBy((data) => `${data.depPath}\0${data.stage}`),
     mergeMap(group => {
       return group.pipe(
         buffer(

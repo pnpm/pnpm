@@ -1,5 +1,6 @@
 ---
-"@pnpm/default-reporter": minor
+"@pnpm/default-reporter": patch
+"pnpm": patch
 ---
 
-print correctly aggregated output when mixing stages
+`--aggregate-output` should work on scripts executed from the same project [#7556](https://github.com/pnpm/pnpm/issues/7556).
