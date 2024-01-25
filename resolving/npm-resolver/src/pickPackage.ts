@@ -14,7 +14,7 @@ import pick from 'ramda/src/pick'
 import semver from 'semver'
 import renameOverwrite from 'rename-overwrite'
 import { toRaw } from './toRaw'
-import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange, prioritizePreferredVersions } from './pickPackageFromMeta'
+import { pickPackageFromMeta, pickVersionByVersionRange, pickLowestVersionByVersionRange } from './pickPackageFromMeta'
 import { type RegistryPackageSpec } from './parsePref'
 
 export interface PackageMeta {

@@ -153,7 +153,7 @@ export function pickVersionByVersionRange (
   return maxVersion
 }
 
-export function prioritizePreferredVersions (
+function prioritizePreferredVersions (
   meta: PackageMeta,
   versionRange: string,
   preferredVerSelectors?: VersionSelectors
