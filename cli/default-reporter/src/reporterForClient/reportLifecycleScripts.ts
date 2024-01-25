@@ -280,7 +280,9 @@ function cutLine (line: string, maxLength: number) {
 
 function aggregateOutput (source: Rx.Observable<LifecycleLog>) {
   return source.pipe(
-    groupBy(data => data.depPath),
+    // The '\0' is a null character which delimits these strings. This works since JS doesn't use
+    // null-terminated strings.
+    groupBy((data) => `${data.depPath}\0${data.stage}`),
     mergeMap(group => {
       return group.pipe(
         buffer(
