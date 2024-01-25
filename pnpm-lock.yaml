@@ -774,6 +774,16 @@ importers:
         specifier: 1.3.31
         version: 1.3.31
 
+  crypto/object-hasher:
+    dependencies:
+      node-object-hash:
+        specifier: 3.0.0
+        version: 3.0.0
+    devDependencies:
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: 'link:'
+
   dedupe/check:
     dependencies:
       '@pnpm/dedupe.types':
@@ -1262,6 +1272,9 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
@@ -2455,6 +2468,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../constants
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../dependency-path
@@ -3078,6 +3094,9 @@ importers:
       '@pnpm/core':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
@@ -3357,6 +3376,9 @@ importers:
       '@pnpm/client':
         specifier: workspace:*
         version: link:../client
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/headless':
         specifier: workspace:*
         version: 'link:'
@@ -14927,6 +14949,11 @@ packages:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
     dev: true
 
+  /node-object-hash@3.0.0:
+    resolution: {integrity: sha512-jLF6tlyletktvSAawuPmH1SReP0YfZQ+tBrDiTCK+Ai7eXPMS9odi5xW/iKC7ZhrWJJ0Z5xYcW/x+1fVMn1Qvw==}
+    engines: {node: '>=16', pnpm: '>=8'}
+    dev: false
+
   /node-releases@2.0.14:
     resolution: {integrity: sha512-y10wOWt8yZpqXmOgRo77WaHEmhYQYGNA6y421PKsKYWEK8aW+cqAphborZDhqfyKrbZEN92CN1X2KbafY2s7Yw==}
     dev: true
@@ -18355,6 +18382,7 @@ time:
   /nerf-dart@1.0.0: '2015-08-20T12:22:17.009Z'
   /nock@13.3.4: '2023-10-10T23:18:23.819Z'
   /node-gyp@10.0.1: '2023-11-02T18:13:42.360Z'
+  /node-object-hash@3.0.0: '2023-04-14T09:55:13.268Z'
   /normalize-newline@3.0.0: '2016-09-06T12:35:43.571Z'
   /normalize-package-data@5.0.0: '2022-10-14T05:22:41.916Z'
   /normalize-path@3.0.0: '2018-04-19T14:54:47.609Z'

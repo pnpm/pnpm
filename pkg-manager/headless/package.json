@@ -18,6 +18,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/client": "workspace:*",
+    "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/headless": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",

@@ -34,6 +34,9 @@
       "path": "../../config/normalize-registries"
     },
     {
+      "path": "../../crypto/object-hasher"
+    },
+    {
       "path": "../../deps/graph-sequencer"
     },
     {
