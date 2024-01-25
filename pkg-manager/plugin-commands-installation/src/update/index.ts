@@ -9,8 +9,6 @@ import { types as allTypes } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
-import { PnpmError } from '@pnpm/error'
-import { parseWantedDependency } from '@pnpm/parse-wanted-dependency'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
@@ -277,12 +275,6 @@ async function update (
   dependencies: string[],
   opts: UpdateCommandOptions
 ) {
-  if (opts.latest) {
-    const dependenciesWithTags = dependencies.filter((name) => parseWantedDependency(name).pref)
-    if (dependenciesWithTags.length) {
-      throw new PnpmError('SPEC_CONFLICT', `Specs are not allowed to be used with --latest (${dependenciesWithTags.join(', ')})`)
-    }
-  }
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
   const include = {
     dependencies: opts.rawConfig.production !== false,
