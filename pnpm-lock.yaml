@@ -809,6 +809,16 @@ importers:
         specifier: 1.3.31
         version: 1.3.31
 
+  crypto/object-hasher:
+    dependencies:
+      node-object-hash:
+        specifier: 3.0.0
+        version: 3.0.0
+    devDependencies:
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: 'link:'
+
   dedupe/check:
     dependencies:
       '@pnpm/dedupe.types':
@@ -1297,6 +1307,9 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
@@ -2487,6 +2500,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../constants
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../dependency-path
@@ -3113,6 +3129,9 @@ importers:
       '@pnpm/core':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
@@ -3392,6 +3411,9 @@ importers:
       '@pnpm/client':
         specifier: workspace:*
         version: link:../client
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/headless':
         specifier: workspace:*
         version: 'link:'
@@ -9525,7 +9547,7 @@ packages:
     resolution: {integrity: sha512-YmG+oTBCyrAoMIx5g2I9CfyurSpHyoan+9SCj7laaFKseOe3lFEyIVKvwRBQMmSt8uzh+eY5RWeQnoyyOs6AbA==}
     engines: {node: '>=14.15.0'}
     peerDependencies:
-      '@yarnpkg/fslib': ^3.0.0-rc.25
+      '@yarnpkg/fslib': 3.0.0-rc.25
     dependencies:
       '@types/emscripten': 1.39.10
       '@yarnpkg/fslib': 3.0.0-rc.25
@@ -14750,6 +14772,11 @@ packages:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
     dev: true
 
+  /node-object-hash@3.0.0:
+    resolution: {integrity: sha512-jLF6tlyletktvSAawuPmH1SReP0YfZQ+tBrDiTCK+Ai7eXPMS9odi5xW/iKC7ZhrWJJ0Z5xYcW/x+1fVMn1Qvw==}
+    engines: {node: '>=16', pnpm: '>=8'}
+    dev: false
+
   /node-releases@2.0.14:
     resolution: {integrity: sha512-y10wOWt8yZpqXmOgRo77WaHEmhYQYGNA6y421PKsKYWEK8aW+cqAphborZDhqfyKrbZEN92CN1X2KbafY2s7Yw==}
     dev: true
@@ -17944,16 +17971,5 @@ packages:
     dev: false
 
 time:
-  /@pnpm/node-fetch@1.0.0: '2023-04-19T11:13:43.487Z'
-  /@pnpm/ramda@0.28.1: '2022-08-03T13:56:59.597Z'
-  /@pnpm/which@3.0.1: '2023-05-14T22:08:27.551Z'
-  /@reflink/reflink@0.1.16: '2024-01-02T17:41:22.200Z'
-  /@types/byline@4.2.36: '2023-11-07T00:13:37.410Z'
-  /@types/semver@7.5.3: '2023-09-25T14:19:37.089Z'
-  /@types/table@6.0.0: '2020-09-17T17:56:44.787Z'
-  /@zkochan/hosted-git-info@4.0.2: '2021-09-05T21:33:51.709Z'
-  /@zkochan/js-yaml@0.0.6: '2022-05-10T14:42:39.813Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@9.4.1: '2023-10-27T17:30:56.146Z'
-  /safe-execa@0.1.2: '2022-07-18T01:09:17.517Z'
-  /semver@7.5.4: '2023-07-07T21:10:32.589Z'

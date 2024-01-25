@@ -1,16 +1,13 @@
 {
-  "name": "@pnpm/calc-dep-state",
-  "version": "4.1.5",
-  "description": "Calculates the state of a dependency",
+  "name": "@pnpm/crypto.object-hasher",
+  "version": "0.0.0",
+  "description": "Generate hashes from objects",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [
     "lib",
     "!*.map"
   ],
-  "engines": {
-    "node": ">=16.14"
-  },
   "scripts": {
     "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
     "_test": "jest",
@@ -18,25 +15,25 @@
     "prepublishOnly": "pnpm run compile",
     "compile": "tsc --build && pnpm run lint --fix"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/main/packages/calc-dep-state",
+  "repository": "https://github.com/pnpm/pnpm/blob/main/crypto/object-hasher",
   "keywords": [
     "pnpm8",
-    "pnpm"
+    "hash",
+    "crypto"
   ],
+  "engines": {
+    "node": ">=16.14"
+  },
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/main/packages/calc-dep-state#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/main/crypto/object-hasher#readme",
   "dependencies": {
-    "@pnpm/constants": "workspace:*",
-    "@pnpm/crypto.object-hasher": "workspace:*",
-    "@pnpm/dependency-path": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:*",
-    "sort-keys": "^4.2.0"
+    "node-object-hash": "3.0.0"
   },
   "devDependencies": {
-    "@pnpm/calc-dep-state": "workspace:*"
+    "@pnpm/crypto.object-hasher": "workspace:*"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
