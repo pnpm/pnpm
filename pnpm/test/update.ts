@@ -201,9 +201,9 @@ test('update --latest specific dependency', async function () {
     addDistTag('@pnpm.e2e/qar', '100.1.0', 'latest'),
   ])
 
-  await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/bar@^100.0.0', '@pnpm.e2e/foo@100.1.0', 'alias@npm:@pnpm.e2e/qar@^100.0.0', 'kevva/is-negative'])
+  await execPnpm(['add', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', '@pnpm.e2e/bar@^100.0.0', '@pnpm.e2e/foo@100.0.0', 'alias@npm:@pnpm.e2e/qar@^100.0.0', 'kevva/is-negative'])
 
-  await execPnpm(['update', '-L', '@pnpm.e2e/bar', '@pnpm.e2e/foo@100.0.0', 'alias', 'is-negative'])
+  await execPnpm(['update', '-L', '@pnpm.e2e/bar', 'alias', 'is-negative'])
 
   const lockfile = await project.readLockfile()
   expect(lockfile.dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].version).toBe('100.0.0')
@@ -378,7 +378,7 @@ test('recursive update --latest specific dependency on projects that do not shar
 
       dependencies: {
         alias: 'npm:@pnpm.e2e/qar@100.0.0',
-        '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         '@pnpm.e2e/foo': '^100.0.0',
       },
     },
@@ -395,7 +395,7 @@ test('recursive update --latest specific dependency on projects that do not shar
 
   await execPnpm(['-r', 'install'])
 
-  await execPnpm(['-r', 'update', '--latest', '@pnpm.e2e/foo', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', 'alias'])
+  await execPnpm(['-r', 'update', '--latest', '@pnpm.e2e/foo', 'alias'])
 
   const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
   expect(manifest1.dependencies).toStrictEqual({
@@ -552,7 +552,7 @@ test('recursive update --latest specific dependency on projects with a shared a 
 
       dependencies: {
         alias: 'npm:@pnpm.e2e/qar@100.0.0',
-        '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+        '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
         '@pnpm.e2e/foo': '100.0.0',
       },
     },
@@ -570,7 +570,7 @@ test('recursive update --latest specific dependency on projects with a shared a 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm(['recursive', 'install'])
 
-  await execPnpm(['recursive', 'update', '--latest', '@pnpm.e2e/foo', '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0', 'alias'])
+  await execPnpm(['recursive', 'update', '--latest', '@pnpm.e2e/foo', 'alias'])
 
   const manifest1 = await readPackageJsonFromDir(path.resolve('project-1'))
   expect(manifest1.dependencies).toStrictEqual({
