@@ -5,6 +5,7 @@ packages:
   - "!__utils__/build-artifacts"
   - cli/*
   - config/*
+  - crypto/*
   - dedupe/*
   - deps/*
   - env/*

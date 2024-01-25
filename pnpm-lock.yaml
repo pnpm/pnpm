@@ -774,6 +774,16 @@ importers:
         specifier: 1.3.31
         version: 1.3.31
 
+  crypto/object-hasher:
+    dependencies:
+      node-object-hash:
+        specifier: 3.0.0
+        version: 3.0.0
+    devDependencies:
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: 'link:'
+
   dedupe/check:
     dependencies:
       '@pnpm/dedupe.types':
@@ -1262,6 +1272,9 @@ importers:
       '@pnpm/assert-project':
         specifier: workspace:*
         version: link:../../__utils__/assert-project
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/filter-workspace-packages':
         specifier: workspace:*
         version: link:../../workspace/filter-workspace-packages
@@ -1280,9 +1293,6 @@ importers:
       '@pnpm/test-ipc-server':
         specifier: workspace:*
         version: link:../../__utils__/test-ipc-server
-      '@types/object-hash':
-        specifier: 3.0.6
-        version: 3.0.6
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -1295,9 +1305,6 @@ importers:
       execa:
         specifier: npm:safe-execa@0.1.2
         version: /safe-execa@0.1.2
-      object-hash:
-        specifier: 3.0.0
-        version: 3.0.0
       path-exists:
         specifier: ^4.0.0
         version: 4.0.0
@@ -2458,15 +2465,15 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../constants
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../dependency-path
       '@pnpm/lockfile-types':
         specifier: workspace:*
         version: link:../../lockfile/lockfile-types
-      object-hash:
-        specifier: 3.0.0
-        version: 3.0.0
       sort-keys:
         specifier: ^4.2.0
         version: 4.2.0
@@ -2474,9 +2481,6 @@ importers:
       '@pnpm/calc-dep-state':
         specifier: workspace:*
         version: 'link:'
-      '@types/object-hash':
-        specifier: 3.0.6
-        version: 3.0.6
 
   packages/constants:
     devDependencies:
@@ -3087,6 +3091,9 @@ importers:
       '@pnpm/core':
         specifier: workspace:*
         version: 'link:'
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/git-utils':
         specifier: workspace:*
         version: link:../../packages/git-utils
@@ -3123,9 +3130,6 @@ importers:
       '@types/normalize-path':
         specifier: ^3.0.2
         version: 3.0.2
-      '@types/object-hash':
-        specifier: 3.0.6
-        version: 3.0.6
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -3156,9 +3160,6 @@ importers:
       nock:
         specifier: 13.3.4
         version: 13.3.4
-      object-hash:
-        specifier: 3.0.0
-        version: 3.0.0
       path-name:
         specifier: ^1.0.0
         version: 1.0.0
@@ -3372,6 +3373,9 @@ importers:
       '@pnpm/client':
         specifier: workspace:*
         version: link:../client
+      '@pnpm/crypto.object-hasher':
+        specifier: workspace:*
+        version: link:../../crypto/object-hasher
       '@pnpm/headless':
         specifier: workspace:*
         version: 'link:'
@@ -3402,9 +3406,6 @@ importers:
       '@types/fs-extra':
         specifier: ^9.0.13
         version: 9.0.13
-      '@types/object-hash':
-        specifier: 3.0.6
-        version: 3.0.6
       '@types/ramda':
         specifier: 0.28.20
         version: 0.28.20
@@ -3423,9 +3424,6 @@ importers:
       load-json-file:
         specifier: ^6.2.0
         version: 6.2.0
-      object-hash:
-        specifier: 3.0.0
-        version: 3.0.0
       sinon:
         specifier: ^16.1.3
         version: 16.1.3
@@ -9138,10 +9136,6 @@ packages:
 
   /@types/normalize-path@3.0.2:
     resolution: {integrity: sha512-DO++toKYPaFn0Z8hQ7Tx+3iT9t77IJo/nDiqTXilgEP+kPNIYdpS9kh3fXuc53ugqwp9pxC1PVjCpV1tQDyqMA==}
-
-  /@types/object-hash@3.0.6:
-    resolution: {integrity: sha512-fOBV8C1FIu2ELinoILQ+ApxcUKz4ngq+IWUYrxSGjXzzjUALijilampwkMgEtJ+h2njAW3pi853QpzNVCHB73w==}
-    dev: true
 
   /@types/parse-json@4.0.2:
     resolution: {integrity: sha512-dISoDXWWQwUquiKsyZ4Ng+HX2KsPL7LyHKHQwgGFEA3IaKac4Obd+h2a/a6waisAoepJlBcx9paWqjA8/HVjCw==}
@@ -14952,6 +14946,11 @@ packages:
     resolution: {integrity: sha512-O5lz91xSOeoXP6DulyHfllpq+Eg00MWitZIbtPfoSEvqIHdl5gfcY6hYzDWnj0qD5tz52PI08u9qUvSVeUBeHw==}
     dev: true
 
+  /node-object-hash@3.0.0:
+    resolution: {integrity: sha512-jLF6tlyletktvSAawuPmH1SReP0YfZQ+tBrDiTCK+Ai7eXPMS9odi5xW/iKC7ZhrWJJ0Z5xYcW/x+1fVMn1Qvw==}
+    engines: {node: '>=16', pnpm: '>=8'}
+    dev: false
+
   /node-releases@2.0.14:
     resolution: {integrity: sha512-y10wOWt8yZpqXmOgRo77WaHEmhYQYGNA6y421PKsKYWEK8aW+cqAphborZDhqfyKrbZEN92CN1X2KbafY2s7Yw==}
     dev: true
@@ -15111,10 +15110,6 @@ packages:
   /object-assign@4.1.1:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
     engines: {node: '>=0.10.0'}
-
-  /object-hash@3.0.0:
-    resolution: {integrity: sha512-RSn9F68PjH9HqtltsSnqYC1XXoWe9Bju5+213R98cNGttag9q9yAOTzdbsqvIa7aNm5WffBZFpWYr2aWrklWAw==}
-    engines: {node: '>= 6'}
 
   /object-inspect@1.13.1:
     resolution: {integrity: sha512-5qoj1RUiKOMsCCNLV1CBiPYE10sziTsnmNxkAI/rZhiD63CF7IqdFGC/XzjWjpSgLf0LxXX3bDFIh0E18f6UhQ==}
@@ -18276,7 +18271,6 @@ time:
   /@types/node@18.14.6: '2023-03-03T21:02:59.727Z'
   /@types/normalize-package-data@2.4.4: '2023-11-07T12:04:03.711Z'
   /@types/normalize-path@3.0.2: '2023-11-07T12:04:09.416Z'
-  /@types/object-hash@3.0.6: '2023-11-07T12:14:41.852Z'
   /@types/parse-json@4.0.2: '2023-11-07T12:35:13.182Z'
   /@types/proxyquire@1.3.31: '2023-11-07T13:34:37.730Z'
   /@types/ramda@0.28.20: '2022-11-11T10:32:59.530Z'
@@ -18385,12 +18379,12 @@ time:
   /nerf-dart@1.0.0: '2015-08-20T12:22:17.009Z'
   /nock@13.3.4: '2023-10-10T23:18:23.819Z'
   /node-gyp@10.0.1: '2023-11-02T18:13:42.360Z'
+  /node-object-hash@3.0.0: '2023-04-14T09:55:13.268Z'
   /normalize-newline@3.0.0: '2016-09-06T12:35:43.571Z'
   /normalize-package-data@5.0.0: '2022-10-14T05:22:41.916Z'
   /normalize-path@3.0.0: '2018-04-19T14:54:47.609Z'
   /normalize-registry-url@2.0.0: '2021-11-22T21:36:37.421Z'
   /npm-packlist@5.1.3: '2022-08-25T19:33:59.963Z'
-  /object-hash@3.0.0: '2022-02-18T15:10:47.040Z'
   /p-any@3.0.0: '2020-02-22T14:44:06.005Z'
   /p-defer@3.0.0: '2019-06-07T08:11:13.854Z'
   /p-every@2.0.0: '2019-03-15T09:22:34.849Z'
