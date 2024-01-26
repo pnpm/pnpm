@@ -278,7 +278,12 @@ async function update (
   opts: UpdateCommandOptions
 ) {
   if (opts.latest) {
-    const dependenciesWithTags = dependencies.filter((name) => parseWantedDependency(name).pref)
+    const dependenciesWithTags = dependencies.filter((name) => {
+      if (name === '') return false
+      const firstChar = name.charAt(0)
+      if (firstChar !== '@' && !/^[a-z]/i.test(firstChar)) return false
+      return Boolean(parseWantedDependency(name).pref)
+    })
     if (dependenciesWithTags.length) {
       throw new PnpmError('SPEC_CONFLICT', `Specs are not allowed to be used with --latest (${dependenciesWithTags.join(', ')})`)
     }
