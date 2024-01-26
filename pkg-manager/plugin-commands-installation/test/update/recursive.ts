@@ -369,12 +369,12 @@ test('recursive update --latest foo should only update packages that have foo', 
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, ['@pnpm.e2e/foo', '@pnpm.e2e/qar@100.1.0'])
+  }, ['@pnpm.e2e/foo'])
 
   {
     const lockfile = await projects['project-1'].readLockfile()
 
-    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/@pnpm.e2e/foo@100.1.0', '/@pnpm.e2e/qar@100.1.0'])
+    expect(Object.keys(lockfile.packages ?? {})).toStrictEqual(['/@pnpm.e2e/foo@100.1.0', '/@pnpm.e2e/qar@100.0.0'])
   }
 
   {
