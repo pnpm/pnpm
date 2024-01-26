@@ -104,11 +104,11 @@ async function buildDependency (
   const depNode = depGraph[depPath]
   if (!depNode.filesIndexFile) return
   if (opts.builtHoistedDeps) {
-    if (opts.builtHoistedDeps[depNode.depPath]) {
-      await opts.builtHoistedDeps[depNode.depPath].promise
+    if (opts.builtHoistedDeps[depNode.dir]) {
+      await opts.builtHoistedDeps[depNode.dir].promise
       return
     }
-    opts.builtHoistedDeps[depNode.depPath] = pDefer()
+    opts.builtHoistedDeps[depNode.dir] = pDefer()
   }
   try {
     await linkBinsOfDependencies(depNode, depGraph, opts)
@@ -182,7 +182,7 @@ async function buildDependency (
       await hardLinkDir(depNode.dir, nonBuiltHoistedDeps)
     }
     if (opts.builtHoistedDeps) {
-      opts.builtHoistedDeps[depNode.depPath].resolve()
+      opts.builtHoistedDeps[depNode.dir].resolve()
     }
   }
 }
