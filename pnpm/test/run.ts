@@ -1,7 +1,7 @@
 import { promises as fs, mkdirSync } from 'fs'
 import path from 'path'
 import PATH_NAME from 'path-name'
-import { prepare, preparePackages } from '@pnpm/prepare'
+import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import { execPnpm, execPnpmSync } from './utils'
 
@@ -258,4 +258,15 @@ test('--reporter-hide-prefix should hide workspace prefix', async () => {
   expect(output).not.toContain('script1: 1')
   expect(output).toContain('2')
   expect(output).not.toContain('script2: 2')
+})
+
+test('dlx should work with npm_config_save_dev env variable', async () => {
+  prepareEmpty()
+  const result = execPnpmSync(['dlx', '@foo/touch-file-one-bin@latest'], {
+    env: {
+      npm_config_save_dev: 'true',
+    },
+    stdio: 'inherit',
+  })
+  expect(result.status).toBe(0)
 })

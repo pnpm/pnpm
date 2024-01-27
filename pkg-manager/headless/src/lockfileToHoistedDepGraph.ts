@@ -169,7 +169,7 @@ async function fetchDeps (
       return
     }
     const { name: pkgName, version: pkgVersion } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-    const packageId = packageIdFromSnapshot(depPath, pkgSnapshot, opts.registries)
+    const packageId = packageIdFromSnapshot(depPath, pkgSnapshot)
 
     const pkg = {
       name: pkgName,

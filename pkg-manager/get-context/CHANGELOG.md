@@ -1,5 +1,19 @@
 # @pnpm/get-context
 
+## 10.0.11
+
+### Patch Changes
+
+- 60bcc797f: Registry configuration from previous installation should not override current settings [#7507](https://github.com/pnpm/pnpm/issues/7507).
+
+## 10.0.10
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/read-projects-context@8.0.11
+
 ## 10.0.9
 
 ### Patch Changes

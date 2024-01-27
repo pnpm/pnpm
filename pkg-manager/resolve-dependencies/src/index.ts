@@ -20,7 +20,6 @@ import {
   DEPENDENCIES_FIELDS,
   type DependencyManifest,
   type ProjectManifest,
-  type Registries,
 } from '@pnpm/types'
 import promiseShare from 'promise-share'
 import difference from 'ramda/src/difference'
@@ -228,7 +227,6 @@ export async function resolveDependencies (
         projectSnapshot,
         resolvedImporter.linkedDependencies,
         resolvedImporter.directDependencies,
-        opts.registries,
         opts.excludeLinksFromLockfile
       )
     }
@@ -246,7 +244,6 @@ export async function resolveDependencies (
       const ref = depPathToRef(depPath, {
         alias,
         realName: depNode.name,
-        registries: opts.registries,
         resolution: depNode.resolution,
       })
       if (projectSnapshot.dependencies?.[alias]) {
@@ -389,7 +386,6 @@ function addDirectDependenciesToLockfile (
   projectSnapshot: ProjectSnapshot,
   linkedPackages: Array<{ alias: string }>,
   directDependencies: ResolvedDirectDependency[],
-  registries: Registries,
   excludeLinksFromLockfile?: boolean
 ): ProjectSnapshot {
   const newProjectSnapshot: ProjectSnapshot & Required<Pick<ProjectSnapshot, 'dependencies' | 'devDependencies' | 'optionalDependencies'>> = {
@@ -428,7 +424,6 @@ function addDirectDependenciesToLockfile (
       const ref = depPathToRef(dep.pkgId, {
         alias: dep.alias,
         realName: dep.name,
-        registries,
         resolution: dep.resolution,
       })
       if (dep.dev) {

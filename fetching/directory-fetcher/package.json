@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/directory-fetcher",
-  "version": "7.0.9",
+  "version": "7.0.10",
   "description": "A fetcher for local directory packages",
   "funding": "https://opencollective.com/pnpm",
   "main": "lib/index.js",
@@ -18,10 +18,10 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/fetching/directory-fetcher",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "fetcher"
   ],

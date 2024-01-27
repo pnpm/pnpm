@@ -48,14 +48,19 @@ function createAutoImporter (): ImportIndexedPackage {
     to: string,
     opts: ImportOptions
   ): string | undefined {
-    try {
-      const _clonePkg = clonePkg.bind(null, createCloneFunction())
-      if (!_clonePkg(to, opts)) return undefined
-      packageImportMethodLogger.debug({ method: 'clone' })
-      auto = _clonePkg
-      return 'clone'
-    } catch (err: any) { // eslint-disable-line
-      // ignore
+    // Although reflinks are supported on Windows Dev Drives,
+    // they are 10x slower than hard links.
+    // Hence, we prefer reflinks by default only on Linux and macOS.
+    if (process.platform !== 'win32') {
+      try {
+        const _clonePkg = clonePkg.bind(null, createCloneFunction())
+        if (!_clonePkg(to, opts)) return undefined
+        packageImportMethodLogger.debug({ method: 'clone' })
+        auto = _clonePkg
+        return 'clone'
+      } catch (err: any) { // eslint-disable-line
+        // ignore
+      }
     }
     try {
       if (!hardlinkPkg(fs.linkSync, to, opts)) return undefined

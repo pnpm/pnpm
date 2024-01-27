@@ -33,9 +33,11 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
       await execGit(['clone', resolution.repo, tempLocation])
     }
     await execGit(['checkout', resolution.commit], { cwd: tempLocation })
+    let pkgDir: string
     try {
-      const shouldBeBuilt = await preparePkg(tempLocation)
-      if (ignoreScripts && shouldBeBuilt) {
+      const prepareResult = await preparePkg(tempLocation, resolution.path ?? '')
+      pkgDir = prepareResult.pkgDir
+      if (ignoreScripts && prepareResult.shouldBeBuilt) {
         globalWarn(`The git-hosted package fetched from "${resolution.repo}" has to be built but the build scripts were ignored.`)
       }
     } catch (err: any) { // eslint-disable-line
@@ -49,7 +51,7 @@ export function createGitFetcher (createOpts: CreateGitFetcherOptions) {
     // the linking of files to the store is in progress.
     return addFilesFromDir({
       cafsDir: cafs.cafsDir,
-      dir: tempLocation,
+      dir: pkgDir,
       filesIndexFile: opts.filesIndexFile,
       readManifest: opts.readManifest,
       pkg: opts.pkg,

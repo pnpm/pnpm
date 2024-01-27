@@ -1,4 +1,4 @@
-import { existsSync, promises as fs } from 'fs'
+import { chmodSync, existsSync, promises as fs } from 'fs'
 import path from 'path'
 import execa from 'execa'
 import { isCI } from 'ci-info'
@@ -732,5 +732,62 @@ test('publish: provenance', async () => {
     ...DEFAULT_OPTS,
     argv: { original: ['publish', '--provenance'] },
     dir: process.cwd(),
+  }, [])
+})
+
+test('publish: use basic token helper for authentication', async () => {
+  prepare({
+    name: 'test-publish-helper-token-basic.json',
+    version: '0.0.2',
+  })
+
+  const os = process.platform
+  const file = os === 'win32'
+    ? 'tokenHelperBasic.bat'
+    : 'tokenHelperBasic.js'
+
+  const tokenHelper = path.join(__dirname, 'utils', file)
+
+  chmodSync(tokenHelper, 0o755)
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: {
+      original: [
+        'publish',
+        CREDENTIALS[0],
+        `--//localhost:${REGISTRY_MOCK_PORT}/:tokenHelper=${tokenHelper}`,
+      ],
+    },
+    dir: process.cwd(),
+    gitChecks: false,
+  }, [])
+})
+
+test('publish: use bearer token helper for authentication', async () => {
+  prepare({
+    name: 'test-publish-helper-token-bearer.json',
+    version: '0.0.2',
+  })
+
+  const os = process.platform
+  const file = os === 'win32'
+    ? 'tokenHelperBearer.bat'
+    : 'tokenHelperBearer.js'
+  const tokenHelper = path.join(__dirname, 'utils', file)
+
+  chmodSync(tokenHelper, 0o755)
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: {
+      original: [
+        'publish',
+        CREDENTIALS[0],
+        `--//localhost:${REGISTRY_MOCK_PORT}/:tokenHelper=${tokenHelper}`,
+      ],
+    },
+    dir: process.cwd(),
+    gitChecks: false,
   }, [])
 })

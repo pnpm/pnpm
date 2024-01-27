@@ -31,7 +31,6 @@ import {
   type RegistryPackageSpec,
 } from './parsePref'
 import { fromRegistry, RegistryResponseError } from './fetch'
-import { createPkgId } from './createNpmPkgId'
 import { workspacePrefToNpm } from './workspacePrefToNpm'
 
 export class NoMatchingVersionError extends PnpmError {
@@ -221,7 +220,7 @@ async function resolveNpm (
     }
   }
 
-  const id = createPkgId(opts.registry, pickedPackage.name, pickedPackage.version)
+  const id = `/${pickedPackage.name}@${pickedPackage.version}`
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
     tarball: pickedPackage.dist.tarball,

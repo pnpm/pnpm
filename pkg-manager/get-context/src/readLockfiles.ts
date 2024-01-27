@@ -1,6 +1,5 @@
 import {
   LOCKFILE_VERSION,
-  LOCKFILE_VERSION_V6,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -53,12 +52,12 @@ export async function readLockfiles (
     wantedLockfileIsModified: boolean
     lockfileHadConflicts: boolean
   }> {
-  const wantedLockfileVersion = LOCKFILE_VERSION_V6
+  const wantedLockfileVersion = LOCKFILE_VERSION
   // ignore `pnpm-lock.yaml` on CI servers
   // a latest pnpm should not break all the builds
   const lockfileOpts = {
     ignoreIncompatible: opts.force || isCI,
-    wantedVersions: [LOCKFILE_VERSION.toString(), LOCKFILE_VERSION_V6],
+    wantedVersions: [LOCKFILE_VERSION],
     useGitBranchLockfile: opts.useGitBranchLockfile,
     mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
   }

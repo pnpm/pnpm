@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core",
   "description": "Fast, disk space efficient installation engine",
-  "version": "13.2.1",
+  "version": "13.3.3",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -77,6 +77,7 @@
     "@pnpm/assert-store": "workspace:*",
     "@pnpm/client": "workspace:*",
     "@pnpm/core": "workspace:*",
+    "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/git-utils": "workspace:*",
     "@pnpm/lockfile-types": "workspace:*",
     "@pnpm/package-store": "workspace:*",
@@ -84,15 +85,15 @@
     "@pnpm/registry-mock": "3.18.0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
     "@types/fs-extra": "^9.0.13",
     "@types/is-windows": "^1.0.2",
     "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.28.20",
     "@types/semver": "7.5.3",
     "@types/sinon": "^10.0.20",
-    "@yarnpkg/core": "4.0.0-rc.45",
+    "@yarnpkg/core": "4.0.2",
     "ci-info": "^3.9.0",
     "deep-require-cwd": "1.0.0",
     "execa": "npm:safe-execa@0.1.2",
@@ -112,7 +113,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core#readme",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "dependency manager",
     "install",
     "installer",
@@ -136,7 +137,7 @@
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/core",
   "scripts": {

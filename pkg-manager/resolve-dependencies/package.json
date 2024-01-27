@@ -9,11 +9,11 @@
     "!*.map"
   ],
   "keywords": [
-    "pnpm8"
+    "pnpm9"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "peerDependencies": {
     "@pnpm/logger": "^5.0.0"
@@ -46,8 +46,7 @@
     "@pnpm/store-controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/which-version-is-pinned": "workspace:*",
-    "@yarnpkg/core": "4.0.0-rc.45",
-    "encode-registry": "^3.0.1",
+    "@yarnpkg/core": "4.0.2",
     "filenamify": "^4.3.0",
     "get-npm-tarball-url": "^2.1.0",
     "is-inner-link": "^4.0.0",

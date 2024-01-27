@@ -513,3 +513,78 @@ test('when extracting files with the same name, pick the last ones', async () =>
   expect(pkgJson.name).toBe('pkg2')
   expect(manifest?.name).toBe('pkg2')
 })
+
+test('use the subfolder when path is present', async () => {
+  process.chdir(tempy.directory())
+
+  const resolution = {
+    tarball: 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22',
+    path: '/packages/simple-react-app',
+  }
+
+  const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+    ignoreScripts: true,
+    rawConfig: {},
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
+  })
+  const { filesIndex } = await fetch.gitHostedTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg: {},
+  })
+
+  expect(filesIndex).toHaveProperty(['package.json'])
+  expect(filesIndex).not.toHaveProperty(['lerna.json'])
+})
+
+test('prevent directory traversal attack when path is present', async () => {
+  process.chdir(tempy.directory())
+
+  const tarball = 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22'
+  const path = '../../etc'
+  const resolution = { tarball, path }
+
+  const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+    ignoreScripts: true,
+    rawConfig: {},
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
+  })
+
+  await expect(() => fetch.gitHostedTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg: {},
+  })).rejects.toThrow(`Failed to prepare git-hosted package fetched from "${tarball}": Path "${path}" should be a sub directory`)
+})
+
+test('fail when path is not exists', async () => {
+  process.chdir(tempy.directory())
+
+  const tarball = 'https://codeload.github.com/RexSkz/test-git-subfolder-fetch/tar.gz/2b42a57a945f19f8ffab8ecbd2021fdc2c58ee22'
+  const path = '/not-exists'
+  const resolution = { tarball, path }
+
+  const fetch = createTarballFetcher(fetchFromRegistry, getAuthHeader, {
+    ignoreScripts: true,
+    rawConfig: {},
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
+  })
+
+  await expect(() => fetch.gitHostedTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg: {},
+  })).rejects.toThrow(`Failed to prepare git-hosted package fetched from "${tarball}": Path "${path}" is not a directory`)
+})

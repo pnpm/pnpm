@@ -1,5 +1,11 @@
 # @pnpm/fs.indexed-pkg-importer
 
+## 5.0.12
+
+### Patch Changes
+
+- 19be6b704: Fix copy-on-write on Windows Dev Drives [#7468](https://github.com/pnpm/pnpm/issues/7468).
+
 ## 5.0.11
 
 ### Patch Changes

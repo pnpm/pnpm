@@ -1,5 +1,53 @@
 # @pnpm/core
 
+## 13.3.3
+
+### Patch Changes
+
+- Updated dependencies [60bcc797f]
+  - @pnpm/get-context@10.0.11
+  - @pnpm/headless@22.4.3
+  - @pnpm/package-requester@24.1.7
+  - @pnpm/lifecycle@16.0.11
+  - @pnpm/build-modules@11.2.11
+
+## 13.3.2
+
+### Patch Changes
+
+- ff10acade: When `hoisted-workspace-packages` is `true` don't hoist the root package even if it has a name. Otherwise we would create a circular symlink.
+- Updated dependencies [d349bc3a2]
+- Updated dependencies [ff10acade]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/headless@22.4.2
+  - @pnpm/get-context@10.0.10
+  - @pnpm/package-requester@24.1.7
+  - @pnpm/symlink-dependency@7.1.4
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/link-bins@9.0.12
+
+## 13.3.1
+
+### Patch Changes
+
+- @pnpm/package-requester@24.1.7
+- @pnpm/worker@0.3.13
+- @pnpm/headless@22.4.1
+- @pnpm/build-modules@11.2.10
+
+## 13.3.0
+
+### Minor Changes
+
+- c597f72ec: A new option added for hoisting packages from the workspace. When `hoist-workspace-packages` is set to `true`, packages from the workspace are symlinked to either `<workspace_root>/node_modules/.pnpm/node_modules` or to `<workspace_root>/node_modules` depending on other hoisting settings (`hoist-pattern` and `public-hoist-pattern`) [#7451](https://github.com/pnpm/pnpm/pull/7451).
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/headless@22.4.0
+  - @pnpm/hoist@8.2.0
+
 ## 13.2.1
 
 ### Patch Changes

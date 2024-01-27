@@ -1,5 +1,12 @@
 # @pnpm/run-npm
 
+## 6.1.0
+
+### Minor Changes
+
+- 5a5e42551: Allow to set custom env.
+- 5a5e42551: Allow using token helpers in `pnpm publish` [#7316](https://github.com/pnpm/pnpm/issues/7316).
+
 ## 6.0.0
 
 ### Major Changes

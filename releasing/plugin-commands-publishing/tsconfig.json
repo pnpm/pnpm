@@ -37,6 +37,9 @@
       "path": "../../fs/packlist"
     },
     {
+      "path": "../../network/auth-header"
+    },
+    {
       "path": "../../packages/error"
     },
     {

@@ -29,13 +29,34 @@ To quote the [Rush](https://rushjs.io/) team:
 [![Twitter Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://twitter.com/intent/follow?screen_name=pnpmjs&region=follow_link)
 [![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://stand-with-ukraine.pp.ua)
 
-## Gold Sponsors
+## Platinum Sponsors
 
 <table>
   <tbody>
     <tr>
       <td align="center" valign="middle">
         <a href="https://bit.dev/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/bit.svg" width="80"></a>
+      </td>
+      <td align="center" valign="middle">
+        <a href="https://figma.com/?utm_source=pnpm&utm_medium=readme" target="_blank"><img src="https://pnpm.io/img/users/figma.svg" width="80"></a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Gold Sponsors
+
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="middle">
+        <a href="https://discord.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
+          <picture>
+            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/discord.svg" />
+            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/discord_light.svg" />
+            <img src="https://pnpm.io/img/users/discord.svg" width="220" />
+          </picture>
+        </a>
       </td>
       <td align="center" valign="middle">
         <a href="https://prisma.io/?utm_source=pnpm&utm_medium=readme" target="_blank">
@@ -49,15 +70,6 @@ To quote the [Rush](https://rushjs.io/) team:
     </tr>
     <tr>
       <td align="center" valign="middle">
-        <a href="https://discord.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
-          <picture>
-            <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/discord.svg" />
-            <source media="(prefers-color-scheme: dark)" srcset="https://pnpm.io/img/users/discord_light.svg" />
-            <img src="https://pnpm.io/img/users/discord.svg" width="220" />
-          </picture>
-        </a>
-      </td>
-      <td align="center" valign="middle">
         <a href="https://uscreen.de/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
             <source media="(prefers-color-scheme: light)" srcset="https://pnpm.io/img/users/uscreen.svg" />
@@ -66,8 +78,6 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
-    </tr>
-    <tr>
       <td align="center" valign="middle">
         <a href="https://www.jetbrains.com/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>
@@ -77,6 +87,8 @@ To quote the [Rush](https://rushjs.io/) team:
           </picture>
         </a>
       </td>
+    </tr>
+    <tr>
       <td align="center" valign="middle">
         <a href="https://nx.dev/?utm_source=pnpm&utm_medium=readme" target="_blank">
           <picture>

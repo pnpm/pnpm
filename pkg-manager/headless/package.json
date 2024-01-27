@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "22.3.12",
+  "version": "22.4.3",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -18,6 +18,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/client": "workspace:*",
+    "@pnpm/crypto.object-hasher": "workspace:*",
     "@pnpm/headless": "workspace:*",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
@@ -43,14 +44,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/headless#readme",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "install",
     "installer"
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/headless",
   "scripts": {

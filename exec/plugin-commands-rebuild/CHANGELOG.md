@@ -1,5 +1,46 @@
 # @pnpm/plugin-commands-rebuild
 
+## 10.0.16
+
+### Patch Changes
+
+- Updated dependencies [60bcc797f]
+  - @pnpm/get-context@10.0.11
+  - @pnpm/store-connection-manager@7.0.25
+  - @pnpm/lifecycle@16.0.11
+
+## 10.0.15
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+- Updated dependencies [d9564e354]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/config@20.4.1
+  - @pnpm/get-context@10.0.10
+  - @pnpm/store-connection-manager@7.0.24
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/workspace.find-packages@1.1.9
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/link-bins@9.0.12
+
+## 10.0.14
+
+### Patch Changes
+
+- @pnpm/worker@0.3.13
+- @pnpm/store-connection-manager@7.0.23
+
+## 10.0.13
+
+### Patch Changes
+
+- Updated dependencies [c597f72ec]
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+  - @pnpm/store-connection-manager@7.0.22
+  - @pnpm/workspace.find-packages@1.1.8
+
 ## 10.0.12
 
 ### Patch Changes

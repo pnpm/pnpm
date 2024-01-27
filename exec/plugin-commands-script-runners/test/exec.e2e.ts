@@ -277,7 +277,7 @@ test('pnpm recursive exec --no-sort', async () => {
       version: '1.0.0',
 
       dependencies: {
-        'b-dependency': '1.0.0',
+        'b-dependency': 'workspace:*',
       },
       scripts: {
         build: server.sendLineScript('a-dependent'),

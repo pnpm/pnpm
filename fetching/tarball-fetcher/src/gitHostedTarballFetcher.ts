@@ -1,13 +1,18 @@
+import fs from 'node:fs/promises'
 import { type FetchFunction, type FetchOptions } from '@pnpm/fetcher-base'
 import type { Cafs } from '@pnpm/cafs-types'
 import { globalWarn } from '@pnpm/logger'
 import { preparePackage } from '@pnpm/prepare-package'
+import { type DependencyManifest } from '@pnpm/types'
 import { addFilesFromDir } from '@pnpm/worker'
+import renameOverwrite from 'rename-overwrite'
+import { fastPathTemp as pathTemp } from 'path-temp'
 
 interface Resolution {
   integrity?: string
   registry?: string
   tarball: string
+  path?: string
 }
 
 export interface CreateGitHostedTarballFetcher {
@@ -18,13 +23,20 @@ export interface CreateGitHostedTarballFetcher {
 
 export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction, fetcherOpts: CreateGitHostedTarballFetcher): FetchFunction {
   const fetch = async (cafs: Cafs, resolution: Resolution, opts: FetchOptions) => {
-    const { filesIndex, manifest } = await fetchRemoteTarball(cafs, resolution, opts)
+    const tempIndexFile = pathTemp(opts.filesIndexFile)
+    const { filesIndex, manifest } = await fetchRemoteTarball(cafs, resolution, {
+      ...opts,
+      filesIndexFile: tempIndexFile,
+    })
     try {
-      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, opts.filesIndexFile, fetcherOpts, opts)
+      const prepareResult = await prepareGitHostedPkg(filesIndex as Record<string, string>, cafs, tempIndexFile, opts.filesIndexFile, fetcherOpts, opts, resolution)
       if (prepareResult.ignoredBuild) {
         globalWarn(`The git-hosted package fetched from "${resolution.tarball}" has to be built but the build scripts were ignored.`)
       }
-      return { filesIndex: prepareResult.filesIndex, manifest }
+      return {
+        filesIndex: prepareResult.filesIndex,
+        manifest: prepareResult.manifest ?? manifest,
+      }
     } catch (err: any) { // eslint-disable-line
       err.message = `Failed to prepare git-hosted package fetched from "${resolution.tarball}": ${err.message}`
       throw err
@@ -34,13 +46,21 @@ export function createGitHostedTarballFetcher (fetchRemoteTarball: FetchFunction
   return fetch as FetchFunction
 }
 
+interface PrepareGitHostedPkgResult {
+  filesIndex: Record<string, string>
+  manifest?: DependencyManifest
+  ignoredBuild: boolean
+}
+
 async function prepareGitHostedPkg (
   filesIndex: Record<string, string>,
   cafs: Cafs,
+  filesIndexFileNonBuilt: string,
   filesIndexFile: string,
   opts: CreateGitHostedTarballFetcher,
-  fetcherOpts: FetchOptions
-) {
+  fetcherOpts: FetchOptions,
+  resolution: Resolution
+): Promise<PrepareGitHostedPkgResult> {
   const tempLocation = await cafs.tempDir()
   cafs.importPackage(tempLocation, {
     filesResponse: {
@@ -49,17 +69,39 @@ async function prepareGitHostedPkg (
     },
     force: true,
   })
-  const shouldBeBuilt = await preparePackage(opts, tempLocation)
+  const { shouldBeBuilt, pkgDir } = await preparePackage(opts, tempLocation, resolution.path ?? '')
+  if (!resolution.path) {
+    if (!shouldBeBuilt) {
+      if (filesIndexFileNonBuilt !== filesIndexFile) {
+        await renameOverwrite(filesIndexFileNonBuilt, filesIndexFile)
+      }
+      return {
+        filesIndex,
+        ignoredBuild: false,
+      }
+    }
+    if (opts.ignoreScripts) {
+      return {
+        filesIndex,
+        ignoredBuild: true,
+      }
+    }
+  }
+  try {
+    // The temporary index file may be deleted
+    await fs.unlink(filesIndexFileNonBuilt)
+  } catch {}
   // Important! We cannot remove the temp location at this stage.
   // Even though we have the index of the package,
   // the linking of files to the store is in progress.
   return {
     ...await addFilesFromDir({
       cafsDir: cafs.cafsDir,
-      dir: tempLocation,
+      dir: pkgDir,
       filesIndexFile,
       pkg: fetcherOpts.pkg,
+      readManifest: fetcherOpts.readManifest,
     }),
-    ignoredBuild: opts.ignoreScripts && shouldBeBuilt,
+    ignoredBuild: false,
   }
 }

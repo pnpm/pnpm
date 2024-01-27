@@ -38,6 +38,7 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
   let modules!: Modules
   try {
     modules = await readYamlFile<Modules>(modulesYamlPath)
+    if (!modules) return modules
   } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err

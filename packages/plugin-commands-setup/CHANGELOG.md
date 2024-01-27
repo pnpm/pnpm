@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-setup
 
+## 4.0.33
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.8
+
+## 4.0.32
+
+### Patch Changes
+
+- @pnpm/cli-utils@2.1.7
+
 ## 4.0.31
 
 ### Patch Changes

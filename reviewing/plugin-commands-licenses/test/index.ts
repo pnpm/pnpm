@@ -92,19 +92,29 @@ test('pnpm licenses: output as json', async () => {
   expect(output).not.toHaveLength(0)
   expect(output).not.toBe('No licenses in packages found')
   const parsedOutput = JSON.parse(output)
-  expect(Object.keys(parsedOutput)).toMatchSnapshot('found-license-types')
+  expect(parsedOutput).toEqual({
+    MIT: [
+      {
+        name: 'is-positive',
+        versions: ['3.1.0'],
+        paths: [expect.stringContaining('is-positive@3.1.0')],
+        license: 'MIT',
+        author: expect.any(String),
+        homepage: expect.any(String),
+        description: expect.any(String),
+      },
+    ],
+  })
   const packagesWithMIT = parsedOutput['MIT']
-  expect(packagesWithMIT.length).toBeGreaterThan(0)
   expect(Object.keys(packagesWithMIT[0])).toEqual([
     'name',
-    'version',
-    'path',
+    'versions',
+    'paths',
     'license',
     'author',
     'homepage',
     'description',
   ])
-  expect(packagesWithMIT[0].name).toBe('is-positive')
 })
 
 test('pnpm licenses: filter outputs', async () => {
@@ -236,6 +246,29 @@ test('pnpm licenses should work with git protocol dep that have patches', async 
 test('pnpm licenses should work with git protocol dep that have peerDependencies', async () => {
   const workspaceDir = tempDir()
   f.copy('with-git-protocol-peer-deps', workspaceDir)
+
+  const storeDir = path.join(workspaceDir, 'store')
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    storeDir,
+  })
+
+  const { exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    pnpmHomeDir: '',
+    long: false,
+    storeDir: path.resolve(storeDir, 'v3'),
+  }, ['list'])
+
+  expect(exitCode).toBe(0)
+})
+
+test('pnpm licenses should work git repository name containing capital letters', async () => {
+  const workspaceDir = tempDir()
+  f.copy('with-git-protocol-caps', workspaceDir)
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({

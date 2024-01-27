@@ -43,7 +43,6 @@ export interface LockfileV6 {
 }
 
 export interface ProjectSnapshotV6 {
-  specifiers: ResolvedDependenciesOfImporters
   dependencies?: ResolvedDependenciesOfImporters
   optionalDependencies?: ResolvedDependenciesOfImporters
   devDependencies?: ResolvedDependenciesOfImporters
