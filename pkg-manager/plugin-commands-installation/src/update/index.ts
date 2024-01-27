@@ -9,6 +9,7 @@ import { types as allTypes } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { createMatcher } from '@pnpm/matcher'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
+import { PnpmError } from '@pnpm/error'
 import { prompt } from 'enquirer'
 import chalk from 'chalk'
 import pick from 'ramda/src/pick'
@@ -18,6 +19,7 @@ import renderHelp from 'render-help'
 import { type InstallCommandOptions } from '../install'
 import { installDeps } from '../installDeps'
 import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices'
+import { parseUpdateParam } from '../recursive'
 export function rcOptionsTypes () {
   return pick([
     'cache-dir',
@@ -275,6 +277,12 @@ async function update (
   dependencies: string[],
   opts: UpdateCommandOptions
 ) {
+  if (opts.latest) {
+    const dependenciesWithTags = dependencies.filter((name) => parseUpdateParam(name).versionSpec != null)
+    if (dependenciesWithTags.length) {
+      throw new PnpmError('LATEST_WITH_SPEC', `Specs are not allowed to be used with --latest (${dependenciesWithTags.join(', ')})`)
+    }
+  }
   const includeDirect = makeIncludeDependenciesFromCLI(opts.cliOptions)
   const include = {
     dependencies: opts.rawConfig.production !== false,
