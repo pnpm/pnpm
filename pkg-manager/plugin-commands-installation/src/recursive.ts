@@ -516,7 +516,7 @@ export function parseUpdateParam (param: string): { pattern: string, versionSpec
   }
   return {
     pattern: param.slice(0, atIndex),
-    versionSpec: param.slice(atIndex + 1)
+    versionSpec: param.slice(atIndex + 1),
   }
 }
 
