@@ -20,6 +20,7 @@ import renderHelp from 'render-help'
 import { type InstallCommandOptions } from '../install'
 import { installDeps } from '../installDeps'
 import { type ChoiceRow, getUpdateChoices } from './getUpdateChoices'
+import { parseUpdateParam } from '../recursive'
 export function rcOptionsTypes () {
   return pick([
     'cache-dir',
@@ -278,16 +279,7 @@ async function update (
   opts: UpdateCommandOptions
 ) {
   if (opts.latest) {
-    const isPattern = (name: string) => {
-      const firstChar = name.charAt(0)
-      return firstChar !== '@' && !/^[a-z]/i.test(firstChar)
-    }
-    const hasSpec = (name: string) => Boolean(parseWantedDependency(name).pref)
-    const dependenciesWithTags = dependencies.filter((name) => {
-      if (name === '') return false
-      if (isPattern(name)) return false
-      return hasSpec(name)
-    })
+    const dependenciesWithTags = dependencies.filter((name) => parseUpdateParam(name).versionSpec != null)
     if (dependenciesWithTags.length) {
       throw new PnpmError('SPEC_CONFLICT', `Specs are not allowed to be used with --latest (${dependenciesWithTags.join(', ')})`)
     }
