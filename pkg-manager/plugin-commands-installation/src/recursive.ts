@@ -36,7 +36,6 @@ import mem from 'mem'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
-import { updateToLatestSpecsFromManifest, createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { getSaveType } from './getSaveType'
 import { getPinnedVersion } from './getPinnedVersion'
 import { type PreferredVersions } from '@pnpm/resolver-base'
@@ -197,16 +196,8 @@ export async function recursive (
           return
         }
       }
-      if (updateToLatest) {
-        if (!params || (params.length === 0)) {
-          currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
-        } else {
-          currentInput = createLatestSpecs(currentInput, manifest)
-          if (currentInput.length === 0) {
-            installOpts.pruneLockfileImporters = false
-            return
-          }
-        }
+      if (updateToLatest && (!params || (params.length === 0))) {
+        currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
       }
       if (opts.workspace) {
         if (!currentInput || (currentInput.length === 0)) {
@@ -319,13 +310,8 @@ export async function recursive (
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
           if (currentInput.length === 0) return
         }
-        if (updateToLatest) {
-          if (!params || (params.length === 0)) {
-            currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
-          } else {
-            currentInput = createLatestSpecs(currentInput, manifest)
-            if (currentInput.length === 0) return
-          }
+        if (updateToLatest && (!params || (params.length === 0))) {
+          currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
         }
         if (opts.workspace) {
           if (!currentInput || (currentInput.length === 0)) {
