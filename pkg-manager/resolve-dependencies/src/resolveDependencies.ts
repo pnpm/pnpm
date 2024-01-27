@@ -255,6 +255,7 @@ interface ResolvedDependenciesOptions {
   updateDepth: number
   prefix: string
   supportedArchitectures?: SupportedArchitectures
+  updateToLatest?: boolean
 }
 
 interface PostponedResolutionOpts {
@@ -677,6 +678,7 @@ async function resolveDependenciesOfDependency (
     updateDepth,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
+    updateToLatest: options.updateToLatest,
   }
   const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
@@ -713,6 +715,7 @@ async function resolveDependenciesOfDependency (
     prefix: options.prefix,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
+    updateToLatest: options.updateToLatest,
   })
   return {
     resolveDependencyResult,
@@ -769,6 +772,7 @@ async function resolveChildren (
     prefix: string
     updateMatching?: UpdateMatchingFunction
     supportedArchitectures?: SupportedArchitectures
+    updateToLatest?: boolean
   },
   {
     parentPkgAliases,
@@ -1019,6 +1023,7 @@ interface ResolveDependencyOptions {
   updateDepth: number
   updateMatching?: UpdateMatchingFunction
   supportedArchitectures?: SupportedArchitectures
+  updateToLatest?: boolean
 }
 
 type ResolveDependencyResult = PkgAddress | LinkedDependency | null
@@ -1098,6 +1103,7 @@ async function resolveDependency (
         err.pkgsStack = nodeIdToParents(options.parentPkg.nodeId, ctx.resolvedPackagesByDepPath)
         return err
       },
+      updateToLatest: options.updateToLatest,
     })
   } catch (err: any) { // eslint-disable-line
     if (wantedDependency.optional) {

@@ -80,6 +80,7 @@ export interface ResolveOptions {
   preferWorkspacePackages?: boolean
   registry: string
   workspacePackages?: WorkspacePackages
+  updateToLatest?: boolean
 }
 
 export type WantedDependency = {
