@@ -136,7 +136,7 @@ function createCloneFunction (): CloneFunction {
         // If the file already exists, then we just proceed.
         // This will probably only happen if the package's index file contains the same file twice.
         // For instance: { "index.js": "hash", "./index.js": "hash" }
-        if (!err.message.startsWith('File exists')) throw err
+        if (!err.message.startsWith('File exists') && !err.message.includes('-2147024816')) throw err
       }
     }
   }
