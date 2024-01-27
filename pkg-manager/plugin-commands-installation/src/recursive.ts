@@ -196,6 +196,9 @@ export async function recursive (
           return
         }
       }
+      if (updateToLatest && (!params || (params.length === 0))) {
+        currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
+      }
       if (opts.workspace) {
         if (!currentInput || (currentInput.length === 0)) {
           currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
@@ -306,6 +309,9 @@ export async function recursive (
         if (updateMatch != null) {
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
           if (currentInput.length === 0) return
+        }
+        if (updateToLatest && (!params || (params.length === 0))) {
+          currentInput = Object.keys(filterDependenciesByType(manifest, includeDirect))
         }
         if (opts.workspace) {
           if (!currentInput || (currentInput.length === 0)) {

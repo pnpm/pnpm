@@ -6,6 +6,7 @@ import {
 import { type Config, getOptionsFromRootManifest } from '@pnpm/config'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
+import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import { arrayOfWorkspacePackagesToMap, findWorkspacePackages } from '@pnpm/workspace.find-packages'
 import { type Lockfile } from '@pnpm/lockfile-types'
 import { rebuildProjects } from '@pnpm/plugin-commands-rebuild'
@@ -265,6 +266,9 @@ when running add/update with the --workspace option')
     }
   }
 
+  if (opts.update && opts.latest && (!params || (params.length === 0))) {
+    params = Object.keys(filterDependenciesByType(manifest, includeDirect))
+  }
   if (opts.workspace) {
     if (!params || (params.length === 0)) {
       params = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages)
