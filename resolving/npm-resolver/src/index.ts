@@ -115,6 +115,7 @@ export type ResolveFromNpmOptions = {
   registry: string
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
+  updateToLatest?: boolean
 } & ({
   projectDir?: string
   workspacePackages?: undefined
@@ -161,6 +162,7 @@ async function resolveNpm (
       dryRun: opts.dryRun === true,
       preferredVersionSelectors: opts.preferredVersions?.[spec.name],
       registry: opts.registry,
+      updateToLatest: opts.updateToLatest,
     })
   } catch (err: any) { // eslint-disable-line
     if ((workspacePackages != null) && opts.projectDir) {

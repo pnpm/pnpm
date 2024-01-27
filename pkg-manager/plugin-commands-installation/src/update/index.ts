@@ -290,6 +290,7 @@ async function update (
     includeDirect,
     include,
     update: true,
+    updateToLatest: opts.latest,
     updateMatching: (dependencies.length > 0) && dependencies.every(dep => !dep.substring(1).includes('@')) && depth > 0 && !opts.latest
       ? createMatcher(dependencies)
       : undefined,
