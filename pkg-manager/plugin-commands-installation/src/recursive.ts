@@ -480,20 +480,29 @@ export function createMatcher (params: string[]): UpdateDepsMatcher {
   const patterns: string[] = []
   const specs: string[] = []
   for (const param of params) {
-    const atIndex = param.indexOf('@', param[0] === '!' ? 2 : 1)
-    if (atIndex === -1) {
-      patterns.push(param)
-      specs.push('')
-    } else {
-      patterns.push(param.slice(0, atIndex))
-      specs.push(param.slice(atIndex + 1))
-    }
+    const { pattern, versionSpec } = parseUpdateParam(param)
+    patterns.push(pattern)
+    specs.push(versionSpec ?? '')
   }
   const matcher = createMatcherWithIndex(patterns)
   return (depName: string) => {
     const index = matcher(depName)
     if (index === -1) return null
     return specs[index]
+  }
+}
+
+export function parseUpdateParam (param: string): { pattern: string, versionSpec: string | undefined } {
+  const atIndex = param.indexOf('@', param[0] === '!' ? 2 : 1)
+  if (atIndex === -1) {
+    return {
+      pattern: param,
+      versionSpec: undefined,
+    }
+  }
+  return {
+    pattern: param.slice(0, atIndex),
+    versionSpec: param.slice(atIndex + 1),
   }
 }
 
