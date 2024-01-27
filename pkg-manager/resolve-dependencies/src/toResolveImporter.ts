@@ -61,7 +61,11 @@ export async function toResolveImporter (
         defaultUpdateDepth < 0
           ? updateLocalTarballs
           : (dep) => ({ ...dep, updateDepth: defaultUpdateDepth })),
-      ...existingDeps.map(updateLocalTarballs),
+      ...existingDeps.map(
+        project.wantedDependencies.length === 0
+          ? updateLocalTarballs
+          : (dep) => ({ ...dep, updateDepth: -1 })
+      ),
     ]
   }
   return {
