@@ -11,6 +11,27 @@
 - Use the same directories on macOS as on Linux. Don't use directories inside `~/Library` on macOS [#7321](https://github.com/pnpm/pnpm/issues/7321).
 - The default value of the [hoist-workspace-packages](https://pnpm.io/npmrc#hoist-workspace-packages) is `true`.
 
+## 8.15.0
+
+### Minor Changes
+
+- When the license field does not exist in `package.json` but a license file exists, try to match and extract the license name [#7530](https://github.com/pnpm/pnpm/pull/7530).
+
+### Patch Changes
+
+- Running `pnpm update -r --latest` will no longer downgrade prerelease dependencies [#7436](https://github.com/pnpm/pnpm/issues/7436).
+- `--aggregate-output` should work on scripts executed from the same project [#7556](https://github.com/pnpm/pnpm/issues/7556).
+- Prefer hard links over reflinks on Windows as they perform better [#7564](https://github.com/pnpm/pnpm/pull/7564).
+- Reduce the length of the side-effects cache key. Instead of saving a stringified object composed from the dependency versions of the package, use the hash calculated from the said object [#7563](https://github.com/pnpm/pnpm/pull/7563).
+- Throw an error if `pnpm update --latest` runs with arguments containing versions specs. For instance, `pnpm update --latest foo@next` is not allowed [#7567](https://github.com/pnpm/pnpm/pull/7567).
+- Don't fail in Windows CoW if the file already exists [#7554](https://github.com/pnpm/pnpm/issues/7554).
+
+## 8.14.3
+
+### Patch Changes
+
+- `pnpm pack` should work as expected when "prepack" modifies the manifest [#7558](https://github.com/pnpm/pnpm/pull/7558).
+
 ## 8.14.2
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-licenses
 
+## 3.0.14
+
+### Patch Changes
+
+- Updated dependencies [fd42caf24]
+  - @pnpm/license-scanner@2.3.0
+  - @pnpm/cli-utils@2.1.9
+  - @pnpm/config@20.4.2
+
 ## 3.0.13
 
 ### Patch Changes

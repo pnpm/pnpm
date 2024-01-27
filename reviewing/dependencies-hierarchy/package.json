@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/reviewing.dependencies-hierarchy",
-  "version": "2.1.8",
+  "version": "2.1.9",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

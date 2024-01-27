@@ -1,5 +1,20 @@
 # @pnpm/resolve-dependencies
 
+## 31.4.0
+
+### Minor Changes
+
+- 31054a63e: Running `pnpm update -r --latest` will no longer downgrade prerelease dependencies [#7436](https://github.com/pnpm/pnpm/issues/7436).
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/npm-resolver@18.1.0
+  - @pnpm/pick-fetcher@2.0.1
+  - @pnpm/lockfile-utils@9.0.5
+
 ## 31.3.1
 
 ### Patch Changes

@@ -1,5 +1,33 @@
 # @pnpm/core
 
+## 13.4.0
+
+### Minor Changes
+
+- 31054a63e: Running `pnpm update -r --latest` will no longer downgrade prerelease dependencies [#7436](https://github.com/pnpm/pnpm/issues/7436).
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+- Updated dependencies [0c383327e]
+  - @pnpm/resolve-dependencies@31.4.0
+  - @pnpm/package-requester@24.1.8
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/calc-dep-state@5.0.0
+  - @pnpm/headless@22.4.4
+  - @pnpm/build-modules@11.2.12
+  - @pnpm/lifecycle@16.0.12
+  - @pnpm/modules-cleaner@14.0.24
+  - @pnpm/lockfile-utils@9.0.5
+  - @pnpm/worker@0.3.14
+  - @pnpm/filter-lockfile@8.1.6
+  - @pnpm/lockfile-to-pnp@3.0.17
+  - @pnpm/hoist@8.2.1
+  - @pnpm/symlink-dependency@7.1.4
+  - @pnpm/crypto.base32-hash@2.0.0
+  - @pnpm/link-bins@9.0.12
+
 ## 13.3.3
 
 ### Patch Changes

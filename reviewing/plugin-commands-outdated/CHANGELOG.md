@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-outdated
 
+## 10.0.17
+
+### Patch Changes
+
+- @pnpm/default-resolver@18.0.22
+- @pnpm/outdated@13.0.42
+- @pnpm/cli-utils@2.1.9
+- @pnpm/config@20.4.2
+
 ## 10.0.16
 
 ### Patch Changes
