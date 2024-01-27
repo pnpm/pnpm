@@ -1,5 +1,11 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 2.1.9
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@9.0.5
+
 ## 2.1.8
 
 ### Patch Changes

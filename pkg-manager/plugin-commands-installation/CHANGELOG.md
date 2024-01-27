@@ -1,5 +1,28 @@
 # @pnpm/plugin-commands-installation
 
+## 14.2.0
+
+### Minor Changes
+
+- 31054a63e: Running `pnpm update -r --latest` will no longer downgrade prerelease dependencies [#7436](https://github.com/pnpm/pnpm/issues/7436).
+
+### Patch Changes
+
+- f43bdcf45: Throw an error if `pnpm update --latest` runs with arguments containing versions specs. For instance, `pnpm update --latest foo@next` is not allowed [#7567](https://github.com/pnpm/pnpm/pull/7567).
+- Updated dependencies [31054a63e]
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/core@13.4.0
+  - @pnpm/package-store@19.0.15
+  - @pnpm/plugin-commands-rebuild@10.0.17
+  - @pnpm/pnpmfile@5.0.20
+  - @pnpm/outdated@13.0.42
+  - @pnpm/workspace.pkgs-graph@2.0.14
+  - @pnpm/cli-utils@2.1.9
+  - @pnpm/store-connection-manager@7.0.26
+  - @pnpm/config@20.4.2
+  - @pnpm/filter-workspace-packages@7.2.11
+  - @pnpm/workspace.find-packages@1.1.10
+
 ## 14.1.3
 
 ### Patch Changes

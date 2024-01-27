@@ -1,5 +1,18 @@
 # @pnpm/package-requester
 
+## 24.1.8
+
+### Patch Changes
+
+- 31054a63e: Running `pnpm update -r --latest` will no longer downgrade prerelease dependencies [#7436](https://github.com/pnpm/pnpm/issues/7436).
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/store.cafs@2.0.12
+  - @pnpm/fetcher-base@15.0.7
+  - @pnpm/pick-fetcher@2.0.1
+  - @pnpm/worker@0.3.14
+
 ## 24.1.7
 
 ### Patch Changes
