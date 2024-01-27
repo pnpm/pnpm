@@ -17,6 +17,7 @@ export async function toResolveImporter (
     preferredVersions?: PreferredVersions
     virtualStoreDir: string
     workspacePackages: WorkspacePackages
+    updateToLatest?: boolean
   },
   project: ImporterToResolve
 ) {
@@ -31,6 +32,11 @@ export async function toResolveImporter (
   const defaultUpdateDepth = (project.update === true || (project.updateMatching != null)) ? opts.defaultUpdateDepth : -1
   const existingDeps = nonLinkedDependencies
     .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
+  if (opts.updateToLatest && project.wantedDependencies.length === 0) {
+    for (const dep of existingDeps) {
+      dep.updateSpec = true
+    }
+  }
   let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
   if (!project.manifest) {
     wantedDependencies = [
@@ -48,7 +54,7 @@ export async function toResolveImporter (
       ...dep,
       updateDepth: project.updateMatching != null
         ? defaultUpdateDepth
-        : (prefIsLocalTarball(dep.pref) ? 0 : -1),
+        : (prefIsLocalTarball(dep.pref) ? 0 : defaultUpdateDepth),
     })
     wantedDependencies = [
       ...project.wantedDependencies.map(
