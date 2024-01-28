@@ -356,32 +356,66 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     missingPeers: missingPeersOfChildren,
   } = resolvePeersOfChildren(children, parentPkgs, ctx)
 
-  const { resolvedPeers, missingPeers } = Object.keys(resolvedPackage.peerDependencies).length === 0
-    ? { resolvedPeers: new Map<string, string>(), missingPeers: new Set<string>() }
-    : _resolvePeers({
+  const allMissingPeers = new Set<string>()
+  for (const peer of missingPeersOfChildren) {
+    allMissingPeers.add(peer)
+  }
+
+  const allResolvedPeers = unknownResolvedPeersOfChildren
+  const rp = {
+    name: resolvedPackage.name,
+    version: resolvedPackage.version,
+    peerDependencies: { ...resolvedPackage.peerDependencies },
+    peerDependenciesMeta: { ...resolvedPackage.peerDependenciesMeta },
+  }
+  for (const v of allResolvedPeers.values()) {
+    const peerNode = ctx.dependenciesTree.get(v)
+    if (!peerNode) continue
+    const peerPkg = peerNode.resolvedPackage as T
+    for (const [peerName, peerVersion] of Object.entries(peerPkg.peerDependencies ?? {})) {
+      if (!rp.peerDependencies[peerName]) {
+        rp.peerDependencies[peerName] = peerVersion
+        if (peerPkg.peerDependenciesMeta) {
+          rp.peerDependenciesMeta[peerName] = peerPkg.peerDependenciesMeta[peerName]
+        }
+      }
+    }
+  }
+  while (Object.keys(rp.peerDependencies).length) {
+    const { resolvedPeers, missingPeers } = _resolvePeers({
       currentDepth: node.depth,
       dependenciesTree: ctx.dependenciesTree,
       lockfileDir: ctx.lockfileDir,
       nodeId,
       parentPkgs,
       peerDependencyIssues: ctx.peerDependencyIssues,
-      resolvedPackage,
+      resolvedPackage: rp,
       rootDir: ctx.rootDir,
     })
-
-  const allResolvedPeers = unknownResolvedPeersOfChildren
-  for (const [k, v] of resolvedPeers) {
-    allResolvedPeers.set(k, v)
+    for (const peer of missingPeers) {
+      allMissingPeers.add(peer)
+    }
+    rp.peerDependencies = {}
+    rp.peerDependenciesMeta = {}
+    for (const v of resolvedPeers.values()) {
+      const peerNode = ctx.dependenciesTree.get(v)
+      if (!peerNode) continue
+      const peerPkg = peerNode.resolvedPackage as T
+      for (const [peerName, peerVersion] of Object.entries(peerPkg.peerDependencies ?? {})) {
+        if (!allResolvedPeers.has(peerName)) {
+          rp.peerDependencies[peerName] = peerVersion
+          if (peerPkg.peerDependenciesMeta) {
+            rp.peerDependenciesMeta[peerName] = peerPkg.peerDependenciesMeta[peerName]
+          }
+        }
+      }
+    }
+    for (const [k, v] of resolvedPeers) {
+      allResolvedPeers.set(k, v)
+    }
   }
+
   allResolvedPeers.delete(node.resolvedPackage.name)
-
-  const allMissingPeers = new Set<string>()
-  for (const peer of missingPeersOfChildren) {
-    allMissingPeers.add(peer)
-  }
-  for (const peer of missingPeers) {
-    allMissingPeers.add(peer)
-  }
 
   let depPath: string
   if (allResolvedPeers.size === 0) {
@@ -435,7 +469,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     const dir = path.join(modules, resolvedPackage.name)
 
     const transitivePeerDependencies = new Set<string>()
-    for (const unknownPeer of unknownResolvedPeersOfChildren.keys()) {
+    for (const unknownPeer of allResolvedPeers.keys()) {
       if (!peerDependencies[unknownPeer]) {
         transitivePeerDependencies.add(unknownPeer)
       }
@@ -450,7 +484,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
       children: Object.assign(
         getPreviouslyResolvedChildren(nodeId, ctx.dependenciesTree),
         children,
-        Object.fromEntries(resolvedPeers.entries())
+        Object.fromEntries(Array.from(allResolvedPeers.entries()).filter(([peerName]) => resolvedPackage.peerDependencies[peerName]))
       ),
       depPath,
       depth: node.depth,
@@ -546,7 +580,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
     lockfileDir: string
     nodeId: string
     parentPkgs: ParentRefs
-    resolvedPackage: T
+    resolvedPackage: Pick<PartialResolvedPackage, 'name' | 'version' | 'peerDependencies' | 'peerDependenciesMeta'>
     dependenciesTree: DependenciesTree<T>
     rootDir: string
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>

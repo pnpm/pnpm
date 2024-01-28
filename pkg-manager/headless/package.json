@@ -23,7 +23,7 @@
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",
-    "@pnpm/registry-mock": "3.18.0",
+    "@pnpm/registry-mock": "3.20.0",
     "@pnpm/store-path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/test-fixtures": "workspace:*",
