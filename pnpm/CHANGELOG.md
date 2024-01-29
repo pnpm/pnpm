@@ -1,5 +1,12 @@
 # pnpm
 
+## 8.15.1
+
+### Patch Changes
+
+- Use the `object-hash` library instead of `node-object-hash` for hashing keys of side-effects cache [#7591](https://github.com/pnpm/pnpm/pull/7591).
+- `bundledDependencies` should never be added to the lockfile with `false` as the value [#7576](https://github.com/pnpm/pnpm/issues/7576).
+
 ## 8.15.0
 
 ### Minor Changes

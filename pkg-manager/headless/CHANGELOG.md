@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 22.4.5
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@5.0.1
+- @pnpm/build-modules@11.2.13
+
 ## 22.4.4
 
 ### Patch Changes

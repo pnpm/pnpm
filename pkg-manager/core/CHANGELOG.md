@@ -1,5 +1,15 @@
 # @pnpm/core
 
+## 13.4.1
+
+### Patch Changes
+
+- Updated dependencies [1892bdb84]
+  - @pnpm/resolve-dependencies@31.4.1
+  - @pnpm/calc-dep-state@5.0.1
+  - @pnpm/headless@22.4.5
+  - @pnpm/build-modules@11.2.13
+
 ## 13.4.0
 
 ### Minor Changes

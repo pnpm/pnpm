@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-rebuild
 
+## 10.0.18
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@5.0.1
+
 ## 10.0.17
 
 ### Patch Changes

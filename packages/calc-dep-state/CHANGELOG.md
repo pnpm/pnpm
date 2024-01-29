@@ -1,5 +1,12 @@
 # @pnpm/calc-dep-state
 
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [77d79b663]
+  - @pnpm/crypto.object-hasher@2.0.0
+
 ## 5.0.0
 
 ### Major Changes

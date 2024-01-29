@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 31.4.1
+
+### Patch Changes
+
+- 1892bdb84: `bundledDependencies` should never be added to the lockfile with `false` as the value [#7576](https://github.com/pnpm/pnpm/issues/7576).
+
 ## 31.4.0
 
 ### Minor Changes

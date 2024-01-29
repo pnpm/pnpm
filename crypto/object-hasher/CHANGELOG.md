@@ -1,5 +1,11 @@
 # @pnpm/crypto.object-hasher
 
+## 2.0.0
+
+### Major Changes
+
+- 77d79b663: fix(object-hasher): switch to object-hash to fix hashing of large objects
+
 ## 1.0.0
 
 ### Major Changes

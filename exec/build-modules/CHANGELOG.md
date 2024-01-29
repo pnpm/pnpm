@@ -1,5 +1,11 @@
 # @pnpm/build-modules
 
+## 11.2.13
+
+### Patch Changes
+
+- @pnpm/calc-dep-state@5.0.1
+
 ## 11.2.12
 
 ### Patch Changes
