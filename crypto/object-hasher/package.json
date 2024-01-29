@@ -30,10 +30,11 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/main/crypto/object-hasher#readme",
   "dependencies": {
-    "node-object-hash": "3.0.0"
+    "object-hash": "3.0.0"
   },
   "devDependencies": {
-    "@pnpm/crypto.object-hasher": "workspace:*"
+    "@pnpm/crypto.object-hasher": "workspace:*",
+    "@types/object-hash": "3.0.6"
   },
   "funding": "https://opencollective.com/pnpm",
   "exports": {
