@@ -1,3 +1,6 @@
+// We use object-hash even though node-object-hash is faster.
+// Unlike node-object-hash, object-hash is streaming the hash updates,
+// avoiding "Invalid string length" errors.
 import hash from 'object-hash'
 
 const defaultOptions: hash.BaseOptions = {
