@@ -351,7 +351,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 
   const {
-    resolvedPeers: unknownResolvedPeersOfChildren,
+    resolvedPeers: resolvedPeersOfChildren,
     missingPeers: missingPeersOfChildren,
   } = resolvePeersOfChildren(children, parentPkgs, ctx)
 
@@ -364,7 +364,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     peerDependencyIssues: ctx.peerDependencyIssues,
     resolvedPackage,
     rootDir: ctx.rootDir,
-    unknownResolvedPeersOfChildren,
+    resolvedPeersOfChildren,
   })
 
   for (const missingPeer of missingPeersOfChildren) {
@@ -531,11 +531,11 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
 function resolvePeersAndTheirPeers<T extends PartialResolvedPackage> (
   ctx: Omit<ResolvePeersOptions<T>, 'directParentPkg'> & {
     resolvedPackage: Pick<PartialResolvedPackage, 'name' | 'version' | 'peerDependencies'>
-    unknownResolvedPeersOfChildren: Map<string, string>
+    resolvedPeersOfChildren: Map<string, string>
   }
 ) {
   const allMissingPeers = new Set<string>()
-  const allResolvedPeers = ctx.unknownResolvedPeersOfChildren
+  const allResolvedPeers = ctx.resolvedPeersOfChildren
   let peerDependencies = ctx.resolvedPackage.peerDependencies
   for (const peerNodeId of allResolvedPeers.values()) {
     const peerNode = ctx.dependenciesTree.get(peerNodeId)
@@ -579,8 +579,8 @@ function resolvePeersAndTheirPeers<T extends PartialResolvedPackage> (
         }
       }
     }
-    for (const [k, v] of resolvedPeers) {
-      allResolvedPeers.set(k, v)
+    for (const [alias, nodeId] of resolvedPeers) {
+      allResolvedPeers.set(alias, nodeId)
     }
   }
   allResolvedPeers.delete(ctx.resolvedPackage.name)
