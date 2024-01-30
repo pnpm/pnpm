@@ -356,66 +356,21 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     missingPeers: missingPeersOfChildren,
   } = resolvePeersOfChildren(children, parentPkgs, ctx)
 
-  const allMissingPeers = new Set<string>()
-  for (const peer of missingPeersOfChildren) {
-    allMissingPeers.add(peer)
-  }
+  const { allMissingPeers, allResolvedPeers } = resolvePeersAndTheirPeers({
+    currentDepth: node.depth,
+    dependenciesTree: ctx.dependenciesTree,
+    lockfileDir: ctx.lockfileDir,
+    nodeId,
+    parentPkgs,
+    peerDependencyIssues: ctx.peerDependencyIssues,
+    resolvedPackage,
+    rootDir: ctx.rootDir,
+    unknownResolvedPeersOfChildren,
+  })
 
-  const allResolvedPeers = unknownResolvedPeersOfChildren
-  const rp = {
-    name: resolvedPackage.name,
-    version: resolvedPackage.version,
-    peerDependencies: { ...resolvedPackage.peerDependencies },
-    peerDependenciesMeta: { ...resolvedPackage.peerDependenciesMeta },
+  for (const missingPeer of missingPeersOfChildren) {
+    allMissingPeers.add(missingPeer)
   }
-  for (const v of allResolvedPeers.values()) {
-    const peerNode = ctx.dependenciesTree.get(v)
-    if (!peerNode) continue
-    const peerPkg = peerNode.resolvedPackage as T
-    for (const [peerName, peerVersion] of Object.entries(peerPkg.peerDependencies ?? {})) {
-      if (!rp.peerDependencies[peerName]) {
-        rp.peerDependencies[peerName] = peerVersion
-        if (peerPkg.peerDependenciesMeta) {
-          rp.peerDependenciesMeta[peerName] = peerPkg.peerDependenciesMeta[peerName]
-        }
-      }
-    }
-  }
-  while (Object.keys(rp.peerDependencies).length) {
-    const { resolvedPeers, missingPeers } = _resolvePeers({
-      currentDepth: node.depth,
-      dependenciesTree: ctx.dependenciesTree,
-      lockfileDir: ctx.lockfileDir,
-      nodeId,
-      parentPkgs,
-      peerDependencyIssues: ctx.peerDependencyIssues,
-      resolvedPackage: rp,
-      rootDir: ctx.rootDir,
-    })
-    for (const peer of missingPeers) {
-      allMissingPeers.add(peer)
-    }
-    rp.peerDependencies = {}
-    rp.peerDependenciesMeta = {}
-    for (const v of resolvedPeers.values()) {
-      const peerNode = ctx.dependenciesTree.get(v)
-      if (!peerNode) continue
-      const peerPkg = peerNode.resolvedPackage as T
-      for (const [peerName, peerVersion] of Object.entries(peerPkg.peerDependencies ?? {})) {
-        if (!allResolvedPeers.has(peerName)) {
-          rp.peerDependencies[peerName] = peerVersion
-          if (peerPkg.peerDependenciesMeta) {
-            rp.peerDependenciesMeta[peerName] = peerPkg.peerDependenciesMeta[peerName]
-          }
-        }
-      }
-    }
-    for (const [k, v] of resolvedPeers) {
-      allResolvedPeers.set(k, v)
-    }
-  }
-
-  allResolvedPeers.delete(node.resolvedPackage.name)
 
   let depPath: string
   if (allResolvedPeers.size === 0) {
@@ -572,6 +527,77 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   }
 
   return { resolvedPeers: unknownResolvedPeersOfChildren, missingPeers: allMissingPeers }
+}
+
+function resolvePeersAndTheirPeers<T extends PartialResolvedPackage> (
+  ctx: {
+    currentDepth: number
+    lockfileDir: string
+    nodeId: string
+    parentPkgs: ParentRefs
+    resolvedPackage: Pick<PartialResolvedPackage, 'name' | 'version' | 'peerDependencies' | 'peerDependenciesMeta'>
+    dependenciesTree: DependenciesTree<T>
+    rootDir: string
+    peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
+    unknownResolvedPeersOfChildren: Map<string, string>
+  }
+) {
+  const allMissingPeers = new Set<string>()
+  const allResolvedPeers = ctx.unknownResolvedPeersOfChildren
+  const rp = {
+    name: ctx.resolvedPackage.name,
+    version: ctx.resolvedPackage.version,
+    peerDependencies: { ...ctx.resolvedPackage.peerDependencies },
+    peerDependenciesMeta: { ...ctx.resolvedPackage.peerDependenciesMeta },
+  }
+  for (const peerNodeId of allResolvedPeers.values()) {
+    const peerNode = ctx.dependenciesTree.get(peerNodeId)
+    if (!peerNode) continue
+    const peerPkg = peerNode.resolvedPackage as T
+    for (const [peerName, peerVersion] of Object.entries(peerPkg.peerDependencies ?? {})) {
+      if (!rp.peerDependencies[peerName]) {
+        rp.peerDependencies[peerName] = peerVersion
+        if (peerPkg.peerDependenciesMeta) {
+          rp.peerDependenciesMeta[peerName] = peerPkg.peerDependenciesMeta[peerName]
+        }
+      }
+    }
+  }
+  while (Object.keys(rp.peerDependencies).length) {
+    const { resolvedPeers, missingPeers } = _resolvePeers({
+      currentDepth: ctx.currentDepth,
+      dependenciesTree: ctx.dependenciesTree,
+      lockfileDir: ctx.lockfileDir,
+      nodeId: ctx.nodeId,
+      parentPkgs: ctx.parentPkgs,
+      peerDependencyIssues: ctx.peerDependencyIssues,
+      resolvedPackage: rp,
+      rootDir: ctx.rootDir,
+    })
+    for (const peer of missingPeers) {
+      allMissingPeers.add(peer)
+    }
+    rp.peerDependencies = {}
+    rp.peerDependenciesMeta = {}
+    for (const peerNodeId of resolvedPeers.values()) {
+      const peerNode = ctx.dependenciesTree.get(peerNodeId)
+      if (!peerNode) continue
+      const peerPkg = peerNode.resolvedPackage as T
+      for (const [peerName, peerVersion] of Object.entries(peerPkg.peerDependencies ?? {})) {
+        if (!allResolvedPeers.has(peerName)) {
+          rp.peerDependencies[peerName] = peerVersion
+          if (peerPkg.peerDependenciesMeta) {
+            rp.peerDependenciesMeta[peerName] = peerPkg.peerDependenciesMeta[peerName]
+          }
+        }
+      }
+    }
+    for (const [k, v] of resolvedPeers) {
+      allResolvedPeers.set(k, v)
+    }
+  }
+  allResolvedPeers.delete(ctx.resolvedPackage.name)
+  return { allMissingPeers, allResolvedPeers }
 }
 
 function _resolvePeers<T extends PartialResolvedPackage> (
