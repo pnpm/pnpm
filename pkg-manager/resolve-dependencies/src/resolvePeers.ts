@@ -544,50 +544,58 @@ function resolvePeersAndTheirPeers<T extends PartialResolvedPackage> (
 ) {
   const allMissingPeers = new Set<string>()
   const allResolvedPeers = ctx.unknownResolvedPeersOfChildren
-  const rp = {
-    name: ctx.resolvedPackage.name,
-    version: ctx.resolvedPackage.version,
-    peerDependencies: { ...ctx.resolvedPackage.peerDependencies },
-    peerDependenciesMeta: { ...ctx.resolvedPackage.peerDependenciesMeta },
-  }
+  let peerDependencies = Object.fromEntries(
+    Object.entries(ctx.resolvedPackage.peerDependencies)
+      .map(([name, version]) => [
+        name,
+        {
+          version,
+          optional: ctx.resolvedPackage.peerDependenciesMeta?.[name]?.optional,
+        },
+      ])
+  )
   for (const peerNodeId of allResolvedPeers.values()) {
     const peerNode = ctx.dependenciesTree.get(peerNodeId)
     if (!peerNode) continue
     const peerPkg = peerNode.resolvedPackage as T
     for (const [peerName, peerVersion] of Object.entries(peerPkg.peerDependencies ?? {})) {
-      if (!rp.peerDependencies[peerName]) {
-        rp.peerDependencies[peerName] = peerVersion
-        if (peerPkg.peerDependenciesMeta) {
-          rp.peerDependenciesMeta[peerName] = peerPkg.peerDependenciesMeta[peerName]
+      if (!peerDependencies[peerName]) {
+        peerDependencies[peerName] = {
+          version: peerVersion,
+          optional: peerPkg.peerDependenciesMeta?.[peerName]?.optional,
         }
       }
     }
   }
-  while (Object.keys(rp.peerDependencies).length) {
-    const { resolvedPeers, missingPeers } = _resolvePeers({
-      currentDepth: ctx.currentDepth,
-      dependenciesTree: ctx.dependenciesTree,
-      lockfileDir: ctx.lockfileDir,
-      nodeId: ctx.nodeId,
-      parentPkgs: ctx.parentPkgs,
-      peerDependencyIssues: ctx.peerDependencyIssues,
-      resolvedPackage: rp,
-      rootDir: ctx.rootDir,
-    })
+  const directParentPkg = {
+    name: ctx.resolvedPackage.name,
+    version: ctx.resolvedPackage.version,
+  }
+  const _resolvePeersFn = _resolvePeers.bind(null, {
+    currentDepth: ctx.currentDepth,
+    dependenciesTree: ctx.dependenciesTree,
+    lockfileDir: ctx.lockfileDir,
+    nodeId: ctx.nodeId,
+    parentPkgs: ctx.parentPkgs,
+    peerDependencyIssues: ctx.peerDependencyIssues,
+    directParentPkg,
+    rootDir: ctx.rootDir,
+  })
+  while (Object.keys(peerDependencies).length) {
+    const { resolvedPeers, missingPeers } = _resolvePeersFn(peerDependencies)
     for (const peer of missingPeers) {
       allMissingPeers.add(peer)
     }
-    rp.peerDependencies = {}
-    rp.peerDependenciesMeta = {}
+    peerDependencies = {}
     for (const peerNodeId of resolvedPeers.values()) {
       const peerNode = ctx.dependenciesTree.get(peerNodeId)
       if (!peerNode) continue
       const peerPkg = peerNode.resolvedPackage as T
       for (const [peerName, peerVersion] of Object.entries(peerPkg.peerDependencies ?? {})) {
         if (!allResolvedPeers.has(peerName)) {
-          rp.peerDependencies[peerName] = peerVersion
-          if (peerPkg.peerDependenciesMeta) {
-            rp.peerDependenciesMeta[peerName] = peerPkg.peerDependenciesMeta[peerName]
+          peerDependencies[peerName] = {
+            version: peerVersion,
+            optional: peerPkg.peerDependenciesMeta?.[peerName]?.optional,
           }
         }
       }
@@ -606,26 +614,27 @@ function _resolvePeers<T extends PartialResolvedPackage> (
     lockfileDir: string
     nodeId: string
     parentPkgs: ParentRefs
-    resolvedPackage: Pick<PartialResolvedPackage, 'name' | 'version' | 'peerDependencies' | 'peerDependenciesMeta'>
+    directParentPkg: Pick<PartialResolvedPackage, 'name' | 'version'>
     dependenciesTree: DependenciesTree<T>
     rootDir: string
     peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'>
-  }
+  },
+  peerDependencies: Record<string, { version: string, optional?: boolean }>
 ): PeersResolution {
   const resolvedPeers = new Map<string, string>()
   const missingPeers = new Set<string>()
-  for (const peerName in ctx.resolvedPackage.peerDependencies) { // eslint-disable-line:forin
-    const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName].replace(/^workspace:/, '')
+  for (const [peerName, { version, optional }] of Object.entries(peerDependencies)) {
+    const peerVersionRange = version.replace(/^workspace:/, '')
 
     const resolved = ctx.parentPkgs[peerName]
-    const optionalPeer = ctx.resolvedPackage.peerDependenciesMeta?.[peerName]?.optional === true
+    const optionalPeer = optional === true
 
     if (!resolved) {
       missingPeers.add(peerName)
       const location = getLocationFromNodeIdAndPkg({
         dependenciesTree: ctx.dependenciesTree,
         nodeId: ctx.nodeId,
-        pkg: ctx.resolvedPackage,
+        pkg: ctx.directParentPkg,
       })
       if (!ctx.peerDependencyIssues.missing[peerName]) {
         ctx.peerDependencyIssues.missing[peerName] = []
@@ -642,7 +651,7 @@ function _resolvePeers<T extends PartialResolvedPackage> (
       const location = getLocationFromNodeIdAndPkg({
         dependenciesTree: ctx.dependenciesTree,
         nodeId: ctx.nodeId,
-        pkg: ctx.resolvedPackage,
+        pkg: ctx.directParentPkg,
       })
       if (!ctx.peerDependencyIssues.bad[peerName]) {
         ctx.peerDependencyIssues.bad[peerName] = []
