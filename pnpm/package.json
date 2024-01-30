@@ -65,7 +65,7 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/registry-mock": "3.18.0",
     "@pnpm/run-npm": "workspace:*",
-    "@pnpm/tabtab": "^0.1.2",
+    "@pnpm/tabtab": "^0.2.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/types": "workspace:*",
