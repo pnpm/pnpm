@@ -572,6 +572,9 @@ function resolvePeersAndTheirPeers<T extends PartialResolvedPackage> (
       const peerPkg = peerNode.resolvedPackage as T
       for (const [peerName, peer] of Object.entries(peerPkg.peerDependencies ?? {})) {
         if (!allResolvedPeers.has(peerName)) {
+          // It might happen that there are multiple peers depending on the same peers.
+          // In this case we pick the peer information only from one dependency.
+          // This will not break anything except possibly peer dependency warnings.
           peerDependencies[peerName] = peer
         }
       }
