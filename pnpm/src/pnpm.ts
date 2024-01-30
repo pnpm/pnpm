@@ -22,7 +22,7 @@ const argv = process.argv.slice(2)
     }
     const shell = argv[1]?.trim()
     if (!shell) {
-      exitError('shell is required')
+      exitError('missing argument for shell')
     }
     if (!['bash', 'fish', 'zsh'].includes(shell)) {
       exitError(`${shell} is not supported`)
