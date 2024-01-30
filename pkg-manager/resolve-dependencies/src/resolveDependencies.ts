@@ -32,10 +32,8 @@ import {
 import {
   type SupportedArchitectures,
   type AllowedDeprecatedVersions,
-  type Dependencies,
   type PackageManifest,
   type PatchFile,
-  type PeerDependenciesMeta,
   type ReadPackageHook,
   type Registries,
 } from '@pnpm/types'
@@ -199,6 +197,13 @@ export type PkgAddress = {
   isLinkedDependency: undefined
 })
 
+export interface PeerDependency {
+  version: string
+  optional?: boolean
+}
+
+export type PeerDependencies = Record<string, PeerDependency>
+
 export interface ResolvedPackage {
   id: string
   resolution: Resolution
@@ -209,8 +214,7 @@ export interface ResolvedPackage {
   filesIndexFile: string
   name: string
   version: string
-  peerDependencies: Dependencies
-  peerDependenciesMeta?: PeerDependenciesMeta
+  peerDependencies: PeerDependencies
   optionalDependencies: Set<string>
   hasBin: boolean
   hasBundledDependencies: boolean
@@ -1458,8 +1462,7 @@ function getResolvedPackage (
     optional: options.optional,
     optionalDependencies: new Set(Object.keys(options.pkg.optionalDependencies ?? {})),
     patchFile: options.patchFile,
-    peerDependencies: peerDependencies ?? {},
-    peerDependenciesMeta: options.pkg.peerDependenciesMeta,
+    peerDependencies,
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     requiresBuild,
@@ -1468,25 +1471,27 @@ function getResolvedPackage (
   }
 }
 
-function peerDependenciesWithoutOwn (pkg: PackageManifest) {
-  if ((pkg.peerDependencies == null) && (pkg.peerDependenciesMeta == null)) return pkg.peerDependencies
+function peerDependenciesWithoutOwn (pkg: PackageManifest): PeerDependencies {
+  if ((pkg.peerDependencies == null) && (pkg.peerDependenciesMeta == null)) return {}
   const ownDeps = new Set([
     ...Object.keys(pkg.dependencies ?? {}),
     ...Object.keys(pkg.optionalDependencies ?? {}),
   ])
-  const result: Record<string, string> = {}
+  const result: PeerDependencies = {}
   if (pkg.peerDependencies != null) {
     for (const [peerName, peerRange] of Object.entries(pkg.peerDependencies)) {
       if (ownDeps.has(peerName)) continue
-      result[peerName] = peerRange
+      result[peerName] = {
+        version: peerRange,
+      }
     }
   }
   if (pkg.peerDependenciesMeta != null) {
     for (const [peerName, peerMeta] of Object.entries(pkg.peerDependenciesMeta)) {
-      if (ownDeps.has(peerName) || result[peerName] || peerMeta.optional !== true) continue
-      result[peerName] = '*'
+      if (ownDeps.has(peerName) || peerMeta.optional !== true) continue
+      if (!result[peerName]) result[peerName] = { version: '*' }
+      result[peerName].optional = true
     }
   }
-  if (Object.keys(result).length === 0) return undefined
   return result
 }

@@ -1,6 +1,6 @@
 /// <reference path="../../../__typings__/index.d.ts" />
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
-import { type DependenciesTreeNode } from '../lib/resolveDependencies'
+import { type DependenciesTreeNode, type PeerDependencies } from '../lib/resolveDependencies'
 
 test('resolve peer dependencies of cyclic dependencies', () => {
   const fooPkg = {
@@ -8,8 +8,8 @@ test('resolve peer dependencies of cyclic dependencies', () => {
     depPath: 'foo/1.0.0',
     version: '1.0.0',
     peerDependencies: {
-      qar: '1.0.0',
-      zoo: '1.0.0',
+      qar: { version: '1.0.0' },
+      zoo: { version: '1.0.0' },
     },
     id: '',
   }
@@ -18,9 +18,9 @@ test('resolve peer dependencies of cyclic dependencies', () => {
     depPath: 'bar/1.0.0',
     version: '1.0.0',
     peerDependencies: {
-      foo: '1.0.0',
-      zoo: '1.0.0',
-    } as Record<string, string>,
+      foo: { version: '1.0.0' },
+      zoo: { version: '1.0.0' },
+    },
     id: '',
   }
   const { dependenciesGraph } = resolvePeers({
@@ -62,8 +62,8 @@ test('resolve peer dependencies of cyclic dependencies', () => {
           depPath: 'qar/1.0.0',
           version: '1.0.0',
           peerDependencies: {
-            foo: '1.0.0',
-            bar: '1.0.0',
+            foo: { version: '1.0.0' },
+            bar: { version: '1.0.0' },
           },
           id: '',
         },
@@ -80,7 +80,7 @@ test('resolve peer dependencies of cyclic dependencies', () => {
           depPath: 'zoo/1.0.0',
           version: '1.0.0',
           peerDependencies: {
-            qar: '1.0.0',
+            qar: { version: '1.0.0' },
           },
           id: '',
         },
@@ -103,12 +103,10 @@ test('resolve peer dependencies of cyclic dependencies', () => {
     lockfileDir: '',
   })
   expect(Object.keys(dependenciesGraph)).toStrictEqual([
-    'foo/1.0.0(qar@1.0.0)(zoo@1.0.0)',
-    'bar/1.0.0(foo@1.0.0)(zoo@1.0.0)',
-    'zoo/1.0.0(qar@1.0.0)',
-    'qar/1.0.0(bar@1.0.0)(foo@1.0.0)',
-    'bar/1.0.0(foo@1.0.0)',
-    'foo/1.0.0',
+    'foo/1.0.0(bar@1.0.0)(qar@1.0.0)(zoo@1.0.0)',
+    'bar/1.0.0(foo@1.0.0)(qar@1.0.0)(zoo@1.0.0)',
+    'zoo/1.0.0(bar@1.0.0)(foo@1.0.0)(qar@1.0.0)',
+    'qar/1.0.0(bar@1.0.0)(foo@1.0.0)(zoo@1.0.0)',
   ])
 })
 
@@ -118,7 +116,7 @@ test('when a package is referenced twice in the dependencies graph and one of th
     depPath: 'foo/1.0.0',
     version: '1.0.0',
     peerDependencies: {
-      qar: '1.0.0',
+      qar: { version: '1.0.0' },
     },
     id: '',
   }
@@ -126,14 +124,14 @@ test('when a package is referenced twice in the dependencies graph and one of th
     name: 'bar',
     depPath: 'bar/1.0.0',
     version: '1.0.0',
-    peerDependencies: {} as Record<string, string>,
+    peerDependencies: {} as PeerDependencies,
     id: '',
   }
   const zooPkg = {
     name: 'zoo',
     depPath: 'zoo/1.0.0',
     version: '1.0.0',
-    peerDependencies: {} as Record<string, string>,
+    peerDependencies: {} as PeerDependencies,
     id: '',
   }
   const { dependenciesGraph } = resolvePeers({
@@ -219,7 +217,7 @@ describe('peer dependency issues', () => {
     depPath: 'foo/1.0.0',
     version: '1.0.0',
     peerDependencies: {
-      peer: '1',
+      peer: { version: '1' },
     },
     id: '',
   }
@@ -228,12 +226,7 @@ describe('peer dependency issues', () => {
     depPath: 'foo/2.0.0',
     version: '2.0.0',
     peerDependencies: {
-      peer: '1',
-    },
-    peerDependenciesMeta: {
-      peer: {
-        optional: true,
-      },
+      peer: { version: '1', optional: true },
     },
     id: '',
   }
@@ -242,7 +235,7 @@ describe('peer dependency issues', () => {
     depPath: 'bar/1.0.0',
     version: '1.0.0',
     peerDependencies: {
-      peer: '2',
+      peer: { version: '2' },
     },
     id: '',
   }
@@ -251,12 +244,7 @@ describe('peer dependency issues', () => {
     depPath: 'bar/2.0.0',
     version: '2.0.0',
     peerDependencies: {
-      peer: '2',
-    },
-    peerDependenciesMeta: {
-      peer: {
-        optional: true,
-      },
+      peer: { version: '2', optional: true },
     },
     id: '',
   }
@@ -265,7 +253,7 @@ describe('peer dependency issues', () => {
     depPath: 'qar/1.0.0',
     version: '1.0.0',
     peerDependencies: {
-      peer: '^2.2.0',
+      peer: { version: '^2.2.0' },
     },
     id: '',
   }
@@ -435,8 +423,8 @@ describe('unmet peer dependency issues', () => {
           version: '1.0.0',
           depPath: 'foo/1.0.0',
           peerDependencies: {
-            peer1: '*',
-            peer2: '>=1',
+            peer1: { version: '*' },
+            peer2: { version: '>=1' },
           },
           id: '',
         },
@@ -527,7 +515,7 @@ describe('unmet peer dependency issue resolved from subdependency', () => {
           depPath: 'bar/1.0.0',
           version: '1.0.0',
           peerDependencies: {
-            dep: '10',
+            dep: { version: '10' },
           },
           id: '',
         },
@@ -548,7 +536,7 @@ test('resolve peer dependencies with npm aliases', () => {
     depPath: 'foo/1.0.0',
     version: '1.0.0',
     peerDependencies: {
-      bar: '1.0.0',
+      bar: { version: '1.0.0' },
     },
     id: '',
   }
@@ -557,7 +545,7 @@ test('resolve peer dependencies with npm aliases', () => {
     depPath: 'foo/2.0.0',
     version: '2.0.0',
     peerDependencies: {
-      bar: '2.0.0',
+      bar: { version: '2.0.0' },
     },
     id: '',
   }
