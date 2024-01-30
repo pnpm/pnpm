@@ -8,13 +8,8 @@ test('packages are not deduplicated when versions do not match', () => {
     depPath: 'foo/1.0.0',
     id: '',
     peerDependencies: {
-      bar: '1.0.0 || 2.0.0',
-      baz: '1.0.0 || 2.0.0',
-    },
-    peerDependenciesMeta: {
-      baz: {
-        optional: true,
-      },
+      bar: { version: '1.0.0 || 2.0.0' },
+      baz: { version: '1.0.0 || 2.0.0', optional: true },
     },
   }
 
