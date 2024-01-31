@@ -149,7 +149,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
 export type RunOpts =
   & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
   & { recursive?: boolean }
-  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent' | 'extraEnv'>
+  & Pick<Config, 'dir' | 'engineStrict' | 'extraBinPaths' | 'reporter' | 'scriptsPrependNodePath' | 'scriptShell' | 'shellEmulator' | 'enablePrePostScripts' | 'userAgent' | 'extraEnv' | 'nodeOptions'>
   & (
     & { recursive?: false }
     & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
@@ -227,7 +227,7 @@ so you may run "pnpm -w run ${scriptName}"`,
 
   const extraEnv = {
     ...opts.extraEnv,
-    ...(opts.rawConfig['node-options'] ? { NODE_OPTIONS: opts.rawConfig['node-options'] } : {}),
+    ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
   }
 
   const lifecycleOpts: RunLifecycleHookOptions = {

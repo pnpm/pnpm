@@ -124,7 +124,7 @@ export function getExecutionDuration (start: [number, number]) {
 }
 
 export async function handler (
-  opts: Required<Pick<Config, 'selectedProjectsGraph' | 'rawConfig'>> & {
+  opts: Required<Pick<Config, 'selectedProjectsGraph'>> & {
     bail?: boolean
     unsafePerm?: boolean
     reverse?: boolean
@@ -134,7 +134,7 @@ export async function handler (
     resumeFrom?: string
     reportSummary?: boolean
     implicitlyFellbackFromRun?: boolean
-  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'modulesDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir'>,
+  } & Pick<Config, 'extraBinPaths' | 'extraEnv' | 'lockfileDir' | 'modulesDir' | 'dir' | 'userAgent' | 'recursive' | 'workspaceDir' | 'nodeOptions'>,
   params: string[]
 ) {
   // For backward compatibility
@@ -200,7 +200,7 @@ export async function handler (
             extraEnv: {
               ...extraEnv,
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix]?.package.manifest.name,
-              ...(opts.rawConfig['node-options'] ? { NODE_OPTIONS: opts.rawConfig['node-options'] } : {}),
+              ...(opts.nodeOptions ? { NODE_OPTIONS: opts.nodeOptions } : {}),
             },
             prependPaths,
             userAgent: opts.userAgent,
