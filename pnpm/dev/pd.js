@@ -2,7 +2,7 @@
 const fs = require('fs')
 const esbuild = require('esbuild')
 const pathLib = require('path')
-const {createRequire} = require('module')
+const { createRequire } = require('module')
 const { findWorkspacePackagesNoCheck } = require('@pnpm/workspace.find-packages')
 const { findWorkspaceDir } = require('@pnpm/find-workspace-dir')
 
