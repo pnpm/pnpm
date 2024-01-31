@@ -18,7 +18,7 @@ test('pnpm generate-completion errors on unsupported shell', () => {
   expect(child.status).toBe(1)
 })
 
-for (const shell of ['bash', 'fish', 'zsh']) {
+for (const shell of ['bash', 'fish', 'pwsh', 'zsh']) {
   test(`pnpm generate-completion ${shell}`, () => {
     const child = execPnpmSync(['generate-completion', shell])
     const stdout = child.stdout.toString().trim()
@@ -29,12 +29,3 @@ for (const shell of ['bash', 'fish', 'zsh']) {
     expect(child.status).toBe(0)
   })
 }
-
-test('pnpm generate-completion pwsh', () => {
-  const child = execPnpmSync(['generate-completion', 'pwsh'])
-  const stdout = child.stdout.toString().trim()
-  const stderr = child.stderr.toString().trim()
-  expect(stdout).toContain('# powershell completion for pnpm')
-  expect(stderr).toBe('')
-  expect(child.status).toBe(0)
-})

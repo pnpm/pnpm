@@ -28,7 +28,7 @@ export function createCompletion (
     // We cannot autocomplete what a user types after "pnpm test --"
     if (inputArgv.includes('--')) return
     const { params, options, cmd } = await parseCliArgs(inputArgv)
-    return tabtab.log(
+    tabtab.log(
       await complete(
         opts,
         {

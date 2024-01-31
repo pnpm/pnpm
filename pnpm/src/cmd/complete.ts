@@ -20,7 +20,7 @@ export async function complete (
     lastOption: string | null
     options: Record<string, unknown>
   }
-) {
+): Promise<Completion[]> {
   if (input.options.version) return []
   const optionTypes = {
     ...ctx.universalOptionsTypes,
@@ -40,7 +40,7 @@ export async function complete (
       })
       return allProjects
         .filter(({ manifest }) => manifest.name)
-        .map(({ manifest }) => ({ name: manifest.name }))
+        .map(({ manifest }) => ({ name: manifest.name ?? '' }))
     } else if (input.lastOption) {
       const optionCompletions = getOptionCompletions(
         optionTypes as any, // eslint-disable-line
