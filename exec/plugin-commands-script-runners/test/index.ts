@@ -609,3 +609,21 @@ test('pnpm run with slightly incorrect command suggests correct one', async () =
     hint: 'Command "buil" not found. Did you mean "pnpm run build"?',
   }))
 })
+
+test('pnpm run with custom node-options', async () => {
+  // Run a command that prints the process.env.NODE_OPTIONS and that has a custom nodeOptions config
+  prepare({
+    scripts: {
+      build: 'node -e "if (process.env.NODE_OPTIONS !== \'--max-old-space-size=1200\') { process.exit(1) }"',
+    },
+  })
+
+  await run.handler({
+    dir: process.cwd(),
+    extraBinPaths: [],
+    extraEnv: {},
+    rawConfig: {},
+    nodeOptions: '--max-old-space-size=1200',
+    workspaceConcurrency: 1,
+  }, ['build'])
+})

@@ -24,3 +24,20 @@ test('exec should set npm_config_user_agent', async () => {
     }),
   }))
 })
+
+test('exec should set the NODE_OPTIONS env var', async () => {
+  prepareEmpty()
+
+  await exec.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    selectedProjectsGraph: {},
+    nodeOptions: '--max-old-space-size=4096',
+  }, ['eslint'])
+
+  expect(execa).toBeCalledWith('eslint', [], expect.objectContaining({
+    env: expect.objectContaining({
+      NODE_OPTIONS: '--max-old-space-size=4096',
+    }),
+  }))
+})
