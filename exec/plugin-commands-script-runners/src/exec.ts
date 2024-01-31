@@ -124,10 +124,9 @@ export function getExecutionDuration (start: [number, number]) {
 }
 
 export async function handler (
-  opts: Required<Pick<Config, 'selectedProjectsGraph'>> & {
+  opts: Required<Pick<Config, 'selectedProjectsGraph' | 'rawConfig'>> & {
     bail?: boolean
     unsafePerm?: boolean
-    rawConfig: object
     reverse?: boolean
     sort?: boolean
     workspaceConcurrency?: number
@@ -201,6 +200,7 @@ export async function handler (
             extraEnv: {
               ...extraEnv,
               PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix]?.package.manifest.name,
+              ...(opts.rawConfig['node-options'] ? { NODE_OPTIONS: opts.rawConfig['node-options'] } : {}),
             },
             prependPaths,
             userAgent: opts.userAgent,
