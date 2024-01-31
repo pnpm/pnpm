@@ -24,7 +24,7 @@ const argv = process.argv.slice(2)
     if (!shell) {
       exitError('missing argument for shell')
     }
-    if (!['bash', 'fish', 'zsh'].includes(shell)) {
+    if (!['bash', 'fish', 'pwsh', 'zsh'].includes(shell)) {
       exitError(`${shell} is not supported`)
     }
     const completionScript = await getCompletionScript({ name: 'pnpm', completer: 'pnpm', shell })
