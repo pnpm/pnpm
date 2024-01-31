@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 31.4.2
+
+### Patch Changes
+
+- 44062eee0: Properly resolve peer dependencies of peer dependencies [#7444](https://github.com/pnpm/pnpm/issues/7444).
+
 ## 31.4.1
 
 ### Patch Changes

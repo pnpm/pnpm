@@ -1,5 +1,12 @@
 # @pnpm/core
 
+## 13.4.2
+
+### Patch Changes
+
+- Updated dependencies [44062eee0]
+  - @pnpm/resolve-dependencies@31.4.2
+
 ## 13.4.1
 
 ### Patch Changes
