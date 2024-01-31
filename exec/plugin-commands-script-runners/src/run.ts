@@ -224,10 +224,16 @@ so you may run "pnpm -w run ${scriptName}"`,
     })
   }
   const concurrency = opts.workspaceConcurrency ?? 4
+
+  const extraEnv = {
+    ...opts.extraEnv,
+    ...(opts.rawConfig['node-options'] ? { NODE_OPTIONS: opts.rawConfig['node-options'] } : {}),
+  }
+
   const lifecycleOpts: RunLifecycleHookOptions = {
     depPath: dir,
     extraBinPaths: opts.extraBinPaths,
-    extraEnv: opts.extraEnv,
+    extraEnv,
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
     rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
@@ -238,6 +244,9 @@ so you may run "pnpm -w run ${scriptName}"`,
     stdio: (specifiedScripts.length > 1 && concurrency > 1) ? 'pipe' : 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }
+
+  console.log(lifecycleOpts)
+
   const existsPnp = existsInDir.bind(null, '.pnp.cjs')
   const pnpPath = (opts.workspaceDir && await existsPnp(opts.workspaceDir)) ??
     await existsPnp(dir)
