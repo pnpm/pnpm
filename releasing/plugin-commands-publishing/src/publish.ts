@@ -8,6 +8,7 @@ import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { runNpm } from '@pnpm/run-npm'
 import { type ProjectManifest } from '@pnpm/types'
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/git-utils'
+import { loadToken } from '@pnpm/network.auth-header'
 import { prompt } from 'enquirer'
 import rimraf from '@zkochan/rimraf'
 import pick from 'ramda/src/pick'
@@ -235,6 +236,7 @@ Do you want to continue?`,
   await copyNpmrc({ dir, workspaceDir: opts.workspaceDir, packDestination })
   const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', path.basename(tarballName), ...args], {
     cwd: packDestination,
+    env: getEnvWithTokens(opts),
   })
   await rimraf(packDestination)
 
@@ -248,6 +250,31 @@ Do you want to continue?`,
     ], manifest)
   }
   return { manifest }
+}
+
+/**
+ * The npm CLI doesn't support token helpers, so we transform the token helper settings
+ * to regular auth token settings that the npm CLI can understand.
+ */
+function getEnvWithTokens (opts: Pick<PublishRecursiveOpts, 'rawConfig' | 'argv'>) {
+  const tokenHelpers = Object.entries(opts.rawConfig).filter(([key]) => key.endsWith(':tokenHelper'))
+  const tokenHelpersFromArgs = opts.argv.original
+    .filter(arg => arg.includes(':tokenHelper='))
+    .map(arg => arg.split('=', 2) as [string, string])
+
+  const env: Record<string, string> = {}
+  for (const [key, helperPath] of tokenHelpers.concat(tokenHelpersFromArgs)) {
+    const authHeader = loadToken(helperPath, key)
+    const authType = authHeader.startsWith('Bearer')
+      ? '_authToken'
+      : '_auth'
+
+    const registry = key.replace(/:tokenHelper$/, '')
+    env[`NPM_CONFIG_${registry}:${authType}`] = authType === '_authToken'
+      ? authHeader.slice('Bearer '.length)
+      : authHeader.replace(/Basic /i, '')
+  }
+  return env
 }
 
 async function copyNpmrc (

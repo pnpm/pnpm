@@ -1,5 +1,52 @@
 # @pnpm/plugin-commands-script-runners
 
+## 8.0.21
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+- Updated dependencies [f43bdcf45]
+  - @pnpm/plugin-commands-installation@14.2.0
+  - @pnpm/lifecycle@16.0.12
+  - @pnpm/cli-utils@2.1.9
+  - @pnpm/config@20.4.2
+
+## 8.0.20
+
+### Patch Changes
+
+- be27890ee: Set saveProd to true for getting pkgName from dependencies [7424](https://github.com/pnpm/pnpm/issues/7424).
+  - @pnpm/plugin-commands-installation@14.1.3
+  - @pnpm/lifecycle@16.0.11
+
+## 8.0.19
+
+### Patch Changes
+
+- Updated dependencies [37ccff637]
+- Updated dependencies [d9564e354]
+  - @pnpm/store-path@8.0.2
+  - @pnpm/config@20.4.1
+  - @pnpm/plugin-commands-installation@14.1.2
+  - @pnpm/cli-utils@2.1.8
+  - @pnpm/lifecycle@16.0.10
+
+## 8.0.18
+
+### Patch Changes
+
+- @pnpm/plugin-commands-installation@14.1.1
+
+## 8.0.17
+
+### Patch Changes
+
+- Updated dependencies [064aeb681]
+- Updated dependencies [c597f72ec]
+  - @pnpm/plugin-commands-installation@14.1.0
+  - @pnpm/config@20.4.0
+  - @pnpm/cli-utils@2.1.7
+
 ## 8.0.16
 
 ### Patch Changes

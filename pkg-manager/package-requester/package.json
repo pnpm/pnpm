@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "24.1.6",
+  "version": "24.1.8",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "scripts": {
     "start": "tsc --watch",
@@ -21,7 +21,7 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/pkg-manager/package-requester",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "resolver",
     "npm"
@@ -61,7 +61,7 @@
     "@pnpm/client": "workspace:*",
     "@pnpm/create-cafs-store": "workspace:*",
     "@pnpm/package-requester": "workspace:*",
-    "@pnpm/registry-mock": "3.17.1",
+    "@pnpm/registry-mock": "3.20.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/normalize-path": "^3.0.2",
     "@types/ramda": "0.28.20",

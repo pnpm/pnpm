@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs'
+import { PnpmError } from '@pnpm/error'
 import rimraf from '@zkochan/rimraf'
 import canLink from 'can-link'
 import os from 'os'
@@ -22,6 +23,9 @@ export function getStorePath (
   }
 ) {
   if (!storePath) {
+    if (!pnpmHomeDir) {
+      throw new PnpmError('NO_PNPM_HOME_DIR', 'The pnpm home directory is unknown. Cannot calculate the store directory location.')
+    }
     return storePathRelativeToHome(pkgRoot, 'store', pnpmHomeDir)
   }
 

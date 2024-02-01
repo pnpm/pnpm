@@ -48,12 +48,12 @@ describe('licences', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        '/bar/1.0.0': {
+        '/bar@1.0.0': {
           resolution: {
             integrity: 'bar-integrity',
           },
         },
-        '/foo/1.0.0': {
+        '/foo@1.0.0': {
           dependencies: {
             bar: '1.0.0',
           },
@@ -131,17 +131,17 @@ describe('licences', () => {
       },
       lockfileVersion: LOCKFILE_VERSION,
       packages: {
-        '/baz/1.0.0': {
+        '/baz@1.0.0': {
           resolution: {
             integrity: 'baz-integrity',
           },
         },
-        '/bar/1.0.0': {
+        '/bar@1.0.0': {
           resolution: {
             integrity: 'bar-integrity',
           },
         },
-        '/foo/1.0.0': {
+        '/foo@1.0.0': {
           resolution: {
             integrity: 'foo-integrity',
           },
@@ -171,6 +171,129 @@ describe('licences', () => {
         homepage: 'Homepage',
         repository: 'Repository',
         path: '/path/to/package/bar@1.0.0/node_modules',
+      },
+    ] as LicensePackage[])
+  })
+
+  test('findDependencyLicenses lists all versions (#7724)', async () => {
+    const lockfile: Lockfile = {
+      importers: {
+        '.': {
+          dependencies: {
+            foo: '1.0.0',
+            bar: '1.0.1',
+            baz: '2.0.0',
+          },
+          specifiers: {
+            foo: '^1.0.0',
+            bar: '^1.0.1',
+            baz: '^2.0.0',
+          },
+        },
+      },
+      lockfileVersion: LOCKFILE_VERSION,
+      packages: {
+        '/bar@1.0.1': {
+          resolution: {
+            integrity: 'bar1-integrity',
+          },
+        },
+        '/bar@1.0.0': {
+          resolution: {
+            integrity: 'bar2-integrity',
+          },
+        },
+        '/baz@2.0.1': {
+          resolution: {
+            integrity: 'baz1-integrity',
+          },
+        },
+        '/baz@2.0.0': {
+          resolution: {
+            integrity: 'baz2-integrity',
+          },
+        },
+        '/foo@1.0.0': {
+          dependencies: {
+            bar: '1.0.0',
+            baz: '2.0.1',
+          },
+          resolution: {
+            integrity: 'foo-integrity',
+          },
+        },
+      },
+    }
+
+    const licensePackages = await findDependencyLicenses({
+      lockfileDir: '/opt/pnpm',
+      manifest: {} as ProjectManifest,
+      virtualStoreDir: '/.pnpm',
+      registries: {} as Registries,
+      wantedLockfile: lockfile,
+      storeDir: '/opt/.pnpm',
+    })
+
+    expect(licensePackages).toEqual([
+      {
+        belongsTo: 'dependencies',
+        description: 'Package Description',
+        version: '1.0.0',
+        name: 'bar',
+        license: 'MIT',
+        licenseContents: undefined,
+        author: 'Package Author',
+        homepage: 'Homepage',
+        repository: 'Repository',
+        path: '/path/to/package/bar@1.0.0/node_modules',
+      },
+      {
+        belongsTo: 'dependencies',
+        description: 'Package Description',
+        version: '1.0.1',
+        name: 'bar',
+        license: 'MIT',
+        licenseContents: undefined,
+        author: 'Package Author',
+        homepage: 'Homepage',
+        repository: 'Repository',
+        path: '/path/to/package/bar@1.0.1/node_modules',
+      },
+      {
+        belongsTo: 'dependencies',
+        description: 'Package Description',
+        version: '2.0.0',
+        name: 'baz',
+        license: 'Unknown',
+        licenseContents: 'The MIT License',
+        author: 'Package Author',
+        homepage: 'Homepage',
+        repository: 'Repository',
+        path: '/path/to/package/baz@2.0.0/node_modules',
+      },
+      {
+        belongsTo: 'dependencies',
+        description: 'Package Description',
+        version: '2.0.1',
+        name: 'baz',
+        license: 'Unknown',
+        licenseContents: 'The MIT License',
+        author: 'Package Author',
+        homepage: 'Homepage',
+        repository: 'Repository',
+        path: '/path/to/package/baz@2.0.1/node_modules',
+      },
+      {
+        belongsTo: 'dependencies',
+        description: 'Package Description',
+        version: '1.0.0',
+        name: 'foo',
+        license: 'Unknown',
+        licenseContents: 'The MIT License',
+        author: 'Package Author',
+        homepage: 'Homepage',
+        repository: 'Repository',
+        path: '/path/to/package/foo@1.0.0/node_modules',
       },
     ] as LicensePackage[])
   })

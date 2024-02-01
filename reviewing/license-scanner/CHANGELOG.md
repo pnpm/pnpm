@@ -1,5 +1,31 @@
 # @pnpm/license-scanner
 
+## 2.3.0
+
+### Minor Changes
+
+- fd42caf24: When the license field does not exist in `package.json` but a license file exists, try to match and extract the license name [#7530](https://github.com/pnpm/pnpm/pull/7530).
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.12
+- @pnpm/directory-fetcher@7.0.11
+- @pnpm/lockfile-utils@9.0.5
+
+## 2.2.10
+
+### Patch Changes
+
+- @pnpm/directory-fetcher@7.0.10
+
+## 2.2.9
+
+### Patch Changes
+
+- fe737aeb4: Output license information for a deterministic version when multiple versions of a single package are depended on
+- dcf3ef7e4: Handle Git repository names containing capital letters [#7488](https://github.com/pnpm/pnpm/pull/7488).
+  - @pnpm/directory-fetcher@7.0.9
+
 ## 2.2.8
 
 ### Patch Changes

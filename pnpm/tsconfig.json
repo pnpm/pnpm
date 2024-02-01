@@ -23,6 +23,9 @@
       "path": "../__utils__/test-fixtures"
     },
     {
+      "path": "../__utils__/test-ipc-server"
+    },
+    {
       "path": "../cli/cli-meta"
     },
     {

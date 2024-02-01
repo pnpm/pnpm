@@ -91,6 +91,7 @@ export interface StrictInstallOptions {
   unsafePerm: boolean
   registries: Registries
   tag: string
+  updateToLatest?: boolean
   overrides: Record<string, string>
   ownLifecycleHooksStdio: 'inherit' | 'pipe'
   workspacePackages: WorkspacePackages
@@ -140,6 +141,7 @@ export interface StrictInstallOptions {
   disableRelinkLocalDirDeps: boolean
 
   supportedArchitectures?: SupportedArchitectures
+  hoistWorkspacePackages?: boolean
 }
 
 export type InstallOptions =
@@ -158,6 +160,7 @@ const defaults = (opts: InstallOptions) => {
     childConcurrency: 5,
     confirmModulesPurge: !opts.force,
     depth: 0,
+    dedupeInjectedDeps: true,
     enablePnp: false,
     engineStrict: false,
     force: false,

@@ -1,29 +1,9 @@
 import { createBase32Hash } from '@pnpm/crypto.base32-hash'
 import { type Registries } from '@pnpm/types'
-import encodeRegistry from 'encode-registry'
 import semver from 'semver'
 
 export function isAbsolute (dependencyPath: string) {
   return dependencyPath[0] !== '/'
-}
-
-export function resolve (
-  registries: Registries,
-  resolutionLocation: string
-) {
-  if (!isAbsolute(resolutionLocation)) {
-    let registryUrl!: string
-    if (resolutionLocation[1] === '@') {
-      const slashIndex = resolutionLocation.indexOf('/', 1)
-      const scope = resolutionLocation.slice(1, slashIndex !== -1 ? slashIndex : 0)
-      registryUrl = registries[scope] || registries.default
-    } else {
-      registryUrl = registries.default
-    }
-    const registryDirectory = encodeRegistry(registryUrl)
-    return `${registryDirectory}${resolutionLocation}`
-  }
-  return resolutionLocation
 }
 
 export function indexOfPeersSuffix (depPath: string) {
@@ -42,55 +22,21 @@ export function indexOfPeersSuffix (depPath: string) {
   return -1
 }
 
-export function tryGetPackageId (registries: Registries, relDepPath: string) {
+export function tryGetPackageId (relDepPath: string) {
   if (relDepPath[0] !== '/') {
     return null
   }
   const sepIndex = indexOfPeersSuffix(relDepPath)
   if (sepIndex !== -1) {
-    return resolve(registries, relDepPath.substring(0, sepIndex))
+    return relDepPath.substring(0, sepIndex)
   }
-  const underscoreIndex = relDepPath.indexOf('_', relDepPath.lastIndexOf('/'))
-  if (underscoreIndex !== -1) {
-    return resolve(registries, relDepPath.slice(0, underscoreIndex))
-  }
-  return resolve(registries, relDepPath)
-}
-
-export function refToAbsolute (
-  reference: string,
-  pkgName: string,
-  registries: Registries
-) {
-  if (reference.startsWith('link:')) {
-    return null
-  }
-  if (!reference.includes('/') || reference.includes('(') && reference.lastIndexOf('/', reference.indexOf('(')) === -1) {
-    const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
-    return `${registryName}/${pkgName}/${reference}`
-  }
-  if (reference[0] !== '/') return reference
-  const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
-  return `${registryName}${reference}`
+  return relDepPath
 }
 
 export function getRegistryByPackageName (registries: Registries, packageName: string) {
   if (packageName[0] !== '@') return registries.default
   const scope = packageName.substring(0, packageName.indexOf('/'))
   return registries[scope] || registries.default
-}
-
-export function relative (
-  registries: Registries,
-  packageName: string,
-  absoluteResolutionLoc: string
-) {
-  const registryName = encodeRegistry(getRegistryByPackageName(registries, packageName))
-
-  if (absoluteResolutionLoc.startsWith(`${registryName}/`)) {
-    return absoluteResolutionLoc.slice(absoluteResolutionLoc.indexOf('/'))
-  }
-  return absoluteResolutionLoc
 }
 
 export function refToRelative (
@@ -104,7 +50,7 @@ export function refToRelative (
     return reference
   }
   if (!reference.includes('/') || reference.includes('(') && reference.lastIndexOf('/', reference.indexOf('(')) === -1) {
-    return `/${pkgName}/${reference}`
+    return `/${pkgName}@${reference}`
   }
   return reference
 }
@@ -117,18 +63,12 @@ export function parse (dependencyPath: string) {
       dependencyPath === null ? 'null' : typeof dependencyPath
     }\``)
   }
-  const _isAbsolute = isAbsolute(dependencyPath)
-  const parts = dependencyPath.split('/')
-  if (!_isAbsolute) parts.shift()
-  const host = _isAbsolute ? parts.shift() : undefined
-  if (parts.length === 0) return {
-    host,
-    isAbsolute: _isAbsolute,
+  const sepIndex = dependencyPath.indexOf('@', 2)
+  if (sepIndex === -1) {
+    return {}
   }
-  const name = parts[0][0] === '@'
-    ? `${parts.shift()}/${parts.shift()}`
-    : parts.shift()
-  let version = parts.join('/')
+  const name = dependencyPath.substring(1, sepIndex)
+  let version = dependencyPath.substring(sepIndex + 1)
   if (version) {
     let peerSepIndex!: number
     let peersSuffix: string | undefined
@@ -138,27 +78,16 @@ export function parse (dependencyPath: string) {
         peersSuffix = version.substring(peerSepIndex)
         version = version.substring(0, peerSepIndex)
       }
-    } else {
-      peerSepIndex = version.indexOf('_')
-      if (peerSepIndex !== -1) {
-        peersSuffix = version.substring(peerSepIndex + 1)
-        version = version.substring(0, peerSepIndex)
-      }
     }
     if (semver.valid(version)) {
       return {
-        host,
-        isAbsolute: _isAbsolute,
         name,
         peersSuffix,
         version,
       }
     }
   }
-  if (!_isAbsolute) throw new Error(`${dependencyPath} is an invalid relative dependency path`)
   return {
-    host,
-    isAbsolute: _isAbsolute,
   }
 }
 
@@ -182,7 +111,8 @@ function depPathToFilenameUnescaped (depPath: string) {
     if (depPath[0] === '/') {
       depPath = depPath.substring(1)
     }
-    const index = depPath.lastIndexOf('/', depPath.includes('(') ? depPath.indexOf('(') - 1 : depPath.length)
+    const index = depPath.indexOf('@', 1)
+    if (index === -1) return depPath
     return `${depPath.substring(0, index)}@${depPath.slice(index + 1)}`
   }
   return depPath.replace(':', '+')

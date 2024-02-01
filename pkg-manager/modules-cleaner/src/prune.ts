@@ -18,7 +18,6 @@ import {
   type DependenciesField,
   DEPENDENCIES_FIELDS,
   type HoistedDependencies,
-  type Registries,
 } from '@pnpm/types'
 import { depPathToFilename } from '@pnpm/dependency-path'
 import rimraf from '@zkochan/rimraf'
@@ -48,7 +47,6 @@ export async function prune (
     currentLockfile: Lockfile
     pruneStore?: boolean
     pruneVirtualStore?: boolean
-    registries: Registries
     skipped: Set<string>
     virtualStoreDir: string
     lockfileDir: string
@@ -127,9 +125,9 @@ export async function prune (
   // we may only prune dependencies that are used only by that subset of importers.
   // Otherwise, we would break the node_modules.
   const currentPkgIdsByDepPaths = equals(selectedImporterIds, Object.keys(opts.wantedLockfile.importers))
-    ? getPkgsDepPaths(opts.registries, opts.currentLockfile.packages ?? {}, opts.skipped)
-    : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.registries, opts.currentLockfile, opts.include, opts.skipped)
-  const wantedPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, wantedLockfile.packages ?? {}, opts.skipped)
+    ? getPkgsDepPaths(opts.currentLockfile.packages ?? {}, opts.skipped)
+    : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.currentLockfile, opts.include, opts.skipped)
+  const wantedPkgIdsByDepPaths = getPkgsDepPaths(wantedLockfile.packages ?? {}, opts.skipped)
 
   const orphanDepPaths = Object.keys(currentPkgIdsByDepPaths).filter(path => !wantedPkgIdsByDepPaths[path])
   const orphanPkgIds = new Set(orphanDepPaths.map(path => currentPkgIdsByDepPaths[path]))
@@ -234,20 +232,18 @@ function mergeDependencies (projectSnapshot: ProjectSnapshot): { [depName: strin
 }
 
 function getPkgsDepPaths (
-  registries: Registries,
   packages: PackageSnapshots,
   skipped: Set<string>
 ): Record<string, string> {
   return Object.entries(packages).reduce((acc, [depPath, pkg]) => {
     if (skipped.has(depPath)) return acc
-    acc[depPath] = packageIdFromSnapshot(depPath, pkg, registries)
+    acc[depPath] = packageIdFromSnapshot(depPath, pkg)
     return acc
   }, {} as Record<string, string>)
 }
 
 function getPkgsDepPathsOwnedOnlyByImporters (
   importerIds: string[],
-  registries: Registries,
   lockfile: Lockfile,
   include: { [dependenciesField in DependenciesField]: boolean },
   skipped: Set<string>
@@ -270,7 +266,7 @@ function getPkgsDepPathsOwnedOnlyByImporters (
     difference(Object.keys(selected.packages!), Object.keys(other.packages!)),
     selected.packages!
   ) as PackageSnapshots
-  return getPkgsDepPaths(registries, packagesOfSelectedOnly, skipped)
+  return getPkgsDepPaths(packagesOfSelectedOnly, skipped)
 }
 
 function getPubliclyHoistedDependencies (hoistedDependencies: HoistedDependencies): Set<string> {

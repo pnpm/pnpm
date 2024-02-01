@@ -1,5 +1,11 @@
 # @pnpm/store-path
 
+## 8.0.2
+
+### Patch Changes
+
+- 37ccff637: Throw an error when calculating the store directory without the pnpm home directory.
+
 ## 8.0.1
 
 ### Patch Changes

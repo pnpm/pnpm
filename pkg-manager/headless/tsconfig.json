@@ -19,7 +19,13 @@
       "path": "../../__utils__/test-fixtures"
     },
     {
+      "path": "../../__utils__/test-ipc-server"
+    },
+    {
       "path": "../../config/package-is-installable"
+    },
+    {
+      "path": "../../crypto/object-hasher"
     },
     {
       "path": "../../deps/graph-builder"

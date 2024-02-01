@@ -39,6 +39,65 @@ const LICENSE_FILES = [
   'MIT-LICENSE',
 ]
 
+/**
+ * @const
+ * List common license names
+ * Refer https://github.com/pivotal/LicenseFinder/blob/master/lib/license_finder/license/definitions.rb
+*/
+const LICENSE_NAMES = [
+  'Apache1_1',
+  'Apache-1.1',
+  'Apache 1.1',
+  'Apache2',
+  'Apache-2.0',
+  'Apache 2.0',
+  'BSD',
+  'BSD-4-Clause',
+  'CC01',
+  'CC0-1.0',
+  'CC0-1.0',
+  'CDDL1',
+  'CDDL-1.0',
+  'Common Development and Distribution License 1.0',
+  'EPL1',
+  'EPL-1.0',
+  'Eclipse Public License 1.0',
+  'GPLv2',
+  'GPL-2.0-only',
+  'GPLv3',
+  'GPL-3.0-only',
+  'ISC',
+  'LGPL',
+  'LGPL-3.0-only',
+  'LGPL2_1',
+  'LGPL-2.1-only',
+  'MIT',
+  'MPL1_1',
+  'MPL-1.1',
+  'Mozilla Public License 1.1',
+  'MPL2',
+  'MPL-2.0',
+  'Mozilla Public License 2.0',
+  'NewBSD',
+  'BSD-3-Clause',
+  'New BSD',
+  'OFL',
+  'OFL-1.1',
+  'SIL OPEN FONT LICENSE Version 1.1',
+  'Python',
+  'PSF-2.0',
+  'Python Software Foundation License',
+  'Ruby',
+  'SimplifiedBSD',
+  'BSD-2-Clause',
+  'Simplified BSD',
+  'WTFPL',
+  '0BSD',
+  'BSD Zero Clause License',
+  'Zlib',
+  'zlib/libpng license',
+]
+
 export interface LicenseInfo {
   name: string
   licenseFile?: string
@@ -126,10 +185,18 @@ async function parseLicense (
       } else {
         licenseContents = await readLicenseFileFromCafs(opts.cafsDir, licensePackageFileInfo as PackageFileInfo)
       }
+      const licenseContent = licenseContents?.toString('utf-8')
+      let name = 'Unknown'
+      if (licenseContent) {
+        const match = licenseContent.match(new RegExp(`\\b(${LICENSE_NAMES.join('|')})\\b`, 'igm'))
+        if (match) {
+          name = [...new Set(match)].join(' OR ')
+        }
+      }
 
       return {
-        name: 'Unknown',
-        licenseFile: licenseContents?.toString('utf-8'),
+        name,
+        licenseFile: licenseContent,
       }
     }
   }
@@ -158,7 +225,7 @@ async function readLicenseFileFromCafs (cafsDir: string, { integrity, mode }: Pa
  */
 export async function readPackageIndexFile (
   packageResolution: Resolution,
-  depPath: string,
+  id: string,
   opts: { cafsDir: string, storeDir: string, lockfileDir: string }
 ): Promise<
   | {
@@ -195,10 +262,7 @@ export async function readPackageIndexFile (
       'index'
     )
   } else if (!packageResolution.type && packageResolution.tarball) {
-    // If the package resolution has a tarball then we need to clean up
-    // the return value to depPathToFilename as it adds peer deps(e.g. a@1.0.0_peer-foo@18.0.0_peer-bar@18.0.0) or patch hash(a@1.0.0_patch_hash=xxxx) part to the
-    // directory for the package in the content-addressable store
-    const packageDirInStore = depPathToFilename(depPath).split('_')[0]
+    const packageDirInStore = depPathToFilename(id)
     pkgIndexFilePath = path.join(
       opts.storeDir,
       packageDirInStore,
@@ -207,7 +271,7 @@ export async function readPackageIndexFile (
   } else {
     throw new PnpmError(
       'UNSUPPORTED_PACKAGE_TYPE',
-      `Unsupported package resolution type for ${depPath}`
+      `Unsupported package resolution type for ${id}`
     )
   }
 
@@ -221,7 +285,7 @@ export async function readPackageIndexFile (
     if (err.code === 'ENOENT') {
       throw new PnpmError(
         'MISSING_PACKAGE_INDEX_FILE',
-        `Failed to find package index file for ${depPath}, please consider running 'pnpm install'`
+        `Failed to find package index file for ${id}, please consider running 'pnpm install'`
       )
     }
 
@@ -230,6 +294,7 @@ export async function readPackageIndexFile (
 }
 
 export interface PackageInfo {
+  id: string
   name?: string
   version?: string
   depPath: string
@@ -270,7 +335,7 @@ export async function getPkgInfo (
 
   const packageFileIndexInfo = await readPackageIndexFile(
     packageResolution as Resolution,
-    pkg.depPath,
+    pkg.id,
     {
       cafsDir,
       storeDir: opts.storeDir,

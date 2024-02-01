@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-fetcher",
-  "version": "18.0.16",
+  "version": "18.0.19",
   "description": "Fetcher for packages hosted as tarballs",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -17,13 +17,13 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/main/fetching/tarball-fetcher",
   "keywords": [
-    "pnpm8",
+    "pnpm9",
     "pnpm",
     "fetcher",
     "tarball"
   ],
   "engines": {
-    "node": ">=16.14"
+    "node": ">=18.12"
   },
   "license": "MIT",
   "bugs": {
@@ -44,7 +44,9 @@
     "@zkochan/retry": "^0.2.0",
     "lodash.throttle": "4.1.1",
     "p-map-values": "^1.0.0",
-    "ramda": "npm:@pnpm/ramda@0.28.1"
+    "path-temp": "^2.1.0",
+    "ramda": "npm:@pnpm/ramda@0.28.1",
+    "rename-overwrite": "^5.0.0"
   },
   "devDependencies": {
     "@pnpm/cafs-types": "workspace:*",

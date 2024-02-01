@@ -81,13 +81,11 @@ function toLockfileDependency (
   const newResolvedDeps = updateResolvedDeps(
     opts.prevSnapshot?.dependencies ?? {},
     opts.updatedDeps,
-    opts.registries,
     opts.depGraph
   )
   const newResolvedOptionalDeps = updateResolvedDeps(
     opts.prevSnapshot?.optionalDependencies ?? {},
     opts.updatedOptionalDeps,
-    opts.registries,
     opts.depGraph
   )
   const result = {
@@ -119,19 +117,19 @@ function toLockfileDependency (
   if (opts.depPath[0] !== '/' && !pkg.id.endsWith(opts.depPath)) {
     result['id'] = pkg.id
   }
-  if (Object.keys(pkg.peerDependencies ?? {}).length > 0) {
-    result['peerDependencies'] = pkg.peerDependencies
-  }
   if (pkg.transitivePeerDependencies.size) {
     result['transitivePeerDependencies'] = Array.from(pkg.transitivePeerDependencies).sort()
   }
-  if (pkg.peerDependenciesMeta != null) {
+  if (Object.keys(pkg.peerDependencies ?? {}).length > 0) {
+    const peerPkgs: Record<string, string> = {}
     const normalizedPeerDependenciesMeta: Record<string, { optional: true }> = {}
-    for (const [peer, { optional }] of Object.entries(pkg.peerDependenciesMeta)) {
+    for (const [peer, { version, optional }] of Object.entries(pkg.peerDependencies)) {
+      peerPkgs[peer] = version
       if (optional) {
         normalizedPeerDependenciesMeta[peer] = { optional: true }
       }
     }
+    result['peerDependencies'] = peerPkgs
     if (Object.keys(normalizedPeerDependenciesMeta).length > 0) {
       result['peerDependenciesMeta'] = normalizedPeerDependenciesMeta
     }
@@ -152,9 +150,16 @@ function toLockfileDependency (
   if (pkg.additionalInfo.libc != null) {
     result['libc'] = pkg.additionalInfo.libc
   }
-  if (Array.isArray(pkg.additionalInfo.bundledDependencies) || Array.isArray(pkg.additionalInfo.bundleDependencies) ||
-    typeof pkg.additionalInfo.bundledDependencies === 'boolean' || typeof pkg.additionalInfo.bundleDependencies === 'boolean') {
-    result['bundledDependencies'] = pkg.additionalInfo.bundledDependencies ?? pkg.additionalInfo.bundleDependencies
+  if (
+    Array.isArray(pkg.additionalInfo.bundledDependencies) ||
+    pkg.additionalInfo.bundledDependencies === true
+  ) {
+    result['bundledDependencies'] = pkg.additionalInfo.bundledDependencies
+  } else if (
+    Array.isArray(pkg.additionalInfo.bundleDependencies) ||
+    pkg.additionalInfo.bundleDependencies === true
+  ) {
+    result['bundledDependencies'] = pkg.additionalInfo.bundleDependencies
   }
   if (pkg.additionalInfo.deprecated) {
     result['deprecated'] = pkg.additionalInfo.deprecated
@@ -197,7 +202,6 @@ function toLockfileDependency (
 function updateResolvedDeps (
   prevResolvedDeps: ResolvedDependencies,
   updatedDeps: Array<{ alias: string, depPath: string }>,
-  registries: Registries,
   depGraph: DependenciesGraph
 ) {
   const newResolvedDeps = Object.fromEntries(
@@ -212,7 +216,6 @@ function updateResolvedDeps (
           depPathToRef(depNode.depPath, {
             alias,
             realName: depNode.name,
-            registries,
             resolution: depNode.resolution,
           }),
         ]

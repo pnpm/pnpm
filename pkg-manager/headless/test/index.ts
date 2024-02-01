@@ -2,6 +2,7 @@
 import { promises as fs, existsSync, realpathSync, writeFileSync } from 'fs'
 import path from 'path'
 import { assertProject } from '@pnpm/assert-project'
+import { hashObject } from '@pnpm/crypto.object-hasher'
 import { getFilePathInCafs } from '@pnpm/store.cafs'
 import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
@@ -14,8 +15,9 @@ import { headlessInstall } from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { readModulesManifest } from '@pnpm/modules-yaml'
 import { tempDir } from '@pnpm/prepare'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { getIntegrity } from '@pnpm/registry-mock'
 import { fixtures } from '@pnpm/test-fixtures'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import rimraf from '@zkochan/rimraf'
 import loadJsonFile from 'load-json-file'
 import exists from 'path-exists'
@@ -72,7 +74,7 @@ test('installing a simple project', async () => {
   } as StageLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
+    packageId: '/is-negative@2.1.0',
     requester: prefix,
     status: 'resolved',
   })).toBeTruthy()
@@ -336,6 +338,7 @@ test('skipping optional dependency if it cannot be fetched', async () => {
 
 test('run pre/postinstall scripts', async () => {
   let prefix = f.prepare('deps-have-lifecycle-scripts')
+  await using server = await createTestIpcServer(path.join(prefix, 'test.sock'))
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix }))
 
@@ -346,18 +349,19 @@ test('run pre/postinstall scripts', async () => {
   const generatedByPostinstall = project.requireModule('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall')
   expect(typeof generatedByPostinstall).toBe('function')
 
-  expect(require(path.join(prefix, 'output.json'))).toStrictEqual(['install', 'postinstall']) // eslint-disable-line
+  expect(server.getLines()).toStrictEqual(['install', 'postinstall'])
 
   prefix = f.prepare('deps-have-lifecycle-scripts')
+  server.clear()
 
   await headlessInstall(await testDefaults({ lockfileDir: prefix, ignoreScripts: true }))
 
-  expect(await exists(path.join(prefix, 'output.json'))).toBeFalsy()
+  expect(server.getLines()).toStrictEqual([])
 
   const nmPath = path.join(prefix, 'node_modules')
   const modulesYaml = await readModulesManifest(nmPath)
   expect(modulesYaml).toBeTruthy()
-  expect(modulesYaml!.pendingBuilds).toStrictEqual(['.', '/@pnpm.e2e/pre-and-postinstall-scripts-example/2.0.0'])
+  expect(modulesYaml!.pendingBuilds).toStrictEqual(['.', '/@pnpm.e2e/pre-and-postinstall-scripts-example@2.0.0'])
 })
 
 test('orphan packages are removed', async () => {
@@ -422,13 +426,13 @@ test('available packages are used when node_modules is not clean', async () => {
 
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.2`,
+    packageId: '/balanced-match@1.0.2',
     requester: projectDir,
     status: 'resolved',
   })).toBeFalsy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/rimraf/2.7.1`,
+    packageId: '/rimraf@2.7.1',
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
@@ -459,13 +463,13 @@ test('available packages are relinked during forced install', async () => {
 
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.2`,
+    packageId: '/balanced-match@1.0.2',
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/rimraf/2.7.1`,
+    packageId: '/rimraf@2.7.1',
     requester: projectDir,
     status: 'resolved',
   })).toBeTruthy()
@@ -582,14 +586,14 @@ test('installing with hoistPattern=*', async () => {
   } as StageLog))
   expect(reporter).toBeCalledWith(expect.objectContaining({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
+    packageId: '/is-negative@2.1.0',
     requester: prefix,
     status: 'resolved',
   }))
 
   const modules = await project.readModulesManifest()
 
-  expect(modules!.hoistedDependencies['/balanced-match/1.0.2']).toStrictEqual({ 'balanced-match': 'private' })
+  expect(modules!.hoistedDependencies['/balanced-match@1.0.2']).toStrictEqual({ 'balanced-match': 'private' })
 })
 
 test('installing with publicHoistPattern=*', async () => {
@@ -638,14 +642,14 @@ test('installing with publicHoistPattern=*', async () => {
   } as StageLog)).toBeTruthy()
   expect(reporter.calledWithMatch({
     level: 'debug',
-    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
+    packageId: '/is-negative@2.1.0',
     requester: prefix,
     status: 'resolved',
   })).toBeTruthy()
 
   const modules = await project.readModulesManifest()
 
-  expect(modules!.hoistedDependencies['/balanced-match/1.0.2']).toStrictEqual({ 'balanced-match': 'public' })
+  expect(modules!.hoistedDependencies['/balanced-match@1.0.2']).toStrictEqual({ 'balanced-match': 'public' })
 })
 
 test('installing with publicHoistPattern=* in a project with external lockfile', async () => {
@@ -682,7 +686,7 @@ test.each([['isolated'], ['hoisted']])('using side effects cache with nodeLinker
   const cacheIntegrityPath = getFilePathInCafs(cafsDir, getIntegrity('@pnpm.e2e/pre-and-postinstall-scripts-example', '1.0.0'), 'index')
   const cacheIntegrity = await loadJsonFile<any>(cacheIntegrityPath) // eslint-disable-line @typescript-eslint/no-explicit-any
   expect(cacheIntegrity!.sideEffects).toBeTruthy()
-  const sideEffectsKey = `${ENGINE_NAME}-${JSON.stringify({ '/@pnpm.e2e/hello-world-js-bin/1.0.0': {} })}`
+  const sideEffectsKey = `${ENGINE_NAME}-${hashObject({ '/@pnpm.e2e/hello-world-js-bin@1.0.0': {} })}`
   expect(cacheIntegrity).toHaveProperty(['sideEffects', sideEffectsKey, 'generated-by-postinstall.js'])
   delete cacheIntegrity!.sideEffects[sideEffectsKey]['generated-by-postinstall.js']
 
@@ -721,7 +725,7 @@ test.skip('using side effects cache and hoistPattern=*', async () => {
   const project = assertProject(lockfileDir)
   await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 
-  const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage@1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(opts.storeDir, `diskusage@1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf(path.join(lockfileDir, 'node_modules'))

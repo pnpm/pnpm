@@ -1,19 +1,19 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`writeLockfiles() 1`] = `
-"lockfileVersion: 5.4
-
-specifiers:
-  is-negative: ^1.0.0
-  is-positive: ^1.0.0
+"lockfileVersion: '6.0'
 
 dependencies:
-  is-negative: 1.0.0
-  is-positive: 1.0.0
+  is-negative:
+    specifier: ^1.0.0
+    version: 1.0.0
+  is-positive:
+    specifier: ^1.0.0
+    version: 1.0.0
 
 packages:
 
-  /is-negative/1.0.0:
+  /is-negative@1.0.0:
     resolution: {integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=}
     engines: {node: '>=10', npm: "\\nfoo\\n"}
     cpu: [x86]
@@ -22,10 +22,10 @@ packages:
     dependencies:
       is-positive: 2.0.0
 
-  /is-positive/1.0.0:
+  /is-positive@1.0.0:
     resolution: {integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=}
 
-  /is-positive/2.0.0:
+  /is-positive@2.0.0:
     resolution: {integrity: sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=}
 "
 `;

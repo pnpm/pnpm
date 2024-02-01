@@ -29,7 +29,7 @@ test("don't fail when peer dependency is fetched from GitHub", async () => {
   await addDependenciesToPackage({}, ['@pnpm.e2e/test-pnpm-peer-deps'], await testDefaults())
 })
 
-test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async () => {
+test('peer dependency is grouped with dependency when peer is resolved not from a top dependency 1', async () => {
   const project = prepareEmpty()
   const opts = await testDefaults()
   let manifest = await addDependenciesToPackage({}, ['@pnpm.e2e/using-ajv'], opts)
@@ -551,7 +551,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   const pkgVariation1 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`/@pnpm.e2e/abc/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`/@pnpm.e2e/abc@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
     'node_modules'
   )
   await okFile(path.join(pkgVariation1, '@pnpm.e2e/abc'))
@@ -562,7 +562,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   const pkgVariation2 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`/@pnpm.e2e/abc/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`/@pnpm.e2e/abc@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
     'node_modules'
   )
   await okFile(path.join(pkgVariation2, '@pnpm.e2e/abc'))
@@ -590,7 +590,7 @@ test('peer dependencies are linked when running two separate named installations
 
   const pkgVariation1 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`/@pnpm.e2e/abc/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
+    depPathToFilename(`/@pnpm.e2e/abc@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '1.0.0' }])}`),
     'node_modules'
   )
   await okFile(path.join(pkgVariation1, '@pnpm.e2e/abc'))
@@ -601,7 +601,7 @@ test('peer dependencies are linked when running two separate named installations
 
   const pkgVariation2 = path.join(
     'node_modules/.pnpm',
-    depPathToFilename(`/@pnpm.e2e/abc/1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '2.0.0' }])}`),
+    depPathToFilename(`/@pnpm.e2e/abc@1.0.0${createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-a', version: '1.0.0' }, { name: '@pnpm.e2e/peer-b', version: '1.0.0' }, { name: '@pnpm.e2e/peer-c', version: '2.0.0' }])}`),
     'node_modules'
   )
   await okFile(path.join(pkgVariation2, '@pnpm.e2e/abc'))
@@ -662,7 +662,7 @@ test('peer bins are linked', async () => {
   await addDependenciesToPackage({}, ['@pnpm.e2e/for-testing-peers-having-bins'], await testDefaults({ fastUnpack: false }))
 
   const suffix = createPeersFolderSuffix([{ name: '@pnpm.e2e/peer-with-bin', version: '1.0.0' }])
-  const pkgVariation = path.join('.pnpm', depPathToFilename(`/@pnpm.e2e/pkg-with-peer-having-bin/1.0.0${suffix}`), 'node_modules')
+  const pkgVariation = path.join('.pnpm', depPathToFilename(`/@pnpm.e2e/pkg-with-peer-having-bin@1.0.0${suffix}`), 'node_modules')
 
   await project.isExecutable(path.join(pkgVariation, '@pnpm.e2e/pkg-with-peer-having-bin/node_modules/.bin', 'peer-with-bin'))
 
@@ -1239,7 +1239,7 @@ test('peer dependency that is resolved by a dev dependency', async () => {
   await project.hasNot('@types/mongoose')
 })
 
-test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async () => {
+test('peer dependency is grouped with dependency when peer is resolved not from a top dependency 2', async () => {
   const project1Manifest = {
     name: 'project-1',
     version: '1.0.0',
@@ -1464,4 +1464,70 @@ test('in a subdependency, when there are several aliased dependencies of the sam
 
   const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
   expect(lockfile.packages['/@pnpm.e2e/abc@1.0.0(@pnpm.e2e/peer-c@2.0.0)']).toBeTruthy()
+})
+
+test('peer having peer is resolved correctly', async () => {
+  const manifest1 = {
+    name: 'project-1',
+
+    dependencies: {
+      '@pnpm.e2e/has-has-y-peer-only-as-peer': '1.0.0',
+      '@pnpm.e2e/has-y-peer': '1.0.0',
+      '@pnpm/y': '1.0.0',
+    },
+  }
+  const manifest2 = {
+    name: 'project-2',
+
+    dependencies: {
+      '@pnpm.e2e/has-has-y-peer-only-as-peer': '1.0.0',
+      '@pnpm.e2e/has-y-peer': '1.0.0',
+      '@pnpm/y': '2.0.0',
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: manifest1,
+    },
+    {
+      location: 'project-2',
+      package: manifest2,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: manifest1,
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: manifest2,
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({
+    allProjects,
+    autoInstallPeers: false,
+    dedupePeerDependents: false,
+    lockfileOnly: true,
+    strictPeerDependencies: false,
+  }))
+
+  const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
+
+  expect(lockfile.importers['project-1'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer']['version']).not.toEqual(lockfile.importers['project-2'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer']['version'])
+  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer@1.0.0(@pnpm.e2e/has-y-peer@1.0.0)(@pnpm/y@1.0.0)'].transitivePeerDependencies).toEqual(['@pnpm/y'])
 })

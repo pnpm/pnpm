@@ -1,5 +1,11 @@
 # @pnpm/fs.packlist
 
+## 1.0.3
+
+### Patch Changes
+
+- 9fb45d0fc: `pnpm publish` should pack "main" file or "bin" files defined in "publishConfig" [#4195](https://github.com/pnpm/pnpm/issues/4195).
+
 ## 1.0.2
 
 ### Patch Changes

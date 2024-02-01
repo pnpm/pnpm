@@ -1,9 +1,8 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
 import path from 'path'
 import { runLifecycleHook, runPostinstallHooks } from '@pnpm/lifecycle'
-import loadJsonFile from 'load-json-file'
-import rimraf from '@zkochan/rimraf'
 import { PnpmError } from '@pnpm/error'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { fixtures } from '@pnpm/test-fixtures'
 
 const f = fixtures(path.join(__dirname, 'fixtures'))
@@ -11,6 +10,7 @@ const rootModulesDir = path.join(__dirname, '..', 'node_modules')
 
 test('runLifecycleHook()', async () => {
   const pkgRoot = f.find('simple')
+  await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   const pkg = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('postinstall', pkg, {
     depPath: '/simple/1.0.0',
@@ -21,7 +21,7 @@ test('runLifecycleHook()', async () => {
     unsafePerm: true,
   })
 
-  expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['install'])
+  expect(server.getLines()).toStrictEqual(['install'])
 })
 
 test('runLifecycleHook() escapes the args passed to the script', async () => {
@@ -41,6 +41,7 @@ test('runLifecycleHook() escapes the args passed to the script', async () => {
 
 test('runLifecycleHook() sets frozen-lockfile to false', async () => {
   const pkgRoot = f.find('inspect-frozen-lockfile')
+  await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   const pkg = await import(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('postinstall', pkg, {
     depPath: '/inspect-frozen-lockfile/1.0.0',
@@ -52,12 +53,12 @@ test('runLifecycleHook() sets frozen-lockfile to false', async () => {
     unsafePerm: true,
   })
 
-  expect((await import(path.join(pkgRoot, 'output.json'))).default).toStrictEqual(['empty string'])
+  expect(server.getLines()).toStrictEqual(['empty string'])
 })
 
 test('runPostinstallHooks()', async () => {
   const pkgRoot = f.find('with-many-scripts')
-  await rimraf(path.join(pkgRoot, 'output.json'))
+  await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   await runPostinstallHooks({
     depPath: '/with-many-scripts/1.0.0',
     optional: false,
@@ -67,7 +68,7 @@ test('runPostinstallHooks()', async () => {
     unsafePerm: true,
   })
 
-  expect(loadJsonFile.sync(path.join(pkgRoot, 'output.json'))).toStrictEqual(['preinstall', 'install', 'postinstall'])
+  expect(server.getLines()).toStrictEqual(['preinstall', 'install', 'postinstall'])
 })
 
 test('runLifecycleHook() should throw an error while missing script start or file server.js', async () => {
@@ -87,7 +88,7 @@ test('runLifecycleHook() should throw an error while missing script start or fil
 
 test('preinstall script does not trigger node-gyp rebuild', async () => {
   const pkgRoot = f.find('gyp-with-preinstall')
-  await rimraf(path.join(pkgRoot, 'output.json'))
+  await using server = await createTestIpcServer(path.join(pkgRoot, 'test.sock'))
   await runPostinstallHooks({
     depPath: '/gyp-with-preinstall/1.0.0',
     optional: false,
@@ -97,5 +98,5 @@ test('preinstall script does not trigger node-gyp rebuild', async () => {
     unsafePerm: true,
   })
 
-  expect(loadJsonFile.sync(path.join(pkgRoot, 'output.json'))).toStrictEqual(['preinstall'])
+  expect(server.getLines()).toStrictEqual(['preinstall'])
 })
