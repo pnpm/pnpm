@@ -190,7 +190,7 @@ for (let i = 0; i < commands.length; i++) {
 }
 
 handlerByCommandName.help = createHelp(helpByCommandName)
-handlerByCommandName.completion = createCompletion({
+handlerByCommandName['completion-server'] = createCompletion({
   cliOptionsTypesByCommandName,
   completionByCommandName,
   initialCompletion,

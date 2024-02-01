@@ -4509,8 +4509,8 @@ importers:
         specifier: workspace:*
         version: link:../exec/run-npm
       '@pnpm/tabtab':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.4.0
+        version: 0.4.0
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../__utils__/test-fixtures
@@ -8751,6 +8751,19 @@ packages:
       untildify: 4.0.0
     transitivePeerDependencies:
       - supports-color
+    dev: false
+
+  /@pnpm/tabtab@0.4.0:
+    resolution: {integrity: sha512-McKBrvn4PAmzXZ/TClJOmDkBbqYyDQVHEQrhkF83v5qijtYA76873RI8GmWLR3F9sBSxpVO2+xnPoLdbnOO7gQ==}
+    engines: {node: '>=18'}
+    dependencies:
+      debug: 4.3.4
+      enquirer: 2.4.1
+      minimist: 1.2.8
+      untildify: 4.0.0
+    transitivePeerDependencies:
+      - supports-color
+    dev: true
 
   /@pnpm/text.comments-parser@2.0.0:
     resolution: {integrity: sha512-DRWtTmmxQQtuWHf1xPt9bqzCSq8d0MQF5x1kdpCDMLd7xk3nP4To2/OGkPrb8MKbrWsgCNDwXyKCFlEKrAg7fg==}
@@ -18164,6 +18177,7 @@ packages:
 
 time:
   /@pnpm/tabtab@0.3.0: '2024-01-31T14:41:21.440Z'
+  /@pnpm/tabtab@0.4.0: '2024-02-01T11:09:43.182Z'
   /@types/object-hash@3.0.6: '2023-11-07T12:14:41.852Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@10.0.1: '2023-11-02T18:13:42.360Z'

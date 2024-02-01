@@ -38,7 +38,10 @@ const argv = process.argv.slice(2)
   }
   case 'uninstall-completion': {
     const { uninstall: uninstallCompletion } = await import('@pnpm/tabtab')
-    await uninstallCompletion({ name: 'pnpm' })
+    await Promise.all(
+      ['bash', 'fish', 'pwsh', 'zsh']
+        .map((shell) => uninstallCompletion({ name: 'pnpm', shell }))
+    )
     return
   }
   // commands that are passed through to npm:
