@@ -187,6 +187,7 @@ export interface Config {
   globalDir?: string
   lockfile?: boolean
   dedupeInjectedDeps?: boolean
+  nodeOptions?: string
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {
