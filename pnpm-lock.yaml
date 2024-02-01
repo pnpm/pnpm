@@ -430,6 +430,10 @@ importers:
         version: 0.28.20
 
   cli/command:
+    dependencies:
+      '@pnpm/tabtab':
+        specifier: ^0.3.0
+        version: 0.3.0
     devDependencies:
       '@pnpm/command':
         specifier: workspace:*
@@ -8747,7 +8751,6 @@ packages:
       untildify: 4.0.0
     transitivePeerDependencies:
       - supports-color
-    dev: true
 
   /@pnpm/text.comments-parser@2.0.0:
     resolution: {integrity: sha512-DRWtTmmxQQtuWHf1xPt9bqzCSq8d0MQF5x1kdpCDMLd7xk3nP4To2/OGkPrb8MKbrWsgCNDwXyKCFlEKrAg7fg==}
@@ -17534,7 +17537,6 @@ packages:
   /untildify@4.0.0:
     resolution: {integrity: sha512-KK8xQ1mkzZeg9inewmFVDNkg3l5LUhoq9kN6iWYB/CC9YMG8HA+c1Q8HwDe6dEX7kErrEVNVBO3fWsVq5iDgtw==}
     engines: {node: '>=8'}
-    dev: true
 
   /update-browserslist-db@1.0.13(browserslist@4.22.2):
     resolution: {integrity: sha512-xebP81SNcPuNpPP3uzeW1NYXxI3rxyJzF3pD6sH4jE7o/IX+WtSpwnVU+qIsDPyk0d3hmFQ7mjqc6AtV604hbg==}
