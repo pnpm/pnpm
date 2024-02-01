@@ -39,8 +39,8 @@ export async function complete (
         },
       })
       return allProjects
-        .filter(({ manifest }) => manifest.name)
-        .map(({ manifest }) => ({ name: manifest.name ?? '' }))
+        .map(({ manifest }) => ({ name: manifest.name }))
+        .filter((item): item is Completion => !!item.name)
     } else if (input.lastOption) {
       const optionCompletions = getOptionCompletions(
         optionTypes as any, // eslint-disable-line
