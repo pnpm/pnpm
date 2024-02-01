@@ -14,7 +14,7 @@ const argv = process.argv.slice(2)
     console.log(version)
     break
   }
-  case 'generate-completion': {
+  case 'completion': {
     const { getCompletionScript } = await import('@pnpm/tabtab')
     function exitError (message: string): never {
       console.error(message)

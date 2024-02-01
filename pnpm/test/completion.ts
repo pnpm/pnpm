@@ -1,7 +1,7 @@
 import { execPnpmSync } from './utils'
 
-test('pnpm generate-completion requires the shell argument', () => {
-  const child = execPnpmSync(['generate-completion'])
+test('pnpm completion requires the shell argument', () => {
+  const child = execPnpmSync(['completion'])
   const stdout = child.stdout.toString().trim()
   const stderr = child.stderr.toString().trim()
   expect(stdout).toBe('')
@@ -9,8 +9,8 @@ test('pnpm generate-completion requires the shell argument', () => {
   expect(child.status).toBe(1)
 })
 
-test('pnpm generate-completion errors on unsupported shell', () => {
-  const child = execPnpmSync(['generate-completion', 'weird-shell-nobody-uses'])
+test('pnpm completion errors on unsupported shell', () => {
+  const child = execPnpmSync(['completion', 'weird-shell-nobody-uses'])
   const stdout = child.stdout.toString().trim()
   const stderr = child.stderr.toString().trim()
   expect(stdout).toBe('')
@@ -19,8 +19,8 @@ test('pnpm generate-completion errors on unsupported shell', () => {
 })
 
 for (const shell of ['bash', 'fish', 'pwsh', 'zsh']) {
-  test(`pnpm generate-completion ${shell}`, () => {
-    const child = execPnpmSync(['generate-completion', shell])
+  test(`pnpm completion ${shell}`, () => {
+    const child = execPnpmSync(['completion', shell])
     const stdout = child.stdout.toString().trim()
     const stderr = child.stderr.toString().trim()
     expect(stdout).toContain('###-begin-pnpm-completion-###')
