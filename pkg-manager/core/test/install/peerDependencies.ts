@@ -1532,6 +1532,71 @@ test('peer having peer is resolved correctly', async () => {
   expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer@1.0.0(@pnpm.e2e/has-y-peer@1.0.0)(@pnpm/y@1.0.0)'].transitivePeerDependencies).toEqual(['@pnpm/y'])
 })
 
+test('peer having peer is resolved correctly. The peer is also in the dependencies of the dependent package', async () => {
+  const manifest1 = {
+    name: 'project-1',
+
+    dependencies: {
+      '@pnpm.e2e/has-has-y-peer-only-as-peer-and-y': '1.0.0',
+      '@pnpm.e2e/has-y-peer': '1.0.0',
+      '@pnpm/y': '1.0.0',
+    },
+  }
+  const manifest2 = {
+    name: 'project-2',
+
+    dependencies: {
+      '@pnpm.e2e/has-has-y-peer-only-as-peer-and-y': '1.0.0',
+      '@pnpm.e2e/has-y-peer': '1.0.0',
+      '@pnpm/y': '2.0.0',
+    },
+  }
+  preparePackages([
+    {
+      location: 'project-1',
+      package: manifest1,
+    },
+    {
+      location: 'project-2',
+      package: manifest2,
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: manifest1,
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: manifest2,
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({
+    allProjects,
+    autoInstallPeers: false,
+    dedupePeerDependents: false,
+    lockfileOnly: true,
+    strictPeerDependencies: false,
+  }))
+
+  const lockfile = await readYamlFile<any>(path.resolve(WANTED_LOCKFILE)) // eslint-disable-line
+
+  expect(lockfile.importers['project-1'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y']['version']).toEqual(lockfile.importers['project-2'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y']['version'])
+})
+
 test('resolve peer of peer from the dependencies of the direct dependent package', async () => {
   const project = prepareEmpty()
   await addDependenciesToPackage({}, ['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0', '@pnpm/y@2.0.0'], await testDefaults())

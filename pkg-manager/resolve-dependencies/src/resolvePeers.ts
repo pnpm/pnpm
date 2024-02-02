@@ -543,9 +543,10 @@ function resolvePeersAndTheirPeers<T extends PartialResolvedPackage> (
     const peerNode = ctx.dependenciesTree.get(peerNodeId)
     if (!peerNode) continue
     const peerPkg = peerNode.resolvedPackage as T
-    peerDependencies = {
-      ...peerPkg.peerDependencies,
-      ...peerDependencies,
+    for (const [peerName, peerRange] of Object.entries(peerPkg.peerDependencies)) {
+      if (!peerDependencies[peerName] && !ctx.children[peerName]) {
+        peerDependencies[peerName] = peerRange
+      }
     }
   }
   const directParentPkg = {
@@ -573,7 +574,7 @@ function resolvePeersAndTheirPeers<T extends PartialResolvedPackage> (
       if (!peerNode) continue
       const peerPkg = peerNode.resolvedPackage as T
       for (const [peerName, peer] of Object.entries(peerPkg.peerDependencies ?? {})) {
-        if (!allResolvedPeers.has(peerName)) {
+        if (!allResolvedPeers.has(peerName) && !ctx.children[peerName]) {
           // It might happen that there are multiple peers depending on the same peers.
           // In this case we pick the peer information only from one dependency.
           // This will not break anything except possibly peer dependency warnings.
@@ -586,13 +587,7 @@ function resolvePeersAndTheirPeers<T extends PartialResolvedPackage> (
     }
   }
   allResolvedPeers.delete(ctx.resolvedPackage.name)
-  const unknownResolvedPeersOfChildren = new Map<string, string>()
-  for (const [alias, v] of allResolvedPeers) {
-    if (!ctx.children[alias]) {
-      unknownResolvedPeersOfChildren.set(alias, v)
-    }
-  }
-  return { allMissingPeers, allResolvedPeers: unknownResolvedPeersOfChildren }
+  return { allMissingPeers, allResolvedPeers }
 }
 
 interface ResolvePeersOptions<T> {
