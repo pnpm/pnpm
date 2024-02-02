@@ -1,4 +1,4 @@
-import { type CompletionItem, getShellFromEnv, isShellSupported } from '@pnpm/tabtab'
+import { type CompletionItem, getShellFromEnv } from '@pnpm/tabtab'
 import { type CompletionFunc } from '@pnpm/command'
 import { split as splitCmd } from 'split-cmd'
 import tabtab from '@pnpm/tabtab'
