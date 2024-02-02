@@ -1,4 +1,4 @@
-import { type CompletionItem } from '@pnpm/tabtab'
+import { type CompletionItem, shell as getShell, isShellSupported } from '@pnpm/tabtab'
 import { type CompletionFunc } from '@pnpm/command'
 import { split as splitCmd } from 'split-cmd'
 import tabtab from '@pnpm/tabtab'
@@ -19,6 +19,12 @@ export function createCompletion (
   }
 ) {
   return async () => {
+    const shell = getShell()
+    if (!isShellSupported(shell)) {
+      console.error(`Unsupported shell: ${shell}`)
+      process.exit(1)
+    }
+
     const env = tabtab.parseEnv(process.env)
     if (!env.complete) return
 
@@ -39,7 +45,8 @@ export function createCompletion (
           options,
           params,
         }
-      )
+      ),
+      shell
     )
   }
 }
