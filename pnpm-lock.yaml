@@ -4509,8 +4509,8 @@ importers:
         specifier: workspace:*
         version: link:../exec/run-npm
       '@pnpm/tabtab':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.5.1
+        version: 0.5.1
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../__utils__/test-fixtures
@@ -8753,8 +8753,8 @@ packages:
       - supports-color
     dev: false
 
-  /@pnpm/tabtab@0.5.0:
-    resolution: {integrity: sha512-35sCf8c/onu1Fe0KNwuNA137qUIy9LYkJyQheQpq+UlH74NUjZFcDLT6JzQXrrKfRqe5MWgusdVbJtvIFRQK+Q==}
+  /@pnpm/tabtab@0.5.1:
+    resolution: {integrity: sha512-HxPtirhCWUIYKlt2ifIDvFq7ur9kyvROnTTkaGFPghIHYLkHEfxBa6dNIylQ4x121+erNJdtJe24aH0AWKkdPQ==}
     engines: {node: '>=18'}
     dependencies:
       debug: 4.3.4
@@ -18177,7 +18177,7 @@ packages:
 
 time:
   /@pnpm/tabtab@0.3.0: '2024-01-31T14:41:21.440Z'
-  /@pnpm/tabtab@0.5.0: '2024-02-02T14:19:34.054Z'
+  /@pnpm/tabtab@0.5.1: '2024-02-02T15:12:43.629Z'
   /@types/object-hash@3.0.6: '2023-11-07T12:14:41.852Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@10.0.1: '2023-11-02T18:13:42.360Z'
