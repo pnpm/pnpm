@@ -365,6 +365,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     resolvedPackage,
     rootDir: ctx.rootDir,
     resolvedPeersOfChildren,
+    children,
   })
 
   for (const missingPeer of missingPeersOfChildren) {
@@ -532,6 +533,7 @@ function resolvePeersAndTheirPeers<T extends PartialResolvedPackage> (
   ctx: Omit<ResolvePeersOptions<T>, 'directParentPkg'> & {
     resolvedPackage: Pick<PartialResolvedPackage, 'name' | 'version' | 'peerDependencies'>
     resolvedPeersOfChildren: Map<string, string>
+    children: Record<string, string>
   }
 ) {
   const allMissingPeers = new Set<string>()
@@ -584,7 +586,13 @@ function resolvePeersAndTheirPeers<T extends PartialResolvedPackage> (
     }
   }
   allResolvedPeers.delete(ctx.resolvedPackage.name)
-  return { allMissingPeers, allResolvedPeers }
+  const unknownResolvedPeersOfChildren = new Map<string, string>()
+  for (const [alias, v] of allResolvedPeers) {
+    if (!ctx.children[alias]) {
+      unknownResolvedPeersOfChildren.set(alias, v)
+    }
+  }
+  return { allMissingPeers, allResolvedPeers: unknownResolvedPeersOfChildren }
 }
 
 interface ResolvePeersOptions<T> {
