@@ -1531,3 +1531,14 @@ test('peer having peer is resolved correctly', async () => {
   expect(lockfile.importers['project-1'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer']['version']).not.toEqual(lockfile.importers['project-2'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer']['version'])
   expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer@1.0.0(@pnpm.e2e/has-y-peer@1.0.0)(@pnpm/y@1.0.0)'].transitivePeerDependencies).toEqual(['@pnpm/y'])
 })
+
+test('resolve peer of peer from the dependencies of the direct dependent package', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0', '@pnpm/y@2.0.0'], await testDefaults())
+
+  const lockfile = await project.readLockfile()
+
+  console.log(JSON.stringify(lockfile, null, 2))
+  // expect(lockfile.importers['project-1'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer']['version']).not.toEqual(lockfile.importers['project-2'].dependencies?.['@pnpm.e2e/has-has-y-peer-only-as-peer']['version'])
+  // expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer@1.0.0(@pnpm.e2e/has-y-peer@1.0.0)(@pnpm/y@1.0.0)'].transitivePeerDependencies).toEqual(['@pnpm/y'])
+})
