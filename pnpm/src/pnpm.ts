@@ -15,7 +15,7 @@ const argv = process.argv.slice(2)
     break
   }
   case 'completion': {
-    const { getCompletionScript } = await import('@pnpm/tabtab')
+    const { getCompletionScript, isShellSupported } = await import('@pnpm/tabtab')
     function exitError (message: string): never {
       console.error(message)
       process.exit(1)
@@ -24,7 +24,7 @@ const argv = process.argv.slice(2)
     if (!shell) {
       exitError('missing argument for shell')
     }
-    if (!['bash', 'fish', 'pwsh', 'zsh'].includes(shell)) {
+    if (!isShellSupported(shell)) {
       exitError(`${shell} is not supported`)
     }
     const completionScript = await getCompletionScript({ name: 'pnpm', completer: 'pnpm', shell })
@@ -32,16 +32,18 @@ const argv = process.argv.slice(2)
     return
   }
   case 'install-completion': {
-    const { install: installCompletion } = await import('@pnpm/tabtab')
-    await installCompletion({ name: 'pnpm', completer: 'pnpm', shell: argv[1] })
+    const { install: installCompletion, isShellSupported } = await import('@pnpm/tabtab')
+    const shell = argv[1]?.trim()
+    if (!isShellSupported(shell)) {
+      console.error(`Unsupported shell: ${shell}`)
+      process.exit(1)
+    }
+    await installCompletion({ name: 'pnpm', completer: 'pnpm', shell })
     return
   }
   case 'uninstall-completion': {
     const { uninstall: uninstallCompletion } = await import('@pnpm/tabtab')
-    await Promise.all(
-      ['bash', 'fish', 'pwsh', 'zsh']
-        .map((shell) => uninstallCompletion({ name: 'pnpm', shell }))
-    )
+    await uninstallCompletion({ name: 'pnpm' })
     return
   }
   // commands that are passed through to npm:
