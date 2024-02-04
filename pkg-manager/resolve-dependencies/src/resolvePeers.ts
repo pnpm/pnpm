@@ -182,7 +182,7 @@ function deduplicateDepPaths<T extends PartialResolvedPackage> (
       const nextDepPaths = []
       while (currentDepPaths.length) {
         const depPath2 = currentDepPaths.pop()!
-        if (isCompatibleAndHasMoreDeps(depGraph, depPath1, depPath2)) {
+        if (isCompatibleAndHasMoreDeps(depGraph, depPath1, depPath2) || isDirectDependence(depGraph, depPath1) || isDirectDependence(depGraph, depPath2)) {
           depPathsMap[depPath2] = depPath1
           unresolvedDepPaths.delete(depPath1)
           unresolvedDepPaths.delete(depPath2)
@@ -221,6 +221,13 @@ function isCompatibleAndHasMoreDeps<T extends PartialResolvedPackage> (
     if (!node1.resolvedPeerNames.has(depPath)) return false
   }
   return true
+}
+
+function isDirectDependence<T extends PartialResolvedPackage> (
+  depGraph: GenericDependenciesGraph<T>,
+  depPath: string
+) {
+  return depGraph[depPath].depth === 0
 }
 
 function getRootPkgsByName<T extends PartialResolvedPackage> (dependenciesTree: DependenciesTree<T>, projects: ProjectToResolve[]) {

@@ -1,7 +1,7 @@
 import { type PartialResolvedPackage, resolvePeers } from '../lib/resolvePeers'
 import { type DependenciesTreeNode } from '../lib/resolveDependencies'
 
-test('packages are not deduplicated when versions do not match', () => {
+test('packages are deduplicated when it is direct dependencies', () => {
   const fooPkg: PartialResolvedPackage = {
     name: 'foo',
     version: '1.0.0',
@@ -100,6 +100,6 @@ test('packages are not deduplicated when versions do not match', () => {
   })
 
   expect(dependenciesByProjectId.project1.foo).toEqual(dependenciesByProjectId.project2.foo)
-  expect(dependenciesByProjectId.project1.foo).not.toEqual(dependenciesByProjectId.project3.foo)
+  expect(dependenciesByProjectId.project1.foo).toEqual(dependenciesByProjectId.project3.foo)
   expect(dependenciesByProjectId.project3.foo).toEqual(dependenciesByProjectId.project4.foo)
 })
