@@ -1690,3 +1690,12 @@ test('xxx', async () => {
 
   console.log(JSON.stringify(lockfile, null, 2))
 })
+
+test('xxx2', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/circular-peers-1-of-3@1.0.0', '@pnpm.e2e/circular-peers-2-of-3@1.0.0', '@pnpm.e2e/circular-peers-3-of-3@1.0.0'], await testDefaults())
+
+  const lockfile = await project.readLockfile()
+
+  console.log(JSON.stringify(lockfile, null, 2))
+})
