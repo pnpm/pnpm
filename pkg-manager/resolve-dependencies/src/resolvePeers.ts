@@ -1,5 +1,6 @@
 import filenamify from 'filenamify'
 import path from 'path'
+import pDefer from 'p-defer'
 import semver from 'semver'
 import { semverUtils } from '@yarnpkg/core'
 import type {
@@ -59,7 +60,7 @@ export interface ProjectToResolve {
 
 export type DependenciesByProjectId = Record<string, Record<string, string>>
 
-export function resolvePeers<T extends PartialResolvedPackage> (
+export async function resolvePeers<T extends PartialResolvedPackage> (
   opts: {
     projects: ProjectToResolve[]
     dependenciesTree: DependenciesTree<T>
@@ -70,30 +71,35 @@ export function resolvePeers<T extends PartialResolvedPackage> (
     dedupeInjectedDeps?: boolean
     resolvedImporters: ResolvedImporters
   }
-): {
+): Promise<{
     dependenciesGraph: GenericDependenciesGraph<T>
     dependenciesByProjectId: DependenciesByProjectId
     peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
-  } {
+  }> {
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = new Map<string, string>()
+  const pathsByNodeIdPromises = new Map<string, pDefer.DeferredPromise<string>>()
+  for (const nodeId of opts.dependenciesTree.keys()) {
+    pathsByNodeIdPromises.set(nodeId, pDefer())
+  }
   const depPathsByPkgId = new Map<string, Set<string>>()
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
 
-  for (const { directNodeIdsByAlias, topParents, rootDir, id } of opts.projects) {
+  await Promise.all(opts.projects.map(async ({ directNodeIdsByAlias, topParents, rootDir, id }) => {
     const peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'> = { bad: {}, missing: {} }
     const pkgsByName = {
       ...rootPkgsByName,
       ..._createPkgsByName({ directNodeIdsByAlias, topParents }),
     }
 
-    resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
+    await resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
       dependenciesTree: opts.dependenciesTree,
       depGraph,
       lockfileDir: opts.lockfileDir,
       pathsByNodeId,
+      pathsByNodeIdPromises,
       depPathsByPkgId,
       peersCache: new Map(),
       peerDependencyIssues,
@@ -107,7 +113,7 @@ export function resolvePeers<T extends PartialResolvedPackage> (
         ...mergePeers(peerDependencyIssues.missing),
       }
     }
-  }
+  }))
 
   Object.values(depGraph).forEach((node) => {
     node.children = mapValues((childNodeId) => pathsByNodeId.get(childNodeId) ?? childNodeId, node.children)
@@ -275,10 +281,11 @@ interface PeersResolution {
 
 interface ResolvePeersContext {
   pathsByNodeId: Map<string, string>
+  pathsByNodeIdPromises: Map<string, pDefer.DeferredPromise<string>>
   depPathsByPkgId?: Map<string, Set<string>>
 }
 
-function resolvePeersOfNode<T extends PartialResolvedPackage> (
+async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   nodeId: string,
   parentParentPkgs: ParentRefs,
   ctx: ResolvePeersContext & {
@@ -291,7 +298,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     rootDir: string
     lockfileDir: string
   }
-): PeersResolution {
+): Promise<PeersResolution> {
   const node = ctx.dependenciesTree.get(nodeId)!
   if (node.depth === -1) return { resolvedPeers: new Map<string, string>(), missingPeers: new Set<string>() }
   const resolvedPackage = node.resolvedPackage as T
@@ -305,6 +312,9 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
   if (typeof node.children === 'function') {
     node.children = node.children()
+    for (const nodeId of Object.values(node.children)) {
+      ctx.pathsByNodeIdPromises.set(nodeId, pDefer())
+    }
   }
   const children = node.children
   const parentPkgs = Object.keys(children).length === 0
@@ -353,7 +363,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   const {
     resolvedPeers: unknownResolvedPeersOfChildren,
     missingPeers: missingPeersOfChildren,
-  } = resolvePeersOfChildren(children, parentPkgs, ctx)
+  } = await resolvePeersOfChildren(children, parentPkgs, ctx)
 
   const { resolvedPeers, missingPeers } = Object.keys(resolvedPackage.peerDependencies).length === 0
     ? { resolvedPeers: new Map<string, string>(), missingPeers: new Set<string>() }
@@ -387,8 +397,8 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     depPath = resolvedPackage.depPath
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
-      [...allResolvedPeers.entries()]
-        .map(([alias, nodeId]) => {
+      await Promise.all([...allResolvedPeers.entries()]
+        .map(async ([alias, nodeId]) => {
           if (nodeId.startsWith('link:')) {
             const linkedDir = nodeId.slice(5)
             return {
@@ -396,9 +406,10 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
               version: filenamify(linkedDir, { replacement: '+' }),
             }
           }
-          const { name, version } = ctx.dependenciesTree.get(nodeId)!.resolvedPackage
-          return { name, version }
+          const dp = ctx.pathsByNodeId.get(nodeId) ?? (await ctx.pathsByNodeIdPromises.get(nodeId)!.promise)
+          return dp
         })
+      )
     )
     depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
   }
@@ -421,6 +432,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 
   ctx.pathsByNodeId.set(nodeId, depPath)
+  ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(depPath)
   if (ctx.depPathsByPkgId != null) {
     if (!ctx.depPathsByPkgId.has(resolvedPackage.depPath)) {
       ctx.depPathsByPkgId.set(resolvedPackage.depPath, new Set())
@@ -495,7 +507,7 @@ function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (nodeId
   return allChildren
 }
 
-function resolvePeersOfChildren<T extends PartialResolvedPackage> (
+async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   children: {
     [alias: string]: string
   },
@@ -510,7 +522,7 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     rootDir: string
     lockfileDir: string
   }
-): PeersResolution {
+): Promise<PeersResolution> {
   const allResolvedPeers = new Map<string, string>()
   const allMissingPeers = new Set<string>()
 
@@ -519,15 +531,17 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   const [repeated, notRepeated] = partition(([alias]) => parentPkgs[alias] != null, Object.entries(children))
 
   // Resolving non-repeated nodes before repeated nodes proved to be slightly faster.
-  for (const [, childNodeId] of [...notRepeated, ...repeated]) {
-    const { resolvedPeers, missingPeers } = resolvePeersOfNode(childNodeId, parentPkgs, ctx)
-    for (const [k, v] of resolvedPeers) {
-      allResolvedPeers.set(k, v)
-    }
-    for (const missingPeer of missingPeers) {
-      allMissingPeers.add(missingPeer)
-    }
-  }
+  await Promise.all(
+    [...notRepeated, ...repeated].map(async ([, childNodeId]) => {
+      const { resolvedPeers, missingPeers } = await resolvePeersOfNode(childNodeId, parentPkgs, ctx)
+      for (const [k, v] of resolvedPeers) {
+        allResolvedPeers.set(k, v)
+      }
+      for (const missingPeer of missingPeers) {
+        allMissingPeers.add(missingPeer)
+      }
+    })
+  )
 
   const unknownResolvedPeersOfChildren = new Map<string, string>()
   for (const [alias, v] of allResolvedPeers) {
