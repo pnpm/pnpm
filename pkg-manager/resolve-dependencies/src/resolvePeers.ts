@@ -79,9 +79,6 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   const depGraph: GenericDependenciesGraph<T> = {}
   const pathsByNodeId = new Map<string, string>()
   const pathsByNodeIdPromises = new Map<string, pDefer.DeferredPromise<string>>()
-  for (const nodeId of opts.dependenciesTree.keys()) {
-    pathsByNodeIdPromises.set(nodeId, pDefer())
-  }
   const depPathsByPkgId = new Map<string, Set<string>>()
   const _createPkgsByName = createPkgsByName.bind(null, opts.dependenciesTree)
   const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
@@ -312,9 +309,6 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
   if (typeof node.children === 'function') {
     node.children = node.children()
-    for (const nodeId of Object.values(node.children)) {
-      ctx.pathsByNodeIdPromises.set(nodeId, pDefer())
-    }
   }
   const children = node.children
   const parentPkgs = Object.keys(children).length === 0
@@ -530,6 +524,10 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   // This impacts the efficiency of graph traversal and prevents potential out-of-memory errors.mes can even lead to out-of-memory exceptions.
   const [repeated, notRepeated] = partition(([alias]) => parentPkgs[alias] != null, Object.entries(children))
 
+  for (const [,nodeId] of [...notRepeated, ...repeated]) {
+    ctx.pathsByNodeIdPromises.set(nodeId, pDefer())
+  }
+
   // Resolving non-repeated nodes before repeated nodes proved to be slightly faster.
   await Promise.all(
     [...notRepeated, ...repeated].map(async ([, childNodeId]) => {
@@ -542,6 +540,10 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
       }
     })
   )
+
+  for (const [,nodeId] of [...notRepeated, ...repeated]) {
+    ctx.pathsByNodeIdPromises.delete(nodeId)
+  }
 
   const unknownResolvedPeersOfChildren = new Map<string, string>()
   for (const [alias, v] of allResolvedPeers) {
