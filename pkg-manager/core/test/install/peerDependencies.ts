@@ -1681,3 +1681,12 @@ test('resolve peer of peer from the dependencies of the direct dependent package
   // It might make sense to print a warning in this case and suggest to make y a peer dependency in the dependent package too.
   expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0)'].dependencies?.['@pnpm.e2e/has-y-peer']).toBe('1.0.0(@pnpm/y@2.0.0)')
 })
+
+test('xxx', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/circular-peer-a@1.0.0', '@pnpm.e2e/circular-peer-b@1.0.0'], await testDefaults())
+
+  const lockfile = await project.readLockfile()
+
+  console.log(JSON.stringify(lockfile, null, 2))
+})

@@ -77,6 +77,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
     peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects
   }> {
   const depGraph: GenericDependenciesGraph<T> = {}
+  const waitList = new Map<string, string[]>()
   const pathsByNodeId = new Map<string, string>()
   const pathsByNodeIdPromises = new Map<string, pDefer.DeferredPromise<string>>()
   const depPathsByPkgId = new Map<string, Set<string>>()
@@ -103,6 +104,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       purePkgs: new Set(),
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
+      waitList,
     })
     if (Object.keys(peerDependencyIssues.bad).length > 0 || Object.keys(peerDependencyIssues.missing).length > 0) {
       peerDependencyIssuesByProjects[id] = {
@@ -277,6 +279,7 @@ interface PeersResolution {
 }
 
 interface ResolvePeersContext {
+  waitList: Map<string, string[]>
   pathsByNodeId: Map<string, string>
   pathsByNodeIdPromises: Map<string, pDefer.DeferredPromise<string>>
   depPathsByPkgId?: Map<string, Set<string>>
@@ -392,16 +395,26 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
       await Promise.all([...allResolvedPeers.entries()]
-        .map(async ([alias, nodeId]) => {
-          if (nodeId.startsWith('link:')) {
-            const linkedDir = nodeId.slice(5)
+        .map(async ([alias, peerNodeId]) => {
+          if (peerNodeId.startsWith('link:')) {
+            const linkedDir = peerNodeId.slice(5)
             return {
               name: alias,
               version: filenamify(linkedDir, { replacement: '+' }),
             }
           }
-          const dp = ctx.pathsByNodeId.get(nodeId) ?? (await ctx.pathsByNodeIdPromises.get(nodeId)!.promise)
-          return dp
+          const dp = ctx.pathsByNodeId.get(peerNodeId)
+          if (dp) return dp
+          if (ctx.waitList.get(nodeId)?.includes(peerNodeId)) {
+            const { name, version } = ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage
+            return `${name}@${version}`
+          }
+          if (!ctx.waitList.has(peerNodeId)) {
+            ctx.waitList.set(peerNodeId, [nodeId])
+          } else {
+            ctx.waitList.get(peerNodeId)!.push(nodeId)
+          }
+          return await ctx.pathsByNodeIdPromises.get(peerNodeId)!.promise
         })
       )
     )
