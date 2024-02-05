@@ -402,105 +402,105 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 
   return {
-    resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers, finish, finishing
+    resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers, finish, finishing,
   }
 
   async function finish (cycles: string[][]) {
-  let depPath: string
-  if (allResolvedPeers.size === 0) {
-    depPath = resolvedPackage.depPath
-  } else {
-    const cyclic = new Set()
-    for (const cycle of cycles) {
-      if (cycle.includes(nodeId)) {
-        for (const c of cycle) {
-          cyclic.add(c)
+    let depPath: string
+    if (allResolvedPeers.size === 0) {
+      depPath = resolvedPackage.depPath
+    } else {
+      const cyclic = new Set()
+      for (const cycle of cycles) {
+        if (cycle.includes(nodeId)) {
+          for (const c of cycle) {
+            cyclic.add(c)
+          }
         }
       }
-    }
-    const peersFolderSuffix = createPeersFolderSuffix(
-      await Promise.all([...allResolvedPeers.entries()]
-        .map(async ([alias, peerNodeId]) => {
-          if (peerNodeId.startsWith('link:')) {
-            const linkedDir = peerNodeId.slice(5)
-            return {
-              name: alias,
-              version: filenamify(linkedDir, { replacement: '+' }),
+      const peersFolderSuffix = createPeersFolderSuffix(
+        await Promise.all([...allResolvedPeers.entries()]
+          .map(async ([alias, peerNodeId]) => {
+            if (peerNodeId.startsWith('link:')) {
+              const linkedDir = peerNodeId.slice(5)
+              return {
+                name: alias,
+                version: filenamify(linkedDir, { replacement: '+' }),
+              }
             }
-          }
-          const dp = ctx.pathsByNodeId.get(peerNodeId)
-          if (dp) return dp
-          if (cyclic.has(peerNodeId)) {
-            const { name, version } = ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage
-            return `${name}@${version}`
-          }
-          return await ctx.pathsByNodeIdPromises.get(peerNodeId)!.promise
-        })
+            const dp = ctx.pathsByNodeId.get(peerNodeId)
+            if (dp) return dp
+            if (cyclic.has(peerNodeId)) {
+              const { name, version } = ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage
+              return `${name}@${version}`
+            }
+            return await ctx.pathsByNodeIdPromises.get(peerNodeId)!.promise
+          })
+        )
       )
-    )
-    depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
-  }
-  const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath))
-  const modules = path.join(localLocation, 'node_modules')
-  const isPure = allResolvedPeers.size === 0 && allMissingPeers.size === 0
-  if (isPure) {
-    ctx.purePkgs.add(resolvedPackage.depPath)
-  } else {
-    const cache = {
-      missingPeers: allMissingPeers,
-      depPath,
-      resolvedPeers: allResolvedPeers,
+      depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
     }
-    if (ctx.peersCache.has(resolvedPackage.depPath)) {
-      ctx.peersCache.get(resolvedPackage.depPath)!.push(cache)
+    const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath))
+    const modules = path.join(localLocation, 'node_modules')
+    const isPure = allResolvedPeers.size === 0 && allMissingPeers.size === 0
+    if (isPure) {
+      ctx.purePkgs.add(resolvedPackage.depPath)
     } else {
-      ctx.peersCache.set(resolvedPackage.depPath, [cache])
-    }
-  }
-
-  ctx.pathsByNodeId.set(nodeId, depPath)
-  ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(depPath)
-  if (ctx.depPathsByPkgId != null) {
-    if (!ctx.depPathsByPkgId.has(resolvedPackage.depPath)) {
-      ctx.depPathsByPkgId.set(resolvedPackage.depPath, new Set())
-    }
-    if (!ctx.depPathsByPkgId.get(resolvedPackage.depPath)!.has(depPath)) {
-      ctx.depPathsByPkgId.get(resolvedPackage.depPath)!.add(depPath)
-    }
-  }
-  const peerDependencies = { ...resolvedPackage.peerDependencies }
-  if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
-    const dir = path.join(modules, resolvedPackage.name)
-
-    const transitivePeerDependencies = new Set<string>()
-    for (const unknownPeer of allResolvedPeers.keys()) {
-      if (!peerDependencies[unknownPeer]) {
-        transitivePeerDependencies.add(unknownPeer)
+      const cache = {
+        missingPeers: allMissingPeers,
+        depPath,
+        resolvedPeers: allResolvedPeers,
+      }
+      if (ctx.peersCache.has(resolvedPackage.depPath)) {
+        ctx.peersCache.get(resolvedPackage.depPath)!.push(cache)
+      } else {
+        ctx.peersCache.set(resolvedPackage.depPath, [cache])
       }
     }
-    for (const unknownPeer of missingPeersOfChildren) {
-      if (!peerDependencies[unknownPeer]) {
-        transitivePeerDependencies.add(unknownPeer)
+
+    ctx.pathsByNodeId.set(nodeId, depPath)
+    ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(depPath)
+    if (ctx.depPathsByPkgId != null) {
+      if (!ctx.depPathsByPkgId.has(resolvedPackage.depPath)) {
+        ctx.depPathsByPkgId.set(resolvedPackage.depPath, new Set())
+      }
+      if (!ctx.depPathsByPkgId.get(resolvedPackage.depPath)!.has(depPath)) {
+        ctx.depPathsByPkgId.get(resolvedPackage.depPath)!.add(depPath)
       }
     }
-    ctx.depGraph[depPath] = {
-      ...(node.resolvedPackage as T),
-      children: Object.assign(
-        getPreviouslyResolvedChildren(nodeId, ctx.dependenciesTree),
-        children,
-        Object.fromEntries(resolvedPeers.entries())
-      ),
-      depPath,
-      depth: node.depth,
-      dir,
-      installable: node.installable,
-      isPure,
-      modules,
-      peerDependencies,
-      transitivePeerDependencies,
-      resolvedPeerNames: new Set(allResolvedPeers.keys()),
+    const peerDependencies = { ...resolvedPackage.peerDependencies }
+    if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
+      const dir = path.join(modules, resolvedPackage.name)
+
+      const transitivePeerDependencies = new Set<string>()
+      for (const unknownPeer of allResolvedPeers.keys()) {
+        if (!peerDependencies[unknownPeer]) {
+          transitivePeerDependencies.add(unknownPeer)
+        }
+      }
+      for (const unknownPeer of missingPeersOfChildren) {
+        if (!peerDependencies[unknownPeer]) {
+          transitivePeerDependencies.add(unknownPeer)
+        }
+      }
+      ctx.depGraph[depPath] = {
+        ...(node.resolvedPackage as T),
+        children: Object.assign(
+          getPreviouslyResolvedChildren(nodeId, ctx.dependenciesTree),
+          children,
+          Object.fromEntries(resolvedPeers.entries())
+        ),
+        depPath,
+        depth: node.depth,
+        dir,
+        installable: node.installable,
+        isPure,
+        modules,
+        peerDependencies,
+        transitivePeerDependencies,
+        resolvedPeerNames: new Set(allResolvedPeers.keys()),
+      }
     }
-  }
   }
 }
 
@@ -585,13 +585,13 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     }
   }
   const { cycles } = graphSequencer(graph)
-  //?? can we find the cycles here and avoid waitig inside finish (by passing some params to it?)
+  // ?? can we find the cycles here and avoid waitig inside finish (by passing some params to it?)
   const finishing = Promise.all<void>([...finishings, ...finishes.map((finish) => finish(cycles))])
 
   // for (const [,nodeId] of [...notRepeated, ...repeated]) {
-    // ctx.pathsByNodeIdPromises.delete(nodeId)
-    // ctx.waitList.delete(nodeId)
-    // ctx.waitListReverse.delete(nodeId)
+  // ctx.pathsByNodeIdPromises.delete(nodeId)
+  // ctx.waitList.delete(nodeId)
+  // ctx.waitListReverse.delete(nodeId)
   // }
   // console.log(ctx.pathsByNodeIdPromises.size)
 

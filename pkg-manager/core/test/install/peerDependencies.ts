@@ -986,10 +986,9 @@ test('peer dependency is resolved from parent package via its alias', async () =
   }, await testDefaults())
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
-  const suffix = createPeersFolderSuffix([{ name: '@pnpm.e2e/tango-tango', version: '1.0.0' }])
   expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
-    `/@pnpm.e2e/has-tango-as-peer-dep@1.0.0${suffix}`,
-    `/@pnpm.e2e/tango-tango@1.0.0${suffix}`,
+    '/@pnpm.e2e/has-tango-as-peer-dep@1.0.0(@pnpm.e2e/tango-tango@1.0.0(@pnpm.e2e/tango-tango@1.0.0))',
+    '/@pnpm.e2e/tango-tango@1.0.0(@pnpm.e2e/tango-tango@1.0.0)',
   ])
 })
 
@@ -1676,10 +1675,10 @@ test('resolve peer of peer from the dependencies of the direct dependent package
 
   const lockfile = await project.readLockfile()
 
-  expect(lockfile.dependencies['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y'].version).toBe('1.0.0(@pnpm.e2e/has-y-peer@1.0.0)')
+  expect(lockfile.dependencies['@pnpm.e2e/has-has-y-peer-only-as-peer-and-y'].version).toBe('1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))')
   // Even though @pnpm/y@1.0.0 is in the dependencies of the direct dependent package, we resolve y from above.
   // It might make sense to print a warning in this case and suggest to make y a peer dependency in the dependent package too.
-  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0)'].dependencies?.['@pnpm.e2e/has-y-peer']).toBe('1.0.0(@pnpm/y@2.0.0)')
+  expect(lockfile.packages['/@pnpm.e2e/has-has-y-peer-only-as-peer-and-y@1.0.0(@pnpm.e2e/has-y-peer@1.0.0(@pnpm/y@2.0.0))'].dependencies?.['@pnpm.e2e/has-y-peer']).toBe('1.0.0(@pnpm/y@2.0.0)')
 })
 
 test('xxx', async () => {
