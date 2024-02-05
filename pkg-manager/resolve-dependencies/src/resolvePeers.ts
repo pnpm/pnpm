@@ -78,6 +78,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   }> {
   const depGraph: GenericDependenciesGraph<T> = {}
   const waitList = new Map<string, string[]>()
+  const waitListReverse = new Map<string, string[]>()
   const pathsByNodeId = new Map<string, string>()
   const pathsByNodeIdPromises = new Map<string, pDefer.DeferredPromise<string>>()
   const depPathsByPkgId = new Map<string, Set<string>>()
@@ -105,6 +106,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       rootDir,
       virtualStoreDir: opts.virtualStoreDir,
       waitList,
+      waitListReverse,
     })
     if (Object.keys(peerDependencyIssues.bad).length > 0 || Object.keys(peerDependencyIssues.missing).length > 0) {
       peerDependencyIssuesByProjects[id] = {
@@ -280,6 +282,7 @@ interface PeersResolution {
 
 interface ResolvePeersContext {
   waitList: Map<string, string[]>
+  waitListReverse: Map<string, string[]>
   pathsByNodeId: Map<string, string>
   pathsByNodeIdPromises: Map<string, pDefer.DeferredPromise<string>>
   depPathsByPkgId?: Map<string, Set<string>>
@@ -298,7 +301,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     rootDir: string
     lockfileDir: string
   }
-): Promise<PeersResolution> {
+): Promise<PeersResolution & { finish?: () => Promise<void> }> {
   const node = ctx.dependenciesTree.get(nodeId)!
   if (node.depth === -1) return { resolvedPeers: new Map<string, string>(), missingPeers: new Set<string>() }
   const resolvedPackage = node.resolvedPackage as T
@@ -308,6 +311,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     Object.keys(resolvedPackage.peerDependencies).length === 0
   ) {
     ctx.pathsByNodeId.set(nodeId, resolvedPackage.depPath)
+    ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(resolvedPackage.depPath)
     return { resolvedPeers: new Map<string, string>(), missingPeers: new Set<string>() }
   }
   if (typeof node.children === 'function') {
@@ -351,6 +355,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   if (hit != null) {
     ctx.pathsByNodeId.set(nodeId, hit.depPath)
     ctx.depGraph[hit.depPath].depth = Math.min(ctx.depGraph[hit.depPath].depth, node.depth)
+    ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(hit.depPath)
     return {
       missingPeers: hit.missingPeers,
       resolvedPeers: hit.resolvedPeers,
@@ -389,6 +394,11 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     allMissingPeers.add(peer)
   }
 
+  return {
+    resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers, finish
+  }
+
+  async function finish () {
   let depPath: string
   if (allResolvedPeers.size === 0) {
     depPath = resolvedPackage.depPath
@@ -405,7 +415,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
           }
           const dp = ctx.pathsByNodeId.get(peerNodeId)
           if (dp) return dp
-          if (ctx.waitList.get(nodeId)?.includes(peerNodeId)) {
+          if (ctx.waitList.get(nodeId)?.includes(peerNodeId) || ctx.waitList.get(peerNodeId)?.includes(nodeId)) {
             const { name, version } = ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage
             return `${name}@${version}`
           }
@@ -414,6 +424,40 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
           } else {
             ctx.waitList.get(peerNodeId)!.push(nodeId)
           }
+          // addToWaitlist(peerNodeId)
+          // for (const r of ctx.waitListReverse.get(peerNodeId) ?? []) {
+            // // ctx.waitList.set(r, [nodeId])
+            // if (!ctx.waitList.has(r)) {
+              // ctx.waitList.set(r, [nodeId])
+            // } else {
+              // ctx.waitList.get(r)!.push(nodeId)
+            // }
+          // }
+
+          function addToWaitlist (s: string) {
+            for (const r of ctx.waitListReverse.get(s) ?? []) {
+              // ctx.waitList.set(r, [nodeId])
+              if (!ctx.waitList.has(r)) {
+                ctx.waitList.set(r, [nodeId])
+                addToWaitlist(r)
+              } else {
+                if (ctx.waitList.get(r)!.includes(nodeId)) {
+                  continue
+                }
+                ctx.waitList.get(r)!.push(nodeId)
+                addToWaitlist(r)
+              }
+            }
+          }
+          // if (!ctx.waitListReverse.has(nodeId)) {
+            // ctx.waitListReverse.set(nodeId, [peerNodeId])
+          // } else {
+            // ctx.waitListReverse.get(nodeId)!.push(peerNodeId)
+          // }
+          // if (ctx.waitList.get(nodeId)?.includes(peerNodeId) || ctx.waitList.get(peerNodeId)?.includes(nodeId)) {
+            // const { name, version } = ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage
+            // return `${name}@${version}`
+          // }
           return await ctx.pathsByNodeIdPromises.get(peerNodeId)!.promise
         })
       )
@@ -481,7 +525,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
       resolvedPeerNames: new Set(allResolvedPeers.keys()),
     }
   }
-  return { resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers }
+  }
 }
 
 // When a package has itself in the subdependencies, so there's a cycle,
@@ -542,21 +586,27 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   }
 
   // Resolving non-repeated nodes before repeated nodes proved to be slightly faster.
-  await Promise.all(
-    [...notRepeated, ...repeated].map(async ([, childNodeId]) => {
-      const { resolvedPeers, missingPeers } = await resolvePeersOfNode(childNodeId, parentPkgs, ctx)
-      for (const [k, v] of resolvedPeers) {
-        allResolvedPeers.set(k, v)
-      }
-      for (const missingPeer of missingPeers) {
-        allMissingPeers.add(missingPeer)
-      }
-    })
-  )
-
-  for (const [,nodeId] of [...notRepeated, ...repeated]) {
-    ctx.pathsByNodeIdPromises.delete(nodeId)
+  const finishes = []
+  for (const [, childNodeId] of [...notRepeated, ...repeated]) {
+    const { resolvedPeers, missingPeers, finish } = await resolvePeersOfNode(childNodeId, parentPkgs, ctx)
+    if (finish) {
+      finishes.push(finish)
+    }
+    for (const [k, v] of resolvedPeers) {
+      allResolvedPeers.set(k, v)
+    }
+    for (const missingPeer of missingPeers) {
+      allMissingPeers.add(missingPeer)
+    }
   }
+  await Promise.all(finishes.map((finish) => finish()))
+
+  // for (const [,nodeId] of [...notRepeated, ...repeated]) {
+    // ctx.pathsByNodeIdPromises.delete(nodeId)
+    // ctx.waitList.delete(nodeId)
+    // ctx.waitListReverse.delete(nodeId)
+  // }
+  // console.log(ctx.pathsByNodeIdPromises.size)
 
   const unknownResolvedPeersOfChildren = new Map<string, string>()
   for (const [alias, v] of allResolvedPeers) {
