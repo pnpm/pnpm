@@ -1,7 +1,7 @@
 import { type CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { audit } from '@pnpm/plugin-commands-audit'
-import { generateCompletion, installCompletion, uninstallCompletion } from '@pnpm/plugin-commands-completion'
+import { generateCompletion } from '@pnpm/plugin-commands-completion'
 import { createCompletionServer } from '@pnpm/plugin-commands-completion-server'
 import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
 import { doctor } from '@pnpm/plugin-commands-doctor'
@@ -120,6 +120,7 @@ const commands: CommandDefinition[] = [
   env,
   exec,
   fetch,
+  generateCompletion,
   importCommand,
   init,
   install,
@@ -151,9 +152,6 @@ const commands: CommandDefinition[] = [
   unlink,
   update,
   why,
-  generateCompletion,
-  installCompletion,
-  uninstallCompletion,
 ]
 
 const handlerByCommandName: Record<string, Command> = {}
