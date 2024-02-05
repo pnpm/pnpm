@@ -4,6 +4,7 @@ packages:
   - __utils__/*
   - "!__utils__/build-artifacts"
   - cli/*
+  - completion/*
   - config/*
   - crypto/*
   - dedupe/*

@@ -432,8 +432,8 @@ importers:
   cli/command:
     dependencies:
       '@pnpm/tabtab':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.5.2
+        version: 0.5.2
     devDependencies:
       '@pnpm/command':
         specifier: workspace:*
@@ -557,6 +557,68 @@ importers:
       tempy:
         specifier: ^1.0.1
         version: 1.0.1
+
+  completion/plugin-commands-completion:
+    dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:^
+        version: link:../../cli/cli-utils
+      '@pnpm/error':
+        specifier: workspace:^
+        version: link:../../packages/error
+      '@pnpm/tabtab':
+        specifier: ^0.5.2
+        version: 0.5.2
+      render-help:
+        specifier: ^1.0.3
+        version: 1.0.3
+    devDependencies:
+      '@pnpm/plugin-commands-completion':
+        specifier: workspace:*
+        version: 'link:'
+
+  completion/plugin-commands-completion-server:
+    dependencies:
+      '@pnpm/cli-utils':
+        specifier: workspace:^
+        version: link:../../cli/cli-utils
+      '@pnpm/command':
+        specifier: workspace:^
+        version: link:../../cli/command
+      '@pnpm/error':
+        specifier: workspace:^
+        version: link:../../packages/error
+      '@pnpm/find-workspace-dir':
+        specifier: workspace:^
+        version: link:../../workspace/find-workspace-dir
+      '@pnpm/nopt':
+        specifier: ^0.2.1
+        version: 0.2.1
+      '@pnpm/parse-cli-args':
+        specifier: workspace:^
+        version: link:../../cli/parse-cli-args
+      '@pnpm/tabtab':
+        specifier: ^0.5.2
+        version: 0.5.2
+      '@pnpm/workspace.find-packages':
+        specifier: workspace:^
+        version: link:../../workspace/find-packages
+      ramda:
+        specifier: npm:@pnpm/ramda@0.28.1
+        version: /@pnpm/ramda@0.28.1
+      render-help:
+        specifier: ^1.0.3
+        version: 1.0.3
+      split-cmd:
+        specifier: ^1.0.1
+        version: 1.0.1
+    devDependencies:
+      '@pnpm/plugin-commands-completion-server':
+        specifier: workspace:*
+        version: 'link:'
+      '@types/ramda':
+        specifier: 0.28.20
+        version: 0.28.20
 
   config/config:
     dependencies:
@@ -4442,6 +4504,12 @@ importers:
       '@pnpm/plugin-commands-audit':
         specifier: workspace:*
         version: link:../lockfile/plugin-commands-audit
+      '@pnpm/plugin-commands-completion':
+        specifier: workspace:*
+        version: link:../completion/plugin-commands-completion
+      '@pnpm/plugin-commands-completion-server':
+        specifier: workspace:*
+        version: link:../completion/plugin-commands-completion-server
       '@pnpm/plugin-commands-config':
         specifier: workspace:*
         version: link:../config/plugin-commands-config
@@ -4509,8 +4577,8 @@ importers:
         specifier: workspace:*
         version: link:../exec/run-npm
       '@pnpm/tabtab':
-        specifier: ^0.5.1
-        version: 0.5.1
+        specifier: ^0.5.2
+        version: 0.5.2
       '@pnpm/test-fixtures':
         specifier: workspace:*
         version: link:../__utils__/test-fixtures
@@ -8533,6 +8601,7 @@ packages:
   /@pnpm/nopt@0.2.1:
     resolution: {integrity: sha512-zkgDE6q3Y6KeZPjqXCk/hRQ2t6iw9JXbdnYZghwpe/HR73e4VmV5JZ5QSFypmSd5Sx4+gjNfAqME5BVAOBCk9g==}
     engines: {node: '>=6'}
+    hasBin: true
     dependencies:
       abbrev: 1.1.1
 
@@ -8741,8 +8810,8 @@ packages:
       '@pnpm/types': 9.1.0
     dev: true
 
-  /@pnpm/tabtab@0.3.0:
-    resolution: {integrity: sha512-vasBIkcbdbh0UYtM3R+u3VvcgI0+Tp7741/yYMubfGrlhbYmQzNeLzqHH8Atl9K1NYsoRwel2rgsOaHQsdyDiw==}
+  /@pnpm/tabtab@0.5.2:
+    resolution: {integrity: sha512-ihbP3cE9ejh7EuR4B9TC0syGPlIml6AQWNPZnGSGAMOAax2+4jpCuCNwD2c+Iw/0V1bjvGh9bhs/Lf49EDMuaQ==}
     engines: {node: '>=18'}
     dependencies:
       debug: 4.3.4
@@ -8751,19 +8820,6 @@ packages:
       untildify: 4.0.0
     transitivePeerDependencies:
       - supports-color
-    dev: false
-
-  /@pnpm/tabtab@0.5.1:
-    resolution: {integrity: sha512-HxPtirhCWUIYKlt2ifIDvFq7ur9kyvROnTTkaGFPghIHYLkHEfxBa6dNIylQ4x121+erNJdtJe24aH0AWKkdPQ==}
-    engines: {node: '>=18'}
-    dependencies:
-      debug: 4.3.4
-      enquirer: 2.4.1
-      minimist: 1.2.8
-      untildify: 4.0.0
-    transitivePeerDependencies:
-      - supports-color
-    dev: true
 
   /@pnpm/text.comments-parser@2.0.0:
     resolution: {integrity: sha512-DRWtTmmxQQtuWHf1xPt9bqzCSq8d0MQF5x1kdpCDMLd7xk3nP4To2/OGkPrb8MKbrWsgCNDwXyKCFlEKrAg7fg==}
@@ -16669,7 +16725,6 @@ packages:
 
   /split-cmd@1.0.1:
     resolution: {integrity: sha512-HnyUFgtv7yNcGKK1+tO1O2eyXwEVnXqQzjshvroHsCu4M9fxS8lJ3bpW9XfD8YG0SdxW6hXNHdT/VFAxtNY1yw==}
-    dev: true
 
   /split2@3.2.2:
     resolution: {integrity: sha512-9NThjpgZnifTkJpzTZ7Eue85S49QwpNhZTq6GRJwObb6jnLFNGB7Qm73V5HewTROPyxD0C29xqmaI68bQtV+hg==}
@@ -18176,9 +18231,13 @@ packages:
     dev: false
 
 time:
-  /@pnpm/tabtab@0.3.0: '2024-01-31T14:41:21.440Z'
-  /@pnpm/tabtab@0.5.1: '2024-02-02T15:12:43.629Z'
+  /@pnpm/nopt@0.2.1: '2021-06-01T19:45:54.552Z'
+  /@pnpm/ramda@0.28.1: '2022-08-03T13:56:59.597Z'
+  /@pnpm/tabtab@0.5.2: '2024-02-05T11:11:20.511Z'
   /@types/object-hash@3.0.6: '2023-11-07T12:14:41.852Z'
+  /@types/ramda@0.28.20: '2022-11-11T10:32:59.530Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@10.0.1: '2023-11-02T18:13:42.360Z'
   /object-hash@3.0.0: '2022-02-18T15:10:47.040Z'
+  /render-help@1.0.3: '2023-01-29T01:46:41.262Z'
+  /split-cmd@1.0.1: '2020-01-22T19:18:26.255Z'

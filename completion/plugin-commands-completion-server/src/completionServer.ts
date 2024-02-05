@@ -5,17 +5,19 @@ import tabtab from '@pnpm/tabtab'
 import {
   currentTypedWordType,
   getLastOption,
-} from '../getOptionType'
-import { parseCliArgs } from '../parseCliArgs'
+} from './getOptionType'
+import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { complete } from './complete'
 
-export function createCompletion (
+export function createCompletionServer (
   opts: {
     cliOptionsTypesByCommandName: Record<string, () => Record<string, unknown>>
     completionByCommandName: Record<string, CompletionFunc>
     initialCompletion: () => CompletionItem[]
     shorthandsByCommandName: Record<string, Record<string, string | string[]>>
+    parseCliArgs: (args: string[]) => Promise<ParsedCliArgs>
     universalOptionsTypes: Record<string, unknown>
+    universalShorthands: Record<string, string>
   }
 ) {
   return async () => {
@@ -30,7 +32,7 @@ export function createCompletion (
     const inputArgv = splitCmd(finishedArgv).slice(1)
     // We cannot autocomplete what a user types after "pnpm test --"
     if (inputArgv.includes('--')) return
-    const { params, options, cmd } = await parseCliArgs(inputArgv)
+    const { params, options, cmd } = await opts.parseCliArgs(inputArgv)
     tabtab.log(
       await complete(
         opts,

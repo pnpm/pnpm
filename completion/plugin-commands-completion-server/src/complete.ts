@@ -2,9 +2,8 @@ import { type CompletionItem } from '@pnpm/tabtab'
 import { type CompletionFunc } from '@pnpm/command'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { getOptionCompletions } from '../getOptionType'
-import { optionTypesToCompletions } from '../optionTypesToCompletions'
-import { shorthands as universalShorthands } from '../shorthands'
+import { getOptionCompletions } from './getOptionType'
+import { optionTypesToCompletions } from './optionTypesToCompletions'
 
 export async function complete (
   ctx: {
@@ -13,6 +12,7 @@ export async function complete (
     initialCompletion: () => CompletionItem[]
     shorthandsByCommandName: Record<string, Record<string, string | string[]>>
     universalOptionsTypes: Record<string, unknown>
+    universalShorthands: Record<string, string>
   },
   input: {
     params: string[]
@@ -46,7 +46,7 @@ export async function complete (
       const optionCompletions = getOptionCompletions(
         optionTypes as any, // eslint-disable-line
         {
-          ...universalShorthands,
+          ...ctx.universalShorthands,
           ...(input.cmd ? ctx.shorthandsByCommandName[input.cmd] : {}),
         },
         input.lastOption

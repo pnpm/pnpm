@@ -14,23 +14,6 @@ const argv = process.argv.slice(2)
     console.log(version)
     break
   }
-  case 'completion': {
-    const { getCompletionScript, isShellSupported } = await import('@pnpm/tabtab')
-    function exitError (message: string): never {
-      console.error(message)
-      process.exit(1)
-    }
-    const shell = argv[1]?.trim()
-    if (!shell) {
-      exitError('missing argument for shell')
-    }
-    if (!isShellSupported(shell)) {
-      exitError(`${shell} is not supported`)
-    }
-    const completionScript = await getCompletionScript({ name: 'pnpm', completer: 'pnpm', shell })
-    console.log(completionScript)
-    return
-  }
   case 'install-completion': {
     const { install: installCompletion, isShellSupported } = await import('@pnpm/tabtab')
     const shell = argv[1]?.trim()
