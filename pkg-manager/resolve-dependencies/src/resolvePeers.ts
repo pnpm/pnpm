@@ -8,6 +8,7 @@ import type {
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
 import { depPathToFilename, createPeersFolderSuffix } from '@pnpm/dependency-path'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import mapValues from 'ramda/src/map'
 import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
@@ -86,6 +87,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
   const rootPkgsByName = opts.resolvePeersFromWorkspaceRoot ? getRootPkgsByName(opts.dependenciesTree, opts.projects) : {}
   const peerDependencyIssuesByProjects: PeerDependencyIssuesByProjects = {}
 
+  const finishings = [] as any[] // eslint-disable-line
   await Promise.all(opts.projects.map(async ({ directNodeIdsByAlias, topParents, rootDir, id }) => {
     const peerDependencyIssues: Pick<PeerDependencyIssues, 'bad' | 'missing'> = { bad: {}, missing: {} }
     const pkgsByName = {
@@ -93,7 +95,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       ..._createPkgsByName({ directNodeIdsByAlias, topParents }),
     }
 
-    await resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
+    const { finishing } = await resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
       dependenciesTree: opts.dependenciesTree,
       depGraph,
       lockfileDir: opts.lockfileDir,
@@ -108,6 +110,9 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       waitList,
       waitListReverse,
     })
+    if (finishing) {
+      finishings.push(finishing)
+    }
     if (Object.keys(peerDependencyIssues.bad).length > 0 || Object.keys(peerDependencyIssues.missing).length > 0) {
       peerDependencyIssuesByProjects[id] = {
         ...peerDependencyIssues,
@@ -115,6 +120,7 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       }
     }
   }))
+  await Promise.all(finishings)
 
   Object.values(depGraph).forEach((node) => {
     node.children = mapValues((childNodeId) => pathsByNodeId.get(childNodeId) ?? childNodeId, node.children)
@@ -301,7 +307,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     rootDir: string
     lockfileDir: string
   }
-): Promise<PeersResolution & { finish?: () => Promise<void> }> {
+): Promise<PeersResolution & { finishing?: Promise<any>, finish?: (cycles: string[][]) => Promise<void> }> {
   const node = ctx.dependenciesTree.get(nodeId)!
   if (node.depth === -1) return { resolvedPeers: new Map<string, string>(), missingPeers: new Set<string>() }
   const resolvedPackage = node.resolvedPackage as T
@@ -365,6 +371,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   const {
     resolvedPeers: unknownResolvedPeersOfChildren,
     missingPeers: missingPeersOfChildren,
+    finishing,
   } = await resolvePeersOfChildren(children, parentPkgs, ctx)
 
   const { resolvedPeers, missingPeers } = Object.keys(resolvedPackage.peerDependencies).length === 0
@@ -395,14 +402,22 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   }
 
   return {
-    resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers, finish
+    resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers, finish, finishing
   }
 
-  async function finish () {
+  async function finish (cycles: string[][]) {
   let depPath: string
   if (allResolvedPeers.size === 0) {
     depPath = resolvedPackage.depPath
   } else {
+    const cyclic = new Set()
+    for (const cycle of cycles) {
+      if (cycle.includes(nodeId)) {
+        for (const c of cycle) {
+          cyclic.add(c)
+        }
+      }
+    }
     const peersFolderSuffix = createPeersFolderSuffix(
       await Promise.all([...allResolvedPeers.entries()]
         .map(async ([alias, peerNodeId]) => {
@@ -415,49 +430,10 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
           }
           const dp = ctx.pathsByNodeId.get(peerNodeId)
           if (dp) return dp
-          if (ctx.waitList.get(nodeId)?.includes(peerNodeId) || ctx.waitList.get(peerNodeId)?.includes(nodeId)) {
+          if (cyclic.has(peerNodeId)) {
             const { name, version } = ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage
             return `${name}@${version}`
           }
-          if (!ctx.waitList.has(peerNodeId)) {
-            ctx.waitList.set(peerNodeId, [nodeId])
-          } else {
-            ctx.waitList.get(peerNodeId)!.push(nodeId)
-          }
-          // addToWaitlist(peerNodeId)
-          // for (const r of ctx.waitListReverse.get(peerNodeId) ?? []) {
-            // // ctx.waitList.set(r, [nodeId])
-            // if (!ctx.waitList.has(r)) {
-              // ctx.waitList.set(r, [nodeId])
-            // } else {
-              // ctx.waitList.get(r)!.push(nodeId)
-            // }
-          // }
-
-          function addToWaitlist (s: string) {
-            for (const r of ctx.waitListReverse.get(s) ?? []) {
-              // ctx.waitList.set(r, [nodeId])
-              if (!ctx.waitList.has(r)) {
-                ctx.waitList.set(r, [nodeId])
-                addToWaitlist(r)
-              } else {
-                if (ctx.waitList.get(r)!.includes(nodeId)) {
-                  continue
-                }
-                ctx.waitList.get(r)!.push(nodeId)
-                addToWaitlist(r)
-              }
-            }
-          }
-          // if (!ctx.waitListReverse.has(nodeId)) {
-            // ctx.waitListReverse.set(nodeId, [peerNodeId])
-          // } else {
-            // ctx.waitListReverse.get(nodeId)!.push(peerNodeId)
-          // }
-          // if (ctx.waitList.get(nodeId)?.includes(peerNodeId) || ctx.waitList.get(peerNodeId)?.includes(nodeId)) {
-            // const { name, version } = ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage
-            // return `${name}@${version}`
-          // }
           return await ctx.pathsByNodeIdPromises.get(peerNodeId)!.promise
         })
       )
@@ -573,7 +549,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     rootDir: string
     lockfileDir: string
   }
-): Promise<PeersResolution> {
+): Promise<PeersResolution & { finishing: Promise<void[]> }> {
   const allResolvedPeers = new Map<string, string>()
   const allMissingPeers = new Set<string>()
 
@@ -586,9 +562,18 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   }
 
   // Resolving non-repeated nodes before repeated nodes proved to be slightly faster.
-  const finishes = []
+  const finishes: any[] = [] // eslint-disable-line
+  const graph = new Map<string, string[]>()
+  const finishings = [] as any[] // eslint-disable-line
   for (const [, childNodeId] of [...notRepeated, ...repeated]) {
-    const { resolvedPeers, missingPeers, finish } = await resolvePeersOfNode(childNodeId, parentPkgs, ctx)
+    const { resolvedPeers, missingPeers, finish, finishing } = await resolvePeersOfNode(childNodeId, parentPkgs, ctx)
+    if (finishing) {
+      finishings.push(finishing)
+    }
+    // check resolvedPeers for cycles
+    if (resolvedPeers.size) {
+      graph.set(childNodeId, Array.from(resolvedPeers.values()))
+    }
     if (finish) {
       finishes.push(finish)
     }
@@ -599,7 +584,9 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
       allMissingPeers.add(missingPeer)
     }
   }
-  await Promise.all(finishes.map((finish) => finish()))
+  const { cycles } = graphSequencer(graph)
+  //?? can we find the cycles here and avoid waitig inside finish (by passing some params to it?)
+  const finishing = Promise.all<void>([...finishings, ...finishes.map((finish) => finish(cycles))])
 
   // for (const [,nodeId] of [...notRepeated, ...repeated]) {
     // ctx.pathsByNodeIdPromises.delete(nodeId)
@@ -615,7 +602,7 @@ async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     }
   }
 
-  return { resolvedPeers: unknownResolvedPeersOfChildren, missingPeers: allMissingPeers }
+  return { resolvedPeers: unknownResolvedPeersOfChildren, missingPeers: allMissingPeers, finishing }
 }
 
 function _resolvePeers<T extends PartialResolvedPackage> (

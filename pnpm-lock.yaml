@@ -4097,6 +4097,9 @@ importers:
       '@pnpm/dependency-path':
         specifier: workspace:*
         version: link:../../packages/dependency-path
+      '@pnpm/deps.graph-sequencer':
+        specifier: 1.0.0
+        version: 1.0.0
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../packages/error
@@ -8339,6 +8342,11 @@ packages:
       string-length: 4.0.2
       strip-ansi: 6.0.1
     dev: true
+
+  /@pnpm/deps.graph-sequencer@1.0.0:
+    resolution: {integrity: sha512-vWWVbYYBBN/kweokmURicokyg7crzcDZo9/naziv8B8RSWrLWFpq5Xl0ro6QCQKgRmb6O78Qy9uQT+Fp79RxsA==}
+    engines: {node: '>=16.14'}
+    dev: false
 
   /@pnpm/error@4.0.1:
     resolution: {integrity: sha512-6UFakGqUDhnZVzYCfN+QaG1epxtBVS1M9mb9RzoBuvWxcimBYTT04fdYuyk1Nay8y/TvAVl3AVB/lCziWG0+2w==}
@@ -18162,6 +18170,7 @@ packages:
     dev: false
 
 time:
+  /@pnpm/deps.graph-sequencer@1.0.0: '2023-10-15T23:14:46.212Z'
   /@pnpm/registry-mock@3.24.0: '2024-02-04T16:32:15.565Z'
   /fuse-native@2.2.6: '2020-06-03T19:26:36.838Z'
   /node-gyp@10.0.1: '2023-11-02T18:13:42.360Z'
