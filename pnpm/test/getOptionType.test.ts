@@ -2,7 +2,7 @@ import {
   currentTypedWordType,
   getLastOption,
   getOptionCompletions,
-} from '../src/getOptionType'
+} from '@pnpm/plugin-commands-completion-server/lib/getOptionType'
 
 const TYPES = {
   color: ['red', 'blue', Array],

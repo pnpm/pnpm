@@ -1,4 +1,5 @@
-import { complete } from '../src/cmd/complete'
+import { complete } from '@pnpm/plugin-commands-completion-server/lib/complete'
+import { shorthands as universalShorthands } from '../lib/shorthands'
 
 test('complete an option value', async () => {
   const completions = await complete(
@@ -12,6 +13,7 @@ test('complete an option value', async () => {
       initialCompletion: () => [],
       shorthandsByCommandName: {},
       universalOptionsTypes: {},
+      universalShorthands,
     },
     {
       cmd: 'install',
@@ -42,6 +44,7 @@ test('complete a command', async () => {
     universalOptionsTypes: {
       filter: String,
     },
+    universalShorthands,
   }
   expect(
     await complete(ctx,
@@ -108,6 +111,7 @@ test('if command completion fails, return empty array', async () => {
         universalOptionsTypes: {
           filter: String,
         },
+        universalShorthands,
       },
       {
         cmd: 'run',
@@ -134,6 +138,7 @@ test('initial completion', async () => {
     universalOptionsTypes: {
       filter: String,
     },
+    universalShorthands,
   }
   expect(
     await complete(ctx,
@@ -193,6 +198,7 @@ test('suggest no completions for after --version', async () => {
         ],
         shorthandsByCommandName: {},
         universalOptionsTypes: {},
+        universalShorthands,
       },
       {
         cmd: null,
