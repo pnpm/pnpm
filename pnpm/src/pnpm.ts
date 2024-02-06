@@ -14,21 +14,6 @@ const argv = process.argv.slice(2)
     console.log(version)
     break
   }
-  case 'install-completion': {
-    const { install: installCompletion, isShellSupported } = await import('@pnpm/tabtab')
-    const shell = argv[1]?.trim()
-    if (!isShellSupported(shell)) {
-      console.error(`Unsupported shell: ${shell}`)
-      process.exit(1)
-    }
-    await installCompletion({ name: 'pnpm', completer: 'pnpm', shell })
-    return
-  }
-  case 'uninstall-completion': {
-    const { uninstall: uninstallCompletion } = await import('@pnpm/tabtab')
-    await uninstallCompletion({ name: 'pnpm' })
-    return
-  }
   // commands that are passed through to npm:
   case 'access':
   case 'adduser':

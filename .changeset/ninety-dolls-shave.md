@@ -1,5 +1,5 @@
 ---
-"pnpm": patch
+"pnpm": minor
 ---
 
-Add powershell completion.
+PowerShell completion support added [#7597](https://github.com/pnpm/pnpm/pull/7597).
