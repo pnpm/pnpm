@@ -117,19 +117,19 @@ function toLockfileDependency (
   if (opts.depPath[0] !== '/' && !pkg.id.endsWith(opts.depPath)) {
     result['id'] = pkg.id
   }
-  if (Object.keys(pkg.peerDependencies ?? {}).length > 0) {
-    result['peerDependencies'] = pkg.peerDependencies
-  }
   if (pkg.transitivePeerDependencies.size) {
     result['transitivePeerDependencies'] = Array.from(pkg.transitivePeerDependencies).sort()
   }
-  if (pkg.peerDependenciesMeta != null) {
+  if (Object.keys(pkg.peerDependencies ?? {}).length > 0) {
+    const peerPkgs: Record<string, string> = {}
     const normalizedPeerDependenciesMeta: Record<string, { optional: true }> = {}
-    for (const [peer, { optional }] of Object.entries(pkg.peerDependenciesMeta)) {
+    for (const [peer, { version, optional }] of Object.entries(pkg.peerDependencies)) {
+      peerPkgs[peer] = version
       if (optional) {
         normalizedPeerDependenciesMeta[peer] = { optional: true }
       }
     }
+    result['peerDependencies'] = peerPkgs
     if (Object.keys(normalizedPeerDependenciesMeta).length > 0) {
       result['peerDependenciesMeta'] = normalizedPeerDependenciesMeta
     }

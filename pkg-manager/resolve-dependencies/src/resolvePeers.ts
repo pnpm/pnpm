@@ -3,7 +3,6 @@ import path from 'path'
 import semver from 'semver'
 import { semverUtils } from '@yarnpkg/core'
 import type {
-  Dependencies,
   PeerDependencyIssues,
   PeerDependencyIssuesByProjects,
 } from '@pnpm/types'
@@ -13,6 +12,7 @@ import partition from 'ramda/src/partition'
 import pick from 'ramda/src/pick'
 import scan from 'ramda/src/scan'
 import {
+  type PeerDependencies,
   type DependenciesTree,
   type DependenciesTreeNode,
   type ResolvedPackage,
@@ -28,7 +28,7 @@ export interface GenericDependenciesGraphNode {
   dir: string
   children: Record<string, string>
   depth: number
-  peerDependencies?: Dependencies
+  peerDependencies?: PeerDependencies
   transitivePeerDependencies: Set<string>
   installable: boolean
   isBuilt?: boolean
@@ -41,7 +41,6 @@ export type PartialResolvedPackage = Pick<ResolvedPackage,
 | 'depPath'
 | 'name'
 | 'peerDependencies'
-| 'peerDependenciesMeta'
 | 'version'
 >
 
@@ -435,7 +434,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     const dir = path.join(modules, resolvedPackage.name)
 
     const transitivePeerDependencies = new Set<string>()
-    for (const unknownPeer of unknownResolvedPeersOfChildren.keys()) {
+    for (const unknownPeer of allResolvedPeers.keys()) {
       if (!peerDependencies[unknownPeer]) {
         transitivePeerDependencies.add(unknownPeer)
       }
@@ -554,11 +553,11 @@ function _resolvePeers<T extends PartialResolvedPackage> (
 ): PeersResolution {
   const resolvedPeers = new Map<string, string>()
   const missingPeers = new Set<string>()
-  for (const peerName in ctx.resolvedPackage.peerDependencies) { // eslint-disable-line:forin
-    const peerVersionRange = ctx.resolvedPackage.peerDependencies[peerName].replace(/^workspace:/, '')
+  for (const [peerName, { version, optional }] of Object.entries(ctx.resolvedPackage.peerDependencies)) {
+    const peerVersionRange = version.replace(/^workspace:/, '')
 
     const resolved = ctx.parentPkgs[peerName]
-    const optionalPeer = ctx.resolvedPackage.peerDependenciesMeta?.[peerName]?.optional === true
+    const optionalPeer = optional === true
 
     if (!resolved) {
       missingPeers.add(peerName)
