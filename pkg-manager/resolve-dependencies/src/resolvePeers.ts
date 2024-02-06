@@ -402,41 +402,73 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     allMissingPeers.add(peer)
   }
 
-  let depPath: string
-  let cc: PeersCacheItem
+  let cache: PeersCacheItem
   const isPure = allResolvedPeers.size === 0 && allMissingPeers.size === 0
-  let calculateDepPath
 
   if (!isPure) {
-    cc = {
+    cache = {
       missingPeers: allMissingPeers,
       depPath: pDefer(),
       resolvedPeers: allResolvedPeers,
     }
     if (ctx.peersCache.has(resolvedPackage.depPath)) {
-      ctx.peersCache.get(resolvedPackage.depPath)!.push(cc)
+      ctx.peersCache.get(resolvedPackage.depPath)!.push(cache)
     } else {
-      ctx.peersCache.set(resolvedPackage.depPath, [cc])
+      ctx.peersCache.set(resolvedPackage.depPath, [cache])
     }
-  }
-  if (allResolvedPeers.size === 0) {
-    if (isPure) {
-      ctx.purePkgs.add(resolvedPackage.depPath)
-    }
-    depPath = resolvedPackage.depPath
-    addDepPathToGraph()
   } else {
-    calculateDepPath = _calculateDepPath
+    ctx.purePkgs.add(resolvedPackage.depPath)
+  }
+
+  let calculateDepPathIfNeeded: CalculateDepPath | undefined
+  if (allResolvedPeers.size === 0) {
+    addDepPathToGraph(resolvedPackage.depPath)
+  } else {
+    calculateDepPathIfNeeded = calculateDepPath
   }
 
   return {
-    resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers, calculateDepPath, finishing,
+    resolvedPeers: allResolvedPeers,
+    missingPeers: allMissingPeers,
+    calculateDepPath: calculateDepPathIfNeeded,
+    finishing,
   }
 
-  function addDepPathToGraph () {
-    if (cc) {
-      cc.depPath.resolve(depPath)
+  async function calculateDepPath (cycles: string[][]) {
+    const cyclic = new Set()
+    for (const cycle of cycles) {
+      if (cycle.includes(nodeId)) {
+        for (const c of cycle) {
+          cyclic.add(c)
+        }
+      }
     }
+    const peersFolderSuffix = createPeersFolderSuffix(
+      await Promise.all([...allResolvedPeers.entries()]
+        .map(async ([alias, peerNodeId]) => {
+          if (peerNodeId.startsWith('link:')) {
+            const linkedDir = peerNodeId.slice(5)
+            return {
+              name: alias,
+              version: filenamify(linkedDir, { replacement: '+' }),
+            }
+          }
+          const dp = ctx.pathsByNodeId.get(peerNodeId)
+          const peerPkg = (ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage as T)
+          if (dp) return dp
+          if (cyclic.has(peerNodeId)) {
+            const { name, version } = peerPkg
+            return `${name}@${version}`
+          }
+          return ctx.pathsByNodeIdPromises.get(peerNodeId)!.promise
+        })
+      )
+    )
+    addDepPathToGraph(`${resolvedPackage.depPath}${peersFolderSuffix}`)
+  }
+
+  function addDepPathToGraph (depPath: string) {
+    cache?.depPath.resolve(depPath)
     const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath))
     const modules = path.join(localLocation, 'node_modules')
 
@@ -483,41 +515,6 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
         resolvedPeerNames: new Set(allResolvedPeers.keys()),
       }
     }
-  }
-
-  async function _calculateDepPath (cycles: string[][]) {
-    const cyclic = new Set()
-    for (const cycle of cycles) {
-      if (cycle.includes(nodeId)) {
-        for (const c of cycle) {
-          cyclic.add(c)
-        }
-      }
-    }
-    const peersFolderSuffix = createPeersFolderSuffix(
-      await Promise.all([...allResolvedPeers.entries()]
-        .map(async ([alias, peerNodeId]) => {
-          if (peerNodeId.startsWith('link:')) {
-            const linkedDir = peerNodeId.slice(5)
-            return {
-              name: alias,
-              version: filenamify(linkedDir, { replacement: '+' }),
-            }
-          }
-          const dp = ctx.pathsByNodeId.get(peerNodeId)
-          const peerPkg = (ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage as T)
-          if (dp) return dp
-          if (cyclic.has(peerNodeId)) {
-            const { name, version } = peerPkg
-            return `${name}@${version}`
-          }
-
-          return ctx.pathsByNodeIdPromises.get(peerNodeId)!.promise
-        })
-      )
-    )
-    depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
-    addDepPathToGraph()
   }
 }
 
