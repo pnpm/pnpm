@@ -44,7 +44,6 @@
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/plugin-commands-audit": "workspace:*",
     "@pnpm/plugin-commands-completion": "workspace:*",
-    "@pnpm/plugin-commands-completion-server": "workspace:*",
     "@pnpm/plugin-commands-config": "workspace:*",
     "@pnpm/plugin-commands-deploy": "workspace:*",
     "@pnpm/plugin-commands-doctor": "workspace:*",

@@ -47,9 +47,6 @@
       "path": "../completion/plugin-commands-completion"
     },
     {
-      "path": "../completion/plugin-commands-completion-server"
-    },
-    {
       "path": "../config/config"
     },
     {

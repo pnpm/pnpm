@@ -563,25 +563,6 @@ importers:
       '@pnpm/cli-utils':
         specifier: workspace:^
         version: link:../../cli/cli-utils
-      '@pnpm/error':
-        specifier: workspace:^
-        version: link:../../packages/error
-      '@pnpm/tabtab':
-        specifier: ^0.5.2
-        version: 0.5.2
-      render-help:
-        specifier: ^1.0.3
-        version: 1.0.3
-    devDependencies:
-      '@pnpm/plugin-commands-completion':
-        specifier: workspace:*
-        version: 'link:'
-
-  completion/plugin-commands-completion-server:
-    dependencies:
-      '@pnpm/cli-utils':
-        specifier: workspace:^
-        version: link:../../cli/cli-utils
       '@pnpm/command':
         specifier: workspace:^
         version: link:../../cli/command
@@ -613,7 +594,7 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1
     devDependencies:
-      '@pnpm/plugin-commands-completion-server':
+      '@pnpm/plugin-commands-completion':
         specifier: workspace:*
         version: 'link:'
       '@types/ramda':
@@ -4507,9 +4488,6 @@ importers:
       '@pnpm/plugin-commands-completion':
         specifier: workspace:*
         version: link:../completion/plugin-commands-completion
-      '@pnpm/plugin-commands-completion-server':
-        specifier: workspace:*
-        version: link:../completion/plugin-commands-completion-server
       '@pnpm/plugin-commands-config':
         specifier: workspace:*
         version: link:../config/plugin-commands-config
