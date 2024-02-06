@@ -555,7 +555,9 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   const [repeated, notRepeated] = partition(([alias]) => parentPkgs[alias] != null, Object.entries(children))
 
   for (const [,nodeId] of [...notRepeated, ...repeated]) {
-    ctx.pathsByNodeIdPromises.set(nodeId, pDefer())
+    if (!ctx.pathsByNodeIdPromises.has(nodeId)) {
+      ctx.pathsByNodeIdPromises.set(nodeId, pDefer())
+    }
   }
 
   // Resolving non-repeated nodes before repeated nodes proved to be slightly faster.
