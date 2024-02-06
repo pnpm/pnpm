@@ -93,7 +93,8 @@ export async function resolvePeers<T extends PartialResolvedPackage> (
       ..._createPkgsByName({ directNodeIdsByAlias, topParents }),
     }
 
-    const { finishing } = resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
+    // eslint-disable-next-line no-await-in-loop
+    const { finishing } = await resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
       dependenciesTree: opts.dependenciesTree,
       depGraph,
       lockfileDir: opts.lockfileDir,
@@ -291,7 +292,7 @@ interface ResolvePeersContext {
 type CalculateDepPath = (cycles: string[][]) => Promise<void>
 type FinishingResolutionPromise = Promise<void>
 
-function resolvePeersOfNode<T extends PartialResolvedPackage> (
+async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   nodeId: string,
   parentParentPkgs: ParentRefs,
   ctx: ResolvePeersContext & {
@@ -304,7 +305,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     rootDir: string
     lockfileDir: string
   }
-): PeersResolution & { finishing?: FinishingResolutionPromise, calculateDepPath?: CalculateDepPath } {
+): Promise<PeersResolution & { finishing?: FinishingResolutionPromise, calculateDepPath?: CalculateDepPath }> {
   const node = ctx.dependenciesTree.get(nodeId)!
   if (node.depth === -1) return { resolvedPeers: new Map<string, string>(), missingPeers: new Set<string>() }
   const resolvedPackage = node.resolvedPackage as T
@@ -372,7 +373,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     resolvedPeers: unknownResolvedPeersOfChildren,
     missingPeers: missingPeersOfChildren,
     finishing,
-  } = resolvePeersOfChildren(children, parentPkgs, ctx)
+  } = await resolvePeersOfChildren(children, parentPkgs, ctx)
 
   const { resolvedPeers, missingPeers } = Object.keys(resolvedPackage.peerDependencies).length === 0
     ? { resolvedPeers: new Map<string, string>(), missingPeers: new Set<string>() }
@@ -550,7 +551,7 @@ function getPreviouslyResolvedChildren<T extends PartialResolvedPackage> (nodeId
   return allChildren
 }
 
-function resolvePeersOfChildren<T extends PartialResolvedPackage> (
+async function resolvePeersOfChildren<T extends PartialResolvedPackage> (
   children: {
     [alias: string]: string
   },
@@ -565,7 +566,7 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     rootDir: string
     lockfileDir: string
   }
-): PeersResolution & { finishing: Promise<void> } {
+): Promise<PeersResolution & { finishing: Promise<void> }> {
   const allResolvedPeers = new Map<string, string>()
   const allMissingPeers = new Set<string>()
 
@@ -589,7 +590,7 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
       missingPeers,
       calculateDepPath,
       finishing,
-    } = resolvePeersOfNode(childNodeId, parentPkgs, ctx)
+    } = await resolvePeersOfNode(childNodeId, parentPkgs, ctx) // eslint-disable-line no-await-in-loop
     if (finishing) {
       finishingList.push(finishing)
     }
