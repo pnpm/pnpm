@@ -270,7 +270,7 @@ function createPkgsByName<T extends PartialResolvedPackage> (
 }
 
 interface PeersCacheItem {
-  depPath: string
+  depPath: pDefer.DeferredPromise<string>
   resolvedPeers: Map<string, string>
   missingPeers: Set<string>
 }
@@ -356,11 +356,14 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     return true
   })
   if (hit != null) {
-    ctx.pathsByNodeId.set(nodeId, hit.depPath)
-    ctx.depGraph[hit.depPath].depth = Math.min(ctx.depGraph[hit.depPath].depth, node.depth)
-    ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(hit.depPath)
     return {
       missingPeers: hit.missingPeers,
+      finishing: (async () => {
+        const dp = await hit.depPath.promise
+        ctx.pathsByNodeId.set(nodeId, dp)
+        ctx.depGraph[dp].depth = Math.min(ctx.depGraph[dp].depth, node.depth)
+        ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(dp)
+      })(),
       resolvedPeers: hit.resolvedPeers,
     }
   }
@@ -398,62 +401,43 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
     allMissingPeers.add(peer)
   }
 
+  let depPath: string
+  let cc: PeersCacheItem
+  const isPure = allResolvedPeers.size === 0 && allMissingPeers.size === 0
+  let calculateDepPath
+
+  if (!isPure) {
+    cc = {
+      missingPeers: allMissingPeers,
+      depPath: pDefer(),
+      resolvedPeers: allResolvedPeers,
+    }
+    if (ctx.peersCache.has(resolvedPackage.depPath)) {
+      ctx.peersCache.get(resolvedPackage.depPath)!.push(cc)
+    } else {
+      ctx.peersCache.set(resolvedPackage.depPath, [cc])
+    }
+  }
+  if (allResolvedPeers.size === 0) {
+    if (isPure) {
+      ctx.purePkgs.add(resolvedPackage.depPath)
+    }
+    depPath = resolvedPackage.depPath
+    addDepPathToGraph()
+  } else {
+    calculateDepPath = _calculateDepPath
+  }
+
   return {
     resolvedPeers: allResolvedPeers, missingPeers: allMissingPeers, calculateDepPath, finishing,
   }
 
-  async function calculateDepPath (cycles: string[][]) {
-    let depPath: string
-    if (allResolvedPeers.size === 0) {
-      depPath = resolvedPackage.depPath
-    } else {
-      const cyclic = new Set()
-      for (const cycle of cycles) {
-        if (cycle.includes(nodeId)) {
-          for (const c of cycle) {
-            cyclic.add(c)
-          }
-        }
-      }
-      const peersFolderSuffix = createPeersFolderSuffix(
-        await Promise.all([...allResolvedPeers.entries()]
-          .map(async ([alias, peerNodeId]) => {
-            if (peerNodeId.startsWith('link:')) {
-              const linkedDir = peerNodeId.slice(5)
-              return {
-                name: alias,
-                version: filenamify(linkedDir, { replacement: '+' }),
-              }
-            }
-            const dp = ctx.pathsByNodeId.get(peerNodeId)
-            if (dp) return dp
-            if (cyclic.has(peerNodeId)) {
-              const { name, version } = ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage
-              return `${name}@${version}`
-            }
-            return ctx.pathsByNodeIdPromises.get(peerNodeId)!.promise
-          })
-        )
-      )
-      depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
+  function addDepPathToGraph () {
+    if (cc) {
+      cc.depPath.resolve(depPath)
     }
     const localLocation = path.join(ctx.virtualStoreDir, depPathToFilename(depPath))
     const modules = path.join(localLocation, 'node_modules')
-    const isPure = allResolvedPeers.size === 0 && allMissingPeers.size === 0
-    if (isPure) {
-      ctx.purePkgs.add(resolvedPackage.depPath)
-    } else {
-      const cache = {
-        missingPeers: allMissingPeers,
-        depPath,
-        resolvedPeers: allResolvedPeers,
-      }
-      if (ctx.peersCache.has(resolvedPackage.depPath)) {
-        ctx.peersCache.get(resolvedPackage.depPath)!.push(cache)
-      } else {
-        ctx.peersCache.set(resolvedPackage.depPath, [cache])
-      }
-    }
 
     ctx.pathsByNodeId.set(nodeId, depPath)
     ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(depPath)
@@ -498,6 +482,41 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
         resolvedPeerNames: new Set(allResolvedPeers.keys()),
       }
     }
+  }
+
+  async function _calculateDepPath (cycles: string[][]) {
+    const cyclic = new Set()
+    for (const cycle of cycles) {
+      if (cycle.includes(resolvedPackage.depPath)) {
+        for (const c of cycle) {
+          cyclic.add(c)
+        }
+      }
+    }
+    const peersFolderSuffix = createPeersFolderSuffix(
+      await Promise.all([...allResolvedPeers.entries()]
+        .map(async ([alias, peerNodeId]) => {
+          if (peerNodeId.startsWith('link:')) {
+            const linkedDir = peerNodeId.slice(5)
+            return {
+              name: alias,
+              version: filenamify(linkedDir, { replacement: '+' }),
+            }
+          }
+          const dp = ctx.pathsByNodeId.get(peerNodeId)
+          const peerPkg = (ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage as T)
+          if (dp) return dp
+          if (cyclic.has(peerPkg.depPath)) {
+            const { name, version } = peerPkg
+            return `${name}@${version}`
+          }
+
+          return ctx.pathsByNodeIdPromises.get(peerNodeId)!.promise
+        })
+      )
+    )
+    depPath = `${resolvedPackage.depPath}${peersFolderSuffix}`
+    addDepPathToGraph()
   }
 }
 
