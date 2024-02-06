@@ -487,7 +487,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
   async function _calculateDepPath (cycles: string[][]) {
     const cyclic = new Set()
     for (const cycle of cycles) {
-      if (cycle.includes(resolvedPackage.depPath)) {
+      if (cycle.includes(nodeId)) {
         for (const c of cycle) {
           cyclic.add(c)
         }
@@ -506,7 +506,7 @@ function resolvePeersOfNode<T extends PartialResolvedPackage> (
           const dp = ctx.pathsByNodeId.get(peerNodeId)
           const peerPkg = (ctx.dependenciesTree.get(peerNodeId)!.resolvedPackage as T)
           if (dp) return dp
-          if (cyclic.has(peerPkg.depPath)) {
+          if (cyclic.has(peerNodeId)) {
             const { name, version } = peerPkg
             return `${name}@${version}`
           }
@@ -593,9 +593,7 @@ function resolvePeersOfChildren<T extends PartialResolvedPackage> (
     if (finishing) {
       finishingList.push(finishing)
     }
-    if (resolvedPeers.size) {
-      graph.set(childNodeId, Array.from(resolvedPeers.values()))
-    }
+    graph.set(childNodeId, Array.from(resolvedPeers.values()))
     if (calculateDepPath) {
       calculateDepPaths.push(calculateDepPath)
     }
