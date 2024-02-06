@@ -12,7 +12,7 @@ overrides:
   clipanion: 3.2.0-rc.6
   debug@<3.1.0: '>=3.1.0'
   glob-parent@<5.1.2: '>=5.1.2'
-  hosted-git-info@4: npm:@zkochan/hosted-git-info@^4.0.2
+  hosted-git-info@1: npm:@pnpm/hosted-git-info@1.0.0
   istanbul-reports: npm:@zkochan/istanbul-reports
   js-yaml@^4.0.0: npm:@zkochan/js-yaml@0.0.6
   json5@<2.2.2: '>=2.2.2'
@@ -4950,8 +4950,8 @@ importers:
         specifier: ^3.1.2
         version: 3.1.2
       hosted-git-info:
-        specifier: npm:@zkochan/hosted-git-info@4.0.2
-        version: /@zkochan/hosted-git-info@4.0.2
+        specifier: npm:@pnpm/hosted-git-info@1.0.0
+        version: /@pnpm/hosted-git-info@1.0.0
       semver:
         specifier: ^7.5.4
         version: 7.5.4
@@ -8573,7 +8573,7 @@ packages:
     resolution: {integrity: sha512-oQYP08exi6mOPdAZZWcNIGS+KKPsnNwUBzSuAEGWuCcqwMAt3k/WVCqVIXzBxhO5sP2b43og69VHmPj6IroKqw==}
     engines: {node: '>=14.6'}
     dependencies:
-      hosted-git-info: /@zkochan/hosted-git-info@4.0.2
+      hosted-git-info: /@pnpm/hosted-git-info@1.0.0
       semver: 7.5.4
       validate-npm-package-name: 4.0.0
     dev: false
@@ -9666,11 +9666,12 @@ packages:
       spawno: 2.1.1
     dev: false
 
-  /@zkochan/hosted-git-info@4.0.2:
-    resolution: {integrity: sha512-DviFQfIuMzstXzcutxWP5uaAdzEg6AtAWtMKFkqVSgx6otqZ2hJaSML6saK1a1cVOfhu/ZqjV7qTSnYAdX2nhw==}
+  /@pnpm/hosted-git-info@1.0.0:
+    resolution: {integrity: sha512-QzmNiLShTnNyeTHr+cykG5hYjwph0+v49KHV36Dh8uA2rRMWw30qoZMARuxd00SYdoTwT8bIouqqmzi6TWfJHQ==}
     engines: {node: '>=10'}
     dependencies:
       lru-cache: 6.0.0
+    dev: false
 
   /@zkochan/istanbul-reports@3.0.2:
     resolution: {integrity: sha512-GeZZ9YNlvveT1CrMqe64s9+5hNF5p9Gj6J+PRQU3OnBS/9c2y5kSFavUZ9YAuoAgxFW8tKGKWIxJK4I6HBSigg==}
@@ -14966,7 +14967,7 @@ packages:
     resolution: {integrity: sha512-p2W1sgqij3zMMyRC067Dg16bfzVH+w7hyegmpIvZ4JNjqtGOVAIvLmjBx3yP7YTe9vKJgkoNOPjwQGogDoMXFA==}
     engines: {node: '>=10'}
     dependencies:
-      hosted-git-info: /@zkochan/hosted-git-info@4.0.2
+      hosted-git-info: /@pnpm/hosted-git-info@1.0.0
       is-core-module: 2.13.1
       semver: 7.5.4
       validate-npm-package-license: 3.0.4
