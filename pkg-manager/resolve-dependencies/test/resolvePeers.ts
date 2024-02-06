@@ -204,12 +204,12 @@ test('when a package is referenced twice in the dependencies graph and one of th
     virtualStoreDir: '',
     lockfileDir: '',
   })
-  expect(Object.keys(dependenciesGraph)).toStrictEqual([
+  expect(Object.keys(dependenciesGraph).sort()).toStrictEqual([
+    'bar/1.0.0',
     'foo/1.0.0',
+    'foo/1.0.0(qar/1.0.0)',
     'qar/1.0.0',
     'zoo/1.0.0',
-    'bar/1.0.0',
-    'foo/1.0.0(qar/1.0.0)',
     'zoo/1.0.0(qar/1.0.0)',
   ])
 })
