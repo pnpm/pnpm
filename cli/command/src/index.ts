@@ -1,6 +1,6 @@
-export interface Completion { name: string, description?: string }
+import { type CompletionItem } from '@pnpm/tabtab'
 
 export type CompletionFunc = (
   options: Record<string, unknown>,
   params: string[]
-) => Promise<Completion[]>
+) => Promise<CompletionItem[]>
