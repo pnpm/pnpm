@@ -1,23 +1,28 @@
-import { type Completion, type CompletionFunc } from '@pnpm/command'
+import { type CompletionItem, getShellFromEnv } from '@pnpm/tabtab'
+import { type CompletionFunc } from '@pnpm/command'
 import { split as splitCmd } from 'split-cmd'
 import tabtab from '@pnpm/tabtab'
 import {
   currentTypedWordType,
   getLastOption,
-} from '../getOptionType'
-import { parseCliArgs } from '../parseCliArgs'
+} from './getOptionType'
+import { type ParsedCliArgs } from '@pnpm/parse-cli-args'
 import { complete } from './complete'
 
-export function createCompletion (
+export function createCompletionServer (
   opts: {
     cliOptionsTypesByCommandName: Record<string, () => Record<string, unknown>>
     completionByCommandName: Record<string, CompletionFunc>
-    initialCompletion: () => Completion[]
+    initialCompletion: () => CompletionItem[]
     shorthandsByCommandName: Record<string, Record<string, string | string[]>>
+    parseCliArgs: (args: string[]) => Promise<ParsedCliArgs>
     universalOptionsTypes: Record<string, unknown>
+    universalShorthands: Record<string, string>
   }
 ) {
   return async () => {
+    const shell = getShellFromEnv(process.env)
+
     const env = tabtab.parseEnv(process.env)
     if (!env.complete) return
 
@@ -27,8 +32,8 @@ export function createCompletion (
     const inputArgv = splitCmd(finishedArgv).slice(1)
     // We cannot autocomplete what a user types after "pnpm test --"
     if (inputArgv.includes('--')) return
-    const { params, options, cmd } = await parseCliArgs(inputArgv)
-    return tabtab.log(
+    const { params, options, cmd } = await opts.parseCliArgs(inputArgv)
+    tabtab.log(
       await complete(
         opts,
         {
@@ -38,7 +43,8 @@ export function createCompletion (
           options,
           params,
         }
-      )
+      ),
+      shell
     )
   }
 }

@@ -44,6 +44,9 @@
       "path": "../cli/parse-cli-args"
     },
     {
+      "path": "../completion/plugin-commands-completion"
+    },
+    {
       "path": "../config/config"
     },
     {

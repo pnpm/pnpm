@@ -1,6 +1,7 @@
 import { type CompletionFunc } from '@pnpm/command'
 import { types as allTypes } from '@pnpm/config'
 import { audit } from '@pnpm/plugin-commands-audit'
+import { generateCompletion, createCompletionServer } from '@pnpm/plugin-commands-completion'
 import { config, getCommand, setCommand } from '@pnpm/plugin-commands-config'
 import { doctor } from '@pnpm/plugin-commands-doctor'
 import { env } from '@pnpm/plugin-commands-env'
@@ -27,8 +28,9 @@ import { catFile, catIndex, findHash } from '@pnpm/plugin-commands-store-inspect
 import { init } from '@pnpm/plugin-commands-init'
 import pick from 'ramda/src/pick'
 import { type PnpmOptions } from '../types'
+import { shorthands as universalShorthands } from '../shorthands'
+import { parseCliArgs } from '../parseCliArgs'
 import * as bin from './bin'
-import { createCompletion } from './completion'
 import { createHelp } from './help'
 import * as installTest from './installTest'
 import * as recursive from './recursive'
@@ -117,6 +119,7 @@ const commands: CommandDefinition[] = [
   env,
   exec,
   fetch,
+  generateCompletion,
   importCommand,
   init,
   install,
@@ -190,12 +193,14 @@ for (let i = 0; i < commands.length; i++) {
 }
 
 handlerByCommandName.help = createHelp(helpByCommandName)
-handlerByCommandName.completion = createCompletion({
+handlerByCommandName['completion-server'] = createCompletionServer({
   cliOptionsTypesByCommandName,
   completionByCommandName,
   initialCompletion,
   shorthandsByCommandName,
   universalOptionsTypes: GLOBAL_OPTIONS,
+  universalShorthands,
+  parseCliArgs,
 })
 
 function initialCompletion () {

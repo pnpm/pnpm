@@ -103,10 +103,12 @@ test('resolve peer dependencies of cyclic dependencies', () => {
     lockfileDir: '',
   })
   expect(Object.keys(dependenciesGraph)).toStrictEqual([
-    'foo/1.0.0(bar@1.0.0)(qar@1.0.0)(zoo@1.0.0)',
-    'bar/1.0.0(foo@1.0.0)(qar@1.0.0)(zoo@1.0.0)',
-    'zoo/1.0.0(bar@1.0.0)(foo@1.0.0)(qar@1.0.0)',
-    'qar/1.0.0(bar@1.0.0)(foo@1.0.0)(zoo@1.0.0)',
+    'foo/1.0.0(qar@1.0.0)(zoo@1.0.0)',
+    'bar/1.0.0(foo@1.0.0)(zoo@1.0.0)',
+    'zoo/1.0.0(qar@1.0.0)',
+    'qar/1.0.0(bar@1.0.0)(foo@1.0.0)',
+    'bar/1.0.0(foo@1.0.0)',
+    'foo/1.0.0',
   ])
 })
 

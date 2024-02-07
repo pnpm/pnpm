@@ -43,6 +43,7 @@
     "@pnpm/parse-cli-args": "workspace:*",
     "@pnpm/pick-registry-for-package": "workspace:*",
     "@pnpm/plugin-commands-audit": "workspace:*",
+    "@pnpm/plugin-commands-completion": "workspace:*",
     "@pnpm/plugin-commands-config": "workspace:*",
     "@pnpm/plugin-commands-deploy": "workspace:*",
     "@pnpm/plugin-commands-doctor": "workspace:*",
@@ -65,7 +66,7 @@
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/registry-mock": "3.20.0",
     "@pnpm/run-npm": "workspace:*",
-    "@pnpm/tabtab": "^0.1.2",
+    "@pnpm/tabtab": "^0.5.2",
     "@pnpm/test-fixtures": "workspace:*",
     "@pnpm/test-ipc-server": "workspace:*",
     "@pnpm/types": "workspace:*",
@@ -163,7 +164,7 @@
     "prepublishOnly": "pnpm compile && npm cache clear --force && publish-packed --prune --npm-client=pnpm --dest=dist",
     "postpublish": "publish-packed",
     "_compile": "tsc --build",
-    "compile": "tsc --build && pnpm run lint --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/scripts dist/scripts && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc"
+    "compile": "tsc --build && pnpm run lint --fix && rimraf dist bin/nodes && pnpm run bundle && shx cp -r node-gyp-bin dist/node-gyp-bin && shx cp -r node_modules/@pnpm/tabtab/lib/templates dist/templates && shx cp -r node_modules/ps-list/vendor dist/vendor && shx cp pnpmrc dist/pnpmrc"
   },
   "publishConfig": {
     "tag": "next-9",

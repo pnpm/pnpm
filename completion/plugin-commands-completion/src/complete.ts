@@ -1,17 +1,18 @@
-import { type Completion, type CompletionFunc } from '@pnpm/command'
+import { type CompletionItem } from '@pnpm/tabtab'
+import { type CompletionFunc } from '@pnpm/command'
 import { findWorkspaceDir } from '@pnpm/find-workspace-dir'
 import { findWorkspacePackages } from '@pnpm/workspace.find-packages'
-import { getOptionCompletions } from '../getOptionType'
-import { optionTypesToCompletions } from '../optionTypesToCompletions'
-import { shorthands as universalShorthands } from '../shorthands'
+import { getOptionCompletions } from './getOptionType'
+import { optionTypesToCompletions } from './optionTypesToCompletions'
 
 export async function complete (
   ctx: {
     cliOptionsTypesByCommandName: Record<string, () => Record<string, unknown>>
     completionByCommandName: Record<string, CompletionFunc>
-    initialCompletion: () => Completion[]
+    initialCompletion: () => CompletionItem[]
     shorthandsByCommandName: Record<string, Record<string, string | string[]>>
     universalOptionsTypes: Record<string, unknown>
+    universalShorthands: Record<string, string>
   },
   input: {
     params: string[]
@@ -20,7 +21,7 @@ export async function complete (
     lastOption: string | null
     options: Record<string, unknown>
   }
-) {
+): Promise<CompletionItem[]> {
   if (input.options.version) return []
   const optionTypes = {
     ...ctx.universalOptionsTypes,
@@ -39,13 +40,13 @@ export async function complete (
         },
       })
       return allProjects
-        .filter(({ manifest }) => manifest.name)
         .map(({ manifest }) => ({ name: manifest.name }))
+        .filter((item): item is CompletionItem => !!item.name)
     } else if (input.lastOption) {
       const optionCompletions = getOptionCompletions(
         optionTypes as any, // eslint-disable-line
         {
-          ...universalShorthands,
+          ...ctx.universalShorthands,
           ...(input.cmd ? ctx.shorthandsByCommandName[input.cmd] : {}),
         },
         input.lastOption
@@ -55,7 +56,7 @@ export async function complete (
       }
     }
   }
-  let completions: Completion[] = []
+  let completions: CompletionItem[] = []
   if (input.currentTypedWordType !== 'option') {
     if (!input.cmd || input.currentTypedWordType === 'value' && !ctx.completionByCommandName[input.cmd]) {
       completions = ctx.initialCompletion()
