@@ -18,7 +18,7 @@ export type ClientOptions = {
   authConfig: Record<string, string>
   customFetchers?: CustomFetchers
   ignoreScripts?: boolean
-  rawConfig: object
+  rawConfig: Record<string, string>
   retry?: RetryTimeoutOptions
   timeout?: number
   unsafePerm?: boolean
